@@ -1,0 +1,22 @@
+# General OS Files
+.DS_Store
+Thumbs.db
+
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+*.env
+
+# Logs
+logs/
+*.log
+
+# Test outputs
+.pytest_cache/
+coverage.xml
+*.coverage
+htmlcov/

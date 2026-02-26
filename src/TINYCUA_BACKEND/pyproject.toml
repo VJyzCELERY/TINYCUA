@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 88
+select = ["E", "W", "F", "D"] # Enabled docstring (pydocstyle) rules
+ignore = []
+fixable = ["ALL"] # Enable auto-fixing
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "all" # Absolute imports only
+
+[lint.per-file-ignores]
+"**/tests/**" = ["D"] # Skip docstring rules for tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --disable-warnings --maxfail=2 --cov=tinycua_backend --cov-report=html"
