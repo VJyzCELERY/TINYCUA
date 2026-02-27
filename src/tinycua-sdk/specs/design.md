@@ -1,11 +1,31 @@
-# Design Document
+# Design: [Feature Name]
+
+> This file is the technical design for this subproject feature.
+> Copy and fill in from the root template: `../../../specs/design-template.md`
+
+---
 
 ## Overview
-This file outlines the technical and architectural design for tinycua-sdk.
 
-### Diagrams
-(Add technical diagrams or workflows here)
+[One paragraph: what this changes and the key architectural decision]
 
-### Key Components
-- Component A
-- Component B
+---
+
+## Architecture
+
+[Describe component interactions. Use ASCII diagrams if helpful.]
+
+---
+
+## Implementation Phases
+
+### Phase 1 — MVP
+
+- [ ] [Task]
+
+---
+
+## Technical Decisions
+
+1. **Decision**: [what was decided]
+   - **Reason**: [why]

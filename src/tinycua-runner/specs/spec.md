@@ -1,12 +1,30 @@
-# Specification
+# Specification: [Feature Name]
 
-## Purpose
-This document outlines the specific requirements and expectations for tinycua-runner.
+> This file is the feature spec for this subproject.
+> Copy and fill in from the root template: `../../../specs/spec-template.md`
 
-## Scope
-- Define the primary functionality.
-- Highlight expected inputs and outputs.
+---
+
+## Problem Statement
+
+[What problem does this solve? Who needs it?]
+
+---
 
 ## Requirements
-1. [Requirement 1]
-2. [Requirement 2]
+
+- **FR-001**: [Requirement]
+- **FR-002**: [Requirement]
+
+---
+
+## Success Criteria
+
+- [How do we know this is done?]
+
+---
+
+## Testing Plan
+
+- Unit: [what to unit test]
+- Integration: [what to integration test]

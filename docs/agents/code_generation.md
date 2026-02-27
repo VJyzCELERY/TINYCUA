@@ -1,7 +1,7 @@
 # Code Generation Rules for AI Agents
 
 ## Overview
-This document defines the rules and expectations for AI agents generating code for TINYCUA and its subprojects.
+This document defines the rules and expectations for AI agents generating code for the MAIN-PROJECT and its subprojects.
 
 ---
 
@@ -37,6 +37,8 @@ AI-generated commits must follow the repository's naming conventions as defined 
 - **Feature Addition**: `(feat): Implement OAuth2.0 tokens`
 - **Bug Fix**: `(fix): Resolve crash in auth token refresh`
 - **Documentation**: `(docs): Add API setup guide to README`
+- **Bug Fix**: `fix(logging): handle missing log configurations gracefully`
+- **Documentation**: `docs: update README with new installation guide`
 
 Ensure commit messages are meaningful, concise, and adhere to the [commit naming rules](../project_rules/commit_naming.md).
 
@@ -72,6 +74,6 @@ Examples:
 ## Testing Expectations
 1. **Test Coverage**:
     - AI-generated code must include corresponding unit and integration tests.
-    - Tests must be generated under the appropriate subproject's `tests/` folder.
+    - Tests must be generated under the appropriate subproject’s `tests/` folder.
 2. **Documented Test Cases**:
     - Include examples of expected inputs and outputs in the docstrings.
