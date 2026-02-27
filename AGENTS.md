@@ -14,3 +14,5 @@ This file serves as an index for navigating the AI agent-related documentation s
     - Managing prompts reliably.
 4. **[Automation Standards](docs/agents/task_automation.md)**
     - Rules for automating tasks with AI.
+5. **[Code Review Standards](docs/agents/code_review.md)**
+    - Rules for reviewing code and providing feedback.

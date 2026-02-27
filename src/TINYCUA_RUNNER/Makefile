@@ -3,7 +3,7 @@
 # Variables
 PYTHON ?= python3
 
-.PHONY: install lint test coverage clean
+.PHONY: install lint test coverage complexity clean
 
 # Install dependencies
 install:
@@ -21,6 +21,11 @@ test:
 # Run tests with coverage
 coverage:
 	pytest --cov=tinycua_runner --cov-report=html
+
+# Run cognitive complexity analysis (radon)
+complexity:
+	radon cc . -a -nc
+	radon mi . -n B
 
 # Clean up artifacts
 clean:

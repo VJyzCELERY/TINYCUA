@@ -1,8 +1,11 @@
 [tool.ruff]
 line-length = 88
-select = ["E", "W", "F", "D"] # Enabled docstring (pydocstyle) rules
+select = ["E", "W", "F", "D", "C901"] # Enabled docstring (pydocstyle) rules
 ignore = []
 fixable = ["ALL"] # Enable auto-fixing
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [lint.flake8-tidy-imports]
 ban-relative-imports = "all" # Absolute imports only
