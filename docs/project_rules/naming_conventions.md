@@ -3,9 +3,9 @@
 This document defines the naming conventions for TINYCUA and its subprojects.
 
 ## Subproject Naming Convention
-1. Each subproject folder should be named using UPPER_SNAKE_CASE:
-   - Example: `TINYCUA_BACKEND`
-2. The corresponding source code folder inside a subproject should use lower_snake_case:
+1. Each subproject folder should be named using lower-kebab-case:
+   - Example: `tinycua-backend`
+2. The corresponding source code (Python package) folder inside a subproject should use lower_snake_case:
    - Example: `tinycua_backend`.
 
 ## File Naming Conventions

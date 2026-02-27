@@ -10,9 +10,9 @@ TINYCUA/
 │   └── project_rules/             # Coding standards, testing, logging rules
 ├── specs/                         # Project-level specifications
 ├── src/                           # Subprojects
-│   ├── TINYCUA_BACKEND/           # Backend services
-│   ├── TINYCUA_RUNNER/            # Execution engine
-│   └── TINYCUA_SDK/               # Developer SDK
+│   ├── tinycua-backend/           # Backend services
+│   ├── tinycua-runner/            # Execution engine
+│   └── tinycua-sdk/               # Developer SDK
 ├── .gitignore
 ├── AGENTS.md
 ├── Makefile

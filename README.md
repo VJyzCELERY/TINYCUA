@@ -3,9 +3,9 @@
 TINYCUA is a modular multi-subproject repository consisting of three primary subprojects that work together to provide a complete system.
 
 ## Subprojects
-1. **TINYCUA_BACKEND** - Backend services and core API functionality.
-2. **TINYCUA_RUNNER** - Execution engine and workflow orchestration.
-3. **TINYCUA_SDK** - Developer SDK and integration libraries.
+1. **tinycua-backend** - Backend services and core API functionality.
+2. **tinycua-runner** - Execution engine and workflow orchestration.
+3. **tinycua-sdk** - Developer SDK and integration libraries.
 
 ## Folder Structure
 ```
@@ -15,9 +15,9 @@ TINYCUA/
 │   └── project_rules/             # Coding standards, testing, logging rules
 ├── specs/                         # Project-level specifications
 ├── src/                           # Source directory for subprojects
-│   ├── TINYCUA_BACKEND/
-│   ├── TINYCUA_RUNNER/
-│   └── TINYCUA_SDK/
+│   ├── tinycua-backend/
+│   ├── tinycua-runner/
+│   └── tinycua-sdk/
 └── ...
 ```
 
