@@ -18,6 +18,7 @@
 ## Docstring Guide
 ### Examples
 ```python
+def to_fahrenheit(celsius: float) -> float:
 """
 This function converts temperature from Celsius to Fahrenheit.
 
@@ -28,7 +29,5 @@ Examples:
     # Convert 0 degrees C to Fahrenheit
     fahrenheit = to_fahrenheit(0)
 """
-
-def to_fahrenheit(celsius: float) -> float:
     return celsius * 9 / 5 + 32
 ```
