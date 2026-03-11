@@ -10,13 +10,13 @@ TINYCUA/
 │   └── project_rules/             # Coding standards, testing, logging rules
 ├── specs/                         # Project-level specifications
 │   └── <feature-name>/
-│       ├── spec.md                # "what and why" — requirements and acceptance criteria
-│       └── design.md             # "how" — architecture and implementation plan
+│       ├── spec.md
+│       └── design.md
 ├── src/                           # Subprojects
-│   ├── tinycua-backend/           # Backend services
-│   ├── tinycua-finetune/          # LLM fine-tuning pipeline
-│   ├── tinycua-runner/            # Execution engine
-│   └── tinycua-sdk/               # Developer SDK
+│   ├── tinycua-backend/
+│   ├── tinycua-finetune/
+│   ├── tinycua-runner/
+│   └── tinycua-sdk/
 ├── .gitignore
 ├── AGENTS.md
 ├── Makefile
@@ -25,6 +25,42 @@ TINYCUA/
 ```
 
 Subprojects inherit coding standards and documentation rules from TINYCUA but may define specific rules in their `docs/project_rules/` folder.
+
+---
+
+## Package Internal Layout
+
+The Python package (`my_subproject/`) sits at the same level as `pyproject.toml`, not inside it. Domain/feature areas are organised as subpackages:
+
+```
+src/
+└── my-subproject/                 # lower-kebab-case subproject folder
+    ├── my_subproject/             # lower_snake_case Python package
+    │   ├── __init__.py
+    │   └── <module>/              # domain/feature subpackage (lower_snake_case)
+    │       └── __init__.py
+    ├── tests/
+    │   ├── unit/
+    │   └── integration/
+    ├── specs/
+    │   ├── README.md
+    │   └── <feature-name>/
+    │       ├── spec.md
+    │       └── design.md
+    ├── docs/
+    │   ├── agents/
+    │   └── examples/
+    ├── AGENTS.md
+    ├── Makefile
+    ├── pyproject.toml             ← subproject root, NOT inside the package
+    └── README.md
+```
+
+Rules:
+- `pyproject.toml` lives at the **subproject root** — never inside the package folder.
+- Each domain/feature area gets its own subpackage (e.g., `clients/`, `models/`, `tools/`).
+- Every subpackage must have an `__init__.py`.
+- Subpackage names use `lower_snake_case`.
 
 ---
 
@@ -41,33 +77,7 @@ Subfolder names use `lower-kebab-case`.
 
 ---
 
-## Standard Subproject Structure
-
-Each subproject under `src/` follows this layout:
-
-```
-src/<subproject>/
-├── docs/
-│   ├── agents/agent_rules.md      # AI agent rules for this subproject
-│   └── examples/example_main.py   # Usage examples
-├── specs/
-│   ├── README.md                  # Convention guide and features table
-│   └── <feature-name>/
-│       ├── spec.md
-│       └── design.md
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── <package>/                     # Python package (lower_snake_case)
-├── AGENTS.md
-├── Makefile
-├── pyproject.toml
-└── README.md
-```
-
----
-
-### Standard Makefile for Subprojects
+## Standard Makefile for Subprojects
 All subprojects must include a `Makefile` to simplify common operations. Below are the predefined targets:
 
 - **install**: Installs all dependencies.

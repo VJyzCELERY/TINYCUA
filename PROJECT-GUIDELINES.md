@@ -90,6 +90,36 @@ Feature subfolder names use `lower-kebab-case`.
 - Each subproject must have:
   - `docs/agents/` — agent rules and guidelines
   - `docs/project_rules/` — project-specific rules
+  - `specs/` — feature specs in `specs/<feature-name>/` subfolders (see above)
   - `tests/unit/` and `tests/integration/` — test directories
   - `Makefile` with `install`, `lint`, `test`, `coverage`, `complexity`, `clean` targets
   - `pyproject.toml` configured with Ruff, pytest, and radon
+
+### Package Internal Layout
+
+The Python package folder sits alongside `pyproject.toml` at the subproject root.
+Inside the package, code is organised into domain/feature subpackages (modules):
+
+```
+src/
+└── my-subproject/                 # lower-kebab-case subproject folder
+    ├── my_subproject/             # lower_snake_case Python package
+    │   ├── __init__.py
+    │   └── <module>/              # domain/feature subpackage (lower_snake_case)
+    │       └── __init__.py
+    ├── tests/
+    │   ├── unit/
+    │   └── integration/
+    ├── specs/
+    ├── docs/
+    ├── AGENTS.md
+    ├── Makefile
+    ├── pyproject.toml             ← subproject root, NOT inside the package
+    └── README.md
+```
+
+Rules:
+- `pyproject.toml` lives at the subproject root — never inside the package folder.
+- Each domain/feature area gets its own subpackage folder (e.g., `clients/`, `models/`, `tools/`).
+- Every subpackage must have an `__init__.py`.
+- Keep subpackage names short and noun-based (`lower_snake_case`).
