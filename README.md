@@ -1,11 +1,12 @@
 # TINYCUA
 
-TINYCUA is a modular multi-subproject repository consisting of three primary subprojects that work together to provide a complete system.
+TINYCUA is a modular multi-subproject repository consisting of four subprojects that work together to provide a complete system.
 
 ## Subprojects
 1. **tinycua-backend** - Backend services and core API functionality.
 2. **tinycua-runner** - Execution engine and workflow orchestration.
 3. **tinycua-sdk** - Developer SDK and integration libraries.
+4. **tinycua-finetune** - Fine-tuning pipeline for open-weight LLMs and vision-LMMs, covering dataset synthesis from tool manifests, QLoRA/LoRA training, and GGUF conversion for local inference.
 
 ## Folder Structure
 ```
@@ -16,6 +17,7 @@ TINYCUA/
 ├── specs/                         # Project-level specifications
 ├── src/                           # Source directory for subprojects
 │   ├── tinycua-backend/
+│   ├── tinycua-finetune/
 │   ├── tinycua-runner/
 │   └── tinycua-sdk/
 └── ...
