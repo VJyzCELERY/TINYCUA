@@ -54,13 +54,32 @@ Implement only what is in the spec. Avoid flexibility that is not needed yet.
 
 ## Specifications and Design Rules
 
-Specifications are stored in the `specs/` folder. When creating a new spec:
+Specs live in `specs/` folders — both at the project root and inside each subproject.
+**Never** create a flat `spec.md` or `design.md` directly inside `specs/`.
+Always use a named feature subfolder.
 
-1. Create a folder within `specs/`: `specs/<feature-name>/`
+### Project-level specs (root `specs/`)
+
+For cross-subproject or project-wide features:
+
+1. Create `specs/<feature-name>/`
 2. Add two files using the root templates:
    - `spec.md` — the "what and why" (copy from `specs/spec-template.md`)
    - `design.md` — the "how" (copy from `specs/design-template.md`)
 3. Resolve all `[NEEDS CLARIFICATION]` markers before starting implementation
+
+### Subproject-level specs (`src/<subproject>/specs/`)
+
+For features scoped to a single subproject:
+
+1. Create `src/<subproject>/specs/<feature-name>/`
+2. Add two files using the root templates:
+   - `spec.md` (copy from `specs/spec-template.md`)
+   - `design.md` (copy from `specs/design-template.md`)
+3. Update `src/<subproject>/specs/README.md` features table
+4. Resolve all `[NEEDS CLARIFICATION]` markers before starting implementation
+
+Feature subfolder names use `lower-kebab-case`.
 
 ---
 

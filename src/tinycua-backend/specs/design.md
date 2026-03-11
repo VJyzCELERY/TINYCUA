@@ -1,31 +1,11 @@
-# Design: [Feature Name]
+# Design files have moved
 
-> This file is the technical design for this subproject feature.
-> Copy and fill in from the root template: `../../../specs/design-template.md`
+Feature design docs are no longer stored as flat files directly in `specs/`.
 
----
+Each feature now has its own subfolder:
 
-## Overview
+```
+specs/<feature-name>/design.md
+```
 
-[One paragraph: what this changes and the key architectural decision]
-
----
-
-## Architecture
-
-[Describe component interactions. Use ASCII diagrams if helpful.]
-
----
-
-## Implementation Phases
-
-### Phase 1 — MVP
-
-- [ ] [Task]
-
----
-
-## Technical Decisions
-
-1. **Decision**: [what was decided]
-   - **Reason**: [why]
+See `specs/README.md` for the full convention and the features table.

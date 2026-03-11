@@ -1,30 +1,11 @@
-# Specification: [Feature Name]
+# Spec files have moved
 
-> This file is the feature spec for this subproject.
-> Copy and fill in from the root template: `../../../specs/spec-template.md`
+Feature specs are no longer stored as flat files directly in `specs/`.
 
----
+Each feature now has its own subfolder:
 
-## Problem Statement
+```
+specs/<feature-name>/spec.md
+```
 
-[What problem does this solve? Who needs it?]
-
----
-
-## Requirements
-
-- **FR-001**: [Requirement]
-- **FR-002**: [Requirement]
-
----
-
-## Success Criteria
-
-- [How do we know this is done?]
-
----
-
-## Testing Plan
-
-- Unit: [what to unit test]
-- Integration: [what to integration test]
+See `specs/README.md` for the full convention and the features table.
