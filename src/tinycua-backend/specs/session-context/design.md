@@ -18,6 +18,39 @@ This design adds comprehensive session context management with embedding-based s
 - Hierarchical memory types with importance scoring
 - Retry with exponential backoff + circuit breaker
 - Prefect-style execution traces
+- Custom agent loop (inspired by OpenCode approach)
+
+---
+
+## Library Stack
+
+Based on research:
+
+| Component | Library | Usage |
+|-----------|---------|-------|
+| HTTP Client | **httpx** | All HTTP calls, async + sync |
+| AI/Embeddings | **python-ai-sdk** | embed_many, cosine_similarity, tool decorator |
+| Tokenizer | **tiktoken** | Token counting |
+| ORM | **SQLAlchemy** | Database |
+| Migrations | **Alembic** | Schema management |
+| Serialization | **Pydantic** | Config + types |
+| Retry | **tenacity** | Retry logic |
+| Logging | **structlog** | Structured logging |
+
+### Why python-ai-sdk?
+
+- **Zero-configuration** embeddings with batching
+- Built-in **cosine_similarity** for semantic search
+- Tool definition decorator (we build custom executor)
+- Provider-agnostic (OpenAI, Anthropic)
+
+### Why Custom Agent Loop?
+
+Following **OpenCode's approach**:
+- Build custom orchestration (don't use LangGraph)
+- Use python-ai-sdk for provider abstraction + embeddings
+- Control the loop: LLM → tools → LLM cycle
+- Full control over compaction, memory, error recovery
 
 ---
 
@@ -82,6 +115,54 @@ TINYCUA_DATA_DIR/
         ├── summary.md           # Frontloaded to agent prompt
         └── full_context.md     # Archived turns
 ```
+
+---
+
+## 0. Compaction Template (OpenCode-Inspired)
+
+Inspired by **OpenCode's compaction system** (`compaction.ts`):
+
+### Summary Template
+
+Use this structure when generating session summaries:
+
+```markdown
+## Goal
+
+[What goal(s) is the user trying to accomplish?]
+
+## Instructions
+
+- [What important instructions did the user give you that are relevant]
+- [If there is a plan or spec, include information about it so next agent can continue using it]
+
+## Discoveries
+
+[What notable things were learned during this conversation that would be useful for the next agent to know when continuing the work]
+
+## Accomplished
+
+[What work has been completed, what work is still in progress, and what work is left?]
+
+## Relevant files / directories
+
+[Construct a structured list of relevant files that have been read, edited, or created that pertain to the task at hand. If all the files in a directory are relevant, include the path to the directory.]
+```
+
+### Compaction Buffer
+
+Following OpenCode's approach:
+- Reserve a configurable token buffer (default: 20,000 tokens)
+- Calculate: `usable_tokens = model_limit.input - reserved`
+- Trigger compaction when: `current_tokens >= usable_tokens`
+
+### Pruning vs Compaction
+
+OpenCode separates these concepts:
+- **Pruning**: Strip old tool call outputs (keep context, remove large outputs)
+- **Full compaction**: Archive turns to file, generate summary, keep recent turns
+
+Consider implementing pruning first, then full compaction as needed.
 
 ---
 
@@ -494,7 +575,7 @@ observability:
 
 ---
 
-## 5. Embedding Service (Existing)
+## 1. Token Estimation
 
 ### OpenAI-Compatible API Format
 
@@ -632,26 +713,56 @@ force_compact() -> str:
 
 ## Technical Decisions
 
-1. **Decision**: Use tiktoken for token estimation
+### Library Stack
+
+1. **httpx for HTTP**
+   - **Reason**: Async + sync support, modern, well-maintained
+
+2. **python-ai-sdk for embeddings + tools**
+   - **Reason**: Zero-config embeddings with batching, cosine_similarity, tool decorator
+   - **Usage**: Partial - we use embeddings + tool definitions, but build custom executor
+
+3. **tiktoken for token estimation**
    - **Reason**: Accurate, well-maintained, supports many encodings
 
-2. **Decision**: Hybrid importance scoring
-   - **Reason**: Fast heuristic + accurate LLM option
+4. **SQLAlchemy + Alembic**
+   - **Reason**: Standard Python ORM, works well with SQLite
 
-3. **Decision**: Per-component circuit breaker
-   - **Reason**: Isolates failures, prevents cascading
+5. **Pydantic for serialization**
+   - **Reason**: Most popular, good integration with FastAPI
 
-4. **Decision**: Errors visible to agent
-   - **Reason**: Agent can make informed decisions about fallbacks
+6. **tenacity for retry**
+   - **Reason**: Flexible retry logic with exponential backoff
 
-5. **Decision**: Hierarchical traces (Prefect-style)
-   - **Reason**: Clear parent-child relationships, better debugging
+7. **structlog for logging**
+   - **Reason**: Structured logging, better for debugging
 
-6. **Decision**: Store embeddings in DB as JSON blob
-   - **Reason**: SQLite-compatible, no need for external vector DB
+### Design Decisions
 
-7. **Decision**: OpenAI-compatible embedding API
-   - **Reason**: Works with Ollama, LM Studio, OpenAI, Azure
+8. **Decision**: Custom agent loop (like OpenCode)
+   - **Reason**: Full control over orchestration, matches our spec exactly
+   - **Alternative**: LangGraph - rejected for complexity
+
+9. **Decision**: OpenCode-inspired compaction template
+   - **Reason**: Proven template with Goal, Instructions, Discoveries, Accomplished, Relevant files
+
+10. **Decision**: Hybrid importance scoring
+    - **Reason**: Fast heuristic + accurate LLM option
+
+11. **Decision**: Per-component circuit breaker
+    - **Reason**: Isolates failures, prevents cascading
+
+12. **Decision**: Errors visible to agent
+    - **Reason**: Agent can make informed decisions about fallbacks
+
+13. **Decision**: Hierarchical traces (Prefect-style)
+    - **Reason**: Clear parent-child relationships, better debugging
+
+14. **Decision**: Store embeddings in DB as JSON blob
+    - **Reason**: SQLite-compatible, no need for external vector DB
+
+15. **Decision**: OpenAI-compatible embedding API
+    - **Reason**: Works with Ollama, LM Studio, OpenAI, Azure
 
 ---
 
@@ -680,6 +791,10 @@ No open questions - all design decisions are resolved.
 - Related: `specs/auth-session` (existing session management)
 - Related: `specs/openai-responses` (orchestration loop)
 - Related: `specs/runner-integration` (tool execution)
+- **OpenCode**: https://github.com/anomalyco/opencode (agent loop, compaction template)
+- python-ai-sdk: https://github.com/python-ai-sdk/sdk
+- tiktoken: https://github.com/openai/tiktoken
 - Prefect telemetry: https://docs.prefect.io/v3/api-ref/python/prefect-telemetry
 - AIRI memory system: https://github.com/moeru-ai/airi
 - Agent S3: https://www.simular.ai/articles/agent-s3
+- widemem (optional): https://github.com/remete618/widemem-ai

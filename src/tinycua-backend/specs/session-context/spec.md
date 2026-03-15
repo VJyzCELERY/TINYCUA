@@ -10,8 +10,33 @@
 ## Quick Guidelines
 
 - Focus on **WHAT** users/callers need and **WHY** — not HOW to implement
-- Avoid implementation details (no tech stack choices, class names, or code structure in this doc)
 - Every requirement must be independently testable
+
+---
+
+## Library Stack
+
+Based on research (see design.md for details):
+
+| Component | Library | Notes |
+|-----------|---------|-------|
+| HTTP Client | httpx | Async + sync support |
+| AI/Embeddings | python-ai-sdk | Embeddings + tool definitions |
+| Tokenizer | tiktoken | Accurate token counting |
+| ORM | SQLAlchemy | Database |
+| Migrations | Alembic | Schema management |
+| Serialization | Pydantic | Config + types |
+| Retry | tenacity | Retry logic |
+| Logging | structlog | Structured logging |
+
+---
+
+## Research References
+
+- **OpenCode**: Agent implementation, compaction template (Goal, Instructions, Discoveries, Accomplished, Relevant files)
+- **Agent S3**: Best-of-N, behavior narratives
+- **AIRI**: Memory system with pgvector
+- **widemem**: Importance scoring (optional future consideration)
 
 ---
 
@@ -236,7 +261,7 @@ No open questions - all requirements are resolved.
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
+- [x] Library stack documented
 - [x] All mandatory sections completed
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
