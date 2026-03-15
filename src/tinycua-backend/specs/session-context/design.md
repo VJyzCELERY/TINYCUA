@@ -36,6 +36,8 @@ Based on research:
 | Serialization | **Pydantic** | Config + types |
 | Retry | **tenacity** | Retry logic |
 | Logging | **structlog** | Structured logging |
+| Web Framework | **FastAPI** | REST API |
+| Server | **uvicorn** | ASGI server |
 
 ### Why python-ai-sdk?
 
@@ -51,6 +53,80 @@ Following **OpenCode's approach**:
 - Use python-ai-sdk for provider abstraction + embeddings
 - Control the loop: LLM → tools → LLM cycle
 - Full control over compaction, memory, error recovery
+
+---
+
+## Project Structure
+
+```
+src/tinycua-backend/
+├── pyproject.toml           # Dependencies
+├── tinycua_backend/
+│   ├── __init__.py
+│   ├── logging.py           # structlog setup
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── base.py          # SQLAlchemy base
+│   │   ├── session.py       # Session factory
+│   │   └── migrations/
+│   │       ├── env.py
+│   │       └── versions/
+│   ├── http/
+│   │   ├── __init__.py
+│   │   ├── client.py        # HTTPClient wrapper
+│   │   └── exceptions.py    # Custom exceptions
+│   ├── config/
+│   │   ├── __init__.py
+│   │   ├── models.py        # Pydantic models
+│   │   ├── settings.py      # Settings class
+│   │   ├── default.yaml
+│   │   ├── models.yaml
+│   │   └── embedding.yaml
+│   ├── providers/
+│   │   ├── __init__.py
+│   │   ├── base.py          # Base provider
+│   │   ├── openai.py        # OpenAI provider
+│   │   ├── anthropic.py     # Anthropic provider
+│   │   └── factory.py       # Provider factory
+│   ├── context/
+│   │   ├── __init__.py
+│   │   ├── storage.py       # File storage
+│   │   ├── search.py        # Semantic search
+│   │   ├── summary.py        # Summary generation
+│   │   └── compaction.py     # Compaction logic
+│   ├── memory/
+│   │   ├── __init__.py
+│   │   ├── manager.py       # Memory manager
+│   │   └── scoring.py       # Importance scoring
+│   ├── error/
+│   │   ├── __init__.py
+│   │   ├── retry.py         # Retry logic
+│   │   ├── fallback.py      # Fallback chains
+│   │   └── circuit.py       # Circuit breaker
+│   ├── tracing/
+│   │   ├── __init__.py
+│   │   └── tracer.py        # Execution tracer
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   ├── registry.py      # Tool registry
+│   │   └── definitions.py   # Tool definitions
+│   ├── agent/
+│   │   ├── __init__.py
+│   │   └── orchestrator.py  # Custom agent loop
+│   └── api/
+│       ├── __init__.py
+│       └── routes.py        # API routes
+└── tests/
+    ├── unit/
+    │   ├── test_logging.py
+    │   ├── test_database.py
+    │   ├── test_http_client.py
+    │   ├── test_config.py
+    │   └── test_providers.py
+    └── integration/
+        ├── test_api.py
+        └── test_full_flow.py
+```
 
 ---
 
@@ -575,7 +651,7 @@ observability:
 
 ---
 
-## 1. Token Estimation
+## 5. Embeddings Service
 
 ### OpenAI-Compatible API Format
 
@@ -670,16 +746,65 @@ force_compact() -> str:
 
 ## 7. Implementation Phases
 
-### Phase 1 — Core Context & Embeddings
+### Phase 1 — Core Infrastructure
 
-- [ ] DB schema changes (existing from original design)
-- [ ] ContextStorage implementation
-- [ ] EmbeddingService
-- [ ] Semantic search
-- [ ] Summary generation
-- [ ] Compaction logic
+This phase sets up the foundational infrastructure.
 
-### Phase 2 — Token Estimation (NEW)
+**Task 1.1: Project Setup + Dependencies**
+- Create pyproject.toml with all dependencies
+- Install dependencies (requires uv or pip)
+- Create project structure with `__init__.py` files
+
+**Task 1.2: Logging Setup**
+- Create `tinycua_backend/logging.py` with structlog
+- Create tests in `tinycua_backend/tests/unit/test_logging.py`
+
+**Task 1.3: Database Setup (SQLite)**
+- Create SQLAlchemy base (`tinycua_backend/db/base.py`)
+- Create session factory (`tinycua_backend/db/session.py`)
+- Create Alembic migrations
+- Create tests in `tinycua_backend/tests/unit/test_database.py`
+
+**Task 1.4: HTTP Client Wrapper**
+- Create httpx wrapper (`tinycua_backend/http/client.py`)
+- Create custom exceptions
+- Create tests in `tinycua_backend/tests/unit/test_http_client.py`
+
+**Task 1.5: Configuration Management**
+- Create config models (`tinycua_backend/config/models.py`)
+- Create settings class with Pydantic
+- Create YAML config files in `tinycua_backend/config/`
+- Create tests in `tinycua_backend/tests/unit/test_config.py`
+
+**Task 1.6: Provider Abstraction**
+- Create provider base class and implementations
+- Create factory for provider selection
+- Create tests in `tinycua_backend/tests/unit/test_providers.py`
+
+---
+
+### Phase 2 — Core Context & Embeddings
+
+**Task 2.1: Context Storage**
+- Implement ContextStorage for file read/write
+- Create summary.md and full_context.md handling
+
+**Task 2.2: EmbeddingService**
+- Implement embedding generation using python-ai-sdk
+- Implement semantic search with cosine similarity
+
+**Task 2.3: Summary Generation**
+- Implement LLM-based summary creation
+- Use OpenCode-inspired template
+
+**Task 2.4: Compaction Logic**
+- Implement token threshold detection
+- Implement archive + summarize flow
+- Support recursive compaction
+
+---
+
+### Phase 3 — Token Estimation
 
 - [ ] tiktoken integration
 - [ ] Auto-encoding detection
@@ -687,7 +812,9 @@ force_compact() -> str:
 - [ ] Smart compaction triggers
 - [ ] TokenUsage tracking
 
-### Phase 3 — Memory Depth (NEW)
+---
+
+### Phase 4 — Memory Depth
 
 - [ ] MemoryMetadata model
 - [ ] Importance scoring (heuristic + LLM)
@@ -695,17 +822,32 @@ force_compact() -> str:
 - [ ] Pinning API
 - [ ] Pin limits
 
-### Phase 4 — Error Recovery (NEW)
+---
+
+### Phase 5 — Error Recovery
 
 - [ ] Retry decorator with backoff
 - [ ] Fallback chains
 - [ ] Circuit breaker
 - [ ] Error visibility
 
-### Phase 5 — Observability (NEW)
+---
+
+### Phase 6 — Observability
 
 - [ ] ExecutionTracer service
 - [ ] Trace event logging
+- [ ] SSE endpoints
+- [ ] Trace retrieval API
+
+---
+
+### Phase 7 — Agent Loop (Custom)
+
+- [ ] Design agent state
+- [ ] Main loop: LLM → tools → LLM cycle
+- [ ] Integration with token counting, compaction, tools, memory
+- [ ] SSE streaming
 - [ ] SSE endpoints
 - [ ] Trace retrieval API
 
@@ -794,6 +936,7 @@ No open questions - all design decisions are resolved.
 - **OpenCode**: https://github.com/anomalyco/opencode (agent loop, compaction template)
 - python-ai-sdk: https://github.com/python-ai-sdk/sdk
 - tiktoken: https://github.com/openai/tiktoken
+- FastAPI: https://fastapi.tiangolo.com/
 - Prefect telemetry: https://docs.prefect.io/v3/api-ref/python/prefect-telemetry
 - AIRI memory system: https://github.com/moeru-ai/airi
 - Agent S3: https://www.simular.ai/articles/agent-s3

@@ -28,6 +28,8 @@ Based on research (see design.md for details):
 | Serialization | Pydantic | Config + types |
 | Retry | tenacity | Retry logic |
 | Logging | structlog | Structured logging |
+| Web Framework | FastAPI | REST API |
+| Server | uvicorn | ASGI server |
 
 ---
 
@@ -37,6 +39,7 @@ Based on research (see design.md for details):
 - **Agent S3**: Best-of-N, behavior narratives
 - **AIRI**: Memory system with pgvector
 - **widemem**: Importance scoring (optional future consideration)
+- **FastAPI**: Web framework for REST API
 
 ---
 
