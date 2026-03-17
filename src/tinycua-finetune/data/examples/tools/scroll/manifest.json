@@ -1,0 +1,15 @@
+{
+  "name": "scroll",
+  "description": "Scrolls the current view in a specified direction. Supports vertical and horizontal scrolling with configurable amounts.",
+  "args_schema": {
+    "direction": "string",
+    "amount": "integer",
+    "smooth": "boolean"
+  },
+  "example_call": {
+    "direction": "down",
+    "amount": 300,
+    "smooth": true
+  },
+  "dry_run_output": "Scrolled down by 300 pixels smoothly"
+}

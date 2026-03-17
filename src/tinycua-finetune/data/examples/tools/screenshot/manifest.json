@@ -1,0 +1,13 @@
+{
+  "name": "screenshot",
+  "description": "Captures a screenshot of the entire screen or a specified region. Returns base64-encoded image data.",
+  "args_schema": {
+    "region": "string",
+    "format": "string"
+  },
+  "example_call": {
+    "region": "full",
+    "format": "png"
+  },
+  "dry_run_output": "Screenshot captured: 1920x1080 PNG, 245KB"
+}

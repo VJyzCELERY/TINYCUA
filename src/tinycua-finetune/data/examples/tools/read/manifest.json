@@ -1,0 +1,13 @@
+{
+  "name": "read",
+  "description": "Extracts text content from the screen using OCR. Can read specific regions or the entire visible screen area.",
+  "args_schema": {
+    "region": "string",
+    "language": "string"
+  },
+  "example_call": {
+    "region": "full",
+    "language": "en"
+  },
+  "dry_run_output": "Extracted 42 characters of text from screen"
+}

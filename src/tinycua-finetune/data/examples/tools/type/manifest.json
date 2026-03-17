@@ -1,0 +1,13 @@
+{
+  "name": "type",
+  "description": "Types text at the current cursor position or into a focused input field. Supports keyboard input simulation.",
+  "args_schema": {
+    "text": "string",
+    "delay": "integer"
+  },
+  "example_call": {
+    "text": "Hello, World!",
+    "delay": 50
+  },
+  "dry_run_output": "Typed 'Hello, World!' with 50ms delay between characters"
+}

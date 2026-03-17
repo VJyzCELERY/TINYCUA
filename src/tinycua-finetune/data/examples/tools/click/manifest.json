@@ -1,0 +1,15 @@
+{
+  "name": "click",
+  "description": "Performs a mouse click at specified screen coordinates. Useful for clicking buttons, links, or interactive elements visible on screen.",
+  "args_schema": {
+    "x": "integer",
+    "y": "integer",
+    "button": "string"
+  },
+  "example_call": {
+    "x": 150,
+    "y": 320,
+    "button": "left"
+  },
+  "dry_run_output": "Clicked at (150, 320) with left button"
+}
