@@ -16,6 +16,13 @@ from tinycua_sdk.tools.memory_tools import (
     reset_memory_backend,
     set_memory_backend,
 )
+from tinycua_sdk.tools.resolver import (
+    analyze_source,
+    detect_circular,
+    compute_version,
+    find_internal_calls,
+    topological_sort,
+)
 
 __all__ = [
     "Tool",
@@ -31,4 +38,9 @@ __all__ = [
     "forget",
     "list_memory",
     "clear_memory",
+    "analyze_source",
+    "find_internal_calls",
+    "detect_circular",
+    "compute_version",
+    "topological_sort",
 ]

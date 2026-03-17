@@ -462,11 +462,27 @@ Summary: Completed via delegation to {sub_agent.name}
         After deployment, the agent will be in "deployed" mode
         and will call the backend instead of running locally.
 
+        This method:
+        1. Queries backend for existing tools
+        2. Auto-detects external and internal dependencies
+        3. Detects circular dependencies
+        4. Computes version hashes
+        5. Uploads tools in topological order (deps first)
+
         Returns:
             Deployment result with agent_id and status
 
+        Raises:
+            RuntimeError: If circular dependency detected
         """
         from tinycua_sdk.clients import BackendClient
+        from tinycua_sdk.tools.resolver import (
+            analyze_source,
+            find_internal_calls,
+            detect_circular,
+            compute_version,
+            topological_sort,
+        )
 
         backend_url, backend_api_key, backend_headers = self._get_backend_config()
 
@@ -475,6 +491,63 @@ Summary: Completed via delegation to {sub_agent.name}
             api_key=backend_api_key,
             headers=backend_headers,
         )
+
+        tools = list(self.config.tools)
+        tool_names = {t.name for t in tools}
+
+        existing_tools: dict[str, dict[str, Any]] = {}
+        try:
+            backend_tools = await client.list_tools()
+            for t in backend_tools:
+                existing_tools[t.get("name", "")] = t
+        except Exception:
+            pass
+
+        for tool in tools:
+            if tool._source:
+                external_deps = analyze_source(tool._source)
+                tool._external_dependencies = external_deps
+
+                internal_calls = find_internal_calls(tool._source)
+                tool_deps = []
+                for call_name in internal_calls:
+                    if call_name in tool_names and call_name != tool.name:
+                        dep_tool = next((t for t in tools if t.name == call_name), None)
+                        if dep_tool:
+                            tool_deps.append(
+                                {
+                                    "id": getattr(dep_tool, "_id", ""),
+                                    "name": call_name,
+                                    "version": getattr(dep_tool, "_version", ""),
+                                }
+                            )
+                tool._tool_dependencies = tool_deps
+
+                tool._version = compute_version(
+                    tool._source or "",
+                    tool._tool_dependencies,
+                )
+
+        tool_map = {t.name: t for t in tools}
+        cycle = detect_circular(tools, tool_map)
+        if cycle:
+            cycle_str = " → ".join(cycle)
+            raise RuntimeError(f"Circular dependency detected: {cycle_str}")
+
+        sorted_tools = topological_sort(tools)
+
+        tools_to_upload = []
+        for tool in sorted_tools:
+            existing = existing_tools.get(tool.name, {})
+            if existing.get("version") != tool._version:
+                tools_to_upload.append(tool)
+
+        for tool in tools_to_upload:
+            bundle = tool.to_bundle()
+            try:
+                await client.deploy_tool(bundle)
+            except Exception as e:
+                raise RuntimeError(f"Failed to deploy tool {tool.name}: {e}")
 
         deployment = {
             "agent": self.to_config(),

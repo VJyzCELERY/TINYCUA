@@ -176,5 +176,57 @@ class BackendClient:
         except Exception:
             return False
 
+    async def list_tools(self) -> list[dict[str, Any]]:
+        """List all tools in backend with versions.
+
+        Returns:
+            List of tool dicts including version
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/tools",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_tool(self, tool_id: str) -> dict[str, Any]:
+        """Get a specific tool by ID.
+
+        Args:
+            tool_id: ID of the tool
+
+        Returns:
+            Tool dict with all fields
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/tools/{tool_id}",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def deploy_tool(self, tool_bundle: dict[str, Any]) -> dict[str, Any]:
+        """Deploy a tool bundle to backend.
+
+        Args:
+            tool_bundle: Tool bundle from Tool.to_bundle()
+
+        Returns:
+            Tool response with ID and version
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/tools",
+                json=tool_bundle,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
 
 __all__ = ["BackendClient"]

@@ -16,7 +16,9 @@ class Tool:
     parameters: dict[str, Any] = field(default_factory=dict)
     _fn: Callable | None = field(default=None, repr=False)
     _source: str | None = field(default=None, repr=False)
-    _dependencies: list[str] = field(default_factory=list)
+    _external_dependencies: list[str] = field(default_factory=list)
+    _tool_dependencies: list[dict[str, Any]] = field(default_factory=list)
+    _version: str | None = field(default=None, repr=False)
     _is_builtin: bool = False
 
     def to_config(self) -> dict[str, Any]:
@@ -34,7 +36,9 @@ class Tool:
             "description": self.description,
             "parameters": self.parameters,
             "source": self._source,
-            "dependencies": self._dependencies,
+            "external_dependencies": self._external_dependencies,
+            "tool_dependencies": self._tool_dependencies,
+            "version": self._version,
         }
 
     @classmethod
@@ -44,6 +48,8 @@ class Tool:
             name=data["name"],
             description=data["description"],
             parameters=data.get("parameters", {}),
+            _tool_dependencies=data.get("tool_dependencies", []),
+            _version=data.get("version"),
         )
 
     def invoke(self, **kwargs: Any) -> Any:
@@ -103,7 +109,7 @@ def _make_tool(fn: Callable, dependencies: list[str]) -> Tool:
         },
         _fn=fn,
         _source=source,
-        _dependencies=dependencies,
+        _external_dependencies=dependencies,
     )
 
 
@@ -125,10 +131,10 @@ def tool(
     if callable(dependencies):
         return _make_tool(dependencies, [])
 
-    _dependencies = dependencies or []
+    _external_deps = dependencies or []
 
     def decorator(fn: Callable) -> Tool:
-        return _make_tool(fn, _dependencies)
+        return _make_tool(fn, _external_deps)
 
     return decorator
 

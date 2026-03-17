@@ -36,7 +36,7 @@ class TestToolDecorator:
             """Fetch data from URL."""
             return "data"
 
-        assert "requests" in fetch_data._dependencies
+        assert "requests" in fetch_data._external_dependencies
 
     def test_tool_invokes_function(self):
         from tinycua_sdk.tools import tool
@@ -84,4 +84,6 @@ class TestToolModel:
 
         bundle = my_tool.to_bundle()
         assert "source" in bundle
-        assert "dependencies" in bundle
+        assert "external_dependencies" in bundle
+        assert "tool_dependencies" in bundle
+        assert "version" in bundle
