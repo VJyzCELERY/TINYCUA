@@ -1,30 +1,75 @@
 # tinycua-backend
 
-Backend services and core API functionality for the TINYCUA project.
+Backend API for agent deployment, tool management, and session tracking.
 
-## Folder Structure
-```
-tinycua-backend/
-├── docs/                      # Documentation directory
-├── tinycua_backend/           # Source code
-├── tests/                     # Testing files
-├── specs/                     # Specifications and design docs
-├── pyproject.toml             # Configuration for Python tooling
-├── Makefile                   # Build and task automation
-└── README.md                  # Subproject overview
+## Features
+
+- **Agent Management**: Create, update, deploy agents
+- **Tool Registry**: Store and manage custom tools with dependency resolution
+- **Session Tracking**: Track conversation sessions
+- **Authentication**: JWT + API key authentication with tenant isolation
+- **Runner Integration**: Triggers agent execution on runner service
+
+## Setup
+
+```bash
+# Install dependencies
+pip install -e .
+
+# Or use make
+make install
 ```
 
-## Setup Instructions
-1. Create a virtual environment:
-   ```
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-2. Install dependencies:
-   ```
-   make install
-   ```
-3. Run tests:
-   ```
-   make test
-   ```
+## Configuration
+
+Create `.config.yaml`:
+
+```yaml
+runner:
+  url: "http://localhost:8003"
+  token: "your-runner-token"
+
+database:
+  url: "postgresql://user:pass@localhost:5432/tinycua"
+
+auth:
+  jwt_secret: "your-secret"
+  jwt_algorithm: "HS256"
+  jwt_expiration_hours: 24
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+```
+
+## Running
+
+```bash
+python -m tinycua_backend.main
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v1/auth/register` | Register new user |
+| POST | `/v1/auth/login` | Login |
+| GET | `/v1/agents` | List agents |
+| POST | `/v1/agents` | Create agent |
+| POST | `/v1/agents/{id}/run` | Run agent |
+| GET | `/v1/tools` | List tools |
+| POST | `/v1/tools` | Create tool |
+| GET | `/v1/sessions` | List sessions |
+
+## Development
+
+```bash
+# Run tests
+make test
+
+# Run lint
+make lint
+
+# Run coverage
+make coverage
+```

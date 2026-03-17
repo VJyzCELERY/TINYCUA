@@ -221,6 +221,21 @@ Summary: Completed via delegation to {sub_agent.name}
         return self.config.mode == "deployed"
 
     @property
+    def is_guest(self) -> bool:
+        """Check if agent is in guest mode."""
+        return self.config.mode == "guest"
+
+    @property
+    def guest_session_id(self) -> str | None:
+        """Get guest session ID."""
+        return getattr(self, "_guest_session_id", None)
+
+    @guest_session_id.setter
+    def guest_session_id(self, value: str | None) -> None:
+        """Set guest session ID."""
+        self._guest_session_id = value
+
+    @property
     def cancel_event(self) -> asyncio.Event:
         """Get the cancel event for interrupting execution."""
         if not hasattr(self, "_cancel_event") or self._cancel_event is None:
@@ -331,6 +346,9 @@ Summary: Completed via delegation to {sub_agent.name}
         if self.is_deployed and not force_local:
             return await self._run_deployed(user_input, instructions, trace)
 
+        if self.is_guest and not force_local:
+            return await self._run_guest(user_input, instructions)
+
         self.reset_cancel()
         from tinycua_sdk.runner import Runner
 
@@ -436,6 +454,41 @@ Summary: Completed via delegation to {sub_agent.name}
             if isinstance(event, dict):
                 if event.get("type") == "content":
                     response_text += event.get("data", {}).get("content", "")
+
+        self.messages.append({"role": "assistant", "content": response_text})
+
+        return response_text
+
+    async def _run_guest(
+        self,
+        user_input: str,
+        instructions: str | None = None,
+    ) -> str:
+        """Run via backend API in guest mode (no auth required)."""
+        from tinycua_sdk.config import config
+
+        if not self.config.agent_id:
+            raise RuntimeError("Agent ID required for guest mode.")
+
+        backend_url = self.config.backend_url or config.BACKEND_URL
+
+        from tinycua_sdk.clients import BackendClient
+
+        client = BackendClient(base_url=backend_url)
+
+        self.messages.append({"role": "user", "content": user_input})
+
+        response_text = ""
+        async for event in client.guest_run(
+            agent_id=self.config.agent_id,
+            user_input=user_input,
+            session_id=self.guest_session_id,
+        ):
+            if isinstance(event, dict):
+                if event.get("type") == "content":
+                    response_text += event.get("data", {}).get("content", "")
+                elif event.get("type") == "session_id":
+                    self._guest_session_id = event.get("data", {}).get("session_id")
 
         self.messages.append({"role": "assistant", "content": response_text})
 
@@ -565,10 +618,32 @@ Summary: Completed via delegation to {sub_agent.name}
         response = await client.deploy_agent(agent_config=deployment)
 
         self.config.mode = "deployed"
-        self.config.agent_id = response["agent_id"]
+        self.config.agent_id = response["id"]
         self.config.backend_url = backend_url
 
         return response
+
+    def set_guest_mode(
+        self,
+        agent_id: str,
+        backend_url: str | None = None,
+    ) -> None:
+        """Set agent to guest mode (no auth required).
+
+        In guest mode, the agent runs via the /guest/run endpoint
+        which doesn't require authentication. Sessions are temporary
+        and stored in-memory on the backend.
+
+        Args:
+            agent_id: ID of a deployed agent to use in guest mode
+            backend_url: Optional backend URL (defaults to config)
+
+        """
+        from tinycua_sdk.config import config
+
+        self.config.mode = "guest"
+        self.config.agent_id = agent_id
+        self.config.backend_url = backend_url or config.BACKEND_URL
 
     async def delete(self) -> None:
         """Delete the agent from the backend."""

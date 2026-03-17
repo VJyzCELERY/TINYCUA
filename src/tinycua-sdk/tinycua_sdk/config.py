@@ -1,6 +1,7 @@
 """Configuration module for tinycua-sdk."""
 
 import os
+from pathlib import Path
 from typing import Any
 
 
@@ -9,7 +10,11 @@ def _load_env():
     try:
         from dotenv import load_dotenv
 
-        load_dotenv()
+        # Look for .env in the parent of the module directory (project root)
+        module_dir = Path(__file__).parent.parent
+        env_path = module_dir / ".env"
+        if env_path.exists():
+            load_dotenv(env_path)
     except ImportError:
         pass
 

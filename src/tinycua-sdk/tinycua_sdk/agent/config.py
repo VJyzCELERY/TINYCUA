@@ -53,6 +53,7 @@ class AgentConfig:
             "model": self.model,
             "provider": self.provider,
             "base_url": self.base_url,
+            "api_key": self.api_key,
             "tools": [
                 t.to_config() if hasattr(t, "to_config") else t for t in self.tools
             ],

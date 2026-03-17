@@ -14,6 +14,8 @@ class BackendClient:
         self,
         base_url: str,
         api_key: str | None = None,
+        email: str | None = None,
+        password: str | None = None,
         headers: dict[str, str] | None = None,
         timeout: int = 30,
     ):
@@ -22,14 +24,87 @@ class BackendClient:
         Args:
             base_url: Base URL of the backend server
             api_key: API key for authentication
+            email: Email for login (alternative to api_key)
+            password: Password for login (alternative to api_key)
             headers: Custom headers for auth and multi-tenancy
             timeout: Request timeout in seconds
 
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.email = email
+        self.password = password
         self.headers = headers or {}
         self.timeout = timeout
+        self._tenant_id: str | None = None
+        self._user_id: str | None = None
+
+    async def login(self, **kwargs: Any) -> dict[str, Any]:
+        """Login with credentials.
+
+        Default fields: email, password
+        Additional fields can be passed for custom auth (e.g., username, totp).
+
+        Args:
+            **kwargs: Login fields (email, password, etc.)
+
+        Returns:
+            Login response with token and tenant info
+
+        Raises:
+            httpx.HTTPStatusError: If login fails
+        """
+        if not kwargs:
+            raise ValueError("login requires credentials (email/password or custom)")
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/auth/login",
+                json=kwargs,
+            )
+            response.raise_for_status()
+            data = response.json()
+            self.api_key = data.get("access_token")
+            self._tenant_id = data.get("tenant_id")
+            self._user_id = data.get("user_id")
+            return data
+
+    async def register(self, **kwargs: Any) -> dict[str, Any]:
+        """Register a new user.
+
+        Default fields: email, password, tenant_name
+        Additional fields can be passed for custom registration (e.g., username, full_name).
+
+        Args:
+            **kwargs: Registration fields (email, password, tenant_name, etc.)
+
+        Returns:
+            Registration response with token and tenant info
+        """
+        if not kwargs:
+            raise ValueError("register requires user information")
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/auth/register",
+                json=kwargs,
+            )
+            response.raise_for_status()
+            data = response.json()
+            self.api_key = data.get("access_token")
+            self._tenant_id = data.get("tenant_id")
+            self._user_id = data.get("user_id")
+            return data
+
+    @property
+    def tenant_id(self) -> str | None:
+        """Get logged in tenant ID."""
+        return self._tenant_id
+
+    @property
+    def user_id(self) -> str | None:
+        """Get logged in user ID."""
+        return self._user_id
 
     def _get_headers(self) -> dict[str, str]:
         """Build request headers with auth and custom headers.
@@ -54,16 +129,34 @@ class BackendClient:
         """Deploy an agent to the backend.
 
         Args:
-            agent_config: Agent configuration dict
+            agent_config: Agent configuration dict with 'agent' and 'tools' keys
 
         Returns:
             Deployment response with agent_id and status
 
         """
+        # Extract the agent config from the nested structure
+        # The SDK sends { "agent": {...}, "tools": [...] }
+        # Backend expects { "name": str, "config": dict }
+
+        # Handle both old format (direct) and new format (nested)
+        if "agent" in agent_config:
+            agent_data = agent_config["agent"]
+            name = agent_data.get("name", "agent")
+            config = {k: v for k, v in agent_data.items() if k != "name"}
+        else:
+            name = agent_config.get("name", "agent")
+            config = {k: v for k, v in agent_config.items() if k != "name"}
+
+        payload = {
+            "name": name,
+            "config": config,
+        }
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/v1/agents",
-                json=agent_config,
+                json=payload,
                 headers=self._get_headers(),
             )
             response.raise_for_status()
@@ -143,7 +236,14 @@ class BackendClient:
         """
         import json
 
-        payload: dict[str, Any] = {"messages": messages}
+        # Get the latest user message
+        user_input = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_input = msg.get("content", "")
+                break
+
+        payload: dict[str, Any] = {"user_input": user_input}
         if tools:
             payload["tools"] = tools
         if stream:
@@ -227,6 +327,49 @@ class BackendClient:
             )
             response.raise_for_status()
             return response.json()
+
+    async def guest_run(
+        self,
+        agent_id: str,
+        user_input: str,
+        session_id: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Run an agent as guest (no auth required).
+
+        Guest sessions are:
+        - Temporary (in-memory, not persisted)
+        - Shared among all guest users
+        - Auto-expire after 30 minutes of inactivity
+
+        Args:
+            agent_id: ID of the agent to execute
+            user_input: User input message
+            session_id: Optional session ID for continuing a session
+
+        Yields:
+            Stream events from the backend
+
+        """
+        import json
+
+        payload: dict[str, Any] = {
+            "agent_id": agent_id,
+            "user_input": user_input,
+        }
+        if session_id:
+            payload["session_id"] = session_id
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/guest/run",
+                json=payload,
+            ) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        yield json.loads(line[6:])
+                    elif line:
+                        yield line
 
 
 __all__ = ["BackendClient"]

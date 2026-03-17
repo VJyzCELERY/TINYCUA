@@ -47,7 +47,7 @@ Based on research (see design.md for details):
 
 **Goals**: Provide session context management so that an AI agent can maintain conversation history, search through past context semantically, manage memory importance, recover from errors gracefully, and provide execution observability.
 
-**Gaps**: 
+**Gaps**:
 - Current session system stores messages in DB but provides no search capability
 - No way for the agent to query past context beyond simple "last N messages"
 - No automatic compaction when context grows large
