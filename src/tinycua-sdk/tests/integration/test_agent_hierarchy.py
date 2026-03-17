@@ -213,7 +213,7 @@ class TestAgentHierarchyExecution:
     @pytest.mark.asyncio
     async def test_stream_with_sub_agents(self):
         """Test streaming with sub-agents."""
-        from tinycua_sdk.models import Agent, StreamEventType
+        from tinycua_sdk.models import Agent
 
         research_agent = Agent(
             name="research",

@@ -83,7 +83,7 @@ The runner MUST be able to run locally (localhost) or remotely (network).
 ```python
 class RemoteRunner(ABC):
     """Base class for remote runners."""
-    
+
     @abstractmethod
     async def execute(
         self,
@@ -93,7 +93,7 @@ class RemoteRunner(ABC):
     ) -> AsyncIterator[StreamEvent]:
         """Execute agent task."""
         pass
-    
+
     @abstractmethod
     async def health_check(self) -> bool:
         """Check if runner is healthy."""
@@ -106,7 +106,7 @@ class RemoteRunner(ABC):
 class Agent:
     def __init__(self, ..., runner: RemoteRunner | None = None):
         self.runner = runner
-    
+
     async def run(self, user_input: str):
         if self.runner:
             return await self.runner.execute(...)

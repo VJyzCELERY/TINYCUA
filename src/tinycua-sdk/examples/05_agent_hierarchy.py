@@ -34,7 +34,7 @@ async def demo_manual_delegation():
         name="writer",
         instructions="You are a technical writer. Write clear documentation.",
     )
-    print(f"   Created: researcher, coder, writer")
+    print("   Created: researcher, coder, writer")
 
     print("\n2. Creating main agent (coordinator)...")
     coordinator = Agent(
@@ -74,7 +74,7 @@ async def demo_delegation_with_llm():
         api_key="dummy",
     )
 
-    print(f"   Created sub-agents: searcher, coder")
+    print("   Created sub-agents: searcher, coder")
     print("   (LLM will decide when to use delegate tools)")
 
     print("\n2. Creating main coordinator agent...")
@@ -282,7 +282,7 @@ async def demo_explicit_delegation():
         sub_agents=[searcher, writer],
     )
 
-    print(f"   coordinator -> [searcher, writer]")
+    print("   coordinator -> [searcher, writer]")
 
     print("\n2. Manual delegation flow...")
 

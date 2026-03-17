@@ -57,7 +57,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
     source: Mapped[str] = mapped_column(String(50000), nullable=False)
     parameters: Mapped[dict] = mapped_column(JSON, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    
+
     # NEW fields:
     external_dependencies: Mapped[list[str]] = mapped_column(JSON, default=list)
     tool_dependencies: Mapped[list[dict]] = mapped_column(JSON, default=list)
@@ -76,10 +76,10 @@ class Tool(Base, UUIDMixin, TimestampMixin):
 class BackendClient:
     async def list_tools(self) -> list[dict[str, Any]]:
         """List all tools in backend with versions."""
-        
+
     async def get_tool(self, tool_id: str) -> dict[str, Any]:
         """Get a specific tool by ID."""
-        
+
     async def deploy_tool(self, tool_bundle: dict[str, Any]) -> dict[str, Any]:
         """Deploy a tool bundle to backend."""
 ```
@@ -90,18 +90,18 @@ class BackendClient:
 @router.get("/tools", response_model=list[ToolResponse])
 async def list_tools(tenant_id: str = Depends(get_tenant_id)):
     """List all tools for tenant."""
-    
+
 @router.get("/tools/{tool_id}", response_model=ToolResponse)
 async def get_tool(tool_id: str, tenant_id: str = Depends(get_tenant_id)):
     """Get a specific tool."""
-    
+
 @router.post("/tools", response_model=ToolResponse)
 async def create_tool(
     tool: ToolCreate,
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Create a new tool."""
-    
+
 @router.put("/tools/{tool_id}", response_model=ToolResponse)
 async def update_tool(
     tool_id: str,
@@ -109,7 +109,7 @@ async def update_tool(
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Update an existing tool."""
-    
+
 @router.delete("/tools/{tool_id}")
 async def delete_tool(
     tool_id: str,
@@ -211,7 +211,7 @@ def analyze_source(source: str) -> list[str]:
     """Extract external dependencies from source AST."""
     tree = ast.parse(source)
     imports = set()
-    
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -223,21 +223,21 @@ def analyze_source(source: str) -> list[str]:
                 module = node.module.split(".")[0]
                 if module not in STDLIB_MODULES:
                     imports.add(module)
-    
+
     return sorted(imports)
 
 def find_internal_calls(source: str) -> set[str]:
     """Find function calls that might be internal tools."""
     tree = ast.parse(source)
     calls = set()
-    
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 calls.add(node.func.id)
             elif isinstance(node.func, ast.Attribute):
                 calls.add(node.func.attr)
-    
+
     return calls
 ```
 
@@ -249,7 +249,7 @@ def detect_circular(
     known_tools: set[str],
 ) -> list[str] | None:
     """DFS to detect circular dependencies.
-    
+
     Returns cycle path if found, None otherwise.
     """
     graph = {}
@@ -258,19 +258,19 @@ def detect_circular(
         for td in tool._tool_dependencies:
             deps.add(td["name"])
         graph[tool.name] = deps
-    
+
     def dfs(node: str, visited: set[str], path: list[str]) -> list[str] | None:
         if node in visited:
             return path + [node]
         visited.add(node)
         path.append(node)
-        
+
         for dep in graph.get(node, set()):
             result = dfs(dep, visited.copy(), path.copy())
             if result:
                 return result
         return None
-    
+
     for tool in tools:
         cycle = dfs(tool.name, set(), [])
         if cycle:
@@ -297,17 +297,17 @@ def topological_sort(tools: list[Tool]) -> list[Tool]:
     in_degree = {t.name: len(graph[t.name]) for t in tools}
     queue = [t.name for t in tools if in_degree[t.name] == 0]
     result = []
-    
+
     while queue:
         node = queue.pop(0)
         result.append(node)
-        
+
         for tool in tools:
             if node in graph.get(tool.name, []):
                 in_degree[tool.name] -= 1
                 if in_degree[tool.name] == 0:
                     queue.append(tool.name)
-    
+
     return [t for t in tools if t.name in result]
 ```
 

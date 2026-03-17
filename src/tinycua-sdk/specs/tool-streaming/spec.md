@@ -22,7 +22,7 @@ The runner MUST support streaming tool execution results while maintaining the r
 
 The streaming response MUST include these event types:
 - `content`: Regular text token from LLM
-- `tool_call_start`: LLM is requesting a tool call  
+- `tool_call_start`: LLM is requesting a tool call
 - `tool_call_chunk`: Tool arguments streaming in
 - `tool_call_end`: Tool call ready to execute
 - `tool_result_start`: Starting tool execution
@@ -67,13 +67,13 @@ class StreamEventType(Enum):
 class StreamEvent:
     type: StreamEventType
     data: dict[str, Any]  # Flexible payload per event type
-    
+
     # Content event
     # data = {"content": "text token"}
-    
-    # Tool call events  
+
+    # Tool call events
     # data = {"tool_call_id": "xxx", "tool_name": "func", "arguments": "..."}
-    
+
     # Tool result events
     # data = {"tool_call_id": "xxx", "tool_name": "func", "content": "result chunk"}
 ```
@@ -87,7 +87,7 @@ class Runner:
         self, user_input: str, instructions: str | None = None
     ) -> AsyncIterator[str]:
         ...
-    
+
     # New - returns events
     async def stream_with_tools(
         self, user_input: str, instructions: str | None = None

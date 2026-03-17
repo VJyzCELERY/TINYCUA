@@ -26,10 +26,8 @@ Usage:
 """
 
 import asyncio
-import os
 
 # Import to load .env file
-from tinycua_sdk.config import Config
 
 from tinycua_sdk.agent import Agent
 

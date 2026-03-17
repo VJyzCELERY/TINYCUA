@@ -1,3 +1,4 @@
-# Example Script Placeholder for tinycua-runner.
+"""Example Script Placeholder for tinycua-runner.
 
-# To be implemented by subproject developers.
+To be implemented by subproject developers.
+"""

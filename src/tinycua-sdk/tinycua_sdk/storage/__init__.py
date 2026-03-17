@@ -59,7 +59,7 @@ class SessionStore:
         return self._db_type == "sqlite"
 
     def has_pgvector(self) -> bool:
-        """Check if pgvector is available for PostgreSQL.
+        """Check if pgvector is available.
 
         Returns:
             True if pgvector is available
@@ -67,7 +67,9 @@ class SessionStore:
         if not self.is_postgresql:
             return False
         try:
-            import pgvector.sqlalchemy  # noqa: F401
+            # Import pgvector to register vector type with SQLAlchemy
+            # ruff: noqa: F401
+            import pgvector.sqlalchemy  # type: ignore[import-not-found]
 
             return True
         except ImportError:
@@ -267,7 +269,7 @@ class SessionStore:
             stmt = (
                 select(Message)
                 .where(Message.session_id == session_id)
-                .where(Message.is_archived == False)  # noqa: E712
+                .where(Message.is_archived is not True)
                 .order_by(Message.turn_index.desc())
                 .limit(count)
             )

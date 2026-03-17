@@ -10,6 +10,13 @@ __pycache__/
 # Virtual environments
 .venv/
 *.env
+.env
+
+# Config files with secrets (use config.example.yaml as template)
+*.yaml
+!config.example.yaml
+src/tinycua-backend/config.yaml
+src/tinycua-runner/config.yaml
 
 # Logs
 logs/

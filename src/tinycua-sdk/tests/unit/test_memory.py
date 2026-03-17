@@ -1,6 +1,5 @@
 """Tests for memory and session tools."""
 
-import pytest
 import tempfile
 from pathlib import Path
 

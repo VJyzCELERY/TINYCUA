@@ -79,14 +79,14 @@ async def validate_runner_token(request: Request):
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(status_code=401, detail="Missing authorization")
-    
+
     scheme, token = auth_header.split(" ", 1)
     if scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Invalid scheme")
-    
+
     if token != RUNNER_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     return True
 ```
 
@@ -148,13 +148,13 @@ class RunRequest(BaseModel):
 @app.post("/internal/v1/run")
 async def run_agent(request: RunRequest, _: bool = Depends(validate_runner_token)):
     """Execute an agent with session context."""
-    
+
     # Create executor
     executor = Executor(
         db_url=request.db_url,
         session_id=request.session_id
     )
-    
+
     # Stream results
     async def event_stream():
         async for event in executor.execute(
@@ -162,7 +162,7 @@ async def run_agent(request: RunRequest, _: bool = Depends(validate_runner_token
             user_input=request.user_input
         ):
             yield f"data: {event}\n\n"
-    
+
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 ```
 
@@ -173,17 +173,17 @@ async def run_agent(request: RunRequest, _: bool = Depends(validate_runner_token
 ```python
 class Executor:
     """Handles agent execution with session context."""
-    
+
     def __init__(self, db_url: str, session_id: uuid.UUID):
         """Initialize executor with database connection."""
         self.db_url = db_url
         self.session_id = session_id
         self.store = SessionStore(db_url)
         self.store.create_tables()
-    
+
     async def execute(self, agent_config: dict, user_input: str):
         """Execute agent and yield events."""
-        
+
         # Create context tools with session store
         from tinycua_sdk.tools.context_tools import (
             search_context_grep_tool,
@@ -191,17 +191,17 @@ class Executor:
             get_context_summary_tool,
             get_recent_turns_tool,
         )
-        
+
         tools = [
             search_context_grep_tool(self.store, self.session_id),
             search_context_semantic_tool(self.store, self.session_id),
             get_context_summary_tool(self.store, self.session_id),
             get_recent_turns_tool(self.store, self.session_id),
         ]
-        
+
         # Build agent from config
         from tinycua_sdk.agent import Agent
-        
+
         agent = Agent(
             name=agent_config.get("name", "runner-agent"),
             instructions=agent_config.get("instructions", ""),
@@ -212,7 +212,7 @@ class Executor:
             api_key=agent_config.get("api_key"),
             tools=tools,
         )
-        
+
         # Execute
         async for event in agent.run(user_input, stream_sse=True):
             yield event
@@ -229,19 +229,19 @@ The runner receives bundled tools from the backend. These tools are already reso
 ```python
 class ToolRegistry:
     """In-memory registry for custom tools."""
-    
+
     def __init__(self):
         self._tools: dict[str, dict] = {}
-    
+
     def register(self, tool_bundle: dict) -> None:
         """Register a tool from bundle."""
         name = tool_bundle["name"]
         self._tools[name] = tool_bundle
-    
+
     def get(self, name: str) -> dict | None:
         """Get a tool by name."""
         return self._tools.get(name)
-    
+
     def list_all(self) -> list[dict]:
         """List all registered tools."""
         return list(self._tools.values())
@@ -249,15 +249,15 @@ class ToolRegistry:
 
 def materialize_tool(tool_bundle: dict) -> Callable:
     """Materialize a tool from source code.
-    
+
     Uses exec() to create a callable function from source code.
     """
     source = tool_bundle["source"]
     name = tool_bundle["name"]
-    
+
     namespace = {}
     exec(source, namespace)
-    
+
     return namespace.get(name)
 ```
 

@@ -2,18 +2,22 @@
 
 # Variables
 PYTHON ?= python3
+UV ?= uv
 SRC ?= tinycua_sdk
 
-.PHONY: install lint test coverage complexity clean precommit-install check
+.PHONY: install lint test coverage complexity clean precommit-install check run
 
 # Install dependencies
 install:
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -e ".[dev]"
+	$(UV) pip install -e ".[dev]"
+
+# Run SDK example (local mode)
+run:
+	$(PYTHON) examples/01_agent_basic.py
 
 # Install pre-commit hooks
 precommit-install:
-	$(PYTHON) -m pip install -e ".[lint]"
+	$(UV) pip install -e ".[lint]"
 	pre-commit install
 
 # Run all checks (lint + complexity)

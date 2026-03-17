@@ -45,7 +45,10 @@ Ensure commit messages are meaningful, concise, and adhere to the [commit naming
 ---
 
 ## Docstring Requirements
-Ensure all AI-generated functions and classes follow this format:
+All public functions (not starting with `_`) must have docstrings. Private functions (starting with `_`) are exempt.
+
+### Required Docstring Format
+All AI-generated functions and classes follow this format:
 
 ### Example Format
 ```python
@@ -57,11 +60,22 @@ Args:
     arg2 (type): Description.
     **kwargs: Description of supported optional keyword arguments.
 
+Returns:
+    Return type: Description.
+
+Raises:
+    ExceptionType: When this exception is raised.
+
 Examples:
     # Example usage:
     result = generated_function(arg1, arg2, kwarg_key=value)
 """
 ```
+
+### Exemptions
+- Private functions (starting with `_`) do not require docstrings.
+- Abstract methods require docstrings (they are public interface).
+- Overrides of external/public methods require docstrings.
 
 ---
 

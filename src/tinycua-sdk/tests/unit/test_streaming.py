@@ -1,7 +1,6 @@
 """Tests for tool streaming."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestStreamEventType:
@@ -162,7 +161,7 @@ class TestToolExecutionStreaming:
 
     @pytest.mark.asyncio
     async def test_tool_result_chunking(self):
-        from tinycua_sdk.models import AgentConfig, StreamEvent, StreamEventType
+        from tinycua_sdk.models import AgentConfig
         from tinycua_sdk.runner import Runner
         from tinycua_sdk.tools import tool
 

@@ -7,7 +7,6 @@ import sys
 import httpx
 
 # Import to load .env file
-from tinycua_sdk.config import Config
 
 
 BACKEND_URL = os.getenv("TINYCUA_BACKEND_URL", "http://localhost:8000")
@@ -72,7 +71,7 @@ async def create_tool():
             print(f"✓ Created tool: {data['id']} ({data['name']})")
             return data["id"]
         elif response.status_code == 409:
-            print(f"✓ Tool already exists")
+            print("✓ Tool already exists")
             return "existing"
         else:
             print(f"✗ Failed to create tool: {response.status_code} {response.text}")
@@ -103,7 +102,7 @@ async def create_agent():
             print(f"✓ Created agent: {data['id']} ({data['name']})")
             return data["id"]
         elif response.status_code == 409:
-            print(f"✓ Agent already exists")
+            print("✓ Agent already exists")
             return "existing"
         else:
             print(f"✗ Failed to create agent: {response.status_code} {response.text}")

@@ -111,13 +111,13 @@ class ConfigWatcher:
         self.path = path
         self.callback = callback
         self._running = False
-    
+
     def start(self):
         self._running = True
         thread = threading.Thread(target=self._watch)
         thread.daemon = True
         thread.start()
-    
+
     def _watch(self):
         mtime = Path(self.path).stat().st_mtime
         while self._running:
@@ -137,11 +137,11 @@ class ConfigWatcher:
 ```python
 class Tenant(Base):
     __tablename__ = "tenants"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     users = relationship("User", back_populates="tenant")
     api_keys = relationship("APIKey", back_populates="tenant")
     agents = relationship("Agent", back_populates="tenant")
@@ -153,13 +153,13 @@ class Tenant(Base):
 ```python
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=True)  # Optional, or use API keys only
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     tenant = relationship("Tenant", back_populates="users")
 ```
 
@@ -168,7 +168,7 @@ class User(Base):
 ```python
 class APIKey(Base):
     __tablename__ = "api_keys"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     key_hash = Column(String(255), nullable=False)  # Hash of the API key
@@ -176,7 +176,7 @@ class APIKey(Base):
     scopes = Column(JSON, default=list)  # ["agent:read", "agent:write"]
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     tenant = relationship("Tenant", back_populates="api_keys")
 ```
 
@@ -185,7 +185,7 @@ class APIKey(Base):
 ```python
 class Agent(Base):
     __tablename__ = "agents"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     name = Column(String(255), nullable=False)
@@ -193,7 +193,7 @@ class Agent(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     tenant = relationship("Tenant", back_populates="agents")
     sessions = relationship("Session", back_populates="agent")
 ```
@@ -211,19 +211,19 @@ import jwt
 
 async def get_current_tenant(request: Request) -> Tenant:
     """Extract tenant from API key or JWT token."""
-    
+
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(status_code=401, detail="Missing authorization")
-    
+
     scheme, token = auth_header.split(" ", 1)
-    
+
     if scheme.lower() == "bearer":
         # Try JWT first
         try:
             payload = jwt.decode(
-                token, 
-                config.jwt_secret, 
+                token,
+                config.jwt_secret,
                 algorithms=[config.jwt_algorithm]
             )
             tenant_id = payload.get("tenant_id")
@@ -233,18 +233,18 @@ async def get_current_tenant(request: Request) -> Tenant:
             return tenant
         except jwt.InvalidTokenError:
             pass
-        
+
         # Try API key
         key_hash = hash_token(token)
         api_key = db.query(APIKey).filter_by(key_hash=key_hash).first()
         if not api_key:
             raise HTTPException(status_code=401, detail="Invalid API key")
-        
+
         if api_key.expires_at and api_key.expires_at < datetime.utcnow():
             raise HTTPException(status_code=401, detail="API key expired")
-        
+
         return api_key.tenant
-    
+
     raise HTTPException(status_code=401, detail="Invalid authentication scheme")
 ```
 
@@ -354,7 +354,7 @@ async def get_session(
     ).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     messages = store.get_messages(session_id)
     return {"session": session, "messages": messages}
 ```
@@ -369,7 +369,7 @@ async def run_agent(
     tenant: Tenant = Depends(get_current_tenant)
 ):
     """Execute an agent and stream results."""
-    
+
     # 1. Load agent
     agent = db.query(Agent).filter(
         Agent.id == agent_id,
@@ -377,7 +377,7 @@ async def run_agent(
     ).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     # 2. Load or create session
     session_id = request.session_id
     if session_id:
@@ -395,14 +395,14 @@ async def run_agent(
         db.commit()
         db.refresh(session)
         session_id = session.id
-    
+
     # 3. Load messages from store
     messages = store.get_messages(session_id)
-    
+
     # 4. Call runner
     runner_url = f"{config.runner.url}/internal/v1/run"
     headers = {"Authorization": f"Bearer {config.runner.token}"}
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.post(
             runner_url,
@@ -415,12 +415,12 @@ async def run_agent(
             },
             timeout=None
         )
-    
+
     # 5. Stream response back to client
     async def event_generator():
         async for line in response.aiter_lines():
             yield line
-    
+
     return StreamingResponse(event_generator())
 ```
 

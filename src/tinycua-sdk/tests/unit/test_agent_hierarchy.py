@@ -284,9 +284,6 @@ class TestNestedDepthLimits:
         """Test current_depth affects nesting level."""
         from tinycua_sdk.models import Agent
 
-        # Agent at depth 0 can have children
-        parent = Agent(name="parent", current_depth=0)
-
         # Agent at max depth should not be able to add sub-agents effectively
         child = Agent(name="child", current_depth=3, max_depth=3)
         grandchild = Agent(name="grandchild")

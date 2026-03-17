@@ -120,31 +120,31 @@ message.content = clean_content  # Without thinking tags
 class SessionStore:
     def __init__(self, database_url: str):
         """Initialize with database URL.
-        
+
         Args:
             database_url: SQLite or PostgreSQL URL
         """
         self.engine = create_engine(database_url)
         self.session_factory = sessionmaker(bind=self.engine)
-    
+
     # Session operations
     def create_session(self, name: str, user_id: str = None) -> Session
     def get_session(self, session_id: UUID) -> Session
     def list_sessions(self, user_id: str = None) -> list[Session]
     def update_session(self, session_id: UUID, **kwargs) -> Session
     def delete_session(self, session_id: UUID) -> bool
-    
+
     # Message operations
     def add_message(self, session_id: UUID, role: str, content: str) -> Message
     def get_messages(self, session_id: UUID, limit: int = None) -> list[Message]
     def archive_message(self, message_id: UUID) -> Message
-    
+
     # Context retrieval
     def search_semantic(self, session_id: UUID, query: str, limit: int = 5) -> list[dict]
     def search_grep(self, session_id: UUID, query: str, limit: int = 5) -> list[dict]
     def get_summary(self, session_id: UUID) -> str | None
     def get_recent_turns(self, session_id: UUID, count: int = 3) -> list[Message]
-    
+
     # Full context
     def update_full_context(self, session_id: UUID) -> None
     def generate_summary(self, session_id: UUID) -> str
@@ -164,13 +164,13 @@ embedding = Column(JSON)  # [0.1, 0.2, ...]
 def search_semantic(self, session_id: UUID, query: str):
     messages = self.get_messages(session_id)
     query_embedding = self.get_embedding(query)
-    
+
     results = []
     for msg in messages:
         if msg.embedding:
             similarity = cosine_similarity(query_embedding, msg.embedding)
             results.append({"message": msg, "score": similarity})
-    
+
     return sorted(results, key=lambda x: x["score"], reverse=True)[:limit]
 ```
 
@@ -207,10 +207,10 @@ def search_semantic(self, session_id: UUID, query: str):
 @tool()
 def search_context_semantic(query: str) -> dict:
     """Search session context using semantic similarity.
-    
+
     Args:
         query: Search query text
-        
+
     Returns:
         {"results": [{"content": "...", "role": "...", "score": 0.95}]}
     """
@@ -225,10 +225,10 @@ def search_context_semantic(query: str) -> dict:
 @tool()
 def search_context_grep(query: str) -> dict:
     """Search session context using text matching.
-    
+
     Args:
         query: Search query text
-        
+
     Returns:
         {"results": [{"content": "...", "role": "..."}]}
     """
@@ -243,7 +243,7 @@ def search_context_grep(query: str) -> dict:
 @tool()
 def get_context_summary() -> dict:
     """Get the compacted summary of the session.
-    
+
     Returns:
         {"summary": "..."}
     """
@@ -258,10 +258,10 @@ def get_context_summary() -> dict:
 @tool()
 def get_recent_turns(count: int = 3) -> dict:
     """Get the most recent turns from the session.
-    
+
     Args:
         count: Number of recent turns (default 3)
-        
+
     Returns:
         {"turns": [{"role": "...", "content": "..."}]}
     """

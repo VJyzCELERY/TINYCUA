@@ -19,7 +19,7 @@ This document defines the standard tools used across all subprojects in the TINY
 ### Pre-commit
 - **Purpose**: Git hooks for automated checks before commit
 - **Config**: `.pre-commit-config.yaml`
-- **Install**: 
+- **Install**:
   1. `pip install -e ".[lint]"`
   2. `pre-commit install`
 - **Hooks**:

@@ -25,10 +25,10 @@ User Input → LLM (streaming tokens) → [tool_calls detected] → Execute tool
 ### New Flow with Tool Streaming
 
 ```
-User Input → LLM (streaming) 
-           → [tool_calls detected mid-stream] 
-           → Execute tool (streaming results) 
-           → Continue LLM streaming 
+User Input → LLM (streaming)
+           → [tool_calls detected mid-stream]
+           → Execute tool (streaming results)
+           → Continue LLM streaming
            → Final Response
 ```
 
@@ -59,7 +59,7 @@ class Runner:
         self, user_input: str, instructions: str | None = None
     ) -> AsyncIterator[StreamEvent]:
         """Stream response with tool execution."""
-        
+
         # Phase 1: Initial LLM streaming
         async for event in self._stream_llm_response():
             if event.type == "tool_call":
@@ -67,19 +67,19 @@ class Runner:
                 self._accumulate_tool_call(event)
             else:
                 yield event
-        
+
         # Phase 2: Execute tools and stream results
         for tool_call in self._pending_tool_calls:
             yield StreamEvent(type="tool_result_start", tool_name=tool_call.name)
-            
+
             # Execute tool (can be async generator for streaming)
             result = self._execute_tool_streaming(tool_call.name, tool_call.args)
-            
+
             async for result_chunk in result:
                 yield StreamEvent(type="tool_result_chunk", content=result_chunk)
-            
+
             yield StreamEvent(type="tool_result_end", tool_name=tool_call.name)
-        
+
         # Phase 3: Continue LLM with tool results
         async for event in self._stream_llm_continue():
             yield event

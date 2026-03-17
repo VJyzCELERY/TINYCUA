@@ -1,8 +1,5 @@
 """Tests for agent models."""
 
-import pytest
-from abc import ABC
-
 
 class TestAgentPolicy:
     def test_policy_defaults(self):

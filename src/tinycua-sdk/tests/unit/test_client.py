@@ -51,7 +51,7 @@ class TestResponsesClient:
             assert response.model == "gpt-4o-mini"
 
     @pytest.mark.asyncio
-    async def test_create_request(self):
+    async def test_create_request_with_chat_completions(self):
         from tinycua_sdk.clients import ResponsesClient
         from tinycua_sdk.models import ResponseRequest
 

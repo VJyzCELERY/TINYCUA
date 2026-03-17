@@ -33,10 +33,15 @@ class ResponsesClient:
         )
         self.api_key = api_key or os.getenv("TINYCUA_API_KEY", "")
         self.max_retries = max_retries
+
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=60.0,
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers=headers,
         )
 
     async def close(self) -> None:

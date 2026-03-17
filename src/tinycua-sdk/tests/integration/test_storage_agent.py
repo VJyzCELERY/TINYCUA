@@ -1,12 +1,7 @@
 """Integration tests for local storage with agent context tools."""
 
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
-from tinycua_sdk.agent import Agent
 from tinycua_sdk.storage import SessionStore
 from tinycua_sdk.tools.context_tools import (
     get_context_summary_tool,
@@ -161,7 +156,7 @@ class TestLocalStorageWithAgent:
         session = temp_db.create_session(name="Archive Test")
 
         msg1 = temp_db.add_message(session.id, "user", "Message 1")
-        msg2 = temp_db.add_message(session.id, "user", "Message 2")
+        temp_db.add_message(session.id, "user", "Message 2")
 
         temp_db.archive_message(msg1.id)
 

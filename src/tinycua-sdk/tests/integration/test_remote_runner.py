@@ -8,7 +8,7 @@ Run with: pytest tests/integration/test_remote_runner.py -v -m remote_runner
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestRemoteRunnerInterface:
@@ -85,7 +85,7 @@ class TestHTTPRunner:
 
     def test_http_runner_creation(self):
         """Test creating an HTTP runner."""
-        from tinycua_sdk.runner import HTTPRunner, RunnerOptions
+        from tinycua_sdk.runner import HTTPRunner
 
         runner = HTTPRunner(base_url="http://localhost:8000")
 
@@ -94,7 +94,7 @@ class TestHTTPRunner:
 
     def test_http_runner_with_api_key(self):
         """Test creating HTTP runner with API key."""
-        from tinycua_sdk.runner import HTTPRunner, RunnerOptions
+        from tinycua_sdk.runner import HTTPRunner
 
         runner = HTTPRunner(base_url="http://localhost:8000", api_key="test-key")
 
@@ -102,7 +102,7 @@ class TestHTTPRunner:
 
     def test_http_runner_get_headers(self):
         """Test HTTP runner headers."""
-        from tinycua_sdk.runner import HTTPRunner, RunnerOptions
+        from tinycua_sdk.runner import HTTPRunner
 
         runner = HTTPRunner(base_url="http://localhost:8000", api_key="test-key")
 
@@ -120,7 +120,7 @@ class TestRemoteRunnerIntegration:
     @pytest.mark.asyncio
     async def test_remote_runner_health_check(self):
         """Test remote runner health check."""
-        from tinycua_sdk.runner import HTTPRunner, RunnerOptions
+        from tinycua_sdk.runner import HTTPRunner
 
         runner = HTTPRunner(base_url="http://localhost:9999")
 
@@ -132,7 +132,7 @@ class TestRemoteRunnerIntegration:
     @pytest.mark.asyncio
     async def test_remote_runner_execute_no_server(self):
         """Test remote runner execute when no server available."""
-        from tinycua_sdk.runner import HTTPRunner, RunnerOptions
+        from tinycua_sdk.runner import HTTPRunner
 
         runner = HTTPRunner(base_url="http://localhost:9999")
 

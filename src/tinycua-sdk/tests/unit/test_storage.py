@@ -1,12 +1,10 @@
 """Tests for unified storage layer."""
 
 import uuid
-from datetime import datetime
 
 import pytest
 
 from tinycua_sdk.storage import SessionStore
-from tinycua_sdk.storage.models import Session, Message
 
 
 class TestSessionModel:

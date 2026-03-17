@@ -24,7 +24,6 @@ import asyncio
 import os
 
 # Import to load .env file
-from tinycua_sdk.config import Config
 
 from tinycua_sdk.tools import tool
 from tinycua_sdk.agent import Agent
@@ -121,7 +120,7 @@ async def main():
     # Step 3: Deploy to backend
     print("\n[3] Deploying to backend...")
     deployment = await agent.deploy()
-    print(f"    Status: created")
+    print("    Status: created")
     print(f"    Agent ID: {deployment.get('id', agent.agent_id)}")
     print(f"    Agent Name: {deployment.get('name')}")
     print(f"    Is deployed: {agent.is_deployed}")

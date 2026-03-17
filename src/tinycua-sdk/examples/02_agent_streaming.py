@@ -132,7 +132,7 @@ async def stream_multiple_tools(agent: Agent):
         elif event.type == StreamEventType.TOOL_RESULT_END:
             print()
         elif event.type == StreamEventType.DONE:
-            print(f"\n[Done]")
+            print("\n[Done]")
 
 
 async def main():

@@ -89,7 +89,7 @@ class Agent:
     ):
         self.sub_agents = sub_agents or []
         self.max_depth = max_depth
-    
+
     def add_sub_agent(self, agent: "Agent") -> None:
         """Add a sub-agent."""
         self.sub_agents.append(agent)
@@ -104,7 +104,7 @@ async def run(self, user_input: str):
         sub_agent = select_sub_agent(user_input)
         result = await sub_agent.run(user_input)
         return aggregate(result)
-    
+
     # Normal execution
     return await self._execute_local(user_input)
 ```

@@ -34,7 +34,7 @@ class TestMemoryToolsWithLLM:
             tools=[remember, recall, list_memory],
         )
 
-        response = await agent.run("My favorite color is purple")
+        await agent.run("My favorite color is purple")
 
         result = list_memory.invoke()
         assert "favorite_color" in result["keys"] or "color" in result["keys"]
@@ -60,7 +60,7 @@ class TestMemoryToolsWithLLM:
             tools=[remember, recall],
         )
 
-        response = await agent.run("What is my name?")
+        await agent.run("What is my name?")
 
 
 class TestMemoryStreaming:
@@ -198,7 +198,7 @@ class TestCustomMemoryBackend:
                 tools=[remember, recall, list_memory],
             )
 
-            response = await agent.run("Remember my number is 42")
+            await agent.run("Remember my number is 42")
 
             result = list_memory.invoke()
             assert "number" in result["keys"] or len(result["keys"]) > 0
@@ -213,22 +213,12 @@ class TestMemoryPersistence:
     @pytest.mark.asyncio
     async def test_memory_persists_between_runs(self):
         """Test memory is accessible in subsequent runs."""
-        from tinycua_sdk.models import Agent
         from tinycua_sdk.tools import remember, recall
         from tinycua_sdk.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
         remember.invoke(key="test_key", value="test_value")
-
-        agent = Agent(
-            name="test-persist",
-            provider="lmstudio",
-            model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
-            api_key="dummy",
-            tools=[remember, recall],
-        )
 
         result = recall.invoke(key="test_key")
         assert result["found"] is True

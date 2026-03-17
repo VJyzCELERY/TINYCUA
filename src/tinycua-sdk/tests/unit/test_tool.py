@@ -1,7 +1,5 @@
 """Tests for tool decorator."""
 
-import pytest
-
 
 class TestToolDecorator:
     def test_tool_decorator_creates_tool(self):
