@@ -22,6 +22,12 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["tinycua_finetune"]
+
 [tool.ruff]
 line-length = 88
 
