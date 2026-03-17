@@ -1,0 +1,23 @@
+# Local config
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+dist/
+build/
+*.egg-info/

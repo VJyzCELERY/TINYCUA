@@ -1,31 +1,61 @@
-# Specifications for tinycua-sdk
+# SDK Specs Index
 
-## Overview
+This folder contains specifications for the TINYCUA SDK.
 
-This folder houses specifications and design documents specific to `tinycua-sdk`.
+## Contents
 
-## Convention
+1. **[spec.md](spec.md)** - Main SDK specification
+   - Core features overview
+   - Architecture
+   - Status tracker
+   - Requirements
 
-Specs are organised by feature, not stored flat. Each feature has its own subfolder:
+### Feature Specifications
 
-```
-specs/
-└── <feature-name>/
-    ├── spec.md      # "what and why" — requirements and acceptance criteria
-    └── design.md   # "how" — architecture, decisions, implementation phases
-```
+2. **[tool-streaming/](tool-streaming/)** - Streaming tool execution
+   - [spec.md](tool-streaming/spec.md) - Requirements and API
+   - [design.md](tool-streaming/design.md) - Implementation details
 
-Use `lower-kebab-case` for all subfolder names.
+3. **[session/](session/)** - Session & memory tools
+   - [spec.md](session/spec.md) - Requirements
+   - [design.md](session/design.md) - Implementation
 
-## Adding a New Feature Spec
+4. **[remote-runner/](remote-runner/)** - Remote Runner SDK
+   - [spec.md](remote-runner/spec.md) - Requirements
+   - [design.md](remote-runner/design.md) - Implementation
 
-1. Create `specs/<feature-name>/`
-2. Copy `spec.md` from `../../../../specs/spec-template.md` and fill it in.
-3. Copy `design.md` from `../../../../specs/design-template.md` and fill it in.
-4. Resolve all `[NEEDS CLARIFICATION]` markers before starting implementation.
+5. **[remote-backend/](remote-backend/)** - Remote Backend SDK
+   - [spec.md](remote-backend/spec.md) - Requirements
+   - [design.md](remote-backend/design.md) - Implementation
 
-## Features
+6. **[agent-hierarchy/](agent-hierarchy/)** - Agent Hierarchy
+   - [spec.md](agent-hierarchy/spec.md) - Requirements
+   - [design.md](agent-hierarchy/design.md) - Implementation
 
-| Feature | Spec | Design |
-|---------|------|--------|
-| _(none yet — add rows as features are specced)_ | | |
+## Related Specifications
+
+### Backend (for reference)
+- **[session-context](../../tinycua-backend/specs/session-context/spec.md)** - Backend session management with embeddings, compaction, memory depth
+
+### Design Documents
+- **[agent-tool-abstraction](agent-tool-abstraction/)** - Original agent/tool design (reference)
+
+---
+
+## Quick Links
+
+| Feature | Spec Location |
+|---------|---------------|
+| Tool streaming | [tool-streaming/spec.md](tool-streaming/spec.md) |
+| Memory tools | [session/spec.md](session/spec.md) |
+| Agent hierarchy | [agent-hierarchy/spec.md](agent-hierarchy/spec.md) |
+| Remote Runner | [remote-runner/spec.md](remote-runner/spec.md) |
+| Remote Backend | [remote-backend/spec.md](remote-backend/spec.md) |
+
+---
+
+## Status Legend
+
+- ✅ Complete
+- ⏳ In Progress / Pending
+- ❌ Not Started
