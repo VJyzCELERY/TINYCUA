@@ -9,7 +9,7 @@ SRC ?= tinycua_runner
 
 # Install dependencies
 install:
-	$(UV) pip install -r requirements.txt
+	pip3 install -e .
 
 # Run the runner server
 run:

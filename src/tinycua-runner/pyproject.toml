@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "TINYCUA Runner - Remote execution service"
 requires-python = ">=3.12"
 dependencies = [
-    "tinycua-sdk @ file://../tinycua-sdk",
+    "tinycua-sdk",
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
     "pyyaml>=6.0",

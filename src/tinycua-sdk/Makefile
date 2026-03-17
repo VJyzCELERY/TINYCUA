@@ -9,7 +9,7 @@ SRC ?= tinycua_sdk
 
 # Install dependencies
 install:
-	$(UV) pip install -e ".[dev]"
+	pip3 install -e ".[dev]"
 
 # Run SDK example (local mode)
 run:

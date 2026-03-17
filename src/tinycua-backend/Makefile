@@ -10,7 +10,7 @@ SRC ?= tinycua_backend
 
 # Install dependencies
 install:
-	$(UV) pip install -r requirements.txt
+	pip3 install -e .
 
 # ============================================
 # Docker Operations
