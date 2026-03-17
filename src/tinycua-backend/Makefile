@@ -2,17 +2,73 @@
 
 # Variables
 PYTHON ?= python3
+UV ?= uv
+SRC ?= tinycua_backend
 
-.PHONY: install lint test coverage complexity clean
+.PHONY: install lint lint-fix test coverage complexity clean check run
+.PHONY: docker-up docker-down docker-logs docker-restart docker-rebuild docker-restart-fresh
 
 # Install dependencies
 install:
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -r requirements.txt
+	$(UV) pip install -r requirements.txt
+
+# ============================================
+# Docker Operations
+# ============================================
+
+# Start PostgreSQL
+docker-up:
+	docker compose up -d
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 3
+	@docker compose ps
+
+# Stop PostgreSQL
+docker-down:
+	docker compose down
+
+# View logs
+docker-logs:
+	docker compose logs -f
+
+# Restart
+docker-restart:
+	docker compose restart
+
+# Rebuild (stop, remove, rebuild, start)
+docker-rebuild:
+	docker compose down
+	docker compose up -d --build
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 3
+	@docker compose ps
+
+# Rebuild fresh (with volume deletion - removes all data)
+docker-restart-fresh:
+	docker compose down -v
+	docker compose up -d --build
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 3
+	@docker compose ps
+
+# ============================================
+# Server
+# ============================================
+
+# Run the backend server
+run: docker-up
+	@echo "Starting tinycua-backend..."
+	$(PYTHON) -m tinycua_backend.main
 
 # Run linter (Ruff)
 lint:
-	ruff .
+	ruff check $(SRC)/
+	ruff format --check $(SRC)/
+
+# Run linter with auto-fix
+lint-fix:
+	ruff check $(SRC)/ --fix
+	ruff format $(SRC)/
 
 # Run tests
 test:
@@ -20,13 +76,28 @@ test:
 
 # Run tests with coverage
 coverage:
-	pytest --cov=tinycua_backend --cov-report=html
+	pytest --cov=$(SRC) --cov-report=html
 
 # Run cognitive complexity analysis (radon)
 complexity:
-	radon cc . -a -nc
-	radon mi . -n B
+	radon cc $(SRC)/ --min=A --max=15
+
+# Run all checks (lint + complexity)
+check:
+	@echo "=== Running Ruff Lint ==="
+	ruff check $(SRC)/
+	@echo ""
+	@echo "=== Running Ruff Format ==="
+	ruff format --check $(SRC)/
+	@echo ""
+	@echo "=== Running Cognitive Complexity ==="
+	@radon cc $(SRC)/ --min=A --max=15 -s; \
+	if [ $$? -eq 0 ]; then \
+		echo "No functions exceed complexity threshold (max=15)"; \
+	fi
+	@echo ""
+	@echo "=== All checks passed ==="
 
 # Clean up artifacts
 clean:
-	rm -rf .pytest_cache .coverage coverage.xml dist build *.egg-info htmlcov/
+	rm -rf .pytest_cache .ruff_cache .coverage coverage.xml dist build *.egg-info htmlcov/

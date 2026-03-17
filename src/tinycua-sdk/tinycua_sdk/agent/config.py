@@ -1,0 +1,95 @@
+"""Agent configuration classes."""
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+from tinycua_sdk.tools.decorators import Tool
+
+if TYPE_CHECKING:
+    from tinycua_sdk.agent import Agent
+
+
+@dataclass
+class AgentPolicy:
+    """Policy for agent behavior."""
+
+    max_tool_calls: int = 10
+    parallel_tool_calls: bool = True
+    temperature: float = 1.0
+
+
+@dataclass
+class AgentConfig:
+    """Configuration for an agent."""
+
+    name: str = "assistant"
+    instructions: str = ""
+    system_prompt: str = "You are a helpful assistant."
+    model: str = "gpt-5-nano"
+    provider: str = "openai"
+    base_url: str | None = None
+    api_key: str | None = None
+    tools: list[Tool] = field(default_factory=list)
+    policy: AgentPolicy = field(default_factory=AgentPolicy)
+    plan_mode: str = "direct"
+    planning_prompt: str | None = None
+    # Deployed mode settings
+    mode: str = "local"  # "local" or "deployed"
+    backend_url: str | None = None
+    backend_api_key: str | None = None
+    backend_headers: dict[str, str] | None = None
+    agent_id: str | None = None
+    # Thinking strip: None=default patterns, False=disable, list=custom regex
+    strip_thinking: bool | list[str] | None = None
+    # Sub-agents for delegation
+    sub_agents: list["Agent"] = field(default_factory=list)
+
+    def to_config(self) -> dict[str, Any]:
+        """Serialize agent config to dict."""
+        return {
+            "name": self.name,
+            "instructions": self.instructions,
+            "system_prompt": self.system_prompt,
+            "model": self.model,
+            "provider": self.provider,
+            "base_url": self.base_url,
+            "api_key": self.api_key,
+            "tools": [
+                t.to_config() if hasattr(t, "to_config") else t for t in self.tools
+            ],
+            "policy": {
+                "max_tool_calls": self.policy.max_tool_calls,
+                "parallel_tool_calls": self.policy.parallel_tool_calls,
+                "temperature": self.policy.temperature,
+            },
+            "plan_mode": self.plan_mode,
+            "planning_prompt": self.planning_prompt,
+            "strip_thinking": self.strip_thinking,
+        }
+
+    @classmethod
+    def from_config(cls, data: dict[str, Any]) -> "AgentConfig":
+        """Deserialize agent config from dict."""
+        policy_data = data.get("policy", {})
+        policy = AgentPolicy(
+            max_tool_calls=policy_data.get("max_tool_calls", 10),
+            parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
+            temperature=policy_data.get("temperature", 1.0),
+        )
+        return cls(
+            name=data.get("name", "assistant"),
+            instructions=data.get("instructions", ""),
+            system_prompt=data.get("system_prompt", "You are a helpful assistant."),
+            model=data.get("model", "gpt-4o-mini"),
+            provider=data.get("provider", "openai"),
+            base_url=data.get("base_url"),
+            api_key=data.get("api_key"),
+            tools=data.get("tools", []),
+            policy=policy,
+            plan_mode=data.get("plan_mode", "direct"),
+            planning_prompt=data.get("planning_prompt"),
+            strip_thinking=data.get("strip_thinking"),
+        )
+
+
+__all__ = ["AgentConfig", "AgentPolicy"]

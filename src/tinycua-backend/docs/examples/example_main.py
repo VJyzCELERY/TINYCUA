@@ -1,3 +1,4 @@
-# Example Script Placeholder for tinycua-backend.
+"""Example Script Placeholder for tinycua-backend.
 
-# To be implemented by subproject developers.
+To be implemented by subproject developers.
+"""

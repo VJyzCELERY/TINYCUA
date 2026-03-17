@@ -1,17 +1,59 @@
+[project]
+name = "tinycua-runner"
+version = "0.1.0"
+description = "TINYCUA Runner - Remote execution service"
+requires-python = ">=3.12"
+dependencies = [
+    "tinycua-sdk @ file://../tinycua-sdk",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["tinycua_runner"]
+
 [tool.ruff]
 line-length = 88
-select = ["E", "W", "F", "D", "C901"] # Enabled docstring (pydocstyle) rules
-ignore = []
-fixable = ["ALL"] # Enable auto-fixing
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "D", "C901", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+ignore = [
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
+    "E501",  # Line too long
+    "D401",  # First line not imperative mood
+]
+fixable = ["ALL"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
-[lint.flake8-tidy-imports]
-ban-relative-imports = "all" # Absolute imports only
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
-[lint.per-file-ignores]
-"**/tests/**" = ["D"] # Skip docstring rules for tests
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D"]
+"examples/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -372,17 +372,17 @@ Before each LLM call:
 token_estimation:
   tokenizer: "tiktoken"
   buffer_percentage: 0.1  # 10% buffer, trigger at 90%
-  
+
   # Auto-detection mapping
   encoding_map:
     gpt-4: "cl100k_base"
     llama3: "cl100k_base"
     # Add model-specific overrides
-  
+
   # Fallback if model not recognized
   default_encoding: "cl100k_base"
   default_max_tokens: 16384
-  
+
   compaction:
     trigger_threshold: 0.9  # 90% (after buffer)
     turns_threshold: 20    # Trigger after N turns
@@ -442,17 +442,17 @@ memory:
   importance:
     # Scoring method: "heuristic", "llm", or "hybrid"
     scoring_method: "hybrid"
-    
+
     # For LLM scoring (if enabled)
     llm_model: "tiny-embed"
     llm_score_threshold: 7  # Score above this is "important"
-    
+
     # Thresholds (configurable)
     thresholds:
       high: 7
       medium: 4
       low: 1
-    
+
     # Keyword bonuses for heuristic
     keyword_bonus:
       - "important"
@@ -461,12 +461,12 @@ memory:
       - "critical"
       - "key"
       - "essential"
-  
+
   types:
     working_turns: 3  # Keep last N turns as working
     short_term_retention_days: 30
     auto_promote_to_long_term: false
-  
+
   pinning:
     allow_user_pin: true
     allow_llm_suggest: true
@@ -533,24 +533,24 @@ error_recovery:
     base_delay_ms: 1000
     max_delay_ms: 10000
     exponential_base: 2
-    
+
   circuit_breaker:
     enabled: true
     failure_threshold: 5
     failure_window_seconds: 60
     recovery_timeout_seconds: 30
-    
+
   fallback_chain:
     search:
       - semantic    # Primary
       - grep        # Fallback 1
       - recent      # Fallback 2
-    
+
     tool_execution:
       - execute     # Primary
       - retry       # Built into tool execution
       - error       # Return error
-      
+
   visibility:
     show_errors_to_agent: true
     show_fallbacks_to_agent: true
@@ -632,18 +632,18 @@ Session Execution (Root Span)
 observability:
   enabled: true
   retention_days: 30
-  
+
   # What's traced
   trace_llm: true
   trace_tools: true
   trace_compaction: true
   trace_errors: true
-  
+
   # Detail levels
   include_prompts: true
   include_results: true
   max_span_data_size: 10000  # Truncate after N chars
-  
+
   # SSE
   sse_enabled: true
   sse_heartbeat_seconds: 30

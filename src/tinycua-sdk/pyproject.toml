@@ -1,18 +1,78 @@
+[project]
+name = "tinycua-sdk"
+version = "0.1.0"
+description = "TINYCUA SDK - AI Agent Development Kit"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27.0",
+    "python-ai-sdk>=0.0.3",
+    "pydantic>=2.6.0",
+    "tenacity>=8.2.0",
+    "prompt-toolkit>=3.0.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0.0",
+    "textual>=0.50.0",
+    "sqlalchemy>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+postgres = [
+    "pgvector>=0.1.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "pre-commit>=3.0.0",
+    "radon>=6.0.0",
+]
+lint = [
+    "ruff>=0.3.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+tinycua = "tinycua_sdk.cli.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.ruff]
 line-length = 88
-select = ["E", "W", "F", "D", "C901"] # Enabled docstring (pydocstyle) rules
-ignore = []
-fixable = ["ALL"] # Enable auto-fixing
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "D", "C901", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+ignore = [
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
+    "E501",  # Line too long (handled separately)
+    "D401",  # First line not imperative mood (docstring style)
+]
+fixable = ["ALL"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
-[lint.flake8-tidy-imports]
-ban-relative-imports = "all" # Absolute imports only
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
-[lint.per-file-ignores]
-"**/tests/**" = ["D"] # Skip docstring rules for tests
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D"]
+"examples/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers --disable-warnings --maxfail=2 --cov=tinycua_sdk --cov-report=html"
+addopts = "--strict-markers --disable-warnings --maxfail=2"
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests (require external service running)",
+    "lm_studio: marks tests that require LM Studio running",
+    "backend: marks tests that require backend server running",
+    "remote_runner: marks tests that require remote runner server running",
+]
