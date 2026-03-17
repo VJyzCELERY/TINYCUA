@@ -1,0 +1,89 @@
+# TINYCUA Fine-Tuning Configuration
+# Target: RTX 5080 16GB VRAM + 32GB RAM
+
+# Model Configuration
+model:
+  # Default: Qwen2.5-VL-7B-Instruct (supports text + vision)
+  name: "Qwen/Qwen2.5-VL-7B-Instruct"
+  
+  # Training mode: qlora | lora | offload | vlm
+  mode: "vlm"
+  
+  # Maximum sequence length
+  max_seq_len: 512
+  
+  # Vision-specific settings (VLM mode)
+  vision:
+    max_resolution: 448
+    processor: "Qwen/Qwen2.5-VL-7B-Instruct"
+
+# LoRA Configuration
+lora:
+  # LoRA rank (dimensionality of LoRA matrices)
+  r: 16
+  
+  # LoRA alpha (scaling factor)
+  alpha: 32
+  
+  # LoRA dropout probability
+  dropout: 0.05
+  
+  # Target modules for LoRA
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+
+# Training Configuration
+training:
+  # Batch size per device
+  batch_size: 1
+  
+  # Gradient accumulation steps
+  gradient_accumulation: 8
+  
+  # Learning rate
+  learning_rate: 1.0e-4
+  
+  # Number of epochs
+  epochs: 1
+  
+  # Warmup steps
+  warmup_steps: 10
+  
+  # Save checkpoint every N steps
+  save_steps: 10
+  
+  # Log every N steps
+  logging_steps: 10
+
+# Quantization Configuration (QLoRA mode)
+quantization:
+  # Enable 4-bit quantization
+  load_in_4bit: true
+  
+  # Compute dtype for quantization
+  bnb_4bit_compute_dtype: "float16"
+  
+  # Quantization type: nf4 | fp4
+  bnb_4bit_quant_type: "nf4"
+
+# Hardware Configuration
+hardware:
+  # Mixed precision
+  fp16: true
+  
+  # Gradient checkpointing (saves VRAM)
+  gradient_checkpointing: true
+  
+  # Dataloader workers
+  dataloader_num_workers: 0
+
+# Output Configuration
+output:
+  # Save total limit (keep last N checkpoints)
+  save_total_limit: 2
+  
+  # Logging backend (none | tensorboard | wandb)
+  report_to: "none"
