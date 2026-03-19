@@ -89,18 +89,27 @@ class SessionStore:
 
     # Session operations
 
-    def create_session(self, name: str, user_id: str | None = None) -> Session:
+    def create_session(
+        self,
+        name: str,
+        user_id: str | None = None,
+        session_id: uuid.UUID | None = None,
+    ) -> Session:
         """Create a new session.
 
         Args:
             name: Session name
             user_id: Optional user ID for multi-tenancy
+            session_id: Optional specific session ID (for external session management)
 
         Returns:
             Created Session instance
         """
         with self._get_session() as db:
-            session = Session(name=name, user_id=user_id)
+            if session_id:
+                session = Session(id=session_id, name=name, user_id=user_id)
+            else:
+                session = Session(name=name, user_id=user_id)
             db.add(session)
             db.commit()
             db.refresh(session)
@@ -199,7 +208,7 @@ class SessionStore:
 
             stmt = select(Message).where(Message.session_id == session_id)
             existing_messages = db.execute(stmt).scalars().all()
-            turn_index = len(existing_messages) + 1
+            turn_index = len(existing_messages)
 
             message = Message(
                 session_id=session_id,

@@ -22,11 +22,8 @@ class RunRequest(BaseModel):
     """Request model for running an agent."""
 
     agent_config: dict[str, Any]
-    session_id: str
-    db_url: str
     user_input: str
     tools: list[dict[str, Any]] | None = None
-    messages: list[dict[str, Any]] | None = None
 
 
 async def get_current_runner(
@@ -63,8 +60,6 @@ async def run_agent(
         Streaming response with SSE events
     """
     executor = Executor(
-        db_url=request.db_url,
-        session_id=request.session_id,
         bundled_tools=request.tools,
     )
 
@@ -73,7 +68,6 @@ async def run_agent(
             async for event in executor.execute(
                 agent_config=request.agent_config,
                 user_input=request.user_input,
-                messages=request.messages,
             ):
                 yield format_sse_event(event)
         except Exception as e:

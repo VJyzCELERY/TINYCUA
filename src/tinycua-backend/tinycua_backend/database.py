@@ -9,11 +9,11 @@ from tinycua_backend.config import get_config
 from tinycua_backend.models.base import Base
 
 # Import all models to ensure relationships are set up and configure mappers
+# Note: Session is managed by SessionStore, not by backend models
 from tinycua_backend.models import Tenant, User, APIKey, Agent, Tool
-from tinycua_backend.models.session import Session as BackendSession
 
 # Mark as used for side effects
-del Tenant, User, APIKey, Agent, Tool, BackendSession
+del Tenant, User, APIKey, Agent, Tool
 
 configure_mappers()
 

@@ -13,9 +13,7 @@ from tinycua_backend.auth import CurrentTenant, get_current_tenant
 from tinycua_backend.config import get_config
 from tinycua_backend.database import get_db
 from tinycua_backend.models.agent import Agent
-from tinycua_backend.models.session import Session as BackendSession
 from tinycua_backend.models.tool import Tool
-from tinycua_sdk.storage import SessionStore
 
 router = APIRouter(prefix="/v1/agents", tags=["run"])
 
@@ -24,8 +22,6 @@ class RunRequest(BaseModel):
     """Request model for running an agent."""
 
     user_input: str
-    session_id: str | None = None
-    session_name: str | None = None
 
 
 def resolve_tool_dependencies(
@@ -121,71 +117,6 @@ def load_agent(agent_id: str, tenant_id: str, db: Session) -> Agent:
     return agent
 
 
-def load_or_create_session(
-    session_id: str | None,
-    session_name: str | None,
-    agent_id: str,
-    tenant_id: str,
-    db: Session,
-) -> str:
-    """Load or create a session.
-
-    Args:
-        session_id: Optional session ID
-        session_name: Optional session name
-        agent_id: Agent ID
-        tenant_id: Tenant ID
-        db: Database session
-
-    Returns:
-        Session ID
-    """
-    if session_id:
-        try:
-            uuid_session_id = uuid.UUID(session_id)
-            session = (
-                db.query(BackendSession)
-                .filter(
-                    BackendSession.id == uuid_session_id,
-                    BackendSession.tenant_id == tenant_id,
-                )
-                .first()
-            )
-            if session:
-                return session.id
-        except ValueError:
-            pass
-
-    session = BackendSession(
-        tenant_id=tenant_id,
-        agent_id=agent_id,
-        name=session_name or "Session",
-    )
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session.id
-
-
-def get_session_messages(session_id: str, db_url: str) -> list[dict]:
-    """Get messages from session store.
-
-    Args:
-        session_id: Session ID
-        db_url: Database URL
-
-    Returns:
-        List of message dicts
-    """
-    try:
-        store = SessionStore(db_url)
-        messages = store.get_messages(session_id)
-        return [{"role": m.role, "content": m.content} for m in messages]
-    except Exception as e:
-        print(f"Warning: Could not get messages from SessionStore: {e}")
-        return []
-
-
 def resolve_tools(tool_configs: list, tenant_id: str, db: Session) -> list[dict]:
     """Resolve tools from agent config.
 
@@ -232,6 +163,9 @@ async def run_agent(
 ):
     """Execute an agent and stream results.
 
+    This endpoint is stateless - it does not manage sessions or messages.
+    Session and message management should be done via the /v1/sessions endpoints.
+
     Args:
         agent_id: The agent ID
         request: The run request
@@ -244,16 +178,7 @@ async def run_agent(
     tenant_id = str(current.tenant.id)
 
     agent = load_agent(agent_id, tenant_id, db)
-    session_id = load_or_create_session(
-        request.session_id,
-        request.session_name,
-        str(agent.id),
-        tenant_id,
-        db,
-    )
-
     config = get_config()
-    messages_data = get_session_messages(str(session_id), config.database.url)
     tools_bundle = resolve_tools(agent.config.get("tools", []), tenant_id, db)
 
     runner_url = f"{config.runner.url}/internal/v1/run"
@@ -268,10 +193,7 @@ async def run_agent(
                     headers=headers,
                     json={
                         "agent_config": agent.config,
-                        "session_id": str(session_id),
-                        "db_url": config.database.url,
                         "user_input": request.user_input,
-                        "messages": messages_data,
                         "tools": tools_bundle,
                     },
                 ) as response:

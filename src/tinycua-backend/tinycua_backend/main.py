@@ -13,6 +13,7 @@ from tinycua_backend.guest import get_guest_session_store
 from tinycua_backend.routers import agents, sessions, run, tools
 from tinycua_backend.routers.auth import router as auth_router
 from tinycua_backend.routers.guest import router as guest_router
+from tinycua_sdk.storage import SessionStore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +36,10 @@ async def lifespan(app: FastAPI):
     # Create tables
     create_tables()
     logger.info("Database tables created")
+
+    # Create SDK tables (sessions, messages) via SessionStore
+    SessionStore(config.database.url).create_tables()
+    logger.info("SDK tables (sessions, messages) created")
 
     # Start guest session cleanup task
     store = get_guest_session_store()

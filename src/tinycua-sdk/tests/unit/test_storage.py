@@ -54,7 +54,7 @@ class TestMessageModel:
         )
         assert message.role == "user"
         assert message.content == "Hello"
-        assert message.turn_index == 1
+        assert message.turn_index == 0
 
     def test_message_reasoning_field(self, store):
         """Test message reasoning field."""
@@ -152,7 +152,7 @@ class TestMessageOperations:
         )
         assert message.role == "user"
         assert message.content == "Hello"
-        assert message.turn_index == 1
+        assert message.turn_index == 0
 
     def test_add_multiple_messages(self, store):
         """Test adding multiple messages increments turn_index."""
@@ -161,9 +161,9 @@ class TestMessageOperations:
         msg2 = store.add_message(session.id, "assistant", "Hi there")
         msg3 = store.add_message(session.id, "user", "How are you?")
 
-        assert msg1.turn_index == 1
-        assert msg2.turn_index == 2
-        assert msg3.turn_index == 3
+        assert msg1.turn_index == 0
+        assert msg2.turn_index == 1
+        assert msg3.turn_index == 2
 
     def test_get_messages(self, store):
         """Test getting messages from a session."""

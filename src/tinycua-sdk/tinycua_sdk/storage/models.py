@@ -32,9 +32,12 @@ def get_embedding_column():
 
 
 class Session(Base):
-    """Session model for storing conversation sessions."""
+    """Session model for storing conversation sessions.
 
-    __tablename__ = "sessions"
+    Uses 'sdk_sessions' table name to avoid conflicts with backend's sessions table.
+    """
+
+    __tablename__ = "sdk_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -64,7 +67,7 @@ class Message(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("sessions.id"), nullable=False
+        ForeignKey("sdk_sessions.id"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(50), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

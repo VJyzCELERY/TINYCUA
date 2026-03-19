@@ -27,7 +27,7 @@ class TestResponsesClient:
         from tinycua_sdk.clients import ResponsesClient
         from tinycua_sdk.models import ResponseRequest
 
-        with patch("tinycua_sdk.clients.client httpx.AsyncClient") as mock_client_class:
+        with patch("tinycua_sdk.clients.client.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_response = MagicMock()
             mock_response.json.return_value = {

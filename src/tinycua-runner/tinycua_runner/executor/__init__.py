@@ -1,4 +1,4 @@
-"""Executor for running agents with session context."""
+"""Executor for running agents with stateless execution."""
 
 from __future__ import annotations
 
@@ -11,25 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 class Executor:
-    """Handles agent execution with session context and custom tools."""
+    """Handles agent execution with bundled tools."""
 
     def __init__(
         self,
-        db_url: str,
-        session_id: str,
         bundled_tools: list[dict[str, Any]] | None = None,
     ):
         """Initialize executor.
 
         Args:
-            db_url: Database URL for SessionStore
-            session_id: Session ID for context
             bundled_tools: Optional list of tool bundles from backend
         """
-        self.db_url = db_url
-        self.session_id = session_id
-        self.store = None
-
         self._register_tools(bundled_tools or [])
 
     def _register_tools(self, tools: list[dict[str, Any]]) -> None:
@@ -88,14 +80,12 @@ class Executor:
         self,
         agent_config: dict[str, Any],
         user_input: str,
-        messages: list[dict[str, Any]] | None = None,
     ):
         """Execute agent and yield events.
 
         Args:
             agent_config: Agent configuration
             user_input: User input
-            messages: Optional conversation history
 
         Yields:
             SSE events
@@ -114,7 +104,6 @@ class Executor:
             f"Agent config: provider={provider}, base_url={base_url}, model={agent_config.get('model')}"
         )
 
-        # Skip api_key for local providers like lmstudio, ollama
         if provider in ("lmstudio", "ollama") and not api_key:
             api_key = None
 
@@ -131,9 +120,6 @@ class Executor:
             tools=all_tools,
             mode="local",
         )
-
-        if messages:
-            agent.messages = messages
 
         logger.info(f"Running agent: {agent.name}, mode: {agent.config.mode}")
 

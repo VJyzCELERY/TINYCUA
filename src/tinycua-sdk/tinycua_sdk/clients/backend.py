@@ -371,5 +371,81 @@ class BackendClient:
                     elif line:
                         yield line
 
+    async def create_session(
+        self,
+        agent_id: str,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new session.
+
+        Args:
+            agent_id: ID of the agent for this session
+            name: Optional session name
+
+        Returns:
+            Session response with id, agent_id, name, created_at, updated_at
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/sessions",
+                json={"agent_id": agent_id, "name": name},
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_messages(
+        self,
+        session_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Get messages for a session.
+
+        Args:
+            session_id: ID of the session
+            limit: Maximum number of messages to return
+            offset: Number of messages to skip
+
+        Returns:
+            List of message dicts with id, role, content, turn_index, created_at
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/sessions/{session_id}/messages",
+                params={"limit": limit, "offset": offset},
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def add_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+    ) -> dict[str, Any]:
+        """Add a message to a session.
+
+        Args:
+            session_id: ID of the session
+            role: Message role (user, assistant, tool, metadata)
+            content: Message content
+
+        Returns:
+            Message response with id, role, content, turn_index, created_at
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/sessions/{session_id}/messages",
+                json={"role": role, "content": content},
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
 
 __all__ = ["BackendClient"]
