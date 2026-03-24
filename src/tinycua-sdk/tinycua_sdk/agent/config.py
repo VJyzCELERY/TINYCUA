@@ -1,5 +1,6 @@
 """Agent configuration classes."""
 
+import inspect
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -50,12 +51,29 @@ class AgentConfig:
         """Serialize agent config to dict."""
         loop_config = None
         if self.loop is not None:
-            import inspect
+            from tinycua_sdk.agent.loop_resolver import analyze_loop_source
 
-            source = inspect.getsource(self.loop.__class__)
+            loop_class = self.loop.__class__
+            class_name = loop_class.__name__
+
+            module = inspect.getmodule(loop_class)
+            if module and module.__file__:
+                with open(module.__file__, "r") as f:
+                    module_source = f.read()
+            else:
+                module_source = ""
+
+            class_source = inspect.getsource(loop_class)
+            dependencies, helpers = analyze_loop_source(class_source)
+
+            if not helpers and module_source:
+                dependencies, helpers = analyze_loop_source(module_source)
+
             loop_config = {
-                "class_name": self.loop.__class__.__name__,
-                "source": source,
+                "class_name": class_name,
+                "source": class_source,
+                "dependencies": dependencies,
+                "helpers": helpers,
             }
 
         return {

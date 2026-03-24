@@ -292,6 +292,30 @@ class Runner:
             tools=tools or [],
         )
 
+    def emit_loop_log(self, message: str, level: str = "info") -> None:
+        """Emit a log message from a custom loop.
+
+        This allows custom loops to send log messages back to the client
+        through the SSE stream. Events are collected and yielded during streaming.
+
+        Args:
+            message: The log message
+            level: Log level (info, warn, error, debug)
+        """
+        if not hasattr(self, "_loop_logs"):
+            self._loop_logs = []
+        self._loop_logs.append({"level": level, "message": message})
+
+    def get_loop_logger(self):
+        """Get a logger function for custom loops.
+
+        Returns a callable that can be used to emit loop logs.
+
+        Returns:
+            A callable that emits loop log events
+        """
+        return self.emit_loop_log
+
     async def execute_tool_loop(
         self,
         tool_calls: list[dict[str, Any]],
@@ -951,6 +975,11 @@ You are now handling this task. Complete it and return results.
                 type=StreamEventType.LLM_REQUEST,
                 data={"model": self.model, "messages": request_messages},
             )
+            for log_entry in getattr(self, "_loop_logs", []):
+                yield StreamEvent(
+                    type=StreamEventType.LOOP_LOG,
+                    data=log_entry,
+                )
 
         (
             tool_calls_buffer,
@@ -959,6 +988,11 @@ You are now handling this task. Complete it and return results.
         ) = await self._collect_tool_calls(request)
 
         if not tool_calls_buffer:
+            if assistant_content:
+                yield StreamEvent(
+                    type=StreamEventType.CONTENT,
+                    data={"content": assistant_content},
+                )
             yield StreamEvent(
                 type=StreamEventType.DONE, data={"finish_reason": finish_reason}
             )

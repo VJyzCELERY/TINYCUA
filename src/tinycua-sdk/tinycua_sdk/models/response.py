@@ -80,6 +80,11 @@ class StreamEventType(str, Enum):
     LLM_REQUEST = "llm_request"
     LLM_RESPONSE = "llm_response"
 
+    # Loop custom events
+    LOOP_LOG = "loop_log"
+    LOOP_START = "loop_start"
+    LOOP_END = "loop_end"
+
     # Error events
     ERROR = "error"
 

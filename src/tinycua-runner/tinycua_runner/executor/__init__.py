@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -33,6 +34,8 @@ class Executor:
         registry = get_registry()
 
         for tool_bundle in tools:
+            # Install external dependencies before registering
+            registry.install_tool_dependencies(tool_bundle)
             registry.register(tool_bundle)
 
         logger.info(f"Registered {len(tools)} bundled tools")
@@ -69,7 +72,6 @@ class Executor:
             List of Tool objects
         """
         from tinycua_sdk.tools.decorators import Tool
-        from tinycua_runner.registry import get_registry
 
         registry = get_registry()
         tools = []
@@ -135,6 +137,8 @@ class Executor:
             api_key = None
 
         loop_config = agent_config.get("loop")
+        if loop_config and loop_config.get("dependencies"):
+            self._install_dependencies(loop_config["dependencies"])
 
         agent = Agent(
             name=agent_config.get("name", "runner-agent"),
@@ -161,10 +165,20 @@ class Executor:
 
             async for event in result:
                 logger.info(f"Yielding event: {type(event)}")
-                yield event
+                if hasattr(event, "to_dict"):
+                    yield json.dumps(event.to_dict())
+                elif hasattr(event, "type") and hasattr(event, "data"):
+                    data = {"type": event.type.value, "data": event.data}
+                    yield json.dumps(data)
+                elif isinstance(event, dict):
+                    yield json.dumps(event)
+                else:
+                    yield json.dumps(
+                        {"type": "content", "data": {"content": str(event)}}
+                    )
         except Exception as e:
             import traceback
 
             logger.error(f"Error running agent: {e}")
             traceback.print_exc()
-            yield f"data: {{'error': '{str(e)}'}}\n\n"
+            yield json.dumps({"error": str(e)})

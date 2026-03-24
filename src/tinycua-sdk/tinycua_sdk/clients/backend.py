@@ -258,10 +258,14 @@ class BackendClient:
                 headers=self._get_headers(),
             ) as response:
                 async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        yield json.loads(line[6:])
-                    elif line:
-                        yield line
+                    line = line.strip()
+                    if line:
+                        if line.startswith("data:"):
+                            line = line[5:].strip()
+                        try:
+                            yield json.loads(line)
+                        except json.JSONDecodeError:
+                            pass
 
     async def health_check(self) -> bool:
         """Check if backend is healthy.

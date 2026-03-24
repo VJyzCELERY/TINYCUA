@@ -70,10 +70,46 @@ class ToolRegistry:
         """
         return list(self._tools.values())
 
+    def install_tool_dependencies(self, tool_bundle: dict[str, Any]) -> None:
+        """Install external dependencies for a tool.
+
+        Args:
+            tool_bundle: Tool bundle containing external_dependencies
+        """
+        dependencies = tool_bundle.get("external_dependencies", [])
+        if dependencies:
+            install_dependencies(dependencies)
+
     def clear(self) -> None:
         """Clear all registered tools."""
         self._tools.clear()
         self._materialized.clear()
+
+
+def install_dependencies(dependencies: list[str]) -> None:
+    """Install external dependencies.
+
+    Args:
+        dependencies: List of pip package names
+    """
+    import subprocess
+    import sys
+
+    for dep in dependencies:
+        try:
+            __import__(dep)
+            logger.info(f"Dependency already available: {dep}")
+        except ImportError:
+            logger.info(f"Installing dependency: {dep}")
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", dep],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                logger.info(f"Installed: {dep}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install {dep}: {e}")
 
 
 _registry: ToolRegistry | None = None

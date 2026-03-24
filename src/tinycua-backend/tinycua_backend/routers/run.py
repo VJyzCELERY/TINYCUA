@@ -189,6 +189,8 @@ async def run_agent(
     headers = {"Authorization": f"Bearer {config.runner.token}"}
 
     async def event_generator():
+        import json
+
         async with AsyncClient(timeout=None) as client:
             try:
                 async with client.stream(
@@ -203,8 +205,15 @@ async def run_agent(
                     },
                 ) as response:
                     async for line in response.aiter_lines():
+                        line = line.strip()
                         if line:
-                            yield f"{line}\n\n"
+                            event_data = line
+                            if not line.startswith("data:"):
+                                try:
+                                    event_data = json.dumps(json.loads(line))
+                                except (json.JSONDecodeError, Exception):
+                                    event_data = line
+                            yield f"data: {event_data}\n\n"
             except Exception as e:
                 import traceback
 

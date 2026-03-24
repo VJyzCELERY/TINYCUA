@@ -64,11 +64,20 @@ STDLIB_MODULES: set[str] = {
 }
 
 
+def _is_external_module(module: str) -> bool:
+    """Check if a module is external (not stdlib or tinycua internal)."""
+    if module in STDLIB_MODULES:
+        return False
+    if module.startswith("tinycua"):
+        return False
+    return True
+
+
 def analyze_source(source: str) -> list[str]:
     """Extract external dependencies from source AST.
 
     Parses the source code and extracts import statements,
-    filtering out standard library modules.
+    filtering out standard library modules and internal tinycua packages.
 
     Args:
         source: Python source code as string
@@ -87,12 +96,12 @@ def analyze_source(source: str) -> list[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 module = alias.name.split(".")[0]
-                if module not in STDLIB_MODULES:
+                if _is_external_module(module):
                     imports.add(module)
         elif isinstance(node, ast.ImportFrom):
             if node.module:
                 module = node.module.split(".")[0]
-                if module not in STDLIB_MODULES:
+                if _is_external_module(module):
                     imports.add(module)
 
     return sorted(imports)

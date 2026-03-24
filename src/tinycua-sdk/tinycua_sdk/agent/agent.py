@@ -348,8 +348,11 @@ Summary: Completed via delegation to {sub_agent.name}
         if isinstance(loop_config, dict):
             class_name = loop_config.get("class_name")
             source = loop_config.get("source")
+            helpers = loop_config.get("helpers", [])
             if source:
                 namespace: dict = {"DefaultLoop": DefaultLoop}
+                for helper in helpers:
+                    exec(helper.get("source", ""), namespace)
                 exec(source, namespace)
                 loop_type = namespace.get(class_name) or namespace.get("DefaultLoop")
                 loop = loop_type(runner)
