@@ -43,9 +43,21 @@ class AgentConfig:
     strip_thinking: bool | list[str] | None = None
     # Sub-agents for delegation
     sub_agents: list["Agent"] = field(default_factory=list)
+    # Custom loop configuration
+    loop: Any = None  # DefaultLoop subclass
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""
+        loop_config = None
+        if self.loop is not None:
+            import inspect
+
+            source = inspect.getsource(self.loop.__class__)
+            loop_config = {
+                "class_name": self.loop.__class__.__name__,
+                "source": source,
+            }
+
         return {
             "name": self.name,
             "instructions": self.instructions,
@@ -65,6 +77,7 @@ class AgentConfig:
             "plan_mode": self.plan_mode,
             "planning_prompt": self.planning_prompt,
             "strip_thinking": self.strip_thinking,
+            "loop": loop_config,
         }
 
     @classmethod
@@ -76,6 +89,8 @@ class AgentConfig:
             parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
             temperature=policy_data.get("temperature", 1.0),
         )
+        loop_config = data.get("loop")
+
         return cls(
             name=data.get("name", "assistant"),
             instructions=data.get("instructions", ""),
@@ -89,6 +104,7 @@ class AgentConfig:
             plan_mode=data.get("plan_mode", "direct"),
             planning_prompt=data.get("planning_prompt"),
             strip_thinking=data.get("strip_thinking"),
+            loop=loop_config,  # Store raw config for later materialization
         )
 
 

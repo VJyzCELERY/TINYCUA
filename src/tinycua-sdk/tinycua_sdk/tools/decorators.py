@@ -20,6 +20,7 @@ class Tool:
     _tool_dependencies: list[dict[str, Any]] = field(default_factory=list)
     _version: str | None = field(default=None, repr=False)
     _is_builtin: bool = False
+    allowed_in_plan_mode: bool = True
 
     def to_config(self) -> dict[str, Any]:
         """Return tool descriptor for API."""
@@ -27,6 +28,7 @@ class Tool:
             "name": self.name,
             "description": self.description,
             "parameters": self.parameters,
+            "allowed_in_plan_mode": self.allowed_in_plan_mode,
         }
 
     def to_bundle(self) -> dict[str, Any]:
@@ -39,6 +41,7 @@ class Tool:
             "external_dependencies": self._external_dependencies,
             "tool_dependencies": self._tool_dependencies,
             "version": self._version,
+            "allowed_in_plan_mode": self.allowed_in_plan_mode,
         }
 
     @classmethod
@@ -50,6 +53,7 @@ class Tool:
             parameters=data.get("parameters", {}),
             _tool_dependencies=data.get("tool_dependencies", []),
             _version=data.get("version"),
+            allowed_in_plan_mode=data.get("allowed_in_plan_mode", True),
         )
 
     def invoke(self, **kwargs: Any) -> Any:

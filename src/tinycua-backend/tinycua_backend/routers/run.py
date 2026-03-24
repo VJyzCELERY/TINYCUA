@@ -22,6 +22,10 @@ class RunRequest(BaseModel):
     """Request model for running an agent."""
 
     user_input: str
+    plan_mode: bool = False
+    trace: bool = False
+    verbose: bool = False
+    stream_sse: bool = False
 
 
 def resolve_tool_dependencies(
@@ -195,6 +199,7 @@ async def run_agent(
                         "agent_config": agent.config,
                         "user_input": request.user_input,
                         "tools": tools_bundle,
+                        "plan_mode": request.plan_mode,
                     },
                 ) as response:
                     async for line in response.aiter_lines():

@@ -24,6 +24,7 @@ class RunRequest(BaseModel):
     agent_config: dict[str, Any]
     user_input: str
     tools: list[dict[str, Any]] | None = None
+    plan_mode: bool = False
 
 
 async def get_current_runner(
@@ -68,6 +69,7 @@ async def run_agent(
             async for event in executor.execute(
                 agent_config=request.agent_config,
                 user_input=request.user_input,
+                plan_mode=request.plan_mode,
             ):
                 yield format_sse_event(event)
         except Exception as e:

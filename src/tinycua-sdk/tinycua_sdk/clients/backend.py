@@ -221,6 +221,7 @@ class BackendClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         stream: bool = True,
+        plan_mode: bool = False,
     ) -> AsyncIterator[dict[str, Any]]:
         """Execute an agent on the backend.
 
@@ -229,6 +230,7 @@ class BackendClient:
             messages: Conversation messages
             tools: Optional tool definitions
             stream: Whether to stream the response
+            plan_mode: If True, only allow plan-mode tools
 
         Yields:
             Stream events from the backend
@@ -236,14 +238,13 @@ class BackendClient:
         """
         import json
 
-        # Get the latest user message
         user_input = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
                 user_input = msg.get("content", "")
                 break
 
-        payload: dict[str, Any] = {"user_input": user_input}
+        payload: dict[str, Any] = {"user_input": user_input, "plan_mode": plan_mode}
         if tools:
             payload["tools"] = tools
         if stream:

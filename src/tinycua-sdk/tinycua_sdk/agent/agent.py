@@ -11,6 +11,7 @@ from tinycua_sdk.tools.decorators import Tool
 if TYPE_CHECKING:
     from tinycua_sdk.runner import Runner
     from tinycua_sdk.models.response import StreamEvent
+    from tinycua_sdk.agent.loop import DefaultLoop
 
 
 class Agent:
@@ -43,6 +44,7 @@ class Agent:
         current_depth: int = 0,
         keywords: list[str] | None = None,
         strip_thinking: bool | list[str] | None = None,
+        loop: Any = None,
     ):
         """Initialize the Agent.
 
@@ -69,6 +71,7 @@ class Agent:
             current_depth: Current delegation depth (internal).
             keywords: Keywords for task routing to this agent.
             strip_thinking: Whether to strip thinking tags from responses.
+            loop: Custom DefaultLoop subclass instance.
 
         """
         self.config = AgentConfig(
@@ -90,8 +93,10 @@ class Agent:
             agent_id=agent_id,
             strip_thinking=strip_thinking,
             sub_agents=sub_agents or [],
+            loop=loop,
         )
         self._local_runner: Runner | None = None
+        self._loop_cache: DefaultLoop | None = None
         self.runner = runner
         self._sub_agents = sub_agents or []
         self.max_depth = max_depth
@@ -320,10 +325,47 @@ Summary: Completed via delegation to {sub_agent.name}
             self._local_runner = Runner(self.config)
         return self._local_runner
 
+    def _load_loop(self) -> "DefaultLoop":
+        """Load custom loop from config or use DefaultLoop."""
+        from tinycua_sdk.agent.loop import DefaultLoop
+        from tinycua_sdk.runner import Runner
+
+        if self._loop_cache is not None:
+            return self._loop_cache
+
+        runner = Runner(self.config, cancel_event=self.cancel_event)
+
+        loop_config = getattr(self.config, "loop", None)
+
+        # Case 1: Loop instance passed directly (in-memory agent)
+        if loop_config is not None and hasattr(loop_config, "run"):
+            loop = loop_config
+            loop.runner = runner
+            self._loop_cache = loop
+            return loop
+
+        # Case 2: Loop config dict (from stored agent)
+        if isinstance(loop_config, dict):
+            class_name = loop_config.get("class_name")
+            source = loop_config.get("source")
+            if source:
+                namespace: dict = {"DefaultLoop": DefaultLoop}
+                exec(source, namespace)
+                loop_type = namespace.get(class_name) or namespace.get("DefaultLoop")
+                loop = loop_type(runner)
+                self._loop_cache = loop
+                return loop
+
+        # Case 3: No custom loop - use DefaultLoop
+        loop = DefaultLoop(runner)
+        self._loop_cache = loop
+        return loop
+
     async def run(
         self,
         user_input: str,
         instructions: str | None = None,
+        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         stream_sse: bool = False,
@@ -334,6 +376,7 @@ Summary: Completed via delegation to {sub_agent.name}
         Args:
             user_input: The user's message
             instructions: Optional custom instructions
+            plan_mode: If True, only allow plan-mode tools
             trace: If True, return RunResult with trace info
             verbose: If True, log raw SSE events
             stream_sse: If True, yield all SSE events as they happen
@@ -344,35 +387,31 @@ Summary: Completed via delegation to {sub_agent.name}
 
         """
         if self.is_deployed and not force_local:
-            return await self._run_deployed(user_input, instructions, trace)
+            return await self._run_deployed(
+                user_input, plan_mode=plan_mode, trace=trace
+            )
 
         if self.is_guest and not force_local:
             return await self._run_guest(user_input, instructions)
 
         self.reset_cancel()
-        from tinycua_sdk.runner import Runner
 
-        runner = Runner(self.config, cancel_event=self.cancel_event)
+        loop = self._load_loop()
 
-        runner.trace = trace
-        runner.verbose = verbose
-        runner.stream_sse = stream_sse
-
-        if stream_sse:
-            return runner.chat_sse(user_input, instructions=instructions)
-
-        try:
-            result = await runner.chat(
-                user_input, instructions=instructions, trace=trace
-            )
-            return result
-        finally:
-            await runner.close()
+        return await loop.run(
+            self,
+            user_input,
+            plan_mode=plan_mode,
+            trace=trace,
+            verbose=verbose,
+            stream_sse=stream_sse,
+        )
 
     def run_sync(
         self,
         user_input: str,
         instructions: str | None = None,
+        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         force_local: bool = False,
@@ -381,7 +420,14 @@ Summary: Completed via delegation to {sub_agent.name}
         import asyncio
 
         return asyncio.run(
-            self.run(user_input, instructions, trace, verbose, force_local=force_local)
+            self.run(
+                user_input,
+                instructions,
+                plan_mode,
+                trace,
+                verbose,
+                force_local=force_local,
+            )
         )
 
     async def stream(
@@ -423,6 +469,7 @@ Summary: Completed via delegation to {sub_agent.name}
     async def _run_deployed(
         self,
         user_input: str,
+        plan_mode: bool = False,
         instructions: str | None = None,
         trace: bool = False,
     ) -> Union[str, Any]:
@@ -450,6 +497,7 @@ Summary: Completed via delegation to {sub_agent.name}
             agent_id=self.config.agent_id,
             messages=self.messages,
             tools=[t.to_config() for t in self.tools],
+            plan_mode=plan_mode,
         ):
             if isinstance(event, dict):
                 if event.get("type") == "content":

@@ -122,63 +122,242 @@ class Runner:
             return True
         return False
 
-    async def chat(
+    async def run(
         self,
         user_input: str,
         instructions: str | None = None,
         trace: bool | None = None,
     ) -> Union[str, RunResult]:
-        """Send a message and get response.
+        """Execute agent with tool loop.
+
+        Handles trace internally - returns RunResult if trace=True.
 
         Args:
             user_input: User message
-            instructions: Optional custom instructions
-            trace: If True, return RunResult with trace info
+            instructions: Optional system instructions
+            trace: If True, return RunResult with trace
 
         Returns:
-            Assistant response string, or RunResult if trace=True
-
+            RunResult if trace=True, string otherwise
         """
         use_trace = trace if trace is not None else self.trace
 
-        # Add sub-agents as tools so LLM can delegate
         self._register_sub_agent_tools()
 
         if self.plan_mode == "plan":
             return await self._chat_with_plan(user_input, instructions, use_trace)
         return await self._chat_direct(user_input, instructions, use_trace)
 
-    async def chat_sse(
+    async def chat(self, *args, **kwargs) -> Union[str, RunResult]:
+        """Backward compatible alias for run()."""
+        return await self.run(*args, **kwargs)
+
+    async def run_sse(
         self,
         user_input: str,
         instructions: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """Send a message and yield ALL SSE events as they happen.
+        """Stream agent execution with SSE events.
 
-        This is a unified streaming method that yields every event including:
-        - LLM requests and responses
-        - Tool call start/end/chunk events
-        - Tool result start/end/chunk events
-        - Delegation start/end events (sub-agent calls)
-        - Final done event
+        Yields StreamEvent objects for all operations.
+
+        Args:
+            user_input: User message
+            instructions: Optional system instructions
+
+        Yields:
+            StreamEvent objects
+        """
+        try:
+            self._register_sub_agent_tools()
+            async for event in self.stream_with_tools(user_input, instructions):
+                yield event
+        finally:
+            await self.close()
+
+    async def chat_sse(self, *args, **kwargs) -> AsyncIterator[StreamEvent]:
+        """Backward compatible alias for run_sse()."""
+        async for event in self.run_sse(*args, **kwargs):
+            yield event
+
+    async def execute_tool(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        plan_mode: bool = False,
+    ) -> Any:
+        """Execute a single tool.
+
+        Checks allowed_in_plan_mode if plan_mode=True.
+
+        Args:
+            tool_name: Name of tool to execute
+            tool_input: Arguments for tool
+            plan_mode: If True, block non-plan-mode tools
+
+        Returns:
+            Tool execution result
+
+        Raises:
+            PermissionError: If tool not allowed in plan mode
+            ValueError: If tool not found
+        """
+        for tool in self.tools:
+            if tool.name == tool_name:
+                if plan_mode and not getattr(tool, "allowed_in_plan_mode", True):
+                    raise PermissionError(
+                        f"Tool '{tool_name}' not allowed in plan mode"
+                    )
+                result = tool.invoke(**tool_input)
+                if asyncio.iscoroutine(result):
+                    result = await result
+                return result
+        raise ValueError(f"Tool '{tool_name}' not found")
+
+    async def call_llm(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        """Call the LLM directly.
+
+        Useful for custom loops that need to call LLM for planning/analysis.
+
+        Args:
+            messages: List of message dicts
+            tools: Optional tool configurations
+
+        Returns:
+            LLM response object
+        """
+        request = ResponseRequest(
+            model=self.model,
+            input=messages,
+            tools=tools or [],
+        )
+        return await self.client.create(request)
+
+    # =========================================================================
+    # Helper methods for custom loops
+    # =========================================================================
+
+    def build_messages(
+        self,
+        user_input: str,
+        instructions: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Build message list with system prompt and user input.
 
         Args:
             user_input: User message
             instructions: Optional custom instructions
 
-        Yields:
-            StreamEvent objects with type and data
-
+        Returns:
+            List of message dicts
         """
-        try:
-            # Add sub-agents as tools
-            self._register_sub_agent_tools()
+        system_content = self.system_prompt
+        if instructions:
+            system_content += f"\n\n{instructions}"
 
-            # Delegate to existing stream_with_tools which already handles this
-            async for event in self.stream_with_tools(user_input, instructions):
-                yield event
-        finally:
-            await self.close()
+        messages = [{"role": "system", "content": system_content}]
+        messages.extend(self.messages)
+        messages.append({"role": "user", "content": user_input})
+        return messages
+
+    def get_tool_configs(self) -> list[dict[str, Any]]:
+        """Get tool configurations for LLM requests.
+
+        Returns:
+            List of tool config dicts
+        """
+        return self._get_tool_configs()
+
+    def build_request(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> ResponseRequest:
+        """Build a ResponseRequest object.
+
+        Args:
+            messages: Message list
+            tools: Optional tool configs
+
+        Returns:
+            ResponseRequest object
+        """
+        return ResponseRequest(
+            model=self.model,
+            input=messages,
+            tools=tools or [],
+        )
+
+    async def execute_tool_loop(
+        self,
+        tool_calls: list[dict[str, Any]],
+        plan_mode: bool = False,
+    ) -> tuple[list[dict[str, Any]], list[Any]]:
+        """Execute a list of tool calls and return updated messages + results.
+
+        Args:
+            tool_calls: List of tool call dicts from LLM response
+            plan_mode: If True, block non-plan-mode tools
+
+        Returns:
+            Tuple of (tool message dicts for history, tool result values)
+        """
+        import json
+
+        tool_messages = []
+        results = []
+
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            tool_name = func.get("name")
+
+            try:
+                tool_input = json.loads(func.get("arguments", "{}"))
+            except json.JSONDecodeError:
+                tool_input = {}
+
+            result = await self.execute_tool(tool_name, tool_input, plan_mode)
+            results.append(result)
+
+            tool_messages.append(
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": tc.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": func.get("arguments", "{}"),
+                            },
+                        }
+                    ],
+                }
+            )
+            tool_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id"),
+                    "content": str(result),
+                }
+            )
+
+        return tool_messages, results
+
+    def strip_thinking(self, content: str) -> str:
+        """Strip thinking tags from content.
+
+        Args:
+            content: Raw content from LLM
+
+        Returns:
+            Content with thinking removed
+        """
+        return self._strip_thinking(content)
 
     def _register_sub_agent_tools(self) -> None:
         """Register sub-agents as tools for delegation.

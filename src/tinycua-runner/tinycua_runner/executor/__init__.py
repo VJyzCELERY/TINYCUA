@@ -37,6 +37,31 @@ class Executor:
 
         logger.info(f"Registered {len(tools)} bundled tools")
 
+    def _install_dependencies(self, dependencies: list[str]) -> None:
+        """Install external dependencies for loops.
+
+        Args:
+            dependencies: List of pip package names
+        """
+        import subprocess
+        import sys
+
+        for dep in dependencies:
+            try:
+                __import__(dep)
+                logger.info(f"Dependency already available: {dep}")
+            except ImportError:
+                logger.info(f"Installing dependency: {dep}")
+                try:
+                    subprocess.check_call(
+                        [sys.executable, "-m", "pip", "install", dep],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    logger.info(f"Installed: {dep}")
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to install {dep}: {e}")
+
     def get_tools(self) -> list[Any]:
         """Get all tools for agent execution.
 
@@ -80,12 +105,14 @@ class Executor:
         self,
         agent_config: dict[str, Any],
         user_input: str,
+        plan_mode: bool = False,
     ):
         """Execute agent and yield events.
 
         Args:
             agent_config: Agent configuration
             user_input: User input
+            plan_mode: If True, only allow plan-mode tools
 
         Yields:
             SSE events
@@ -107,6 +134,8 @@ class Executor:
         if provider in ("lmstudio", "ollama") and not api_key:
             api_key = None
 
+        loop_config = agent_config.get("loop")
+
         agent = Agent(
             name=agent_config.get("name", "runner-agent"),
             instructions=agent_config.get("instructions", ""),
@@ -115,16 +144,19 @@ class Executor:
             ),
             model=agent_config.get("model", "gpt-4o-mini"),
             provider=provider,
-            base_url=agent_config.get("base_url"),
+            base_url=base_url,
             api_key=api_key,
             tools=all_tools,
             mode="local",
+            loop=loop_config,
         )
 
-        logger.info(f"Running agent: {agent.name}, mode: {agent.config.mode}")
+        logger.info(
+            f"Running agent: {agent.name}, mode: {agent.config.mode}, plan_mode={plan_mode}"
+        )
 
         try:
-            result = await agent.run(user_input, stream_sse=True)
+            result = await agent.run(user_input, plan_mode=plan_mode, stream_sse=True)
             logger.info(f"Result type: {type(result)}")
 
             async for event in result:
