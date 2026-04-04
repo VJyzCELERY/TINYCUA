@@ -27,3 +27,5 @@ logs/
 coverage.xml
 *.coverage
 htmlcov/
+
+*/research/*
