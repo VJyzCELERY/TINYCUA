@@ -6,6 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any, AsyncIterator, Union
 
 from tinycua_sdk.agent.definition import AgentDefinition
+from tinycua_sdk.core.config import SDKConfig
 
 if TYPE_CHECKING:
     from tinycua_sdk.runner import Runner
@@ -13,6 +14,18 @@ if TYPE_CHECKING:
     from tinycua_sdk.agent.loop import DefaultLoop
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.agent.agent import Agent
+
+
+# Module-level cache for global SDKConfig
+_global_config: SDKConfig | None = None
+
+
+def _get_global_config() -> SDKConfig:
+    """Get cached global config or load new one."""
+    global _global_config
+    if _global_config is None:
+        _global_config = SDKConfig.load()
+    return _global_config
 
 
 class AgentExecutor(AgentDefinition):
@@ -160,11 +173,20 @@ class AgentExecutor(AgentDefinition):
 
     def _get_backend_config(self) -> tuple[str, str | None, dict[str, str] | None]:
         """Get backend configuration with priority."""
-        from tinycua_sdk.config import config
-
+        global_config = _get_global_config()
+        backend_url = (
+            self.config.backend_url
+            if self.config.backend_url is not None
+            else global_config.backend_url
+        )
+        backend_api_key = (
+            self.config.backend_api_key
+            if self.config.backend_api_key is not None
+            else global_config.llm.api_key.get_secret_value()
+        )
         return (
-            self.config.backend_url or config.BACKEND_URL,
-            self.config.backend_api_key or config.API_KEY,
+            backend_url,
+            backend_api_key,
             self.config.backend_headers,
         )
 
@@ -175,12 +197,19 @@ class AgentExecutor(AgentDefinition):
         trace: bool = False,
     ) -> Union[str, Any]:
         """Run via backend API when in deployed mode."""
-        from tinycua_sdk.config import config
-
         if not self.config.agent_id:
             raise RuntimeError("Agent not deployed. Call deploy() first.")
-        backend_url = self.config.backend_url or config.BACKEND_URL
-        backend_api_key = self.config.backend_api_key or config.API_KEY
+        global_config = _get_global_config()
+        backend_url = (
+            self.config.backend_url
+            if self.config.backend_url is not None
+            else global_config.backend_url
+        )
+        backend_api_key = (
+            self.config.backend_api_key
+            if self.config.backend_api_key is not None
+            else global_config.llm.api_key.get_secret_value()
+        )
         from tinycua_sdk.clients import BackendClient
 
         client = BackendClient(
@@ -207,11 +236,14 @@ class AgentExecutor(AgentDefinition):
         instructions: str | None = None,
     ) -> str:
         """Run via backend API in guest mode (no auth required)."""
-        from tinycua_sdk.config import config
-
         if not self.config.agent_id:
             raise RuntimeError("Agent ID required for guest mode.")
-        backend_url = self.config.backend_url or config.BACKEND_URL
+        global_config = _get_global_config()
+        backend_url = (
+            self.config.backend_url
+            if self.config.backend_url is not None
+            else global_config.backend_url
+        )
         from tinycua_sdk.clients import BackendClient
 
         client = BackendClient(base_url=backend_url)

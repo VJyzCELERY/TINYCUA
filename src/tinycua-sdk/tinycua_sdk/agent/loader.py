@@ -9,8 +9,6 @@ from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.skill_resolver import SkillActivator, SkillToolResolver
 from tinycua_sdk.agent.tool_resolver import ToolResolver
 from tinycua_sdk.core.registry import ToolRegistry
-from tinycua_sdk.skills.loader import SkillLoader
-from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool
 
@@ -266,7 +264,6 @@ class AgentLoader:
         """
         # Initialize registries and loaders
         skill_registry = SkillRegistry()
-        skill_loader = SkillLoader()
         tool_resolver = SkillToolResolver()
         skill_activator = SkillActivator()
 

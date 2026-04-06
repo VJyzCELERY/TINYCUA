@@ -196,7 +196,9 @@ class AgentConfig:
             name=data.get("name", "assistant"),
             instructions=data.get("instructions", ""),
             system_prompt=data.get("system_prompt", "You are a helpful assistant."),
-            model=data.get("model", "gpt-5-nano"),  # Fixed: use gpt-5-nano to match dataclass default
+            model=data.get(
+                "model", "gpt-5-nano"
+            ),  # Fixed: use gpt-5-nano to match dataclass default
             provider=data.get("provider", "openai"),
             base_url=data.get("base_url"),
             api_key=data.get("api_key"),
@@ -250,7 +252,9 @@ class AgentConfig:
                 data = json.loads(json_data)
             except json.JSONDecodeError:
                 # If fails and looks like a file path ending in .json, try loading as file
-                if json_data.endswith(".json") and ("/" in json_data or "\\" in json_data):
+                if json_data.endswith(".json") and (
+                    "/" in json_data or "\\" in json_data
+                ):
                     file_path = Path(json_data).expanduser()
                     if file_path.exists():
                         content = file_path.read_text()

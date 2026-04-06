@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import ast
+import json
+import os
+import subprocess
+import sys
+import tempfile
 from typing import Any
 
 from tinycua_sdk.core.registry import ToolRegistry
@@ -223,13 +228,45 @@ class ToolResolver:
             TimeoutError: If execution exceeds timeout
             ToolResolutionError: If source cannot be parsed or executed
         """
-        import os
-        import subprocess
-        import sys
-        import tempfile
-        import json
+        # Extract tool function info
+        func_name, docstring, tool_func = self._extract_tool_function_info(source)
 
-        # First, parse the source to extract function info
+        # Extract parameters
+        params, required = self._extract_parameters(tool_func)
+
+        # Extract defaults
+        self._extract_defaults(tool_func, params)
+
+        # Generate tool script
+        script = self._generate_tool_script(
+            func_name, docstring, params, required, source
+        )
+
+        # Execute subprocess
+        result = self._execute_subprocess(script, timeout)
+
+        # Parse tool output
+        tool_config = self._parse_tool_output(result, source)
+
+        # Reconstruct Tool from config
+        tool = Tool.from_config(tool_config)
+
+        return tool
+
+    def _extract_tool_function_info(
+        self, source: str
+    ) -> tuple[str, str, ast.FunctionDef]:
+        """Extract tool function information from source code.
+
+        Args:
+            source: Python source code with @tool decorator
+
+        Returns:
+            Tuple of (function_name, docstring, tool_func node)
+
+        Raises:
+            ToolResolutionError: If source has invalid syntax or no @tool decorator
+        """
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
@@ -263,7 +300,19 @@ class ToolResolver:
         func_name = tool_func.name
         docstring = ast.get_docstring(tool_func) or ""
 
-        # Extract parameters
+        return func_name, docstring, tool_func
+
+    def _extract_parameters(
+        self, tool_func: ast.FunctionDef
+    ) -> tuple[dict[str, dict[str, Any]], list[str]]:
+        """Extract parameters from function definition.
+
+        Args:
+            tool_func: AST FunctionDef node
+
+        Returns:
+            Tuple of (params dict, required parameter names list)
+        """
         params = {}
         required = []
         for param in tool_func.args.args:
@@ -275,7 +324,17 @@ class ToolResolver:
             params[param_name] = param_type
             required.append(param_name)
 
-        # Handle defaults
+        return params, required
+
+    def _extract_defaults(
+        self, tool_func: ast.FunctionDef, params: dict[str, dict[str, Any]]
+    ) -> None:
+        """Extract default values and update params dict.
+
+        Args:
+            tool_func: AST FunctionDef node
+            params: Parameters dict to update with defaults
+        """
         defaults = tool_func.args.defaults
         for i, default in enumerate(defaults):
             param_idx = len(tool_func.args.args) - len(defaults) + i
@@ -284,8 +343,26 @@ class ToolResolver:
                 default_value = self._ast_value_to_python(default)
                 params[param_name]["default"] = default_value
 
-        # Generate a script that creates the tool directly
-        # We avoid using inspect.getsource() by building the tool config manually
+    def _generate_tool_script(
+        self,
+        func_name: str,
+        docstring: str,
+        params: dict[str, dict[str, Any]],
+        required: list[str],
+        source: str,
+    ) -> str:
+        """Generate the Python script to execute for tool creation.
+
+        Args:
+            func_name: Function name
+            docstring: Function docstring
+            params: Parameters dict
+            required: List of required parameter names
+            source: Original source code
+
+        Returns:
+            Generated Python script string
+        """
         # Escape the source for use in the generated script
         escaped_source = (
             source.replace("\\", "\\\\")
@@ -318,7 +395,24 @@ __tool__ = Tool(
 tool_config = __tool__.to_config()
 print("__TOOL_CONFIG__:" + json.dumps(tool_config))
 '''
+        return script
 
+    def _execute_subprocess(
+        self, script: str, timeout: float
+    ) -> subprocess.CompletedProcess:
+        """Execute the generated script in subprocess.
+
+        Args:
+            script: Python script to execute
+            timeout: Timeout in seconds
+
+        Returns:
+            CompletedProcess result
+
+        Raises:
+            TimeoutError: If execution exceeds timeout
+            ToolResolutionError: If execution fails
+        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(script)
             script_path = f.name
@@ -330,57 +424,63 @@ print("__TOOL_CONFIG__:" + json.dumps(tool_config))
                 text=True,
                 timeout=timeout,
             )
-
-            # Parse output for tool config or errors
-            tool_config = None
-            for line in result.stdout.split("\n"):
-                if "__TOOL_CONFIG__:" in line:
-                    json_str = line.split("__TOOL_CONFIG__:")[1].strip()
-                    tool_config = json.loads(json_str)
-                    break
-
-            # Check for errors
-            stderr_lines = result.stderr.split("\n") if result.stderr else []
-            for line in stderr_lines:
-                if "__ERROR__:" in line:
-                    error_parts = line.split("__ERROR__:")[1].split(":", 1)
-                    error_type = error_parts[0] if len(error_parts) > 0 else "Unknown"
-                    error_msg = (
-                        error_parts[1] if len(error_parts) > 1 else "Unknown error"
-                    )
-                    raise ToolResolutionError(
-                        f"{error_type}: {error_msg}", tool_spec=source
-                    )
-
-            if result.returncode != 0 and tool_config is None:
-                raise ToolResolutionError(
-                    f"Failed to execute inline tool: {result.stderr}",
-                    tool_spec=source,
-                )
-
-            if not tool_config:
-                raise ToolResolutionError(
-                    "Could not extract tool config from inline definition",
-                    tool_spec=source,
-                )
-
-            # Reconstruct Tool from config
-            tool = Tool.from_config(tool_config)
-
-            return tool
-
+            return result
         except subprocess.TimeoutExpired:
             raise TimeoutError(f"Inline tool execution timed out after {timeout}s")
-        except json.JSONDecodeError as e:
-            raise ToolResolutionError(
-                f"Invalid tool config JSON: {e}", tool_spec=source
-            )
         finally:
             # Clean up temp file
             try:
                 os.unlink(script_path)
             except OSError:
                 pass
+
+    def _parse_tool_output(
+        self, result: subprocess.CompletedProcess, source: str
+    ) -> dict[str, Any]:
+        """Parse the subprocess output to extract tool config.
+
+        Args:
+            result: CompletedProcess result from subprocess
+            source: Original source code for error messages
+
+        Returns:
+            Tool configuration dict
+
+        Raises:
+            ToolResolutionError: If output cannot be parsed or execution failed
+        """
+        # Parse output for tool config or errors
+        tool_config = None
+        for line in result.stdout.split("\n"):
+            if "__TOOL_CONFIG__:" in line:
+                json_str = line.split("__TOOL_CONFIG__:")[1].strip()
+                tool_config = json.loads(json_str)
+                break
+
+        # Check for errors
+        stderr_lines = result.stderr.split("\n") if result.stderr else []
+        for line in stderr_lines:
+            if "__ERROR__:" in line:
+                error_parts = line.split("__ERROR__:")[1].split(":", 1)
+                error_type = error_parts[0] if len(error_parts) > 0 else "Unknown"
+                error_msg = error_parts[1] if len(error_parts) > 1 else "Unknown error"
+                raise ToolResolutionError(
+                    f"{error_type}: {error_msg}", tool_spec=source
+                )
+
+        if result.returncode != 0 and tool_config is None:
+            raise ToolResolutionError(
+                f"Failed to execute inline tool: {result.stderr}",
+                tool_spec=source,
+            )
+
+        if not tool_config:
+            raise ToolResolutionError(
+                "Could not extract tool config from inline definition",
+                tool_spec=source,
+            )
+
+        return tool_config
 
     def _annotation_to_json_schema(self, annotation: ast.AST) -> dict[str, Any]:
         """Convert AST annotation to JSON schema.

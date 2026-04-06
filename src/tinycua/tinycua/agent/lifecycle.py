@@ -204,11 +204,14 @@ class AgentLifecycle:
             backend_url: Optional backend URL (defaults to config).
 
         """
-        from tinycua_sdk.config import config
+        from tinycua_sdk.core.config import SDKConfig
+
+        global_config = SDKConfig.load()
+        global_backend_url = global_config.backend_url
 
         self.agent.config.mode = "guest"
         self.agent.config.agent_id = agent_id
-        self.agent.config.backend_url = backend_url or config.BACKEND_URL
+        self.agent.config.backend_url = backend_url or global_backend_url
 
     @classmethod
     async def load_agent(
