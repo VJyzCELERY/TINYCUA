@@ -48,13 +48,19 @@ class AgentLifecycle:
             Tuple of (backend_url, api_key, headers).
 
         """
-        from tinycua_sdk.config import config
+        from tinycua_sdk.core.config import SDKConfig
+
+        config = SDKConfig.load()
 
         backend_url = (
-            self._backend_url or self.agent.config.backend_url or config.BACKEND_URL
+            self._backend_url or self.agent.config.backend_url or config.backend_url
         )
         api_key = (
-            self._backend_api_key or self.agent.config.backend_api_key or config.API_KEY
+            self._backend_api_key
+            or self.agent.config.backend_api_key
+            or config.llm.api_key.get_secret_value()
+            if config.llm.api_key
+            else None
         )
         headers = self._backend_headers or self.agent.config.backend_headers
 

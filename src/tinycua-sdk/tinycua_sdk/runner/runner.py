@@ -1006,6 +1006,11 @@ You are now handling this task. Complete it and return results.
             return
 
         yield StreamEvent(
+            type=StreamEventType.TOOL_CALL_START,
+            data={"tool_calls": tool_calls_buffer},
+        )
+
+        yield StreamEvent(
             type=StreamEventType.TOOL_CALL_END,
             data={"tool_calls": tool_calls_buffer},
         )

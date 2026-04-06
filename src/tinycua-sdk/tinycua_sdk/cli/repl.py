@@ -16,7 +16,7 @@ warnings.warn(
 )
 
 # Lazy import after warning is emitted
-from rich.console import Console
+from rich.console import Console  # noqa: E402
 
 console = Console()
 
