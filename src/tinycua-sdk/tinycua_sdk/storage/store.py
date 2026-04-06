@@ -129,6 +129,19 @@ class SessionStore:
         with self._get_session() as db:
             return db.get(Session, session_id)
 
+    def get_session_by_name(self, name: str) -> Session | None:
+        """Get a session by name.
+
+        Args:
+            name: Session name (exact match, case-sensitive)
+
+        Returns:
+            Session if found, None otherwise
+        """
+        with self._get_session() as db:
+            stmt = select(Session).where(Session.name == name)
+            return db.execute(stmt).scalars().first()
+
     def list_sessions(self, user_id: str | None = None) -> list[Session]:
         """List all sessions, optionally filtered by user_id.
 
@@ -246,6 +259,25 @@ class SessionStore:
                 stmt = stmt.limit(limit)
             return list(db.execute(stmt).scalars().all())
 
+    def get_messages_by_role(self, session_id: uuid.UUID, role: str) -> list[Message]:
+        """Get messages for a session filtered by role.
+
+        Args:
+            session_id: Session UUID
+            role: Message role (user/assistant/tool)
+
+        Returns:
+            List of Message instances with matching role, ordered by turn_index ascending
+        """
+        with self._get_session() as db:
+            stmt = (
+                select(Message)
+                .where(Message.session_id == session_id)
+                .where(Message.role == role)
+                .order_by(Message.turn_index.asc())
+            )
+            return list(db.execute(stmt).scalars().all())
+
     def archive_message(self, message_id: uuid.UUID) -> Message | None:
         """Archive a message.
 
@@ -263,6 +295,23 @@ class SessionStore:
             db.commit()
             db.refresh(message)
             return message
+
+    def delete_message(self, message_id: uuid.UUID) -> bool:
+        """Delete a message permanently.
+
+        Args:
+            message_id: Message UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with self._get_session() as db:
+            message = db.get(Message, message_id)
+            if not message:
+                return False
+            db.delete(message)
+            db.commit()
+            return True
 
     # Context retrieval
 

@@ -30,10 +30,12 @@ DEFAULT_MODELS = {
     "openai": "gpt-4o-mini",
 }
 
-DEFAULT_PLANNING_PROMPT = """Break down this task into a todo list. Respond ONLY with valid JSON:
-{"main_task": "...", "todo": [{"id": "1", "description": "...", "tool_name": "tool", "tool_args": {"arg": "value"}}]}
-
-For each subtask, determine if a tool is needed. If not, set tool_name to null."""
+DEFAULT_PLANNING_PROMPT = (
+    "Break down this task into a todo list. Respond ONLY with valid JSON:\n"
+    '{"main_task": "...", "todo": [{"id": "1", "description": "...", '
+    '"tool_name": "tool", "tool_args": {"arg": "value"}}]}\n\n'
+    "For each subtask, determine if a tool is needed. If not, set tool_name to null."
+)
 
 
 class Runner:
@@ -420,7 +422,8 @@ class Runner:
                         logger.info(f"[Delegation] → Delegating to {agent.name}")
                         logger.info(f"[Delegation]   Task: {task[:100]}...")
                         logger.info(
-                            f"[Delegation]   Context: {context[:100] if context else '(none)'}..."
+                            f"[Delegation]   Context: "
+                            f"{context[:100] if context else '(none)'}..."
                         )
 
                     try:
@@ -430,7 +433,8 @@ class Runner:
 
                         if verbose:
                             logger.info(
-                                f"[Delegation] ← {agent.name} completed ({len(result)} chars)"
+                                f"[Delegation] ← {agent.name} completed "
+                                f"({len(result)} chars)"
                             )
 
                         return result
@@ -445,7 +449,10 @@ class Runner:
 
             delegate_tool = Tool(
                 name=tool_name,
-                description=f"Delegate task to {agent.name}. Use when the task matches {agent.name}'s expertise.",
+                description=(
+                    f"Delegate task to {agent.name}. Use when the task matches "
+                    f"{agent.name}'s expertise."
+                ),
                 parameters={
                     "type": "object",
                     "properties": {

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from tinycua_backend.auth import CurrentTenant, get_current_tenant
 from tinycua_backend.config import get_config
-from tinycua_sdk.storage import SessionStore
+from tinycua_sdk.storage.store import SessionStore
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 

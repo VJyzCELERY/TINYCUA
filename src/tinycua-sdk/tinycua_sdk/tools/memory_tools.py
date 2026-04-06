@@ -1,11 +1,25 @@
-"""Memory tools for agents."""
+"""Memory tools for agents.
 
+.. deprecated::
+    This module has been moved to ``tinycua.agent.tools.memory_tools``.
+    Import from ``tinycua_sdk.tools.memory_tools`` will continue to work
+    but will emit a deprecation warning.
+"""
+
+import warnings
 import os
 
 from tinycua_sdk.tools.decorators import tool
 from tinycua_sdk.tools.memory import (
     MemoryBackend,
     get_memory_backend,
+)
+
+warnings.warn(
+    "tinycua_sdk.tools.memory_tools is deprecated. "
+    "Use tinycua.agent.tools.memory_tools instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 

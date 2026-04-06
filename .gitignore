@@ -4,6 +4,7 @@ Thumbs.db
 
 # Python-related files
 __pycache__/
+*.ruff_cache/
 *.py[cod]
 *.pyo
 
@@ -28,5 +29,9 @@ coverage.xml
 *.coverage
 htmlcov/
 
+# Development Artifacts
 */research/*
-/dev/*
+*dev/*
+*.github/*
+
+*.db

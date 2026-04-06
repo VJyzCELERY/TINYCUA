@@ -13,6 +13,7 @@ install:
 	$(MAKE) -C src/tinycua-runner install
 	$(MAKE) -C src/tinycua-sdk install
 	$(MAKE) -C src/tinycua-finetune install
+	$(MAKE) -C src/tinycua install
 
 # Run linting across all subprojects
 lint:
@@ -20,6 +21,7 @@ lint:
 	$(MAKE) -C src/tinycua-runner lint
 	$(MAKE) -C src/tinycua-sdk lint
 	$(MAKE) -C src/tinycua-finetune lint
+	$(MAKE) -C src/tinycua lint
 
 # Run tests across all subprojects
 test:
@@ -27,6 +29,7 @@ test:
 	$(MAKE) -C src/tinycua-runner test
 	$(MAKE) -C src/tinycua-sdk test
 	$(MAKE) -C src/tinycua-finetune test
+	$(MAKE) -C src/tinycua test
 
 # Run coverage across all subprojects
 coverage:
@@ -34,6 +37,7 @@ coverage:
 	$(MAKE) -C src/tinycua-runner coverage
 	$(MAKE) -C src/tinycua-sdk coverage
 	$(MAKE) -C src/tinycua-finetune coverage
+	$(MAKE) -C src/tinycua coverage
 
 # Run cognitive complexity analysis across all subprojects
 complexity:
@@ -41,6 +45,7 @@ complexity:
 	$(MAKE) -C src/tinycua-runner complexity
 	$(MAKE) -C src/tinycua-sdk complexity
 	$(MAKE) -C src/tinycua-finetune complexity
+	$(MAKE) -C src/tinycua complexity
 
 # Clean all subprojects
 clean:
@@ -48,6 +53,7 @@ clean:
 	$(MAKE) -C src/tinycua-runner clean
 	$(MAKE) -C src/tinycua-sdk clean
 	$(MAKE) -C src/tinycua-finetune clean
+	$(MAKE) -C src/tinycua clean
 
 # ============================================
 # Docker Operations (for tinycua-backend)

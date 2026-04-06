@@ -1,0 +1,1 @@
+{"model": "gpt-4o", "provider": "ollama", "tools": ["custom_tool"], "skills": ["custom_skill"], "loop": "react", "policy": {"temperature": 0.3, "max_tool_calls": 20}}

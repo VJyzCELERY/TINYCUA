@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from tinycua_sdk.storage import SessionStore
+from tinycua_sdk.storage.store import SessionStore
 
 
 class TestSessionModel:
@@ -260,3 +260,72 @@ class TestContextRetrieval:
 
         session = store.get_session(session.id)
         assert session.has_summary is True
+
+
+class TestSessionStoreAdvanced:
+    """Additional tests for SessionStore."""
+
+    @pytest.fixture
+    def store(self, tmp_path):
+        """Create a test store with SQLite."""
+        db_path = tmp_path / "test.db"
+        store = SessionStore(f"sqlite:///{db_path}")
+        store.create_tables()
+        return store
+
+    def test_get_session_by_name(self, store):
+        """Test getting session by name."""
+        session = store.create_session(name="Test Session")
+        found = store.get_session_by_name("Test Session")
+        assert found is not None
+        assert found.id == session.id
+
+    def test_get_session_by_name_not_found(self, store):
+        """Test getting non-existent session by name."""
+        found = store.get_session_by_name("Non Existent")
+        assert found is None
+
+    def test_list_sessions(self, store):
+        """Test listing all sessions."""
+        store.create_session(name="Session 1")
+        store.create_session(name="Session 2")
+        sessions = store.list_sessions()
+        assert len(sessions) == 2
+
+    def test_delete_session(self, store):
+        """Test deleting a session."""
+        session = store.create_session(name="Test")
+        store.delete_session(session.id)
+        found = store.get_session(session.id)
+        assert found is None
+
+
+class TestMessageStoreAdvanced:
+    """Additional tests for Message store."""
+
+    @pytest.fixture
+    def store(self, tmp_path):
+        """Create a test store with SQLite."""
+        db_path = tmp_path / "test.db"
+        store = SessionStore(f"sqlite:///{db_path}")
+        store.create_tables()
+        return store
+
+    def test_get_messages_by_role(self, store):
+        """Test getting messages by role."""
+        session = store.create_session(name="Test")
+        store.add_message(session.id, "user", "Hello")
+        store.add_message(session.id, "assistant", "Hi there")
+        store.add_message(session.id, "user", "How are you?")
+
+        user_messages = store.get_messages_by_role(session.id, "user")
+        assert len(user_messages) == 2
+
+    def test_delete_message(self, store):
+        """Test deleting a message."""
+        session = store.create_session(name="Test")
+        message = store.add_message(session.id, "user", "Hello")
+        store.delete_message(message.id)
+
+        messages = store.get_messages(session.id)
+        assert len(messages) == 0

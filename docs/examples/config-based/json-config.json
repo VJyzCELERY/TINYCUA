@@ -1,0 +1,26 @@
+{
+  "name": "json-agent",
+  "description": "An agent configured via JSON",
+  "instructions": "You are a helpful assistant that can search the web and work with files.",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "base_url": "https://api.openai.com/v1",
+  "tools": [
+    "search_web",
+    "read_file",
+    "bash"
+  ],
+  "skills": [
+    "code_analysis"
+  ],
+  "loop": {
+    "type": "react",
+    "max_iterations": 15
+  },
+  "policy": {
+    "max_tool_calls": 10,
+    "parallel_tool_calls": true,
+    "temperature": 0.7
+  },
+  "system_prompt": "You are a helpful research assistant."
+}

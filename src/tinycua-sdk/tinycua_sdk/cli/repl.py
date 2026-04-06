@@ -1,12 +1,30 @@
-"""Interactive REPL."""
+"""Interactive REPL.
 
+.. deprecated::
+    This module has been moved to ``tinycua.cli.repl``.
+    Import from ``tinycua_sdk.cli.repl`` will continue to work
+    but will emit a deprecation warning.
+"""
+
+import warnings
 from rich.console import Console
+
+warnings.warn(
+    "tinycua_sdk.cli.repl is deprecated. Use tinycua.cli.repl instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 console = Console()
 
 
 def run_repl() -> int:
-    """Run the interactive REPL."""
+    """Run the interactive REPL.
+
+    Returns:
+        Exit code (0 for normal exit).
+
+    """
     console.print("[bold green]Welcome to TINYCUA SDK REPL[/bold green]")
     console.print("Type /help for available commands\n")
 

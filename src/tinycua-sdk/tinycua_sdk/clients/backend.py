@@ -1,7 +1,20 @@
-"""Backend client for remote agent management."""
+"""Backend client for remote agent management.
 
+.. deprecated::
+    The canonical BackendClient is now in ``tinycua.clients.backend``.
+    This module keeps the full implementation for backward compatibility
+    but will emit a deprecation warning on import.
+"""
+
+import warnings
 import httpx
 from typing import Any, AsyncIterator
+
+warnings.warn(
+    "tinycua_sdk.clients.backend is deprecated. Use tinycua.clients.backend instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class BackendClient:
@@ -73,7 +86,8 @@ class BackendClient:
         """Register a new user.
 
         Default fields: email, password, tenant_name
-        Additional fields can be passed for custom registration (e.g., username, full_name).
+        Additional fields can be passed for custom registration
+        (e.g., username, full_name).
 
         Args:
             **kwargs: Registration fields (email, password, tenant_name, etc.)
@@ -135,11 +149,6 @@ class BackendClient:
             Deployment response with agent_id and status
 
         """
-        # Extract the agent config from the nested structure
-        # The SDK sends { "agent": {...}, "tools": [...] }
-        # Backend expects { "name": str, "config": dict }
-
-        # Handle both old format (direct) and new format (nested)
         if "agent" in agent_config:
             agent_data = agent_config["agent"]
             name = agent_data.get("name", "agent")

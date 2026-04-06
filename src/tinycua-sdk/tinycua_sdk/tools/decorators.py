@@ -6,6 +6,8 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from tinycua_sdk.tools.schema import type_to_json_schema
+
 
 @dataclass
 class Tool:
@@ -73,28 +75,27 @@ class Tool:
 
 
 def _make_tool(fn: Callable, dependencies: list[str]) -> Tool:
-    """Create a Tool from a function."""
+    """Create a Tool from a function.
+
+    Args:
+        fn: The function to convert into a Tool.
+        dependencies: List of external dependency names.
+
+    Returns:
+        A Tool instance with generated schema.
+
+    """
     sig = inspect.signature(fn)
     description = fn.__doc__ or ""
 
     params = {}
+    required = []
     for param_name, param in sig.parameters.items():
-        param_type = "string"
-        if param.annotation is not inspect.Parameter.empty:
-            if param.annotation is int:
-                param_type = "integer"
-            elif param.annotation is float:
-                param_type = "number"
-            elif param.annotation is bool:
-                param_type = "boolean"
-            elif hasattr(param.annotation, "__origin__"):
-                param_type = "string"
-
-        params[param_name] = {
-            "type": param_type,
-            "description": "",
-        }
-        if param.default is not inspect.Parameter.empty:
+        schema = type_to_json_schema(param.annotation)
+        params[param_name] = schema
+        if param.default is inspect.Parameter.empty:
+            required.append(param_name)
+        else:
             params[param_name]["default"] = param.default
 
     source = inspect.getsource(fn)
@@ -105,11 +106,7 @@ def _make_tool(fn: Callable, dependencies: list[str]) -> Tool:
         parameters={
             "type": "object",
             "properties": params,
-            "required": [
-                p.name
-                for p in sig.parameters.values()
-                if p.default is inspect.Parameter.empty
-            ],
+            "required": required,
         },
         _fn=fn,
         _source=source,

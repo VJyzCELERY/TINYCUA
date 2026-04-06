@@ -5,7 +5,6 @@ Pass a DefaultLoop subclass to Agent to customize execution behavior!
 """
 
 import asyncio
-import json
 
 from tinycua_sdk import Agent
 from tinycua_sdk.agent.loop import DefaultLoop
@@ -25,7 +24,7 @@ class LoggingLoop(DefaultLoop):
 
         result = await super().run(agent, user_input, **kwargs)
 
-        print(f"[LoggingLoop] Completed")
+        print("[LoggingLoop] Completed")
         return result
 
 
@@ -137,7 +136,7 @@ class PlanExecuteLoop(DefaultLoop):
     """Plan-Execute pattern: Analyze -> Execute -> Summarize."""
 
     async def run(self, agent, user_input, **kwargs):
-        print(f"[PlanExecute] Analyzing task...")
+        print("[PlanExecute] Analyzing task...")
 
         # Simple analysis - in production, this would be more sophisticated
         messages = [

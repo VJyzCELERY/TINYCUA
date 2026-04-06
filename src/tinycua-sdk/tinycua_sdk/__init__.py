@@ -1,6 +1,12 @@
 """tinycua_sdk - TINYCUA AI Agent Development Kit."""
 
-from tinycua_sdk.agent import Agent, AgentConfig, AgentPolicy
+from tinycua_sdk.agent import (
+    Agent,
+    AgentConfig,
+    AgentDefinition,
+    AgentExecutor,
+    AgentPolicy,
+)
 from tinycua_sdk.clients.agent_client import AgentClient
 from tinycua_sdk.clients.backend import BackendClient
 from tinycua_sdk.clients.client import ResponsesClient
@@ -95,6 +101,8 @@ __all__ = [
     "Agent",
     "AgentConfig",
     "AgentPolicy",
+    "AgentDefinition",
+    "AgentExecutor",
     "Tool",
     "tool",
     "Message",
