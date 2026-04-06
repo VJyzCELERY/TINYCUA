@@ -68,6 +68,15 @@ class ContextDiscovery:
             if not current_dir.exists():
                 break
 
+            # Skip directories in SKIP_DIRS
+            if current_dir.name in self.SKIP_DIRS:
+                parent = current_dir.parent
+                if parent == current_dir:
+                    break
+                current_dir = parent
+                depth += 1
+                continue
+
             # Check for context files in current directory
             for filename in CONTEXT_FILE_NAMES:
                 file_path = current_dir / filename

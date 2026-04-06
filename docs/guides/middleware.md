@@ -5,32 +5,40 @@ Middleware and hooks allow you to intercept and modify agent behavior at key poi
 ## Overview
 
 TinyCUA provides a hooks system with:
-- **Pre-execution hooks**: Run before agent operations
-- **Post-execution hooks**: Run after agent operations
-- **Error hooks**: Handle errors gracefully
-- **Custom middleware**: Extend agent functionality
+- **Pre-execution hooks**: Run before tool calls
+- **Post-execution hooks**: Run after tool calls
 
 ## Basic Hooks
 
 ### Creating a Hook
 
 ```python
-from tinycua_sdk.middleware import Hook, HookRegistry
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
 
-@Hook(name="log_requests", event="pre_run")
-def log_request(agent, user_input):
+class LogRequestsHook(Hook):
     """Log all requests before execution."""
-    print(f"Request: {user_input}")
-    return {"continue": True}  # Return False to stop execution
+    
+    def pre_call(self, context: HookContext) -> HookResult:
+        print(f"Request: {context.parameters}")
+        return HookResult(modified=False)
 ```
 
 ### Registering Hooks
 
 ```python
-from tinycua_sdk.middleware import HookRegistry
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
 
+class LogRequestsHook(Hook):
+    """Log all requests before execution."""
+    
+    def pre_call(self, context: HookContext) -> HookResult:
+        print(f"Request: {context.parameters}")
+        return HookResult(modified=False)
+
+# Register the hook (requires Hook INSTANCE, not class)
 registry = HookRegistry()
-registry.register(log_request)
+registry.register_pre_hook(LogRequestsHook())
+# Or with priority: registry.register_pre_hook(LogRequestsHook(), priority=50)
 ```
 
 ## Hook Types
@@ -38,82 +46,47 @@ registry.register(log_request)
 ### Pre-Run Hook
 
 ```python
-@Hook(name="validate_input", event="pre_run")
-def validate_input(agent, user_input):
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
+
+class ValidateInputHook(Hook):
     """Validate user input before running."""
-    if len(user_input) > 10000:
-        raise ValueError("Input too long")
-    return {"continue": True}
+    
+    def pre_call(self, context: HookContext) -> HookResult:
+        if len(context.parameters.get("input", "")) > 10000:
+            return HookResult(modified=False, error="Input too long")
+        return HookResult(modified=False)
 ```
 
 ### Post-Run Hook
 
 ```python
-@Hook(name="log_response", event="post_run")
-def log_response(agent, user_input, response):
+from typing import Any
+
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
+
+class LogResponseHook(Hook):
     """Log response after execution."""
-    print(f"Response: {response}")
-    return {"continue": True}
+    
+    def post_call(self, context: HookContext, result: Any) -> HookResult:
+        print(f"Response: {result}")
+        return HookResult(modified=False, result=result)
 ```
 
-### Error Hook
+### Error Handling
 
 ```python
-@Hook(name="handle_errors", event="on_error")
-def handle_error(agent, user_input, error):
+from typing import Any
+
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
+
+class ErrorHandlerHook(Hook):
     """Handle errors during execution."""
-    print(f"Error: {error}")
-    return {"continue": True, "recovery_action": "retry"}
-```
-
-## Middleware Pipeline
-
-### Creating Middleware
-
-```python
-from tinycua_sdk.middleware import Middleware
-
-class MyMiddleware(Middleware):
-    async def process(self, request, next):
-        # Pre-processing
-        print(f"Processing: {request}")
-        
-        # Call next middleware
-        response = await next(request)
-        
-        # Post-processing
-        print(f"Response: {response}")
-        
-        return response
-```
-
-### Adding to Pipeline
-
-```python
-from tinycua_sdk import Agent
-
-agent = Agent(
-    name="my-agent",
-    middleware=[MyMiddleware()]
-)
-```
-
-## Hook Registry
-
-### Listing Hooks
-
-```python
-registry = HookRegistry()
-hooks = registry.list_hooks()
-
-for hook in hooks:
-    print(f"{hook.name}: {hook.event}")
-```
-
-### Removing Hooks
-
-```python
-registry.unregister("log_requests")
+    
+    def post_call(self, context: HookContext, result: Any) -> HookResult:
+        if isinstance(result, Exception):
+            print(f"Error: {result}")
+            return HookResult(modified=False, result=result)
+        return HookResult(modified=False, result=result)
 ```
 
 ## Use Cases
@@ -122,52 +95,71 @@ registry.unregister("log_requests")
 
 ```python
 import logging
+from typing import Any
 
-@Hook(name="audit_log", event="post_run")
-def audit_log(agent, user_input, response):
-    logging.info(f"Agent: {agent.name}, Input: {user_input}, Response: {response}")
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
+
+class AuditLogHook(Hook):
+    """Audit log for agent operations."""
+    
+    def post_call(self, context: HookContext, result: Any) -> HookResult:
+        logging.info(f"Tool: {context.tool_name}, Parameters: {context.parameters}, Result: {result}")
+        return HookResult(modified=False, result=result)
 ```
 
 ### Rate Limiting
 
 ```python
 import time
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
 
-class RateLimiter(Hook):
+class RateLimiterHook(Hook):
+    """Rate limiting hook."""
+    
     def __init__(self, max_calls_per_minute=60):
         self.max_calls = max_calls_per_minute
         self.calls = []
     
-    def __call__(self, agent, user_input):
+    def pre_call(self, context: HookContext) -> HookResult:
         now = time.time()
         self.calls = [c for c in self.calls if now - c < 60]
         
         if len(self.calls) >= self.max_calls:
-            raise ValueError("Rate limit exceeded")
+            return HookResult(modified=False, error="Rate limit exceeded")
         
         self.calls.append(now)
-        return {"continue": True}
+        return HookResult(modified=False)
 ```
 
 ### Caching
 
 ```python
-class ResponseCache(Hook):
+from typing import Any
+
+from tinycua_sdk.middleware import Hook, HookRegistry, HookContext, HookResult
+
+class ResponseCacheHook(Hook):
+    """Cache responses for repeated requests."""
+    
     def __init__(self):
         self.cache = {}
     
-    def __call__(self, agent, user_input):
-        if user_input in self.cache:
-            return {"continue": False, "response": self.cache[user_input]}
-        return {"continue": True}
+    def pre_call(self, context: HookContext) -> HookResult:
+        input_key = str(context.parameters)
+        if input_key in self.cache:
+            return HookResult(modified=True, result=self.cache[input_key])
+        return HookResult(modified=False)
     
-    def cache_response(self, user_input, response):
-        self.cache[user_input] = response
+    def post_call(self, context: HookContext, result: Any) -> HookResult:
+        input_key = str(context.parameters)
+        self.cache[input_key] = result
+        return HookResult(modified=False, result=result)
 ```
 
 ## Best Practices
 
-1. **Keep hooks simple**: Complex logic should be in middleware
-2. **Return control flags**: Always return `{"continue": True/False}`
-3. **Handle errors**: Use error hooks for graceful failure
+1. **Keep hooks simple**: Complex logic should be in separate modules
+2. **Use HookResult**: Return modified parameters or results through HookResult
+3. **Handle errors**: Return error in HookResult for graceful failure
 4. **Document hooks**: Clear names and descriptions help maintenance
+5. **Use priority**: Lower priority values run first for ordering

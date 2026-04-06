@@ -7,13 +7,16 @@
 """
 
 import warnings
-from rich.console import Console
 
+# Emit warning FIRST before any other imports
 warnings.warn(
     "tinycua_sdk.cli.repl is deprecated. Use tinycua.cli.repl instead.",
     DeprecationWarning,
     stacklevel=2,
 )
+
+# Lazy import after warning is emitted
+from rich.console import Console
 
 console = Console()
 

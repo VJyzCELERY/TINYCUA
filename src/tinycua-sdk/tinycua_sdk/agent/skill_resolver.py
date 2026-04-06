@@ -34,7 +34,11 @@ class SkillToolResolver:
 
     @property
     def tool_registry(self) -> "ToolRegistry":
-        """Get the ToolRegistry instance."""
+        """Get the ToolRegistry instance.
+
+        Note: ToolRegistry is a singleton, so ToolRegistry() always returns
+        the same instance. This is intentional behavior.
+        """
         if self._tool_registry is None:
             from tinycua_sdk.core.registry import ToolRegistry
 

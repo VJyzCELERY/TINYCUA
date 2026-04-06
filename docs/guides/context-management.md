@@ -17,16 +17,13 @@ The context management system handles:
 ```python
 from tinycua_sdk.context import ContextDiscovery
 
-discovery = ContextDiscovery()
+discovery = ContextDiscovery(root_dir=Path("./context"))
 
-# Find relevant files
-files = discovery.find_context_files(
-    directory="./context",
-    patterns=["*.md", "*.txt"]
-)
+# Discover context files with priority
+files = discovery.discover()
 
-for file in files:
-    print(f"Found: {file.path}")
+for file_path, priority in files:
+    print(f"Found: {file_path} (priority: {priority})")
 ```
 
 ### Context Types
@@ -80,35 +77,17 @@ compressor = ContextCompressor(strategy=MyStrategy())
 
 ## Injection Detection
 
-### Basic Usage
+Injection detection helps protect against prompt injection attacks.
 
-```python
-from tinycua_sdk.context import InjectionDetector
+Note: The InjectionDetector class is planned for a future release. For now, 
+ensure user inputs are validated and sanitized before including them in prompts.
 
-detector = InjectionDetector()
+### Best Practices for Input Validation
 
-# Check for injection
-result = detector.check("Normal user input")
-
-if result.is_safe:
-    print("Input is safe")
-else:
-    print(f"Potential injection detected: {result.threat}")
-```
-
-### Custom Rules
-
-```python
-from tinycua_sdk.context import InjectionDetector
-
-detector = InjectionDetector()
-
-# Add custom detection rules
-detector.add_rule(
-    pattern=r"ignore previous instructions",
-    severity="high"
-)
-```
+1. **Validate user input**: Check for suspicious patterns before processing
+2. **Sanitize inputs**: Remove or escape potentially dangerous characters
+3. **Use allowlists**: Prefer allowlists over blocklists for input validation
+4. **Log suspicious activity**: Monitor for potential injection attempts
 
 ## Memory Snapshots
 

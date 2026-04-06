@@ -11,49 +11,50 @@ Skills are packages of related tools that can be loaded on-demand. They provide:
 
 ## Creating a Skill
 
-### Basic Skill Structure
+### SKILL.md Structure
 
-```python
-from tinycua_sdk.skills import skill, SkillLoader
+Skills are defined using a SKILL.md file in the skill directory:
 
-@skill(name="code_analysis", description="Tools for code analysis")
-class CodeAnalysisSkill:
-    """Skill for analyzing code."""
-    
-    @staticmethod
-    def get_tools():
-        """Return list of tools in this skill."""
-        from tinycua_sdk.tools import tool
-        
-        @tool(name="analyze_complexity", description="Analyze code complexity")
-        def analyze_complexity(code: str) -> dict:
-            """Analyze code complexity."""
-            # Implementation here
-            return {"complexity": 10, "lines": 100}
-        
-        @tool(name="find_bugs", description="Find potential bugs")
-        def find_bugs(code: str) -> list[dict]:
-            """Find potential bugs in code."""
-            # Implementation here
-            return []
-        
-        return [analyze_complexity, find_bugs]
+```yaml
+---
+name: code_analysis
+description: Tools for code analysis
+category: development
+tools:
+  - analyze_complexity
+  - find_bugs
+dependencies: []
+---
+
+# Code Analysis Skill
+
+This skill provides tools for analyzing code.
 ```
+
+The SKILL.md file uses YAML frontmatter for metadata:
+- **name**: Skill identifier
+- **description**: Human-readable description
+- **category**: Skill category (development, data, etc.)
+- **tools**: List of tool names provided by this skill
+- **dependencies**: Other skill names required by this skill
 
 ### Skill with Dependencies
 
-```python
-@skill(name="web_scraper", description="Tools for web scraping")
-class WebScraperSkill:
-    """Skill for web scraping."""
-    
-    dependencies = ["http_client"]  # Required skills
-    
-    @staticmethod
-    def get_tools():
-        """Return list of tools in this skill."""
-        # Tools implementation
-        return []
+```yaml
+---
+name: web_scraper
+description: Tools for web scraping
+category: data
+tools:
+  - fetch_page
+  - parse_html
+dependencies:
+  - http_client
+---
+
+# Web Scraper Skill
+
+This skill provides tools for scraping web pages.
 ```
 
 ## Loading Skills
@@ -61,10 +62,11 @@ class WebScraperSkill:
 ### Manual Loading
 
 ```python
+from pathlib import Path
 from tinycua_sdk.skills import SkillLoader
 
 loader = SkillLoader()
-loader.load_skill("code_analysis")
+skill = loader.load_skill(Path("skills/code_analysis"))
 ```
 
 ### Automatic Loading
@@ -102,8 +104,10 @@ from tinycua_sdk.skills import SkillCache
 cache = SkillCache()
 
 # Check if skill is cached
-if cache.has("code_analysis"):
-    skill = cache.get("code_analysis")
+skill = cache.get("code_analysis")
+if skill is not None:
+    # Use cached skill
+    print(f"Found cached skill: {skill.name}")
 ```
 
 ## Best Practices

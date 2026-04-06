@@ -56,14 +56,14 @@ def create_default_agent(
         )
 
         tools = [
-            remember,
-            recall,
-            forget,
-            list_memory,
-            clear_memory,
-            search_context_grep_tool,
-            get_context_summary_tool,
-            get_recent_turns_tool,
+            remember(),
+            recall(),
+            forget(),
+            list_memory(),
+            clear_memory(),
+            search_context_grep_tool(),
+            get_context_summary_tool(),
+            get_recent_turns_tool(),
         ]
 
     policy = AgentPolicy(max_tool_calls=10, parallel_tool_calls=True)

@@ -47,6 +47,9 @@ class AgentConfigValidator:
         "reflective",
         "reasoning",
         "simple",
+        "react",
+        "plan",
+        "react-reasoning",
     }
     TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 

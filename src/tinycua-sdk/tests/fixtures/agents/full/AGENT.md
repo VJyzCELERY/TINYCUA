@@ -4,7 +4,7 @@ description: A full-featured agent with all configuration options
 model: gpt-4o-mini
 provider: openai
 base_url: https://api.openai.com/v1
-api_key: sk-test123456789
+api_key: test-api-key-placeholder
 tools:
   - search_web
   - calculate

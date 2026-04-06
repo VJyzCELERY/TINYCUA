@@ -122,20 +122,20 @@ class SkillLoader:
         Returns:
             The instructions text
         """
-        # Remove ## Instructions header if present
         lines = markdown_content.split("\n")
         result_lines = []
-        skip_header = False
+        skip_instructions = False
 
         for line in lines:
-            if skip_header and line.strip().startswith("#"):
-                skip_header = False
-                continue
+            # Check for ## Instructions header
             if "## Instructions" in line or "##instructions" in line.lower():
-                skip_header = True
+                skip_instructions = True
                 continue
-            if skip_header and line.strip().startswith("#"):
-                break
+
+            # Stop skipping when we hit another header
+            if skip_instructions and line.strip().startswith("#"):
+                skip_instructions = False
+
             result_lines.append(line)
 
         return "\n".join(result_lines).strip()

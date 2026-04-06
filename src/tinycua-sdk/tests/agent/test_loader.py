@@ -53,7 +53,7 @@ class TestAgentLoader:
         assert config.model == "gpt-4o-mini"
         assert config.provider == "openai"
         assert config.base_url == "https://api.openai.com/v1"
-        assert config.api_key == "sk-test123456789"
+        assert config.api_key == "test-api-key-placeholder"
 
     def test_load_agent_with_tools(self, loader, fixtures_dir):
         """Test loading agent with tools specified."""
