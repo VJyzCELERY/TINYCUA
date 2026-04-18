@@ -81,7 +81,7 @@ class TestAgentCreation:
         assert basic_agent.instructions == "You are a helpful assistant."
         assert basic_agent.provider == "lmstudio"
         assert basic_agent.model == "qwen/qwen3.5-9b"
-        assert basic_agent.base_url == "http://localhost:1234"
+        assert basic_agent.config.base_url == "http://localhost:1234"
 
     def test_agent_with_tools(self, agent_with_tools):
         """Test agent creation with tools."""
