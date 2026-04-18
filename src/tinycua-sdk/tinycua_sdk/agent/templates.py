@@ -19,8 +19,6 @@ class AgentTemplate(TypedDict, total=False):
     instructions: str
     base_url: str | None
     api_key: str | None
-    plan_mode: str
-    planning_prompt: str | None
     strip_thinking: bool | list[str] | None
     max_depth: int
     sub_agents: list
@@ -90,8 +88,6 @@ ALLOWED_OVERRIDE_FIELDS = {
     "skills",
     "loop",
     "policy",
-    "plan_mode",
-    "planning_prompt",
     "keywords",
     "strip_thinking",
     "max_depth",

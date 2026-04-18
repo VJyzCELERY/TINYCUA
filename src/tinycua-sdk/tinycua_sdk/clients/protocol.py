@@ -39,7 +39,6 @@ class BackendProtocol(Protocol):
         messages: list[dict],
         tools: list[dict] | None,
         stream: bool,
-        plan_mode: bool,
     ) -> AsyncIterator[dict]:
         """Execute an agent with the given messages."""
         ...

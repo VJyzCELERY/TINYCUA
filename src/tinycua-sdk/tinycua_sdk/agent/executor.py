@@ -46,8 +46,6 @@ class AgentExecutor(AgentDefinition):
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: Any = None,
-        plan_mode: str = "direct",
-        planning_prompt: str | None = None,
         mode: str = "local",
         backend_url: str | None = None,
         backend_api_key: str | None = None,
@@ -73,8 +71,6 @@ class AgentExecutor(AgentDefinition):
             api_key=api_key,
             tools=tools,
             policy=policy,
-            plan_mode=plan_mode,
-            planning_prompt=planning_prompt,
             mode=mode,
             backend_url=backend_url,
             backend_api_key=backend_api_key,
@@ -89,7 +85,7 @@ class AgentExecutor(AgentDefinition):
             skills=skills,
         )
         self._local_runner: Runner | None = None
-        self._loop_cache: DefaultLoop | None = None
+        self._loop_cache: BaseLoop | None = None
         self.runner = runner
         self.messages: list[dict[str, Any]] = []
 
@@ -193,7 +189,6 @@ class AgentExecutor(AgentDefinition):
     async def _run_deployed(
         self,
         user_input: str,
-        plan_mode: bool = False,
         trace: bool = False,
     ) -> Union[str, Any]:
         """Run via backend API when in deployed mode."""
@@ -223,7 +218,6 @@ class AgentExecutor(AgentDefinition):
             agent_id=self.config.agent_id,
             messages=self.messages,
             tools=[t.to_config() for t in self.tools],
-            plan_mode=plan_mode,
         ):
             if isinstance(event, dict) and event.get("type") == "content":
                 response_text += event.get("data", {}).get("content", "")
@@ -266,7 +260,6 @@ class AgentExecutor(AgentDefinition):
         self,
         user_input: str,
         instructions: str | None = None,
-        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         stream_sse: bool = False,
@@ -274,9 +267,7 @@ class AgentExecutor(AgentDefinition):
     ) -> Union[str, Any]:
         """Run the agent with a user input."""
         if self.is_deployed and not force_local:
-            return await self._run_deployed(
-                user_input, plan_mode=plan_mode, trace=trace
-            )
+            return await self._run_deployed(user_input, trace=trace)
         if self.is_guest and not force_local:
             return await self._run_guest(user_input, instructions)
         self.reset_cancel()
@@ -284,7 +275,6 @@ class AgentExecutor(AgentDefinition):
         return await loop.run(
             self,
             user_input,
-            plan_mode=plan_mode,
             trace=trace,
             verbose=verbose,
             stream_sse=stream_sse,
@@ -294,7 +284,6 @@ class AgentExecutor(AgentDefinition):
         self,
         user_input: str,
         instructions: str | None = None,
-        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         force_local: bool = False,
@@ -306,7 +295,6 @@ class AgentExecutor(AgentDefinition):
             self.run(
                 user_input,
                 instructions,
-                plan_mode,
                 trace,
                 verbose,
                 force_local=force_local,

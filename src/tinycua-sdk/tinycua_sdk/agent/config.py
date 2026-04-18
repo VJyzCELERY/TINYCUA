@@ -74,8 +74,6 @@ class AgentConfig:
     api_key: str | None = None
     tools: list[str | Tool] = field(default_factory=list)
     policy: AgentPolicy = field(default_factory=AgentPolicy)
-    plan_mode: str = "direct"
-    planning_prompt: str | None = None
     # Deployed mode settings
     mode: str = "local"  # "local" or "deployed"
     backend_url: str | None = None
@@ -87,7 +85,7 @@ class AgentConfig:
     # Sub-agents for delegation
     sub_agents: list["Agent"] = field(default_factory=list)
     # Custom loop configuration
-    loop: Any = None  # DefaultLoop subclass
+    loop: Any = None  # BaseLoop subclass
     # Skill-related fields (Stage 3)
     skills: list[str] = field(default_factory=list)
     skill_dirs: list[Path] = field(default_factory=list)
@@ -138,8 +136,6 @@ class AgentConfig:
                 "parallel_tool_calls": self.policy.parallel_tool_calls,
                 "temperature": self.policy.temperature,
             },
-            "plan_mode": self.plan_mode,
-            "planning_prompt": self.planning_prompt,
             "strip_thinking": self.strip_thinking,
             "loop": loop_config,
             # Skill-related fields (Stage 3)
@@ -204,8 +200,6 @@ class AgentConfig:
             api_key=data.get("api_key"),
             tools=tools,
             policy=policy,
-            plan_mode=data.get("plan_mode", "direct"),
-            planning_prompt=data.get("planning_prompt"),
             strip_thinking=data.get("strip_thinking"),
             loop=loop_config,  # Store raw config for later materialization
             # Skill-related fields (Stage 3)

@@ -5,7 +5,7 @@ PYTHON ?= python3
 UV ?= uv
 SRC ?= tinycua_sdk
 
-.PHONY: install lint test coverage complexity clean precommit-install check run
+.PHONY: install lint test test-unit test-integration test-all coverage complexity clean precommit-install check run
 
 # Install dependencies
 install:
@@ -51,17 +51,24 @@ lint-fix:
 	ruff check $(SRC)/ --fix
 	ruff format $(SRC)/
 
-# Run tests
-test:
-	pytest tests/unit/ -v
+# Run unit tests only
+test-unit:
+	pytest tests/unit/ -v --tb=short
 
-# Run integration tests
+# Run integration tests only
 test-integration:
-	pytest tests/integration/ -v -m integration
+	pytest tests/integration/ -v --tb=short --log-cli-level=INFO
 
-# Run all tests
-test-all:
-	pytest tests/ -v
+# Run both unit and integration tests
+test:
+	@echo "=== Running Unit Tests ==="
+	pytest tests/unit/ -v --tb=short
+	@echo ""
+	@echo "=== Running Integration Tests ==="
+	pytest tests/integration/ -v --tb=short --log-cli-level=INFO
+
+# Run all tests (alias for test)
+test-all: test
 
 # Run tests with coverage
 coverage:
@@ -80,15 +87,16 @@ clean:
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  install           - Install dependencies"
-	@echo "  precommit-install - Install and configure pre-commit hooks"
+	@echo "  install            - Install dependencies"
+	@echo "  precommit-install  - Install and configure pre-commit hooks"
 	@echo "  check             - Run all checks (lint + complexity)"
-	@echo "  precommit         - Run pre-commit hooks on all files"
-	@echo "  lint              - Run linter (ruff)"
-	@echo "  lint-fix          - Run linter with auto-fix"
-	@echo "  test              - Run unit tests"
-	@echo "  test-integration  - Run integration tests"
-	@echo "  test-all          - Run all tests"
-	@echo "  coverage          - Run tests with coverage"
-	@echo "  complexity        - Run complexity analysis"
-	@echo "  clean             - Clean up artifacts"
+	@echo "  precommit        - Run pre-commit hooks on all files"
+	@echo "  lint             - Run linter (ruff)"
+	@echo "  lint-fix         - Run linter with auto-fix"
+	@echo "  test-unit        - Run unit tests only"
+	@echo "  test-integration  - Run integration tests only"
+	@echo "  test             - Run both unit and integration tests"
+	@echo "  test-all         - Run all tests (alias for test)"
+	@echo "  coverage         - Run tests with coverage"
+	@echo "  complexity       - Run complexity analysis"
+	@echo "  clean            - Clean up artifacts"

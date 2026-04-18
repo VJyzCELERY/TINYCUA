@@ -1,13 +1,13 @@
 """Custom Agent Loop Examples.
 
 This example demonstrates how to create custom agent loops using Runner helper methods.
-Pass a DefaultLoop subclass to Agent to customize execution behavior!
+Pass a BaseLoop subclass to Agent to customize execution behavior!
 """
 
 import asyncio
 
 from tinycua_sdk import Agent
-from tinycua_sdk.agent.loop import DefaultLoop
+from tinycua_sdk.agent.loop import BaseLoop
 from tinycua_sdk.tools import tool
 
 
@@ -16,7 +16,7 @@ from tinycua_sdk.tools import tool
 # =============================================================================
 
 
-class LoggingLoop(DefaultLoop):
+class LoggingLoop(BaseLoop):
     """Custom loop that logs each step of execution."""
 
     async def run(self, agent, user_input, **kwargs):
@@ -33,7 +33,7 @@ class LoggingLoop(DefaultLoop):
 # =============================================================================
 
 
-class CustomDirectLoop(DefaultLoop):
+class CustomDirectLoop(BaseLoop):
     """Custom direct loop using Runner helper methods.
 
     This shows how to build the same behavior as the default
@@ -41,7 +41,6 @@ class CustomDirectLoop(DefaultLoop):
     """
 
     async def run(self, agent, user_input, max_calls=5, **kwargs):
-        plan_mode = kwargs.get("plan_mode", False)
         verbose = kwargs.get("verbose", False)
 
         # Use helper to build messages
@@ -72,9 +71,7 @@ class CustomDirectLoop(DefaultLoop):
                 return content
 
             # Execute tools
-            tool_messages, results = await self.runner.execute_tool_loop(
-                tool_calls, plan_mode
-            )
+            tool_messages, results = await self.runner.execute_tool_loop(tool_calls)
 
             # Add to history
             messages.extend(tool_messages)
@@ -86,19 +83,17 @@ class CustomDirectLoop(DefaultLoop):
 
 
 # =============================================================================
-# Example 3: ReAct Loop - using helpers
+# Example 3: Custom ReAct Loop - using helpers
 # =============================================================================
 
 
-class ReActLoop(DefaultLoop):
-    """ReAct pattern: Reason + Act + Observe.
+class CustomReActLoop(BaseLoop):
+    """Custom ReAct pattern: Reason + Act + Observe.
 
     Uses helper methods to build the ReAct flow.
     """
 
     async def run(self, agent, user_input, max_iterations=5, **kwargs):
-        plan_mode = kwargs.get("plan_mode", False)
-
         # Build initial messages
         messages = [{"role": "user", "content": user_input}]
 
@@ -117,37 +112,35 @@ class ReActLoop(DefaultLoop):
                 return message.get("content", "")
 
             # Execute tools
-            tool_msgs, results = await self.runner.execute_tool_loop(
-                tool_calls, plan_mode
-            )
+            tool_msgs, results = await self.runner.execute_tool_loop(tool_calls)
             messages.extend(tool_msgs)
 
-            print(f"[ReAct] Iteration {i + 1}: {len(tool_calls)} tools called")
+            print(f"[CustomReAct] Iteration {i + 1}: {len(tool_calls)} tools called")
 
         return "Max iterations reached"
 
 
 # =============================================================================
-# Example 4: Plan-Execute Loop - stub for complex planning
+# Example 4: Analyze-Execute Loop - stub for complex tasks
 # =============================================================================
 
 
-class PlanExecuteLoop(DefaultLoop):
-    """Plan-Execute pattern: Analyze -> Execute -> Summarize."""
+class AnalyzeExecuteLoop(BaseLoop):
+    """Analyze-Execute pattern: Analyze -> Execute -> Summarize."""
 
     async def run(self, agent, user_input, **kwargs):
-        print("[PlanExecute] Analyzing task...")
+        print("[AnalyzeExecute] Analyzing task...")
 
         # Simple analysis - in production, this would be more sophisticated
         messages = [
-            {"role": "user", "content": f"Break this task into steps: {user_input}"}
+            {"role": "user", "content": f"Analyze this task: {user_input}"}
         ]
 
-        # Get plan from LLM
+        # Get analysis from LLM
         response = await self.runner.call_llm(messages, [])
-        plan = response.choices[0].message.content
+        analysis = response.choices[0].message.content
 
-        print(f"[PlanExecute] Plan: {plan[:100]}...")
+        print(f"[AnalyzeExecute] Analysis: {analysis[:100]}...")
 
         # Execute normally using parent
         result = await super().run(agent, user_input, **kwargs)
@@ -242,20 +235,21 @@ async def demo():
     result4 = await agent4.run("What is 7 + 8?")
     print(f"Result: {result4}")
 
-    # Example 5: Plan mode (works with any loop!)
-    print("\n5. Plan mode (any loop):")
+    # Example 5: Using React loop explicitly
+    print("\n5. Using React loop:")
     agent5 = Agent(
-        name="plan-agent",
+        name="react-agent",
         instructions="You are a helpful assistant.",
         provider="lmstudio",
         model="qwen/qwen3.5-9b",
         base_url="http://localhost:1234",
         api_key="dummy",
         tools=tools,
+        loop="react",
     )
 
-    result5 = await agent5.run("What is 1 + 1?", plan_mode=True)
-    print(f"Result (plan mode): {result5}")
+    result5 = await agent5.run("What is 1 + 1?")
+    print(f"Result (react): {result5}")
 
     print("\n" + "=" * 60)
     print("All examples completed!")

@@ -32,8 +32,6 @@ class AgentDefinition:
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: AgentPolicy | None = None,
-        plan_mode: str = "direct",
-        planning_prompt: str | None = None,
         mode: str = "local",
         backend_url: str | None = None,
         backend_api_key: str | None = None,
@@ -59,8 +57,6 @@ class AgentDefinition:
             api_key: API key for authentication.
             tools: List of tools available to the agent.
             policy: AgentPolicy instance for behavior settings.
-            plan_mode: Execution mode (direct or plan).
-            planning_prompt: Custom prompt for planning mode.
             mode: Execution mode (local or remote/deployed).
             backend_url: URL for the backend server (for deployed agents).
             backend_api_key: API key for backend authentication.
@@ -85,8 +81,6 @@ class AgentDefinition:
             api_key=api_key,
             tools=tools or [],
             policy=policy or AgentPolicy(),
-            plan_mode=plan_mode,
-            planning_prompt=planning_prompt,
             mode=mode,
             backend_url=backend_url,
             backend_api_key=backend_api_key,
@@ -246,8 +240,6 @@ class AgentDefinition:
             api_key=config.api_key,
             tools=config.tools,
             policy=config.policy,
-            plan_mode=config.plan_mode,
-            planning_prompt=config.planning_prompt,
             mode=config.mode,
             backend_url=config.backend_url,
             backend_api_key=config.backend_api_key,

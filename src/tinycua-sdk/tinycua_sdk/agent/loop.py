@@ -1,4 +1,4 @@
-"""DefaultLoop - Base class for custom agent execution loops."""
+"""BaseLoop - Base class for custom agent execution loops."""
 
 from typing import TYPE_CHECKING, Any, AsyncIterator, Union
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 # Valid built-in loop types
-VALID_LOOP_TYPES = {"default", "react", "plan"}
+VALID_LOOP_TYPES = {"default", "react"}
 
 
 def _validate_loop_type(loop_type: str) -> None:
@@ -29,18 +29,22 @@ def _validate_loop_type(loop_type: str) -> None:
         )
 
 
-class DefaultLoop:
+class BaseLoop:
     """Base class for custom agent execution loops.
 
-    Users extend this class to define custom execution strategies.
+    This is the base class used by default for all agents developed with tinycua-sdk.
+    Users can extend this class to define custom execution strategies.
     Provides access to Runner helpers for tool execution and LLM calls.
 
     Example:
-        class MyLoop(DefaultLoop):
+        class MyLoop(BaseLoop):
             async def run(self, agent, user_input, **kwargs):
                 # Custom logic
                 result = await self.runner.call_llm(messages)
                 return result
+
+    Attributes:
+        runner: Runner instance for basic execution (set by AgentExecutor)
     """
 
     def __init__(self, runner: "Runner" = None):
@@ -57,7 +61,6 @@ class DefaultLoop:
         self,
         agent: "Agent",
         user_input: str,
-        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         stream_sse: bool = False,
@@ -71,7 +74,6 @@ class DefaultLoop:
         Args:
             agent: The agent instance with tools
             user_input: The user's input
-            plan_mode: If True, only allow plan-mode tools
             trace: If True, return RunResult with trace
             verbose: If True, log raw events
             stream_sse: If True, yield StreamEvents
@@ -83,7 +85,6 @@ class DefaultLoop:
         self.runner.trace = trace
         self.runner.verbose = verbose
         self.runner.stream_sse = stream_sse
-        self.runner.plan_mode = plan_mode
 
         if stream_sse:
             return self.runner.run_sse(user_input)
@@ -91,7 +92,7 @@ class DefaultLoop:
         return await self.runner.run(user_input, trace=trace)
 
 
-class ReactLoop(DefaultLoop):
+class ReactLoop(BaseLoop):
     """ReAct (Reason + Act) loop implementation.
 
     Implements the ReAct pattern where the agent explicitly reasons about each step.
@@ -116,7 +117,6 @@ class ReactLoop(DefaultLoop):
         self,
         agent: "Agent",
         user_input: str,
-        plan_mode: bool = False,
         trace: bool = False,
         verbose: bool = False,
         stream_sse: bool = False,
@@ -127,7 +127,6 @@ class ReactLoop(DefaultLoop):
         Args:
             agent: The agent instance with tools
             user_input: The user's input
-            plan_mode: If True, only allow plan-mode tools
             trace: If True, return RunResult with trace
             verbose: If True, log raw events
             stream_sse: If True, yield StreamEvents
@@ -139,7 +138,6 @@ class ReactLoop(DefaultLoop):
         self.runner.trace = trace
         self.runner.verbose = verbose
         self.runner.stream_sse = stream_sse
-        self.runner.plan_mode = plan_mode
 
         # Build initial messages
         messages = self.runner.build_messages(user_input)
@@ -167,9 +165,7 @@ class ReactLoop(DefaultLoop):
                 return "No response content"
 
             # Execute tools
-            tool_messages, results = await self.runner.execute_tool_loop(
-                tool_calls, plan_mode
-            )
+            tool_messages, results = await self.runner.execute_tool_loop(tool_calls)
 
             # Add tool results to messages
             messages.extend(tool_messages)
@@ -228,97 +224,32 @@ class ReactLoop(DefaultLoop):
         return ""
 
 
-class PlanLoop(DefaultLoop):
-    """Plan mode first loop implementation.
-
-    Implements Plan mode first pattern where the agent analyzes the task before executing.
-    First generates a plan, then executes using DefaultLoop with enhanced input.
-
-    Args:
-        runner: Runner instance for LLM calls and tool execution
-        planning_prompt: Custom prompt for plan generation
-    """
-
-    def __init__(self, runner: "Runner" = None, planning_prompt: str = None):
-        """Initialize PlanLoop.
-
-        Args:
-            runner: Runner instance for LLM calls and tool execution
-            planning_prompt: Custom prompt for plan generation
-        """
-        super().__init__(runner=runner)
-        self.planning_prompt = planning_prompt
-
-    async def run(
-        self,
-        agent: "Agent",
-        user_input: str,
-        plan_mode: bool = False,
-        trace: bool = False,
-        verbose: bool = False,
-        stream_sse: bool = False,
-        **kwargs,
-    ) -> Union["RunResult", str, AsyncIterator["StreamEvent"]]:
-        """Execute the Plan loop.
-
-        First generates a plan, then executes using DefaultLoop with enhanced input.
-
-        Args:
-            agent: The agent instance with tools
-            user_input: The user's input
-            plan_mode: If True, only allow plan-mode tools
-            trace: If True, return RunResult with trace
-            verbose: If True, log raw events
-            stream_sse: If True, yield StreamEvents
-            **kwargs: Additional parameters
-
-        Returns:
-            RunResult if trace=True, string if not, AsyncIterator if stream_sse=True
-        """
-        self.runner.trace = trace
-        self.runner.verbose = verbose
-        self.runner.stream_sse = stream_sse
-        self.runner.plan_mode = plan_mode
-
-        # Generate plan using analyze()
-        plan = await self.runner.analyze(user_input, self.planning_prompt)
-
-        # Log the generated plan
-        plan_text = f"Plan: {plan.main_task}\nSubtasks:\n"
-        for item in plan.todo:
-            plan_text += f"  - {item.id}: {item.description}\n"
-
-        self.runner.emit_loop_log(f"Generated Plan:\n{plan_text}", "info")
-
-        # Enhance input with plan
-        enhanced_input = f"{plan_text}\n\nUser Task: {user_input}"
-
-        # Execute using parent DefaultLoop
-        return await super().run(agent, enhanced_input, **kwargs)
+# Keep DefaultLoop as alias for backwards compatibility
+DefaultLoop = BaseLoop
 
 
-def resolve_loop(loop_config: Any) -> DefaultLoop:
+def resolve_loop(loop_config: Any) -> BaseLoop:
     """Resolve loop configuration to a loop instance.
 
     Args:
         loop_config: Can be:
-            - None: returns DefaultLoop
-            - str: "default", "react", or "plan"
+            - None: returns BaseLoop
+            - str: "default" or "react"
             - dict: {type: "react", max_iterations: 5, ...}
-            - DefaultLoop instance: returns as-is
+            - BaseLoop instance: returns as-is
 
     Returns:
-        DefaultLoop subclass instance (runner NOT set - set by AgentExecutor)
+        BaseLoop subclass instance (runner NOT set - set by AgentExecutor)
 
     Raises:
         ValueError: If loop_type is not valid
     """
-    # If None, return DefaultLoop
+    # If None, return BaseLoop
     if loop_config is None:
-        return DefaultLoop()
+        return BaseLoop()
 
-    # If already a DefaultLoop instance, return as-is
-    if isinstance(loop_config, DefaultLoop):
+    # If already a BaseLoop instance, return as-is
+    if isinstance(loop_config, BaseLoop):
         return loop_config
 
     # If string, normalize and resolve
@@ -327,11 +258,9 @@ def resolve_loop(loop_config: Any) -> DefaultLoop:
         _validate_loop_type(loop_type)
 
         if loop_type == "default":
-            return DefaultLoop()
+            return BaseLoop()
         elif loop_type == "react":
             return ReactLoop()
-        elif loop_type == "plan":
-            return PlanLoop()
 
     # If dict, extract type and resolve
     if isinstance(loop_config, dict):
@@ -344,23 +273,18 @@ def resolve_loop(loop_config: Any) -> DefaultLoop:
         # Filter kwargs to only include valid constructor parameters
         if loop_type == "default":
             valid_kwargs = {k: v for k, v in kwargs.items() if k == "runner"}
-            return DefaultLoop(**valid_kwargs)
+            return BaseLoop(**valid_kwargs)
         elif loop_type == "react":
             valid_kwargs = {
                 k: v for k, v in kwargs.items() if k in ("runner", "max_iterations")
             }
             return ReactLoop(**valid_kwargs)
-        elif loop_type == "plan":
-            valid_kwargs = {
-                k: v for k, v in kwargs.items() if k in ("runner", "planning_prompt")
-            }
-            return PlanLoop(**valid_kwargs)
 
     # If we get here, config is invalid
     raise ValueError(
         f"Invalid loop configuration: {loop_config}. "
-        f"Must be None, str, dict, or DefaultLoop instance."
+        f"Must be None, str, dict, or BaseLoop instance."
     )
 
 
-__all__ = ["DefaultLoop", "ReactLoop", "PlanLoop", "resolve_loop"]
+__all__ = ["BaseLoop", "ReactLoop", "DefaultLoop", "resolve_loop"]

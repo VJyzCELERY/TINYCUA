@@ -146,13 +146,13 @@ class TestLocalAgentStream:
         assert len(tool_call_events) > 0 or len(tool_result_events) > 0
 
 
-class TestPlanMode:
-    """Test plan mode execution."""
+class TestReactLoop:
+    """Test React loop execution."""
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_plan_mode(self):
-        """Test agent in plan mode."""
+    async def test_react_loop(self):
+        """Test agent with React loop."""
         from tinycua_sdk.tools import tool
         from tinycua_sdk.models import Agent
 
@@ -171,13 +171,13 @@ class TestPlanMode:
                 return {"error": str(e)}
 
         agent = Agent(
-            name="planner-agent",
+            name="react-agent",
             provider="lmstudio",
             model="qwen/qwen3.5-9b",
             base_url="http://localhost:1234",
             api_key="dummy",
             tools=[get_weather, calculator],
-            plan_mode="plan",
+            loop="react",
         )
 
         response = await agent.run("Check weather in Tokyo and calculate 2+2")

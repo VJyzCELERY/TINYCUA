@@ -34,8 +34,6 @@ class Agent(AgentExecutor):
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: AgentPolicy | None = None,
-        plan_mode: str = "direct",
-        planning_prompt: str | None = None,
         mode: str = "local",
         backend_url: str | None = None,
         backend_api_key: str | None = None,
@@ -62,8 +60,6 @@ class Agent(AgentExecutor):
             api_key: API key for authentication.
             tools: List of tools available to the agent.
             policy: AgentPolicy instance for behavior settings.
-            plan_mode: Execution mode (direct or plan).
-            planning_prompt: Custom prompt for planning mode.
             mode: Execution mode (local or remote/deployed).
             backend_url: URL for the backend server (for deployed agents).
             backend_api_key: API key for backend authentication.
@@ -75,7 +71,7 @@ class Agent(AgentExecutor):
             current_depth: Current delegation depth (internal).
             keywords: Keywords for task routing to this agent.
             strip_thinking: Whether to strip thinking tags from responses.
-            loop: Custom DefaultLoop subclass instance.
+            loop: Custom BaseLoop subclass instance.
             skills: List of skill names to load for the agent.
 
         """
@@ -89,8 +85,6 @@ class Agent(AgentExecutor):
             api_key=api_key,
             tools=tools,
             policy=policy,
-            plan_mode=plan_mode,
-            planning_prompt=planning_prompt,
             mode=mode,
             backend_url=backend_url,
             backend_api_key=backend_api_key,
@@ -226,8 +220,6 @@ class Agent(AgentExecutor):
         loop_config = template.pop("loop", "default")
         policy_data = template.pop("policy", {})
         keywords = template.pop("keywords", [])
-        plan_mode = template.pop("plan_mode", "direct")
-        planning_prompt = template.pop("planning_prompt", None)
         strip_thinking = template.pop("strip_thinking", None)
 
         # Override with kwargs if provided
@@ -276,8 +268,6 @@ class Agent(AgentExecutor):
             api_key=api_key,
             tools=tools,
             policy=policy,
-            plan_mode=plan_mode,
-            planning_prompt=planning_prompt,
             strip_thinking=strip_thinking,
             loop=loop,
             keywords=keywords,

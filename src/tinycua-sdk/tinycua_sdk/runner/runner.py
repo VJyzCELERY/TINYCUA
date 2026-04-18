@@ -30,13 +30,6 @@ DEFAULT_MODELS = {
     "openai": "gpt-4o-mini",
 }
 
-DEFAULT_PLANNING_PROMPT = (
-    "Break down this task into a todo list. Respond ONLY with valid JSON:\n"
-    '{"main_task": "...", "todo": [{"id": "1", "description": "...", '
-    '"tool_name": "tool", "tool_args": {"arg": "value"}}]}\n\n'
-    "For each subtask, determine if a tool is needed. If not, set tool_name to null."
-)
-
 
 class Runner:
     """Local agent runner with tool execution."""
@@ -77,8 +70,6 @@ class Runner:
         self.tools = self.config.tools
         self.system_prompt = self.config.system_prompt
         self.max_tool_calls = self.config.policy.max_tool_calls
-        self.plan_mode = self.config.plan_mode
-        self.planning_prompt = self.config.planning_prompt or DEFAULT_PLANNING_PROMPT
 
         # Configurable thinking strip patterns (None = use default, False = disable)
         self.strip_thinking_patterns = getattr(self.config, "strip_thinking", None)
@@ -146,8 +137,6 @@ class Runner:
 
         self._register_sub_agent_tools()
 
-        if self.plan_mode == "plan":
-            return await self._chat_with_plan(user_input, instructions, use_trace)
         return await self._chat_direct(user_input, instructions, use_trace)
 
     async def chat(self, *args, **kwargs) -> Union[str, RunResult]:
@@ -186,30 +175,21 @@ class Runner:
         self,
         tool_name: str,
         tool_input: dict[str, Any],
-        plan_mode: bool = False,
     ) -> Any:
         """Execute a single tool.
-
-        Checks allowed_in_plan_mode if plan_mode=True.
 
         Args:
             tool_name: Name of tool to execute
             tool_input: Arguments for tool
-            plan_mode: If True, block non-plan-mode tools
 
         Returns:
             Tool execution result
 
         Raises:
-            PermissionError: If tool not allowed in plan mode
             ValueError: If tool not found
         """
         for tool in self.tools:
             if tool.name == tool_name:
-                if plan_mode and not getattr(tool, "allowed_in_plan_mode", True):
-                    raise PermissionError(
-                        f"Tool '{tool_name}' not allowed in plan mode"
-                    )
                 result = tool.invoke(**tool_input)
                 if asyncio.iscoroutine(result):
                     result = await result
@@ -321,13 +301,11 @@ class Runner:
     async def execute_tool_loop(
         self,
         tool_calls: list[dict[str, Any]],
-        plan_mode: bool = False,
     ) -> tuple[list[dict[str, Any]], list[Any]]:
         """Execute a list of tool calls and return updated messages + results.
 
         Args:
             tool_calls: List of tool call dicts from LLM response
-            plan_mode: If True, block non-plan-mode tools
 
         Returns:
             Tuple of (tool message dicts for history, tool result values)
@@ -346,7 +324,7 @@ class Runner:
             except json.JSONDecodeError:
                 tool_input = {}
 
-            result = await self.execute_tool(tool_name, tool_input, plan_mode)
+            result = await self.execute_tool(tool_name, tool_input)
             results.append(result)
 
             tool_messages.append(
