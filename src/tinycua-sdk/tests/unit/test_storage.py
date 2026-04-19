@@ -228,6 +228,22 @@ class TestContextRetrieval:
         assert recent[1].content == "Good"
         assert recent[2].content == "Great"
 
+    def test_get_recent_turns_excludes_archived(self, store):
+        """Test that get_recent_turns excludes archived messages."""
+        session = store.create_session(name="Test")
+        store.add_message(session.id, "user", "Message 1")
+        store.add_message(session.id, "user", "Message 2")
+        store.add_message(session.id, "user", "Message 3")
+
+        # Archive the first message
+        msg = store.get_messages(session.id)[0]
+        store.archive_message(msg.id)
+
+        recent = store.get_recent_turns(session.id, count=3)
+        # Should return only non-archived messages
+        assert len(recent) == 2
+        assert "Message 1" not in [m.content for m in recent]
+
     def test_search_grep(self, store):
         """Test grep search in full context."""
         session = store.create_session(name="Test")

@@ -2,9 +2,10 @@
 name = "tinycua"
 version = "0.1.0"
 description = "TINYCUA - Computer-Use Agent CLI Application"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "tinycua-sdk @ file:../tinycua-sdk",
+    "tinycua-sdk>=0.1.0",
     "rich>=13.0.0",
     "prompt-toolkit>=3.0.0",
     "httpx>=0.27.0",
@@ -62,6 +63,3 @@ convention = "google"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--strict-markers --disable-warnings --maxfail=2"
-
-[tool.hatch.metadata]
-allow-direct-references = true

@@ -367,7 +367,6 @@ class TestREPLIntegration:
         with patch("tinycua.cli.repl.Path") as mock_path:
             mock_home = tmp_path
             mock_path.home.return_value = mock_home
-            mock_history_path = mock_home / ".tinycua" / "repl_history"
 
             _get_history_path()
 

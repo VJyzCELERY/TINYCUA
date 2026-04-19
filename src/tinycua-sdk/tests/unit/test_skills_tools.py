@@ -89,7 +89,6 @@ class TestSkillsTools:
 
     def test_callable_tool_name_property(self):
         """Test that CallableTool exposes name property from wrapped tool."""
-        registry = SkillRegistry()
 
         @tool
         def my_custom_tool(category: str | None = None) -> dict:

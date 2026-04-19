@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from tinycua_backend.models.agent import Agent
     from tinycua_backend.models.tool import Tool
     from tinycua_backend.models.session import Session
+    from tinycua_backend.models.skill import Skill
 
 
 class TenantType(str, Enum):

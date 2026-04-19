@@ -329,7 +329,7 @@ class SessionStore:
             stmt = (
                 select(Message)
                 .where(Message.session_id == session_id)
-                .where(Message.is_archived == False)
+                .where(Message.is_archived == False)  # noqa: E712
                 .order_by(Message.turn_index.desc())
                 .limit(count)
             )
