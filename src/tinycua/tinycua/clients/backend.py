@@ -452,5 +452,71 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
 
+    async def get_session(
+        self,
+        session_id: str,
+    ) -> dict[str, Any]:
+        """Get a complete session by ID.
+
+        Args:
+            session_id: ID of the session
+
+        Returns:
+            Session dict with id, agent_id, name, messages, created_at, updated_at, version
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/sessions/{session_id}",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def sync_memory(
+        self,
+        agent_id: str,
+        memory: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Sync agent memory to backend.
+
+        Args:
+            agent_id: ID of the agent
+            memory: Memory data to sync
+
+        Returns:
+            Sync response with status and timestamp
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/agents/{agent_id}/memory",
+                json=memory,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_memory(
+        self,
+        agent_id: str,
+    ) -> dict[str, Any]:
+        """Get agent memory from backend.
+
+        Args:
+            agent_id: ID of the agent
+
+        Returns:
+            Memory data dict
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/agents/{agent_id}/memory",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
 
 __all__ = ["BackendClient"]

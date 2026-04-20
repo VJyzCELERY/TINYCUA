@@ -109,12 +109,12 @@ class TestAgentHierarchyDelegation:
         """Test matching sub-agent by keyword."""
         from tinycua_sdk.models import Agent
 
-        research_agent = Agent(name="research")
-        code_agent = Agent(name="code")
+        research_agent = Agent(name="research", keywords=["research", "search", "find"])
+        code_agent = Agent(name="code", keywords=["code", "program", "write"])
 
         agent = Agent(name="main", sub_agents=[research_agent, code_agent])
 
-        # Should match research agent
+        # Should match research agent (task contains keyword "search")
         matched = agent._find_sub_agent_for_task("search for information")
         assert matched is not None
         assert matched.name == "research"

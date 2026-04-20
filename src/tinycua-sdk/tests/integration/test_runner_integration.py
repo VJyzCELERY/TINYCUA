@@ -157,7 +157,7 @@ class TestRunnerOptions:
 
     def test_runner_options_creation(self):
         """Test creating RunnerOptions."""
-        from tinycua_sdk.runners import RunnerOptions
+        from tinycua_sdk.runner.runner import RunnerOptions
 
         options = RunnerOptions(
             model="qwen/qwen3.5-9b",
@@ -171,7 +171,7 @@ class TestRunnerOptions:
 
     def test_runner_options_defaults(self):
         """Test RunnerOptions default values."""
-        from tinycua_sdk.runners import RunnerOptions
+        from tinycua_sdk.runner.runner import RunnerOptions
 
         options = RunnerOptions(model="test-model")
 

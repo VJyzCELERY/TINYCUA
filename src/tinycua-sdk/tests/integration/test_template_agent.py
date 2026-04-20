@@ -5,11 +5,6 @@ import pytest
 from tinycua_sdk import Agent
 from tinycua_sdk.agent.loop import DefaultLoop, ReactLoop
 
-try:
-    from tinycua_sdk.agent.loop import PlanLoop
-except ImportError:
-    PlanLoop = None
-
 
 class TestFromTemplate:
     """Tests for Agent.from_template method."""
@@ -79,13 +74,6 @@ class TestFromTemplate:
         agent = Agent.from_template("researcher")
         assert agent.config.loop is not None
         assert isinstance(agent.config.loop, ReactLoop)
-
-    @pytest.mark.skipif(PlanLoop is None, reason="PlanLoop not implemented")
-    def test_from_template_with_loop_plan(self):
-        """Plan loop can be specified via overrides."""
-        agent = Agent.from_template("assistant", overrides={"loop": "plan"})
-        assert agent.config.loop is not None
-        assert isinstance(agent.config.loop, PlanLoop)
 
     def test_from_template_skills_handling(self):
         """Skills are handled through overrides."""
