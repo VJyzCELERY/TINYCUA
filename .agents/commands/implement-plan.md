@@ -6,19 +6,21 @@ subtask: true
 Execute an implementation plan from implementation-plan.md and task.md.
 
 **Target Directory**: $1
+**Focus/Priority (Optional)**: $2 (e.g., "speed", "quality", specific feature to prioritize)
 
 ## Instructions
 
 1. **Locate implementation files**: Find implementation-plan.md and task.md in `$1`
 2. **Read implementation-plan.md**: Understand the proposed changes and architecture
 3. **Read task.md**: Review the task checklist
-4. **Execute Tasks**: Implement each task in order, following TDD workflow:
+4. **Apply Focus**: If $2 is provided, prioritize that focus area in implementation
+5. **Execute Tasks**: Implement each task in order, following TDD workflow:
    - Write tests first (RED)
    - Implement code to pass tests (GREEN)
    - Refactor if needed
    - Run tests to verify
-5. **Update Progress**: Update task.md as tasks are completed (use `[x]` for completed, `[ ]` for pending)
-6. **Report Status**: Report progress against the task checklist
+6. **Update Progress**: Update task.md as tasks are completed (use `[x]` for completed, `[ ]` for pending)
+7. **Report Status**: Report progress against the task checklist
 
 ## TDD Workflow
 - **RED**: Write failing tests first
@@ -29,9 +31,5 @@ Execute an implementation plan from implementation-plan.md and task.md.
 - Do NOT modify implementation-plan.md - it serves as the source of truth
 - Only update task.md to track progress
 - Follow existing codebase conventions
-
-## Available Commands
-- Use `/review-project <directory>` to review your implementation
-- Use `/validate-review <review-file>` to validate review findings
 
 Begin by reading the implementation-plan.md and task.md, then start executing tasks in order.
