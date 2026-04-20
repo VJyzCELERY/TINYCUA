@@ -114,14 +114,13 @@ async def create_agent_with_custom_loop():
             return None
 
 
-async def run_agent(agent_id: str, plan_mode: bool = False):
+async def run_agent(agent_id: str):
     """Run the agent and collect streaming response."""
     request_data = {
         "user_input": "What is 5 + 3? Use the add_numbers tool.",
-        "plan_mode": plan_mode,
     }
 
-    print(f"\n→ Running agent {agent_id} (plan_mode={plan_mode})...")
+    print(f"\n→ Running agent {agent_id}...")
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             async with client.stream(
@@ -172,20 +171,14 @@ async def main():
         print("Failed to create agent, exiting.")
         return 1
 
-    # Step 4: Run agent (normal mode)
-    print("\n[Step 4] Running agent (plan_mode=False)...")
-    result1 = await run_agent(
-        "existing" if agent_result == "existing" else agent_result, plan_mode=False
-    )
-
-    # Step 5: Run agent (plan mode)
-    print("\n[Step 5] Running agent (plan_mode=True)...")
-    result2 = await run_agent(
-        "existing" if agent_result == "existing" else agent_result, plan_mode=True
+    # Step 4: Run agent
+    print("\n[Step 4] Running agent...")
+    result = await run_agent(
+        "existing" if agent_result == "existing" else agent_result
     )
 
     print("\n" + "=" * 50)
-    if result1 and result2:
+    if result:
         print("✓ End-to-end test PASSED")
         return 0
     else:
