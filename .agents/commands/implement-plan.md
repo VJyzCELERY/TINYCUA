@@ -1,5 +1,5 @@
 ---
-description: Executes implementation plan using the Software Engineer workflow
+description: Executes implementation plan using TDD workflow
 subtask: true
 ---
 
@@ -31,5 +31,10 @@ Execute an implementation plan from implementation-plan.md and task.md.
 - Do NOT modify implementation-plan.md - it serves as the source of truth
 - Only update task.md to track progress
 - Follow existing codebase conventions
+
+## Available Commands
+- Use `/review-project <directory>` to review your implementation
+- Use `/validate-review <review-file>` to validate review findings
+- Use `/review-implement <review-file>` to implement fixes
 
 Begin by reading the implementation-plan.md and task.md, then start executing tasks in order.
