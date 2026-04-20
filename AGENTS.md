@@ -1,42 +1,47 @@
-# Agents Documentation Index
+# Agents Documentation
 
-This file serves as an index for navigating the AI agent-related documentation stored in `docs/agents/`.
+This project uses the `.agents/` directory for all AI agent-related configuration, commands, templates, and documentation.
+
+**For full documentation, see: [.agents/AGENTS.md](.agents/AGENTS.md)**
 
 ---
 
-## Contents
+## Quick Reference
 
-1. **[Agent Rules](docs/agents/agent_rules.md)**
-   - Core principles: Simplicity First, Test-First, Question the Spec, No Overengineering.
-   - General agent behavior rules and code generation expectations.
+### Available Commands
 
-2. **[Workflow](docs/agents/workflow.md)**
-   - Development commands (`make lint`, `make test`, `make coverage`, etc.).
-   - Commit and PR guidelines.
-   - Feature development workflow (spec → design → test → implement → review).
+| Command | Description |
+|---------|-------------|
+| `/implementation-plan <dir>` | Creates plan from spec.md/design.md |
+| `/implement-plan <dir>` | Executes implementation plan using TDD |
+| `/review-project <dir>` | Reviews project and generates report |
+| `/validate-review <file>` | Validates review findings |
+| `/review-implement <file>` | Implements fixes for review findings |
+| `/develop <query>` | Full development workflow |
+| `/setup-project <dir>` | Sets up project with .agents structure |
 
-3. **[Style](docs/agents/style.md)**
-   - Code formatting rules: line length, quotes, indentation.
-   - Naming conventions: modules, classes, functions, constants.
-   - Docstring format (Google-style) and pre-commit iteration.
+### Project Structure
 
-4. **[Testing](docs/agents/testing.md)**
-   - Test directory structure and naming conventions.
-   - Test-first workflow, fixture usage, coverage requirements.
-   - Edge cases to always cover.
+```
+.agents/
+├── commands/          # Opencode commands
+├── templates/         # Document templates
+├── docs/
+│   ├── agents/       # Agent rules and guidelines
+│   └── project_rules/ # Project-specific rules
+├── reviews/          # Review outputs
+└── AGENTS.md         # Full documentation
+```
 
-5. **[Debugging](docs/agents/debugging.md)**
-   - Debugging workflow and log checking patterns.
-   - Common root causes and how to isolate issues.
+### Key Files
 
-6. **[Security](docs/agents/security.md)**
-   - Secrets and credentials handling.
-   - Environment variable patterns and `.env.example` convention.
-   - Input validation and error handling principles.
+- [.agents/AGENTS.md](.agents/AGENTS.md) - Complete agent documentation index
+- [.agents/docs/agents/agent_rules.md](.agents/docs/agents/agent_rules.md) - Core agent principles
+- [.agents/docs/agents/workflow.md](.agents/docs/agents/workflow.md) - Development workflow
+- [.agents/docs/agents/testing.md](.agents/docs/agents/testing.md) - Testing guidelines
+- [.agents/docs/project_rules/coding_standards.md](.agents/docs/project_rules/coding_standards.md) - Code standards
+- [.agents/docs/project_rules/naming_conventions.md](.agents/docs/project_rules/naming_conventions.md) - Naming rules
 
-7. **[Code Generation](docs/agents/code_generation.md)**
-   - Rules for AI-generated code: docstrings, testing expectations, commit naming.
+---
 
-8. **[Code Review](docs/agents/code_review.md)**
-   - Review principles, overengineering detection, spec compliance checks.
-   - Review format, severity levels, and communication style.
+For detailed documentation, see [.agents/AGENTS.md](.agents/AGENTS.md)

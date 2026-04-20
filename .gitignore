@@ -29,6 +29,11 @@ coverage.xml
 *.coverage
 htmlcov/
 
+# Local development artifacts
+.agents/reviews/
+dev/
+*.local
+
 # Development Artifacts
 */research/*
 *dev/*
