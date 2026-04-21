@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Custom Textual widgets for TinyCUA TUI."""
 
 from __future__ import annotations
@@ -65,6 +66,15 @@ class StatusBar(Static):
         self._agent = "none"
         self._mode = "local"
 
+    def on_mount(self) -> None:
+        """Initialize status bar content on mount."""
+        self.render_content()
+
+    def render_content(self) -> None:
+        """Render the status bar content."""
+        text = f"Status: {self._status} | Agent: {self._agent} | Mode: {self._mode}"
+        self.update(text)
+
     def update_status(
         self,
         status: str | None = None,
@@ -85,9 +95,4 @@ class StatusBar(Static):
         if mode is not None:
             self._mode = mode
 
-        self.render()
-
-    def render(self) -> None:
-        """Render the status bar content."""
-        text = f"Status: {self._status} | Agent: {self._agent} | Mode: {self._mode}"
-        self.update(text)
+        self.render_content()
