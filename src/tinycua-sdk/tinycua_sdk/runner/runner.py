@@ -79,6 +79,13 @@ class Runner:
         self.verbose = False
         self.stream_sse = False
 
+        # Planning prompt for task analysis
+        self.planning_prompt = getattr(
+            self.config,
+            "planning_prompt",
+            "You are a task planning assistant. Break down the user's request into smaller, actionable todo items.",
+        )
+
         self.client = ResponsesClient(base_url=self.base_url, api_key=self.api_key)
         self.messages: list[dict[str, Any]] = []
 
@@ -176,25 +183,39 @@ class Runner:
         tool_name: str,
         tool_input: dict[str, Any],
     ) -> Any:
-        """Execute a single tool.
+        """Execute a single tool with standardized error handling.
 
         Args:
             tool_name: Name of tool to execute
             tool_input: Arguments for tool
 
         Returns:
-            Tool execution result
-
-        Raises:
-            ValueError: If tool not found
+            Tool execution result dict with success/error keys
         """
-        for tool in self.tools:
-            if tool.name == tool_name:
-                result = tool.invoke(**tool_input)
-                if asyncio.iscoroutine(result):
-                    result = await result
-                return result
-        raise ValueError(f"Tool '{tool_name}' not found")
+        from tinycua_sdk.agent.executor import AgentExecutor
+
+        if not AgentExecutor.check_tool_permission(tool_name):
+            logger.warning(f"Permission denied for tool: {tool_name}")
+            return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
+
+        if AgentExecutor.check_tool_approval_required(tool_name):
+            logger.warning(f"Tool {tool_name} requires approval before execution")
+
+        try:
+            for tool in self.tools:
+                if tool.name == tool_name:
+                    result = tool.invoke(**tool_input)
+                    if asyncio.iscoroutine(result):
+                        result = await result
+                    return {"success": True, "result": result, "tool_name": tool_name}
+            logger.error(f"Tool not found: {tool_name}")
+            return {"success": False, "error": f"Tool '{tool_name}' not found", "tool_name": tool_name}
+        except asyncio.TimeoutError as e:
+            logger.error(f"Tool execution timed out: {tool_name}")
+            return {"success": False, "error": f"Tool '{tool_name}' timed out", "tool_name": tool_name}
+        except Exception as e:
+            logger.error(f"Tool execution failed: {tool_name} - {e}")
+            return {"success": False, "error": str(e), "tool_name": tool_name}
 
     async def call_llm(
         self,
@@ -690,200 +711,6 @@ You are now handling this task. Complete it and return results.
             )
         return assistant_message
 
-    async def _chat_with_plan(
-        self, user_input: str, instructions: str | None = None, trace: bool = False
-    ) -> Union[str, RunResult]:
-        """Chat with plan mode.
-
-        Uses the planning phase to decompose the task into subtasks,
-        executes each subtask, then aggregates the results.
-
-        Args:
-            user_input: User message to send.
-            instructions: Optional system instructions.
-            trace: If True, return PlanRunResult with trace data.
-
-        Returns:
-            Assistant response string, or PlanRunResult if trace=True.
-        """
-        self.messages.append({"role": "user", "content": user_input})
-
-        plan = await self.analyze(user_input, instructions)
-        print(f"[Plan] {len(plan.todo)} subtasks identified")
-
-        todo_items = await self.execute_todo(plan)
-
-        final_response = await self.aggregate(todo_items)
-
-        self.messages.append({"role": "assistant", "content": final_response})
-
-        if trace:
-            return PlanRunResult(
-                response=final_response,
-                plan={
-                    "main_task": plan.main_task,
-                    "todo": [
-                        {
-                            "id": t.id,
-                            "description": t.description,
-                            "status": t.status,
-                            "result": t.result,
-                        }
-                        for t in plan.todo
-                    ],
-                },
-                todo_items=[
-                    {
-                        "id": t.id,
-                        "description": t.description,
-                        "status": t.status,
-                        "result": t.result,
-                    }
-                    for t in todo_items
-                ],
-            )
-        return final_response
-
-    async def analyze(self, task: str, instructions: str | None = None) -> TaskPlan:
-        """Analyze task and create a todo list using the LLM.
-
-        Sends the task to the LLM with the planning prompt to decompose
-        the task into smaller todo items with tool calls.
-
-        Args:
-            task: The task to analyze.
-            instructions: Optional additional instructions for the planner.
-
-        Returns:
-            TaskPlan containing main task and list of TodoItems.
-
-        Raises:
-            json.JSONDecodeError: If response is not valid JSON.
-        """
-        prompt = self.planning_prompt
-        if instructions:
-            prompt += f"\n\n{instructions}"
-
-        tool_configs = self._get_tool_configs()
-
-        request = ResponseRequest(
-            model=self.model,
-            input=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": task},
-            ],
-            tools=tool_configs,
-        )
-
-        response = await self.client.create(request)
-        content = response.choices[0].get("message", {}).get("content", "")
-
-        if self.verbose:
-            logger.debug(f"[Analyze] Response: {content}")
-
-        try:
-            data = json.loads(content)
-            todo = [
-                TodoItem(
-                    id=item.get("id", str(i)),
-                    description=item.get("description", ""),
-                    tool_name=item.get("tool_name"),
-                    tool_args=item.get("tool_args", {}),
-                )
-                for i, item in enumerate(data.get("todo", []))
-            ]
-            return TaskPlan(main_task=data.get("main_task", task), todo=todo)
-        except json.JSONDecodeError:
-            import re
-
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
-            if json_match:
-                try:
-                    data = json.loads(json_match.group())
-                    todo = [
-                        TodoItem(
-                            id=item.get("id", str(i)),
-                            description=item.get("description", ""),
-                            tool_name=item.get("tool_name"),
-                            tool_args=item.get("tool_args", {}),
-                        )
-                        for i, item in enumerate(data.get("todo", []))
-                    ]
-                    return TaskPlan(main_task=data.get("main_task", task), todo=todo)
-                except json.JSONDecodeError:
-                    pass
-            return TaskPlan(
-                main_task=task,
-                todo=[TodoItem(id="1", description=task, tool_name=None)],
-            )
-
-    async def execute_todo(self, plan: TaskPlan) -> list[TodoItem]:
-        """Execute each todo item sequentially.
-
-        Runs through each TodoItem in the plan, executing the associated
-        tool and updating the item status and result.
-
-        Args:
-            plan: TaskPlan containing todo items to execute.
-
-        Returns:
-            List of TodoItems with updated status and results.
-        """
-        for todo in plan.todo:
-            if todo.tool_name:
-                print(f"[Todo] {todo.id}: {todo.description} ({todo.tool_name})")
-                todo.status = "in_progress"
-                result = self._execute_tool(todo.tool_name, todo.tool_args)
-                todo.result = result
-                todo.status = "completed"
-                print(f"[Done] {todo.id} -> {result}")
-            else:
-                print(f"[Todo] {todo.id}: {todo.description} (direct)")
-                todo.status = "in_progress"
-                request = ResponseRequest(
-                    model=self.model,
-                    input=[{"role": "user", "content": todo.description}],
-                )
-                response = await self.client.create(request)
-                result = response.choices[0].get("message", {}).get("content", "")
-                todo.result = result
-                todo.status = "completed"
-                print(f"[Done] {todo.id} -> {result[:100]}...")
-        return plan.todo
-
-    async def aggregate(self, todo_items: list[TodoItem]) -> str:
-        """Aggregate todo results into a final response.
-
-        Combines completed todo items into a formatted response that
-        summarizes all the results.
-
-        Args:
-            todo_items: List of TodoItems to aggregate.
-
-        Returns:
-            Formatted string with aggregated results.
-        """
-        results = [
-            f"- {item.description}: {item.result}"
-            for item in todo_items
-            if item.status == "completed"
-        ]
-        results_text = "\n".join(results) if results else "No results"
-
-        request = ResponseRequest(
-            model=self.model,
-            input=[
-                {
-                    "role": "system",
-                    "content": "Summarize the following results into a clear response:",
-                },
-                {"role": "user", "content": results_text},
-            ],
-        )
-
-        response = await self.client.create(request)
-        return response.choices[0].get("message", {}).get("content", "No response")
-
     async def stream(
         self, user_input: str, instructions: str | None = None
     ) -> AsyncIterator[str]:
@@ -1224,11 +1051,19 @@ You are now handling this task. Complete it and return results.
         Returns:
             Tool result, or async iterator for streaming results.
         """
+        from tinycua_sdk.agent.executor import AgentExecutor
+
+        if not AgentExecutor.check_tool_permission(tool_name):
+            logger.warning(f"Permission denied for tool: {tool_name}")
+            return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
+
+        if AgentExecutor.check_tool_approval_required(tool_name):
+            logger.warning(f"Tool {tool_name} requires approval before execution")
+
         for tool in self.tools:
             if tool.name == tool_name:
                 result = tool.invoke(**tool_input)
                 if asyncio.iscoroutine(result):
-                    # Convert coroutine to async generator that yields chunks
                     async def async_result_to_chunks():
                         resolved = await result
                         result_str = str(resolved)
@@ -1236,9 +1071,9 @@ You are now handling this task. Complete it and return results.
                         for i in range(0, len(result_str), chunk_size):
                             yield result_str[i : i + chunk_size]
 
-                    return async_result_to_chunks()
-                return result
-        return {"error": f"Tool {tool_name} not found"}
+                    return {"success": True, "result": async_result_to_chunks(), "tool_name": tool_name}
+                return {"success": True, "result": result, "tool_name": tool_name}
+        return {"success": False, "error": f"Tool '{tool_name}' not found", "tool_name": tool_name}
 
     def _execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
         """Execute a tool by name.
@@ -1252,10 +1087,19 @@ You are now handling this task. Complete it and return results.
         Returns:
             Tool result, or error dict if tool not found.
         """
+        from tinycua_sdk.agent.executor import AgentExecutor
+
+        if not AgentExecutor.check_tool_permission(tool_name):
+            logger.warning(f"Permission denied for tool: {tool_name}")
+            return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
+
+        if AgentExecutor.check_tool_approval_required(tool_name):
+            logger.warning(f"Tool {tool_name} requires approval before execution")
+
         for tool in self.tools:
             if tool.name == tool_name:
-                return tool.invoke(**tool_input)
-        return {"error": f"Tool {tool_name} not found"}
+                return {"success": True, "result": tool.invoke(**tool_input), "tool_name": tool_name}
+        return {"success": False, "error": f"Tool '{tool_name}' not found", "tool_name": tool_name}
 
     async def _execute_tool_async(
         self, tool_name: str, tool_input: dict[str, Any]
@@ -1271,13 +1115,22 @@ You are now handling this task. Complete it and return results.
         Returns:
             Tool result, or error dict if tool not found.
         """
+        from tinycua_sdk.agent.executor import AgentExecutor
+
+        if not AgentExecutor.check_tool_permission(tool_name):
+            logger.warning(f"Permission denied for tool: {tool_name}")
+            return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
+
+        if AgentExecutor.check_tool_approval_required(tool_name):
+            logger.warning(f"Tool {tool_name} requires approval before execution")
+
         for tool in self.tools:
             if tool.name == tool_name:
                 result = tool.invoke(**tool_input)
                 if asyncio.iscoroutine(result):
                     result = await result
-                return result
-        return {"error": f"Tool {tool_name} not found"}
+                return {"success": True, "result": result, "tool_name": tool_name}
+        return {"success": False, "error": f"Tool '{tool_name}' not found", "tool_name": tool_name}
 
     async def close(self) -> None:
         """Close the runner.

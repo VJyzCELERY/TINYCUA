@@ -1,97 +1,105 @@
-# Unit tests for Context Compression
-
 import pytest
-from datetime import datetime
-
-from tinycua_sdk.context.compression import ContextCompressor, CompressionError
-from tinycua_sdk.storage.models import Message
-import uuid
-
-
-def create_message(role: str, content: str, turn_index: int = 0) -> Message:
-    """Helper to create a test message."""
-    return Message(
-        id=uuid.uuid4(),
-        session_id=uuid.uuid4(),
-        role=role,
-        content=content,
-        turn_index=turn_index,
-        created_at=datetime.now(),
-    )
+from tinycua_sdk.memory.compression import ContextCompressor
 
 
 class TestContextCompressor:
-    """Tests for the ContextCompressor class."""
+    """Test ContextCompressor class."""
 
-    def test_sliding_window_basic(self):
-        """Test sliding window keeps recent turns."""
+    def test_initialization(self):
+        """Test initializing compressor."""
+        comp = ContextCompressor(token_threshold=1000, compression_ratio=0.5)
+        assert comp._token_threshold == 1000
+        assert comp._compression_ratio == 0.5
+
+    def test_should_compress_false(self):
+        """Test should_compress returns False when under threshold."""
+        comp = ContextCompressor(token_threshold=1000)
+        messages = [{"content": "Short message"}]
+        assert comp.should_compress(messages) is False
+
+    def test_should_compress_true(self):
+        """Test should_compress returns True when over threshold."""
+        comp = ContextCompressor(token_threshold=10)
+        messages = [{"content": "A" * 100}]
+        assert comp.should_compress(messages) is True
+
+    def test_compress_below_threshold(self):
+        """Test compression does nothing when under threshold."""
+        comp = ContextCompressor(token_threshold=1000)
+        messages = [{"content": "Short message"}]
+        result = comp.compress(messages)
+        assert result == messages
+
+    def test_compress_summarize_strategy(self):
+        """Test summarize compression strategy."""
+        comp = ContextCompressor(
+            token_threshold=10,
+            compression_ratio=0.5,
+        )
         messages = [
-            create_message("user", "Hello", turn_index=0),
-            create_message("assistant", "Hi", turn_index=0),
-            create_message("user", "How are you?", turn_index=1),
-            create_message("assistant", "Good", turn_index=1),
+            {"role": "user", "content": "Hello " * 10},
+            {"role": "assistant", "content": "Hi there " * 10},
         ]
+        result = comp.compress(messages, strategy="summarize")
+        assert len(result) == 1
+        assert result[0]["role"] == "system"
+        assert "summary" in result[0]["content"].lower()
+        assert result[0].get("metadata", {}).get("compressed") is True
 
-        compressor = ContextCompressor()
-        result = compressor.sliding_window(messages, keep_recent=1)
-
-        # Should only keep turn 1
-        assert all(m.turn_index == 1 for m in result)
-        assert len(result) == 2
-
-    def test_sliding_window_empty(self):
-        """Test sliding window with empty messages."""
-        compressor = ContextCompressor()
-        result = compressor.sliding_window([])
-
-        assert result == []
-
-    def test_compress_sliding_strategy(self):
-        """Test compress with sliding strategy."""
+    def test_compress_truncate_strategy(self):
+        """Test truncate compression strategy."""
+        comp = ContextCompressor(
+            token_threshold=10,
+            compression_ratio=0.5,
+        )
         messages = [
-            create_message("user", "Hello", turn_index=0),
-            create_message("assistant", "Hi", turn_index=1),
+            {"role": "user", "content": "A" * 50},
+            {"role": "assistant", "content": "B" * 50},
         ]
+        result = comp.compress(messages, strategy="truncate")
+        total_tokens = sum(len(m["content"]) // 4 for m in result)
+        assert total_tokens <= 10
 
-        compressor = ContextCompressor()
-        result = compressor.compress(messages, strategy="sliding")
-
-        assert len(result) > 0
-
-    def test_compress_summarize_fallback(self):
-        """Test summarize falls back to sliding when no LLM."""
+    def test_compress_window_strategy(self):
+        """Test window compression strategy."""
+        comp = ContextCompressor(
+            token_threshold=10,
+            compression_ratio=0.5,
+        )
         messages = [
-            create_message("user", "Hello", turn_index=0),
-            create_message("assistant", "Hi", turn_index=1),
+            {"role": "user", "content": "Message 1"},
+            {"role": "assistant", "content": "Message 2"},
+            {"role": "user", "content": "Message 3"},
+            {"role": "assistant", "content": "Message 4"},
         ]
+        result = comp.compress(messages, strategy="window")
+        assert len(result) < len(messages)
 
-        compressor = ContextCompressor()
-        result = compressor.compress(messages, strategy="summarize")
+    def test_custom_summarize_function(self):
+        """Test custom summarization function."""
+        def custom_summarize(messages):
+            return f"Custom summary of {len(messages)} messages"
 
-        # Should fall back to sliding window
-        assert len(result) > 0
+        comp = ContextCompressor(
+            token_threshold=5,
+            summarize_fn=custom_summarize,
+        )
+        messages = [{"content": "Test " * 20}]
+        result = comp.compress(messages, strategy="summarize")
+        assert "Custom summary" in result[0]["content"]
 
-    def test_compress_invalid_strategy(self):
-        """Test compress with invalid strategy raises error."""
-        compressor = ContextCompressor()
+    def test_estimate_tokens(self):
+        """Test token estimation."""
+        comp = ContextCompressor()
+        tokens = comp._estimate_tokens("Hello world")
+        assert tokens >= 2
 
-        with pytest.raises(CompressionError, match="Unknown strategy"):
-            compressor.compress([], strategy="invalid")
-
-    def test_token_counter_default(self):
-        """Test default token counter."""
-        compressor = ContextCompressor()
-
-        # 8 chars / 4 = 2 tokens
-        count = compressor.count_tokens("12345678")
-
-        assert count == 2
-
-    def test_estimate_message_tokens(self):
-        """Test estimating tokens for a message."""
-        msg = create_message("user", "Hello world", turn_index=0)
-
-        compressor = ContextCompressor()
-        tokens = compressor.estimate_message_tokens(msg)
-
-        assert tokens > 0
+    def test_estimate_total_tokens(self):
+        """Test total token estimation."""
+        comp = ContextCompressor()
+        messages = [
+            {"content": "Hello"},
+            {"content": "World"},
+        ]
+        total = comp._estimate_total_tokens(messages)
+        assert total >= 2

@@ -92,6 +92,8 @@ class AgentConfig:
     auto_load_dependencies: bool = True
     # Metadata for additional configuration (e.g., skills for later resolution)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Planning prompt for task analysis
+    planning_prompt: str | None = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""
@@ -144,6 +146,8 @@ class AgentConfig:
             "auto_load_dependencies": self.auto_load_dependencies,
             # Include metadata for backward compatibility
             "metadata": self.metadata,
+            # Planning prompt for task analysis
+            "planning_prompt": self.planning_prompt,
         }
 
     @classmethod
@@ -208,6 +212,8 @@ class AgentConfig:
             auto_load_dependencies=auto_load_dependencies,
             # Metadata (for backward compatibility)
             metadata=metadata,
+            # Planning prompt for task analysis
+            planning_prompt=data.get("planning_prompt"),
         )
 
     @classmethod

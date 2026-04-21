@@ -1,5 +1,7 @@
 """Tests for ToolRegistry."""
 
+import threading
+
 import pytest
 from tinycua_sdk.core.registry import ToolRegistry, ToolEntry
 
@@ -130,6 +132,61 @@ class TestToolRegistry:
         self.registry.clear()
 
         assert self.registry.get_definitions() == []
+
+
+class TestToolRegistryFactory:
+    """Tests for ToolRegistry factory methods."""
+
+    def setup_method(self):
+        """Clear registry before each test."""
+        ToolRegistry._instance = None
+        ToolRegistry._tools = {}
+        ToolRegistry._lock = threading.Lock()
+
+    def teardown_method(self):
+        """Reset singleton after each test."""
+        ToolRegistry._instance = None
+        ToolRegistry._tools = {}
+        ToolRegistry._lock = threading.Lock()
+
+    def test_create_returns_new_instance(self):
+        """ToolRegistry.create() returns a new registry instance."""
+        registry = ToolRegistry.create()
+        assert registry is not None
+        assert isinstance(registry, ToolRegistry)
+
+    def test_create_for_test_returns_isolated_instance(self):
+        """ToolRegistry.create_for_test() returns isolated instance for testing."""
+        registry = ToolRegistry.create_for_test()
+        assert registry is not None
+        assert isinstance(registry, ToolRegistry)
+        assert len(registry.get_definitions()) == 0
+
+    def test_create_for_test_isolation(self):
+        """Tools registered in test registry don't affect singleton."""
+        test_registry = ToolRegistry.create_for_test()
+        test_registry.register(name="test_tool", schema={"name": "test_tool"})
+
+        singleton = ToolRegistry()
+        assert singleton.get("test_tool") is None
+
+    def test_factory_supports_concurrent_access(self):
+        """Factory method supports concurrent registry creation."""
+        import threading
+
+        results = []
+
+        def create_registry():
+            reg = ToolRegistry.create()
+            results.append(reg)
+
+        threads = [threading.Thread(target=create_registry) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(results) == 5
 
 
 class TestToolEntry:

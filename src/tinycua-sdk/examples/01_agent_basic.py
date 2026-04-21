@@ -53,7 +53,8 @@ def calculator(expression: str) -> dict:
         Result dict
     """
     try:
-        result = eval(expression, {"__builtins__": {}}, {})
+        from tinycua_sdk.tools.parser import safe_eval
+        result = safe_eval(expression)
         return {"expression": expression, "result": result, "success": True}
     except Exception as e:
         return {

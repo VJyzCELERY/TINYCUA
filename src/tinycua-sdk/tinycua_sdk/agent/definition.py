@@ -44,6 +44,7 @@ class AgentDefinition:
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
         skills: list[str] | None = None,
+        planning_prompt: str | None = None,
     ):
         """Initialize AgentDefinition.
 
@@ -69,6 +70,7 @@ class AgentDefinition:
             strip_thinking: Whether to strip thinking tags from responses.
             loop: Custom DefaultLoop subclass instance.
             skills: List of skill names to load for the agent.
+            planning_prompt: Prompt for task planning/analysis.
 
         """
         self.config = AgentConfig(
@@ -90,6 +92,7 @@ class AgentDefinition:
             sub_agents=sub_agents or [],
             loop=loop,
             skills=skills or [],
+            planning_prompt=planning_prompt,
         )
         self._sub_agents = sub_agents or []
         self.max_depth = max_depth
@@ -157,6 +160,11 @@ class AgentDefinition:
     def tools(self) -> list[Tool]:
         """Get agent tools."""
         return self.config.tools
+
+    @property
+    def planning_prompt(self) -> str | None:
+        """Get planning prompt for task analysis."""
+        return self.config.planning_prompt
 
     # --- Sub-agent management ---
 

@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING, Any, AsyncIterator, Union
 
+from tinycua_sdk.agent.hooks import HookManager, HookFunc
+
 if TYPE_CHECKING:
     from tinycua_sdk.agent import Agent
     from tinycua_sdk.runner import Runner
@@ -56,6 +58,43 @@ class BaseLoop:
             runner: Runner instance for basic execution (optional)
         """
         self.runner = runner
+        self._hooks = HookManager()
+
+    def add_pre_hook(
+        self,
+        func: HookFunc,
+        order: int = 0,
+        name: str | None = None,
+    ) -> None:
+        """Add a pre-execution hook.
+
+        Pre-execution hooks run before the main agent loop.
+        Hooks execute in order (lowest order first).
+
+        Args:
+            func: Async callable that accepts context dict and returns modified context
+            order: Execution order (lower values execute first)
+            name: Optional name for debugging/identification
+        """
+        self._hooks.add_pre_hook(func, order, name)
+
+    def add_post_hook(
+        self,
+        func: HookFunc,
+        order: int = 0,
+        name: str | None = None,
+    ) -> None:
+        """Add a post-execution hook.
+
+        Post-execution hooks run after the main agent loop.
+        Hooks execute in order (lowest order first).
+
+        Args:
+            func: Async callable that accepts context dict and returns modified context
+            order: Execution order (lower values execute first)
+            name: Optional name for debugging/identification
+        """
+        self._hooks.add_post_hook(func, order, name)
 
     async def run(
         self,
@@ -71,6 +110,9 @@ class BaseLoop:
         Default implementation wraps Runner.run() or Runner.run_sse().
         Override to define custom execution strategy.
 
+        Pre-execution hooks run before main loop.
+        Post-execution hooks run after main loop.
+
         Args:
             agent: The agent instance with tools
             user_input: The user's input
@@ -82,14 +124,33 @@ class BaseLoop:
         Returns:
             RunResult if trace=True, string if not, AsyncIterator if stream_sse=True
         """
-        self.runner.trace = trace
-        self.runner.verbose = verbose
-        self.runner.stream_sse = stream_sse
+        context = {
+            "agent": agent,
+            "user_input": user_input,
+            "trace": trace,
+            "verbose": verbose,
+            "stream_sse": stream_sse,
+            **kwargs,
+        }
 
-        if stream_sse:
-            return self.runner.run_sse(user_input)
+        context = await self._hooks.execute_pre_hooks(context)
 
-        return await self.runner.run(user_input, trace=trace)
+        self.runner.trace = context.get("trace", trace)
+        self.runner.verbose = context.get("verbose", verbose)
+        self.runner.stream_sse = context.get("stream_sse", stream_sse)
+
+        if context.get("stream_sse"):
+            result = self.runner.run_sse(context.get("user_input", user_input))
+        else:
+            result = await self.runner.run(
+                context.get("user_input", user_input),
+                trace=context.get("trace", trace),
+            )
+
+        context["result"] = result
+        context = await self._hooks.execute_post_hooks(context)
+
+        return context.get("result", result)
 
 
 class ReactLoop(BaseLoop):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Any, AsyncIterator, Union
 
 from tinycua_sdk.agent.definition import AgentDefinition
@@ -14,6 +15,109 @@ if TYPE_CHECKING:
     from tinycua_sdk.agent.loop import DefaultLoop
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.agent.agent import Agent
+
+
+_security_logger = logging.getLogger("tinycua_sdk.security")
+
+import traceback
+
+
+class ToolExecutor:
+    """Executor with proper error handling for tool execution.
+
+    Provides standardized error handling by returning dicts with
+    success/error status instead of raising exceptions.
+    """
+
+    def __init__(self, registry=None):
+        """Initialize ToolExecutor.
+
+        Args:
+            registry: Optional tool registry for tool lookup.
+        """
+        self.registry = registry
+
+    def execute(self, tool_name: str, tool: Any, arguments: dict | None = None) -> dict:
+        """Execute tool with error handling.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            tool: The Tool instance to execute.
+            arguments: Arguments to pass to the tool.
+
+        Returns:
+            Dict with success status and result/error.
+        """
+        arguments = arguments or {}
+
+        try:
+            result = tool.invoke(**arguments)
+
+            return {
+                "success": True,
+                "result": result,
+                "tool_name": tool_name,
+            }
+
+        except asyncio.TimeoutError as e:
+            _security_logger.error(f"Tool execution timeout: {tool_name}")
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' timed out",
+                "tool_name": tool_name,
+            }
+
+        except Exception as e:
+            _security_logger.error(f"Tool execution error: {tool_name}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tool_name": tool_name,
+                "traceback": traceback.format_exc(),
+            }
+
+    async def execute_async(
+        self, tool_name: str, tool: Any, arguments: dict | None = None
+    ) -> dict:
+        """Execute tool asynchronously with error handling.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            tool: The Tool instance to execute.
+            arguments: Arguments to pass to the tool.
+
+        Returns:
+            Dict with success status and result/error.
+        """
+        arguments = arguments or {}
+
+        try:
+            result = tool.invoke(**arguments)
+            if asyncio.iscoroutine(result):
+                result = await result
+
+            return {
+                "success": True,
+                "result": result,
+                "tool_name": tool_name,
+            }
+
+        except asyncio.TimeoutError as e:
+            _security_logger.error(f"Tool execution timeout: {tool_name}")
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' timed out",
+                "tool_name": tool_name,
+            }
+
+        except Exception as e:
+            _security_logger.error(f"Tool execution error: {tool_name}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tool_name": tool_name,
+                "traceback": traceback.format_exc(),
+            }
 
 
 # Module-level cache for global SDKConfig
@@ -59,6 +163,7 @@ class AgentExecutor(AgentDefinition):
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
         skills: list[str] | None = None,
+        planning_prompt: str | None = None,
     ):
         """Initialize AgentExecutor."""
         super().__init__(
@@ -83,6 +188,7 @@ class AgentExecutor(AgentDefinition):
             strip_thinking=strip_thinking,
             loop=loop,
             skills=skills,
+            planning_prompt=planning_prompt,
         )
         self._local_runner: Runner | None = None
         self._loop_cache: BaseLoop | None = None
@@ -142,21 +248,6 @@ class AgentExecutor(AgentDefinition):
             loop_config.runner = runner
             self._loop_cache = loop_config
             return loop_config
-
-        # Check if loop_config is a custom code injection (dict with source)
-        if isinstance(loop_config, dict):
-            class_name = loop_config.get("class_name")
-            source = loop_config.get("source")
-            helpers = loop_config.get("helpers", [])
-            if source:
-                namespace: dict = {"DefaultLoop": DefaultLoop}
-                for helper in helpers:
-                    exec(helper.get("source", ""), namespace)
-                exec(source, namespace)
-                loop_type = namespace.get(class_name) or namespace.get("DefaultLoop")
-                loop = loop_type(runner)
-                self._loop_cache = loop
-                return loop
 
         # Use resolve_loop to resolve string/dict config to loop instance
         loop = resolve_loop(loop_config)
@@ -326,3 +417,88 @@ class AgentExecutor(AgentDefinition):
     ) -> AsyncIterator[StreamEvent]:
         """Alias for stream() — returns an async iterator."""
         return self.stream(user_input, instructions)
+
+    @staticmethod
+    def execute_subprocess(
+        command: str,
+        timeout: int = 30,
+        cwd: str | None = None,
+    ) -> dict:
+        """Execute command in subprocess securely.
+
+        Uses subprocess.run with shell=False for secure execution.
+
+        Args:
+            command: Command string to execute.
+            timeout: Timeout in seconds.
+            cwd: Working directory for command execution.
+
+        Returns:
+            Dict with returncode, stdout, and stderr.
+        """
+        import subprocess
+        import shlex
+
+        _security_logger.debug(f"Executing subprocess: {command}")
+        parsed = shlex.split(command)
+        result = subprocess.run(
+            parsed,
+            capture_output=True,
+            timeout=timeout,
+            shell=False,
+            cwd=cwd,
+        )
+        _security_logger.debug(f"Subprocess completed with returncode: {result.returncode}")
+        return {
+            "returncode": result.returncode,
+            "stdout": result.stdout.decode("utf-8", errors="replace"),
+            "stderr": result.stderr.decode("utf-8", errors="replace"),
+        }
+
+    @staticmethod
+    def check_tool_permission(tool_name: str) -> bool:
+        """Check if a tool can be executed based on permissions.
+
+        Args:
+            tool_name: Name of the tool to check.
+
+        Returns:
+            True if tool is allowed, False otherwise.
+        """
+        from tinycua_sdk.security.permissions import PermissionSystem
+
+        ps = PermissionSystem()
+        allowed = ps.check_permission(tool_name)
+
+        if not allowed:
+            _security_logger.warning(
+                f"Permission denied for tool: {tool_name}"
+            )
+        else:
+            _security_logger.debug(
+                f"Permission granted for tool: {tool_name}"
+            )
+
+        return allowed
+
+    @staticmethod
+    def check_tool_approval_required(tool_name: str) -> bool:
+        """Check if a tool requires approval before execution.
+
+        Args:
+            tool_name: Name of the tool to check.
+
+        Returns:
+            True if approval is required, False otherwise.
+        """
+        from tinycua_sdk.security.permissions import PermissionSystem
+
+        ps = PermissionSystem()
+        required = ps.requires_approval(tool_name)
+
+        if required:
+            _security_logger.info(
+                f"Approval required for tool: {tool_name}"
+            )
+
+        return required

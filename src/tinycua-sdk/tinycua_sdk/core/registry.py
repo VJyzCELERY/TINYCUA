@@ -72,6 +72,27 @@ class ToolRegistry:
             cls._instance._lock = threading.Lock()
         return cls._instance
 
+    @classmethod
+    def create(cls) -> "ToolRegistry":
+        """Create a new registry instance for test isolation.
+
+        Returns:
+            A new ToolRegistry instance (not singleton).
+        """
+        instance = super().__new__(cls)
+        instance._tools = {}
+        instance._lock = threading.Lock()
+        return instance
+
+    @classmethod
+    def create_for_test(cls) -> "ToolRegistry":
+        """Create an isolated registry instance for testing.
+
+        Returns:
+            A new ToolRegistry instance with empty tools.
+        """
+        return cls.create()
+
     def register(
         self,
         name: str,
@@ -130,7 +151,8 @@ class ToolRegistry:
         Returns:
             ToolEntry if found, None otherwise.
         """
-        return self._tools.get(name)
+        with self._lock:
+            return self._tools.get(name)
 
     def get_definitions(self, tool_names: list[str] | None = None) -> list[dict]:
         """Get tool definitions (schemas) for API calls.
@@ -161,12 +183,13 @@ class ToolRegistry:
             KeyError: If the tool is not registered.
             RuntimeError: If the tool has no handler.
         """
-        entry = self._tools.get(name)
-        if entry is None:
-            raise KeyError(f"Tool '{name}' is not registered")
-        if entry.handler is None:
-            raise RuntimeError(f"Tool '{name}' has no handler")
-        return entry.handler(**args, **kwargs)
+        with self._lock:
+            entry = self._tools.get(name)
+            if entry is None:
+                raise KeyError(f"Tool '{name}' is not registered")
+            if entry.handler is None:
+                raise RuntimeError(f"Tool '{name}' has no handler")
+            return entry.handler(**args, **kwargs)
 
     def is_toolset_available(self, toolset: str) -> bool:
         """Check if any tools in the given toolset are registered.

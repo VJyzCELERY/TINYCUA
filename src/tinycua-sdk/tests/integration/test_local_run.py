@@ -67,7 +67,8 @@ class TestLocalAgentRun:
         def calculator(expression: str) -> dict:
             """Evaluate math expression."""
             try:
-                result = eval(expression, {"__builtins__": {}}, {})
+                from tinycua_sdk.tools.parser import safe_eval
+                result = safe_eval(expression)
                 return {"result": result}
             except Exception as e:
                 return {"error": str(e)}
@@ -165,7 +166,8 @@ class TestReactLoop:
         def calculator(expression: str) -> dict:
             """Evaluate math expression."""
             try:
-                result = eval(expression, {"__builtins__": {}}, {})
+                from tinycua_sdk.tools.parser import safe_eval
+                result = safe_eval(expression)
                 return {"result": result}
             except Exception as e:
                 return {"error": str(e)}

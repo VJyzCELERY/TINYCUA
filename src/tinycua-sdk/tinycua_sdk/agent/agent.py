@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.memory.short_term import ShortTermMemory
+from tinycua_sdk.memory.long_term import LongTermMemory
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.config import AgentPolicy
@@ -47,6 +49,9 @@ class Agent(AgentExecutor):
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
         skills: list[str] | None = None,
+        planning_prompt: str | None = None,
+        short_term_memory: ShortTermMemory | None = None,
+        long_term_memory: LongTermMemory | None = None,
     ):
         """Initialize the Agent.
 
@@ -73,6 +78,9 @@ class Agent(AgentExecutor):
             strip_thinking: Whether to strip thinking tags from responses.
             loop: Custom BaseLoop subclass instance.
             skills: List of skill names to load for the agent.
+            planning_prompt: Prompt for task planning/analysis.
+            short_term_memory: ShortTermMemory instance for session context.
+            long_term_memory: LongTermMemory instance for persistent facts.
 
         """
         super().__init__(
@@ -98,7 +106,20 @@ class Agent(AgentExecutor):
             strip_thinking=strip_thinking,
             loop=loop,
             skills=skills,
+            planning_prompt=planning_prompt,
         )
+        self._short_term_memory = short_term_memory
+        self._long_term_memory = long_term_memory
+
+    @property
+    def short_term_memory(self) -> ShortTermMemory | None:
+        """Get short-term memory instance."""
+        return self._short_term_memory
+
+    @property
+    def long_term_memory(self) -> LongTermMemory | None:
+        """Get long-term memory instance."""
+        return self._long_term_memory
 
     # --- Lifecycle convenience wrappers (lazy import from tinycua) ---
 
