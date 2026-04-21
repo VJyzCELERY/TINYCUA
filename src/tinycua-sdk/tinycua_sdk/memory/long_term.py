@@ -2,7 +2,11 @@
 
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from tinycua_sdk.modeling.user import UserModel
+    from tinycua_sdk.modeling.personality import Personality
 
 
 class LongTermMemory:
@@ -159,6 +163,26 @@ class LongTermMemory:
         new_lines = [line for line in lines if not line.startswith(f"{key}:")]
 
         return self.write("\n".join(new_lines), name)
+
+    def get_user_model(self) -> "UserModel":
+        """Get UserModel instance for this memory.
+
+        Returns:
+            UserModel instance
+        """
+        from tinycua_sdk.modeling.user import UserModel
+
+        return UserModel(self)
+
+    def get_personality(self) -> "Personality":
+        """Get Personality instance for this memory.
+
+        Returns:
+            Personality instance
+        """
+        from tinycua_sdk.modeling.personality import Personality
+
+        return Personality(self)
 
 
 __all__ = ["LongTermMemory"]
