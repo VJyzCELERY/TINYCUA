@@ -1,5 +1,5 @@
 ---
-description: Automates the complete specs implementation process with planning, implementation, and review loop
+description: Automates the complete specs implementation process using subagents for each phase
 subtask: true
 ---
 
@@ -10,69 +10,84 @@ Automate the complete specs implementation process: planning → implementation 
 
 ## Overview
 
-This command runs a complete implementation workflow:
-1. Planning phase (create implementation-plan.md and task.md)
-2. Implementation phase (execute the plan)
-3. Review loop (review → validate → fix → repeat until clean)
-4. Cleanup phase (archive resolved reviews)
+This command runs a complete implementation workflow using subagents for each phase:
+1. Planning phase (Subagent 1) → creates implementation-plan.md and task.md
+2. Implementation phase (Subagent 2) → executes the plan
+3. Review loop (Subagents 3-5+) → review → validate → fix → repeat until clean
+4. Cleanup phase → archive resolved reviews
 
 ## Instructions
 
-### Phase 1: Planning
+### Phase 1: Planning (Subagent 1)
 
-1. Read the spec.md and design.md files in `$1`
-2. Create implementation-plan.md following the template at `~/.config/opencode/templates/implementation-plan.md`
-3. Create task.md following the template at `~/.config/opencode/templates/task.md`
+Use Task tool to invoke a subagent with the implementation-plan command:
+```
+Task: Run /implementation-plan for $1
+```
 
-### Phase 2: Implementation
+Wait for the subagent to complete and verify implementation-plan.md and task.md are created.
 
-4. Read implementation-plan.md and task.md
-5. Execute each task in order using TDD:
-   - Write tests first
-   - Implement code to pass tests
-   - Run tests to verify
-6. Update task.md as tasks are completed
+### Phase 2: Implementation (Subagent 2)
+
+Use Task tool to invoke a subagent with the implement-plan command:
+```
+Task: Run /implement-plan for $1
+```
+
+Wait for the subagent to complete and verify tasks are marked complete in task.md.
 
 ### Phase 3: Review Loop
 
 Enter a loop that continues until no issues are found:
 
-**Step 3a: Review**
-- Run `/review-project $1` with focus on code quality and spec compliance
-- Scope the review to what's been implemented (don't review unrelated code)
+**Step 3a: Review (Subagent 3)**
+Use Task tool:
+```
+Task: Run /review-project for $1 with focus on code quality and spec compliance
+```
 
-**Step 3b: Validate**
-- Run `/validate-review` on the review file
-- Check if there are any OPEN findings
+**Step 3b: Validate (Subagent 4)**
+Use Task tool:
+```
+Task: Run /validate-review for the review file in $1/reviews/
+```
 
-**Step 3c: If OPEN issues exist → Fix**
-- Run `/review-implement` to fix the open issues
-- After fixing, return to Step 3a for a fresh review
-- Continue loop until no OPEN issues
+**Step 3c: If OPEN issues exist → Fix (Subagent 5)**
+Use Task tool:
+```
+Task: Run /review-implement for the review file in $1/reviews/
+```
+
+After fixing, return to Step 3a for a fresh review.
 
 **Step 3d: If no OPEN issues → Exit loop**
-- Proceed to Phase 4
+Proceed to Phase 4.
 
-### Phase 4: Cleanup
+### Phase 4: Cleanup (Subagent 6)
 
-7. Run `/cleanup-review` to archive resolved reviews
+Use Task tool:
+```
+Task: Run /cleanup-review for $1/reviews/ or .agents/reviews/
+```
 
 ## Workflow Summary
 
 ```
-Planning → Implementation → Review Loop → Cleanup
-                                      ↓
-                              Review → Validate
-                                      ↓
-                               If OPEN: Fix → Repeat
-                               If Clean: Exit → Cleanup
+Planning (Subagent 1) → Implementation (Subagent 2) → Review Loop → Cleanup (Subagent 6)
+                                                               ↓
+                                                       Review (Subagent 3)
+                                                               ↓
+                                                       Validate (Subagent 4)
+                                                               ↓
+                                                If OPEN: Fix (Subagent 5) → Repeat
+                                                If Clean: Exit → Cleanup
 ```
 
 ## Important
 
+- Use Task tool to invoke each subagent for each phase
+- Wait for each subagent to complete before proceeding
 - Stay scoped to the spec - don't implement or review things outside the scope
 - Run actual commands and tests - don't assume results
-- Update task.md as tasks complete
-- Keep the review scoped to what's implemented
 
-Begin by reading spec.md and design.md, then proceed through each phase.
+Begin by starting Subagent 1 for planning phase.
