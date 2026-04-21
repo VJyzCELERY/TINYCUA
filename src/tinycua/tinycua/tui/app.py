@@ -14,6 +14,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from tinycua.agent.default_agent import create_default_agent
+from tinycua.storage.local_storage import LocalStorageManager
 from tinycua.tui.agent_manager import AgentManager
 from tinycua.tui.chat import ChatInterface
 from tinycua.tui.commands import CommandParser
@@ -515,7 +516,8 @@ class TinyCUAApp(App):
         self._status_text = "Disconnected"
         self._agent_name = "none"
         self._mode = "local"
-        self._session_manager = TuiSessionManager(None)
+        self._storage_manager = LocalStorageManager.get_instance()
+        self._session_manager = TuiSessionManager(self._storage_manager.get_store())
         self._command_parser = CommandParser()
         self._chat_interface = ChatInterface()
         self._agent_manager = AgentManager()
@@ -524,6 +526,7 @@ class TinyCUAApp(App):
 
     def on_mount(self) -> None:
         """Handle application mount event."""
+        self._init_storage()
         self._init_agent()
         self._load_skills()
         self._create_default_session()
@@ -569,6 +572,16 @@ class TinyCUAApp(App):
         except Exception:
             logger.exception("Failed to create default session")
 
+    def _init_storage(self) -> None:
+        """Initialize local storage on startup."""
+        try:
+            if self._storage_manager.initialize():
+                logger.info("Local storage initialized")
+            else:
+                logger.warning("Failed to initialize local storage")
+        except Exception:
+            logger.exception("Error initializing storage")
+
     def get_session_manager(self) -> TuiSessionManager:
         """Get the session manager."""
         return self._session_manager
@@ -584,6 +597,10 @@ class TinyCUAApp(App):
     def get_skills_manager(self) -> SkillsManager:
         """Get the skills manager."""
         return self._skills_manager
+
+    def get_storage_manager(self) -> LocalStorageManager:
+        """Get the storage manager."""
+        return self._storage_manager
 
     def get_command_parser(self) -> CommandParser:
         """Get the command parser."""

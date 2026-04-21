@@ -33,7 +33,7 @@ class TestSQLiteFileOperations:
         inspector = inspect(store.engine)
         tables = inspector.get_table_names()
 
-        assert "sessions" in tables
+        assert "sdk_sessions" in tables
         assert "messages" in tables
 
     def test_sqlite_is_detected(self, temp_db):
@@ -98,11 +98,10 @@ class TestConfigurationStorage:
 
     def test_config_saves_to_yaml(self, tmp_path):
         """Test config saves to YAML file."""
-        from tinycua_sdk.core.config import SDKConfig
+        from tinycua_sdk.core.config import LLMConfig, SDKConfig
         from tinycua.config.user_config import UserConfig
 
-        config = SDKConfig()
-        config.llm.model = "test-model"
+        config = SDKConfig(llm=LLMConfig(model="test-model"))
 
         config_file = tmp_path / "config.yaml"
         UserConfig.save(config, path=config_file)
@@ -111,11 +110,10 @@ class TestConfigurationStorage:
 
     def test_config_loads_from_yaml(self, tmp_path):
         """Test config loads from YAML file."""
-        from tinycua_sdk.core.config import SDKConfig
+        from tinycua_sdk.core.config import LLMConfig, SDKConfig
         from tinycua.config.user_config import UserConfig
 
-        config = SDKConfig()
-        config.llm.model = "test-model"
+        config = SDKConfig(llm=LLMConfig(model="test-model"))
 
         config_file = tmp_path / "config.yaml"
         UserConfig.save(config, path=config_file)
@@ -125,18 +123,17 @@ class TestConfigurationStorage:
 
     def test_config_updates_persist(self, tmp_path):
         """Test config updates persist."""
-        from tinycua_sdk.core.config import SDKConfig
+        from tinycua_sdk.core.config import LLMConfig, SDKConfig
         from tinycua.config.user_config import UserConfig
 
-        config = SDKConfig()
-        config.llm.model = "original-model"
+        config = SDKConfig(llm=LLMConfig(model="original-model"))
 
         config_file = tmp_path / "config.yaml"
         UserConfig.save(config, path=config_file)
 
         loaded = UserConfig.load(path=config_file)
-        loaded.llm.model = "updated-model"
-        UserConfig.save(loaded, path=config_file)
+        updated = loaded.model_copy(update={"llm": LLMConfig(model="updated-model")})
+        UserConfig.save(updated, path=config_file)
 
         reloaded = UserConfig.load(path=config_file)
         assert reloaded.llm.model == "updated-model"

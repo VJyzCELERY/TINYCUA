@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from tinycua_sdk.storage.store import get_session_store
+from tinycua_sdk.storage.store import SessionStore
 
 if TYPE_CHECKING:
     from tinycua_sdk.storage.models import Session
@@ -34,17 +34,16 @@ class TuiSessionManager:
         self._sessions: list[Any] = []
 
     def _get_store(self) -> SessionStore:
-        """Get or create the session store.
+        """Get the session store.
 
         Returns:
             SessionStore instance.
+
+        Raises:
+            ValueError: If no store was provided.
         """
         if self._store is None:
-            try:
-                self._store = get_session_store()
-            except Exception:
-                logger.exception("Failed to get session store")
-                raise
+            raise ValueError("No session store provided. TuiSessionManager requires a store.")
         return self._store
 
     def create_session(self, name: str) -> Session | None:

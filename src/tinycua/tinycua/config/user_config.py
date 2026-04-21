@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from tinycua_sdk.core.config import SDKConfig
+from tinycua_sdk.core.config import LLMConfig, MemoryConfig, SDKConfig, SessionConfig
 
 
 class UserConfig:
@@ -59,6 +59,13 @@ class UserConfig:
                 merged_dict = cls._to_dict(merged)
                 yaml_dict = cls._flatten_yaml(yaml_data)
                 merged_dict = cls._merge_dicts(merged_dict, yaml_dict)
+                # Convert nested dicts to Pydantic models
+                if "llm" in merged_dict and isinstance(merged_dict["llm"], dict):
+                    merged_dict["llm"] = LLMConfig(**merged_dict["llm"])
+                if "memory" in merged_dict and isinstance(merged_dict["memory"], dict):
+                    merged_dict["memory"] = MemoryConfig(**merged_dict["memory"])
+                if "session" in merged_dict and isinstance(merged_dict["session"], dict):
+                    merged_dict["session"] = SessionConfig(**merged_dict["session"])
                 merged = SDKConfig(**merged_dict)
 
         return merged
