@@ -14,9 +14,12 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from tinycua.agent.default_agent import create_default_agent
+from tinycua.tui.agent_manager import AgentManager
 from tinycua.tui.chat import ChatInterface
 from tinycua.tui.commands import CommandParser
 from tinycua.tui.session_manager import TuiSessionManager
+from tinycua.tui.skills_manager import SkillsManager
+from tinycua.tui.tool_manager import ToolManager
 from tinycua.tui.widgets import OutputPanel, StatusBar
 
 if TYPE_CHECKING:
@@ -50,10 +53,19 @@ class ChatScreen(Screen):
 
     CSS = SHARED_CSS
 
-    def __init__(self, session_manager: TuiSessionManager) -> None:
+    def __init__(
+        self,
+        session_manager: TuiSessionManager,
+        agent_manager: AgentManager,
+        tool_manager: ToolManager,
+        skills_manager: SkillsManager,
+    ) -> None:
         """Initialize the chat screen."""
         super().__init__()
         self._session_manager = session_manager
+        self._agent_manager = agent_manager
+        self._tool_manager = tool_manager
+        self._skills_manager = skills_manager
         self._chat_interface = ChatInterface()
         self._command_parser = CommandParser()
         self._status_text = "Ready"
@@ -86,9 +98,11 @@ class ChatScreen(Screen):
         """Update the status bar with current state."""
         try:
             status_bar = self.query_one("#status-bar", StatusBar)
+            current_agent = self._agent_manager.get_current_agent()
+            agent_name = current_agent.name if current_agent else "default"
             status_bar.update_status(
                 status=self._status_text,
-                agent="default",
+                agent=agent_name,
                 mode="local",
             )
         except Exception:
@@ -124,7 +138,7 @@ class ChatScreen(Screen):
     async def _handle_command(
         self,
         command: str,
-        _args: str,
+        args: str,
         output: OutputPanel,
     ) -> None:
         """Handle slash commands."""
@@ -162,6 +176,125 @@ class ChatScreen(Screen):
         elif command == "quit":
             output.append_line("[yellow]Goodbye![/yellow]")
             self.app.exit()
+        elif command == "agents":
+            agents = self._agent_manager.list_agents()
+            if agents:
+                lines = ["[bold]Available agents:[/bold]"]
+                current = self._agent_manager.get_current_agent()
+                for agent in agents:
+                    marker = " *" if current and current.id == agent.id else ""
+                    lines.append(f"  {agent.name} ({agent.config.model}){marker}")
+                output.append_line("\n".join(lines))
+            else:
+                output.append_line("No agents configured. Use /agent-create to add one.")
+        elif command == "agent":
+            if not args:
+                output.append_line("[yellow]Usage: /agent <name>[/yellow]")
+                return
+            agents = self._agent_manager.list_agents()
+            target = None
+            for agent in agents:
+                if agent.name.lower() == args.lower():
+                    target = agent
+                    break
+            if target:
+                if self._agent_manager.set_current_agent(target.id):
+                    agent_instance = self._agent_manager.create_agent_instance(target)
+                    if agent_instance:
+                        self.app._current_agent_instance = agent_instance
+                        output.append_line(f"[green]Switched to agent: {target.name}[/green]")
+                        self._update_status_bar()
+                    else:
+                        output.append_line("[red]Failed to create agent instance.[/red]")
+                else:
+                    output.append_line("[red]Failed to switch agent.[/red]")
+            else:
+                output.append_line(f"[red]Agent '{args}' not found.[/red]")
+        elif command == "agent-create":
+            if not args:
+                output.append_line("[yellow]Usage: /agent-create <name> [--model gpt-5-nano] [--provider openai] [--base-url URL] [--api-key KEY] [--system-prompt PROMPT] [--instructions TEXT] [--temperature 1.0] [--max-turns N][/yellow]")
+                return
+
+            parts = args.split()
+            name = parts[0]
+
+            model = "gpt-5-nano"
+            provider = "openai"
+            base_url = None
+            api_key = None
+            system_prompt = "You are a helpful assistant."
+            instructions = ""
+            temperature = 1.0
+            max_turns = None
+
+            i = 1
+            while i < len(parts):
+                if parts[i] == "--model" and i + 1 < len(parts):
+                    model = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--provider" and i + 1 < len(parts):
+                    provider = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--base-url" and i + 1 < len(parts):
+                    base_url = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--api-key" and i + 1 < len(parts):
+                    api_key = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--system-prompt" and i + 1 < len(parts):
+                    system_prompt = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--instructions" and i + 1 < len(parts):
+                    instructions = parts[i + 1]
+                    i += 2
+                elif parts[i] == "--temperature" and i + 1 < len(parts):
+                    temperature = float(parts[i + 1])
+                    i += 2
+                elif parts[i] == "--max-turns" and i + 1 < len(parts):
+                    max_turns = int(parts[i + 1])
+                    i += 2
+                else:
+                    i += 1
+
+            agent_info = self._agent_manager.create_agent(
+                name,
+                model=model,
+                provider=provider,
+                base_url=base_url,
+                api_key=api_key,
+                system_prompt=system_prompt,
+                instructions=instructions,
+                temperature=temperature,
+                max_turns=max_turns,
+            )
+            if agent_info:
+                output.append_line(f"[green]Created agent: {agent_info.name}[/green]")
+            else:
+                output.append_line("[red]Failed to create agent.[/red]")
+        elif command == "tools":
+            tools = self._tool_manager.list_tools()
+            if tools:
+                lines = ["[bold]Available tools:[/bold]"]
+                for tool in tools:
+                    toolset = f" ({tool.toolset})" if tool.toolset else ""
+                    lines.append(f"  {tool.name}{toolset}")
+                output.append_line("\n".join(lines))
+            else:
+                output.append_line("No tools available.")
+        elif command == "skills":
+            skills = self._skills_manager.list_skills()
+            if skills:
+                lines = ["[bold]Available skills:[/bold]"]
+                for skill in skills:
+                    lines.append(f"  {skill.name} - {skill.description}")
+                output.append_line("\n".join(lines))
+            else:
+                output.append_line("No skills available.")
+        elif command == "reload-skills":
+            if self._skills_manager.reload_skills():
+                output.append_line("[green]Skills reloaded successfully.[/green]")
+            else:
+                output.append_line("[red]Failed to reload skills.[/red]")
 
     async def _process_message(self, message: str, output: OutputPanel) -> None:
         """Process a chat message."""
@@ -169,7 +302,11 @@ class ChatScreen(Screen):
         self._update_status_bar()
 
         try:
-            agent = create_default_agent()
+            agent = self.app._current_agent_instance
+            if agent is None:
+                agent = self._agent_manager.get_default_agent()
+            if agent is None:
+                agent = create_default_agent()
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: agent.run(message))
             if isinstance(result, str):
@@ -374,29 +511,52 @@ class TinyCUAApp(App):
         """Initialize the TUI application."""
         super().__init__()
         self._agent: Any = None
+        self._current_agent_instance: Any = None
         self._status_text = "Disconnected"
         self._agent_name = "none"
         self._mode = "local"
         self._session_manager = TuiSessionManager(None)
         self._command_parser = CommandParser()
         self._chat_interface = ChatInterface()
+        self._agent_manager = AgentManager()
+        self._tool_manager = ToolManager()
+        self._skills_manager = SkillsManager()
 
     def on_mount(self) -> None:
         """Handle application mount event."""
         self._init_agent()
+        self._load_skills()
         self._create_default_session()
-        self.push_screen(ChatScreen(self._session_manager))
+        self.push_screen(
+            ChatScreen(
+                self._session_manager,
+                self._agent_manager,
+                self._tool_manager,
+                self._skills_manager,
+            )
+        )
 
     def _init_agent(self) -> None:
         """Initialize the default agent."""
         try:
-            self._agent = create_default_agent()
-            self._agent_name = self._agent.name
-            self._status_text = "Ready"
-            self._mode = "local"
+            self._agent = self._agent_manager.init_default_agent()
+            if self._agent:
+                self._current_agent_instance = self._agent
+                self._agent_name = self._agent.name
+                self._status_text = "Ready"
+                self._mode = "local"
+            else:
+                self._status_text = "Error: Agent init failed"
         except Exception as e:
             logger.exception("Failed to initialize agent")
             self._status_text = f"Error: {e}"
+
+    def _load_skills(self) -> None:
+        """Load skills on startup."""
+        try:
+            self._skills_manager.load_skills()
+        except Exception:
+            logger.exception("Failed to load skills")
 
     def _create_default_session(self) -> None:
         """Create a default session on startup."""
@@ -412,6 +572,18 @@ class TinyCUAApp(App):
     def get_session_manager(self) -> TuiSessionManager:
         """Get the session manager."""
         return self._session_manager
+
+    def get_agent_manager(self) -> AgentManager:
+        """Get the agent manager."""
+        return self._agent_manager
+
+    def get_tool_manager(self) -> ToolManager:
+        """Get the tool manager."""
+        return self._tool_manager
+
+    def get_skills_manager(self) -> SkillsManager:
+        """Get the skills manager."""
+        return self._skills_manager
 
     def get_command_parser(self) -> CommandParser:
         """Get the command parser."""

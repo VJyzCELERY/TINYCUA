@@ -34,6 +34,12 @@ class CommandParser:
             "quit": "Exit the application",
             "clear": "Clear the current chat",
             "settings": "Open settings",
+            "agents": "List all agents",
+            "agent": "Switch to an agent (usage: /agent <name>)",
+            "agent-create": "Create a new agent (usage: /agent-create <name>)",
+            "tools": "List all available tools",
+            "skills": "List all available skills",
+            "reload-skills": "Reload skills from directories",
         }
 
     def parse(self, text: str) -> ParsedCommand | None:
@@ -53,6 +59,8 @@ class CommandParser:
         command_name = parts[0].lower()
 
         if command_name not in self._commands:
+            if command_name in ("agent",):
+                return ParsedCommand(name=command_name, args=parts[1] if len(parts) > 1 else "")
             return None
 
         args = parts[1] if len(parts) > 1 else ""
