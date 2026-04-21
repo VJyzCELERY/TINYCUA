@@ -17,6 +17,16 @@ def main() -> int:
         prog="tinycua",
         description="TINYCUA - Computer-Use Agent CLI",
     )
+    parser.add_argument(
+        "--no-wizard",
+        action="store_true",
+        help="Skip setup wizard on first startup",
+    )
+    parser.add_argument(
+        "--force-wizard",
+        action="store_true",
+        help="Force run setup wizard",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("repl", help="Start interactive REPL")
@@ -130,6 +140,14 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    if args.command is None or args.force_wizard or (not args.no_wizard and args.command in ("repl", "chat", "tui", None)):
+        from tinycua.config import is_first_startup, run_wizard
+
+        if args.force_wizard or is_first_startup():
+            run_wizard()
+            if args.command is None:
+                return 0
 
     if args.command == "repl":
         from tinycua.cli.repl import run_repl
