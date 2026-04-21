@@ -30,6 +30,9 @@ if _is_direct_import and not _has_store_submodule:
 
 from tinycua_sdk.storage.store import SessionStore, get_session_store  # noqa: E402
 from tinycua_sdk.storage.snapshot import MemorySnapshot, SnapshotManager, SnapshotError  # noqa: E402
+from tinycua_sdk.storage.sqlite import LocalStorage  # noqa: E402
+from tinycua_sdk.storage.export import Exporter  # noqa: E402
+from tinycua_sdk.storage.importer import Importer  # noqa: E402
 
 __all__ = [
     "SessionStore",
@@ -37,4 +40,7 @@ __all__ = [
     "MemorySnapshot",
     "SnapshotManager",
     "SnapshotError",
+    "LocalStorage",
+    "Exporter",
+    "Importer",
 ]

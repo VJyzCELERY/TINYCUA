@@ -82,6 +82,58 @@ class BackendClient:
             self._user_id = data.get("user_id")
             return data
 
+    async def create_tenant(
+        self,
+        tenant_name: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Create a new tenant.
+
+        Args:
+            tenant_name: Name for the tenant
+            **kwargs: Additional tenant fields
+
+        Returns:
+            Tenant response with tenant_id and status
+
+        Raises:
+            httpx.HTTPStatusError: If creation fails
+        """
+        payload = {"tenant_name": tenant_name}
+        payload.update(kwargs)
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/tenants",
+                json=payload,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            data = response.json()
+            self._tenant_id = data.get("tenant_id")
+            return data
+
+    async def test_connection(self) -> bool:
+        """Test connection to backend.
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.base_url}/health")
+                return response.status_code == 200
+        except Exception:
+            return False
+
+    def is_local_mode(self) -> bool:
+        """Check if running in local mode without backend.
+
+        Returns:
+            True if local mode (no base_url or credentials)
+        """
+        return not self.base_url or self.base_url == ""
+
     async def register(self, **kwargs: Any) -> dict[str, Any]:
         """Register a new user.
 
