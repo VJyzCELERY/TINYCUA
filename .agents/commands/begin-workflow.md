@@ -61,14 +61,21 @@ Task: Run /review-implement for the review file in $1/reviews/
 After fixing, return to Step 2 for re-validation.
 
 **Step 4: If VALIDATE returns CLEAN (no OPEN issues) → Run FRESH Review (Subagent 6)**
+
+IMPORTANT: When running the fresh review:
+- Do NOT give the subagent any context about previous reviews or findings
+- Do NOT mention what issues were found or fixed before
+- Tell the subagent this is a completely fresh, independent review
+- The subagent should approach it like they are reviewing for the first time
+
 Use Task tool:
 ```
-Task: Run /review-project for $1 - do a fresh review to check for any remaining issues
+Task: Run /review-project for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
 ```
 
 **Step 5: Check Fresh Review Result**
-- If fresh review has NEW issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
-- If fresh review returns CLEAN (no issues) → Exit Review Loop and proceed to Cleanup
+- If fresh review has ANY new issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
+- If fresh review returns CLEAN (zero issues) → Exit Review Loop and proceed to Cleanup
 
 ### Phase 4: Cleanup (Subagent 7)
 
@@ -87,17 +94,18 @@ Review Loop:
        ↓
   Validate (Subagent 4) → If OPEN: Fix (Subagent 5) → Validate (repeat until clean)
        ↓
-  If CLEAN → Fresh Review (Subagent 6)
+  If CLEAN → Fresh Review (Subagent 6) - INDEPENDENT, no prior context
        ↓
   If NEW ISSUES → Return to Validate
-  If CLEAN → Exit Loop → Cleanup
+  If CLEAN (zero issues) → Exit Loop → Cleanup
 ```
 
 ## Important
 
 - Use Task tool to invoke each subagent for each phase
 - Wait for each subagent to complete before proceeding
-- After validation returns clean, ALWAYS run one more fresh review to ensure truly clean
+- After validation returns clean, ALWAYS run one more fresh review
+- For FRESH review: explicitly tell subagent to be independent with no prior context
 - Stay scoped to the spec - don't implement or review things outside the scope
 - Run actual commands and tests - don't assume results
 
