@@ -400,6 +400,45 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
 
+    async def list_sessions(self) -> list[dict[str, Any]]:
+        """List all sessions in backend.
+
+        Returns:
+            List of session dicts with id, agent_id, name, created_at, updated_at
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/v1/sessions",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def update_session(
+        self,
+        session_id: str,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing session.
+
+        Args:
+            session_id: ID of the session to update
+            name: Optional new session name
+
+        Returns:
+            Updated session response
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.patch(
+                f"{self.base_url}/v1/sessions/{session_id}",
+                json={"name": name} if name else {},
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def get_messages(
         self,
         session_id: str,
@@ -513,6 +552,30 @@ class BackendClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
                 f"{self.base_url}/v1/agents/{agent_id}/memory",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def save_memory(
+        self,
+        agent_id: str,
+        memory: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Save agent memory to backend.
+
+        Args:
+            agent_id: ID of the agent
+            memory: Memory data to save
+
+        Returns:
+            Response data
+
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.put(
+                f"{self.base_url}/v1/agents/{agent_id}/memory",
+                json=memory,
                 headers=self._get_headers(),
             )
             response.raise_for_status()

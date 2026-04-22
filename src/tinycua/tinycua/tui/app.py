@@ -14,6 +14,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from tinycua.agent.default_agent import create_default_agent
+from tinycua.remote import RemoteConnectionManager, SyncEngine
 from tinycua.storage.local_storage import LocalStorageManager
 from tinycua.tui.agent_manager import AgentManager
 from tinycua.tui.chat import ChatInterface
@@ -296,6 +297,45 @@ class ChatScreen(Screen):
                 output.append_line("[green]Skills reloaded successfully.[/green]")
             else:
                 output.append_line("[red]Failed to reload skills.[/red]")
+        elif command == "connect":
+            if not args:
+                output.append_line("[yellow]Usage: /connect <backend_url> [--api-key KEY][/yellow]")
+                return
+
+            parts = args.split()
+            backend_url = parts[0]
+            api_key = None
+
+            i = 1
+            while i < len(parts):
+                if parts[i] == "--api-key" and i + 1 < len(parts):
+                    api_key = parts[i + 1]
+                    i += 2
+                else:
+                    i += 1
+
+            try:
+                self.init_remote(backend_url, api_key)
+                output.append_line(f"[green]Initialized remote connection to {backend_url}[/green]")
+                output.append_line("[dim]Use /sync to sync with backend[/dim]")
+            except Exception as e:
+                output.append_line(f"[red]Failed to initialize remote connection: {e}[/red]")
+        elif command == "sync":
+            if not self._remote_manager:
+                output.append_line("[red]Remote not initialized. Use /connect first.[/red]")
+                return
+            if not self._remote_manager.is_connected:
+                output.append_line("[red]Not connected to remote. Use /connect first.[/red]")
+                return
+            try:
+                loop = asyncio.get_event_loop()
+                result = loop.run_until_complete(self._sync_engine.push_all())
+                if result.success:
+                    output.append_line(f"[green]Sync successful: {result.items_synced} items synced[/green]")
+                else:
+                    output.append_line(f"[red]Sync failed: {result.errors}[/red]")
+            except Exception as e:
+                output.append_line(f"[red]Sync error: {e}[/red]")
 
     async def _process_message(self, message: str, output: OutputPanel) -> None:
         """Process a chat message."""
@@ -523,6 +563,8 @@ class TinyCUAApp(App):
         self._agent_manager = AgentManager()
         self._tool_manager = ToolManager()
         self._skills_manager = SkillsManager()
+        self._remote_manager: RemoteConnectionManager | None = None
+        self._sync_engine: SyncEngine | None = None
 
     def on_mount(self) -> None:
         """Handle application mount event."""
@@ -581,6 +623,50 @@ class TinyCUAApp(App):
                 logger.warning("Failed to initialize local storage")
         except Exception:
             logger.exception("Error initializing storage")
+
+    def init_remote(self, backend_url: str, api_key: str | None = None) -> None:
+        """Initialize remote connection manager.
+
+        Args:
+            backend_url: URL of the remote backend
+            api_key: Optional API key for authentication
+        """
+        self._remote_manager = RemoteConnectionManager(
+            backend_url=backend_url,
+            api_key=api_key,
+        )
+        self._sync_engine = SyncEngine(self._remote_manager)
+        logger.info(f"Initialized remote manager for {backend_url}")
+
+    async def _sync_with_backend(self) -> bool:
+        """Sync data with remote backend.
+
+        Returns:
+            True if sync successful, False otherwise.
+        """
+        if not self._remote_manager or not self._sync_engine:
+            logger.warning("Remote manager not initialized")
+            return False
+
+        if not self._remote_manager.is_connected:
+            logger.warning("Not connected to remote backend")
+            return False
+
+        try:
+            result = await self._sync_engine.push_all()
+            if result.success:
+                self._status_text = f"Synced {result.items_synced} items"
+                return True
+            else:
+                self._status_text = f"Sync failed: {result.errors}"
+                return False
+        except Exception:
+            logger.exception("Sync failed")
+            return False
+
+    def get_remote_manager(self) -> RemoteConnectionManager | None:
+        """Get the remote connection manager."""
+        return self._remote_manager
 
     def get_session_manager(self) -> TuiSessionManager:
         """Get the session manager."""
