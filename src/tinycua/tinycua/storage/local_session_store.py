@@ -6,6 +6,7 @@ import logging
 import uuid
 from typing import Optional
 
+from tinycua_sdk.storage.models import Session
 from tinycua_sdk.storage.store import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -35,23 +36,31 @@ class LocalSessionStore:
         """
         return self._store
 
-    def create_session(self, name: str, user_id: Optional[str] = None) -> Optional[object]:
+    def create_session(
+        self,
+        name: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[uuid.UUID] = None,
+    ) -> Optional[Session]:
         """Create a new session.
 
         Args:
             name: Session name.
             user_id: Optional user ID.
+            session_id: Optional session UUID to preserve.
 
         Returns:
             Created Session or None on error.
         """
         try:
-            return self._store.create_session(name=name, user_id=user_id)
+            return self._store.create_session(
+                name=name, user_id=user_id, session_id=session_id
+            )
         except Exception:
             logger.exception("Failed to create session")
             return None
 
-    def get_session(self, session_id: uuid.UUID) -> Optional[object]:
+    def get_session(self, session_id: uuid.UUID) -> Optional[Session]:
         """Get a session by ID.
 
         Args:
@@ -66,7 +75,7 @@ class LocalSessionStore:
             logger.exception("Failed to get session")
             return None
 
-    def get_session_by_name(self, name: str) -> Optional[object]:
+    def get_session_by_name(self, name: str) -> Optional[Session]:
         """Get a session by name.
 
         Args:
@@ -96,7 +105,7 @@ class LocalSessionStore:
             logger.exception("Failed to list sessions")
             return []
 
-    def update_session(self, session_id: uuid.UUID, **kwargs) -> Optional[object]:
+    def update_session(self, session_id: uuid.UUID, **kwargs) -> Optional[Session]:
         """Update a session.
 
         Args:

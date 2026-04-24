@@ -40,6 +40,8 @@ class CommandParser:
             "tools": "List all available tools",
             "skills": "List all available skills",
             "reload-skills": "Reload skills from directories",
+            "export": "Export data to file (usage: /export [path] [--no-sessions] [--no-agents] [--no-memory] [--no-skills])",
+            "import": "Import data from file (usage: /import [path] [--mode merge|replace]). Note: skill files must be installed manually; only metadata is imported.",
         }
 
     def parse(self, text: str) -> ParsedCommand | None:
@@ -60,7 +62,9 @@ class CommandParser:
 
         if command_name not in self._commands:
             if command_name in ("agent",):
-                return ParsedCommand(name=command_name, args=parts[1] if len(parts) > 1 else "")
+                return ParsedCommand(
+                    name=command_name, args=parts[1] if len(parts) > 1 else ""
+                )
             return None
 
         args = parts[1] if len(parts) > 1 else ""
