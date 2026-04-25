@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 
-from tinycua_backend.auth.core import CurrentTenant, get_or_create_guest_tenant, get_or_create_system_tenant
+from tinycua_backend.auth.core import CurrentTenant, get_or_create_system_tenant
 from tinycua_backend.tenant.models import Tenant, TenantType
 
 
@@ -27,25 +27,6 @@ class TestTenantCreation:
         mock_db.add(new_tenant)
 
         assert new_tenant.name == "Test Tenant"
-
-    def test_create_guest_tenant(self, mock_db):
-        """Test creating a guest tenant."""
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-
-        mock_guest = MagicMock()
-        mock_guest.id = "guest-123"
-        mock_guest.tenant_type = TenantType.GUEST
-
-        def mock_add(obj):
-            obj.id = "guest-123"
-
-        mock_db.add.side_effect = mock_add
-        mock_db.commit.side_effect = None
-
-        with patch("tinycua_backend.auth.core.Tenant", return_value=mock_guest):
-            guest_tenant = get_or_create_guest_tenant(mock_db)
-
-            assert guest_tenant is not None
 
     def test_create_system_tenant(self, mock_db):
         """Test creating a system tenant."""
@@ -117,7 +98,6 @@ class TestTenantModel:
     def test_tenant_type_enum(self):
         """Test TenantType enum values."""
         assert TenantType.STANDARD == "standard"
-        assert TenantType.GUEST == "guest"
         assert TenantType.SYSTEM == "system"
 
     def test_tenant_attributes(self, test_tenant):

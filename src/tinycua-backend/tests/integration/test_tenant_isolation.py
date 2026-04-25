@@ -147,28 +147,4 @@ class TestTenantDataIntegrity:
         assert result is None
 
 
-class TestGuestTenantIsolation:
-    """Test guest tenant behavior."""
 
-    def test_guest_tenant_isolation(self, db_session):
-        """Test that guest tenants are isolated."""
-        guest_tenant = Tenant(
-            name="Guest Tenant",
-            tenant_type=TenantType.GUEST,
-        )
-        db_session.add(guest_tenant)
-        db_session.commit()
-
-        standard_tenant = Tenant(
-            name="Standard Tenant",
-            tenant_type=TenantType.STANDARD,
-        )
-        db_session.add(standard_tenant)
-        db_session.commit()
-
-        result = db_session.execute(
-            select(Tenant).where(Tenant.tenant_type == TenantType.GUEST)
-        ).scalars().all()
-
-        assert len(result) >= 1
-        assert any(t.tenant_type == TenantType.GUEST for t in result)

@@ -6,20 +6,22 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from tinycua_backend.auth.core import (
-    create_api_key,
     create_jwt_token,
-    get_tenant_filter,
-    hash_api_key,
-    hash_password,
+    CurrentTenant,
+    get_current_tenant,
     verify_password,
 )
+from tinycua_backend.auth.schemas import (
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+)
+from tinycua_backend.auth.service import AuthService
 from tinycua_backend.storage.database import get_db
-from tinycua_backend.tenant.models import Tenant
 from tinycua_backend.auth.models import User
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -69,32 +71,6 @@ def _rate_limit_dependency(
     return dependency
 
 
-class RegisterRequest(BaseModel):
-    """Request model for registration."""
-
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    tenant_name: str | None = None
-
-
-class LoginRequest(BaseModel):
-    """Request model for login."""
-
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    tenant_id: str
-
-
-class TokenResponse(BaseModel):
-    """Response model for auth tokens."""
-
-    access_token: str
-    token_type: str = "bearer"
-    tenant_id: str
-    user_id: str
-    api_key: str | None = None
-
-
 @router.post(
     "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
 )
@@ -112,72 +88,18 @@ async def register(
     Returns:
         JWT token
     """
-    # Create tenant first
-    tenant = Tenant(name=request.tenant_name or f"Tenant for {request.email}")
-    db.add(tenant)
-    db.flush()
-
-    # Check if user exists in this tenant (allows same email across tenants)
-    query = db.query(User).filter(User.email == request.email)
-    tenant_filter = get_tenant_filter(tenant, User)
-    if tenant_filter is not None:
-        query = query.filter(tenant_filter)
-    existing_user = query.first()
-
-    if existing_user:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User already exists",
-        )
-
-    # Create user
-    user = User(
-        tenant_id=tenant.id,
-        email=request.email,
-        password_hash=hash_password(request.password),
-    )
-    db.add(user)
+    auth_service = AuthService(db)
     try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
+        return auth_service.register(
+            email=request.email,
+            password=request.password,
+            tenant_name=request.tenant_name,
+        )
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists in this tenant",
+            detail=str(e),
         )
-
-    # Create API key
-    from tinycua_backend.auth.models import APIKey
-
-    raw_key = create_api_key()
-    api_key = APIKey(
-        tenant_id=tenant.id,
-        name="Default API Key",
-        key_hash=hash_api_key(raw_key),
-        key_prefix=raw_key[:8],
-        scopes=[],
-        is_active=True,
-    )
-    db.add(api_key)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists in this tenant",
-        )
-
-    # Generate JWT token
-    token = create_jwt_token(str(user.id), str(tenant.id))
-
-    return TokenResponse(
-        access_token=token,
-        tenant_id=str(tenant.id),
-        user_id=str(user.id),
-        api_key=raw_key,
-    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -195,28 +117,36 @@ async def login(
     Returns:
         JWT token
     """
-    import uuid
+    if request.tenant_id:
+        auth_service = AuthService(db)
+        try:
+            return auth_service.login(
+                email=request.email,
+                password=request.password,
+                tenant_id=request.tenant_id,
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+            )
 
-    try:
-        tenant_uuid = uuid.UUID(request.tenant_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid tenant ID format",
-        )
+    users = db.query(User).filter(User.email == request.email).all()
 
-    user = (
-        db.query(User)
-        .filter(User.email == request.email, User.tenant_id == tenant_uuid)
-        .first()
-    )
-    if not user:
-        # Timing-equalized failure: perform dummy bcrypt to match "wrong password" path
+    if not users:
         verify_password(request.password, DUMMY_HASH)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    if len(users) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Multiple tenants found for this email. Please specify tenant_id.",
+        )
+
+    user = users[0]
 
     if not user.password_hash or not verify_password(
         request.password, user.password_hash
@@ -226,10 +156,55 @@ async def login(
             detail="Invalid credentials",
         )
 
-    token = create_jwt_token(str(user.id), str(user.tenant_id))
+    token = create_jwt_token(str(user.id), str(user.tenant_id), user.email)
 
     return TokenResponse(
         access_token=token,
         tenant_id=str(user.tenant_id),
         user_id=str(user.id),
+    )
+
+
+class CurrentUserResponse(BaseModel):
+    """Response model for current user."""
+
+    user_id: str
+    tenant_id: str
+    email: str
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+async def get_current_user(
+    current_tenant: CurrentTenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+) -> CurrentUserResponse:
+    """Get current authenticated user.
+
+    Args:
+        current_tenant: Current tenant from authentication
+        db: Database session
+
+    Returns:
+        Current user information
+    """
+    from tinycua_backend.auth.models import User
+
+    user = (
+        db.query(User)
+        .filter(
+            User.id == current_tenant.user_id,
+            User.tenant_id == current_tenant.tenant.id,
+        )
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return CurrentUserResponse(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
     )

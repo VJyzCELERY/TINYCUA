@@ -20,7 +20,7 @@ from tinycua_backend.storage.database import get_db
 from tinycua_backend.auth.models import APIKey
 from tinycua_backend.tenant.models import Tenant, TenantType
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 logger = logging.getLogger(__name__)
 
 MIN_API_KEY_LENGTH = 32
@@ -108,6 +108,7 @@ def create_api_key() -> str:
 def create_jwt_token(
     user_id: str,
     tenant_id: str,
+    email: str | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a JWT token.
@@ -115,6 +116,7 @@ def create_jwt_token(
     Args:
         user_id: The user's ID
         tenant_id: The tenant's ID
+        email: Optional user email
         expires_delta: Optional expiration time
 
     Returns:
@@ -133,6 +135,8 @@ def create_jwt_token(
         "iat": datetime.now(timezone.utc),
         "jti": str(uuid.uuid4()),
     }
+    if email:
+        payload["email"] = email
     return str(
         jwt.encode(
             payload,
@@ -205,42 +209,6 @@ def get_tenant_filter(tenant: Tenant, model: Any) -> Any:
     if tenant.tenant_type == TenantType.SYSTEM:
         return None
     return model.tenant_id == tenant.id
-
-
-def get_or_create_guest_tenant(db: Session) -> Tenant:
-    """Get or create the guest tenant.
-
-    Args:
-        db: Database session
-
-    Returns:
-        The guest tenant
-    """
-    guest_tenant = (
-        db.query(Tenant).filter(Tenant.tenant_type == TenantType.GUEST).first()
-    )
-
-    if guest_tenant:
-        return guest_tenant
-
-    guest_tenant = Tenant(
-        name="Guest",
-        tenant_type=TenantType.GUEST,
-    )
-    db.add(guest_tenant)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        guest_tenant = (
-            db.query(Tenant).filter(Tenant.tenant_type == TenantType.GUEST).first()
-        )
-        if guest_tenant:
-            return guest_tenant
-        raise
-    db.refresh(guest_tenant)
-
-    return guest_tenant
 
 
 def get_or_create_system_tenant(db: Session) -> Tenant:

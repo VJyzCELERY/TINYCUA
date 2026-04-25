@@ -18,12 +18,10 @@ class TenantType(str, Enum):
     """Type of tenant.
 
     STANDARD - Normal tenant with regular access
-    GUEST - Temporary guest tenant for unauthenticated access
     SYSTEM - System tenant for global API key (bypasses tenant restrictions)
     """
 
     STANDARD = "standard"
-    GUEST = "guest"
     SYSTEM = "system"
 
 
@@ -32,9 +30,6 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
 
     A tenant represents an organization or entity that owns resources.
     All resources (agents, sessions, users) belong to a tenant.
-
-    Guest tenants are special - they don't persist sessions and are
-    shared among multiple users for temporary usage.
     """
 
     __tablename__ = "tenants"
@@ -46,11 +41,11 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
 
     __table_args__ = (
         Index(
-            "uq_system_guest_tenant_type",
+            "uq_system_tenant_type",
             "tenant_type",
             unique=True,
-            sqlite_where=text("tenant_type IN ('system', 'guest')"),
-            postgresql_where=text("tenant_type IN ('system', 'guest')"),
+            sqlite_where=text("tenant_type = 'system'"),
+            postgresql_where=text("tenant_type = 'system'"),
         ),
     )
 

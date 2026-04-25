@@ -46,13 +46,13 @@ class TestLoginEndpointHTTP:
         with pytest.raises(ValidationError):
             LoginRequest(email="test@example.com", tenant_id="tenant-123")
 
-    def test_login_endpoint_requires_tenant_id(self):
-        """Test POST /auth/login requires tenant_id field."""
-        from tinycua_backend.api.auth import LoginRequest
-        from pydantic import ValidationError
+    def test_login_endpoint_accepts_email_password_only(self):
+        """Test POST /auth/login accepts email and password without tenant_id."""
+        from tinycua_backend.auth.schemas import LoginRequest
 
-        with pytest.raises(ValidationError):
-            LoginRequest(email="test@example.com", password="password123")
+        request = LoginRequest(email="test@example.com", password="password123")
+        assert request.email == "test@example.com"
+        assert request.password == "password123"
 
 
 class TestRegistrationEndpointHTTP:
@@ -292,14 +292,4 @@ class TestCurrentTenant:
 
         assert current.is_system is False
 
-    def test_current_tenant_guest(self):
-        """Test CurrentTenant.is_system for guest tenant."""
-        from tinycua_backend.tenant.models import TenantType
-        from tinycua_backend.auth.core import CurrentTenant
-
-        mock_tenant = MagicMock()
-        mock_tenant.tenant_type = TenantType.GUEST
-
-        current = CurrentTenant(tenant=mock_tenant, user_id="guest-123")
-
-        assert current.is_system is False
+    

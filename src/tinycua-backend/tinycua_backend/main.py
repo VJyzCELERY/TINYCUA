@@ -11,9 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from tinycua_backend.config import init_config, get_config
 from tinycua_backend.storage.database import create_tables
+from tinycua_backend.tenant.middleware import TenantMiddleware
 from tinycua_backend.api import sessions
 from tinycua_backend.api.auth import router as auth_router
 from tinycua_backend.api.messages import router as messages_router
+from tinycua_backend.api.tenant import router as tenant_router
 
 # NOTE: SessionStore is imported from tinycua_sdk for storage-only purposes.
 # The backend does not use any execution logic from the SDK (agent loops,
@@ -37,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Config exists: {config_path.exists()}")
     init_config(str(config_path))
     config = get_config()
-    logger.info(f"Config loaded: {config.database.url}")
+    logger.info("Config loaded successfully")
 
     # Create tables
     create_tables()
@@ -69,10 +71,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(TenantMiddleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(sessions.router)
 app.include_router(messages_router)
+app.include_router(tenant_router)
 
 
 @app.get("/health")

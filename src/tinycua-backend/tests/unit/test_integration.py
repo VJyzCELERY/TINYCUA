@@ -162,53 +162,37 @@ class TestAuthEndpoints:
         data = response.json()
         assert "access_token" in data
 
-    def test_login_invalid_tenant_id(self, client):
-        """Test login with invalid tenant_id returns 400."""
+    def test_login_nonexistent_user(self, client):
+        """Test login with nonexistent user returns 401."""
         response = client.post(
             "/v1/auth/login",
             json={
-                "email": "login@test.com",
+                "email": "nonexistent@test.com",
                 "password": "password123",
-                "tenant_id": "not-a-uuid",
-            },
-        )
-        assert response.status_code == 400
-
-    def test_login_wrong_tenant(self, client):
-        """Test login with wrong tenant_id returns 401."""
-        # Register user A
-        register_response = client.post(
-            "/v1/auth/register",
-            json={
-                "email": "user-a@test.com",
-                "password": "password123",
-            },
-        )
-        tenant_a_id = register_response.json()["tenant_id"]
-
-        # Register user B with same email (different tenant)
-        client.post(
-            "/v1/auth/register",
-            json={
-                "email": "user-b@test.com",
-                "password": "password123",
-            },
-        )
-
-        # Try to login user A with user B's tenant_id
-        # (Since we don't know B's tenant_id in a simple way, let's just use a random UUID)
-        import uuid
-        random_tenant_id = str(uuid.uuid4())
-
-        response = client.post(
-            "/v1/auth/login",
-            json={
-                "email": "user-a@test.com",
-                "password": "password123",
-                "tenant_id": random_tenant_id,
             },
         )
         assert response.status_code == 401
+
+    def test_login_success_single_tenant(self, client):
+        """Test login succeeds with email and password for single tenant user."""
+        register_response = client.post(
+            "/v1/auth/register",
+            json={
+                "email": "user-login@test.com",
+                "password": "password123",
+            },
+        )
+        assert register_response.status_code == 201
+
+        response = client.post(
+            "/v1/auth/login",
+            json={
+                "email": "user-login@test.com",
+                "password": "password123",
+            },
+        )
+        assert response.status_code == 200
+        assert "access_token" in response.json()
 
 
 class TestSessionEndpoints:
