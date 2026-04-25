@@ -1,15 +1,39 @@
 """Session API routes using SessionStore for persistence."""
 
+import threading
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from tinycua_backend.auth import CurrentTenant, get_current_tenant
+from tinycua_backend.auth.core import CurrentTenant, get_current_tenant
 from tinycua_backend.config import get_config
+
+# NOTE: SessionStore is imported from tinycua_sdk for storage-only purposes.
+# The backend does not use any execution logic from the SDK (agent loops,
+# tools, memory management, etc.). This import is strictly for persisting
+# and retrieving session/message data via the SDK's storage layer.
 from tinycua_sdk.storage.store import SessionStore
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
+
+_store: SessionStore | None = None
+_store_lock = threading.Lock()
+
+
+def get_store() -> SessionStore:
+    """Get cached SessionStore instance.
+
+    The store is cached globally and recreated if the database URL changes.
+    """
+    global _store
+    config = get_config()
+    if _store is None or _store.database_url != config.database.url:
+        with _store_lock:
+            if _store is None or _store.database_url != config.database.url:
+                _store = SessionStore(config.database.url)
+    return _store
 
 
 class SessionCreate(BaseModel):
@@ -19,37 +43,40 @@ class SessionCreate(BaseModel):
     name: str | None = None
 
 
+class SessionUpdate(BaseModel):
+    """Request model for updating a session."""
+
+    name: str | None = None
+
+
 class SessionResponse(BaseModel):
     """Response model for a session."""
 
     id: str
-    agent_id: str
     name: str | None
     created_at: str
     updated_at: str
 
 
-class MessageCreate(BaseModel):
-    """Request model for creating a message."""
+def _verify_session_tenant(session: Any, current: CurrentTenant) -> None:
+    """Verify that a session belongs to the current tenant.
 
-    role: str
-    content: str
+    Args:
+        session: The session from SessionStore
+        current: The current authenticated tenant
 
-
-class MessageResponse(BaseModel):
-    """Response model for a message."""
-
-    id: str
-    role: str
-    content: str
-    turn_index: int
-    created_at: str
-
-
-def get_store() -> SessionStore:
-    """Get SessionStore instance."""
-    config = get_config()
-    return SessionStore(config.database.url)
+    Raises:
+        HTTPException: If session does not belong to the tenant
+    """
+    if current.is_system:
+        return
+    session_user_id = str(session.user_id) if session.user_id else None
+    expected_id = str(current.user_id) if current.user_id else str(current.tenant.id)
+    if session_user_id != expected_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session does not belong to this tenant",
+        )
 
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
@@ -67,14 +94,14 @@ async def create_session(
         The created session
     """
     store = get_store()
+    user_id = str(current.user_id) if current.user_id else str(current.tenant.id)
     session = store.create_session(
         name=session_data.name or "Session",
-        user_id=str(current.tenant.id),
+        user_id=user_id,
     )
 
     return SessionResponse(
         id=str(session.id),
-        agent_id=session_data.agent_id,
         name=session.name,
         created_at=session.created_at.isoformat(),
         updated_at=session.updated_at.isoformat(),
@@ -98,12 +125,15 @@ async def list_sessions(
         List of sessions
     """
     store = get_store()
-    sessions = store.list_sessions(user_id=str(current.tenant.id))
+    if current.is_system:
+        sessions = store.list_sessions()
+    else:
+        user_id = str(current.user_id) if current.user_id else str(current.tenant.id)
+        sessions = store.list_sessions(user_id=user_id)
 
     return [
         SessionResponse(
             id=str(s.id),
-            agent_id="",
             name=s.name,
             created_at=s.created_at.isoformat(),
             updated_at=s.updated_at.isoformat(),
@@ -127,7 +157,7 @@ async def get_session(
         The session
 
     Raises:
-        HTTPException: If session not found
+        HTTPException: If session not found or access denied
     """
     try:
         uuid_session_id = uuid.UUID(session_id)
@@ -146,35 +176,34 @@ async def get_session(
             detail="Session not found",
         )
 
+    _verify_session_tenant(session, current)
+
     return SessionResponse(
         id=str(session.id),
-        agent_id="",
         name=session.name,
         created_at=session.created_at.isoformat(),
         updated_at=session.updated_at.isoformat(),
     )
 
 
-@router.get("/{session_id}/messages", response_model=list[MessageResponse])
-async def list_messages(
+@router.put("/{session_id}", response_model=SessionResponse)
+async def update_session(
     session_id: str,
+    session_data: SessionUpdate,
     current: CurrentTenant = Depends(get_current_tenant),
-    limit: int = 100,
-    offset: int = 0,
-) -> list[MessageResponse]:
-    """List messages for a session.
+) -> SessionResponse:
+    """Update a session.
 
     Args:
         session_id: The session ID
+        session_data: The session data to update
         current: The current tenant
-        limit: Maximum number of results
-        offset: Number of results to skip
 
     Returns:
-        List of messages
+        The updated session
 
     Raises:
-        HTTPException: If session not found
+        HTTPException: If session not found or access denied
     """
     try:
         uuid_session_id = uuid.UUID(session_id)
@@ -193,43 +222,40 @@ async def list_messages(
             detail="Session not found",
         )
 
-    messages = store.get_messages(uuid_session_id, limit=limit)
-    messages = messages[offset : offset + limit]
+    _verify_session_tenant(session, current)
 
-    return [
-        MessageResponse(
-            id=str(m.id),
-            role=m.role,
-            content=m.content,
-            turn_index=m.turn_index,
-            created_at=m.created_at.isoformat(),
+    kwargs = {}
+    if session_data.name is not None:
+        kwargs["name"] = session_data.name
+
+    updated = store.update_session(uuid_session_id, **kwargs)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
         )
-        for m in messages
-    ]
+
+    return SessionResponse(
+        id=str(updated.id),
+        name=updated.name,
+        created_at=updated.created_at.isoformat(),
+        updated_at=updated.updated_at.isoformat(),
+    )
 
 
-@router.post(
-    "/{session_id}/messages",
-    response_model=MessageResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_message(
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
     session_id: str,
-    message_data: MessageCreate,
     current: CurrentTenant = Depends(get_current_tenant),
-) -> MessageResponse:
-    """Add a message to a session.
+) -> None:
+    """Delete a session.
 
     Args:
         session_id: The session ID
-        message_data: The message data
         current: The current tenant
 
-    Returns:
-        The created message
-
     Raises:
-        HTTPException: If session not found
+        HTTPException: If session not found or access denied
     """
     try:
         uuid_session_id = uuid.UUID(session_id)
@@ -248,16 +274,11 @@ async def create_message(
             detail="Session not found",
         )
 
-    message = store.add_message(
-        session_id=uuid_session_id,
-        role=message_data.role,
-        content=message_data.content,
-    )
+    _verify_session_tenant(session, current)
 
-    return MessageResponse(
-        id=str(message.id),
-        role=message.role,
-        content=message.content,
-        turn_index=message.turn_index,
-        created_at=message.created_at.isoformat(),
-    )
+    deleted = store.delete_session(uuid_session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )

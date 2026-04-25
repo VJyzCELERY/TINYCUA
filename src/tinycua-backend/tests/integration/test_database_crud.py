@@ -5,8 +5,10 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from tinycua_backend.models import Tenant, User, Agent, Tool
-from tinycua_backend.models.tenant import TenantType
+from tinycua_backend.tenant.models import Tenant
+from tinycua_backend.auth.models import User
+from tinycua_backend.storage.models import Agent, Tool
+from tinycua_backend.tenant.models import TenantType
 
 
 class TestTenantCRUD:
@@ -181,97 +183,6 @@ class TestToolCRUD:
 
         result = db_session.get(Tool, tool_id)
         assert result is None
-
-
-class TestSessionCRUD:
-    """Test CRUD operations for Session (backend metadata only)."""
-
-    def test_create_session(self, db_session, tenant_a, agent_a):
-        """Test creating a new session."""
-        from tinycua_backend.models import Session
-
-        session = Session(
-            name="Test Session",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-
-        result = db_session.get(Session, session.id)
-        assert result is not None
-        assert result.name == "Test Session"
-        assert result.tenant_id == tenant_a.id
-
-    def test_read_session(self, db_session, tenant_a, agent_a):
-        """Test reading a session."""
-        from tinycua_backend.models import Session
-
-        session = Session(
-            name="Test Session",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-
-        result = db_session.get(Session, session.id)
-        assert result is not None
-        assert result.name == "Test Session"
-
-    def test_delete_session(self, db_session, tenant_a, agent_a):
-        """Test deleting a session."""
-        from tinycua_backend.models import Session
-
-        session = Session(
-            name="Test Session",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-
-        session_id = session.id
-        db_session.delete(session)
-        db_session.commit()
-
-        result = db_session.get(Session, session_id)
-        assert result is None
-
-    def test_update_session(self, db_session, tenant_a, agent_a):
-        """Test updating a session."""
-        from tinycua_backend.models import Session
-        session = Session(
-            name="Original Name",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-
-        session.name = "Updated Name"
-        db_session.commit()
-
-        result = db_session.get(Session, session.id)
-        assert result.name == "Updated Name"
-
-    def test_list_sessions(self, db_session, tenant_a, agent_a):
-        """Test listing sessions for a tenant."""
-        from tinycua_backend.models import Session
-        for i in range(3):
-            session = Session(
-                name=f"Session {i}",
-                tenant_id=tenant_a.id,
-                agent_id=agent_a.id,
-            )
-            db_session.add(session)
-        db_session.commit()
-
-        sessions = db_session.execute(
-            select(Session).where(Session.tenant_id == tenant_a.id)
-        ).scalars().all()
-
-        assert len(sessions) >= 3
 
 
 class TestMultiTenantCRUD:

@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from tinycua_backend.auth import CurrentTenant
+from tinycua_backend.auth.core import CurrentTenant
 
 
 class TestSessionCRUD:
@@ -78,7 +78,7 @@ class TestSessionStoreHTTP:
 
     def test_session_create_requires_tenant(self):
         """Test that session creation requires tenant context."""
-        from tinycua_backend.routers.sessions import SessionCreate
+        from tinycua_backend.api.sessions import SessionCreate
 
         session_data = SessionCreate(agent_id="agent-123", name="Test Session")
         assert session_data.agent_id == "agent-123"
@@ -124,8 +124,8 @@ class TestSessionStoreHTTP:
         assert len(result) == 1
 
 
-class TestSessionCRUD:
-    """Tests for session CRUD operations."""
+class TestSessionCRUDHTTP:
+    """Tests for session CRUD operations via HTTP."""
 
     def test_create_session(self, mock_session_store):
         """Test creating a new session."""
@@ -150,8 +150,8 @@ class TestSessionCRUD:
         assert isinstance(sessions, list)
 
 
-class TestSessionRetrieval:
-    """Tests for session retrieval."""
+class TestSessionRetrievalHTTP:
+    """Tests for session retrieval via HTTP."""
 
     def test_get_session(self, mock_session_store):
         """Test getting a session by ID."""
@@ -169,8 +169,8 @@ class TestSessionRetrieval:
         assert session is None
 
 
-class TestSessionLineage:
-    """Tests for session message lineage."""
+class TestSessionLineageHTTP:
+    """Tests for session message lineage via HTTP."""
 
     def test_add_message(self, mock_session_store):
         """Test adding a message to a session."""

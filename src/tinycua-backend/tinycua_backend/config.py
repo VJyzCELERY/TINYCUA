@@ -1,5 +1,6 @@
 """Configuration management for tinycua-backend."""
 
+import os
 import threading
 import time
 from pathlib import Path
@@ -13,19 +14,23 @@ class RunnerConfig(BaseModel):
     """Runner configuration."""
 
     url: str = "http://localhost:8001"
-    token: str = "runner-secret-token"
+    token: str = ""
 
 
 class DatabaseConfig(BaseModel):
     """Database configuration."""
 
     url: str = "postgresql://user:pass@localhost:5432/tinycua"
+    pool_size: int = 10
+    max_overflow: int = 20
+    pool_recycle: int = 3600
+    pool_pre_ping: bool = True
 
 
 class AuthConfig(BaseModel):
     """Authentication configuration."""
 
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
     api_key: str = ""  # Global API key for simple access
@@ -36,6 +41,7 @@ class ServerConfig(BaseModel):
 
     host: str = "0.0.0.0"
     port: int = 8000
+    cors_origins: list[str] = ["*"]
 
 
 class Config(BaseModel):
@@ -63,7 +69,17 @@ class Config(BaseModel):
         with open(config_path) as f:
             data = yaml.safe_load(f) or {}
 
-        return cls(**data)
+        config = cls(**data)
+
+        # Override with environment variables
+        if os.environ.get("RUNNER_TOKEN"):
+            config.runner.token = os.environ["RUNNER_TOKEN"]
+        if os.environ.get("JWT_SECRET"):
+            config.auth.jwt_secret = os.environ["JWT_SECRET"]
+        if os.environ.get("API_KEY"):
+            config.auth.api_key = os.environ["API_KEY"]
+
+        return config
 
 
 class ConfigWatcher:
@@ -121,6 +137,8 @@ class ConfigWatcher:
 
 _config_watcher: ConfigWatcher | None = None
 _config: Config | None = None
+_config_lock = threading.Lock()
+_config_watcher_lock = threading.Lock()
 
 
 def get_config() -> Config:
@@ -131,7 +149,9 @@ def get_config() -> Config:
     """
     global _config
     if _config is None:
-        _config = Config.load()
+        with _config_lock:
+            if _config is None:
+                _config = Config.load()
     return _config
 
 
@@ -150,10 +170,12 @@ def init_config(
     global _config_watcher
     global _config
 
-    _config = Config.load(path)
+    with _config_lock:
+        _config = Config.load(path)
 
     if reload_callback:
-        _config_watcher = ConfigWatcher(path, reload_callback)
-        _config_watcher.start()
+        with _config_watcher_lock:
+            _config_watcher = ConfigWatcher(path, reload_callback)
+            _config_watcher.start()
 
     return _config

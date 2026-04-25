@@ -1,14 +1,13 @@
 # tinycua-backend
 
-Backend API for agent deployment, tool management, and session tracking.
+Backend API for session storage and management with multi-tenant authentication.
 
 ## Features
 
-- **Agent Management**: Create, update, deploy agents
-- **Tool Registry**: Store and manage custom tools with dependency resolution
-- **Session Tracking**: Track conversation sessions
+- **Session Management**: Create, read, update, and delete conversation sessions
+- **Message Storage**: Store and retrieve messages within sessions
 - **Authentication**: JWT + API key authentication with tenant isolation
-- **Runner Integration**: Triggers agent execution on runner service
+- **Pure Storage Architecture**: Stores agent/tool configurations but does not execute them
 
 ## Setup
 
@@ -40,6 +39,8 @@ auth:
 server:
   host: "0.0.0.0"
   port: 8000
+  cors_origins:
+    - "http://localhost:3000"
 ```
 
 ## Running
@@ -52,14 +53,16 @@ python -m tinycua_backend.main
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/health` | Health check |
 | POST | `/v1/auth/register` | Register new user |
 | POST | `/v1/auth/login` | Login |
-| GET | `/v1/agents` | List agents |
-| POST | `/v1/agents` | Create agent |
-| POST | `/v1/agents/{id}/run` | Run agent |
-| GET | `/v1/tools` | List tools |
-| POST | `/v1/tools` | Create tool |
+| POST | `/v1/sessions` | Create session |
 | GET | `/v1/sessions` | List sessions |
+| GET | `/v1/sessions/{id}` | Get session |
+| PUT | `/v1/sessions/{id}` | Update session |
+| DELETE | `/v1/sessions/{id}` | Delete session |
+| GET | `/v1/sessions/{id}/messages` | List messages |
+| POST | `/v1/sessions/{id}/messages` | Create message |
 
 ## Development
 

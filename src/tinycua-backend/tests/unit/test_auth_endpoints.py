@@ -6,10 +6,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException, status
 
-from tinycua_backend.auth import (
+from tinycua_backend.auth.core import (
     create_jwt_token,
     decode_jwt_token,
     hash_api_key,
+    hash_password,
+    verify_api_key,
+    verify_password,
 )
 
 
@@ -18,26 +21,38 @@ class TestLoginEndpointHTTP:
 
     def test_login_endpoint_validates_request(self):
         """Test POST /auth/login validates request payload."""
-        from tinycua_backend.routers.auth import LoginRequest
+        from tinycua_backend.api.auth import LoginRequest
 
-        valid_request = LoginRequest(email="test@example.com", password="password123")
+        valid_request = LoginRequest(
+            email="test@example.com",
+            password="password123",
+            tenant_id="12345678-1234-1234-1234-123456789abc",
+        )
         assert valid_request.email == "test@example.com"
 
     def test_login_endpoint_requires_email(self):
         """Test POST /auth/login requires email field."""
-        from tinycua_backend.routers.auth import LoginRequest
+        from tinycua_backend.api.auth import LoginRequest
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            LoginRequest(password="password123")
+            LoginRequest(password="password123", tenant_id="tenant-123")
 
     def test_login_endpoint_requires_password(self):
         """Test POST /auth/login requires password field."""
-        from tinycua_backend.routers.auth import LoginRequest
+        from tinycua_backend.api.auth import LoginRequest
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            LoginRequest(email="test@example.com")
+            LoginRequest(email="test@example.com", tenant_id="tenant-123")
+
+    def test_login_endpoint_requires_tenant_id(self):
+        """Test POST /auth/login requires tenant_id field."""
+        from tinycua_backend.api.auth import LoginRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            LoginRequest(email="test@example.com", password="password123")
 
 
 class TestRegistrationEndpointHTTP:
@@ -45,7 +60,7 @@ class TestRegistrationEndpointHTTP:
 
     def test_register_endpoint_validates_request(self):
         """Test POST /auth/register validates request payload."""
-        from tinycua_backend.routers.auth import RegisterRequest
+        from tinycua_backend.api.auth import RegisterRequest
 
         valid_request = RegisterRequest(
             email="test@example.com",
@@ -56,7 +71,7 @@ class TestRegistrationEndpointHTTP:
 
     def test_register_endpoint_duplicate_detection_logic(self):
         """Test that duplicate user detection logic works."""
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.models import User
 
         mock_db = MagicMock()
         mock_user = MagicMock()
@@ -71,7 +86,7 @@ class TestRegistrationEndpointHTTP:
 
     def test_register_endpoint_requires_email(self):
         """Test POST /auth/register requires email field."""
-        from tinycua_backend.routers.auth import RegisterRequest
+        from tinycua_backend.api.auth import RegisterRequest
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
@@ -79,7 +94,7 @@ class TestRegistrationEndpointHTTP:
 
     def test_register_endpoint_requires_password(self):
         """Test POST /auth/register requires password field."""
-        from tinycua_backend.routers.auth import RegisterRequest
+        from tinycua_backend.api.auth import RegisterRequest
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
@@ -99,7 +114,7 @@ class TestTokenExtractionHTTP:
 
     def test_expired_token_returns_401(self):
         """Test expired token returns 401."""
-        from tinycua_backend.auth import decode_jwt_token
+        from tinycua_backend.auth.core import decode_jwt_token
 
         expired_token = create_jwt_token(
             "user-123",
@@ -114,7 +129,7 @@ class TestTokenExtractionHTTP:
 
     def test_invalid_token_returns_401(self):
         """Test invalid token returns 401."""
-        from tinycua_backend.auth import decode_jwt_token
+        from tinycua_backend.auth.core import decode_jwt_token
 
         with pytest.raises(HTTPException) as exc_info:
             decode_jwt_token("invalid-token-format")
@@ -177,12 +192,14 @@ class TestHashApiKey:
     """Tests for API key hashing."""
 
     def test_hash_api_key_consistency(self):
-        """Test that hashing the same key produces consistent results."""
+        """Test that hashing the same key produces verifiable results."""
         key = "test-api-key"
         hash1 = hash_api_key(key)
         hash2 = hash_api_key(key)
 
-        assert hash1 == hash2
+        # bcrypt hashes differ due to salt, but both should verify
+        assert verify_api_key(key, hash1)
+        assert verify_api_key(key, hash2)
 
     def test_hash_api_key_different_keys(self):
         """Test that different keys produce different hashes."""
@@ -192,12 +209,30 @@ class TestHashApiKey:
         assert hash1 != hash2
 
     def test_hash_api_key_format(self):
-        """Test hashed key format."""
+        """Test hashed key format is bcrypt."""
         key = "test-key"
         hashed = hash_api_key(key)
 
-        assert len(hashed) == 64
-        assert all(c in "0123456789abcdef" for c in hashed)
+        assert hashed.startswith("$2b$")
+
+
+class TestPasswordHashing:
+    """Tests for password hashing with bcrypt."""
+
+    def test_hash_password(self):
+        """Test password hashing with bcrypt."""
+        password = "test-password"
+        hashed = hash_password(password)
+
+        assert hashed.startswith("$2b$")
+        assert verify_password(password, hashed)
+
+    def test_verify_password_wrong(self):
+        """Test verifying wrong password fails."""
+        password = "test-password"
+        hashed = hash_password(password)
+
+        assert not verify_password("wrong-password", hashed)
 
 
 class TestGetTenantFilter:
@@ -205,26 +240,26 @@ class TestGetTenantFilter:
 
     def test_standard_tenant_filter(self):
         """Test filter is returned for standard tenant."""
-        from tinycua_backend.models.user import User
-        from tinycua_backend.models.tenant import TenantType
+        from tinycua_backend.auth.models import User
+        from tinycua_backend.tenant.models import TenantType
 
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.STANDARD
 
-        from tinycua_backend.auth import get_tenant_filter
+        from tinycua_backend.auth.core import get_tenant_filter
         filter_condition = get_tenant_filter(mock_tenant, User)
 
         assert filter_condition is not None
 
     def test_system_tenant_filter(self):
         """Test no filter for system tenant."""
-        from tinycua_backend.models.user import User
-        from tinycua_backend.models.tenant import TenantType
+        from tinycua_backend.auth.models import User
+        from tinycua_backend.tenant.models import TenantType
 
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.SYSTEM
 
-        from tinycua_backend.auth import get_tenant_filter
+        from tinycua_backend.auth.core import get_tenant_filter
         filter_condition = get_tenant_filter(mock_tenant, User)
 
         assert filter_condition is None
@@ -235,8 +270,8 @@ class TestCurrentTenant:
 
     def test_current_tenant_system(self):
         """Test CurrentTenant.is_system for system tenant."""
-        from tinycua_backend.models.tenant import TenantType
-        from tinycua_backend.auth import CurrentTenant
+        from tinycua_backend.tenant.models import TenantType
+        from tinycua_backend.auth.core import CurrentTenant
 
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.SYSTEM
@@ -247,8 +282,8 @@ class TestCurrentTenant:
 
     def test_current_tenant_standard(self):
         """Test CurrentTenant.is_system for standard tenant."""
-        from tinycua_backend.models.tenant import TenantType
-        from tinycua_backend.auth import CurrentTenant
+        from tinycua_backend.tenant.models import TenantType
+        from tinycua_backend.auth.core import CurrentTenant
 
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.STANDARD
@@ -259,8 +294,8 @@ class TestCurrentTenant:
 
     def test_current_tenant_guest(self):
         """Test CurrentTenant.is_system for guest tenant."""
-        from tinycua_backend.models.tenant import TenantType
-        from tinycua_backend.auth import CurrentTenant
+        from tinycua_backend.tenant.models import TenantType
+        from tinycua_backend.auth.core import CurrentTenant
 
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.GUEST

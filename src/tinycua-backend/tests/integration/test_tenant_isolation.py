@@ -5,8 +5,10 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from tinycua_backend.models import Tenant, User, Agent, Tool, Session
-from tinycua_backend.models.tenant import TenantType
+from tinycua_backend.tenant.models import Tenant
+from tinycua_backend.auth.models import User
+from tinycua_backend.storage.models import Agent, Tool
+from tinycua_backend.tenant.models import TenantType
 
 
 class TestTenantIsolation:
@@ -142,24 +144,6 @@ class TestTenantDataIntegrity:
         assert result is None
 
         result = db_session.get(Tool, tool_id)
-        assert result is None
-
-    def test_deleting_tenant_cascades_to_sessions(self, db_session, tenant_a, agent_a):
-        """Test that deleting a tenant cascades to its sessions."""
-        from tinycua_backend.models import Session
-        session = Session(
-            name="Test Session",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-        session_id = session.id
-
-        db_session.delete(tenant_a)
-        db_session.commit()
-
-        result = db_session.get(Session, session_id)
         assert result is None
 
 

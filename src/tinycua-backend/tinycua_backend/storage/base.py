@@ -1,7 +1,8 @@
 """Base model class for tinycua-backend."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from functools import partial
 
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -18,12 +19,12 @@ class TimestampMixin:
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=partial(datetime.now, timezone.utc),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=partial(datetime.now, timezone.utc),
+        onupdate=partial(datetime.now, timezone.utc),
     )
 
 

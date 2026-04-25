@@ -3,9 +3,9 @@
 from unittest.mock import MagicMock, patch
 
 
-from tinycua_backend.models.base import Base
-from tinycua_backend.models.tenant import Tenant
-from tinycua_backend.models.user import User
+from tinycua_backend.storage.base import Base
+from tinycua_backend.tenant.models import Tenant
+from tinycua_backend.auth.models import User
 
 
 class TestConnection:
@@ -13,7 +13,7 @@ class TestConnection:
 
     def test_get_engine(self, mock_config):
         """Test getting database engine."""
-        from tinycua_backend.database import get_engine
+        from tinycua_backend.storage.database import get_engine
 
         with patch("tinycua_backend.config.get_config", return_value=mock_config):
             engine = get_engine()
@@ -22,7 +22,7 @@ class TestConnection:
 
     def test_get_session_local(self, mock_config):
         """Test getting session local factory."""
-        from tinycua_backend.database import get_session_local
+        from tinycua_backend.storage.database import get_session_local
 
         with patch("tinycua_backend.config.get_config", return_value=mock_config):
             SessionLocal = get_session_local()
@@ -69,7 +69,7 @@ class TestMigrations:
 
     def test_create_tables_function_exists(self):
         """Test create_tables function exists."""
-        from tinycua_backend import database
+        from tinycua_backend.storage import database
         assert hasattr(database, "create_tables")
         assert callable(database.create_tables)
 

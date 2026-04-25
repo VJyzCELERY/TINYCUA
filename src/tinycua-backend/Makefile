@@ -10,7 +10,7 @@ SRC ?= tinycua_backend
 
 # Install dependencies
 install:
-	$(UV) pip install -r requirements.txt
+	$(UV) pip install -e .
 
 # ============================================
 # Docker Operations
@@ -82,13 +82,16 @@ coverage:
 complexity:
 	radon cc $(SRC)/ --min=A --max=15
 
-# Run all checks (lint + complexity)
+# Run all checks (lint + complexity + mypy)
 check:
 	@echo "=== Running Ruff Lint ==="
 	ruff check $(SRC)/
 	@echo ""
 	@echo "=== Running Ruff Format ==="
 	ruff format --check $(SRC)/
+	@echo ""
+	@echo "=== Running Mypy Type Check ==="
+	mypy $(SRC)/
 	@echo ""
 	@echo "=== Running Cognitive Complexity ==="
 	@radon cc $(SRC)/ --min=A --max=15 -s; \

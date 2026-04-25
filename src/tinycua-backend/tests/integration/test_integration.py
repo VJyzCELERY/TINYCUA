@@ -3,8 +3,10 @@
 import pytest
 from sqlalchemy import select
 
-from tinycua_backend.models import Tenant, User, Agent, Tool, Session
-from tinycua_backend.models.tenant import TenantType
+from tinycua_backend.tenant.models import Tenant
+from tinycua_backend.auth.models import User
+from tinycua_backend.storage.models import Agent, Tool
+from tinycua_backend.tenant.models import TenantType
 
 
 class TestCompleteWorkflow:
@@ -68,29 +70,3 @@ class TestCompleteWorkflow:
         assert len(tools) == 1
         assert tools[0].name == "Integration Tool"
 
-    def test_session_lifecycle(self, db_session, tenant_a, agent_a):
-        """Test complete session lifecycle."""
-        session = Session(
-            name="Lifecycle Test Session",
-            tenant_id=tenant_a.id,
-            agent_id=agent_a.id,
-        )
-        db_session.add(session)
-        db_session.commit()
-
-        result = db_session.get(Session, session.id)
-        assert result is not None
-        assert result.name == "Lifecycle Test Session"
-
-        session.name = "Updated Lifecycle Session"
-        db_session.commit()
-
-        result = db_session.get(Session, session.id)
-        assert result.name == "Updated Lifecycle Session"
-
-        session_id = session.id
-        db_session.delete(session)
-        db_session.commit()
-
-        result = db_session.get(Session, session_id)
-        assert result is None

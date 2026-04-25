@@ -1,30 +1,99 @@
 """Authentication module for tinycua-backend."""
 
-import hashlib
+import asyncio
+import hmac
+import logging
+import os
 import secrets
-from datetime import datetime, timedelta
-from typing import Annotated
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from tinycua_backend.config import get_config
-from tinycua_backend.database import get_db
-from tinycua_backend.models.api_key import APIKey
-from tinycua_backend.models.tenant import Tenant, TenantType
+from tinycua_backend.storage.database import get_db
+from tinycua_backend.auth.models import APIKey
+from tinycua_backend.tenant.models import Tenant, TenantType
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
+
+MIN_API_KEY_LENGTH = 32
+MAX_API_KEYS_PER_REQUEST = 5
+
+
+def _get_jwt_secret() -> str:
+    """Get the JWT secret from config or environment.
+
+    Returns:
+        The JWT secret string
+
+    Raises:
+        RuntimeError: If no JWT secret is configured
+    """
+    config = get_config()
+    secret = config.auth.jwt_secret or os.environ.get("JWT_SECRET", "")
+    if not secret:
+        raise RuntimeError(
+            "JWT secret not configured. Set JWT_SECRET environment variable "
+            "or auth.jwt_secret in config."
+        )
+    return secret
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt.
+
+    Args:
+        password: The raw password
+
+    Returns:
+        The bcrypt hashed password
+    """
+    return str(pwd_context.hash(password))
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against a bcrypt hash.
+
+    Args:
+        password: The raw password
+        hashed: The bcrypt hash
+
+    Returns:
+        True if password matches
+    """
+    return bool(pwd_context.verify(password, hashed))
 
 
 def hash_api_key(key: str) -> str:
-    """Hash an API key using SHA-256.
+    """Hash an API key using bcrypt.
 
     Args:
         key: The raw API key
 
     Returns:
-        The hashed key
+        The bcrypt hashed key
     """
-    return hashlib.sha256(key.encode()).hexdigest()
+    return str(pwd_context.hash(key))
+
+
+def verify_api_key(key: str, hashed: str) -> bool:
+    """Verify an API key against a bcrypt hash.
+
+    Args:
+        key: The raw API key
+        hashed: The bcrypt hash
+
+    Returns:
+        True if key matches
+    """
+    return bool(pwd_context.verify(key, hashed))
 
 
 def create_api_key() -> str:
@@ -52,23 +121,28 @@ def create_jwt_token(
         JWT token string
     """
     config = get_config()
+    jwt_secret = _get_jwt_secret()
     if expires_delta is None:
         expires_delta = timedelta(hours=config.auth.jwt_expiration_hours)
 
-    expire = datetime.utcnow() + expires_delta
+    expire = datetime.now(timezone.utc) + expires_delta
     payload = {
         "sub": user_id,
         "tenant_id": tenant_id,
         "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": str(uuid.uuid4()),
     }
-    return jwt.encode(
-        payload,
-        config.auth.jwt_secret,
-        algorithm=config.auth.jwt_algorithm,
+    return str(
+        jwt.encode(
+            payload,
+            jwt_secret,
+            algorithm=config.auth.jwt_algorithm,
+        )
     )
 
 
-def decode_jwt_token(token: str) -> dict:
+def decode_jwt_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT token.
 
     Args:
@@ -81,13 +155,14 @@ def decode_jwt_token(token: str) -> dict:
         HTTPException: If the token is invalid
     """
     config = get_config()
+    jwt_secret = _get_jwt_secret()
     try:
         payload = jwt.decode(
             token,
-            config.auth.jwt_secret,
+            jwt_secret,
             algorithms=[config.auth.jwt_algorithm],
         )
-        return payload
+        return dict(payload)
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -114,7 +189,7 @@ class CurrentTenant:
         return self.tenant.tenant_type == TenantType.SYSTEM
 
 
-def get_tenant_filter(tenant: Tenant, model):
+def get_tenant_filter(tenant: Tenant, model: Any) -> Any:
     """Get filter condition for tenant-specific queries.
 
     For system tenant, returns no filter (access all).
@@ -129,7 +204,7 @@ def get_tenant_filter(tenant: Tenant, model):
     """
     if tenant.tenant_type == TenantType.SYSTEM:
         return None
-    return model.tenant_id == str(tenant.id)
+    return model.tenant_id == tenant.id
 
 
 def get_or_create_guest_tenant(db: Session) -> Tenant:
@@ -145,14 +220,25 @@ def get_or_create_guest_tenant(db: Session) -> Tenant:
         db.query(Tenant).filter(Tenant.tenant_type == TenantType.GUEST).first()
     )
 
-    if not guest_tenant:
-        guest_tenant = Tenant(
-            name="Guest",
-            tenant_type=TenantType.GUEST,
-        )
-        db.add(guest_tenant)
+    if guest_tenant:
+        return guest_tenant
+
+    guest_tenant = Tenant(
+        name="Guest",
+        tenant_type=TenantType.GUEST,
+    )
+    db.add(guest_tenant)
+    try:
         db.commit()
-        db.refresh(guest_tenant)
+    except IntegrityError:
+        db.rollback()
+        guest_tenant = (
+            db.query(Tenant).filter(Tenant.tenant_type == TenantType.GUEST).first()
+        )
+        if guest_tenant:
+            return guest_tenant
+        raise
+    db.refresh(guest_tenant)
 
     return guest_tenant
 
@@ -172,49 +258,27 @@ def get_or_create_system_tenant(db: Session) -> Tenant:
         db.query(Tenant).filter(Tenant.tenant_type == TenantType.SYSTEM).first()
     )
 
-    if not system_tenant:
-        system_tenant = Tenant(
-            name="System",
-            tenant_type=TenantType.SYSTEM,
-        )
-        db.add(system_tenant)
+    if system_tenant:
+        return system_tenant
+
+    system_tenant = Tenant(
+        name="System",
+        tenant_type=TenantType.SYSTEM,
+    )
+    db.add(system_tenant)
+    try:
         db.commit()
-        db.refresh(system_tenant)
+    except IntegrityError:
+        db.rollback()
+        system_tenant = (
+            db.query(Tenant).filter(Tenant.tenant_type == TenantType.SYSTEM).first()
+        )
+        if system_tenant:
+            return system_tenant
+        raise
+    db.refresh(system_tenant)
 
     return system_tenant
-
-
-class GuestTenant:
-    """Represents a guest (unauthenticated) tenant.
-
-    Guest tenants are temporary and don't require authentication.
-    Sessions are managed in-memory.
-    """
-
-    def __init__(self, tenant: Tenant):
-        """Initialize guest tenant.
-
-        Args:
-            tenant: The guest tenant instance
-        """
-        self.tenant = tenant
-
-
-async def get_guest_tenant(
-    db: Session = Depends(get_db),
-) -> GuestTenant:
-    """Get the guest tenant (no auth required).
-
-    This creates/returns the shared guest tenant for unauthenticated access.
-
-    Args:
-        db: Database session
-
-    Returns:
-        GuestTenant instance
-    """
-    guest_tenant = get_or_create_guest_tenant(db)
-    return GuestTenant(tenant=guest_tenant)
 
 
 async def get_current_tenant(
@@ -254,9 +318,9 @@ async def get_current_tenant(
 
     # Check for global API key first (system-wide access)
     config = get_config()
-    if config.auth.api_key and token == config.auth.api_key:
+    if config.auth.api_key and hmac.compare_digest(token, config.auth.api_key):
         # Create or get system tenant for global API key
-        system_tenant = get_or_create_system_tenant(db)
+        system_tenant = await asyncio.to_thread(get_or_create_system_tenant, db)
         return CurrentTenant(tenant=system_tenant, user_id="system")
 
     # Try JWT token
@@ -266,7 +330,10 @@ async def get_current_tenant(
             tenant_id = payload.get("tenant_id")
             user_id = payload.get("sub")
 
-            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            tenant_uuid = uuid.UUID(tenant_id)
+            tenant = await asyncio.to_thread(
+                lambda: db.query(Tenant).filter(Tenant.id == tenant_uuid).first()
+            )
             if not tenant:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -276,36 +343,56 @@ async def get_current_tenant(
             return CurrentTenant(tenant=tenant, user_id=user_id)
         except HTTPException:
             raise
-        except Exception:
-            pass  # Fall through to try API key
+        except (JWTError, ValueError, KeyError):
+            pass  # Expected validation failures - fall through to API key
+        except Exception as e:
+            logger.warning("Unexpected error during JWT validation: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
 
     # Try tenant API key
-    key_hash = hash_api_key(token)
-    api_key = db.query(APIKey).filter(APIKey.key_hash == key_hash).first()
-
-    if not api_key:
+    if len(token) < MIN_API_KEY_LENGTH:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
         )
 
-    if not api_key.is_active:
+    key_prefix = token[:8]
+    api_keys = await asyncio.to_thread(
+        lambda: db.query(APIKey)
+        .filter(APIKey.is_active.is_(True), APIKey.key_prefix == key_prefix)
+        .limit(MAX_API_KEYS_PER_REQUEST)
+        .all()
+    )
+
+    matched_key = None
+    for api_key in api_keys:
+        if verify_api_key(token, api_key.key_hash):
+            matched_key = api_key
+            break
+
+    if not matched_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is inactive",
+            detail="Invalid API key",
         )
 
-    if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+    now = datetime.now(timezone.utc)
+    if matched_key.expires_at and matched_key.expires_at < now:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API key has expired",
         )
 
     # Update last used
-    api_key.last_used_at = datetime.utcnow()
-    db.commit()
+    matched_key.last_used_at = now
+    await asyncio.to_thread(db.commit)
 
-    tenant = api_key.tenant
+    tenant = await asyncio.to_thread(
+        lambda: db.query(Tenant).filter(Tenant.id == matched_key.tenant_id).first()
+    )
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -313,58 +400,3 @@ async def get_current_tenant(
         )
 
     return CurrentTenant(tenant=tenant)
-
-
-def require_scope(required_scope: str):
-    """Create a dependency that checks for a required scope.
-
-    Args:
-        required_scope: The required scope (e.g., "agent:read")
-
-    Returns:
-        A dependency function
-    """
-
-    async def scope_checker(
-        authorization: Annotated[str | None, Header()] = None,
-        db: Session = Depends(get_db),
-    ) -> CurrentTenant:
-        """Check if the API key has the required scope."""
-        if not authorization:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing authorization header",
-            )
-
-        try:
-            scheme, token = authorization.split(" ", 1)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authorization header format",
-            )
-
-        # For now, only check API keys for scopes
-        if scheme.lower() == "bearer":
-            # JWT tokens get full access
-            return await get_current_tenant(authorization, db)
-
-        # Check API key scopes
-        key_hash = hash_api_key(token)
-        api_key = db.query(APIKey).filter(APIKey.key_hash == key_hash).first()
-
-        if not api_key or not api_key.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid API key",
-            )
-
-        if required_scope not in api_key.scopes:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing required scope: {required_scope}",
-            )
-
-        return await get_current_tenant(authorization, db)
-
-    return scope_checker

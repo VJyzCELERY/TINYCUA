@@ -1,14 +1,37 @@
-"""Tool model for storing custom agent tools."""
+"""Agent model for storing agent configurations."""
 
-from typing import TYPE_CHECKING
+import uuid
 
 from sqlalchemy import Boolean, ForeignKey, JSON, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
-from tinycua_backend.models.base import Base, TimestampMixin, UUIDMixin
+from tinycua_backend.storage.base import Base, TimestampMixin, UUIDMixin
 
-if TYPE_CHECKING:
-    from tinycua_backend.models.tenant import Tenant
+
+class Agent(Base, UUIDMixin, TimestampMixin):
+    """Agent model for storing agent configurations.
+
+    Agents are deployed configurations that can be executed by the runner.
+    """
+
+    __tablename__ = "agents"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    config: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+    )
 
 
 class Tool(Base, UUIDMixin, TimestampMixin):
@@ -19,7 +42,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "tools"
 
-    tenant_id: Mapped[str] = mapped_column(
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("tenants.id"),
         nullable=False,
     )
@@ -54,9 +77,4 @@ class Tool(Base, UUIDMixin, TimestampMixin):
     version: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
-    )
-
-    tenant: Mapped["Tenant"] = relationship(
-        "Tenant",
-        back_populates="tools",
     )

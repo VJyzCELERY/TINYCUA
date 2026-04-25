@@ -4,18 +4,14 @@ from enum import Enum
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from tinycua_backend.models.base import Base, TimestampMixin, UUIDMixin
+from tinycua_backend.storage.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from tinycua_backend.models.user import User
-    from tinycua_backend.models.api_key import APIKey
-    from tinycua_backend.models.agent import Agent
-    from tinycua_backend.models.tool import Tool
-    from tinycua_backend.models.session import Session
-    from tinycua_backend.models.skill import Skill
+    from tinycua_backend.auth.models import APIKey, User
+    from tinycua_backend.storage.models import Agent, Tool
 
 
 class TenantType(str, Enum):
@@ -48,28 +44,30 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
         String(20), nullable=False, default=TenantType.STANDARD
     )
 
+    __table_args__ = (
+        Index(
+            "uq_system_guest_tenant_type",
+            "tenant_type",
+            unique=True,
+            sqlite_where=text("tenant_type IN ('system', 'guest')"),
+            postgresql_where=text("tenant_type IN ('system', 'guest')"),
+        ),
+    )
+
     users: Mapped[list["User"]] = relationship(
         "User",
-        back_populates="tenant",
         cascade="all, delete-orphan",
     )
     api_keys: Mapped[list["APIKey"]] = relationship(
         "APIKey",
-        back_populates="tenant",
         cascade="all, delete-orphan",
+        back_populates="tenant",
     )
     agents: Mapped[list["Agent"]] = relationship(
         "Agent",
-        back_populates="tenant",
         cascade="all, delete-orphan",
     )
     tools: Mapped[list["Tool"]] = relationship(
         "Tool",
-        back_populates="tenant",
-        cascade="all, delete-orphan",
-    )
-    sessions: Mapped[list["Session"]] = relationship(
-        "Session",
-        back_populates="tenant",
         cascade="all, delete-orphan",
     )

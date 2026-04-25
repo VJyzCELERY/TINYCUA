@@ -3,8 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 
-from tinycua_backend.auth import CurrentTenant, get_or_create_guest_tenant, get_or_create_system_tenant
-from tinycua_backend.models.tenant import Tenant, TenantType
+from tinycua_backend.auth.core import CurrentTenant, get_or_create_guest_tenant, get_or_create_system_tenant
+from tinycua_backend.tenant.models import Tenant, TenantType
 
 
 class TestTenantCreation:
@@ -42,7 +42,7 @@ class TestTenantCreation:
         mock_db.add.side_effect = mock_add
         mock_db.commit.side_effect = None
 
-        with patch("tinycua_backend.auth.Tenant", return_value=mock_guest):
+        with patch("tinycua_backend.auth.core.Tenant", return_value=mock_guest):
             guest_tenant = get_or_create_guest_tenant(mock_db)
 
             assert guest_tenant is not None
@@ -61,7 +61,7 @@ class TestTenantCreation:
         mock_db.add.side_effect = mock_add
         mock_db.commit.side_effect = None
 
-        with patch("tinycua_backend.auth.Tenant", return_value=mock_system):
+        with patch("tinycua_backend.auth.core.Tenant", return_value=mock_system):
             system_tenant = get_or_create_system_tenant(mock_db)
 
             assert system_tenant is not None
@@ -72,8 +72,8 @@ class TestTenantIsolation:
 
     def test_tenant_filter_for_standard_tenant(self, test_tenant):
         """Test tenant filter applies to standard tenants."""
-        from tinycua_backend.auth import get_tenant_filter
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.core import get_tenant_filter
+        from tinycua_backend.auth.models import User
 
         test_tenant.tenant_type = TenantType.STANDARD
         filter_condition = get_tenant_filter(test_tenant, User)
@@ -82,8 +82,8 @@ class TestTenantIsolation:
 
     def test_tenant_filter_for_system_tenant(self):
         """Test system tenant bypasses filtering."""
-        from tinycua_backend.auth import get_tenant_filter
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.core import get_tenant_filter
+        from tinycua_backend.auth.models import User
 
         system_tenant = MagicMock()
         system_tenant.tenant_type = TenantType.SYSTEM
@@ -132,8 +132,8 @@ class TestTenantIsolationHTTP:
 
     def test_cross_tenant_access_prevented(self):
         """Test that tenant A cannot access tenant B's data through endpoint filters."""
-        from tinycua_backend.auth import get_tenant_filter
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.core import get_tenant_filter
+        from tinycua_backend.auth.models import User
 
         tenant_a = MagicMock()
         tenant_a.id = "tenant-a"
@@ -152,8 +152,8 @@ class TestTenantIsolationHTTP:
 
     def test_tenant_specific_data_isolation(self):
         """Test that tenant filter is applied for tenant-specific data queries."""
-        from tinycua_backend.auth import get_tenant_filter
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.core import get_tenant_filter
+        from tinycua_backend.auth.models import User
 
         tenant = MagicMock()
         tenant.id = "tenant-123"
@@ -165,8 +165,8 @@ class TestTenantIsolationHTTP:
 
     def test_system_tenant_bypasses_isolation(self):
         """Test that system tenant can access all data."""
-        from tinycua_backend.auth import get_tenant_filter
-        from tinycua_backend.models.user import User
+        from tinycua_backend.auth.core import get_tenant_filter
+        from tinycua_backend.auth.models import User
 
         system_tenant = MagicMock()
         system_tenant.id = "system-tenant"

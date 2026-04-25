@@ -6,9 +6,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from tinycua_backend.models import Tenant, User, APIKey, Agent, Tool
-from tinycua_backend.models.base import Base
-from tinycua_backend.models.tenant import TenantType
+from tinycua_backend.tenant.models import Tenant
+from tinycua_backend.auth.models import User, APIKey
+from tinycua_backend.storage.models import Agent, Tool
+from tinycua_backend.storage.base import Base
+from tinycua_backend.tenant.models import TenantType
 
 
 @pytest.fixture(scope="function")
