@@ -96,6 +96,7 @@ class SessionStore:
         name: str,
         user_id: str | None = None,
         session_id: uuid.UUID | None = None,
+        parent_session_id: uuid.UUID | None = None,
     ) -> Session:
         """Create a new session.
 
@@ -103,15 +104,32 @@ class SessionStore:
             name: Session name
             user_id: Optional user ID for multi-tenancy
             session_id: Optional specific session ID (for external session management)
+            parent_session_id: Optional parent session ID for lineage
 
         Returns:
             Created Session instance
         """
         with self._get_session() as db:
+            lineage_depth = 0
+            if parent_session_id:
+                parent = db.get(Session, parent_session_id)
+                if parent:
+                    lineage_depth = getattr(parent, "lineage_depth", 0) + 1
             if session_id:
-                session = Session(id=session_id, name=name, user_id=user_id)
+                session = Session(
+                    id=session_id,
+                    name=name,
+                    user_id=user_id,
+                    parent_session_id=parent_session_id,
+                    lineage_depth=lineage_depth,
+                )
             else:
-                session = Session(name=name, user_id=user_id)
+                session = Session(
+                    name=name,
+                    user_id=user_id,
+                    parent_session_id=parent_session_id,
+                    lineage_depth=lineage_depth,
+                )
             db.add(session)
             db.commit()
             db.refresh(session)
@@ -195,6 +213,26 @@ class SessionStore:
             db.delete(session)
             db.commit()
             return True
+
+    def get_lineage(self, session_id: uuid.UUID) -> list[Session]:
+        """Get the parent chain of a session.
+
+        Args:
+            session_id: Session UUID
+
+        Returns:
+            List of sessions from root to current
+        """
+        with self._get_session() as db:
+            lineage: list[Session] = []
+            current = db.get(Session, session_id)
+            while current:
+                lineage.insert(0, current)
+                if current.parent_session_id:
+                    current = db.get(Session, current.parent_session_id)
+                else:
+                    break
+            return lineage
 
     # Message operations
 

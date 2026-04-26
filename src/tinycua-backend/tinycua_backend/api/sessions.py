@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from tinycua_backend.auth.core import CurrentTenant, get_current_tenant
 from tinycua_backend.config import get_config
+from tinycua_backend.session.service import SessionService
 
 # NOTE: SessionStore is imported from tinycua_sdk for storage-only purposes.
 # The backend does not use any execution logic from the SDK (agent loops,
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 
 _store: SessionStore | None = None
 _store_lock = threading.Lock()
+_session_service = SessionService()
 
 
 def get_store() -> SessionStore:
@@ -41,6 +43,7 @@ class SessionCreate(BaseModel):
 
     agent_id: str
     name: str | None = None
+    parent_session_id: str | None = None
 
 
 class SessionUpdate(BaseModel):
@@ -54,6 +57,7 @@ class SessionResponse(BaseModel):
 
     id: str
     name: str | None
+    parent_session_id: str | None
     created_at: str
     updated_at: str
 
@@ -95,14 +99,17 @@ async def create_session(
     """
     store = get_store()
     user_id = str(current.user_id) if current.user_id else str(current.tenant.id)
+    parent_uuid = uuid.UUID(session_data.parent_session_id) if session_data.parent_session_id else None
     session = store.create_session(
         name=session_data.name or "Session",
         user_id=user_id,
+        parent_session_id=parent_uuid,
     )
 
     return SessionResponse(
         id=str(session.id),
         name=session.name,
+        parent_session_id=str(session.parent_session_id) if session.parent_session_id else None,
         created_at=session.created_at.isoformat(),
         updated_at=session.updated_at.isoformat(),
     )
@@ -135,6 +142,7 @@ async def list_sessions(
         SessionResponse(
             id=str(s.id),
             name=s.name,
+            parent_session_id=str(s.parent_session_id) if s.parent_session_id else None,
             created_at=s.created_at.isoformat(),
             updated_at=s.updated_at.isoformat(),
         )
@@ -181,6 +189,7 @@ async def get_session(
     return SessionResponse(
         id=str(session.id),
         name=session.name,
+        parent_session_id=str(session.parent_session_id) if session.parent_session_id else None,
         created_at=session.created_at.isoformat(),
         updated_at=session.updated_at.isoformat(),
     )
@@ -238,6 +247,7 @@ async def update_session(
     return SessionResponse(
         id=str(updated.id),
         name=updated.name,
+        parent_session_id=str(updated.parent_session_id) if updated.parent_session_id else None,
         created_at=updated.created_at.isoformat(),
         updated_at=updated.updated_at.isoformat(),
     )
@@ -282,3 +292,120 @@ async def delete_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
+
+
+class LineageResponse(BaseModel):
+    """Response model for session lineage."""
+
+    id: str
+    name: str | None
+    parent_session_id: str | None
+    lineage_depth: int
+    created_at: str
+
+
+@router.get("/{session_id}/lineage", response_model=list[LineageResponse])
+async def get_session_lineage(
+    session_id: str,
+    current: CurrentTenant = Depends(get_current_tenant),
+) -> list[LineageResponse]:
+    """Get the lineage (parent chain) of a session.
+
+    Args:
+        session_id: The session ID
+        current: The current tenant
+
+    Returns:
+        List of sessions from root to current
+
+    Raises:
+        HTTPException: If session not found or access denied
+    """
+    try:
+        uuid_session_id = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session ID",
+        )
+
+    store = get_store()
+    lineage = store.get_lineage(uuid_session_id)
+
+    if not lineage:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    return [
+        LineageResponse(
+            id=str(s.id),
+            name=s.name,
+            parent_session_id=str(s.parent_session_id) if s.parent_session_id else None,
+            lineage_depth=getattr(s, "lineage_depth", 0),
+            created_at=s.created_at.isoformat(),
+        )
+        for s in lineage
+    ]
+
+
+class SearchRequest(BaseModel):
+    """Request model for search."""
+
+    query: str
+    limit: int = 10
+
+
+class SearchResult(BaseModel):
+    """Response model for search results."""
+
+    message_id: str
+    session_id: str
+    content: str
+    turn_index: int
+    role: str
+
+
+@router.post("/search", response_model=list[SearchResult])
+async def search_messages(
+    search_data: SearchRequest,
+    current: CurrentTenant = Depends(get_current_tenant),
+) -> list[SearchResult]:
+    """Search messages across all sessions.
+
+    Args:
+        search_data: The search query
+        current: The current tenant
+
+    Returns:
+        List of matching messages
+    """
+    from tinycua_backend.storage.search_sqlite import SQLiteSearch
+
+    store = get_store()
+
+    search = SQLiteSearch()
+    try:
+        message_ids = search.search(store.engine, search_data.query, search_data.limit)
+    except Exception:
+        return []
+
+    results = []
+    for msg_id in message_ids:
+        with store._get_session() as db:
+            from tinycua_sdk.storage.models import Message
+
+            msg = db.get(Message, msg_id)
+            if msg:
+                results.append(
+                    SearchResult(
+                        message_id=str(msg.id),
+                        session_id=str(msg.session_id),
+                        content=msg.content[:200],
+                        turn_index=msg.turn_index,
+                        role=msg.role,
+                    )
+                )
+
+    return results

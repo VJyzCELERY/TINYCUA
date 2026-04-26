@@ -28,14 +28,12 @@ def client():
     database_url = f"sqlite:///{db_file}"
     os.environ["JWT_SECRET"] = "test-secret-for-integration-tests"
 
-    from tinycua_backend.storage.base import Base
     from sqlalchemy import create_engine
 
     engine = create_engine(
         database_url,
         connect_args={"check_same_thread": False},
     )
-    Base.metadata.create_all(bind=engine)
 
     from tinycua_sdk.storage.store import SessionStore
     SessionStore(database_url).create_tables()

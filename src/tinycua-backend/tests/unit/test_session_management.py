@@ -73,6 +73,107 @@ class TestSessionLineage:
         assert isinstance(messages, list)
 
 
+class TestSessionLineageChain:
+    """Tests for session lineage chain functionality."""
+
+    def test_create_session_with_parent(self, mock_session_store):
+        """Test creating a session with parent_session_id."""
+        mock_session = MagicMock()
+        mock_session.id = "child-session-456"
+        mock_session.name = "Child Session"
+        mock_session.parent_session_id = "parent-session-123"
+        mock_session.lineage_depth = 1
+
+        mock_session_store.create_session.return_value = mock_session
+
+        result = mock_session_store.create_session(
+            name="Child Session",
+            user_id="user-123",
+            parent_session_id="parent-session-123",
+        )
+
+        assert result is not None
+        mock_session_store.create_session.assert_called_once()
+        call_kwargs = mock_session_store.create_session.call_args.kwargs
+        assert call_kwargs.get("parent_session_id") == "parent-session-123"
+
+    def test_get_lineage_returns_parent_chain(self, mock_session_store):
+        """Test that get_lineage returns the parent chain."""
+        from tinycua_sdk.storage.store import SessionStore
+
+        mock_parent = MagicMock()
+        mock_parent.id = "parent-session-123"
+        mock_parent.name = "Parent Session"
+        mock_parent.parent_session_id = None
+
+        mock_child = MagicMock()
+        mock_child.id = "child-session-456"
+        mock_child.name = "Child Session"
+        mock_child.parent_session_id = "parent-session-123"
+
+        mock_session_store.get_lineage.return_value = [mock_parent, mock_child]
+
+        store = mock_session_store
+        lineage = store.get_lineage("child-session-456")
+
+        assert isinstance(lineage, list)
+        assert len(lineage) == 2
+
+
+class TestSearchFunctionality:
+    """Tests for full-text search functionality."""
+
+    def test_search_initialization(self):
+        """Test that search can be initialized."""
+        from tinycua_backend.storage.search_sqlite import SQLiteSearch
+
+        search = SQLiteSearch()
+        assert search is not None
+        assert search.FTS_TABLE == "messages_fts"
+
+    def test_search_returns_message_ids(self):
+        """Test that search returns matching message IDs."""
+        from tinycua_backend.storage.search_sqlite import SQLiteSearch
+
+        search = SQLiteSearch()
+        import uuid
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_result = MagicMock()
+        test_uuid = str(uuid.uuid4())
+        mock_result.fetchall.return_value = [(test_uuid,)]
+        mock_conn.execute.return_value = mock_result
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=None)
+
+        results = search.search(mock_engine, "test query", 10)
+
+        assert isinstance(results, list)
+        assert len(results) == 1
+
+    def test_search_request_model(self):
+        """Test search request model validation."""
+        from tinycua_backend.api.sessions import SearchRequest
+
+        request = SearchRequest(query="test query", limit=5)
+        assert request.query == "test query"
+        assert request.limit == 5
+
+    def test_search_result_model(self):
+        """Test search result model."""
+        from tinycua_backend.api.sessions import SearchResult
+
+        result = SearchResult(
+            message_id="msg-123",
+            session_id="session-456",
+            content="Test content",
+            turn_index=0,
+            role="user",
+        )
+        assert result.message_id == "msg-123"
+        assert result.content == "Test content"
+
+
 class TestSessionStoreHTTP:
     """Tests for Session HTTP endpoint logic."""
 

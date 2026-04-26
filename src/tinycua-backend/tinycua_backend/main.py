@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from tinycua_backend.config import init_config, get_config
 from tinycua_backend.storage.database import create_tables
+from tinycua_backend.storage.search_sqlite import SQLiteSearch
 from tinycua_backend.tenant.middleware import TenantMiddleware
 from tinycua_backend.api import sessions
 from tinycua_backend.api.auth import router as auth_router
@@ -48,6 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Create SDK tables (sessions, messages) via SessionStore
     SessionStore(config.database.url).create_tables()
     logger.info("SDK tables (sessions, messages) created")
+
+    # Initialize FTS search for SQLite
+    if config.database.url.startswith("sqlite"):
+        search = SQLiteSearch()
+        search.initialize(SessionStore(config.database.url).engine)
+        logger.info("FTS search initialized")
 
     yield
 

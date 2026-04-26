@@ -54,9 +54,24 @@ class Session(Base):
     )
     summary_md: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     full_context_md: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    parent_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("sdk_sessions.id"), nullable=True
+    )
+    lineage_depth: Mapped[int] = mapped_column(Integer, default=0)
 
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="session", cascade="all, delete-orphan"
+    )
+    parent_session: Mapped[Optional["Session"]] = relationship(
+        "Session",
+        remote_side="Session.id",
+        back_populates="child_sessions",
+        foreign_keys=[parent_session_id],
+    )
+    child_sessions: Mapped[list["Session"]] = relationship(
+        "Session",
+        back_populates="parent_session",
+        foreign_keys=[parent_session_id],
     )
 
 
