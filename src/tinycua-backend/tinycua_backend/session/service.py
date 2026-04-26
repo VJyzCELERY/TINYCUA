@@ -1,7 +1,7 @@
 """Session service with lineage tracking support."""
 
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import select
 
@@ -101,7 +101,7 @@ class SessionService:
         session_id: uuid.UUID,
         role: str,
         content: str,
-        metadata: Optional[dict] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Message:
         """Add a message to a session.
 

@@ -74,3 +74,5 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 ignore_missing_imports = true
 show_error_codes = true
+strict = true
+exclude = ["migrations/"]

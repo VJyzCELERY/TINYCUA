@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
@@ -25,7 +25,7 @@ class AgentPostgres(Base, UUIDMixin, TimestampMixin):
         String(255),
         nullable=False,
     )
-    config: Mapped[dict] = mapped_column(
+    config: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         nullable=False,
     )
@@ -57,7 +57,7 @@ class ToolPostgres(Base, UUIDMixin, TimestampMixin):
         String(50000),
         nullable=False,
     )
-    parameters: Mapped[dict] = mapped_column(
+    parameters: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
     )
@@ -69,7 +69,7 @@ class ToolPostgres(Base, UUIDMixin, TimestampMixin):
         JSON,
         default=list,
     )
-    tool_dependencies: Mapped[list[dict]] = mapped_column(
+    tool_dependencies: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON,
         default=list,
     )
@@ -101,7 +101,7 @@ class SessionPostgres(Base, UUIDMixin, TimestampMixin):
         String(64),
         nullable=True,
     )
-    agent_config: Mapped[Optional[dict]] = mapped_column(
+    agent_config: Mapped[dict[str, Any] | None] = mapped_column(
         JSON,
         nullable=True,
     )
@@ -174,7 +174,7 @@ class MessagePostgres(Base, UUIDMixin, TimestampMixin):
         TSVECTOR,
         nullable=True,
     )
-    message_metadata: Mapped[dict] = mapped_column(
+    message_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
     )

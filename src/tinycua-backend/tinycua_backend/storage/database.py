@@ -48,7 +48,7 @@ def get_engine() -> Engine:
                 config = get_config()
                 url = config.database.url
 
-                engine_kwargs = {
+                engine_kwargs: dict[str, int | bool | str | type] = {
                     "echo": False,
                     "pool_size": config.database.pool_size,
                     "max_overflow": config.database.max_overflow,

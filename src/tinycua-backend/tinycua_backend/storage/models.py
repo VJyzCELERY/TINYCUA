@@ -2,7 +2,7 @@
 
 import uuid
 
-from typing import Optional
+from typing import Any, Optional
 
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text
@@ -27,7 +27,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
         String(255),
         nullable=False,
     )
-    config: Mapped[dict] = mapped_column(
+    config: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         nullable=False,
     )
@@ -61,7 +61,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
         String(50000),
         nullable=False,
     )
-    parameters: Mapped[dict] = mapped_column(
+    parameters: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
     )
@@ -73,7 +73,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
         JSON,
         default=list,
     )
-    tool_dependencies: Mapped[list[dict]] = mapped_column(
+    tool_dependencies: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON,
         default=list,
     )
@@ -107,7 +107,7 @@ class Session(Base, UUIDMixin, TimestampMixin):
         String(64),
         nullable=True,
     )
-    agent_config: Mapped[Optional[dict]] = mapped_column(
+    agent_config: Mapped[dict[str, Any] | None] = mapped_column(
         JSON,
         nullable=True,
     )
@@ -177,7 +177,7 @@ class Message(Base, UUIDMixin, TimestampMixin):
         Text,
         nullable=False,
     )
-    message_metadata: Mapped[dict] = mapped_column(
+    message_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
     )

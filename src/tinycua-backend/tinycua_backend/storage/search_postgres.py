@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from typing import Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -123,7 +123,7 @@ class PostgreSQLSearch:
         engine: Engine,
         query: str,
         limit: int = 10,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Search for messages matching the query and return content.
 
         Args:
@@ -195,7 +195,7 @@ class PostgreSQLSearch:
             logger.error(f"Failed to reindex: {e}")
             raise
 
-    def get_stats(self, engine: Engine) -> Optional[dict]:
+    def get_stats(self, engine: Engine) -> dict[str, Any] | None:
         """Get search index statistics.
 
         Args:
