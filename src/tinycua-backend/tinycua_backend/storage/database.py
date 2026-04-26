@@ -27,6 +27,18 @@ _engine_lock = threading.Lock()
 _session_local_lock = threading.Lock()
 
 
+def is_postgresql(url: str) -> bool:
+    """Check if the database URL is PostgreSQL.
+
+    Args:
+        url: Database URL
+
+    Returns:
+        True if PostgreSQL, False otherwise
+    """
+    return url.startswith("postgresql") or url.startswith("postgres")
+
+
 def get_engine() -> Engine:
     """Get or create the database engine."""
     global _engine
@@ -34,14 +46,22 @@ def get_engine() -> Engine:
         with _engine_lock:
             if _engine is None:
                 config = get_config()
-                _engine = create_engine(
-                    config.database.url,
-                    echo=False,
-                    pool_size=config.database.pool_size,
-                    max_overflow=config.database.max_overflow,
-                    pool_recycle=config.database.pool_recycle,
-                    pool_pre_ping=config.database.pool_pre_ping,
-                )
+                url = config.database.url
+
+                engine_kwargs = {
+                    "echo": False,
+                    "pool_size": config.database.pool_size,
+                    "max_overflow": config.database.max_overflow,
+                    "pool_recycle": config.database.pool_recycle,
+                    "pool_pre_ping": config.database.pool_pre_ping,
+                }
+
+                if is_postgresql(url):
+                    from sqlalchemy.pool import QueuePool
+
+                    engine_kwargs["poolclass"] = QueuePool
+
+                _engine = create_engine(url, **engine_kwargs)
     return _engine
 
 

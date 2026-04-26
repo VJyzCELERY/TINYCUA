@@ -78,6 +78,12 @@ class Config(BaseModel):
             config.auth.jwt_secret = os.environ["JWT_SECRET"]
         if os.environ.get("API_KEY"):
             config.auth.api_key = os.environ["API_KEY"]
+        if os.environ.get("DATABASE_URL"):
+            config.database.url = os.environ["DATABASE_URL"]
+        if os.environ.get("DATABASE_POOL_SIZE"):
+            config.database.pool_size = int(os.environ["DATABASE_POOL_SIZE"])
+        if os.environ.get("DATABASE_MAX_OVERFLOW"):
+            config.database.max_overflow = int(os.environ["DATABASE_MAX_OVERFLOW"])
 
         return config
 
