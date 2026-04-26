@@ -17,6 +17,7 @@ from tinycua_backend.api import sessions
 from tinycua_backend.api.auth import router as auth_router
 from tinycua_backend.api.messages import router as messages_router
 from tinycua_backend.api.tenant import router as tenant_router
+from tinycua_backend.sync.endpoints import router as sync_router
 
 # NOTE: SessionStore is imported from tinycua_sdk for storage-only purposes.
 # The backend does not use any execution logic from the SDK (agent loops,
@@ -85,6 +86,7 @@ app.include_router(auth_router)
 app.include_router(sessions.router)
 app.include_router(messages_router)
 app.include_router(tenant_router)
+app.include_router(sync_router)
 
 
 @app.get("/health")
