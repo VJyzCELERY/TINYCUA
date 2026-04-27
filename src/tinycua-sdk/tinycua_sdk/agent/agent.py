@@ -165,6 +165,7 @@ class Agent(AgentExecutor):
         backend_url: str,
         backend_api_key: str | None = None,
         backend_headers: dict[str, str] | None = None,
+        client: Any = None,
     ) -> Agent:
         """Load an existing agent from the backend (backward-compatible wrapper).
 
@@ -173,6 +174,8 @@ class Agent(AgentExecutor):
             backend_url: Backend server URL.
             backend_api_key: API key for authentication.
             backend_headers: Custom headers for auth.
+            client: Optional reusable BackendClient. Pass a persistent client
+                to avoid creating ephemeral connections.
 
         Returns:
             Agent instance with configuration from backend.
@@ -185,6 +188,7 @@ class Agent(AgentExecutor):
             backend_url,
             backend_api_key,
             backend_headers,
+            client=client,
         )
 
     @classmethod

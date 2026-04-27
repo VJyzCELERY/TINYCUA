@@ -195,11 +195,11 @@ class Runner:
         from tinycua_sdk.agent.executor import AgentExecutor
 
         if not AgentExecutor.check_tool_permission(tool_name):
-            logger.warning(f"Permission denied for tool: {tool_name}")
+            logger.warning("Permission denied for tool: %s", tool_name)
             return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
 
         if AgentExecutor.check_tool_approval_required(tool_name):
-            logger.warning(f"Tool {tool_name} requires approval before execution")
+            logger.warning("Tool %s requires approval before execution", tool_name)
 
         try:
             for tool in self.tools:
@@ -208,13 +208,13 @@ class Runner:
                     if asyncio.iscoroutine(result):
                         result = await result
                     return {"success": True, "result": result, "tool_name": tool_name}
-            logger.error(f"Tool not found: {tool_name}")
+            logger.error("Tool not found: %s", tool_name)
             return {"success": False, "error": f"Tool '{tool_name}' not found", "tool_name": tool_name}
         except asyncio.TimeoutError as e:
-            logger.error(f"Tool execution timed out: {tool_name}")
+            logger.error("Tool execution timed out: %s", tool_name)
             return {"success": False, "error": f"Tool '{tool_name}' timed out", "tool_name": tool_name}
-        except Exception as e:
-            logger.error(f"Tool execution failed: {tool_name} - {e}")
+        except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
+            logger.error("Tool execution failed: %s - %s", tool_name, e)
             return {"success": False, "error": str(e), "tool_name": tool_name}
 
     async def call_llm(
@@ -402,7 +402,7 @@ class Runner:
                 continue
 
             if verbose:
-                logger.info(f"[Delegation] Registering tool: {tool_name}")
+                logger.info("[Delegation] Registering tool: %s", tool_name)
 
             agent = sub_agent
 
@@ -418,11 +418,11 @@ class Runner:
                         Result from the sub-agent execution.
                     """
                     if verbose:
-                        logger.info(f"[Delegation] → Delegating to {agent.name}")
-                        logger.info(f"[Delegation]   Task: {task[:100]}...")
+                        logger.info("[Delegation] → Delegating to %s", agent.name)
+                        logger.info("[Delegation]   Task: %s...", task[:100])
                         logger.info(
-                            f"[Delegation]   Context: "
-                            f"{context[:100] if context else '(none)'}..."
+                            "[Delegation]   Context: %s...",
+                            context[:100] if context else "(none)",
                         )
 
                     try:
@@ -432,14 +432,15 @@ class Runner:
 
                         if verbose:
                             logger.info(
-                                f"[Delegation] ← {agent.name} completed "
-                                f"({len(result)} chars)"
+                                "[Delegation] ← %s completed (%s chars)",
+                                agent.name,
+                                len(result),
                             )
 
                         return result
-                    except Exception as e:
+                    except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
                         if verbose:
-                            logger.error(f"[Delegation] × {agent.name} failed: {e}")
+                            logger.error("[Delegation] × %s failed: %s", agent.name, e)
                         raise
 
                 return delegate_fn
@@ -532,7 +533,7 @@ You are now handling this task. Complete it and return results.
                 },
             }
             if self.verbose:
-                logger.debug(f"[Tool Config] {config}")
+                logger.debug("[Tool Config] %s", config)
             configs.append(config)
         return configs
 
@@ -605,12 +606,12 @@ You are now handling this task. Complete it and return results.
             )
 
             if self.verbose:
-                logger.debug(f"[Request] {request.model_dump_json()}")
+                logger.debug("[Request] %s", request.model_dump_json())
 
             response = await self.client.create(request)
 
             if self.verbose:
-                logger.debug(f"[Response] {response.model_dump_json()}")
+                logger.debug("[Response] %s", response.model_dump_json())
 
             choice = response.choices[0]
             message = choice.get("message", {})
@@ -680,9 +681,7 @@ You are now handling this task. Complete it and return results.
                     )
 
                     if self.verbose:
-                        logger.debug(
-                            f"[Tool Call] {tool_name}({tool_input}) -> {result}"
-                        )
+                        logger.debug("[Tool Call] %s(%s) -> %s", tool_name, tool_input, result)
                     print(f"[Tool] {tool_name} -> {result}")
                     tool_calls_found = True
 
@@ -1054,11 +1053,11 @@ You are now handling this task. Complete it and return results.
         from tinycua_sdk.agent.executor import AgentExecutor
 
         if not AgentExecutor.check_tool_permission(tool_name):
-            logger.warning(f"Permission denied for tool: {tool_name}")
+            logger.warning("Permission denied for tool: %s", tool_name)
             return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
 
         if AgentExecutor.check_tool_approval_required(tool_name):
-            logger.warning(f"Tool {tool_name} requires approval before execution")
+            logger.warning("Tool %s requires approval before execution", tool_name)
 
         for tool in self.tools:
             if tool.name == tool_name:
@@ -1090,11 +1089,11 @@ You are now handling this task. Complete it and return results.
         from tinycua_sdk.agent.executor import AgentExecutor
 
         if not AgentExecutor.check_tool_permission(tool_name):
-            logger.warning(f"Permission denied for tool: {tool_name}")
+            logger.warning("Permission denied for tool: %s", tool_name)
             return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
 
         if AgentExecutor.check_tool_approval_required(tool_name):
-            logger.warning(f"Tool {tool_name} requires approval before execution")
+            logger.warning("Tool %s requires approval before execution", tool_name)
 
         for tool in self.tools:
             if tool.name == tool_name:
@@ -1118,11 +1117,11 @@ You are now handling this task. Complete it and return results.
         from tinycua_sdk.agent.executor import AgentExecutor
 
         if not AgentExecutor.check_tool_permission(tool_name):
-            logger.warning(f"Permission denied for tool: {tool_name}")
+            logger.warning("Permission denied for tool: %s", tool_name)
             return {"success": False, "error": f"Permission denied for tool: {tool_name}", "tool_name": tool_name}
 
         if AgentExecutor.check_tool_approval_required(tool_name):
-            logger.warning(f"Tool {tool_name} requires approval before execution")
+            logger.warning("Tool %s requires approval before execution", tool_name)
 
         for tool in self.tools:
             if tool.name == tool_name:
@@ -1312,7 +1311,7 @@ class HTTPRunner(RemoteRunner):
                     headers=self._get_headers(),
                 )
                 return response.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, OSError, ValueError):
             return False
 
 

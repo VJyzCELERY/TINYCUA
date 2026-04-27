@@ -97,7 +97,7 @@ class TestRemoteConnectionManager:
 
     @pytest.mark.asyncio
     async def test_test_connection(self):
-        """Test test_connection verifies backend."""
+        """Test test_connection verifies backend and caches client."""
         from tinycua.remote import RemoteConnectionManager
 
         manager = RemoteConnectionManager(backend_url="http://localhost:8000")
@@ -111,3 +111,41 @@ class TestRemoteConnectionManager:
 
             assert success is True
             mock_client.health_check.assert_called_once()
+            mock_client.close.assert_not_awaited()
+            assert manager._client is mock_client
+
+    @pytest.mark.asyncio
+    async def test_test_connection_reuses_connected_client(self):
+        """Test test_connection reuses existing connected client."""
+        from tinycua.remote import RemoteConnectionManager
+
+        manager = RemoteConnectionManager(backend_url="http://localhost:8000")
+        existing_client = AsyncMock()
+        existing_client.base_url = "http://localhost:8000"
+        existing_client.health_check = AsyncMock(return_value=True)
+        manager._client = existing_client
+        manager._connected = True
+
+        success, error = await manager.test_connection()
+
+        assert success is True
+        existing_client.health_check.assert_called_once()
+        existing_client.close.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_test_connection_reuses_client_when_not_connected(self):
+        """Test test_connection reuses existing client even when not connected."""
+        from tinycua.remote import RemoteConnectionManager
+
+        manager = RemoteConnectionManager(backend_url="http://localhost:8000")
+        existing_client = AsyncMock()
+        existing_client.base_url = "http://localhost:8000"
+        existing_client.health_check = AsyncMock(return_value=True)
+        manager._client = existing_client
+        manager._connected = False
+
+        success, error = await manager.test_connection()
+
+        assert success is True
+        existing_client.health_check.assert_called_once()
+        existing_client.close.assert_not_awaited()

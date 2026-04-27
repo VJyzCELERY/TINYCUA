@@ -60,11 +60,3 @@ class ServiceException(TinyCUAException):
 
     def __init__(self, message: str) -> None:
         super().__init__(message=message, code="SERVICE_UNAVAILABLE")
-
-
-class ErrorResponse(BaseModel):
-    """Error response schema."""
-
-    code: str
-    message: str
-    details: dict[str, Any] | None = None

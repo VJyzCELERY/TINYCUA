@@ -9,6 +9,7 @@ from typing import Any
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
+import httpx
 from rich.console import Console
 
 console = Console()
@@ -54,13 +55,19 @@ class REPLCommandHandler:
         try:
             from tinycua.clients.backend import BackendClient
 
+            if self._backend_client is not None:
+                try:
+                    await self._backend_client.close()
+                except (OSError, ValueError):
+                    pass
+
             self._backend_client = BackendClient(base_url=url)
             healthy = await self._backend_client.health_check()
             self._connected = healthy
             if healthy:
                 return f"[green]Connected to {url}[/green]"
             return f"[yellow]Connected to {url} but health check failed[/yellow]"
-        except Exception as e:
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
             self._connected = False
             return f"[red]Failed to connect to {url}: {e}[/red]"
 
@@ -94,7 +101,7 @@ class REPLCommandHandler:
                 name = agent.get("name", "unknown")
                 lines.append(f"  - {name}")
             return "\n".join(lines)
-        except Exception as e:
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
             return f"[red]Failed to list agents: {e}[/red]"
 
     async def handle_chat(self, agent_name: str) -> str:
@@ -141,7 +148,7 @@ class REPLCommandHandler:
 
             return "Chat session ended."
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return f"[red]Chat error: {e}[/red]"
 
     async def handle_run(self, file_path: str) -> str:
@@ -167,7 +174,7 @@ class REPLCommandHandler:
             result = await agent.run(content)
             return f"[green]Result: {result}[/green]"
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return f"[red]Run error: {e}[/red]"
 
     async def handle_deploy(self, file_path: str) -> str:
@@ -201,7 +208,7 @@ class REPLCommandHandler:
             result = await lifecycle.deploy()
             return f"[green]Deployed! Agent ID: {result.get('id', 'unknown')}[/green]"
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return f"[red]Deploy error: {e}[/red]"
 
     def handle_help(self) -> str:
@@ -259,8 +266,8 @@ def _get_history_path() -> Path:
     return history_dir / "repl_history"
 
 
-def run_repl() -> int:
-    """Run the interactive REPL with full command support.
+async def _run_repl_async() -> int:
+    """Run the interactive REPL asynchronously.
 
     Uses prompt-toolkit for command history and tab completion.
 
@@ -278,16 +285,17 @@ def run_repl() -> int:
     console.print("[bold green]Welcome to TINYCUA REPL[/bold green]")
     console.print("Type /help for available commands\n")
 
+    loop = asyncio.get_event_loop()
     while True:
         try:
-            user_input = session.prompt("> ")
+            user_input = await loop.run_in_executor(None, session.prompt, "> ")
             user_input = user_input.strip()
 
             if not user_input:
                 continue
 
             if user_input.startswith("/"):
-                result = asyncio.run(_handle_slash_command(user_input, handler))
+                result = await _handle_slash_command(user_input, handler)
                 if result is None:
                     break
                 if result:
@@ -301,6 +309,15 @@ def run_repl() -> int:
             break
 
     return 0
+
+
+def run_repl() -> int:
+    """Run the interactive REPL with a single asyncio.run() call.
+
+    Returns:
+        Exit code (0 for normal exit).
+    """
+    return asyncio.run(_run_repl_async())
 
 
 async def _handle_slash_command(

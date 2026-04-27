@@ -92,7 +92,7 @@ class SkillLoader:
             return self._parse_skill_md(path, content)
         except PermissionError as e:
             raise SkillParseError(f"Permission denied reading {path}: {e}")
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             if isinstance(e, (SkillNotFoundError, SkillParseError)):
                 raise
             raise SkillParseError(f"Failed to parse SKILL.md: {e}")

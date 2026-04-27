@@ -81,13 +81,24 @@ class SessionStore:
         """Create all tables in the database."""
         Base.metadata.create_all(self.engine)
 
-    def _get_session(self) -> SQLSession:
-        """Get a new database session.
+    def get_db_session(self) -> SQLSession:
+        """Get a new database session for custom queries.
+
+        This is the public API for obtaining a raw SQLAlchemy session.
+        Prefer store methods for standard CRUD operations.
 
         Returns:
             SQLSession instance
         """
         return self.session_factory()
+
+    def _get_session(self) -> SQLSession:
+        """Get a new database session (internal compatibility alias).
+
+        Returns:
+            SQLSession instance
+        """
+        return self.get_db_session()
 
     # Session operations
 
@@ -95,6 +106,7 @@ class SessionStore:
         self,
         name: str,
         user_id: str | None = None,
+        tenant_id: str | None = None,
         session_id: uuid.UUID | None = None,
         parent_session_id: uuid.UUID | None = None,
     ) -> Session:
@@ -103,6 +115,7 @@ class SessionStore:
         Args:
             name: Session name
             user_id: Optional user ID for multi-tenancy
+            tenant_id: Optional tenant ID for multi-tenancy
             session_id: Optional specific session ID (for external session management)
             parent_session_id: Optional parent session ID for lineage
 
@@ -120,6 +133,7 @@ class SessionStore:
                     id=session_id,
                     name=name,
                     user_id=user_id,
+                    tenant_id=tenant_id,
                     parent_session_id=parent_session_id,
                     lineage_depth=lineage_depth,
                 )
@@ -127,6 +141,7 @@ class SessionStore:
                 session = Session(
                     name=name,
                     user_id=user_id,
+                    tenant_id=tenant_id,
                     parent_session_id=parent_session_id,
                     lineage_depth=lineage_depth,
                 )
@@ -534,7 +549,7 @@ def get_session_store(database_url: str | None = None) -> SessionStore:
         from tinycua_sdk.core.config import SDKConfig
 
         resolved_url = SDKConfig().memory.database_url
-    except Exception:
+    except (OSError, ValueError, ImportError, TypeError):
         pass  # Fall back to default
 
     _default_store = SessionStore(resolved_url)

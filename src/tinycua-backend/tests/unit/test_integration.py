@@ -1,9 +1,12 @@
 """Integration tests for API endpoints using TestClient."""
 
 import os
+import secrets
 import tempfile
 
 import pytest
+
+TEST_PASSWORD = "TestPassword123!"
 from fastapi.testclient import TestClient
 
 
@@ -75,7 +78,7 @@ def auth_headers(client):
         "/v1/auth/register",
         json={
             "email": "integration@test.com",
-            "password": "password123",
+            "password": TEST_PASSWORD,
         },
     )
     data = response.json()
@@ -102,7 +105,7 @@ class TestAuthEndpoints:
             "/v1/auth/register",
             json={
                 "email": "test@example.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
                 "tenant_name": "Test Tenant",
             },
         )
@@ -119,7 +122,7 @@ class TestAuthEndpoints:
             "/v1/auth/register",
             json={
                 "email": "not-an-email",
-                "password": "password123",
+                "password": TEST_PASSWORD,
             },
         )
         assert response.status_code == 422
@@ -142,7 +145,7 @@ class TestAuthEndpoints:
             "/v1/auth/register",
             json={
                 "email": "login@test.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
             },
         )
         tenant_id = register_response.json()["tenant_id"]
@@ -152,7 +155,7 @@ class TestAuthEndpoints:
             "/v1/auth/login",
             json={
                 "email": "login@test.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
                 "tenant_id": tenant_id,
             },
         )
@@ -166,7 +169,7 @@ class TestAuthEndpoints:
             "/v1/auth/login",
             json={
                 "email": "nonexistent@test.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
             },
         )
         assert response.status_code == 401
@@ -177,7 +180,7 @@ class TestAuthEndpoints:
             "/v1/auth/register",
             json={
                 "email": "user-login@test.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
             },
         )
         assert register_response.status_code == 201
@@ -186,7 +189,7 @@ class TestAuthEndpoints:
             "/v1/auth/login",
             json={
                 "email": "user-login@test.com",
-                "password": "password123",
+                "password": TEST_PASSWORD,
             },
         )
         assert response.status_code == 200

@@ -24,8 +24,7 @@ def mock_dependencies():
     """Mock critical dependencies at the start of each test."""
     mock_cfg = mock_config_getter()
     with patch("tinycua_backend.config.get_config", return_value=mock_cfg):
-        with patch("tinycua_backend.auth.core.get_config", return_value=mock_cfg):
-            with patch("tinycua_backend.storage.database.get_engine") as mock_engine:
+        with patch("tinycua_backend.storage.database.get_engine") as mock_engine:
                 mock_eng = MagicMock()
                 mock_engine.return_value = mock_eng
                 with patch("tinycua_backend.storage.database.get_session_local") as mock_session_local:

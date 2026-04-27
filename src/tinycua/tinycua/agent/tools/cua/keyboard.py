@@ -25,7 +25,7 @@ try:
         try:
             pyautogui.typewrite(text)
             return {"success": True}
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return {"error": f"Keyboard type failed: {e}"}
 
     @tool()
@@ -45,7 +45,7 @@ try:
             else:
                 pyautogui.press(key)
             return {"success": True}
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return {"error": f"Keyboard press failed: {e}"}
 
 except ImportError:

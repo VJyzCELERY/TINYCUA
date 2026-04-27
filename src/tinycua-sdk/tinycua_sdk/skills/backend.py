@@ -160,7 +160,7 @@ class RemoteSkillBackend(SkillBackend):
         try:
             response = httpx.get(f"{self.backend_url}/health", timeout=2)
             return response.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, OSError, ValueError):
             return False
 
     def _get_headers(self) -> dict[str, str]:
@@ -184,8 +184,8 @@ class RemoteSkillBackend(SkillBackend):
                 data = response.json()
                 return self._data_to_skill(name, data)
             return None
-        except Exception as e:
-            logger.warning(f"Remote skill storage unavailable: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote skill storage unavailable: %s", e)
             self._available = False
             raise
 
@@ -211,8 +211,8 @@ class RemoteSkillBackend(SkillBackend):
             if response.status_code in (200, 201):
                 return response.json()
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote skill storage unavailable: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote skill storage unavailable: %s", e)
             self._available = False
             raise
 
@@ -229,8 +229,8 @@ class RemoteSkillBackend(SkillBackend):
             if response.status_code in (200, 204):
                 return {"success": True, "name": name}
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote skill storage unavailable: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote skill storage unavailable: %s", e)
             self._available = False
             raise
 
@@ -255,8 +255,8 @@ class RemoteSkillBackend(SkillBackend):
                     for item in data
                 ]
             return []
-        except Exception as e:
-            logger.warning(f"Remote skill storage unavailable: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote skill storage unavailable: %s", e)
             self._available = False
             raise
 
@@ -273,8 +273,8 @@ class RemoteSkillBackend(SkillBackend):
             if response.status_code in (200, 204):
                 return {"success": True}
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote skill storage unavailable: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote skill storage unavailable: %s", e)
             self._available = False
             raise
 
@@ -315,7 +315,7 @@ class HybridSkillBackend(SkillBackend):
         if backend_url:
             try:
                 self._remote = RemoteSkillBackend(backend_url, api_key)
-            except Exception:
+            except (httpx.HTTPError, OSError, ValueError):
                 self._remote = None
 
     def _get_backend(self) -> SkillBackend:
@@ -324,7 +324,7 @@ class HybridSkillBackend(SkillBackend):
             try:
                 self._remote.list()  # Health check
                 return self._remote
-            except Exception:
+            except (httpx.HTTPError, OSError, ValueError):
                 pass
         return self._local
 

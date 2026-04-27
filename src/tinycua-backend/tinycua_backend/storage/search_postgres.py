@@ -6,11 +6,14 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
+
+from tinycua_backend.storage.search_backend import SearchBackend
 
 logger = logging.getLogger(__name__)
 
 
-class PostgreSQLSearch:
+class PostgreSQLSearch(SearchBackend):
     """PostgreSQL tsvector full-text search implementation."""
 
     def initialize(self, engine: Engine) -> None:
@@ -55,8 +58,8 @@ class PostgreSQLSearch:
                 )
 
                 conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to initialize search index: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Failed to initialize search index: %s", e)
             raise
 
     def index_message(
@@ -83,8 +86,8 @@ class PostgreSQLSearch:
                     {"content": content, "id": str(message_id)},
                 )
                 conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to index message {message_id}: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Failed to index message %s: %s", message_id, e)
 
     def search(
         self,
@@ -114,8 +117,8 @@ class PostgreSQLSearch:
                     {"query": query, "limit": limit},
                 )
                 return [uuid.UUID(row[0]) for row in result.fetchall()]
-        except Exception as e:
-            logger.error(f"Search failed: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Search failed: %s", e)
             return []
 
     def search_with_content(
@@ -149,8 +152,8 @@ class PostgreSQLSearch:
                     {"id": uuid.UUID(row[0]), "content": row[1]}
                     for row in result.fetchall()
                 ]
-        except Exception as e:
-            logger.error(f"Search with content failed: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Search with content failed: %s", e)
             return []
 
     def remove_message(
@@ -191,8 +194,8 @@ class PostgreSQLSearch:
                     """)
                 )
                 conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to reindex: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Failed to reindex: %s", e)
             raise
 
     def get_stats(self, engine: Engine) -> dict[str, Any] | None:
@@ -227,6 +230,6 @@ class PostgreSQLSearch:
                     "indexed_messages": row[1],
                     "pending_index": row[2],
                 }
-        except Exception as e:
-            logger.error(f"Failed to get search stats: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Failed to get search stats: %s", e)
             return None

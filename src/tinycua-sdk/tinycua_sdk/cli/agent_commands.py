@@ -136,7 +136,7 @@ async def cmd_agent_create(args: argparse.Namespace) -> int:
             console.print("Use 'tinycua agent create --help' for usage information")
             return 1
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, RuntimeError, ImportError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 
@@ -273,7 +273,7 @@ async def cmd_agent_templates(args: argparse.Namespace) -> int:
         console.print(table)
         return 0
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, RuntimeError, ImportError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 
@@ -337,7 +337,7 @@ async def cmd_agent_info(args: argparse.Namespace) -> int:
 
         return 0
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, RuntimeError, ImportError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 

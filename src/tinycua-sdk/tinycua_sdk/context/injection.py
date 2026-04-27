@@ -126,7 +126,7 @@ class InjectionDetector:
                 content = msg.content or ""
                 threats.extend(self.scan_text(content, location=f"memory:{msg.id}"))
 
-        except Exception:
+        except (OSError, ValueError, ImportError, TypeError):
             # If storage is not available, return empty list
             pass
 

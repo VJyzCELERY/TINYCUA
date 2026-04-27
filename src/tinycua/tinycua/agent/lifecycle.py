@@ -40,6 +40,30 @@ class AgentLifecycle:
         self._backend_url = backend_url
         self._backend_api_key = backend_api_key
         self._backend_headers = backend_headers
+        self._client: BackendClient | None = None
+
+    def _get_client(self) -> BackendClient:
+        """Get or create a cached BackendClient.
+
+        Returns:
+            BackendClient instance.
+        """
+        if self._client is None:
+            backend_url, backend_api_key, backend_headers = (
+                self._get_backend_config()
+            )
+            self._client = BackendClient(
+                base_url=backend_url,
+                api_key=backend_api_key,
+                headers=backend_headers,
+            )
+        return self._client
+
+    async def close(self) -> None:
+        """Close the lifecycle and release the backend client."""
+        if self._client is not None:
+            await self._client.close()
+            self._client = None
 
     def _get_backend_config(self) -> tuple[str, str | None, dict[str, str] | None]:
         """Get backend configuration with priority.
@@ -87,13 +111,8 @@ class AgentLifecycle:
             topological_sort,
         )
 
-        backend_url, backend_api_key, backend_headers = self._get_backend_config()
-
-        client = BackendClient(
-            base_url=backend_url,
-            api_key=backend_api_key,
-            headers=backend_headers,
-        )
+        backend_url, _, _ = self._get_backend_config()
+        client = self._get_client()
 
         tools = list(self.agent.config.tools)
         tool_names = {t.name for t in tools}
@@ -103,8 +122,9 @@ class AgentLifecycle:
             backend_tools = await client.list_tools()
             for t in backend_tools:
                 existing_tools[t.get("name", "")] = t
-        except Exception:
-            pass
+        except (ConnectionError, ValueError, TypeError) as e:
+            logger.warning("Failed to list backend tools during deploy: %s", e)
+            raise RuntimeError(f"Failed to fetch existing tools from backend: {e}") from e
 
         for tool in tools:
             if tool._source:
@@ -149,7 +169,7 @@ class AgentLifecycle:
             bundle = tool.to_bundle()
             try:
                 await client.deploy_tool(bundle)
-            except Exception as e:
+            except (ConnectionError, OSError, ValueError, TypeError) as e:
                 raise RuntimeError(f"Failed to deploy tool {tool.name}: {e}")
 
         deployment = {
@@ -186,13 +206,7 @@ class AgentLifecycle:
         if not self.agent.config.agent_id:
             raise RuntimeError("Agent not deployed")
 
-        backend_url, backend_api_key, backend_headers = self._get_backend_config()
-
-        client = BackendClient(
-            base_url=backend_url,
-            api_key=backend_api_key,
-            headers=backend_headers,
-        )
+        client = self._get_client()
 
         await client.delete_agent(agent_id=self.agent.config.agent_id)
 
@@ -226,6 +240,7 @@ class AgentLifecycle:
         backend_url: str,
         backend_api_key: str | None = None,
         backend_headers: dict[str, str] | None = None,
+        client: BackendClient | None = None,
     ) -> Agent:
         """Load an existing agent from the backend.
 
@@ -243,6 +258,10 @@ class AgentLifecycle:
             backend_url: Backend server URL.
             backend_api_key: API key for authentication.
             backend_headers: Custom headers for auth.
+            client: Optional reusable BackendClient. Callers are encouraged to
+                pass a persistent client to avoid creating ephemeral connections.
+                When None, a temporary client is created internally; the caller
+                is responsible for closing it if they need explicit cleanup.
 
         Returns:
             Agent instance with configuration from backend, mode="deployed".
@@ -250,11 +269,12 @@ class AgentLifecycle:
         """
         from tinycua_sdk.agent.agent import Agent
 
-        client = BackendClient(
-            base_url=backend_url,
-            api_key=backend_api_key,
-            headers=backend_headers,
-        )
+        if client is None:
+            client = BackendClient(
+                base_url=backend_url,
+                api_key=backend_api_key,
+                headers=backend_headers,
+            )
 
         agent_data = await client.get_agent(agent_id)
 

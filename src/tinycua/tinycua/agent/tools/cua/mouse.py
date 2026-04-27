@@ -26,7 +26,7 @@ try:
         try:
             pyautogui.moveTo(x, y)
             return {"success": True}
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return {"error": f"Mouse move failed: {e}"}
 
     @tool()
@@ -42,7 +42,7 @@ try:
         try:
             pyautogui.click(button=button)
             return {"success": True}
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return {"error": f"Mouse click failed: {e}"}
 
 except ImportError:

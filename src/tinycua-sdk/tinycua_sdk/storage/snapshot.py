@@ -153,7 +153,7 @@ class SnapshotManager:
 
             return snapshot
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError) as e:
             if isinstance(e, SnapshotError):
                 raise
             raise SnapshotError(f"Failed to create snapshot: {e}")

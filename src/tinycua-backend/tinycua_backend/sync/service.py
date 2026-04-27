@@ -1,31 +1,19 @@
 """Sync service for multi-device synchronization."""
 
-import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from tinycua_backend.config import get_config
+from tinycua_backend.storage.database import get_session_store
 from tinycua_backend.sync.resolver import detect_conflict, resolve_conflict
-
-from tinycua_sdk.storage.store import SessionStore
 
 
 class SyncService:
     """Service for synchronizing sessions and memory across devices."""
 
-    def __init__(self) -> None:
-        self._store: SessionStore | None = None
-        self._store_lock = threading.Lock()
-
-    def _get_store(self) -> SessionStore:
+    def _get_store(self) -> Any:
         """Get cached SessionStore instance."""
-        config = get_config()
-        if self._store is None or self._store.database_url != config.database.url:
-            with self._store_lock:
-                if self._store is None or self._store.database_url != config.database.url:
-                    self._store = SessionStore(config.database.url)
-        return self._store
+        return get_session_store()
 
     def sync_sessions(
         self,
@@ -98,7 +86,7 @@ class SyncService:
                             "updated_at": new_session.updated_at.isoformat(),
                         }
                     )
-            except Exception as e:
+            except (ValueError, TypeError, OSError) as e:
                 errors.append({"error": str(e), "data": session_data})
 
         return {
@@ -162,7 +150,7 @@ class SyncService:
                             "created_at": message.created_at.isoformat(),
                         }
                     )
-            except Exception as e:
+            except (ValueError, TypeError, OSError) as e:
                 errors.append({"error": str(e), "data": memory_data})
 
         return {"synced": synced, "errors": errors}

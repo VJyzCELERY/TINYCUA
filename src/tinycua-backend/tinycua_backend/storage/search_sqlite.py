@@ -5,8 +5,10 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from tinycua_backend.storage.search_backend import SearchBackend
 
-class SQLiteSearch:
+
+class SQLiteSearch(SearchBackend):
     """SQLite FTS5 full-text search implementation."""
 
     FTS_TABLE = "messages_fts"

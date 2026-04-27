@@ -98,7 +98,7 @@ def migrate_tenants(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} tenants")
+        logger.info("[DRY RUN] Would migrate %s tenants", len(rows))
         return len(rows)
 
     for row in rows:
@@ -111,7 +111,7 @@ def migrate_tenants(
             (row["id"], row["name"], row["created_at"], row["updated_at"]),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} tenants")
+    logger.info("Migrated %s tenants", len(rows))
     return len(rows)
 
 
@@ -137,7 +137,7 @@ def migrate_users(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} users")
+        logger.info("[DRY RUN] Would migrate %s users", len(rows))
         return len(rows)
 
     for row in rows:
@@ -157,7 +157,7 @@ def migrate_users(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} users")
+    logger.info("Migrated %s users", len(rows))
     return len(rows)
 
 
@@ -183,7 +183,7 @@ def migrate_api_keys(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} API keys")
+        logger.info("[DRY RUN] Would migrate %s API keys", len(rows))
         return len(rows)
 
     for row in rows:
@@ -204,7 +204,7 @@ def migrate_api_keys(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} API keys")
+    logger.info("Migrated %s API keys", len(rows))
     return len(rows)
 
 
@@ -230,7 +230,7 @@ def migrate_agents(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} agents")
+        logger.info("[DRY RUN] Would migrate %s agents", len(rows))
         return len(rows)
 
     for row in rows:
@@ -251,7 +251,7 @@ def migrate_agents(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} agents")
+    logger.info("Migrated %s agents", len(rows))
     return len(rows)
 
 
@@ -279,7 +279,7 @@ def migrate_tools(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} tools")
+        logger.info("[DRY RUN] Would migrate %s tools", len(rows))
         return len(rows)
 
     for row in rows:
@@ -307,7 +307,7 @@ def migrate_tools(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} tools")
+    logger.info("Migrated %s tools", len(rows))
     return len(rows)
 
 
@@ -347,7 +347,7 @@ def migrate_sessions(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} sessions")
+        logger.info("[DRY RUN] Would migrate %s sessions", len(rows))
         return len(rows)
 
     for row in rows:
@@ -378,7 +378,7 @@ def migrate_sessions(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} sessions")
+    logger.info("Migrated %s sessions", len(rows))
     return len(rows)
 
 
@@ -414,7 +414,7 @@ def migrate_messages(
     rows = cursor.fetchall()
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would migrate {len(rows)} messages")
+        logger.info("[DRY RUN] Would migrate %s messages", len(rows))
         return len(rows)
 
     for row in rows:
@@ -437,7 +437,7 @@ def migrate_messages(
             ),
         )
     postgres_conn.commit()
-    logger.info(f"Migrated {len(rows)} messages")
+    logger.info("Migrated %s messages", len(rows))
     return len(rows)
 
 
@@ -467,11 +467,13 @@ def validate_migration(
             results[table] = sqlite_counts[table] == postgres_count
             if not results[table]:
                 logger.warning(
-                    f"Table {table}: SQLite has {sqlite_counts[table]} rows, "
-                    f"PostgreSQL has {postgres_count} rows"
+                    "Table %s: SQLite has %d rows, PostgreSQL has %d rows",
+                    table,
+                    sqlite_counts[table],
+                    postgres_count,
                 )
-        except Exception as e:
-            logger.error(f"Error validating table {table}: {e}")
+        except (OSError, ValueError) as e:
+            logger.error("Error validating table %s: %s", table, e)
             results[table] = False
 
     return results
@@ -490,9 +492,9 @@ def rollback_migration(postgres_conn) -> None:
         try:
             safe_table = validate_table_name(table)
             cursor.execute(f"TRUNCATE TABLE {safe_table} CASCADE")
-            logger.info(f"Truncated table {table}")
-        except Exception as e:
-            logger.error(f"Error truncating table {table}: {e}")
+            logger.info("Truncated table %s", table)
+        except (OSError, ValueError) as e:
+            logger.error("Error truncating table %s: %s", table, e)
 
     postgres_conn.commit()
     logger.info("Rollback complete")
@@ -538,73 +540,74 @@ def main() -> int:
 
     sqlite_path = Path(args.sqlite_path)
     if not sqlite_path.exists():
-        logger.error(f"SQLite database not found: {args.sqlite_path}")
+        logger.error("SQLite database not found: %s", args.sqlite_path)
         return 1
 
     sqlite_conn = connect_sqlite(args.sqlite_path)
-
+    postgres_conn = None
     try:
         import psycopg2
 
         postgres_conn = psycopg2.connect(args.postgres_url)
+
+        if args.rollback:
+            rollback_migration(postgres_conn)
+            return 0
+
+        since = None
+        if args.since:
+            try:
+                since = datetime.fromisoformat(args.since)
+            except ValueError:
+                logger.error(
+                    "Invalid timestamp format. Use ISO format: YYYY-MM-DDTHH:MM:SS"
+                )
+                return 1
+
+        if args.dry_run:
+            logger.info("=" * 50)
+            logger.info("DRY RUN MODE - No changes will be made")
+            logger.info("=" * 50)
+
+        logger.info("Starting migration...")
+
+        migrate_tenants(sqlite_conn, postgres_conn, dry_run=args.dry_run)
+        migrate_users(sqlite_conn, postgres_conn, dry_run=args.dry_run)
+        migrate_api_keys(sqlite_conn, postgres_conn, dry_run=args.dry_run)
+        migrate_agents(sqlite_conn, postgres_conn, dry_run=args.dry_run)
+        migrate_tools(sqlite_conn, postgres_conn, dry_run=args.dry_run)
+        migrate_sessions(sqlite_conn, postgres_conn, dry_run=args.dry_run, since=since)
+        migrate_messages(sqlite_conn, postgres_conn, dry_run=args.dry_run, since=since)
+
+        if args.validate and not args.dry_run:
+            logger.info("=" * 50)
+            logger.info("Validating migration...")
+            logger.info("=" * 50)
+            results = validate_migration(sqlite_conn, postgres_conn)
+            all_valid = all(results.values())
+            if all_valid:
+                logger.info("Validation passed: All tables match")
+            else:
+                logger.warning("Validation failed: Some tables don't match")
+                for table, valid in results.items():
+                    if not valid:
+                        logger.warning("  - %s: FAILED", table)
+                return 1
+        elif args.validate and args.dry_run:
+            logger.warning("Skipping validation in dry-run mode")
+
+        logger.info("Migration complete!")
+        return 0
     except ImportError:
         logger.error("psycopg2 is required. Install with: pip install psycopg2-binary")
         return 1
-    except Exception as e:
-        logger.error(f"Failed to connect to PostgreSQL: {e}")
+    except (OSError, ImportError) as e:
+        logger.error("Failed to connect to PostgreSQL: %s", e)
         return 1
-
-    if args.rollback:
-        rollback_migration(postgres_conn)
-        return 0
-
-    since = None
-    if args.since:
-        try:
-            since = datetime.fromisoformat(args.since)
-        except ValueError:
-            logger.error(
-                "Invalid timestamp format. Use ISO format: YYYY-MM-DDTHH:MM:SS"
-            )
-            return 1
-
-    if args.dry_run:
-        logger.info("=" * 50)
-        logger.info("DRY RUN MODE - No changes will be made")
-        logger.info("=" * 50)
-
-    logger.info("Starting migration...")
-
-    migrate_tenants(sqlite_conn, postgres_conn, dry_run=args.dry_run)
-    migrate_users(sqlite_conn, postgres_conn, dry_run=args.dry_run)
-    migrate_api_keys(sqlite_conn, postgres_conn, dry_run=args.dry_run)
-    migrate_agents(sqlite_conn, postgres_conn, dry_run=args.dry_run)
-    migrate_tools(sqlite_conn, postgres_conn, dry_run=args.dry_run)
-    migrate_sessions(sqlite_conn, postgres_conn, dry_run=args.dry_run, since=since)
-    migrate_messages(sqlite_conn, postgres_conn, dry_run=args.dry_run, since=since)
-
-    if args.validate and not args.dry_run:
-        logger.info("=" * 50)
-        logger.info("Validating migration...")
-        logger.info("=" * 50)
-        results = validate_migration(sqlite_conn, postgres_conn)
-        all_valid = all(results.values())
-        if all_valid:
-            logger.info("Validation passed: All tables match")
-        else:
-            logger.warning("Validation failed: Some tables don't match")
-            for table, valid in results.items():
-                if not valid:
-                    logger.warning(f"  - {table}: FAILED")
-            return 1
-    elif args.validate and args.dry_run:
-        logger.warning("Skipping validation in dry-run mode")
-
-    sqlite_conn.close()
-    postgres_conn.close()
-
-    logger.info("Migration complete!")
-    return 0
+    finally:
+        sqlite_conn.close()
+        if postgres_conn is not None:
+            postgres_conn.close()
 
 
 if __name__ == "__main__":

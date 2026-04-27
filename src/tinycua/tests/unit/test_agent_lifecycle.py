@@ -134,3 +134,27 @@ class TestAgentLifecycleLoadAgent:
             assert agent.config.agent_id == "agent-123"
             assert agent.config.mode == "deployed"
             assert agent.config.backend_url == "http://localhost:8000"
+
+    @pytest.mark.asyncio
+    async def test_load_agent_reuses_client(self):
+        """Test load_agent reuses a passed-in client."""
+        from tinycua.agent.lifecycle import AgentLifecycle
+
+        mock_client = AsyncMock()
+        mock_client.get_agent.return_value = {
+            "name": "reused-agent",
+            "instructions": "Reused instructions",
+            "model": "gpt-4o-mini",
+            "provider": "openai",
+        }
+
+        with patch("tinycua.agent.lifecycle.BackendClient") as mock_client_cls:
+            agent = await AgentLifecycle.load_agent(
+                agent_id="agent-456",
+                backend_url="http://localhost:8000",
+                client=mock_client,
+            )
+
+            assert agent.name == "reused-agent"
+            mock_client_cls.assert_not_called()
+            mock_client.get_agent.assert_called_once_with("agent-456")

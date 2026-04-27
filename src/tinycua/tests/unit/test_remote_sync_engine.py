@@ -39,7 +39,7 @@ class TestSyncEngine:
         manager._connected = True
 
         mock_client = AsyncMock()
-        mock_client.list_agents = AsyncMock(return_value=[])
+        mock_client.list_sessions = AsyncMock(return_value=[])
         manager._client = mock_client
 
         engine = SyncEngine(manager)

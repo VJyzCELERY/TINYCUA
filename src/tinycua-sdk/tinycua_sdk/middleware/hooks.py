@@ -140,7 +140,7 @@ class HookRegistry:
 
             except HookError:
                 raise
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
                 raise HookError(f"Pre-hook failed: {e}")
 
         return context
@@ -175,7 +175,7 @@ class HookRegistry:
 
             except HookError:
                 raise
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
                 raise HookError(f"Post-hook failed: {e}")
 
         return result

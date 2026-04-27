@@ -69,7 +69,7 @@ class MessageSanitizer:
 
             return sanitized
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             raise SanitizationError(f"Failed to sanitize tool call: {e}")
 
     def sanitize_tool_args(self, args: str) -> str:

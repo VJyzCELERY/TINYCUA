@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 
 class TestIsFirstStartup:
@@ -71,7 +72,7 @@ class TestWizardFlow:
         from tinycua.config.wizard import SetupWizard
 
         wizard = SetupWizard(config_dir=tmp_path)
-        wizard.set_account("testuser", "test@example.com", "password123")
+        wizard.set_account("testuser", "test@example.com", "Password123!")
         assert wizard.username == "testuser"
         assert wizard.email == "test@example.com"
 
@@ -95,7 +96,7 @@ class TestWizardFlow:
 
         wizard = SetupWizard(config_dir=tmp_path)
         with pytest.raises(WizardValidationError):
-            wizard.validate_account("", "test@example.com", "password123")
+            wizard.validate_account("", "test@example.com", "Password123!")
 
     def test_wizard_validation_invalid_email(self, tmp_path):
         """Test validation fails for invalid email."""
@@ -103,7 +104,7 @@ class TestWizardFlow:
 
         wizard = SetupWizard(config_dir=tmp_path)
         with pytest.raises(WizardValidationError):
-            wizard.validate_account("testuser", "invalid-email", "password123")
+            wizard.validate_account("testuser", "invalid-email", "Password123!")
 
     def test_wizard_validation_password_mismatch(self, tmp_path):
         """Test validation fails for password mismatch."""
@@ -112,7 +113,7 @@ class TestWizardFlow:
         wizard = SetupWizard(config_dir=tmp_path)
         with pytest.raises(WizardValidationError):
             wizard.validate_account(
-                "testuser", "test@example.com", "password123", "password456"
+                "testuser", "test@example.com", "Password123!", "password456"
             )
 
     def test_wizard_validation_short_password(self, tmp_path):
@@ -133,7 +134,7 @@ class TestWizardCompletion:
 
         wizard = SetupWizard(config_dir=tmp_path)
         wizard.set_storage_mode("local")
-        wizard.set_account("testuser", "test@example.com", "password123")
+        wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
             provider="lmstudio",
             model="qwen/qwen3.5-9b",
@@ -151,7 +152,7 @@ class TestWizardCompletion:
 
         wizard = SetupWizard(config_dir=tmp_path)
         wizard.set_storage_mode("remote")
-        wizard.set_account("testuser", "test@example.com", "password123")
+        wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
             provider="openai",
             model="gpt-4",
@@ -170,7 +171,7 @@ class TestWizardCompletion:
 
         wizard = SetupWizard(config_dir=tmp_path)
         wizard.set_storage_mode("local")
-        wizard.set_account("testuser", "test@example.com", "password123")
+        wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
             provider="lmstudio",
             model="qwen/qwen3.5-9b",
@@ -187,7 +188,7 @@ class TestWizardCompletion:
 
         wizard = SetupWizard(config_dir=tmp_path)
         wizard.set_storage_mode("local")
-        wizard.set_account("testuser", "test@example.com", "password123")
+        wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
             provider="lmstudio",
             model="qwen/qwen3.5-9b",
@@ -236,7 +237,7 @@ class TestInteractiveFunctions:
     def test_prompt_account_creation(self, mock_input):
         """Test prompt_account_creation returns account dict."""
         from tinycua.config.wizard import prompt_account_creation
-        mock_input.side_effect = ["testuser", "test@example.com", "password123", "password123"]
+        mock_input.side_effect = ["testuser", "test@example.com", "Password123!", "Password123!"]
         result = prompt_account_creation()
         assert result["username"] == "testuser"
         assert result["email"] == "test@example.com"
@@ -277,7 +278,7 @@ class TestHelperFunctions:
     def test_is_lmstudio_available_false(self, mock_get):
         """Test is_lmstudio_available returns False when not available."""
         from tinycua.config.wizard import is_lmstudio_available
-        mock_get.side_effect = Exception("Connection failed")
+        mock_get.side_effect = requests.ConnectionError("Connection failed")
         assert is_lmstudio_available() is False
 
     @patch("requests.get")
@@ -302,5 +303,5 @@ class TestHelperFunctions:
     def test_test_connection_failure(self, mock_get):
         """Test test_connection returns False on failure."""
         from tinycua.config.wizard import test_connection
-        mock_get.side_effect = Exception("Connection failed")
+        mock_get.side_effect = requests.ConnectionError("Connection failed")
         assert test_connection("http://localhost:8000") is False

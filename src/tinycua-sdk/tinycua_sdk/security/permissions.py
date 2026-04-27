@@ -103,9 +103,7 @@ class PermissionSystem:
             level=level,
             requires_approval=requires_approval,
         )
-        _security_logger.info(
-            f"Registered tool: {tool_name} (level={level.value}, requires_approval={requires_approval})"
-        )
+        _security_logger.info("Registered tool: %s (level=%s, requires_approval=%s)", tool_name, level.value, requires_approval)
 
     def check_permission(self, tool_name: str) -> bool:
         """Check if tool can be executed.
@@ -118,15 +116,15 @@ class PermissionSystem:
         """
         permission = self._permissions.get(tool_name)
         if not permission:
-            _security_logger.debug(f"Tool {tool_name} not registered, allowing by default")
+            _security_logger.debug("Tool %s not registered, allowing by default", tool_name)
             return True
 
         allowed = permission.level == PermissionLevel.SAFE
 
         if allowed:
-            _security_logger.debug(f"Permission granted for tool: {tool_name}")
+            _security_logger.debug("Permission granted for tool: %s", tool_name)
         else:
-            _security_logger.warning(f"Permission denied for tool: {tool_name} (level={permission.level.value})")
+            _security_logger.warning("Permission denied for tool: %s (level=%s)", tool_name, permission.level.value)
 
         return allowed
 
@@ -141,11 +139,11 @@ class PermissionSystem:
         """
         permission = self._permissions.get(tool_name)
         if not permission:
-            _security_logger.debug(f"Tool {tool_name} not registered, no approval required")
+            _security_logger.debug("Tool %s not registered, no approval required", tool_name)
             return False
 
         if permission.requires_approval:
-            _security_logger.info(f"Approval required for tool: {tool_name}")
+            _security_logger.info("Approval required for tool: %s", tool_name)
 
         return permission.requires_approval if permission else False
     

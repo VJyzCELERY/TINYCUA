@@ -4,6 +4,7 @@ import uuid
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class TestPostgresSearch:
@@ -15,7 +16,7 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
         result = search.search(mock_engine, "test query")
         assert result == []
@@ -26,7 +27,7 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
         result = search.search_with_content(mock_engine, "test query")
         assert result == []
@@ -37,7 +38,7 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
         result = search.get_stats(mock_engine)
         assert result is None
@@ -48,7 +49,7 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
         search.index_message(mock_engine, uuid.uuid4(), "test content")
 
@@ -58,9 +59,9 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
-        with pytest.raises(Exception):
+        with pytest.raises(SQLAlchemyError):
             search.reindex(mock_engine)
 
     def test_initialize_raises_on_error(self):
@@ -69,9 +70,9 @@ class TestPostgresSearch:
 
         search = PostgreSQLSearch()
         mock_engine = MagicMock()
-        mock_engine.connect.side_effect = Exception("Connection failed")
+        mock_engine.connect.side_effect = SQLAlchemyError("Connection failed")
 
-        with pytest.raises(Exception):
+        with pytest.raises(SQLAlchemyError):
             search.initialize(mock_engine)
 
 

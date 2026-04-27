@@ -46,6 +46,7 @@ def sdk_client(mock_backend):
     Returns:
         BackendClient instance connected to mock backend.
     """
+    from unittest.mock import AsyncMock
     from tinycua.clients import BackendClient
 
     client = BackendClient(
@@ -53,6 +54,7 @@ def sdk_client(mock_backend):
         api_key="test-api-key",
     )
     client._mock_backend = mock_backend
+    client._client = AsyncMock()
     return client
 
 

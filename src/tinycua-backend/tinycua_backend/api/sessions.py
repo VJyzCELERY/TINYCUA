@@ -1,47 +1,30 @@
 """Session API routes using SessionStore for persistence."""
 
-import threading
+import logging
 import uuid
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from sqlalchemy import select
+from tinycua_backend.api.dependencies import (
+    _verify_session_tenant,
+    get_session_or_404,
+    get_store,
+)
 from tinycua_backend.auth.core import CurrentTenant, get_current_tenant
-from tinycua_backend.config import get_config
-from tinycua_backend.session.service import SessionService
-
-# NOTE: SessionStore is imported from tinycua_sdk for storage-only purposes.
-# The backend does not use any execution logic from the SDK (agent loops,
-# tools, memory management, etc.). This import is strictly for persisting
-# and retrieving session/message data via the SDK's storage layer.
-from tinycua_sdk.storage.store import SessionStore
+from tinycua_backend.storage.search_sqlite import SQLiteSearch
+from tinycua_sdk.storage.models import Message, Session as SessionModel
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
-
-_store: SessionStore | None = None
-_store_lock = threading.Lock()
-_session_service = SessionService()
-
-
-def get_store() -> SessionStore:
-    """Get cached SessionStore instance.
-
-    The store is cached globally and recreated if the database URL changes.
-    """
-    global _store
-    config = get_config()
-    if _store is None or _store.database_url != config.database.url:
-        with _store_lock:
-            if _store is None or _store.database_url != config.database.url:
-                _store = SessionStore(config.database.url)
-    return _store
 
 
 class SessionCreate(BaseModel):
     """Request model for creating a session."""
 
-    agent_id: str
     name: str | None = None
     parent_session_id: str | None = None
 
@@ -62,25 +45,22 @@ class SessionResponse(BaseModel):
     updated_at: str
 
 
-def _verify_session_tenant(session: Any, current: CurrentTenant) -> None:
-    """Verify that a session belongs to the current tenant.
+def _session_to_response(session: Any) -> SessionResponse:
+    """Convert a session object to SessionResponse.
 
     Args:
         session: The session from SessionStore
-        current: The current authenticated tenant
 
-    Raises:
-        HTTPException: If session does not belong to the tenant
+    Returns:
+        SessionResponse instance
     """
-    if current.is_system:
-        return
-    session_user_id = str(session.user_id) if session.user_id else None
-    expected_id = str(current.user_id) if current.user_id else str(current.tenant.id)
-    if session_user_id != expected_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Session does not belong to this tenant",
-        )
+    return SessionResponse(
+        id=str(session.id),
+        name=session.name,
+        parent_session_id=str(session.parent_session_id) if session.parent_session_id else None,
+        created_at=session.created_at.isoformat(),
+        updated_at=session.updated_at.isoformat(),
+    )
 
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
@@ -99,20 +79,16 @@ async def create_session(
     """
     store = get_store()
     user_id = str(current.user_id) if current.user_id else str(current.tenant.id)
+    tenant_id = str(current.tenant.id)
     parent_uuid = uuid.UUID(session_data.parent_session_id) if session_data.parent_session_id else None
     session = store.create_session(
         name=session_data.name or "Session",
         user_id=user_id,
+        tenant_id=tenant_id,
         parent_session_id=parent_uuid,
     )
 
-    return SessionResponse(
-        id=str(session.id),
-        name=session.name,
-        parent_session_id=str(session.parent_session_id) if session.parent_session_id else None,
-        created_at=session.created_at.isoformat(),
-        updated_at=session.updated_at.isoformat(),
-    )
+    return _session_to_response(session)
 
 
 @router.get("", response_model=list[SessionResponse])
@@ -139,74 +115,36 @@ async def list_sessions(
         sessions = store.list_sessions(user_id=user_id)
 
     return [
-        SessionResponse(
-            id=str(s.id),
-            name=s.name,
-            parent_session_id=str(s.parent_session_id) if s.parent_session_id else None,
-            created_at=s.created_at.isoformat(),
-            updated_at=s.updated_at.isoformat(),
-        )
+        _session_to_response(s)
         for s in sessions[offset : offset + limit]
     ]
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
-    session_id: str,
-    current: CurrentTenant = Depends(get_current_tenant),
+    session: Any = Depends(get_session_or_404),
 ) -> SessionResponse:
     """Get a session by ID.
 
     Args:
-        session_id: The session ID
-        current: The current tenant
+        session: The session from get_session_or_404 dependency
 
     Returns:
         The session
-
-    Raises:
-        HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
-    store = get_store()
-    session = store.get_session(uuid_session_id)
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    _verify_session_tenant(session, current)
-
-    return SessionResponse(
-        id=str(session.id),
-        name=session.name,
-        parent_session_id=str(session.parent_session_id) if session.parent_session_id else None,
-        created_at=session.created_at.isoformat(),
-        updated_at=session.updated_at.isoformat(),
-    )
+    return _session_to_response(session)
 
 
 @router.put("/{session_id}", response_model=SessionResponse)
 async def update_session(
-    session_id: str,
     session_data: SessionUpdate,
-    current: CurrentTenant = Depends(get_current_tenant),
+    session: Any = Depends(get_session_or_404),
 ) -> SessionResponse:
     """Update a session.
 
     Args:
-        session_id: The session ID
         session_data: The session data to update
-        current: The current tenant
+        session: The session from get_session_or_404 dependency
 
     Returns:
         The updated session
@@ -214,79 +152,33 @@ async def update_session(
     Raises:
         HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
-    store = get_store()
-    session = store.get_session(uuid_session_id)
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    _verify_session_tenant(session, current)
-
     kwargs = {}
     if session_data.name is not None:
         kwargs["name"] = session_data.name
 
-    updated = store.update_session(uuid_session_id, **kwargs)
+    updated = get_store().update_session(session.id, **kwargs)
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
 
-    return SessionResponse(
-        id=str(updated.id),
-        name=updated.name,
-        parent_session_id=str(updated.parent_session_id) if updated.parent_session_id else None,
-        created_at=updated.created_at.isoformat(),
-        updated_at=updated.updated_at.isoformat(),
-    )
+    return _session_to_response(updated)
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
-    session_id: str,
-    current: CurrentTenant = Depends(get_current_tenant),
+    session: Any = Depends(get_session_or_404),
 ) -> None:
     """Delete a session.
 
     Args:
-        session_id: The session ID
-        current: The current tenant
+        session: The session from get_session_or_404 dependency
 
     Raises:
         HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
-    store = get_store()
-    session = store.get_session(uuid_session_id)
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    _verify_session_tenant(session, current)
-
-    deleted = store.delete_session(uuid_session_id)
+    deleted = get_store().delete_session(session.id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -306,13 +198,13 @@ class LineageResponse(BaseModel):
 
 @router.get("/{session_id}/lineage", response_model=list[LineageResponse])
 async def get_session_lineage(
-    session_id: str,
+    session: Any = Depends(get_session_or_404),
     current: CurrentTenant = Depends(get_current_tenant),
 ) -> list[LineageResponse]:
     """Get the lineage (parent chain) of a session.
 
     Args:
-        session_id: The session ID
+        session: The session from get_session_or_404 dependency
         current: The current tenant
 
     Returns:
@@ -321,22 +213,17 @@ async def get_session_lineage(
     Raises:
         HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
     store = get_store()
-    lineage = store.get_lineage(uuid_session_id)
+    lineage = store.get_lineage(session.id)
 
     if not lineage:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
+
+    for s in lineage:
+        _verify_session_tenant(s, current)
 
     return [
         LineageResponse(
@@ -372,7 +259,7 @@ async def search_messages(
     search_data: SearchRequest,
     current: CurrentTenant = Depends(get_current_tenant),
 ) -> list[SearchResult]:
-    """Search messages across all sessions.
+    """Search messages across all sessions for the current tenant.
 
     Args:
         search_data: The search query
@@ -381,23 +268,27 @@ async def search_messages(
     Returns:
         List of matching messages
     """
-    from tinycua_backend.storage.search_sqlite import SQLiteSearch
-
     store = get_store()
 
     search = SQLiteSearch()
     try:
         message_ids = search.search(store.engine, search_data.query, search_data.limit)
-    except Exception:
+    except (OSError, ValueError) as exc:
+        logger.error("Search failed: %s", exc, exc_info=True)
         return []
 
     results = []
-    for msg_id in message_ids:
-        with store._get_session() as db:
-            from tinycua_sdk.storage.models import Message
-
-            msg = db.get(Message, msg_id)
-            if msg:
+    if message_ids:
+        tenant_id = str(current.tenant.id)
+        with store.get_db_session() as db:
+            stmt = (
+                select(Message)
+                .join(SessionModel, Message.session_id == SessionModel.id)
+                .where(Message.id.in_(message_ids))
+                .where(SessionModel.tenant_id == tenant_id)
+            )
+            msgs = db.execute(stmt).scalars().all()
+            for msg in msgs:
                 results.append(
                     SearchResult(
                         message_id=str(msg.id),

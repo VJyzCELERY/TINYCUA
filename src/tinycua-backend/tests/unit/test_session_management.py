@@ -181,8 +181,8 @@ class TestSessionStoreHTTP:
         """Test that session creation requires tenant context."""
         from tinycua_backend.api.sessions import SessionCreate
 
-        session_data = SessionCreate(agent_id="agent-123", name="Test Session")
-        assert session_data.agent_id == "agent-123"
+        session_data = SessionCreate(name="Test Session")
+        assert session_data.name == "Test Session"
 
     def test_session_retrieval_requires_valid_id(self):
         """Test session retrieval validates session ID format."""

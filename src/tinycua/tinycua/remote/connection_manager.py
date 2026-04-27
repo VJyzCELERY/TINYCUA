@@ -8,13 +8,16 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import TYPE_CHECKING, Any, Optional
+import httpx
 from urllib.parse import urlparse
 
 try:
     import keyring
+    from keyring.errors import KeyringError
     HAS_KEYRING = True
 except ImportError:
     HAS_KEYRING = False
+    KeyringError = Exception  # type: ignore[misc,assignment]
 
 if TYPE_CHECKING:
     from tinycua.clients import BackendClient
@@ -48,7 +51,7 @@ def validate_backend_url(url: str) -> tuple[bool, str]:
         if parsed.scheme == "http" and not url.startswith("http://localhost"):
             return False, "HTTP is only allowed for localhost"
         return True, ""
-    except Exception as e:
+    except (ValueError, TypeError) as e:
         return False, f"Invalid URL: {e}"
 
 
@@ -133,8 +136,8 @@ class RemoteConnectionManager:
             return None
         try:
             return keyring.get_password(KEYRING_SERVICE, email)
-        except Exception as e:
-            logger.warning(f"Failed to retrieve password from keyring: {e}")
+        except (KeyringError, OSError, ValueError) as e:
+            logger.warning("Failed to retrieve password from keyring: %s", e)
             return None
 
     def _set_secure_password(self, email: str, password: str) -> bool:
@@ -151,27 +154,10 @@ class RemoteConnectionManager:
             return False
         try:
             keyring.set_password(KEYRING_SERVICE, email, password)
-            logger.info(f"Stored password securely for {email}")
+            logger.info("Stored password securely for %s", email)
             return True
-        except Exception as e:
-            logger.warning(f"Failed to store password in keyring: {e}")
-            return False
-
-    def _delete_secure_password(self, email: str) -> bool:
-        """Delete password from secure storage (keyring).
-
-        Args:
-            email: Email associated with the password
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        if not HAS_KEYRING or not email:
-            return False
-        try:
-            keyring.delete_password(KEYRING_SERVICE, email)
-            return True
-        except Exception:
+        except (KeyringError, OSError, ValueError) as e:
+            logger.warning("Failed to store password in keyring: %s", e)
             return False
 
     @property
@@ -221,7 +207,7 @@ class RemoteConnectionManager:
         """
         if config is not None:
             self.config = config
-            logger.info(f"Loaded remote config for {config.backend_url}")
+            logger.info("Loaded remote config for %s", config.backend_url)
             return True
 
         try:
@@ -237,10 +223,10 @@ class RemoteConnectionManager:
                     api_key=api_key_value,
                 )
                 self._api_key = api_key_value
-                logger.info(f"Loaded remote config from UserConfig: {self.config.backend_url}")
+                logger.info("Loaded remote config from UserConfig: %s", self.config.backend_url)
                 return True
-        except Exception as e:
-            logger.warning(f"Failed to load remote config from UserConfig: {e}")
+        except (OSError, ValueError, ImportError) as e:
+            logger.warning("Failed to load remote config from UserConfig: %s", e)
         return False
 
     async def connect(
@@ -272,14 +258,14 @@ class RemoteConnectionManager:
                 mode="local",
                 error=f"Invalid backend URL: {error_msg}",
             )
-            logger.error(f"Cannot connect: {error_msg}")
+            logger.error("Cannot connect: %s", error_msg)
             return False
 
         last_error = None
         from tinycua.clients import BackendClient
 
         email = email or self.config.email
-        password = password or self._get_secure_password(email) if email else None
+        password = password or (self._get_secure_password(email) if email else None)
         api_key = api_key or self.config.api_key
 
         now = time.time()
@@ -287,51 +273,55 @@ class RemoteConnectionManager:
         if time_since_last_attempt < self._min_connection_interval:
             wait_time = self._min_connection_interval - time_since_last_attempt
             logger.warning(
-                f"Rate limiting connection attempts. "
-                f"Waiting {wait_time:.1f}s before next attempt..."
+                "Rate limiting connection attempts. Waiting %.1fs before next attempt...",
+                wait_time,
             )
             await asyncio.sleep(wait_time)
             now = time.time()
 
         self._last_connection_attempt = now
 
+        if self._client is None:
+            self._client = BackendClient(
+                base_url=self.config.backend_url,
+                api_key=api_key,
+                email=email,
+                password=password,
+                timeout=int(timeout),
+            )
+
         for attempt in range(max_retries):
             try:
-                self._client = BackendClient(
-                    base_url=self.config.backend_url,
-                    api_key=api_key,
-                    email=email,
-                    password=password,
-                    timeout=int(timeout),
-                )
-
                 if email and password:
                     try:
                         await self._client.login(email=email, password=password)
-                    except Exception as e:
-                        logger.warning(f"Login failed: {e}")
+                    except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+                        logger.warning("Login failed: %s", e)
 
                 if await self._client.health_check():
                     self._connected = True
                     self._mode = "remote"
                     self._status = ConnectionStatus(connected=True, mode="remote")
-                    logger.info(f"Connected to {self.config.backend_url}")
+                    logger.info("Connected to %s", self.config.backend_url)
                     return True
 
                 if attempt < max_retries - 1:
                     delay = retry_delay * (2 ** attempt)
                     logger.warning(
-                        f"Connection attempt {attempt + 1} failed, "
-                        f"retrying in {delay}s..."
+                        "Connection attempt %d failed, retrying in %ds...",
+                        attempt + 1,
+                        delay,
                     )
                     await asyncio.sleep(delay)
 
-            except Exception as e:
+            except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
                 last_error = e
                 delay = retry_delay * (2 ** attempt)
                 logger.warning(
-                    f"Connection attempt {attempt + 1} failed: {e}, "
-                    f"retrying in {delay}s..."
+                    "Connection attempt %d failed: %s, retrying in %.1fs...",
+                    attempt + 1,
+                    e,
+                    delay,
                 )
                 await asyncio.sleep(delay)
 
@@ -348,10 +338,15 @@ class RemoteConnectionManager:
 
     async def disconnect(self) -> None:
         """Disconnect from remote backend."""
+        if self._client is not None:
+            try:
+                await self._client.close()
+            except (OSError, ValueError):
+                pass
+            self._client = None
         self._connected = False
         self._mode = "local"
         self._status = ConnectionStatus(connected=False, mode="local")
-        self._client = None
         logger.info("Disconnected from remote backend")
 
     async def test_connection(self, url: str | None = None) -> tuple[bool, str]:
@@ -371,10 +366,18 @@ class RemoteConnectionManager:
         if not is_valid:
             return False, error_msg
 
-        created_client = False
-        if not self._client:
+        client = self._client
+        if (
+            client is None
+            or (url is not None and getattr(client, "base_url", None) != test_url)
+        ):
             from tinycua.clients import BackendClient
 
+            if client is not None:
+                try:
+                    await client.close()
+                except (OSError, ValueError):
+                    pass
             email = self.config.email
             password = self._get_secure_password(email) if email else None
             self._client = BackendClient(
@@ -383,18 +386,15 @@ class RemoteConnectionManager:
                 email=email,
                 password=password,
             )
-            created_client = True
+            client = self._client
 
         try:
-            success = await self._client.health_check()
+            success = await client.health_check()
             return (success, "") if success else (False, "Health check failed")
-        except Exception as e:
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
             error_msg = f"{type(e).__name__}: {e}"
-            logger.exception(f"Connection test failed: {error_msg}")
+            logger.exception("Connection test failed: %s", error_msg)
             return (False, error_msg)
-        finally:
-            if created_client:
-                self._client = None
 
     def get_client(self) -> Optional[BackendClient]:
         """Get the BackendClient instance.
@@ -411,7 +411,7 @@ class RemoteConnectionManager:
             timestamp: ISO format timestamp of last sync.
         """
         self._status.last_sync = timestamp
-        logger.debug(f"Updated last_sync to {timestamp}")
+        logger.debug("Updated last_sync to %s", timestamp)
 
     def get_sync_engine(self) -> "SyncEngine":
         """Get the SyncEngine instance.
@@ -446,24 +446,8 @@ class RemoteConnectionManager:
             else:
                 logger.debug("Token refresh not supported by backend client")
                 return False
-        except Exception as e:
-            logger.exception(f"Token refresh failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Token refresh failed: %s: %s", type(e).__name__, e)
         return False
-
-    async def _refresh_token_if_needed(self) -> bool:
-        """Refresh token if it's about to expire.
-
-        Returns:
-            True if token is valid or refresh successful, False otherwise.
-        """
-        if self._token_expires_at is None:
-            return True
-
-        refresh_threshold = timedelta(minutes=5)
-        if datetime.now(timezone.utc) + refresh_threshold > self._token_expires_at:
-            logger.info("Token expiring soon, refreshing...")
-            return await self.refresh_token()
-        return True
-
 
 __all__ = ["RemoteConnectionManager", "RemoteConfig", "ConnectionStatus", "validate_backend_url"]

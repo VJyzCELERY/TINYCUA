@@ -1,5 +1,6 @@
 """Configuration management for tinycua-backend."""
 
+import logging
 import os
 import threading
 import time
@@ -8,6 +9,8 @@ from typing import Callable
 
 import yaml
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class RunnerConfig(BaseModel):
@@ -41,7 +44,7 @@ class ServerConfig(BaseModel):
 
     host: str = "0.0.0.0"
     port: int = 8000
-    cors_origins: list[str] = ["*"]
+    cors_origins: list[str] = []
 
 
 class Config(BaseModel):
@@ -84,6 +87,8 @@ class Config(BaseModel):
             config.database.pool_size = int(os.environ["DATABASE_POOL_SIZE"])
         if os.environ.get("DATABASE_MAX_OVERFLOW"):
             config.database.max_overflow = int(os.environ["DATABASE_MAX_OVERFLOW"])
+        if os.environ.get("TINYCUA_CORS_ORIGINS"):
+            config.server.cors_origins = os.environ["TINYCUA_CORS_ORIGINS"].split(",")
 
         return config
 
@@ -137,8 +142,8 @@ class ConfigWatcher:
                 try:
                     self._config = Config.load(str(self.path))
                     self.callback(self._config)
-                except Exception:
-                    pass
+                except (OSError, ValueError):
+                    logger.warning("Config reload failed for %s", self.path, exc_info=True)
 
 
 _config_watcher: ConfigWatcher | None = None

@@ -79,7 +79,7 @@ class SkillsManager:
 
             self._skills_loaded = True
             return True
-        except Exception:
+        except (OSError, ValueError, ImportError):
             logger.exception("Failed to load skills")
             return False
 

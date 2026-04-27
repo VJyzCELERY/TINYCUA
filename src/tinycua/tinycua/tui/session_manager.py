@@ -59,7 +59,7 @@ class TuiSessionManager:
         try:
             session = store.create_session(name)
             self._current_session_id = session.id
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to create session")
             return None
         else:
@@ -75,7 +75,7 @@ class TuiSessionManager:
         try:
             sessions = store.list_sessions()
             self._sessions = sessions
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to list sessions")
             return []
         else:
@@ -95,7 +95,7 @@ class TuiSessionManager:
             result = store.delete_session(session_id)
             if self._current_session_id == session_id:
                 self._current_session_id = None
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to delete session")
             return False
         else:
@@ -120,7 +120,7 @@ class TuiSessionManager:
         store = self._get_store()
         try:
             return store.get_session(self._current_session_id)
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to get current session")
             return None
 
@@ -138,7 +138,7 @@ class TuiSessionManager:
             session = store.get_session(session_id)
             if session:
                 self._current_session_id = session_id
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to resume session")
             return None
         else:

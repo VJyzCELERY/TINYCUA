@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from tinycua.constants import DEFAULT_MODEL, DEFAULT_PROVIDER, DEFAULT_SYSTEM_PROMPT
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 
 if TYPE_CHECKING:
@@ -52,7 +53,7 @@ class AgentManager:
         """Ensure agents directory exists."""
         try:
             AGENTS_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except (OSError, PermissionError):
             logger.exception("Failed to create agents directory")
 
     def _get_agent_file(self, agent_id: uuid.UUID) -> Path:
@@ -69,11 +70,11 @@ class AgentManager:
     def create_agent(
         self,
         name: str,
-        model: str = "gpt-5-nano",
-        provider: str = "openai",
+        model: str = DEFAULT_MODEL,
+        provider: str = DEFAULT_PROVIDER,
         base_url: str | None = None,
         api_key: str | None = None,
-        system_prompt: str = "You are a helpful assistant.",
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         instructions: str = "",
         temperature: float = 1.0,
         max_turns: int | None = None,
@@ -117,7 +118,7 @@ class AgentManager:
             self._save_agent(agent_info)
             self._agents[agent_id] = agent_info
             return agent_info
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to create agent")
             return None
 
@@ -131,7 +132,7 @@ class AgentManager:
         try:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(agent_info.config.to_json())
-        except Exception:
+        except (OSError, PermissionError, TypeError):
             logger.exception("Failed to save agent config")
 
     def get_agent(self, agent_id: uuid.UUID) -> AgentInfo | None:
@@ -160,7 +161,7 @@ class AgentManager:
             )
             self._agents[agent_id] = agent_info
             return agent_info
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to load agent config")
             return None
 
@@ -177,9 +178,9 @@ class AgentManager:
                     agent_id = uuid.UUID(file_path.stem)
                     if agent_id not in self._agents:
                         self.get_agent(agent_id)
-                except Exception:
+                except (ValueError, TypeError):
                     continue
-        except Exception:
+        except (OSError, PermissionError):
             logger.exception("Failed to list agents")
         return list(self._agents.values())
 
@@ -234,7 +235,7 @@ class AgentManager:
             agent_info.config = config
             self._save_agent(agent_info)
             return agent_info
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to update agent")
             return None
 
@@ -256,7 +257,7 @@ class AgentManager:
             if self._current_agent_id == agent_id:
                 self._current_agent_id = None
             return True
-        except Exception:
+        except (OSError, PermissionError):
             logger.exception("Failed to delete agent")
             return False
 
@@ -296,7 +297,7 @@ class AgentManager:
         try:
             self._default_agent = create_default_agent()
             return self._default_agent
-        except Exception:
+        except (OSError, ValueError, ImportError):
             logger.exception("Failed to initialize default agent")
             return None
 
@@ -326,7 +327,7 @@ class AgentManager:
                 policy=config.policy,
                 mode=config.mode,
             )
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to create agent instance")
             return None
 

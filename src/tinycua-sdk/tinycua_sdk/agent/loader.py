@@ -62,7 +62,7 @@ class AgentLoader:
             return self._parse_agent_md(agent_md_path, content)
         except PermissionError as e:
             raise AgentParseError(f"Permission denied reading {path}: {e}")
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             if isinstance(e, (AgentNotFoundError, AgentParseError)):
                 raise
             raise AgentParseError(f"Failed to parse AGENT.md: {e}")
@@ -156,7 +156,7 @@ class AgentLoader:
                 skill_tools, skill_instructions_parts = self._load_skill_tools(
                     skills, skill_dirs_paths, auto_load_dependencies
                 )
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 logging.warning(f"Failed to load skill tools: {e}")
 
         # Merge skill tools with config tools
@@ -287,7 +287,7 @@ class AgentLoader:
                     skill_registry.load_skills_from_directory(validated_path)
             except ValueError as e:
                 logging.warning(f"Skipping invalid skill directory '{skill_dir}': {e}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 logging.warning(f"Failed to load skills from '{skill_dir}': {e}")
 
         # Track loaded skills and resolve tools

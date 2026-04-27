@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 _security_logger = logging.getLogger("tinycua_sdk.security")
 
-import traceback
+import uuid
 
 
 class ToolExecutor:
@@ -60,20 +60,27 @@ class ToolExecutor:
             }
 
         except asyncio.TimeoutError as e:
-            _security_logger.error(f"Tool execution timeout: {tool_name}")
+            _security_logger.error("Tool execution timeout: %s", tool_name)
             return {
                 "success": False,
                 "error": f"Tool '{tool_name}' timed out",
                 "tool_name": tool_name,
             }
 
-        except Exception as e:
-            _security_logger.error(f"Tool execution error: {tool_name}: {e}")
+        except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
+            ref_id = str(uuid.uuid4())
+            _security_logger.error(
+                "Tool execution error (ref_id=%s): %s: %s",
+                ref_id,
+                tool_name,
+                e,
+                exc_info=True,
+            )
             return {
                 "success": False,
-                "error": str(e),
+                "error": "Tool execution failed",
                 "tool_name": tool_name,
-                "traceback": traceback.format_exc(),
+                "ref_id": ref_id,
             }
 
     async def execute_async(
@@ -103,20 +110,27 @@ class ToolExecutor:
             }
 
         except asyncio.TimeoutError as e:
-            _security_logger.error(f"Tool execution timeout: {tool_name}")
+            _security_logger.error("Tool execution timeout: %s", tool_name)
             return {
                 "success": False,
                 "error": f"Tool '{tool_name}' timed out",
                 "tool_name": tool_name,
             }
 
-        except Exception as e:
-            _security_logger.error(f"Tool execution error: {tool_name}: {e}")
+        except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
+            ref_id = str(uuid.uuid4())
+            _security_logger.error(
+                "Tool execution error (ref_id=%s): %s: %s",
+                ref_id,
+                tool_name,
+                e,
+                exc_info=True,
+            )
             return {
                 "success": False,
-                "error": str(e),
+                "error": "Tool execution failed",
                 "tool_name": tool_name,
-                "traceback": traceback.format_exc(),
+                "ref_id": ref_id,
             }
 
 
@@ -192,6 +206,7 @@ class AgentExecutor(AgentDefinition):
         )
         self._local_runner: Runner | None = None
         self._loop_cache: BaseLoop | None = None
+        self._client: BackendClient | None = None
         self.runner = runner
         self.messages: list[dict[str, Any]] = []
 
@@ -277,6 +292,30 @@ class AgentExecutor(AgentDefinition):
             self.config.backend_headers,
         )
 
+    def _get_client(self) -> BackendClient:
+        """Get or create a cached BackendClient.
+
+        Returns:
+            BackendClient instance.
+        """
+        if self._client is None:
+            from tinycua_sdk.clients import BackendClient
+            backend_url, backend_api_key, backend_headers = (
+                self._get_backend_config()
+            )
+            self._client = BackendClient(
+                base_url=backend_url,
+                api_key=backend_api_key,
+                headers=backend_headers,
+            )
+        return self._client
+
+    async def close(self) -> None:
+        """Close the executor and release the backend client."""
+        if self._client is not None:
+            await self._client.close()
+            self._client = None
+
     async def _run_deployed(
         self,
         user_input: str,
@@ -285,24 +324,7 @@ class AgentExecutor(AgentDefinition):
         """Run via backend API when in deployed mode."""
         if not self.config.agent_id:
             raise RuntimeError("Agent not deployed. Call deploy() first.")
-        global_config = _get_global_config()
-        backend_url = (
-            self.config.backend_url
-            if self.config.backend_url is not None
-            else global_config.backend_url
-        )
-        backend_api_key = (
-            self.config.backend_api_key
-            if self.config.backend_api_key is not None
-            else global_config.llm.api_key.get_secret_value()
-        )
-        from tinycua_sdk.clients import BackendClient
-
-        client = BackendClient(
-            base_url=backend_url,
-            api_key=backend_api_key,
-            headers=self.config.backend_headers,
-        )
+        client = self._get_client()
         self.messages.append({"role": "user", "content": user_input})
         response_text = ""
         async for event in client.execute(
@@ -323,15 +345,7 @@ class AgentExecutor(AgentDefinition):
         """Run via backend API in guest mode (no auth required)."""
         if not self.config.agent_id:
             raise RuntimeError("Agent ID required for guest mode.")
-        global_config = _get_global_config()
-        backend_url = (
-            self.config.backend_url
-            if self.config.backend_url is not None
-            else global_config.backend_url
-        )
-        from tinycua_sdk.clients import BackendClient
-
-        client = BackendClient(base_url=backend_url)
+        client = self._get_client()
         self.messages.append({"role": "user", "content": user_input})
         response_text = ""
         async for event in client.guest_run(
@@ -439,7 +453,7 @@ class AgentExecutor(AgentDefinition):
         import subprocess
         import shlex
 
-        _security_logger.debug(f"Executing subprocess: {command}")
+        _security_logger.debug("Executing subprocess: %s", command)
         parsed = shlex.split(command)
         result = subprocess.run(
             parsed,
@@ -448,7 +462,7 @@ class AgentExecutor(AgentDefinition):
             shell=False,
             cwd=cwd,
         )
-        _security_logger.debug(f"Subprocess completed with returncode: {result.returncode}")
+        _security_logger.debug("Subprocess completed with returncode: %s", result.returncode)
         return {
             "returncode": result.returncode,
             "stdout": result.stdout.decode("utf-8", errors="replace"),
@@ -471,13 +485,9 @@ class AgentExecutor(AgentDefinition):
         allowed = ps.check_permission(tool_name)
 
         if not allowed:
-            _security_logger.warning(
-                f"Permission denied for tool: {tool_name}"
-            )
+            _security_logger.warning("Permission denied for tool: %s", tool_name)
         else:
-            _security_logger.debug(
-                f"Permission granted for tool: {tool_name}"
-            )
+            _security_logger.debug("Permission granted for tool: %s", tool_name)
 
         return allowed
 
@@ -497,8 +507,6 @@ class AgentExecutor(AgentDefinition):
         required = ps.requires_approval(tool_name)
 
         if required:
-            _security_logger.info(
-                f"Approval required for tool: {tool_name}"
-            )
+            _security_logger.info("Approval required for tool: %s", tool_name)
 
         return required

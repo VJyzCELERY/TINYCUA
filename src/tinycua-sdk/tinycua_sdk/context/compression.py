@@ -186,7 +186,7 @@ class ContextCompressor:
 
             return [summary_msg] + recent
 
-        except Exception:
+        except (OSError, ValueError, TypeError, RuntimeError):
             # Fall back to sliding window on error
             return self.sliding_window(messages)
 

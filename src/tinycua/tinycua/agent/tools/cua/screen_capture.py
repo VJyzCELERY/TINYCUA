@@ -60,7 +60,7 @@ try:
                     "width": screenshot.width,
                     "height": screenshot.height,
                 }
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return {"error": f"Screen capture failed: {e}"}
 
 except ImportError:

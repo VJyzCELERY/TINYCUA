@@ -113,8 +113,8 @@ class ToolManager:
                 None, lambda: handler(arguments)
             )
             return str(result)
-        except Exception:
-            logger.exception(f"Failed to execute tool {tool_name}")
+        except (OSError, ValueError, TypeError):
+            logger.exception("Failed to execute tool %s", tool_name)
             return f"Error executing tool '{tool_name}'"
 
     def get_tools_by_toolset(self, toolset: str) -> list[ToolInfo]:

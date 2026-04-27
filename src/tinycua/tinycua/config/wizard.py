@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import base64
+import json
+import logging
+import os
+import platform
 import re
+import secrets
+import warnings
 from pathlib import Path
 from typing import Any
 
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 from tinycua_sdk.core.config import SDKConfig
+
+logger = logging.getLogger(__name__)
 
 
 class WizardError(Exception):
@@ -93,49 +106,131 @@ class SetupWizard:
         self.email = email
         self.password = password
 
-    def save_credentials(self) -> None:
-        """Save credentials to a secure file."""
-        import base64
-        import json
+    def _get_fernet_key(self) -> bytes:
+        """Derive or retrieve a Fernet encryption key.
 
+        Tries the OS keyring first, then falls back to a key file
+        derived from system-specific information.
+
+        Returns:
+            URL-safe base64-encoded Fernet key.
+        """
+        try:
+            import keyring
+            from keyring.errors import KeyringError
+
+            service = "tinycua"
+            username = "credentials_key"
+            stored_key = keyring.get_password(service, username)
+            if stored_key is not None:
+                return stored_key.encode()
+
+            key = Fernet.generate_key()
+            keyring.set_password(service, username, key.decode())
+            return key
+        except (ImportError, RuntimeError, OSError):
+            logger.debug("Keyring unavailable, using fallback key derivation")
+        except KeyringError as e:
+            logger.warning("Keyring operation failed: %s", e)
+
+        # Fallback: derive key from system info and store in key file
+        key_file = self.config_dir / ".key"
+        if key_file.exists():
+            return key_file.read_bytes()
+
+        # Use environment variable for headless environments, or generate a random password
+        env_password = os.environ.get("TINYCUA_FERNET_KEY")
+        if env_password:
+            password = env_password.encode()
+        else:
+            password = secrets.token_bytes(32)
+            logger.warning(
+                "Keyring unavailable and TINYCUA_FERNET_KEY not set. "
+                "Generated a random fallback key. Set TINYCUA_FERNET_KEY "
+                "for stable headless operation."
+            )
+
+        salt = platform.node().encode()
+        try:
+            salt += os.getlogin().encode()
+        except OSError:
+            salt += b"unknown_user"
+        salt += b"tinycua_salt_v1"
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt[:16],
+            iterations=480000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password))
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(key)
+        key_file.chmod(0o600)
+        return key
+
+    def save_credentials(self) -> None:
+        """Save credentials to a secure file using Fernet encryption."""
         if not all([self.username, self.email, self.password]):
             return
 
         credentials_file = self.config_dir / "credentials.enc"
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
+        fernet = Fernet(self._get_fernet_key())
         data = json.dumps({
             "username": self.username,
             "email": self.email,
             "password": self.password,
         }).encode()
 
-        encrypted = base64.b64encode(data)
-
+        encrypted = fernet.encrypt(data)
         credentials_file.write_bytes(encrypted)
+        credentials_file.chmod(0o600)
 
     def load_credentials(self) -> bool:
         """Load credentials from file if it exists.
 
+        Supports Fernet-encrypted credentials with a backward-compatible
+        base64 fallback that emits a deprecation warning.
+
         Returns:
             True if credentials were loaded, False otherwise.
         """
-        import base64
-        import json
-
         credentials_file = self.config_dir / "credentials.enc"
         if not credentials_file.exists():
             return False
 
+        encrypted = credentials_file.read_bytes()
+
+        # Try Fernet decryption first
         try:
-            encrypted = credentials_file.read_bytes()
-            data = base64.b64decode(encrypted)
+            from cryptography.fernet import InvalidToken
+
+            fernet = Fernet(self._get_fernet_key())
+            data = fernet.decrypt(encrypted)
             creds = json.loads(data)
             self.username = creds["username"]
             self.email = creds["email"]
             self.password = creds["password"]
             return True
-        except Exception:
+        except (InvalidToken, ValueError, TypeError, OSError):
+            pass
+
+        # Fallback: backward-compatible base64 read
+        try:
+            data = base64.b64decode(encrypted)
+            creds = json.loads(data)
+            self.username = creds["username"]
+            self.email = creds["email"]
+            self.password = creds["password"]
+            warnings.warn(
+                "Loaded credentials using legacy base64 encoding. "
+                "Re-run the wizard to upgrade to Fernet encryption.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return True
+        except (ValueError, TypeError, OSError):
             return False
 
     def validate_account(
@@ -168,6 +263,18 @@ class SetupWizard:
 
         if not password or len(password) < 8:
             raise WizardValidationError("Password must be at least 8 characters")
+
+        if not re.search(r"[A-Z]", password):
+            raise WizardValidationError("Password must contain at least one uppercase letter")
+
+        if not re.search(r"[a-z]", password):
+            raise WizardValidationError("Password must contain at least one lowercase letter")
+
+        if not re.search(r"\d", password):
+            raise WizardValidationError("Password must contain at least one digit")
+
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+            raise WizardValidationError("Password must contain at least one special character")
 
         if confirm_password is not None and password != confirm_password:
             raise WizardValidationError("Passwords do not match")
@@ -298,7 +405,7 @@ def is_lmstudio_available() -> bool:
         import requests
         response = requests.get("http://localhost:1234/v1/models", timeout=2)
         return response.status_code == 200
-    except Exception:
+    except (requests.ConnectionError, requests.Timeout):
         return False
 
 
@@ -311,21 +418,22 @@ def test_connection(url: str) -> bool:
     Returns:
         True if connection successful, False otherwise.
     """
+    import requests
+
+    # Try health endpoint first
     try:
-        import requests
         response = requests.get(f"{url.rstrip('/')}/health", timeout=5)
         if response.status_code == 200:
             return True
-        if response.status_code == 404:
-            raise Exception("Health endpoint not found, trying base URL")
-    except Exception:
-        try:
-            import requests
-            response = requests.get(url, timeout=5)
-            return response.status_code in (200, 404)
-        except Exception:
-            return False
-    return False
+    except (requests.ConnectionError, requests.Timeout):
+        pass
+
+    # Fallback to base URL
+    try:
+        response = requests.get(url, timeout=5)
+        return response.status_code in (200, 404)
+    except (requests.ConnectionError, requests.Timeout):
+        return False
 
 
 def show_welcome() -> None:

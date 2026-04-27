@@ -4,6 +4,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def _parse_datetime(value: str | datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def resolve_conflict(
     local_item: dict[str, Any],
     remote_item: dict[str, Any],
@@ -17,13 +25,8 @@ def resolve_conflict(
     Returns:
         Tuple of (winning item, conflict_info)
     """
-    local_updated = local_item.get("updated_at")
-    remote_updated = remote_item.get("updated_at")
-
-    if isinstance(local_updated, str):
-        local_updated = datetime.fromisoformat(local_updated.replace("Z", "+00:00"))
-    if isinstance(remote_updated, str):
-        remote_updated = datetime.fromisoformat(remote_updated.replace("Z", "+00:00"))
+    local_updated = _parse_datetime(local_item.get("updated_at"))
+    remote_updated = _parse_datetime(remote_item.get("updated_at"))
 
     if local_updated is None:
         local_updated = datetime.min.replace(tzinfo=timezone.utc)
@@ -53,13 +56,8 @@ def detect_conflict(
     Returns:
         True if conflict detected, False otherwise
     """
-    local_updated = local_item.get("updated_at")
-    remote_updated = remote_item.get("updated_at")
-
-    if isinstance(local_updated, str):
-        local_updated = datetime.fromisoformat(local_updated.replace("Z", "+00:00"))
-    if isinstance(remote_updated, str):
-        remote_updated = datetime.fromisoformat(remote_updated.replace("Z", "+00:00"))
+    local_updated = _parse_datetime(local_item.get("updated_at"))
+    remote_updated = _parse_datetime(remote_item.get("updated_at"))
 
     if local_updated is None or remote_updated is None:
         return False

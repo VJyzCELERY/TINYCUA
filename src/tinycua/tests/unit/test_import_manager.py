@@ -341,7 +341,7 @@ class TestImportManager:
     def test_import_session_error(self, import_manager, mock_stores, tmp_path):
         """Test handling session import errors."""
         session_store, _, _, _ = mock_stores
-        session_store.create_session.side_effect = Exception("DB error")
+        session_store.create_session.side_effect = OSError("DB error")
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(
@@ -558,7 +558,7 @@ class TestImportManager:
         original_import_sessions = import_manager._import_sessions
 
         def failing_import_sessions(*args, **kwargs):
-            raise RuntimeError("DB crash after clear")
+            raise OSError("DB crash after clear")
 
         import_manager._import_sessions = failing_import_sessions
 
@@ -699,7 +699,7 @@ class TestImportManager:
     def test_import_memory_store_exception(self, import_manager, mock_stores, tmp_path):
         """Test import handles memory store exceptions gracefully."""
         _, _, memory_store, _ = mock_stores
-        memory_store.set.side_effect = RuntimeError("Disk full")
+        memory_store.set.side_effect = OSError("Disk full")
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(export_file, {"memory": {"key1": "value1"}})
@@ -725,7 +725,7 @@ class TestImportManager:
     def test_import_agent_store_exception(self, import_manager, mock_stores, tmp_path):
         """Test import handles agent store exceptions gracefully."""
         _, agent_manager, _, _ = mock_stores
-        agent_manager.list_agents.side_effect = RuntimeError("Agent DB error")
+        agent_manager.list_agents.side_effect = OSError("Agent DB error")
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(
@@ -823,7 +823,7 @@ class TestImportManager:
         self._create_valid_export_file(export_file, {"memory": {"key1": "value1"}})
 
         def bad_backup(*args, **kwargs):
-            raise RuntimeError("Backup failed")
+            raise OSError("Backup failed")
 
         monkeypatch.setattr(import_manager, "_backup_existing_data", bad_backup)
 
@@ -1118,7 +1118,7 @@ class TestImportManager:
         """Test import handles agent creation exceptions gracefully."""
         _, agent_manager, _, _ = mock_stores
         agent_manager.list_agents.return_value = []
-        agent_manager.create_agent.side_effect = RuntimeError("Agent DB error")
+        agent_manager.create_agent.side_effect = OSError("Agent DB error")
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(
@@ -1149,7 +1149,7 @@ class TestImportManager:
 
         # Force import_data to fail during restore
         monkeypatch.setattr(
-            import_manager, "import_data", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Restore failed"))
+            import_manager, "import_data", lambda *a, **k: (_ for _ in ()).throw(OSError("Restore failed"))
         )
 
         backup_file = tmp_path / "backup.json"
@@ -1230,7 +1230,7 @@ class TestImportManager:
 
         # Force import to fail after clear
         original = import_manager._import_sessions
-        import_manager._import_sessions = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB crash"))
+        import_manager._import_sessions = lambda *a, **k: (_ for _ in ()).throw(OSError("DB crash"))
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(
@@ -1280,7 +1280,7 @@ class TestImportManager:
 
         # Force import to fail after clear
         original = import_manager._import_sessions
-        import_manager._import_sessions = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB crash"))
+        import_manager._import_sessions = lambda *a, **k: (_ for _ in ()).throw(OSError("DB crash"))
 
         export_file = tmp_path / "export.json"
         self._create_valid_export_file(

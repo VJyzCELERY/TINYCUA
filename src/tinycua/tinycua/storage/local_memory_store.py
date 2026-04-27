@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Optional, cast
 
 from sqlalchemy import DateTime, String, create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -58,7 +59,7 @@ class LocalMemoryStore:
         """Ensure the memory table exists."""
         try:
             Base.metadata.create_all(self._engine)
-        except Exception:
+        except (OSError, SQLAlchemyError):
             logger.exception("Failed to create memory table")
 
     def set(self, key: str, value: Any) -> bool:
@@ -86,8 +87,8 @@ class LocalMemoryStore:
                 session.add(mem)
             session.commit()
             return True
-        except Exception:
-            logger.exception(f"Failed to set memory: {key}")
+        except (OSError, SQLAlchemyError, ValueError):
+            logger.exception("Failed to set memory: %s", key)
             session.rollback()
             return False
         finally:
@@ -109,8 +110,8 @@ class LocalMemoryStore:
             if mem is None:
                 return default
             return json.loads(cast(str, mem.value))
-        except Exception:
-            logger.exception(f"Failed to get memory: {key}")
+        except (OSError, SQLAlchemyError, ValueError):
+            logger.exception("Failed to get memory: %s", key)
             return default
         finally:
             session.close()
@@ -132,8 +133,8 @@ class LocalMemoryStore:
                 session.commit()
                 return True
             return False
-        except Exception:
-            logger.exception(f"Failed to delete memory: {key}")
+        except (OSError, SQLAlchemyError):
+            logger.exception("Failed to delete memory: %s", key)
             session.rollback()
             return False
         finally:
@@ -149,24 +150,9 @@ class LocalMemoryStore:
         try:
             keys = [cast(str, m.key) for m in session.query(MemoryModel).all()]
             return sorted(keys)
-        except Exception:
+        except (OSError, SQLAlchemyError):
             logger.exception("Failed to list memory keys")
             return []
-        finally:
-            session.close()
-
-    def exists(self, key: str) -> bool:
-        """Check if a memory key exists.
-
-        Args:
-            key: Memory key.
-
-        Returns:
-            True if exists, False otherwise.
-        """
-        session = self._Session()
-        try:
-            return session.get(MemoryModel, key) is not None
         finally:
             session.close()
 
@@ -181,7 +167,7 @@ class LocalMemoryStore:
             session.query(MemoryModel).delete()
             session.commit()
             return True
-        except Exception:
+        except (OSError, SQLAlchemyError):
             logger.exception("Failed to clear memory")
             session.rollback()
             return False

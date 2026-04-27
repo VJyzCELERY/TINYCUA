@@ -116,7 +116,7 @@ class TestCmdDeploy:
 
         mock_agent = MagicMock()
         mock_lifecycle = AsyncMock()
-        mock_lifecycle.deploy.side_effect = RuntimeError("Backend unavailable")
+        mock_lifecycle.deploy.side_effect = OSError("Backend unavailable")
 
         with patch(
             "tinycua.agent.default_agent.create_default_agent", return_value=mock_agent

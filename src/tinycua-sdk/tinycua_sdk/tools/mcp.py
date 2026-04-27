@@ -60,7 +60,7 @@ class MCPClient:
 
     async def connect(self) -> None:
         """Establish connection to MCP server."""
-        _mcp_logger.info(f"Connecting to MCP server: {self.server_url}")
+        _mcp_logger.info("Connecting to MCP server: %s", self.server_url)
         self._client = httpx.AsyncClient(
             base_url=self.server_url,
             headers=self.headers,
@@ -68,7 +68,7 @@ class MCPClient:
         )
         await self._fetch_tools()
         self.connected = True
-        _mcp_logger.info(f"Connected to MCP server with {len(self._tools)} tools")
+        _mcp_logger.info("Connected to MCP server with %s tools", len(self._tools))
 
     async def _request(
         self,
@@ -89,10 +89,10 @@ class MCPClient:
         try:
             result = await self._request("GET", "/tools")
             self._tools = result.get("tools", [])
-            _mcp_logger.debug(f"Fetched {len(self._tools)} tools")
+            _mcp_logger.debug("Fetched %s tools", len(self._tools))
             return self._tools
-        except Exception as e:
-            _mcp_logger.warning(f"Failed to fetch tools: {e}")
+        except (httpx.HTTPError, OSError, ValueError, RuntimeError) as e:
+            _mcp_logger.warning("Failed to fetch tools: %s", e)
             self._tools = []
             return self._tools
 
@@ -151,7 +151,7 @@ class MCPClient:
         if tool is None:
             raise ValueError(f"Tool '{name}' not found")
 
-        _mcp_logger.info(f"Calling MCP tool: {name}")
+        _mcp_logger.info("Calling MCP tool: %s", name)
 
         result = await self._request(
             "POST", f"/tools/{name}", json=arguments,

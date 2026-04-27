@@ -5,6 +5,7 @@ Creates a pre-configured agent that works out of the box with Ollama.
 
 from __future__ import annotations
 
+from tinycua.constants import DEFAULT_SYSTEM_PROMPT
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ def create_default_agent(
             from tinycua.config.user_config import UserConfig
 
             config = UserConfig.load()
-        except Exception:
+        except (OSError, ValueError, ImportError):
             from tinycua_sdk.core.config import SDKConfig
 
             config = SDKConfig()
@@ -70,7 +71,7 @@ def create_default_agent(
 
     agent = Agent(
         name="assistant",
-        system_prompt="You are a helpful assistant.",
+        system_prompt=DEFAULT_SYSTEM_PROMPT,
         model=config.llm.model,
         provider=config.llm.provider,
         base_url=config.llm.base_url,

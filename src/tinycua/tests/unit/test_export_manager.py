@@ -205,7 +205,7 @@ class TestExportManager:
     def test_export_error_handling(self, export_manager, mock_stores, tmp_path):
         """Test export error handling."""
         session_store, _, _, _ = mock_stores
-        session_store.list_sessions.side_effect = Exception("Database error")
+        session_store.list_sessions.side_effect = OSError("Database error")
 
         output_path = tmp_path / "export.json"
         result = export_manager.export(output_path)
@@ -238,7 +238,7 @@ class TestExportManager:
     def test_export_zip_failure(self, export_manager, mock_stores, tmp_path):
         """Test ZIP export failure handling."""
         session_store, _, _, _ = mock_stores
-        session_store.list_sessions.side_effect = Exception("Database error")
+        session_store.list_sessions.side_effect = OSError("Database error")
 
         output_path = tmp_path / "export.zip"
         result = export_manager.export_zip(output_path)

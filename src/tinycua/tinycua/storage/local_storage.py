@@ -50,7 +50,7 @@ class LocalStorageManager:
         """Ensure the ~/.tinycua directory exists."""
         try:
             TINYCUA_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except (OSError, PermissionError):
             logger.exception("Failed to create tinycua directory")
 
     @property
@@ -91,9 +91,9 @@ class LocalStorageManager:
             store = SessionStore(self.database_url)
             store.create_tables()
             self._initialized = True
-            logger.info(f"Database initialized at {self._db_path}")
+            logger.info("Database initialized at %s", self._db_path)
             return True
-        except Exception:
+        except (OSError, ValueError, ImportError):
             logger.exception("Failed to initialize database")
             return False
 
@@ -107,7 +107,7 @@ class LocalStorageManager:
             from tinycua_sdk.storage.store import SessionStore
 
             return SessionStore(self.database_url)
-        except Exception:
+        except (OSError, ValueError, ImportError):
             logger.exception("Failed to get session store")
             return None
 
@@ -126,9 +126,9 @@ class LocalStorageManager:
         try:
             backup = backup_path or Path(str(self._db_path) + ".backup")
             shutil.copy2(self._db_path, backup)
-            logger.info(f"Database backed up to {backup}")
+            logger.info("Database backed up to %s", backup)
             return True
-        except Exception:
+        except (OSError, shutil.SameFileError):
             logger.exception("Failed to backup database")
             return False
 
@@ -148,7 +148,7 @@ class LocalStorageManager:
         if self._db_path.exists():
             try:
                 info["size_bytes"] = self._db_path.stat().st_size
-            except Exception:
+            except (OSError, PermissionError):
                 pass
 
         return info

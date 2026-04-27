@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker, configure_mappers
 
 from tinycua_backend.config import get_config
 from tinycua_backend.storage.base import Base
+from tinycua_sdk.storage.store import SessionStore
 
 # Import all models to ensure relationships are set up and configure mappers
 # Note: Session is managed by SessionStore, not by backend models
@@ -96,3 +97,21 @@ def create_tables() -> None:
     """Create all database tables."""
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+
+
+_session_store: SessionStore | None = None
+_session_store_lock = threading.Lock()
+
+
+def get_session_store() -> SessionStore:
+    """Get cached SessionStore instance.
+
+    The store is cached globally and recreated if the database URL changes.
+    """
+    global _session_store
+    config = get_config()
+    if _session_store is None or _session_store.database_url != config.database.url:
+        with _session_store_lock:
+            if _session_store is None or _session_store.database_url != config.database.url:
+                _session_store = SessionStore(config.database.url)
+    return _session_store

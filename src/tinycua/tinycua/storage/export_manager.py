@@ -133,7 +133,7 @@ class ExportManager:
                 output_path=output_path,
                 items_exported=items_exported,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("Export failed")
             return ExportResult(success=False, error=str(e))
 
@@ -168,7 +168,7 @@ class ExportManager:
                 output_path=output_path,
                 items_exported=items_exported,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("ZIP export failed")
             return ExportResult(success=False, error=str(e))
 

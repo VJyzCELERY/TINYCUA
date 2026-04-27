@@ -3,9 +3,16 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
+import os
+import secrets
+
 import pytest
 from fastapi import HTTPException, status
 
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-unit-tests")
+TEST_PASSWORD = "TestPassword123!"
+
+from tests.unit.utils import get_tenant_filter
 from tinycua_backend.auth.core import (
     create_jwt_token,
     decode_jwt_token,
@@ -25,7 +32,7 @@ class TestLoginEndpointHTTP:
 
         valid_request = LoginRequest(
             email="test@example.com",
-            password="password123",
+            password=TEST_PASSWORD,
             tenant_id="12345678-1234-1234-1234-123456789abc",
         )
         assert valid_request.email == "test@example.com"
@@ -36,7 +43,7 @@ class TestLoginEndpointHTTP:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            LoginRequest(password="password123", tenant_id="tenant-123")
+            LoginRequest(password=TEST_PASSWORD, tenant_id="tenant-123")
 
     def test_login_endpoint_requires_password(self):
         """Test POST /auth/login requires password field."""
@@ -50,9 +57,9 @@ class TestLoginEndpointHTTP:
         """Test POST /auth/login accepts email and password without tenant_id."""
         from tinycua_backend.auth.schemas import LoginRequest
 
-        request = LoginRequest(email="test@example.com", password="password123")
+        request = LoginRequest(email="test@example.com", password=TEST_PASSWORD)
         assert request.email == "test@example.com"
-        assert request.password == "password123"
+        assert request.password == TEST_PASSWORD
 
 
 class TestRegistrationEndpointHTTP:
@@ -64,7 +71,7 @@ class TestRegistrationEndpointHTTP:
 
         valid_request = RegisterRequest(
             email="test@example.com",
-            password="password123",
+            password=TEST_PASSWORD,
             tenant_name="Test Tenant",
         )
         assert valid_request.email == "test@example.com"
@@ -90,7 +97,7 @@ class TestRegistrationEndpointHTTP:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            RegisterRequest(password="password123")
+            RegisterRequest(password=TEST_PASSWORD)
 
     def test_register_endpoint_requires_password(self):
         """Test POST /auth/register requires password field."""
@@ -246,7 +253,6 @@ class TestGetTenantFilter:
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.STANDARD
 
-        from tinycua_backend.auth.core import get_tenant_filter
         filter_condition = get_tenant_filter(mock_tenant, User)
 
         assert filter_condition is not None
@@ -259,7 +265,6 @@ class TestGetTenantFilter:
         mock_tenant = MagicMock()
         mock_tenant.tenant_type = TenantType.SYSTEM
 
-        from tinycua_backend.auth.core import get_tenant_filter
         filter_condition = get_tenant_filter(mock_tenant, User)
 
         assert filter_condition is None

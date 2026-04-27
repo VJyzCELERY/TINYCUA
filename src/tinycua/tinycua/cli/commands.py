@@ -45,7 +45,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
         console.print(f"[green]{result}[/green]")
         return 0
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 
@@ -89,7 +89,7 @@ async def cmd_deploy(args: argparse.Namespace) -> int:
         console.print(f"  Status: {result.get('status', 'unknown')}")
         return 0
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 
@@ -139,7 +139,7 @@ async def cmd_chat(args: argparse.Namespace) -> int:
 
         return 0
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1
 
@@ -166,6 +166,6 @@ async def cmd_tui(args: argparse.Namespace) -> int:
             "Install with: pip install tinycua[tui][/red]"
         )
         return 1
-    except Exception as e:
+    except (OSError, ValueError, TypeError) as e:
         console.print(f"[red]Error: {e}[/red]")
         return 1

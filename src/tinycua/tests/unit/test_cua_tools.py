@@ -87,7 +87,7 @@ class TestScreenCapture:
 
     def test_screen_capture_error_handling(self):
         """Test screen capture handles errors gracefully."""
-        with patch("mss.mss", side_effect=Exception("Display unavailable")):
+        with patch("mss.mss", side_effect=OSError("Display unavailable")):
             from tinycua.agent.tools.cua.screen_capture import screen_capture
 
             result = screen_capture.invoke()
@@ -126,7 +126,7 @@ class TestMouseTools:
 
     def test_mouse_move_error(self):
         """Test mouse move handles errors."""
-        with patch("pyautogui.moveTo", side_effect=Exception("Invalid coordinates")):
+        with patch("pyautogui.moveTo", side_effect=OSError("Invalid coordinates")):
             from tinycua.agent.tools.cua.mouse import mouse_move
 
             result = mouse_move.invoke(x=-1, y=-1)
@@ -204,7 +204,7 @@ class TestKeyboardTools:
 
     def test_keyboard_press_error(self):
         """Test keyboard press handles errors."""
-        with patch("pyautogui.press", side_effect=Exception("Key not found")):
+        with patch("pyautogui.press", side_effect=OSError("Key not found")):
             from tinycua.agent.tools.cua.keyboard import keyboard_press
 
             result = keyboard_press.invoke(key="nonexistent")

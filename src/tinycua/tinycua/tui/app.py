@@ -29,16 +29,20 @@ from textual.widgets import (
 )
 
 from tinycua.agent.default_agent import create_default_agent
+from tinycua.constants import DEFAULT_MODEL, DEFAULT_PROVIDER, DEFAULT_SYSTEM_PROMPT
 from tinycua.remote import RemoteConnectionManager, SyncEngine
 from tinycua.storage import ExportManager, ExportOptions, ImportManager, ImportMode
 from tinycua.storage.local_memory_store import LocalMemoryStore
 from tinycua.storage.local_session_store import LocalSessionStore
 from tinycua.storage.local_storage import LocalStorageManager
+from tinycua.tui.agent_commands import AgentCommandMixin
 from tinycua.tui.agent_manager import AgentManager
 from tinycua.tui.chat import ChatInterface
 from tinycua.tui.commands import CommandParser
+from tinycua.tui.export_import import ExportImportCommandMixin
 from tinycua.tui.session_manager import TuiSessionManager
 from tinycua.tui.skills_manager import SkillsManager
+from tinycua.tui.sync_commands import SyncCommandMixin
 from tinycua.tui.tool_manager import ToolManager
 from tinycua.tui.widgets import OutputPanel, StatusBar
 
@@ -121,7 +125,9 @@ def _validate_path(
     return True, ""
 
 
-class ChatScreen(Screen):
+class ChatScreen(
+    Screen, AgentCommandMixin, ExportImportCommandMixin, SyncCommandMixin
+):
     """Main chat screen with message input and output."""
 
     CSS = SHARED_CSS
@@ -178,7 +184,7 @@ class ChatScreen(Screen):
                 agent=agent_name,
                 mode="local",
             )
-        except Exception:
+        except (AttributeError, TypeError):
             logger.exception("Failed to update status bar")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -267,111 +273,6 @@ class ChatScreen(Screen):
         output.append_line("[yellow]Goodbye![/yellow]")
         self.app.exit()
 
-    async def _cmd_agents(self, args: str, output: OutputPanel) -> None:
-        """Handle /agents command."""
-        agents = self._agent_manager.list_agents()
-        if agents:
-            lines = ["[bold]Available agents:[/bold]"]
-            current = self._agent_manager.get_current_agent()
-            for agent in agents:
-                marker = " *" if current and current.id == agent.id else ""
-                lines.append(f"  {agent.name} ({agent.config.model}){marker}")
-            output.append_line("\n".join(lines))
-        else:
-            output.append_line("No agents configured. Use /agent-create to add one.")
-
-    async def _cmd_agent(self, args: str, output: OutputPanel) -> None:
-        """Handle /agent command."""
-        if not args:
-            output.append_line("[yellow]Usage: /agent <name>[/yellow]")
-            return
-        agents = self._agent_manager.list_agents()
-        target = None
-        for agent in agents:
-            if agent.name.lower() == args.lower():
-                target = agent
-                break
-        if target:
-            if self._agent_manager.set_current_agent(target.id):
-                agent_instance = self._agent_manager.create_agent_instance(target)
-                if agent_instance:
-                    self.app._current_agent_instance = agent_instance
-                    output.append_line(
-                        f"[green]Switched to agent: {target.name}[/green]"
-                    )
-                    self._update_status_bar()
-                else:
-                    output.append_line("[red]Failed to create agent instance.[/red]")
-            else:
-                output.append_line("[red]Failed to switch agent.[/red]")
-        else:
-            output.append_line(f"[red]Agent '{args}' not found.[/red]")
-
-    async def _cmd_agent_create(self, args: str, output: OutputPanel) -> None:
-        """Handle /agent-create command."""
-        if not args:
-            output.append_line(
-                "[yellow]Usage: /agent-create <name> [--model gpt-5-nano] [--provider openai] [--base-url URL] [--api-key KEY] [--system-prompt PROMPT] [--instructions TEXT] [--temperature 1.0] [--max-turns N][/yellow]"
-            )
-            return
-
-        parts = args.split()
-        name = parts[0]
-
-        model = "gpt-5-nano"
-        provider = "openai"
-        base_url = None
-        api_key = None
-        system_prompt = "You are a helpful assistant."
-        instructions = ""
-        temperature = 1.0
-        max_turns = None
-
-        i = 1
-        while i < len(parts):
-            if parts[i] == "--model" and i + 1 < len(parts):
-                model = parts[i + 1]
-                i += 2
-            elif parts[i] == "--provider" and i + 1 < len(parts):
-                provider = parts[i + 1]
-                i += 2
-            elif parts[i] == "--base-url" and i + 1 < len(parts):
-                base_url = parts[i + 1]
-                i += 2
-            elif parts[i] == "--api-key" and i + 1 < len(parts):
-                api_key = parts[i + 1]
-                i += 2
-            elif parts[i] == "--system-prompt" and i + 1 < len(parts):
-                system_prompt = parts[i + 1]
-                i += 2
-            elif parts[i] == "--instructions" and i + 1 < len(parts):
-                instructions = parts[i + 1]
-                i += 2
-            elif parts[i] == "--temperature" and i + 1 < len(parts):
-                temperature = float(parts[i + 1])
-                i += 2
-            elif parts[i] == "--max-turns" and i + 1 < len(parts):
-                max_turns = int(parts[i + 1])
-                i += 2
-            else:
-                i += 1
-
-        agent_info = self._agent_manager.create_agent(
-            name,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
-            system_prompt=system_prompt,
-            instructions=instructions,
-            temperature=temperature,
-            max_turns=max_turns,
-        )
-        if agent_info:
-            output.append_line(f"[green]Created agent: {agent_info.name}[/green]")
-        else:
-            output.append_line("[red]Failed to create agent.[/red]")
-
     async def _cmd_tools(self, args: str, output: OutputPanel) -> None:
         """Handle /tools command."""
         tools = self._tool_manager.list_tools()
@@ -402,229 +303,18 @@ class ChatScreen(Screen):
         else:
             output.append_line("[red]Failed to reload skills.[/red]")
 
-    async def _cmd_connect(self, args: str, output: OutputPanel) -> None:
-        """Handle /connect command."""
-        if not args:
-            output.append_line(
-                "[yellow]Usage: /connect <backend_url> [--api-key KEY][/yellow]"
-            )
-            return
-
-        parts = args.split()
-        backend_url = parts[0]
-        api_key = None
-
-        i = 1
-        while i < len(parts):
-            if parts[i] == "--api-key" and i + 1 < len(parts):
-                api_key = parts[i + 1]
-                i += 2
-            else:
-                i += 1
-
-        try:
-            self.init_remote(backend_url, api_key)
-            output.append_line(
-                f"[green]Initialized remote connection to {backend_url}[/green]"
-            )
-            output.append_line("[dim]Use /sync to sync with backend[/dim]")
-        except Exception as e:
-            output.append_line(
-                f"[red]Failed to initialize remote connection: {e}[/red]"
-            )
-
-    async def _cmd_sync(self, args: str, output: OutputPanel) -> None:
-        """Handle /sync command."""
-        if not self._remote_manager:
-            output.append_line("[red]Remote not initialized. Use /connect first.[/red]")
-            return
-        if not self._remote_manager.is_connected:
-            output.append_line(
-                "[red]Not connected to remote. Use /connect first.[/red]"
-            )
-            return
-        try:
-            loop = asyncio.get_event_loop()
-            result = loop.run_until_complete(self._sync_engine.push_all())
-            if result.success:
-                output.append_line(
-                    f"[green]Sync successful: {result.items_synced} items synced[/green]"
-                )
-            else:
-                output.append_line(f"[red]Sync failed: {result.errors}[/red]")
-        except Exception as e:
-            output.append_line(f"[red]Sync error: {e}[/red]")
-
-    async def _cmd_export(self, args: str, output: OutputPanel) -> None:
-        """Handle the /export command."""
-        if not args:
-            self.app.push_screen(
-                ExportScreen(
-                    session_manager=self._session_manager,
-                    agent_manager=self._agent_manager,
-                    memory_store=self.app.get_memory_store(),
-                    skills_manager=self._skills_manager,
-                )
-            )
-            return
-
-        include_sessions = True
-        include_agents = True
-        include_memory = True
-        include_skills = True
-        export_format = "json"
-        output_path_str = ""
-
-        parts = args.split()
-        i = 0
-        while i < len(parts):
-            part = parts[i]
-            if part == "--no-sessions":
-                include_sessions = False
-                i += 1
-            elif part == "--no-agents":
-                include_agents = False
-                i += 1
-            elif part == "--no-memory":
-                include_memory = False
-                i += 1
-            elif part == "--no-skills":
-                include_skills = False
-                i += 1
-            elif part == "--format" and i + 1 < len(parts):
-                fmt = parts[i + 1].lower()
-                if fmt in ("json", "zip"):
-                    export_format = fmt
-                else:
-                    output.append_line(
-                        f"[yellow]Unknown format '{fmt}', using json[/yellow]"
-                    )
-                i += 2
-            elif not output_path_str:
-                output_path_str = part
-                i += 1
-            else:
-                i += 1
-
-        if not output_path_str:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            ext = "zip" if export_format == "zip" else "json"
-            output_path_str = str(
-                Path.home() / ".tinycua" / f"export-{timestamp}.{ext}"
-            )
-
-        output_path = Path(output_path_str)
-        valid, error = _validate_path(output_path)
-        if not valid:
-            output.append_line(f"[red]Invalid export path: {error}[/red]")
-            return
-
-        memory_store = self.app.get_memory_store()
-        options = ExportOptions(
-            include_sessions=include_sessions,
-            include_agents=include_agents,
-            include_memory=include_memory,
-            include_skills=include_skills,
-        )
-
-        self.app.push_screen(
-            ExportPreviewScreen(
-                session_store=self.app.get_session_store(),
-                agent_manager=self._agent_manager,
-                memory_store=memory_store,
-                skills_manager=self._skills_manager,
-                options=options,
-                output_path=output_path,
-                export_format=export_format,
-            )
-        )
-
-    async def _cmd_import(self, args: str, output: OutputPanel) -> None:
-        """Handle the /import command."""
-        if not args:
-            self.app.push_screen(
-                ImportScreen(
-                    session_manager=self._session_manager,
-                    agent_manager=self._agent_manager,
-                    memory_store=self.app.get_memory_store(),
-                    skills_manager=self._skills_manager,
-                )
-            )
-            return
-
-        parts = args.split()
-        input_path = Path(parts[0])
-        valid, error = _validate_path(input_path, must_exist=True)
-        if not valid:
-            output.append_line(f"[red]Invalid import path: {error}[/red]")
-            return
-
-        mode = ImportMode.MERGE
-
-        i = 1
-        while i < len(parts):
-            if parts[i] == "--mode" and i + 1 < len(parts):
-                mode_str = parts[i + 1].lower()
-                if mode_str == "replace":
-                    output.append_line(
-                        "[red]Replace mode is not allowed via CLI. "
-                        "Use the Import screen for destructive operations.[/red]"
-                    )
-                    return
-                elif mode_str != "merge":
-                    output.append_line(
-                        f"[yellow]Unknown mode '{mode_str}', using merge[/yellow]"
-                    )
-                i += 2
-            else:
-                i += 1
-
-        try:
-            session_store = self.app.get_session_store()
-            memory_store = self.app.get_memory_store()
-            import_mgr = ImportManager(
-                session_store=session_store,
-                agent_manager=self._agent_manager,
-                memory_store=memory_store,
-                skills_manager=self._skills_manager,
-            )
-            validation = import_mgr.validate(input_path)
-            if not validation.valid:
-                output.append_line(
-                    f"[red]Import validation failed: {'; '.join(validation.errors)}[/red]"
-                )
-                return
-
-            result = import_mgr.import_data(
-                input_path,
-                mode=mode,
-                progress_callback=lambda msg: output.append_line(f"[dim]{msg}[/dim]"),
-            )
-            if result.success:
-                output.append_line(
-                    f"[green]Imported {result.items_imported} items[/green]"
-                )
-                if result.warnings:
-                    for warning in result.warnings:
-                        output.append_line(f"[yellow]Warning: {warning}[/yellow]")
-            else:
-                output.append_line(f"[red]Import failed: {result.error}[/red]")
-        except Exception as e:
-            output.append_line(f"[red]Import error: {e}[/red]")
-
     async def _process_message(self, message: str, output: OutputPanel) -> None:
         """Process a chat message."""
         self._status_text = "Thinking..."
         self._update_status_bar()
 
         try:
-            agent = self.app._current_agent_instance
+            agent = self.app.current_agent_instance
             if agent is None:
                 agent = self._agent_manager.get_default_agent()
             if agent is None:
                 agent = create_default_agent()
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, lambda: agent.run(message))
+            result = await agent.run(message)
             if isinstance(result, str):
                 output.append_line(f"[green]Assistant: {result}[/green]")
                 self._chat_interface.add_assistant_message(result)
@@ -632,7 +322,7 @@ class ChatScreen(Screen):
                 output.append_line(f"[green]Assistant: {result}[/green]")
                 self._chat_interface.add_assistant_message(str(result))
             self._status_text = "Ready"
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("Failed to process message")
             output.append_line(f"[red]Error: {e}[/red]")
             self._status_text = "Error"
@@ -736,7 +426,7 @@ class SessionsListScreen(Screen):
                 self.app.pop_screen()
             except ValueError:
                 logger.exception("Invalid session ID format")
-            except Exception:
+            except (OSError, TypeError):
                 logger.exception("Failed to resume session")
 
 
@@ -1061,12 +751,7 @@ class ExportPreviewScreen(Screen):
             return
 
         try:
-            export_mgr = ExportManager(
-                session_store=self._session_store,
-                agent_manager=self._agent_manager,
-                memory_store=self._memory_store,
-                skills_manager=self._skills_manager,
-            )
+            export_mgr = self.app.get_export_manager()
             if self._export_format == "zip":
                 result = export_mgr.export_zip(output_path, self._options)
             else:
@@ -1078,7 +763,7 @@ class ExportPreviewScreen(Screen):
                 )
             else:
                 self.app.notify(f"Export failed: {result.error}", severity="error")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             self.app.notify(f"Export error: {e}", severity="error")
 
         self.app.pop_screen()
@@ -1382,13 +1067,7 @@ class ImportScreen(Screen):
             return
 
         try:
-            session_store = self.app.get_session_store()
-            import_mgr = ImportManager(
-                session_store=session_store,
-                agent_manager=self._agent_manager,
-                memory_store=self._memory_store,
-                skills_manager=self._skills_manager,
-            )
+            import_mgr = self.app.get_import_manager()
             validation = import_mgr.validate(path)
             if validation.valid:
                 lines = [
@@ -1406,7 +1085,7 @@ class ImportScreen(Screen):
                 for error in validation.errors:
                     lines.append(f"  - {error}")
                 preview.update("\n".join(lines))
-        except Exception as e:
+        except (OSError, ValueError) as e:
             preview.update(f"Preview:\nError: {e}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1469,13 +1148,7 @@ class ImportScreen(Screen):
             mode: Import mode (MERGE or REPLACE).
         """
         try:
-            session_store = self.app.get_session_store()
-            import_mgr = ImportManager(
-                session_store=session_store,
-                agent_manager=self._agent_manager,
-                memory_store=self._memory_store,
-                skills_manager=self._skills_manager,
-            )
+            import_mgr = self.app.get_import_manager()
             validation = import_mgr.validate(path)
             if not validation.valid:
                 self.app.notify(
@@ -1501,7 +1174,7 @@ class ImportScreen(Screen):
                         self.app.notify(f"Warning: {warning}", severity="warning")
             else:
                 self.app.notify(f"Import failed: {result.error}", severity="error")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             self.app.notify(f"Import error: {e}", severity="error")
 
         self.app.pop_screen()
@@ -1565,7 +1238,7 @@ class TinyCUAApp(App):
                 self._mode = "local"
             else:
                 self._status_text = "Error: Agent init failed"
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("Failed to initialize agent")
             self._status_text = f"Error: {e}"
 
@@ -1573,7 +1246,7 @@ class TinyCUAApp(App):
         """Load skills on startup."""
         try:
             self._skills_manager.load_skills()
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to load skills")
 
     def _create_default_session(self) -> None:
@@ -1584,7 +1257,7 @@ class TinyCUAApp(App):
                 self._session_manager.create_session("Default Session")
             else:
                 self._session_manager.set_current_session(sessions[0].id)
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to create default session")
 
     def _init_storage(self) -> None:
@@ -1594,7 +1267,7 @@ class TinyCUAApp(App):
                 logger.info("Local storage initialized")
             else:
                 logger.warning("Failed to initialize local storage")
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Error initializing storage")
 
     def init_remote(self, backend_url: str, api_key: str | None = None) -> None:
@@ -1633,7 +1306,7 @@ class TinyCUAApp(App):
             else:
                 self._status_text = f"Sync failed: {result.errors}"
                 return False
-        except Exception:
+        except (OSError, ConnectionError, ValueError):
             logger.exception("Sync failed")
             return False
 
@@ -1680,3 +1353,35 @@ class TinyCUAApp(App):
     def get_command_parser(self) -> CommandParser:
         """Get the command parser."""
         return self._command_parser
+
+    @property
+    def current_agent_instance(self) -> Any:
+        """Get the current agent instance."""
+        return self._current_agent_instance
+
+    @current_agent_instance.setter
+    def current_agent_instance(self, value: Any) -> None:
+        """Set the current agent instance."""
+        self._current_agent_instance = value
+
+    def get_export_manager(self) -> ExportManager:
+        """Get an ExportManager instance with required dependencies."""
+        return ExportManager(
+            session_store=self.get_session_store(),
+            agent_manager=self._agent_manager,
+            memory_store=self.get_memory_store(),
+            skills_manager=self._skills_manager,
+        )
+
+    def get_import_manager(self) -> ImportManager:
+        """Get an ImportManager instance with required dependencies."""
+        return ImportManager(
+            session_store=self.get_session_store(),
+            agent_manager=self._agent_manager,
+            memory_store=self.get_memory_store(),
+            skills_manager=self._skills_manager,
+        )
+
+    def get_sync_engine(self) -> SyncEngine | None:
+        """Get the sync engine."""
+        return self._sync_engine

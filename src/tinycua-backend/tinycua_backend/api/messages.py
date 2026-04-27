@@ -2,11 +2,13 @@
 
 import uuid
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from tinycua_backend.api.dependencies import get_session_or_404, get_store
 from tinycua_backend.auth.core import CurrentTenant, get_current_tenant
-from tinycua_backend.api.sessions import _verify_session_tenant, get_store
 
 router = APIRouter(prefix="/v1/sessions", tags=["messages"])
 
@@ -31,6 +33,7 @@ class MessageResponse(BaseModel):
 @router.get("/{session_id}/messages", response_model=list[MessageResponse])
 async def list_messages(
     session_id: str,
+    session: Any = Depends(get_session_or_404),
     current: CurrentTenant = Depends(get_current_tenant),
     limit: int = 100,
     offset: int = 0,
@@ -39,6 +42,7 @@ async def list_messages(
 
     Args:
         session_id: The session ID
+        session: The verified session (from dependency)
         current: The current tenant
         limit: Maximum number of results
         offset: Number of results to skip
@@ -49,25 +53,8 @@ async def list_messages(
     Raises:
         HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
+    uuid_session_id = uuid.UUID(session_id)
     store = get_store()
-    session = store.get_session(uuid_session_id)
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    _verify_session_tenant(session, current)
-
     messages = store.get_messages(uuid_session_id, limit=limit)
     messages = messages[offset : offset + limit]
 
@@ -91,6 +78,7 @@ async def list_messages(
 async def create_message(
     session_id: str,
     message_data: MessageCreate,
+    session: Any = Depends(get_session_or_404),
     current: CurrentTenant = Depends(get_current_tenant),
 ) -> MessageResponse:
     """Add a message to a session.
@@ -98,6 +86,7 @@ async def create_message(
     Args:
         session_id: The session ID
         message_data: The message data
+        session: The verified session (from dependency)
         current: The current tenant
 
     Returns:
@@ -106,25 +95,8 @@ async def create_message(
     Raises:
         HTTPException: If session not found or access denied
     """
-    try:
-        uuid_session_id = uuid.UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session ID",
-        )
-
+    uuid_session_id = uuid.UUID(session_id)
     store = get_store()
-    session = store.get_session(uuid_session_id)
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    _verify_session_tenant(session, current)
-
     message = store.add_message(
         session_id=uuid_session_id,
         role=message_data.role,

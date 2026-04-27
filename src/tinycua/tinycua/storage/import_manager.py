@@ -298,7 +298,7 @@ class ImportManager:
                 items_imported=items_imported,
                 warnings=warnings,
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("Import failed")
             if backup_path is not None and mode == ImportMode.REPLACE:
                 restore_ok = self._restore_from_backup(backup_path)
@@ -420,13 +420,13 @@ class ImportManager:
         """
         try:
             self._clear_existing_data()
-            result = self.import_data(backup_path, mode=ImportMode.REPLACE)
+            result = self.import_data(backup_path, mode=ImportMode.MERGE)
             if not result.success:
                 logger.error("Backup restoration import failed: %s", result.error)
                 return False
             logger.info("Restored existing data from backup")
             return True
-        except Exception:
+        except (OSError, ValueError, TypeError):
             logger.exception("Failed to restore from backup")
             return False
 
@@ -489,7 +489,7 @@ class ImportManager:
                     )
 
                 items_imported += 1
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 warnings.append(f"Failed to import session: {e}")
 
         return items_imported, warnings
@@ -520,14 +520,20 @@ class ImportManager:
                     warnings.append(f"Agent '{name}' already exists, skipping")
                     continue
 
+                from tinycua.constants import (
+                    DEFAULT_MODEL,
+                    DEFAULT_PROVIDER,
+                    DEFAULT_SYSTEM_PROMPT,
+                )
+
                 self._agent_manager.create_agent(
                     name=name,
-                    model=config.get("model", "gpt-5-nano"),
-                    provider=config.get("provider", "openai"),
+                    model=config.get("model", DEFAULT_MODEL),
+                    provider=config.get("provider", DEFAULT_PROVIDER),
                     base_url=config.get("base_url"),
                     api_key=None,
                     system_prompt=config.get(
-                        "system_prompt", "You are a helpful assistant."
+                        "system_prompt", DEFAULT_SYSTEM_PROMPT
                     ),
                     instructions=config.get("instructions", ""),
                     temperature=config.get("temperature", 1.0),
@@ -535,7 +541,7 @@ class ImportManager:
                 )
                 existing_names.add(name)
                 items_imported += 1
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 warnings.append(
                     f"Failed to import agent '{agent_data.get('name')}': {e}"
                 )
@@ -555,7 +561,7 @@ class ImportManager:
             try:
                 self._memory_store.set(key, value)
                 items_imported += 1
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 warnings.append(f"Failed to import memory key '{key}': {e}")
 
         return items_imported, warnings

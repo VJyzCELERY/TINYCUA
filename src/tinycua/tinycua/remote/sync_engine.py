@@ -11,6 +11,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+import httpx
+
+from tinycua.exceptions import StorageError
+
 try:
     import platformdirs
     HAS_PLATFORMDIRS = True
@@ -71,9 +75,9 @@ class OfflineQueue:
             try:
                 with open(self._queue_file, "r") as f:
                     self._queue = json.load(f)
-                logger.debug(f"Loaded {len(self._queue)} operations from persistent queue")
-            except Exception as e:
-                logger.warning(f"Failed to load offline queue: {e}")
+                logger.debug("Loaded %s operations from persistent queue", len(self._queue))
+            except (OSError, ValueError, TypeError) as e:
+                logger.warning("Failed to load offline queue: %s", e)
                 self._queue = []
 
     def _save(self) -> None:
@@ -86,8 +90,8 @@ class OfflineQueue:
             self._queue_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self._queue_file, "w") as f:
                 json.dump(self._queue, f)
-        except Exception as e:
-            logger.warning(f"Failed to save offline queue: {e}")
+        except (OSError, ValueError, TypeError) as e:
+            logger.warning("Failed to save offline queue: %s", e)
 
     def enqueue(self, operation: dict[str, Any]) -> None:
         """Add an operation to the queue.
@@ -97,7 +101,7 @@ class OfflineQueue:
         """
         self._queue.append(operation)
         self._save()
-        logger.debug(f"Enqueued operation, queue size: {len(self._queue)}")
+        logger.debug("Enqueued operation, queue size: %s", len(self._queue))
 
     def dequeue(self) -> dict[str, Any] | None:
         """Remove and return the oldest operation from the queue.
@@ -108,7 +112,7 @@ class OfflineQueue:
         if self._queue:
             op = self._queue.pop(0)
             self._save()
-            logger.debug(f"Dequeued operation, queue size: {len(self._queue)}")
+            logger.debug("Dequeued operation, queue size: %s", len(self._queue))
             return op
         return None
 
@@ -230,7 +234,7 @@ class SyncEngine:
 
         try:
             local_sessions = await self._get_local_sessions()
-            remote_sessions = await client.list_agents()
+            remote_sessions = await client.list_sessions()
 
             merged = self._merge_sessions(local_sessions, remote_sessions)
             synced_count = 0
@@ -245,7 +249,7 @@ class SyncEngine:
                     else:
                         await client.create_session(agent_id="default", name=session_name)
                     synced_count += 1
-                except Exception as e:
+                except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
                     errors.append(f"Failed to push session: {e}")
 
             from tinycua.storage import LocalStorageManager
@@ -261,20 +265,20 @@ class SyncEngine:
                 if session["id"] not in local_ids:
                     try:
                         store.create_session(
-                            uuid.UUID(session["id"]),
                             name=session.get("name"),
+                            session_id=uuid.UUID(session["id"]),
                         )
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError) as e:
                         errors.append(f"Failed to save session locally: {e}")
 
             self._last_sync = datetime.now(timezone.utc)
             self._connection_manager.update_last_sync(self._last_sync.isoformat())
 
-            logger.info(f"Synced {synced_count} sessions")
+            logger.info("Synced %s sessions", synced_count)
             return SyncResult(success=len(errors) == 0, items_synced=synced_count, errors=errors)
 
-        except Exception as e:
-            logger.exception(f"Session sync failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Session sync failed: %s: %s", type(e).__name__, e)
             return SyncResult(success=False, errors=[f"Session sync failed: {e}"])
 
     async def sync_messages(self, session_id: str) -> SyncResult:
@@ -306,13 +310,13 @@ class SyncEngine:
                     try:
                         session_uuid = uuid.UUID(session_id)
                         for msg in merged_messages:
-                            store.create_message(
+                            store.add_message(
                                 session_id=session_uuid,
                                 role=msg.get("role", "user"),
                                 content=msg.get("content", ""),
                                 turn_index=msg.get("turn_index", 0),
                             )
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError) as e:
                         errors.append(f"Failed to save messages locally: {e}")
 
             for msg in merged_messages:
@@ -322,14 +326,14 @@ class SyncEngine:
                         role=msg.get("role", "user"),
                         content=msg.get("content", ""),
                     )
-                except Exception as e:
+                except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
                     errors.append(f"Failed to push message to remote: {e}")
 
-            logger.info(f"Synced {synced_count} messages for session {session_id}")
+            logger.info("Synced %s messages for session %s", synced_count, session_id)
             return SyncResult(success=len(errors) == 0, items_synced=synced_count, errors=errors)
 
-        except Exception as e:
-            logger.exception(f"Message sync failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Message sync failed: %s: %s", type(e).__name__, e)
             return SyncResult(success=False, errors=[f"Message sync failed: {e}"])
 
     async def sync_memory(self) -> SyncResult:
@@ -365,17 +369,17 @@ class SyncEngine:
                     if merged_memory:
                         await client.save_memory(session_id, merged_memory)
                         total_synced += 1
-                except Exception as e:
+                except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
                     errors.append(f"Failed to sync memory for session {session_id}: {e}")
 
             self._last_sync = datetime.now(timezone.utc)
             self._connection_manager.update_last_sync(self._last_sync.isoformat())
 
-            logger.info(f"Synced memory for {total_synced} sessions")
+            logger.info("Synced memory for %s sessions", total_synced)
             return SyncResult(success=len(errors) == 0, items_synced=total_synced, errors=errors)
 
-        except Exception as e:
-            logger.exception(f"Memory sync failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Memory sync failed: %s: %s", type(e).__name__, e)
             return SyncResult(success=False, errors=["Memory sync failed"])
 
     async def replay_offline_queue(self) -> SyncResult:
@@ -417,10 +421,10 @@ class SyncEngine:
                             total_processed += 1
                         else:
                             errors.extend(result.errors)
-            except Exception as e:
+            except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
                 errors.append(f"Failed to replay {op_type}: {e}")
 
-        logger.info(f"Replayed {total_processed} queued operations")
+        logger.info("Replayed %s queued operations", total_processed)
         return SyncResult(
             success=len(errors) == 0,
             items_synced=total_processed,
@@ -451,15 +455,15 @@ class SyncEngine:
 
             self._last_sync = datetime.now(timezone.utc)
             self._connection_manager.update_last_sync(self._last_sync.isoformat())
-            logger.info(f"Pushed {total_synced} sessions to remote")
+            logger.info("Pushed %s sessions to remote", total_synced)
             return SyncResult(
                 success=len(errors) == 0,
                 items_synced=total_synced,
                 errors=errors if errors else []
             )
 
-        except Exception as e:
-            logger.exception(f"Push failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Push failed: %s: %s", type(e).__name__, e)
             return SyncResult(success=False, errors=["Push failed"])
 
     async def pull_all(self) -> SyncResult:
@@ -473,7 +477,7 @@ class SyncEngine:
             return SyncResult(success=False, errors=["Not connected to remote"])
 
         try:
-            remote_sessions = await client.list_agents()
+            remote_sessions = await client.list_sessions()
             total_synced = 0
             errors = []
 
@@ -486,16 +490,31 @@ class SyncEngine:
 
             self._last_sync = datetime.now(timezone.utc)
             self._connection_manager.update_last_sync(self._last_sync.isoformat())
-            logger.info(f"Pulled {total_synced} sessions from remote")
+            logger.info("Pulled %s sessions from remote", total_synced)
             return SyncResult(
                 success=len(errors) == 0,
                 items_synced=total_synced,
                 errors=errors if errors else []
             )
 
-        except Exception as e:
-            logger.exception(f"Pull failed: {type(e).__name__}: {e}")
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
+            logger.exception("Pull failed: %s: %s", type(e).__name__, e)
             return SyncResult(success=False, errors=["Pull failed"])
+
+    def _get_from_store(self, method_name: str, *args, default=None):
+        """Generic helper to call a method on LocalStorageManager's current store."""
+        try:
+            from tinycua.storage.local_storage import LocalStorageManager
+            manager = LocalStorageManager()
+            store = manager.get_store()
+            if store is None:
+                return default
+            method = getattr(store, method_name, None)
+            if method is None:
+                return default
+            return method(*args)
+        except (StorageError, OSError, AttributeError):
+            return default
 
     async def _get_local_sessions(self) -> list[dict[str, Any]]:
         """Get local sessions for sync.
@@ -503,26 +522,17 @@ class SyncEngine:
         Returns:
             List of session dictionaries.
         """
-        try:
-            from tinycua.storage import LocalStorageManager
-
-            storage_manager = LocalStorageManager.get_instance()
-            if storage_manager is None:
-                return []
-            store = storage_manager.get_store()
-            if store:
-                sessions = store.list_sessions()
-                return [
-                    {
-                        "id": str(s.id),
-                        "name": s.name,
-                        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
-                    }
-                    for s in sessions
-                ]
-        except Exception as e:
-            logger.exception(f"Failed to get local sessions: {type(e).__name__}: {e}")
-        return []
+        sessions = self._get_from_store("list_sessions", default=[])
+        if not sessions:
+            return []
+        return [
+            {
+                "id": str(s.id),
+                "name": s.name,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+            }
+            for s in sessions
+        ]
 
     async def _get_local_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Get local messages for a session.
@@ -534,27 +544,21 @@ class SyncEngine:
             List of message dictionaries.
         """
         try:
-            from tinycua.storage import LocalStorageManager
-
-            storage_manager = LocalStorageManager.get_instance()
-            if storage_manager is None:
-                return []
-            store = storage_manager.get_store()
-            if store:
-                messages = store.get_messages(uuid.UUID(session_id))
-                return [
-                    {
-                        "id": str(m.id),
-                        "role": m.role,
-                        "content": m.content,
-                        "turn_index": m.turn_index,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
-                    }
-                    for m in messages
-                ]
-        except Exception as e:
-            logger.exception(f"Failed to get local messages: {type(e).__name__}: {e}")
-        return []
+            messages = self._get_from_store("get_messages", uuid.UUID(session_id), default=[])
+        except ValueError:
+            return []
+        if not messages:
+            return []
+        return [
+            {
+                "id": str(m.id),
+                "role": m.role,
+                "content": m.content,
+                "turn_index": m.turn_index,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ]
 
     async def _get_local_memory(self, session_id: str) -> dict[str, Any]:
         """Get local memory for a session.
@@ -566,19 +570,12 @@ class SyncEngine:
             Memory dictionary.
         """
         try:
-            from tinycua.storage import LocalStorageManager
-
-            storage_manager = LocalStorageManager.get_instance()
-            if storage_manager is None:
-                return {}
-            store = storage_manager.get_store()
-            if store:
-                memory = store.get_memory(uuid.UUID(session_id))
-                if memory:
-                    return {"content": memory.content, "updated_at": memory.updated_at.isoformat() if memory.updated_at else None}
-        except Exception as e:
-            logger.exception(f"Failed to get local memory: {type(e).__name__}: {e}")
-        return {}
+            memory = self._get_from_store("get_memory", uuid.UUID(session_id), default=None)
+        except ValueError:
+            return {}
+        if memory is None:
+            return {}
+        return {"content": memory.content, "updated_at": memory.updated_at.isoformat() if memory.updated_at else None}
 
     def _merge_memory(
         self,
@@ -674,7 +671,7 @@ class SyncEngine:
             else:
                 await client.create_session(agent_id="default", name=session_name)
             return SyncResult(success=True, items_synced=1)
-        except Exception as e:
+        except (ConnectionError, OSError, ValueError, httpx.HTTPStatusError) as e:
             error_msg = f"Failed to push session {session.get('id')}: {e}"
             logger.exception(error_msg)
             return SyncResult(success=False, errors=[error_msg])
@@ -705,11 +702,11 @@ class SyncEngine:
                 else:
                     session_uuid = uuid.uuid4()
                 store.create_session(
-                    session_uuid,
                     name=session.get("name", "remote_session"),
+                    session_id=session_uuid,
                 )
             return SyncResult(success=True, items_synced=1)
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             error_msg = f"Failed to pull session {session.get('id')}: {e}"
             logger.exception(error_msg)
             return SyncResult(success=False, errors=[error_msg])

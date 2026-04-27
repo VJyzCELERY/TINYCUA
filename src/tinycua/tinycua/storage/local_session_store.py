@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Optional
 
+from tinycua.exceptions import StorageError
 from tinycua_sdk.storage.models import Session
 from tinycua_sdk.storage.store import SessionStore
 
@@ -39,9 +39,9 @@ class LocalSessionStore:
     def create_session(
         self,
         name: str,
-        user_id: Optional[str] = None,
-        session_id: Optional[uuid.UUID] = None,
-    ) -> Optional[Session]:
+        user_id: str | None = None,
+        session_id: uuid.UUID | None = None,
+    ) -> Session:
         """Create a new session.
 
         Args:
@@ -50,17 +50,19 @@ class LocalSessionStore:
             session_id: Optional session UUID to preserve.
 
         Returns:
-            Created Session or None on error.
+            Created Session.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.create_session(
                 name=name, user_id=user_id, session_id=session_id
             )
-        except Exception:
-            logger.exception("Failed to create session")
-            return None
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to create session: {exc}") from exc
 
-    def get_session(self, session_id: uuid.UUID) -> Optional[Session]:
+    def get_session(self, session_id: uuid.UUID) -> Session | None:
         """Get a session by ID.
 
         Args:
@@ -68,14 +70,16 @@ class LocalSessionStore:
 
         Returns:
             Session if found, None otherwise.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.get_session(session_id)
-        except Exception:
-            logger.exception("Failed to get session")
-            return None
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to get session: {exc}") from exc
 
-    def get_session_by_name(self, name: str) -> Optional[Session]:
+    def get_session_by_name(self, name: str) -> Session | None:
         """Get a session by name.
 
         Args:
@@ -83,14 +87,16 @@ class LocalSessionStore:
 
         Returns:
             Session if found, None otherwise.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.get_session_by_name(name)
-        except Exception:
-            logger.exception("Failed to get session by name")
-            return None
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to get session by name: {exc}") from exc
 
-    def list_sessions(self, user_id: Optional[str] = None) -> list:
+    def list_sessions(self, user_id: str | None = None) -> list:
         """List all sessions.
 
         Args:
@@ -98,14 +104,16 @@ class LocalSessionStore:
 
         Returns:
             List of Session instances.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.list_sessions(user_id=user_id)
-        except Exception:
-            logger.exception("Failed to list sessions")
-            return []
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to list sessions: {exc}") from exc
 
-    def update_session(self, session_id: uuid.UUID, **kwargs) -> Optional[Session]:
+    def update_session(self, session_id: uuid.UUID, **kwargs) -> Session | None:
         """Update a session.
 
         Args:
@@ -114,12 +122,14 @@ class LocalSessionStore:
 
         Returns:
             Updated Session if found, None otherwise.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.update_session(session_id, **kwargs)
-        except Exception:
-            logger.exception("Failed to update session")
-            return None
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to update session: {exc}") from exc
 
     def delete_session(self, session_id: uuid.UUID) -> bool:
         """Delete a session.
@@ -129,20 +139,22 @@ class LocalSessionStore:
 
         Returns:
             True if deleted, False if not found.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.delete_session(session_id)
-        except Exception:
-            logger.exception("Failed to delete session")
-            return False
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to delete session: {exc}") from exc
 
     def add_message(
         self,
         session_id: uuid.UUID,
         role: str,
         content: str,
-        reasoning: Optional[str] = None,
-    ) -> Optional[object]:
+        reasoning: str | None = None,
+    ) -> object:
         """Add a message to a session.
 
         Args:
@@ -152,7 +164,10 @@ class LocalSessionStore:
             reasoning: Optional agent reasoning.
 
         Returns:
-            Created Message if session exists, None otherwise.
+            Created Message if session exists.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.add_message(
@@ -161,11 +176,10 @@ class LocalSessionStore:
                 content=content,
                 reasoning=reasoning,
             )
-        except Exception:
-            logger.exception("Failed to add message")
-            return None
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to add message: {exc}") from exc
 
-    def get_messages(self, session_id: uuid.UUID, limit: Optional[int] = None) -> list:
+    def get_messages(self, session_id: uuid.UUID, limit: int | None = None) -> list:
         """Get messages for a session.
 
         Args:
@@ -174,12 +188,14 @@ class LocalSessionStore:
 
         Returns:
             List of Message instances.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.get_messages(session_id, limit=limit)
-        except Exception:
-            logger.exception("Failed to get messages")
-            return []
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to get messages: {exc}") from exc
 
     def get_recent_turns(self, session_id: uuid.UUID, count: int = 3) -> list:
         """Get recent non-archived turns.
@@ -190,9 +206,11 @@ class LocalSessionStore:
 
         Returns:
             List of recent Message instances.
+
+        Raises:
+            StorageError: If the underlying store operation fails.
         """
         try:
             return self._store.get_recent_turns(session_id, count=count)
-        except Exception:
-            logger.exception("Failed to get recent turns")
-            return []
+        except (OSError, ValueError, TypeError) as exc:
+            raise StorageError(f"Failed to get recent turns: {exc}") from exc
