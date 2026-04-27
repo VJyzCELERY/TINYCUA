@@ -81,13 +81,24 @@ class SessionStore:
         """Create all tables in the database."""
         Base.metadata.create_all(self.engine)
 
-    def _get_session(self) -> SQLSession:
-        """Get a new database session.
+    def get_db_session(self) -> SQLSession:
+        """Get a new database session for custom queries.
+
+        This is the public API for obtaining a raw SQLAlchemy session.
+        Prefer store methods for standard CRUD operations.
 
         Returns:
             SQLSession instance
         """
         return self.session_factory()
+
+    def _get_session(self) -> SQLSession:
+        """Get a new database session (internal compatibility alias).
+
+        Returns:
+            SQLSession instance
+        """
+        return self.get_db_session()
 
     # Session operations
 
@@ -95,23 +106,45 @@ class SessionStore:
         self,
         name: str,
         user_id: str | None = None,
+        tenant_id: str | None = None,
         session_id: uuid.UUID | None = None,
+        parent_session_id: uuid.UUID | None = None,
     ) -> Session:
         """Create a new session.
 
         Args:
             name: Session name
             user_id: Optional user ID for multi-tenancy
+            tenant_id: Optional tenant ID for multi-tenancy
             session_id: Optional specific session ID (for external session management)
+            parent_session_id: Optional parent session ID for lineage
 
         Returns:
             Created Session instance
         """
         with self._get_session() as db:
+            lineage_depth = 0
+            if parent_session_id:
+                parent = db.get(Session, parent_session_id)
+                if parent:
+                    lineage_depth = getattr(parent, "lineage_depth", 0) + 1
             if session_id:
-                session = Session(id=session_id, name=name, user_id=user_id)
+                session = Session(
+                    id=session_id,
+                    name=name,
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    parent_session_id=parent_session_id,
+                    lineage_depth=lineage_depth,
+                )
             else:
-                session = Session(name=name, user_id=user_id)
+                session = Session(
+                    name=name,
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    parent_session_id=parent_session_id,
+                    lineage_depth=lineage_depth,
+                )
             db.add(session)
             db.commit()
             db.refresh(session)
@@ -128,6 +161,19 @@ class SessionStore:
         """
         with self._get_session() as db:
             return db.get(Session, session_id)
+
+    def get_session_by_name(self, name: str) -> Session | None:
+        """Get a session by name.
+
+        Args:
+            name: Session name (exact match, case-sensitive)
+
+        Returns:
+            Session if found, None otherwise
+        """
+        with self._get_session() as db:
+            stmt = select(Session).where(Session.name == name)
+            return db.execute(stmt).scalars().first()
 
     def list_sessions(self, user_id: str | None = None) -> list[Session]:
         """List all sessions, optionally filtered by user_id.
@@ -182,6 +228,26 @@ class SessionStore:
             db.delete(session)
             db.commit()
             return True
+
+    def get_lineage(self, session_id: uuid.UUID) -> list[Session]:
+        """Get the parent chain of a session.
+
+        Args:
+            session_id: Session UUID
+
+        Returns:
+            List of sessions from root to current
+        """
+        with self._get_session() as db:
+            lineage: list[Session] = []
+            current = db.get(Session, session_id)
+            while current:
+                lineage.insert(0, current)
+                if current.parent_session_id:
+                    current = db.get(Session, current.parent_session_id)
+                else:
+                    break
+            return lineage
 
     # Message operations
 
@@ -246,6 +312,25 @@ class SessionStore:
                 stmt = stmt.limit(limit)
             return list(db.execute(stmt).scalars().all())
 
+    def get_messages_by_role(self, session_id: uuid.UUID, role: str) -> list[Message]:
+        """Get messages for a session filtered by role.
+
+        Args:
+            session_id: Session UUID
+            role: Message role (user/assistant/tool)
+
+        Returns:
+            List of Message instances with matching role, ordered by turn_index ascending
+        """
+        with self._get_session() as db:
+            stmt = (
+                select(Message)
+                .where(Message.session_id == session_id)
+                .where(Message.role == role)
+                .order_by(Message.turn_index.asc())
+            )
+            return list(db.execute(stmt).scalars().all())
+
     def archive_message(self, message_id: uuid.UUID) -> Message | None:
         """Archive a message.
 
@@ -264,6 +349,23 @@ class SessionStore:
             db.refresh(message)
             return message
 
+    def delete_message(self, message_id: uuid.UUID) -> bool:
+        """Delete a message permanently.
+
+        Args:
+            message_id: Message UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with self._get_session() as db:
+            message = db.get(Message, message_id)
+            if not message:
+                return False
+            db.delete(message)
+            db.commit()
+            return True
+
     # Context retrieval
 
     def get_recent_turns(self, session_id: uuid.UUID, count: int = 3) -> list[Message]:
@@ -280,7 +382,7 @@ class SessionStore:
             stmt = (
                 select(Message)
                 .where(Message.session_id == session_id)
-                .where(Message.is_archived is not True)
+                .where(Message.is_archived == False)  # noqa: E712
                 .order_by(Message.turn_index.desc())
                 .limit(count)
             )
@@ -447,7 +549,7 @@ def get_session_store(database_url: str | None = None) -> SessionStore:
         from tinycua_sdk.core.config import SDKConfig
 
         resolved_url = SDKConfig().memory.database_url
-    except Exception:
+    except (OSError, ValueError, ImportError, TypeError):
         pass  # Fall back to default
 
     _default_store = SessionStore(resolved_url)

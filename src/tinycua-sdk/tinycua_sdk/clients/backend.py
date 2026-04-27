@@ -1,7 +1,20 @@
-"""Backend client for remote agent management."""
+"""Backend client for remote agent management.
 
+.. deprecated::
+    The canonical BackendClient is now in ``tinycua.clients.backend``.
+    This module keeps the full implementation for backward compatibility
+    but will emit a deprecation warning on import.
+"""
+
+import warnings
 import httpx
 from typing import Any, AsyncIterator
+
+warnings.warn(
+    "tinycua_sdk.clients.backend is deprecated. Use tinycua.clients.backend instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class BackendClient:
@@ -38,6 +51,11 @@ class BackendClient:
         self.timeout = timeout
         self._tenant_id: str | None = None
         self._user_id: str | None = None
+        self._client = httpx.AsyncClient(timeout=self.timeout)
+
+    async def close(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._client.aclose()
 
     async def login(self, **kwargs: Any) -> dict[str, Any]:
         """Login with credentials.
@@ -57,23 +75,73 @@ class BackendClient:
         if not kwargs:
             raise ValueError("login requires credentials (email/password or custom)")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/auth/login",
-                json=kwargs,
-            )
-            response.raise_for_status()
-            data = response.json()
-            self.api_key = data.get("access_token")
-            self._tenant_id = data.get("tenant_id")
-            self._user_id = data.get("user_id")
-            return data
+        response = await self._client.post(
+            f"{self.base_url}/v1/auth/login",
+            json=kwargs,
+        )
+        response.raise_for_status()
+        data = response.json()
+        self.api_key = data.get("access_token")
+        self._tenant_id = data.get("tenant_id")
+        self._user_id = data.get("user_id")
+        return data
+
+    async def create_tenant(
+        self,
+        tenant_name: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Create a new tenant.
+
+        Args:
+            tenant_name: Name for the tenant
+            **kwargs: Additional tenant fields
+
+        Returns:
+            Tenant response with tenant_id and status
+
+        Raises:
+            httpx.HTTPStatusError: If creation fails
+        """
+        payload = {"tenant_name": tenant_name}
+        payload.update(kwargs)
+
+        response = await self._client.post(
+            f"{self.base_url}/v1/tenants",
+            json=payload,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        data = response.json()
+        self._tenant_id = data.get("tenant_id")
+        return data
+
+    async def test_connection(self) -> bool:
+        """Test connection to backend.
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            response = await self._client.get(f"{self.base_url}/health")
+            return response.status_code == 200
+        except (httpx.HTTPError, OSError, ValueError):
+            return False
+
+    def is_local_mode(self) -> bool:
+        """Check if running in local mode without backend.
+
+        Returns:
+            True if local mode (no base_url or credentials)
+        """
+        return not self.base_url or self.base_url == ""
 
     async def register(self, **kwargs: Any) -> dict[str, Any]:
         """Register a new user.
 
         Default fields: email, password, tenant_name
-        Additional fields can be passed for custom registration (e.g., username, full_name).
+        Additional fields can be passed for custom registration
+        (e.g., username, full_name).
 
         Args:
             **kwargs: Registration fields (email, password, tenant_name, etc.)
@@ -84,17 +152,16 @@ class BackendClient:
         if not kwargs:
             raise ValueError("register requires user information")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/auth/register",
-                json=kwargs,
-            )
-            response.raise_for_status()
-            data = response.json()
-            self.api_key = data.get("access_token")
-            self._tenant_id = data.get("tenant_id")
-            self._user_id = data.get("user_id")
-            return data
+        response = await self._client.post(
+            f"{self.base_url}/v1/auth/register",
+            json=kwargs,
+        )
+        response.raise_for_status()
+        data = response.json()
+        self.api_key = data.get("access_token")
+        self._tenant_id = data.get("tenant_id")
+        self._user_id = data.get("user_id")
+        return data
 
     @property
     def tenant_id(self) -> str | None:
@@ -135,11 +202,6 @@ class BackendClient:
             Deployment response with agent_id and status
 
         """
-        # Extract the agent config from the nested structure
-        # The SDK sends { "agent": {...}, "tools": [...] }
-        # Backend expects { "name": str, "config": dict }
-
-        # Handle both old format (direct) and new format (nested)
         if "agent" in agent_config:
             agent_data = agent_config["agent"]
             name = agent_data.get("name", "agent")
@@ -153,14 +215,13 @@ class BackendClient:
             "config": config,
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/agents",
-                json=payload,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.post(
+            f"{self.base_url}/v1/agents",
+            json=payload,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def get_agent(
         self,
@@ -175,13 +236,12 @@ class BackendClient:
             Agent configuration dict
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/agents/{agent_id}",
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(
+            f"{self.base_url}/v1/agents/{agent_id}",
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def delete_agent(
         self,
@@ -193,12 +253,11 @@ class BackendClient:
             agent_id: ID of the agent
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.delete(
-                f"{self.base_url}/v1/agents/{agent_id}",
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
+        response = await self._client.delete(
+            f"{self.base_url}/v1/agents/{agent_id}",
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
 
     async def list_agents(self) -> list[dict[str, Any]]:
         """List all agents in backend.
@@ -207,13 +266,12 @@ class BackendClient:
             List of agent configuration dicts
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/agents",
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(
+            f"{self.base_url}/v1/agents",
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def execute(
         self,
@@ -221,7 +279,6 @@ class BackendClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         stream: bool = True,
-        plan_mode: bool = False,
     ) -> AsyncIterator[dict[str, Any]]:
         """Execute an agent on the backend.
 
@@ -230,7 +287,6 @@ class BackendClient:
             messages: Conversation messages
             tools: Optional tool definitions
             stream: Whether to stream the response
-            plan_mode: If True, only allow plan-mode tools
 
         Yields:
             Stream events from the backend
@@ -244,28 +300,27 @@ class BackendClient:
                 user_input = msg.get("content", "")
                 break
 
-        payload: dict[str, Any] = {"user_input": user_input, "plan_mode": plan_mode}
+        payload: dict[str, Any] = {"user_input": user_input}
         if tools:
             payload["tools"] = tools
         if stream:
             payload["stream"] = True
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{self.base_url}/v1/agents/{agent_id}/run",
-                json=payload,
-                headers=self._get_headers(),
-            ) as response:
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if line:
-                        if line.startswith("data:"):
-                            line = line[5:].strip()
-                        try:
-                            yield json.loads(line)
-                        except json.JSONDecodeError:
-                            pass
+        async with self._client.stream(
+            "POST",
+            f"{self.base_url}/v1/agents/{agent_id}/run",
+            json=payload,
+            headers=self._get_headers(),
+        ) as response:
+            async for line in response.aiter_lines():
+                line = line.strip()
+                if line:
+                    if line.startswith("data:"):
+                        line = line[5:].strip()
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        pass
 
     async def health_check(self) -> bool:
         """Check if backend is healthy.
@@ -275,10 +330,9 @@ class BackendClient:
 
         """
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self.base_url}/health")
-                return response.status_code == 200
-        except Exception:
+            response = await self._client.get(f"{self.base_url}/health")
+            return response.status_code == 200
+        except (httpx.HTTPError, OSError, ValueError):
             return False
 
     async def list_tools(self) -> list[dict[str, Any]]:
@@ -288,13 +342,12 @@ class BackendClient:
             List of tool dicts including version
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/tools",
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(
+            f"{self.base_url}/v1/tools",
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def get_tool(self, tool_id: str) -> dict[str, Any]:
         """Get a specific tool by ID.
@@ -306,13 +359,12 @@ class BackendClient:
             Tool dict with all fields
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/tools/{tool_id}",
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(
+            f"{self.base_url}/v1/tools/{tool_id}",
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def deploy_tool(self, tool_bundle: dict[str, Any]) -> dict[str, Any]:
         """Deploy a tool bundle to backend.
@@ -324,14 +376,13 @@ class BackendClient:
             Tool response with ID and version
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/tools",
-                json=tool_bundle,
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.post(
+            f"{self.base_url}/v1/tools",
+            json=tool_bundle,
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def guest_run(
         self,
@@ -364,17 +415,16 @@ class BackendClient:
         if session_id:
             payload["session_id"] = session_id
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{self.base_url}/guest/run",
-                json=payload,
-            ) as response:
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        yield json.loads(line[6:])
-                    elif line:
-                        yield line
+        async with self._client.stream(
+            "POST",
+            f"{self.base_url}/guest/run",
+            json=payload,
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    yield json.loads(line[6:])
+                elif line:
+                    yield line
 
     async def create_session(
         self,
@@ -391,14 +441,13 @@ class BackendClient:
             Session response with id, agent_id, name, created_at, updated_at
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/sessions",
-                json={"agent_id": agent_id, "name": name},
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.post(
+            f"{self.base_url}/v1/sessions",
+            json={"agent_id": agent_id, "name": name},
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def get_messages(
         self,
@@ -417,14 +466,13 @@ class BackendClient:
             List of message dicts with id, role, content, turn_index, created_at
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/sessions/{session_id}/messages",
-                params={"limit": limit, "offset": offset},
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(
+            f"{self.base_url}/v1/sessions/{session_id}/messages",
+            params={"limit": limit, "offset": offset},
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def add_message(
         self,
@@ -443,14 +491,13 @@ class BackendClient:
             Message response with id, role, content, turn_index, created_at
 
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/v1/sessions/{session_id}/messages",
-                json={"role": role, "content": content},
-                headers=self._get_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.post(
+            f"{self.base_url}/v1/sessions/{session_id}/messages",
+            json={"role": role, "content": content},
+            headers=self._get_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 __all__ = ["BackendClient"]

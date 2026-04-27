@@ -6,7 +6,7 @@ import tempfile
 import pytest
 from pydantic import SecretStr
 
-from tinycua_sdk.core.config import LLMConfig, MemoryConfig, SDKConfig, SessionConfig
+from tinycua_sdk.core.config import LLMConfig, SDKConfig
 
 
 class TestDefaultConfig:

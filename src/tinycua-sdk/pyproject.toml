@@ -2,18 +2,17 @@
 name = "tinycua-sdk"
 version = "0.1.0"
 description = "TINYCUA SDK - AI Agent Development Kit"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.27.0",
-    "python-ai-sdk>=0.0.3",
     "pydantic>=2.6.0",
-    "tenacity>=8.2.0",
-    "prompt-toolkit>=3.0.0",
-    "rich>=13.0.0",
-    "pyyaml>=6.0.0",
-    "textual>=0.50.0",
-    "sqlalchemy>=2.0.0",
+    "python-ai-sdk>=0.0.3",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+    "rich>=13.0.0",
+    "sqlalchemy>=2.0.0",
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]
@@ -32,9 +31,6 @@ lint = [
     "ruff>=0.3.0",
     "pre-commit>=3.0.0",
 ]
-
-[project.scripts]
-tinycua = "tinycua_sdk.cli.main:main"
 
 [build-system]
 requires = ["hatchling"]

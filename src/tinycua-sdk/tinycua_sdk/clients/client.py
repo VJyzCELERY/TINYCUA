@@ -180,7 +180,7 @@ class ResponsesClient:
 
                         event_data = json.loads(data)
                         yield StreamEvent(type=StreamEventType.CONTENT, data=event_data)
-                    except Exception:
+                    except json.JSONDecodeError:
                         pass
 
 

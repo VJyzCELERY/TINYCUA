@@ -40,6 +40,30 @@ class SessionConfig(BaseModel):
     summary_enabled: bool = True
 
 
+class LoopConfig(BaseModel):
+    """Configuration for agent loop."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = "default"
+    max_iterations: int = 5
+
+
+class SkillsConfig(BaseModel):
+    """Configuration for skills system."""
+
+    model_config = ConfigDict(frozen=True)
+
+    directories: list[str] = Field(
+        default_factory=lambda: [
+            os.path.expanduser("~/.tinycua/skills"),
+            "./skills",
+        ]
+    )
+    auto_load: bool = True
+    auto_improve: bool = True
+
+
 class SDKConfig(BaseModel):
     """Top-level immutable SDK configuration."""
 
@@ -48,8 +72,18 @@ class SDKConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
+    loop: LoopConfig = Field(default_factory=LoopConfig)
+    skills: SkillsConfig = Field(default_factory=SkillsConfig)
     backend_url: str = "http://localhost:8000"
     environment: str = "dev"
+
+    def get_skill_directories(self) -> list[Path]:
+        """Get skill directories as Path objects.
+
+        Returns:
+            List of Path objects for skill directories
+        """
+        return [Path(d) for d in self.skills.directories]
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "SDKConfig":
@@ -119,6 +153,10 @@ class SDKConfig(BaseModel):
         database_url = os.getenv("TINYCUA_DATABASE_URL")
         if database_url is not None:
             data["memory"] = {"database_url": database_url}
+
+        loop_type = os.getenv("TINYCUA_LOOP_TYPE")
+        if loop_type is not None:
+            data["loop"] = {"type": loop_type}
 
         return cls(**data)
 

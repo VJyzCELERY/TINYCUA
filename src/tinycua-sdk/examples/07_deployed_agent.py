@@ -89,7 +89,9 @@ async def main():
     import time
 
     email = f"demo_{int(time.time())}@example.com"
-    password = "password123"
+    # WARNING: Do not use the default password in production.
+    # Set TINYCUA_PASSWORD environment variable to use a secure password.
+    password = os.environ.get("TINYCUA_PASSWORD", "changeme")
 
     try:
         await client.register(email=email, password=password, tenant_name="Demo Tenant")

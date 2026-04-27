@@ -53,7 +53,8 @@ def calculator(expression: str) -> dict:
         Result dict
     """
     try:
-        result = eval(expression, {"__builtins__": {}}, {})
+        from tinycua_sdk.tools.parser import safe_eval
+        result = safe_eval(expression)
         return {"expression": expression, "result": result, "success": True}
     except Exception as e:
         return {
@@ -93,7 +94,7 @@ async def main():
     response = await agent.run("What is 15 * 7?")
     print(f"Assistant: {response}")
 
-    # Create a planner agent
+    # Create a planner agent (using ReactLoop for complex tasks)
     planner_agent = Agent(
         name="planner-assistant",
         provider="lmstudio",
@@ -101,14 +102,14 @@ async def main():
         base_url="http://localhost:1234",
         api_key="dummy",
         tools=[get_weather, calculator],
-        plan_mode="plan",
+        loop="react",
     )
 
     print("\n" + "=" * 50)
-    print("Testing PLAN MODE")
+    print("Testing REACT LOOP")
     print("=" * 50)
 
-    print("\n[4] Plan mode - complex task...")
+    print("\n[4] React loop - complex task...")
     response = await planner_agent.run(
         "Check weather in Tokyo and New York, then compare"
     )

@@ -1,8 +1,7 @@
 """Tests for SessionStore extraction to storage/store.py."""
 
-import uuid
-
 import pytest
+from sqlalchemy import inspect
 
 from tinycua_sdk.storage.store import SessionStore, get_session_store
 
@@ -18,8 +17,13 @@ class TestStorageMigration:
 
     def test_session_store_import_from_storage_package_warns(self):
         """Verify old import emits DeprecationWarning."""
+        import importlib
+
+        import tinycua_sdk.storage as storage_pkg
+
         with pytest.warns(DeprecationWarning, match="deprecated"):
-            from tinycua_sdk.storage import SessionStore as OldSessionStore
+            importlib.reload(storage_pkg)
+            OldSessionStore = storage_pkg.SessionStore
 
             assert OldSessionStore is not None
 
@@ -89,9 +93,8 @@ class TestGetSessionStore:
         try:
             result = get_session_store()
             # If create_tables was called, the tables should exist
-            from tinycua_sdk.storage.models import Base
 
-            inspector = result.engine.dialect.inspect(result.engine)
+            inspector = inspect(result.engine)
             tables = inspector.get_table_names()
             assert "sdk_sessions" in tables
             assert "messages" in tables

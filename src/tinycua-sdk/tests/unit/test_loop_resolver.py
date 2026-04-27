@@ -1,6 +1,5 @@
 """Unit tests for loop_resolver module."""
 
-import pytest
 
 from tinycua_sdk.agent.loop_resolver import (
     analyze_loop_source,

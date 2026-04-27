@@ -1,6 +1,12 @@
 """tinycua_sdk - TINYCUA AI Agent Development Kit."""
 
-from tinycua_sdk.agent import Agent, AgentConfig, AgentPolicy
+from tinycua_sdk.agent import (
+    Agent,
+    AgentConfig,
+    AgentDefinition,
+    AgentExecutor,
+    AgentPolicy,
+)
 from tinycua_sdk.clients.agent_client import AgentClient
 from tinycua_sdk.clients.backend import BackendClient
 from tinycua_sdk.clients.client import ResponsesClient
@@ -27,6 +33,7 @@ async def get_agent(
     backend_url: str,
     backend_api_key: str | None = None,
     backend_headers: dict[str, str] | None = None,
+    client: BackendClient | None = None,
 ) -> dict:
     """Get agent details from backend by ID.
 
@@ -35,16 +42,20 @@ async def get_agent(
         backend_url: Backend server URL
         backend_api_key: API key for authentication
         backend_headers: Custom headers for auth and multi-tenancy
+        client: Optional reusable BackendClient. Callers are encouraged to
+            pass a persistent client to avoid creating ephemeral connections.
+            When None, a temporary client is created internally.
 
     Returns:
         Agent configuration dict from backend
 
     """
-    client = BackendClient(
-        base_url=backend_url,
-        api_key=backend_api_key,
-        headers=backend_headers,
-    )
+    if client is None:
+        client = BackendClient(
+            base_url=backend_url,
+            api_key=backend_api_key,
+            headers=backend_headers,
+        )
     return await client.get_agent(agent_id)
 
 
@@ -52,6 +63,7 @@ async def list_agents(
     backend_url: str,
     backend_api_key: str | None = None,
     backend_headers: dict[str, str] | None = None,
+    client: BackendClient | None = None,
 ) -> list[dict]:
     """List all agents in backend.
 
@@ -59,32 +71,41 @@ async def list_agents(
         backend_url: Backend server URL
         backend_api_key: API key for authentication
         backend_headers: Custom headers for auth and multi-tenancy
+        client: Optional reusable BackendClient. Callers are encouraged to
+            pass a persistent client to avoid creating ephemeral connections.
+            When None, a temporary client is created internally.
 
     Returns:
         List of agent configuration dicts
 
     """
-    client = BackendClient(
-        base_url=backend_url,
-        api_key=backend_api_key,
-        headers=backend_headers,
-    )
+    if client is None:
+        client = BackendClient(
+            base_url=backend_url,
+            api_key=backend_api_key,
+            headers=backend_headers,
+        )
     return await client.list_agents()
 
 
 async def health_check(
     backend_url: str,
+    client: BackendClient | None = None,
 ) -> bool:
     """Check if backend is healthy.
 
     Args:
         backend_url: Backend server URL
+        client: Optional reusable BackendClient. Callers are encouraged to
+            pass a persistent client to avoid creating ephemeral connections.
+            When None, a temporary client is created internally.
 
     Returns:
         True if backend is healthy, False otherwise
 
     """
-    client = BackendClient(base_url=backend_url)
+    if client is None:
+        client = BackendClient(base_url=backend_url)
     return await client.health_check()
 
 
@@ -95,6 +116,8 @@ __all__ = [
     "Agent",
     "AgentConfig",
     "AgentPolicy",
+    "AgentDefinition",
+    "AgentExecutor",
     "Tool",
     "tool",
     "Message",
