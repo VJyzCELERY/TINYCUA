@@ -23,7 +23,7 @@ docs/full-docs/
 │   ├── agent.md                      # Agent, Executor, Definition, Loops
 │   ├── clients.md                    # BackendClient, AgentClient, Protocol
 │   ├── tools.md                      # Tool decorators, schema, resolver
-│   ├── memory.md                     # Short-term & long-term memory
+│       ├── memory.md                     # Short-term, long-term & session memory
 │   ├── session.md                    # Session management
 │   ├── storage.md                    # SQLite storage, export/import
 │   ├── skills.md                     # Skills loader, registry, cache
@@ -131,6 +131,16 @@ Response → [tinycua-backend] → [tinycua-sdk] → User
 [tinycua-backend] REST API (PostgreSQL remotely)
     ↓
 [tinycua] Local session store + Remote sync engine
+```
+
+### Session Memory
+
+```
+[tinycua-sdk] MemorySession (session-scoped facade)
+    ↓
+[tinycua-sdk] LocalStorage / SessionStore
+    ↓
+SQLite memory table (session_id, memory_type, content)
 ```
 
 ---

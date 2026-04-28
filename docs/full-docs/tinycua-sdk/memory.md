@@ -517,6 +517,127 @@ def get_memory_plugin(plugin_type: str = "memory", **kwargs: Any) -> MemoryPlugi
 
 ---
 
+## session.py - MemorySession Facade
+
+### Purpose
+
+`MemorySession` provides a high-level, session-scoped API for storing and retrieving factual memories, knowledge, and observations tied to a specific conversation session. It is a **facade** over the existing `LocalStorage` / `SessionStore` layer, which already supports session-scoped memory via the `memory` table's `session_id` column.
+
+**Why it exists:** The SQLite schema (`storage/sqlite.py`) already has a `memory` table with `session_id`, `memory_type`, `content`, and `metadata` columns. However, there was no clean object-oriented API to use it. `MemorySession` fills this gap without duplicating storage logic.
+
+**Relationship to `ShortTermMemory`:**
+- `ShortTermMemory` = conversation message history (user/assistant/system roles, ephemeral)
+- `MemorySession` = factual memories, preferences, observations (typed, persistent per session)
+
+### MemorySession Class
+
+```python
+class MemorySession:
+    def __init__(
+        self,
+        session_id: str,
+        storage: LocalStorage | None = None,
+    )
+```
+
+**Parameters:**
+- `session_id`: The session identifier all operations are scoped to
+- `storage`: Optional `LocalStorage` instance (defaults to a new one)
+
+**Methods:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `add(content, memory_type, metadata=None)` | `str` | Save a new memory, auto-generate UUID, return memory_id |
+| `get(memory_id)` | `dict \| None` | Load a single memory by ID |
+| `list(memory_type=None)` | `list[dict]` | List all memories for this session, optionally filtered by type |
+| `search(query)` | `list[dict]` | Case-insensitive substring search across memory content |
+| `delete(memory_id)` | `bool` | Delete a memory by ID |
+| `clear()` | `bool` | Delete all memories for this session |
+
+### Implementation Details
+
+```python
+def add(self, content: str, memory_type: str, metadata: dict | None = None) -> str:
+    memory_id = str(uuid.uuid4())
+    self._storage.save_memory(
+        memory_id=memory_id,
+        memory_type=memory_type,
+        content=content,
+        session_id=self.session_id,
+        metadata=metadata,
+    )
+    return memory_id
+```
+
+Auto-generates a UUID v4, delegates to `LocalStorage.save_memory()` with `session_id` bound at initialization.
+
+```python
+def list(self, memory_type: str | None = None) -> list[dict]:
+    return self._storage.list_memory(
+        session_id=self.session_id,
+        memory_type=memory_type,
+    )
+```
+
+Delegates to `LocalStorage.list_memory()` with the bound `session_id`.
+
+```python
+def search(self, query: str) -> list[dict]:
+    all_memories = self.list()
+    query_lower = query.lower()
+    return [
+        m for m in all_memories
+        if query_lower in m.get("content", "").lower()
+    ]
+```
+
+Performs case-insensitive substring matching in Python. Future enhancement: push search to SQL `LIKE` for large datasets.
+
+```python
+def clear(self) -> bool:
+    memories = self.list()
+    for memory in memories:
+        self._storage.delete_memory(memory["id"])
+    return True
+```
+
+Iterates and deletes one-by-one (N+1 queries). Future enhancement: single bulk `DELETE FROM memory WHERE session_id = ?`.
+
+### Usage Example
+
+```python
+from tinycua_sdk.memory import MemorySession
+
+session = MemorySession(session_id="chat-123")
+
+# Add memories
+fact_id = session.add("Python 3.12 released in 2023", memory_type="fact")
+pref_id = session.add("User prefers dark mode", memory_type="preference")
+
+# Search
+results = session.search("python")
+# → [{"id": "...", "content": "Python 3.12 released in 2023", "memory_type": "fact", ...}]
+
+# List by type
+prefs = session.list(memory_type="preference")
+
+# Delete
+session.delete(fact_id)
+
+# Clear all
+session.clear()
+```
+
+### Design Decisions
+
+1. **Facade over wrapper:** `MemorySession` delegates to `LocalStorage` rather than reimplementing SQL. This keeps the storage schema in one place.
+2. **Session binding at init:** `session_id` is set once at construction, so every operation is automatically scoped. No need to pass `session_id` on every call.
+3. **UUID generation in Python:** The facade generates IDs, not the database. This allows the ID to be returned immediately without a round-trip.
+4. **Case-insensitive search:** Implemented in Python for simplicity. The dataset per session is expected to be small enough for O(n) scanning.
+
+---
+
 ## Inter-Module Data Flow
 
 ### Short-Term Memory Flow
@@ -555,6 +676,22 @@ Agent.run(user_input)
   → PromptCache.set(prompt, result)
     → Evict if at capacity
     → Store CacheEntry
+```
+
+### MemorySession Flow
+```
+Agent.run(user_input)
+  → (agent stores extracted facts)
+    → MemorySession.add(content, memory_type="fact")
+      → uuid.uuid4() → memory_id
+      → LocalStorage.save_memory(memory_id, ..., session_id="bound-session")
+        → SQLite INSERT INTO memory
+  → (later turn needs context)
+    → MemorySession.search("relevant topic")
+      → LocalStorage.list_memory(session_id="bound-session")
+        → SQLite SELECT * FROM memory WHERE session_id = ?
+      → Python substring filter
+    → Inject relevant memories into system prompt
 ```
 
 ### Compression Flow
