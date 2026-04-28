@@ -9,9 +9,10 @@ This directory contains comprehensive integration tests for the TINYCUA SDK, bas
 1. **test_all.py** - Comprehensive test suite covering all major SDK functionality
 2. **test_01_basic_agent.py** - Tests based on `01_agent_basic.py` example
 3. **test_02_streaming.py** - Tests based on `02_agent_streaming.py` example
-4. **test_03_memory_session.py** - Tests based on `03_memory_and_session.py` example
-5. **test_05_agent_hierarchy.py** - Tests based on `05_agent_hierarchy.py` example
-6. **test_06_local_storage.py** - Tests based on `06_local_storage.py` example
+4. **test_memory_session.py** - Tests based on `03_memory_and_session.py` example
+5. **test_memory_operations.py** - Tests for MemorySession CRUD operations
+6. **test_05_agent_hierarchy.py** - Tests based on `05_agent_hierarchy.py` example
+7. **test_06_local_storage.py** - Tests based on `06_local_storage.py` example
 
 ## Prerequisites
 
@@ -63,12 +64,17 @@ pytest tests/integration/ -n auto -v
 - Streaming with multiple tool calls
 - DONE event handling
 
-### Memory and Sessions (test_03_memory_session.py)
+### Memory and Sessions (test_memory_session.py)
 - Memory tools (remember, recall, list_memory)
 - Memory streaming
 - Cancel execution
 - Session persistence
 - Custom memory backend
+
+### Memory Operations (test_memory_operations.py)
+- MemorySession CRUD (add, get, list, search, delete, clear)
+- Session-scoped memory isolation
+- Memory types and metadata
 
 ### Agent Hierarchy (test_05_agent_hierarchy.py)
 - Agent hierarchy structure

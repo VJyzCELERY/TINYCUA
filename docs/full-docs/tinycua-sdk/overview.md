@@ -187,7 +187,7 @@ The SDK can operate independently (local mode) or connect to a TINYCUA backend (
 
 ## Key Design Decisions
 
-1. **Backward Compatibility**: Deprecated import shims have been removed. Canonical import paths (e.g., `tinycua.agent.tools.memory_tools`) are now enforced.
+1. **Backward Compatibility**: Deprecated import shims have been removed. Use canonical import paths from the appropriate package (e.g., `tinycua_sdk.tools` for SDK tools, `tinycua.agent.tools` for CLI tools).
 
 2. **Singleton ToolRegistry**: Centralized registry ensures tools registered anywhere are available everywhere.
 

@@ -30,7 +30,6 @@
 
 **Non-Goals**:
 - Automatic message saving
-- Guest mode persistence (remains temporary/in-memory)
 
 ---
 

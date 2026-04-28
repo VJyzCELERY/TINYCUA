@@ -342,7 +342,7 @@ def validate_account(
 
 **Email regex:**
 ```python
-r"^[a-zA0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 ```
 
 **Special characters:**
