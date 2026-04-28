@@ -51,8 +51,8 @@ def resolve_provider(provider: str) -> str:
     normalized = provider.lower().strip()
     canonical = _PROVIDER_ALIASES.get(normalized, normalized)
     if normalized != canonical and normalized in _PROVIDER_ALIASES:
-        logger.info(
-            "Provider alias '%s' resolved to canonical '%s'",
+        logger.warning(
+            "Provider alias '%s' is deprecated. Use '%s' instead.",
             normalized,
             canonical,
         )

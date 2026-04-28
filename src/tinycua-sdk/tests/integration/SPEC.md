@@ -175,7 +175,7 @@ pip install pytest pytest-asyncio
 ```bash
 export TINYCUA_PROVIDER=openai-compatible
 export TINYCUA_MODEL=qwen/qwen3.5-9b
-export TINYCUA_BASE_URL=http://localhost:1234
+export TINYCUA_BASE_URL=http://localhost:1234/v1
 export TINYCUA_API_KEY=dummy
 ```
 

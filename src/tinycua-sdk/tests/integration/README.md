@@ -162,7 +162,7 @@ To add new tests:
 ### Tests Fail to Connect to OpenAI-compatible Endpoint
 - Ensure OpenAI-compatible endpoint is running
 - Check that the model is loaded
-- Verify the API URL is correct (`http://localhost:1234`)
+- Verify the API URL is correct (`http://localhost:1234/v1`)
 
 ### Tests Timeout
 - Increase timeout in `conftest.py`
