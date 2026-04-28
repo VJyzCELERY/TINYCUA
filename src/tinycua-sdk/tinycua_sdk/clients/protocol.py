@@ -55,11 +55,3 @@ class BackendProtocol(Protocol):
         """Deploy a tool bundle to the backend."""
         ...
 
-    async def guest_run(
-        self,
-        agent_id: str,
-        user_input: str,
-        session_id: str | None,
-    ) -> AsyncIterator[dict]:
-        """Run an agent as guest (no auth required)."""
-        ...

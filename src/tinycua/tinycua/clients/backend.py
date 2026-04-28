@@ -328,46 +328,6 @@ class BackendClient:
         response.raise_for_status()
         return response.json()
 
-    async def guest_run(
-        self,
-        agent_id: str,
-        user_input: str,
-        session_id: str | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Run an agent as guest (no auth required).
-
-        Guest sessions are:
-        - Temporary (in-memory, not persisted)
-        - Shared among all guest users
-        - Auto-expire after 30 minutes of inactivity
-
-        Args:
-            agent_id: ID of the agent to execute
-            user_input: User input message
-            session_id: Optional session ID for continuing a session
-
-        Yields:
-            Stream events from the backend
-
-        """
-        payload: dict[str, Any] = {
-            "agent_id": agent_id,
-            "user_input": user_input,
-        }
-        if session_id:
-            payload["session_id"] = session_id
-
-        async with self._client.stream(
-            "POST",
-            "/guest/run",
-            json=payload,
-        ) as response:
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    yield json.loads(line[6:])
-                elif line:
-                    yield line
-
     async def create_session(
         self,
         agent_id: str,

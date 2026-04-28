@@ -150,7 +150,7 @@ class AgentExecutor(AgentDefinition):
     """Adds execution capabilities on top of AgentDefinition.
 
     Provides run(), run_sync(), stream(), stream_sync(), cancel control,
-    guest session state, and internal runner/loop management.
+    and internal runner/loop management.
     """
 
     def __init__(
@@ -229,16 +229,6 @@ class AgentExecutor(AgentDefinition):
     def reset_cancel(self) -> None:
         """Reset cancel state for next run."""
         self.cancel_event.clear()
-
-    @property
-    def guest_session_id(self) -> str | None:
-        """Get guest session ID."""
-        return getattr(self, "_guest_session_id", None)
-
-    @guest_session_id.setter
-    def guest_session_id(self, value: str | None) -> None:
-        """Set guest session ID."""
-        self._guest_session_id = value
 
     def _get_runner(self) -> Runner:
         """Get or create the internal runner."""
@@ -337,30 +327,6 @@ class AgentExecutor(AgentDefinition):
         self.messages.append({"role": "assistant", "content": response_text})
         return response_text
 
-    async def _run_guest(
-        self,
-        user_input: str,
-        instructions: str | None = None,
-    ) -> str:
-        """Run via backend API in guest mode (no auth required)."""
-        if not self.config.agent_id:
-            raise RuntimeError("Agent ID required for guest mode.")
-        client = self._get_client()
-        self.messages.append({"role": "user", "content": user_input})
-        response_text = ""
-        async for event in client.guest_run(
-            agent_id=self.config.agent_id,
-            user_input=user_input,
-            session_id=self.guest_session_id,
-        ):
-            if isinstance(event, dict):
-                if event.get("type") == "content":
-                    response_text += event.get("data", {}).get("content", "")
-                elif event.get("type") == "session_id":
-                    self._guest_session_id = event.get("data", {}).get("session_id")
-        self.messages.append({"role": "assistant", "content": response_text})
-        return response_text
-
     async def run(
         self,
         user_input: str,
@@ -373,8 +339,6 @@ class AgentExecutor(AgentDefinition):
         """Run the agent with a user input."""
         if self.is_deployed and not force_local:
             return await self._run_deployed(user_input, trace=trace)
-        if self.is_guest and not force_local:
-            return await self._run_guest(user_input, instructions)
         self.reset_cancel()
         loop = self._load_loop()
         return await loop.run(

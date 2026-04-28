@@ -33,18 +33,6 @@ class TestAgentExecutorCancel:
         agent.reset_cancel()
         assert agent.is_cancelled is False
 
-    def test_guest_session_id_default_none(self):
-        """Test guest_session_id defaults to None."""
-        agent = AgentExecutor(name="test")
-        assert agent.guest_session_id is None
-
-    def test_guest_session_id_setter(self):
-        """Test guest_session_id can be set."""
-        agent = AgentExecutor(name="test")
-        agent.guest_session_id = "session-123"
-        assert agent.guest_session_id == "session-123"
-
-
 class TestAgentExecutorRunner:
     """Test runner and loop management."""
 
@@ -93,7 +81,6 @@ class TestAgentExecutorInheritance:
         assert agent.instructions == "test instructions"
         assert agent.model == "gpt-4o-mini"
         assert agent.is_deployed is False
-        assert agent.is_guest is False
 
     def test_executor_has_messages_list(self):
         """Test AgentExecutor has messages list."""

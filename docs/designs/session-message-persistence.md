@@ -277,10 +277,6 @@ for msg in messages:
     print(f"[{msg['role']}] {msg['content']}")
 ```
 
-## Guest Mode
-
-Guest mode remains unchanged - uses temporary in-memory sessions without persistence.
-
 ## Files to Modify
 
 | File | Changes |

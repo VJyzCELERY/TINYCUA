@@ -1,13 +1,12 @@
-"""Tests for SessionStore extraction to storage/store.py."""
+"""Tests for SessionStore CRUD operations and the get_session_store factory."""
 
-import pytest
 from sqlalchemy import inspect
 
 from tinycua_sdk.storage.store import SessionStore, get_session_store
 
 
-class TestStorageMigration:
-    """Tests for SessionStore migration."""
+class TestSessionStoreCrud:
+    """Tests for SessionStore CRUD operations."""
 
     def test_session_store_import_from_store_module(self):
         """Verify new import path works."""
@@ -15,17 +14,11 @@ class TestStorageMigration:
         assert store is not None
         assert store.is_sqlite is True
 
-    def test_session_store_import_from_storage_package_warns(self):
-        """Verify old import emits DeprecationWarning."""
-        import importlib
-
+    def test_session_store_import_from_storage_package(self):
+        """Verify storage package import works."""
         import tinycua_sdk.storage as storage_pkg
 
-        with pytest.warns(DeprecationWarning, match="deprecated"):
-            importlib.reload(storage_pkg)
-            OldSessionStore = storage_pkg.SessionStore
-
-            assert OldSessionStore is not None
+        assert storage_pkg.SessionStore is not None
 
     def test_session_store_functionality_unchanged(self):
         """Run basic CRUD to verify behavior."""

@@ -132,11 +132,6 @@ class AgentDefinition:
         return self.config.mode == "deployed"
 
     @property
-    def is_guest(self) -> bool:
-        """Check if agent is in guest mode."""
-        return self.config.mode == "guest"
-
-    @property
     def instructions(self) -> str:
         """Get agent instructions."""
         return self.config.instructions

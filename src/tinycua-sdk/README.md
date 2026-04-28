@@ -9,7 +9,6 @@ The SDK supports multiple authentication methods:
 1. **No Auth** - Local execution only (no backend)
 2. **JWT Token** - Login with email/password to get token
 3. **Global API Key** - System-wide access (bypasses tenant restrictions)
-4. **Guest Mode** - No auth required, temporary sessions
 
 ### Using Global API Key
 
@@ -60,7 +59,7 @@ tinycua-sdk/
 Copy `.env.example` to `.env` and configure:
 
 ```bash
-# Backend URL (for deployed/guest mode)
+# Backend URL (for deployed mode)
 TINYCUA_BACKEND_URL=http://localhost:8000
 
 # API Key (for authenticated requests)
@@ -146,45 +145,6 @@ async def main():
 asyncio.run(main())
 ```
 
-### Guest Mode (No Auth Required)
-
-Run agents without authentication using guest mode. Sessions are temporary and shared:
-
-```python
-import asyncio
-from tinycua_sdk import Agent
-from tinycua_sdk.clients import BackendClient
-
-# Create agent and set to guest mode with deployed agent ID
-agent = Agent(
-    name="guest-agent",
-    provider="lmstudio",
-    model="qwen/qwen3.5-9b",
-    base_url="http://127.0.0.1:1234",
-)
-
-# Point to a deployed agent (get ID from backend)
-agent.set_guest_mode(
-    agent_id="deployed-agent-id",
-    backend_url="http://localhost:8000"
-)
-
-# Run without authentication
-async def main():
-    response = await agent.run("Hello!")
-    print(response)
-
-    # Session continues - can ask follow-up questions
-    response = await agent.run("What did I just say?")
-    print(response)
-
-asyncio.run(main())
-```
-
-**Note:** Guest sessions are in-memory only and expire after 30 minutes of inactivity.
-
----
-
 ## Examples
 
 The SDK includes example scripts in the `examples/` directory:
@@ -199,7 +159,6 @@ The SDK includes example scripts in the `examples/` directory:
 | `06_local_storage.py` | Local storage and persistence |
 | `07_deployed_agent.py` | Full deployed agent workflow |
 | `07a_simple_deployed.py` | Minimal deployed agent example |
-| `08_guest_mode.py` | Guest mode (no auth required) |
 | `09_global_api_key.py` | Global API key (system-wide access) |
 
 ### Running Examples

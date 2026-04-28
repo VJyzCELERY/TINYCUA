@@ -9,7 +9,6 @@ import os
 import platform
 import re
 import secrets
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -190,8 +189,7 @@ class SetupWizard:
     def load_credentials(self) -> bool:
         """Load credentials from file if it exists.
 
-        Supports Fernet-encrypted credentials with a backward-compatible
-        base64 fallback that emits a deprecation warning.
+        Supports Fernet-encrypted credentials only.
 
         Returns:
             True if credentials were loaded, False otherwise.
@@ -216,22 +214,7 @@ class SetupWizard:
         except (InvalidToken, ValueError, TypeError, OSError):
             pass
 
-        # Fallback: backward-compatible base64 read
-        try:
-            data = base64.b64decode(encrypted)
-            creds = json.loads(data)
-            self.username = creds["username"]
-            self.email = creds["email"]
-            self.password = creds["password"]
-            warnings.warn(
-                "Loaded credentials using legacy base64 encoding. "
-                "Re-run the wizard to upgrade to Fernet encryption.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return True
-        except (ValueError, TypeError, OSError):
-            return False
+        return False
 
     def validate_account(
         self,

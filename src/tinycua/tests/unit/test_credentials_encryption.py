@@ -1,14 +1,10 @@
-"""Tests for Fernet credential encryption and backward-compatible base64 fallback."""
+"""Tests for Fernet credential encryption."""
 
 from __future__ import annotations
 
-import base64
 import json
-import warnings
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from cryptography.fernet import Fernet
 
@@ -56,32 +52,6 @@ class TestCredentialsEncryption:
                 assert wizard2.username == "testuser"
                 assert wizard2.email == "test@example.com"
                 assert wizard2.password == "Secret123!"
-
-    def test_base64_fallback_with_warning(self, tmp_path: Path) -> None:
-        """Test backward-compatible base64 fallback emits deprecation warning."""
-        wizard = SetupWizard(config_dir=tmp_path)
-        wizard.set_account("legacyuser", "legacy@example.com", "Legacy123!")
-
-        # Save with base64 instead of Fernet
-        creds_file = tmp_path / "credentials.enc"
-        data = json.dumps({
-            "username": wizard.username,
-            "email": wizard.email,
-            "password": wizard.password,
-        }).encode()
-        creds_file.write_bytes(base64.b64encode(data))
-
-        wizard2 = SetupWizard(config_dir=tmp_path)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = wizard2.load_credentials()
-            assert result is True
-            assert wizard2.username == "legacyuser"
-            assert wizard2.email == "legacy@example.com"
-            assert wizard2.password == "Legacy123!"
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "legacy base64" in str(w[0].message).lower()
 
     def test_load_missing_credentials(self, tmp_path: Path) -> None:
         """Test loading when credentials file does not exist."""

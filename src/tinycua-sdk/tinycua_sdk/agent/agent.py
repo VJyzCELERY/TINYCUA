@@ -18,7 +18,7 @@ class Agent(AgentExecutor):
 
     Inherits all configuration, properties, and execution capabilities from
     AgentExecutor (which inherits from AgentDefinition). Adds deploy(),
-    delete(), set_guest_mode(), and load_agent() as thin wrappers that
+    delete(), and load_agent() as thin wrappers that
     delegate to AgentLifecycle via lazy imports.
 
     This maintains full backward compatibility while keeping the SDK from
@@ -141,22 +141,6 @@ class Agent(AgentExecutor):
 
         lifecycle = AgentLifecycle(self)
         await lifecycle.delete()
-
-    def set_guest_mode(
-        self,
-        agent_id: str,
-        backend_url: str | None = None,
-    ) -> None:
-        """Set agent to guest mode (backward-compatible wrapper).
-
-        Args:
-            agent_id: ID of a deployed agent to use in guest mode.
-            backend_url: Optional backend URL (defaults to config).
-
-        """
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        AgentLifecycle(self).set_guest_mode(agent_id, backend_url)
 
     @classmethod
     async def load_agent(

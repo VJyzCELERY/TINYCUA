@@ -13,15 +13,15 @@ import tempfile
 import os
 
 from tinycua_sdk import Agent
-from tinycua_sdk.tools import (
+from tinycua.agent.tools.memory_tools import (
     remember,
     recall,
     forget,
     list_memory,
     clear_memory,
     set_memory_backend,
-    LocalMemoryBackend,
 )
+from tinycua_sdk.tools import LocalMemoryBackend
 
 
 # =============================================================================

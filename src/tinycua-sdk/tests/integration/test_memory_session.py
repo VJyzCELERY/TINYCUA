@@ -20,8 +20,8 @@ class TestMemoryToolsWithLLM:
     async def test_llm_uses_remember_tool(self):
         """Test that LLM calls remember tool when prompted."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall, list_memory
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall, list_memory
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
@@ -44,8 +44,8 @@ class TestMemoryToolsWithLLM:
     async def test_llm_uses_recall_tool(self):
         """Test that LLM calls recall tool when prompted."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
@@ -71,8 +71,8 @@ class TestMemoryStreaming:
     async def test_stream_with_memory_tool(self):
         """Test streaming response with memory tool call."""
         from tinycua_sdk.models import Agent, StreamEventType
-        from tinycua_sdk.tools import remember
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
@@ -176,9 +176,9 @@ class TestCustomMemoryBackend:
     async def test_custom_backend_with_llm(self):
         """Test using custom memory backend with LLM."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall, list_memory
+        from tinycua.agent.tools.memory_tools import remember, recall, list_memory
         from tinycua_sdk.tools.memory import LocalMemoryBackend
-        from tinycua_sdk.tools.memory_tools import (
+        from tinycua.agent.tools.memory_tools import (
             set_memory_backend,
             reset_memory_backend,
         )
@@ -213,8 +213,8 @@ class TestMemoryPersistence:
     @pytest.mark.asyncio
     async def test_memory_persists_between_runs(self):
         """Test memory is accessible in subsequent runs."""
-        from tinycua_sdk.tools import remember, recall
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 

@@ -17,9 +17,15 @@ import asyncio
 
 from tinycua_sdk.agent import Agent
 from tinycua_sdk.models import StreamEventType
-from tinycua_sdk.tools import remember, recall, forget, list_memory
+from tinycua.agent.tools.memory_tools import (
+    remember,
+    recall,
+    forget,
+    list_memory,
+    set_memory_backend,
+    reset_memory_backend,
+)
 from tinycua_sdk.tools.memory import LocalMemoryBackend
-from tinycua_sdk.tools.memory_tools import set_memory_backend, reset_memory_backend
 from tinycua_sdk.utils import (
     create_session,
     save_session,
