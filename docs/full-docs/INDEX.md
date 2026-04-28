@@ -7,7 +7,6 @@ Welcome to the comprehensive documentation for the TINYCUA project. This documen
 ```
 docs/full-docs/
 ├── INDEX.md                          # This file — master navigation
-├── FINDINGS-TO-BE-REMOVED.md         # Deprecated/unused features tracking
 ├── tinycua/
 │   ├── overview.md                   # Project overview & architecture
 │   ├── cli.md                        # Command-line interface
@@ -23,7 +22,7 @@ docs/full-docs/
 │   ├── agent.md                      # Agent, Executor, Definition, Loops
 │   ├── clients.md                    # BackendClient, AgentClient, Protocol
 │   ├── tools.md                      # Tool decorators, schema, resolver
-│       ├── memory.md                     # Short-term, long-term & session memory
+│   ├── memory.md                     # Short-term, long-term & session memory
 │   ├── session.md                    # Session management
 │   ├── storage.md                    # SQLite storage, export/import
 │   ├── skills.md                     # Skills loader, registry, cache
@@ -71,15 +70,6 @@ docs/full-docs/
    - **Skills system:** [`tinycua-sdk/skills.md`](tinycua-sdk/skills.md)
    - **TUI screens:** [`tinycua/tui.md`](tinycua/tui.md)
    - **Remote sync:** [`tinycua/remote.md`](tinycua/remote.md)
-
-### I want to **remove deprecated code**
-
-See [`FINDINGS-TO-BE-REMOVED.md`](FINDINGS-TO-BE-REMOVED.md) for a curated list of features and code identified for removal, including:
-- Guest mode
-- Deprecated import shims
-- Legacy credential encoding
-- Placeholder modules
-- Unimplemented features
 
 ---
 
@@ -165,9 +155,8 @@ This documentation is a living document. As the code evolves:
 
 1. Update the relevant section when modifying code.
 2. Add new modules to the appropriate project section.
-3. Update [`FINDINGS-TO-BE-REMOVED.md`](FINDINGS-TO-BE-REMOVED.md) when deprecated code is removed.
-4. Keep cross-references up to date.
+3. Keep cross-references up to date.
 
 ---
 
-*Generated for TINYCUA branch: `enhance-documentation-and-code-cleanup`*
+*Generated for TINYCUA branch: `enhance/documentation-and-code-cleanup`*
