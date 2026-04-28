@@ -50,7 +50,7 @@ parser = argparse.ArgumentParser(
 - `path` — Path to AGENT.md file or directory
 - `--template` — Template name (coder, researcher, assistant)
 - `--model` — Override model (e.g., gpt-4o, gpt-5-nano)
-- `--provider` — Override provider (e.g., openai, ollama)
+- `--provider` — Override provider (e.g., openai, openai-compatible)
 - `--tools` — Comma-separated tool list
 - `--skills` — Comma-separated skill list
 - `--loop` — Loop type (default, react, plan)

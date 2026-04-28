@@ -86,7 +86,7 @@ User Input
     ↓
 [tinycua-sdk] AgentExecutor._run_local()
     ↓
-[tinycua-sdk] Runner → LLM API (OpenAI / LM Studio / Ollama)
+[tinycua-sdk] Runner → LLM API (OpenAI / OpenAI-compatible)
     ↓
 [tinycua-sdk] Tool calls dispatched via ToolRegistry
     ↓

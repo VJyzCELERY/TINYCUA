@@ -907,7 +907,7 @@ class ValidationError:
 
 ```python
 class AgentConfigValidator:
-    KNOWN_PROVIDERS = {"openai", "anthropic", "google", "ollama", "local"}
+    KNOWN_PROVIDERS = {"openai", "openai-compatible", "google", "local"}
     KNOWN_MODELS = {"gpt-5-nano", "gpt-4o-mini", "gpt-4o", ...}
     KNOWN_LOOP_TYPES = {"default", "reflective", "reasoning", "simple", "react", "plan", "react-reasoning"}
     TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")

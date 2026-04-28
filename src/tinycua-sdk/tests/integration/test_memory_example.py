@@ -49,9 +49,9 @@ def memory_agent():
         yield Agent(
             name="memory-agent",
             instructions="You have memory tools to remember and recall information.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )
@@ -178,9 +178,9 @@ class TestMemoryWithAgent:
         agent = Agent(
             name="memory-agent",
             instructions="You have memory tools.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )
@@ -198,7 +198,7 @@ class TestMemoryWithAgent:
             response = await memory_agent.run("Say 'hello' in one word.")
             assert isinstance(response, str)
         except Exception:
-            pytest.skip("LM Studio not available")
+            pytest.skip("OpenAI-compatible server not available")
 
 
 class TestMemoryPersistence:

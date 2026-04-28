@@ -25,7 +25,7 @@ class TestIsFirstStartup:
         config_dir = tmp_path / ".tinycua"
         config_dir.mkdir()
         config_file = config_dir / "config.yaml"
-        config_file.write_text("llm:\n  provider: lmstudio\n")
+        config_file.write_text("llm:\n  provider: openai-compatible\n")
 
         from tinycua.config.wizard import is_first_startup
 
@@ -82,12 +82,12 @@ class TestWizardFlow:
 
         wizard = SetupWizard(config_dir=tmp_path)
         wizard.set_llm_config(
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="",
         )
-        assert wizard.llm_provider == "lmstudio"
+        assert wizard.llm_provider == "openai-compatible"
         assert wizard.llm_model == "qwen/qwen3.5-9b"
 
     def test_wizard_validation_empty_username(self, tmp_path):
@@ -136,14 +136,14 @@ class TestWizardCompletion:
         wizard.set_storage_mode("local")
         wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
         )
 
         config = wizard.complete()
         assert config is not None
-        assert config.llm.provider == "lmstudio"
+        assert config.llm.provider == "openai-compatible"
         assert config.llm.model == "qwen/qwen3.5-9b"
 
     def test_wizard_complete_remote_mode(self, tmp_path):
@@ -173,9 +173,9 @@ class TestWizardCompletion:
         wizard.set_storage_mode("local")
         wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
         )
 
         config = wizard.complete()
@@ -190,9 +190,9 @@ class TestWizardCompletion:
         wizard.set_storage_mode("local")
         wizard.set_account("testuser", "test@example.com", "Password123!")
         wizard.set_llm_config(
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
         )
 
         wizard.complete()
@@ -248,7 +248,7 @@ class TestInteractiveFunctions:
         from tinycua.config.wizard import prompt_llm_configuration
         mock_input.side_effect = ["", "", "", ""]
         result = prompt_llm_configuration()
-        assert result["provider"] == "lmstudio"
+        assert result["provider"] == "openai-compatible"
         assert result["model"] == "qwen/qwen3.5-9b"
 
     @patch("builtins.input")
@@ -266,20 +266,20 @@ class TestHelperFunctions:
     """Tests for helper functions."""
 
     @patch("requests.get")
-    def test_is_lmstudio_available_true(self, mock_get):
-        """Test is_lmstudio_available returns True when available."""
-        from tinycua.config.wizard import is_lmstudio_available
+    def test_is_openai_compatible_available_true(self, mock_get):
+        """Test is_openai_compatible_available returns True when available."""
+        from tinycua.config.wizard import is_openai_compatible_available
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_get.return_value = mock_response
-        assert is_lmstudio_available() is True
+        assert is_openai_compatible_available() is True
 
     @patch("requests.get")
-    def test_is_lmstudio_available_false(self, mock_get):
-        """Test is_lmstudio_available returns False when not available."""
-        from tinycua.config.wizard import is_lmstudio_available
+    def test_is_openai_compatible_available_false(self, mock_get):
+        """Test is_openai_compatible_available returns False when not available."""
+        from tinycua.config.wizard import is_openai_compatible_available
         mock_get.side_effect = requests.ConnectionError("Connection failed")
-        assert is_lmstudio_available() is False
+        assert is_openai_compatible_available() is False
 
     @patch("requests.get")
     def test_test_connection_success(self, mock_get):

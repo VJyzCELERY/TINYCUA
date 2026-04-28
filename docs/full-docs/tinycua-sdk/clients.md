@@ -75,7 +75,7 @@ except httpx.HTTPStatusError:
     response = await self._client.post("/v1/chat/completions", json=payload)
 ```
 
-**Why two attempts?** Some providers (like LM Studio) support `/v1/chat/completions` but not `/v1/responses`. The client tries the newer API first, then falls back.
+**Why two attempts?** Some OpenAI-compatible endpoints support `/v1/chat/completions` but not `/v1/responses`. The client tries the newer API first, then falls back.
 
 **Usage extraction:**
 ```python
@@ -110,7 +110,7 @@ async with self._client.stream("POST", "/v1/chat/completions", json=payload) as 
 
 Uses SSE (Server-Sent Events) format. Streams directly through `/v1/chat/completions` (more compatible with various providers).
 
-**Why always chat completions for streaming?** Many local providers (LM Studio, Ollama) have better SSE support for chat completions than responses.
+**Why always chat completions for streaming?** Many OpenAI-compatible endpoints have better SSE support for chat completions than responses.
 
 ---
 

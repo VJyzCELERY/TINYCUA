@@ -54,7 +54,7 @@ def is_first_startup(config_dir: str | Path | None = None) -> bool:
 class SetupWizard:
     """Interactive setup wizard for first-time users."""
 
-    DEFAULT_LLM_PROVIDER = "lmstudio"
+    DEFAULT_LLM_PROVIDER = "openai-compatible"
     DEFAULT_LLM_MODEL = "qwen/qwen3.5-9b"
     DEFAULT_LLM_BASE_URL = "http://localhost:1234/v1"
 
@@ -378,11 +378,11 @@ class SetupWizard:
                 conn.close()
 
 
-def is_lmstudio_available() -> bool:
-    """Check if LM Studio is running and available.
+def is_openai_compatible_available() -> bool:
+    """Check if an OpenAI-compatible endpoint is running and available.
 
     Returns:
-        True if LM Studio is available, False otherwise.
+        True if the endpoint is available, False otherwise.
     """
     try:
         import requests
@@ -491,7 +491,7 @@ def prompt_llm_configuration() -> dict[str, str]:
         Dictionary with provider, model, base_url, and api_key.
     """
     print("\n--- Configure LLM Provider ---")
-    print("Default: LM Studio at http://localhost:1234/v1")
+    print("Default: OpenAI-compatible endpoint at http://localhost:1234/v1")
     print("Default model: qwen/qwen3.5-9b")
     print()
 

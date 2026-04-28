@@ -15,9 +15,9 @@ This directory contains comprehensive integration tests for the TINYCUA SDK, bas
 7. **test_06_local_storage.py** - Tests based on `06_local_storage.py` example
 
 ## Prerequisites
+- **OpenAI-compatible endpoint** running at `http://localhost:1234/v1`
 
-- **LM Studio** running at `http://localhost:1234`
-- Model: `qwen/qwen3.5-9b` loaded in LM Studio
+- Model: `qwen/qwen3.5-9b` loaded
 - Python 3.10+
 - Test dependencies (installed via `pip install pytest pytest-asyncio`)
 
@@ -107,13 +107,13 @@ pytest tests/integration/ -n auto -v
 
 ### Passing Tests
 All tests should pass if:
-- LM Studio is running at `http://localhost:1234`
-- The model `qwen/qwen3.5-9b` is loaded in LM Studio
+- OpenAI-compatible endpoint is running at `http://localhost:1234/v1`
+- The model `qwen/qwen3.5-9b` is loaded
 - All SDK dependencies are installed
 
 ### Failing Tests
 Some tests may skip if:
-- LM Studio is not running (streaming tests)
+- OpenAI-compatible endpoint is not running (streaming tests)
 - Backend is not available (deployment tests)
 - Network issues prevent API calls
 
@@ -142,7 +142,7 @@ The tests can be integrated into CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run Integration Tests
   run: |
-    # Start LM Studio (if needed)
+    # Start OpenAI-compatible endpoint (if needed)
     # Run tests
     python tests/run_integration_tests.py
 ```
@@ -159,15 +159,15 @@ To add new tests:
 
 ## Troubleshooting
 
-### Tests Fail to Connect to LM Studio
-- Ensure LM Studio is running
+### Tests Fail to Connect to OpenAI-compatible Endpoint
+- Ensure OpenAI-compatible endpoint is running
 - Check that the model is loaded
 - Verify the API URL is correct (`http://localhost:1234`)
 
 ### Tests Timeout
 - Increase timeout in `conftest.py`
 - Check network connectivity
-- Verify LM Studio is not overloaded
+- Verify OpenAI-compatible endpoint is not overloaded
 
 ### Tests Skip Unexpectedly
 - Review skip conditions in test code

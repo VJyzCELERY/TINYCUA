@@ -208,7 +208,7 @@ Lazy imports to avoid circular dependencies. `LongTermMemory` acts as the persis
 
 ### Purpose
 
-Implements Anthropic-style prompt caching with TTL and size limits. Reduces redundant LLM calls by caching prompt-result pairs.
+Implements OpenAI-compatible prompt caching with TTL and size limits. Reduces redundant LLM calls by caching prompt-result pairs.
 
 ### CacheEntry Dataclass
 

@@ -2,7 +2,7 @@
 
 ## What is TINYCUA SDK?
 
-The `tinycua-sdk` is the **AI Agent Development Kit** for the TINYCUA ecosystem. It provides a Python SDK for building, configuring, running, and deploying AI agents that can use tools, manage memory, delegate to sub-agents, and integrate with LLM providers (OpenAI, Ollama, LM Studio, etc.).
+The `tinycua-sdk` is the **AI Agent Development Kit** for the TINYCUA ecosystem. It provides a Python SDK for building, configuring, running, and deploying AI agents that can use tools, manage memory, delegate to sub-agents, and integrate with LLM providers (OpenAI, OpenAI-compatible endpoints, etc.).
 
 **Version:** 0.1.0  
 **Requires Python:** >= 3.12  
@@ -113,7 +113,7 @@ Tools (`tools/decorators.py`) are functions decorated with `@tool` that the agen
 The memory system provides multiple tiers:
 - **ShortTermMemory**: Thread-safe in-memory message window
 - **LongTermMemory**: File-based persistent storage (MEMORY.md, USER.md)
-- **PromptCache**: Anthropic-style caching with TTL and LRU eviction
+- **PromptCache**: OpenAI-compatible prompt caching with TTL and LRU eviction
 - **ContextCompressor**: Token limit management via summarization/truncation
 
 ### 6. Skills

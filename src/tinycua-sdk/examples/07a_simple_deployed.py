@@ -6,7 +6,7 @@ Prerequisites:
 - PostgreSQL (make docker-up)
 - Backend running
 - Runner running
-- LM Studio with model
+- OpenAI-compatible server with model
 - .env file with credentials
 
 Usage:
@@ -41,9 +41,9 @@ async def main():
     agent = Agent(
         name="calc-bot",
         instructions="You are a calculator assistant.",
-        provider=os.getenv("TINYCUA_PROVIDER", "lmstudio"),
+        provider=os.getenv("TINYCUA_PROVIDER", "openai-compatible"),
         model=os.getenv("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
-        base_url=os.getenv("TINYCUA_BASE_URL", "http://127.0.0.1:1234"),
+        base_url=os.getenv("TINYCUA_BASE_URL", "http://127.0.0.1:1234/v1"),
         tools=[add],
         backend_url=BACKEND_URL,
         backend_api_key=API_KEY,

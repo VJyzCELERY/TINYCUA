@@ -208,9 +208,9 @@ Removes all tools from the registry. Typically used in test teardown to ensure i
 class LLMConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    provider: str = "lmstudio"
+    provider: str = "openai-compatible"
     model: str = "qwen/qwen3.5-9b"
-    base_url: str = "http://localhost:1234"
+    base_url: str = "http://localhost:1234/v1"
     api_key: SecretStr = SecretStr("")
     temperature: float = 1.0
 ```
@@ -221,9 +221,9 @@ Configuration for the LLM provider.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `provider` | `"lmstudio"` | Name of the LLM provider backend. |
+| `provider` | `"openai-compatible"` | Name of the LLM provider backend. |
 | `model` | `"qwen/qwen3.5-9b"` | Model identifier string. |
-| `base_url` | `"http://localhost:1234"` | Base URL for the provider API. |
+| `base_url` | `"http://localhost:1234/v1"` | Base URL for the provider API. |
 | `api_key` | `SecretStr("")` | API key wrapped in Pydantic `SecretStr` for safe logging. |
 | `temperature` | `1.0` | Sampling temperature. |
 

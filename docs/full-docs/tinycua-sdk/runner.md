@@ -15,20 +15,13 @@ The `runner/` package contains the local execution engine for agents.
 ### Default Configuration
 
 ```python
-DEFAULT_BASE_URLS = {
-    "lmstudio": "http://localhost:1234/v1",
-    "ollama": "http://localhost:11434/v1",
-    "openai": "https://api.openai.com/v1",
-}
-
 DEFAULT_MODELS = {
-    "lmstudio": "qwen/qwen3.5-9b",
-    "ollama": "llama3",
+    "openai-compatible": "qwen/qwen3.5-9b",
     "openai": "gpt-4o-mini",
 }
 ```
 
-**Provider defaults:** Automatically resolves base URLs and models for known providers. This means users can just specify `provider="lmstudio"` without knowing the exact URL.
+**Provider defaults:** Models are resolved based on the canonical provider identifier. Users should provide the full base URL including `/v1` path.
 
 ### Constructor
 

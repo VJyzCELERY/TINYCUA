@@ -65,7 +65,7 @@ class ResponsesClient:
             else:
                 messages.append(msg)
 
-        # Use chat completions format for LM Studio compatibility
+        # Use chat completions format for OpenAI-compatible endpoints
         payload = {
             "model": request.model,
             "messages": messages,
@@ -84,7 +84,7 @@ class ResponsesClient:
         # Try responses API first, fall back to chat completions
         try:
             response = await self._client.post(
-                "/v1/responses",
+                "/responses",
                 json=payload,
                 headers={"X-Trace-Id": trace_id},
             )
@@ -96,7 +96,7 @@ class ResponsesClient:
             if not choices:
                 # Try chat completions format
                 response = await self._client.post(
-                    "/v1/chat/completions",
+                    "/chat/completions",
                     json=payload,
                     headers={"X-Trace-Id": trace_id},
                 )
@@ -106,7 +106,7 @@ class ResponsesClient:
         except httpx.HTTPStatusError:
             # Fall back to chat completions
             response = await self._client.post(
-                "/v1/chat/completions",
+                "/chat/completions",
                 json=payload,
                 headers={"X-Trace-Id": trace_id},
             )
@@ -145,7 +145,7 @@ class ResponsesClient:
             else:
                 messages.append(msg)
 
-        # Use chat completions format for LM Studio compatibility
+        # Use chat completions format for OpenAI-compatible endpoints
         payload = {
             "model": request.model,
             "messages": messages,
@@ -165,7 +165,7 @@ class ResponsesClient:
         # Use chat completions for streaming (more compatible)
         async with self._client.stream(
             "POST",
-            "/v1/chat/completions",
+            "/chat/completions",
             json=payload,
             headers={"X-Trace-Id": trace_id},
         ) as response:

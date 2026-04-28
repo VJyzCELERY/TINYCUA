@@ -7,7 +7,7 @@ This example shows how to:
 4. Use skills with an Agent
 
 Prerequisites:
-- LM Studio running at http://localhost:1234
+- OpenAI-compatible server running at http://localhost:1234/v1
 - Model: qwen/qwen3.5-9b loaded
 """
 
@@ -166,9 +166,9 @@ async def example_skills_with_agent():
     agent = Agent(
         name="skillful-agent",
         instructions="You are a helpful assistant with special skills.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         # skills=['math-helper', 'web-search'],  # Would load from ~/.tinycua/skills/
     )
@@ -176,13 +176,13 @@ async def example_skills_with_agent():
     print(f"\nCreated agent: {agent.name}")
     print(f"Tools available: {[t.name for t in agent.tools]}")
     
-    # Try a simple run (needs LM Studio running)
+    # Try a simple run (needs local server running)
     print("\nTesting agent run:")
     try:
         response = await agent.run("Say hello in one sentence.")
         print(f"Response: {response}")
     except Exception as e:
-        print(f"Error (expected if LM Studio not running): {e}")
+        print(f"Error (expected if local OpenAI-compatible server not running): {e}")
 
 
 # =============================================================================

@@ -60,7 +60,10 @@ class Agent(AgentExecutor):
             instructions: Additional instructions for the agent.
             system_prompt: System prompt that defines agent behavior.
             model: Model identifier to use.
-            provider: LLM provider (openai, ollama, lmstudio).
+            provider: LLM provider type. Use "openai" for OpenAI API
+                or "openai-compatible" for any OpenAI-compatible endpoint
+                (e.g., local inference servers). Aliases "lmstudio" and
+                "ollama" are supported for backward compatibility.
             base_url: Custom base URL for the LLM API.
             api_key: API key for authentication.
             tools: List of tools available to the agent.

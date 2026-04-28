@@ -178,9 +178,9 @@ async def demo():
     agent1 = Agent(
         name="logging-agent",
         instructions="You are a helpful assistant that can do math.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=tools,
         loop=LoggingLoop(),
@@ -193,9 +193,9 @@ async def demo():
     print("\n2. CustomDirectLoop:")
     agent2 = Agent(
         name="custom-direct",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=tools,
         loop=CustomDirectLoop(),
@@ -208,9 +208,9 @@ async def demo():
     print("\n3. ReActLoop:")
     agent3 = Agent(
         name="react-agent",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=tools,
         loop=ReActLoop(),
@@ -224,9 +224,9 @@ async def demo():
     agent4 = Agent(
         name="default-agent",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=tools,
         # No loop= parameter = use DefaultLoop
@@ -240,9 +240,9 @@ async def demo():
     agent5 = Agent(
         name="react-agent",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=tools,
         loop="react",

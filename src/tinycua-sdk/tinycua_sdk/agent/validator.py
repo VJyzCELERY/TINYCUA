@@ -28,9 +28,8 @@ class AgentConfigValidator:
 
     KNOWN_PROVIDERS: set[str] = {
         "openai",
-        "anthropic",
+        "openai-compatible",
         "google",
-        "ollama",
         "local",
     }
     KNOWN_MODELS: set[str] = {

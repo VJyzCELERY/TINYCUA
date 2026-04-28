@@ -13,8 +13,8 @@ TINYCUA is a modular multi-subproject repository providing a complete agent syst
                                │
                                ▼
                          ┌─────────┐     ┌─────────┐
-                         │PostgreSQL│     │ LM Studio│
-                         │(Session) │     │ (LLM)    │
+                          │PostgreSQL│     │ OpenAI   │
+                          │(Session) │     │Compatible│
                          └──────────┘     └──────────┘
 ```
 
@@ -29,7 +29,7 @@ TINYCUA is a modular multi-subproject repository providing a complete agent syst
 
 - Python 3.12+
 - Docker & Docker Compose (for PostgreSQL)
-- [LM Studio](https://lmstudio.ai/) (for local LLM inference)
+- An OpenAI-compatible endpoint (e.g., [LM Studio](https://lmstudio.ai/), [Ollama](https://ollama.com/))
 
 ## Quick Start (Make - Easiest)
 
@@ -56,7 +56,7 @@ cp src/tinycua-sdk/.env.example src/tinycua-sdk/.env
 # Start backend service
 make run
 
-# Load a model in LM Studio (e.g., qwen2.5-coder-14b)
+# Load a model in your OpenAI-compatible endpoint (e.g., qwen2.5-coder-14b)
 
 # Run end-to-end test
 make e2e-test
@@ -128,7 +128,7 @@ python -m tinycua_backend.main
 ### 5. Run End-to-End Test
 
 ```bash
-# Ensure LM Studio is running with a model loaded
+# Ensure your OpenAI-compatible endpoint is running with a model loaded
 # Then run:
 cd src/tinycua-sdk
 python -m tests.integration.test_local_run
@@ -153,8 +153,8 @@ agent = Agent(
     name="math-agent",
     instructions="You are a helpful math assistant.",
     tools=[calculate],
-    provider="lmstudio",
-    base_url="http://127.0.0.1:1234",
+    provider="openai-compatible",
+    base_url="http://127.0.0.1:1234/v1",
     model="qwen/qwen3.5-9b"
 )
 
@@ -186,8 +186,8 @@ agent = Agent(
     name="math-agent",
     instructions="You are a helpful math assistant.",
     tools=[calculate],
-    provider="lmstudio",
-    base_url="http://127.0.0.1:1234",
+    provider="openai-compatible",
+    base_url="http://127.0.0.1:1234/v1",
     model="qwen/qwen3.5-9b",
     backend_client=client
 )

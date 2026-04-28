@@ -6,8 +6,8 @@ This example demonstrates:
 3. Cancel mechanism for interrupting execution
 
 Prerequisites:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- OpenAI-compatible server running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 
 Usage:
     python examples/03_memory_and_session.py
@@ -47,9 +47,9 @@ async def demo_llm_with_memory():
     agent = Agent(
         name="memory-agent",
         instructions="You are a helpful assistant. Use the remember tool to store important information.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=[remember, recall, forget, list_memory],
     )
@@ -86,9 +86,9 @@ async def demo_stream_with_memory():
     agent = Agent(
         name="streaming-agent",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=[remember, recall, forget, list_memory],
     )
@@ -120,9 +120,9 @@ async def demo_cancel_execution():
     agent = Agent(
         name="cancel-test-agent",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -201,9 +201,9 @@ async def demo_custom_backend():
         agent = Agent(
             name="custom-agent",
             instructions="You are a helpful assistant.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )
@@ -230,7 +230,7 @@ async def main():
     print("=" * 60)
 
     print("\nPrerequisites:")
-    print("- LM Studio running at http://localhost:1234")
+    print("- OpenAI-compatible server running at http://localhost:1234/v1")
     print("- qwen/qwen3.5-9b model loaded")
     print("\nPress Ctrl+C to skip any demo")
 

@@ -1,8 +1,8 @@
 """End-to-end integration tests for memory, session, and cancel features.
 
 These tests require:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- An OpenAI-compatible endpoint running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 
 Run with: pytest tests/integration/ -v -m integration
 """
@@ -27,9 +27,9 @@ class TestMemoryToolsWithLLM:
 
         agent = Agent(
             name="test-memory",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )
@@ -53,9 +53,9 @@ class TestMemoryToolsWithLLM:
 
         agent = Agent(
             name="test-recall",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall],
         )
@@ -78,9 +78,9 @@ class TestMemoryStreaming:
 
         agent = Agent(
             name="test-stream-memory",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember],
         )
@@ -153,9 +153,9 @@ class TestCancelMechanism:
 
         agent = Agent(
             name="test-cancel",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
@@ -191,9 +191,9 @@ class TestCustomMemoryBackend:
 
             agent = Agent(
                 name="test-custom",
-                provider="lmstudio",
+                provider="openai-compatible",
                 model="qwen/qwen3.5-9b",
-                base_url="http://localhost:1234",
+                base_url="http://localhost:1234/v1",
                 api_key="dummy",
                 tools=[remember, recall, list_memory],
             )

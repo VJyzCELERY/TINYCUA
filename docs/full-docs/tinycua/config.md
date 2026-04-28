@@ -198,12 +198,12 @@ class WizardValidationError(WizardError):
 
 ```python
 class SetupWizard:
-    DEFAULT_LLM_PROVIDER = "lmstudio"
+    DEFAULT_LLM_PROVIDER = "openai-compatible"
     DEFAULT_LLM_MODEL = "qwen/qwen3.5-9b"
     DEFAULT_LLM_BASE_URL = "http://localhost:1234/v1"
 ```
 
-Defaults target LM Studio running locally, a popular choice for local LLM execution.
+Defaults target an OpenAI-compatible endpoint running locally.
 
 **State attributes:**
 ```python
@@ -456,13 +456,13 @@ if self.storage_mode == "local":
 
 ### Helper Functions
 
-#### `is_lmstudio_available()`
+#### `is_openai_compatible_available()`
 
 ```python
-def is_lmstudio_available() -> bool:
+def is_openai_compatible_available() -> bool:
 ```
 
-Checks if LM Studio is running at `http://localhost:1234/v1/models`.
+Checks if an OpenAI-compatible endpoint is running at `http://localhost:1234/v1/models`.
 
 #### `test_connection(url)`
 

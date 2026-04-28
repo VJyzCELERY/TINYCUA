@@ -127,7 +127,7 @@ async def run_command(cmd: str) -> AsyncIterator[str]:
 
 ## Implementation Notes
 
-1. **LM Studio limitation**: Some providers may not support mid-stream tool calls. Fall back to accumulating full response before executing tools.
+1. **OpenAI-compatible endpoint limitation**: Some providers may not support mid-stream tool calls. Fall back to accumulating full response before executing tools.
 
 2. **Chunking**: For non-streaming tools, wrap result string and yield in chunks (e.g., 10 chars at a time).
 

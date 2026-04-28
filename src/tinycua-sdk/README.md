@@ -65,10 +65,10 @@ TINYCUA_BACKEND_URL=http://localhost:8000
 # API Key (for authenticated requests)
 TINYCUA_API_KEY=
 
-# LM Studio (for local execution)
-TINYCUA_PROVIDER=lmstudio
+# OpenAI-compatible endpoint (for local execution)
+TINYCUA_PROVIDER=openai-compatible
 TINYCUA_MODEL=qwen/qwen3.5-9b
-TINYCUA_BASE_URL=http://localhost:1234
+TINYCUA_BASE_URL=http://localhost:1234/v1
 ```
 
 ---
@@ -77,7 +77,7 @@ TINYCUA_BASE_URL=http://localhost:1234
 
 ### Local Execution (No Backend)
 
-Run agents directly on your machine using LM Studio:
+Run agents directly on your machine using an OpenAI-compatible endpoint:
 
 ```python
 from tinycua_sdk import Agent
@@ -92,8 +92,8 @@ agent = Agent(
     name="math-agent",
     instructions="You are a helpful math assistant that uses tools.",
     tools=[calculate],
-    provider="lmstudio",
-    base_url="http://127.0.0.1:1234",
+    provider="openai-compatible",
+    base_url="http://127.0.0.1:1234/v1",
     model="qwen/qwen3.5-9b"
 )
 
@@ -128,8 +128,8 @@ agent = Agent(
     name="math-agent",
     instructions="You are a helpful math assistant that uses tools.",
     tools=[calculate],
-    provider="lmstudio",
-    base_url="http://127.0.0.1:1234",
+    provider="openai-compatible",
+    base_url="http://127.0.0.1:1234/v1",
     model="qwen/qwen3.5-9b",
     backend_client=client
 )
@@ -180,7 +180,7 @@ The SDK includes an end-to-end test that verifies the full flow:
 1. Register user
 2. Create tool
 3. Create agent
-4. Run agent (triggers backend → runner → LM Studio)
+4. Run agent (triggers backend → runner → OpenAI-compatible endpoint)
 
 ### Prerequisites
 
@@ -201,7 +201,7 @@ The SDK includes an end-to-end test that verifies the full flow:
    python -m tinycua_runner.main
    ```
 
-4. **LM Studio running** with a model loaded (e.g., qwen2.5-coder-14b)
+4. **OpenAI-compatible endpoint running** with a model loaded (e.g., qwen2.5-coder-14b)
 
 ### Run the Test
 

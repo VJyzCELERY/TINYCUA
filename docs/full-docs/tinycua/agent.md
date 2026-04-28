@@ -41,7 +41,7 @@ This module exposes the two primary public APIs: creating a default agent and ma
 
 ### Purpose
 
-Factory module that creates a pre-configured agent ready for local execution (primarily with Ollama).
+Factory module that creates a pre-configured agent ready for local execution with an OpenAI-compatible endpoint.
 
 ### `create_default_agent()` Function
 

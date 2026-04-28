@@ -145,18 +145,18 @@ class TestAgentHierarchyLocalExecution:
         # Create sub-agent
         research_agent = Agent(
             name="research",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
         # Create main agent with sub-agent
         main_agent = Agent(
             name="main",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             sub_agents=[research_agent],
         )
@@ -197,9 +197,9 @@ class TestAgentHierarchyExecution:
 
         agent = Agent(
             name="test",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
@@ -217,17 +217,17 @@ class TestAgentHierarchyExecution:
 
         research_agent = Agent(
             name="research",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
         main_agent = Agent(
             name="main",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             sub_agents=[research_agent],
         )
@@ -251,17 +251,17 @@ class TestStreamSSE:
 
         coder = Agent(
             name="coder",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
         coordinator = Agent(
             name="coordinator",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             sub_agents=[coder],
         )
@@ -302,17 +302,17 @@ class TestStreamSSE:
 
         coder = Agent(
             name="coder",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
         coordinator = Agent(
             name="coordinator",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             sub_agents=[coder],
         )
@@ -360,17 +360,17 @@ class TestVerboseDelegation:
 
         coder = Agent(
             name="coder",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
         coordinator = Agent(
             name="coordinator",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             sub_agents=[coder],
         )
