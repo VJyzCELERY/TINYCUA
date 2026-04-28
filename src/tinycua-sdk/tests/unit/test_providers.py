@@ -77,6 +77,14 @@ class TestProviderValidation:
         provider_errors = [e for e in errors if e.field == "provider"]
         assert len(provider_errors) == 0
 
+    def test_anthropic_provider_valid(self):
+        """anthropic provider should be valid (future stub)."""
+        config = AgentConfig(name="test", provider="anthropic")
+        validator = AgentConfigValidator()
+        errors = validator.validate(config)
+        provider_errors = [e for e in errors if e.field == "provider"]
+        assert len(provider_errors) == 0
+
     def test_google_provider_warns(self):
         """Google provider should produce a warning (not in VALID_PROVIDERS)."""
         config = AgentConfig(name="test", provider="google")

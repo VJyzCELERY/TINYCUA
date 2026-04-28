@@ -87,7 +87,7 @@ src/tinycua-backend/
 │                          │                                      │
 │          ┌───────────────┼───────────────────┐                 │
 │          ▼               ▼                   ▼                 │
-│   OllamaProvider  LMStudioProvider  OpenAIPassthrough          │
+│   LocalOpenAIProvider  AnthropicProvider  OpenAIPassthrough    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -630,7 +630,7 @@ class Response:
 ### Phase 1 (MVP)
 
 - `POST /v1/responses` non-streaming + SSE streaming.
-- OllamaProvider, LMStudioProvider, OpenAIPassthroughProvider.
+- LocalOpenAIProvider, AnthropicProvider, OpenAIPassthroughProvider.
 - `ModelRegistry` loaded from `models.yaml` or env var at startup.
 - `OrchestrationLoop` with session loading/saving, `get_context` handling, `is_master`
   CUA guard.
