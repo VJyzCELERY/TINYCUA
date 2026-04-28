@@ -123,3 +123,29 @@ Rules:
 - Each domain/feature area gets its own subpackage folder (e.g., `clients/`, `models/`, `tools/`).
 - Every subpackage must have an `__init__.py`.
 - Keep subpackage names short and noun-based (`lower_snake_case`).
+
+---
+
+## Documentation Maintenance
+
+### Comprehensive Documentation (`docs/full-docs/`)
+
+The project maintains detailed, line-by-line documentation for all three subprojects under `docs/full-docs/`. These docs are the primary reference for developers and contributors.
+
+**Any code change must include a corresponding documentation update:**
+
+| Change Type | Required Doc Update |
+|-------------|---------------------|
+| Add new module/class/function | Add documentation to the relevant `.md` file |
+| Remove feature/API | Remove all references across all doc files |
+| Rename file/class/function | Update all references and code examples |
+| Change behavior | Update explanations, data flows, and snippets |
+| Add new doc file | Update `docs/full-docs/INDEX.md` tree |
+| Remove doc relevance | Remove from `INDEX.md` and cross-references |
+
+**Projects covered:**
+- `docs/full-docs/tinycua/` — CLI, TUI, agent lifecycle, storage, remote, config, tools
+- `docs/full-docs/tinycua-sdk/` — SDK core (agent, clients, tools, memory, session, storage, skills, runner, models, security, middleware, context, modeling, CLI, core)
+- `docs/full-docs/tinycua-backend/` — FastAPI backend (main, API, auth, storage, sync, tenant, config, migrations)
+
+**Verification:** Before finishing a change, `grep` the docs for stale references to removed/renamed code. Stale documentation is treated the same as stale code.
