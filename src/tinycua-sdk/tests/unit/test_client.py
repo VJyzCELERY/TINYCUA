@@ -303,7 +303,7 @@ class TestBackendClient:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.get = AsyncMock(side_effect=Exception("Connection error"))
+            mock_client.get = AsyncMock(side_effect=OSError("Connection error"))
             mock_client_class.return_value = mock_client
 
             client = BackendClient(base_url="http://localhost:8000")

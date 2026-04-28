@@ -140,7 +140,9 @@ class TestToolExecutionStreaming:
         runner = Runner(config)
         result = runner._execute_tool_streaming("get_weather", {"location": "Tokyo"})
 
-        assert result == {"temp": 22, "location": "Tokyo"}
+        assert result["success"] is True
+        assert result["result"] == {"temp": 22, "location": "Tokyo"}
+        assert result["tool_name"] == "get_weather"
 
     @pytest.mark.asyncio
     async def test_execute_tool_not_found(self):
@@ -157,7 +159,9 @@ class TestToolExecutionStreaming:
         runner = Runner(config)
         result = runner._execute_tool_streaming("nonexistent", {})
 
-        assert result == {"error": "Tool nonexistent not found"}
+        assert result["success"] is False
+        assert "not found" in result["error"]
+        assert result["tool_name"] == "nonexistent"
 
     @pytest.mark.asyncio
     async def test_tool_result_chunking(self):
