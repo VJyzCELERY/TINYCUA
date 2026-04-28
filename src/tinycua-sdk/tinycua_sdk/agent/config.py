@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from tinycua_sdk.core.providers import (
+    DEFAULT_BASE_URL,
+    OPENAI_COMPATIBLE,
+    normalize_base_url,
+    resolve_provider,
+)
 from tinycua_sdk.tools.decorators import Tool
 
 if TYPE_CHECKING:
@@ -69,8 +75,8 @@ class AgentConfig:
     instructions: str = ""
     system_prompt: str = "You are a helpful assistant."
     model: str = "gpt-5-nano"
-    provider: str = "openai"
-    base_url: str | None = None
+    provider: str = OPENAI_COMPATIBLE
+    base_url: str | None = DEFAULT_BASE_URL
     api_key: str | None = None
     tools: list[str | Tool] = field(default_factory=list)
     policy: AgentPolicy = field(default_factory=AgentPolicy)
@@ -94,6 +100,11 @@ class AgentConfig:
     metadata: dict[str, Any] = field(default_factory=dict)
     # Planning prompt for task analysis
     planning_prompt: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize provider and base_url after initialization."""
+        self.provider = resolve_provider(self.provider)
+        self.base_url = normalize_base_url(self.base_url)
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""
@@ -199,8 +210,8 @@ class AgentConfig:
             model=data.get(
                 "model", "gpt-5-nano"
             ),  # Fixed: use gpt-5-nano to match dataclass default
-            provider=data.get("provider", "openai"),
-            base_url=data.get("base_url"),
+            provider=data.get("provider", OPENAI_COMPATIBLE),
+            base_url=data.get("base_url", DEFAULT_BASE_URL),
             api_key=data.get("api_key"),
             tools=tools,
             policy=policy,

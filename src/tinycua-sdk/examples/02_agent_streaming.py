@@ -6,8 +6,8 @@ This example demonstrates the streaming tool execution feature:
 3. See tool results streaming in real-time
 
 Prerequisites:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- OpenAI-compatible server running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 """
 
 import asyncio
@@ -141,9 +141,9 @@ async def main():
     agent = Agent(
         name="streaming-agent",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=[get_weather, calculator],
     )

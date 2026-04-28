@@ -98,9 +98,9 @@ async def demo_runner_with_agent():
 
     agent = Agent(
         name="remote-agent",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         runner=runner,
     )

@@ -10,7 +10,7 @@ Prerequisites:
 - PostgreSQL running (make docker-up)
 - Backend running (src/tinycua-backend)
 - Runner running (src/tinycua-runner)
-- LM Studio with model loaded
+- OpenAI-compatible server with model loaded
 
 Usage:
     # Copy .env.example to .env and fill in values
@@ -109,9 +109,9 @@ async def main():
     agent = Agent(
         name="math-assistant",
         instructions="You are a helpful math assistant. Use the tools to perform calculations.",
-        provider=os.getenv("TINYCUA_PROVIDER", "lmstudio"),
+        provider=os.getenv("TINYCUA_PROVIDER", "openai-compatible"),
         model=os.getenv("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
-        base_url="http://127.0.0.1:1234",
+        base_url="http://127.0.0.1:1234/v1",
         tools=[add_numbers, multiply, get_greeting],
         backend_url=BACKEND_URL,
         backend_api_key=client.api_key,  # Use the token from login

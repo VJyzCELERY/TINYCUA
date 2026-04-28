@@ -86,7 +86,7 @@ class StatusBar(Static):
         Args:
             status: Connection status text.
             agent: Current agent name.
-            mode: Execution mode (local, deployed, guest).
+            mode: Execution mode (local, deployed).
         """
         if status is not None:
             self._status = status

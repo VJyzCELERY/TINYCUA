@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
 from tinycua_sdk.memory.short_term import ShortTermMemory
 from tinycua_sdk.memory.long_term import LongTermMemory
 
@@ -18,7 +19,7 @@ class Agent(AgentExecutor):
 
     Inherits all configuration, properties, and execution capabilities from
     AgentExecutor (which inherits from AgentDefinition). Adds deploy(),
-    delete(), set_guest_mode(), and load_agent() as thin wrappers that
+    delete(), and load_agent() as thin wrappers that
     delegate to AgentLifecycle via lazy imports.
 
     This maintains full backward compatibility while keeping the SDK from
@@ -31,8 +32,8 @@ class Agent(AgentExecutor):
         instructions: str = "",
         system_prompt: str = "You are a helpful assistant.",
         model: str = "gpt-4o-mini",
-        provider: str = "openai",
-        base_url: str | None = None,
+        provider: str = OPENAI_COMPATIBLE,
+        base_url: str | None = DEFAULT_BASE_URL,
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: AgentPolicy | None = None,
@@ -60,7 +61,10 @@ class Agent(AgentExecutor):
             instructions: Additional instructions for the agent.
             system_prompt: System prompt that defines agent behavior.
             model: Model identifier to use.
-            provider: LLM provider (openai, ollama, lmstudio).
+            provider: LLM provider type. Use "openai" for OpenAI API
+                or "openai-compatible" for any OpenAI-compatible endpoint
+                (e.g., local inference servers). Aliases "lmstudio" and
+                "ollama" are supported for backward compatibility.
             base_url: Custom base URL for the LLM API.
             api_key: API key for authentication.
             tools: List of tools available to the agent.
@@ -142,22 +146,6 @@ class Agent(AgentExecutor):
         lifecycle = AgentLifecycle(self)
         await lifecycle.delete()
 
-    def set_guest_mode(
-        self,
-        agent_id: str,
-        backend_url: str | None = None,
-    ) -> None:
-        """Set agent to guest mode (backward-compatible wrapper).
-
-        Args:
-            agent_id: ID of a deployed agent to use in guest mode.
-            backend_url: Optional backend URL (defaults to config).
-
-        """
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        AgentLifecycle(self).set_guest_mode(agent_id, backend_url)
-
     @classmethod
     async def load_agent(
         cls,
@@ -237,8 +225,8 @@ class Agent(AgentExecutor):
         system_prompt = template.pop("system_prompt", "")
         instructions = template.pop("instructions", "")
         model = template.pop("model", "gpt-4o-mini")
-        provider = template.pop("provider", "openai")
-        base_url = template.pop("base_url", None)
+        provider = template.pop("provider", OPENAI_COMPATIBLE)
+        base_url = template.pop("base_url", DEFAULT_BASE_URL)
         api_key = template.pop("api_key", None)
         tool_names = template.pop("tools", [])
         skills = template.pop("skills", [])

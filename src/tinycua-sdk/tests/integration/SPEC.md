@@ -161,9 +161,9 @@ pytest tests/integration/ -n auto -v
 ## Prerequisites
 
 ### Required Services
-- **LM Studio** running at `http://localhost:1234`
-- Model: `qwen/qwen3.5-9b` loaded in LM Studio
+- **OpenAI-compatible endpoint** running at `http://localhost:1234/v1`
 
+- Model: `qwen/qwen3.5-9b` loaded
 ### Python Dependencies
 ```bash
 pip install pytest pytest-asyncio
@@ -173,9 +173,9 @@ pip install pytest pytest-asyncio
 
 ### Environment Variables
 ```bash
-export TINYCUA_PROVIDER=lmstudio
+export TINYCUA_PROVIDER=openai-compatible
 export TINYCUA_MODEL=qwen/qwen3.5-9b
-export TINYCUA_BASE_URL=http://localhost:1234
+export TINYCUA_BASE_URL=http://localhost:1234/v1
 export TINYCUA_API_KEY=dummy
 ```
 
@@ -187,9 +187,9 @@ export TINYCUA_API_KEY=dummy
 ## Test Results
 
 ### Expected Results
-- **Passing**: All tests pass if LM Studio is running with the correct model
-- **Skipping**: Tests that require backend deployment will skip if backend is not available
-- **Failing**: Tests will fail if LM Studio is not running or model is not loaded
+- **Passing**: All tests pass if OpenAI-compatible endpoint is running with the correct model
+
+- **Failing**: Tests will fail if OpenAI-compatible endpoint is not running or model is not loaded
 
 ### Test Output
 ```

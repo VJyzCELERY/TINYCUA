@@ -89,24 +89,6 @@ class TestAgentLifecycleDelete:
             await lifecycle.delete()
 
 
-class TestAgentLifecycleGuestMode:
-    """Test AgentLifecycle guest mode functionality."""
-
-    def test_set_guest_mode(self):
-        """Test set_guest_mode updates agent config."""
-        from tinycua_sdk.agent.agent import Agent
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        agent = Agent(name="test-agent")
-        lifecycle = AgentLifecycle(agent)
-
-        lifecycle.set_guest_mode("agent-123", backend_url="http://test:8000")
-
-        assert agent.config.mode == "guest"
-        assert agent.config.agent_id == "agent-123"
-        assert agent.config.backend_url == "http://test:8000"
-
-
 class TestAgentLifecycleLoadAgent:
     """Test AgentLifecycle load_agent functionality."""
 

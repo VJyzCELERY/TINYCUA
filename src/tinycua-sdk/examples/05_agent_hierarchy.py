@@ -50,9 +50,9 @@ async def demo_manual_delegation():
 
 
 async def demo_delegation_with_llm():
-    """Demonstrate full end-to-end delegation flow with LM Studio."""
+    """Demonstrate full end-to-end delegation flow with local LLM."""
     print("\n" + "=" * 50)
-    print("Full End-to-End Delegation Flow (LM Studio)")
+    print("Full End-to-End Delegation Flow (Local LLM)")
     print("=" * 50)
 
     print("\n1. Creating sub-agents (LLM will decide when to delegate)...")
@@ -60,17 +60,17 @@ async def demo_delegation_with_llm():
     searcher = Agent(
         name="searcher",
         instructions="You are a research assistant. Find and provide information clearly.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
     coder = Agent(
         name="coder",
         instructions="You are a coding assistant. Write clean, working code.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -86,9 +86,9 @@ async def demo_delegation_with_llm():
 
 When a task matches a specialist's expertise, use the delegate tool to hand off the task.""",
         sub_agents=[searcher, coder],
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -124,9 +124,9 @@ async def demo_stream_sse():
     coder = Agent(
         name="coder",
         instructions="You are a coding assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -134,9 +134,9 @@ async def demo_stream_sse():
         name="coordinator",
         instructions="Delegate to coder when needed.",
         sub_agents=[coder],
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -185,9 +185,9 @@ async def demo_verbose_delegation():
     coder = Agent(
         name="coder",
         instructions="You are a coding assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -195,9 +195,9 @@ async def demo_verbose_delegation():
         name="coordinator",
         instructions="Delegate to coder when needed.",
         sub_agents=[coder],
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -230,9 +230,9 @@ async def demo_streaming_delegation():
     coder = Agent(
         name="coder",
         instructions="You are a coding assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 
@@ -240,9 +240,9 @@ async def demo_streaming_delegation():
         name="coordinator",
         instructions="Delegate to coder when needed.",
         sub_agents=[coder],
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
     )
 

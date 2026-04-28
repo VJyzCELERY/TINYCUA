@@ -11,9 +11,9 @@ import logging
 # =============================================================================
 
 # Set environment variables for tests
-os.environ["TINYCUA_PROVIDER"] = "lmstudio"
+os.environ["TINYCUA_PROVIDER"] = "openai-compatible"
 os.environ["TINYCUA_MODEL"] = "qwen/qwen3.5-9b"
-os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234"
+os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234/v1"
 os.environ["TINYCUA_API_KEY"] = "dummy"
 
 

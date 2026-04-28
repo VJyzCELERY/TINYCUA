@@ -5,9 +5,9 @@ import os
 import tempfile
 from unittest.mock import MagicMock
 
-os.environ["TINYCUA_PROVIDER"] = "lmstudio"
+os.environ["TINYCUA_PROVIDER"] = "openai-compatible"
 os.environ["TINYCUA_MODEL"] = "qwen/qwen3.5-9b"
-os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234"
+os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234/v1"
 os.environ["TINYCUA_API_KEY"] = "dummy"
 
 
@@ -26,7 +26,7 @@ def mock_agent_config():
     return {
         "name": "test-agent",
         "model": "qwen/qwen3.5-9b",
-        "provider": "lmstudio",
+        "provider": "openai-compatible",
         "temperature": 0.7,
         "max_tokens": 2048,
     }

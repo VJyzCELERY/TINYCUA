@@ -11,7 +11,7 @@ TINYCUA is a command-line interface application for computer-use AI agents. It p
 - **Interactive REPL**: Command-line interface for interacting with AI agents
 - **Tool System**: Built-in tools for computer use, memory, and context management
 - **Backend Integration**: Connect to backend services for deployed agent workflows
-- **Local Execution**: Run agents locally using LM Studio or other LLM providers
+- **Local Execution**: Run agents locally using an OpenAI-compatible endpoint
 - **TUI Mode**: Text-based user interface for enhanced interaction
 
 ## Installation
@@ -74,9 +74,9 @@ TINYCUA_BACKEND_URL=http://localhost:8000
 TINYCUA_API_KEY=your-api-key
 
 # LLM Provider
-TINYCUA_PROVIDER=lmstudio
+TINYCUA_PROVIDER=openai-compatible
 TINYCUA_MODEL=qwen/qwen3.5-9b
-TINYCUA_BASE_URL=http://localhost:1234
+TINYCUA_BASE_URL=http://localhost:1234/v1
 ```
 
 ### Running Agents
@@ -94,8 +94,8 @@ agent = Agent(
     name="my-agent",
     instructions="You are a helpful assistant.",
     tools=[calculate],
-    provider="lmstudio",
-    base_url="http://localhost:1234",
+    provider="openai-compatible",
+    base_url="http://localhost:1234/v1",
     model="qwen/qwen3.5-9b"
 )
 

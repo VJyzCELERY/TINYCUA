@@ -132,6 +132,6 @@ dev-stop: stop
 # Run the end-to-end test (requires backend and runner running)
 e2e-test:
 	@echo "Make sure services are running: make run"
-	@echo "Make sure LM Studio is loaded with a model"
+	@	echo "Make sure an OpenAI-compatible endpoint is running with a model loaded"
 	@echo ""
 	cd src/tinycua-sdk && python -m tests.e2e.test_backend_runner

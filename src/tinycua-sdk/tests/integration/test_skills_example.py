@@ -202,9 +202,9 @@ class TestSkillsWithAgent:
         agent = Agent(
             name="test-agent",
             instructions="You are helpful.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
         
@@ -216,9 +216,9 @@ class TestSkillsWithAgent:
         agent = Agent(
             name="test-agent",
             instructions="You are helpful.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
         
@@ -226,7 +226,7 @@ class TestSkillsWithAgent:
             response = await agent.run("Say 'hello' in one word.")
             assert isinstance(response, str)
         except Exception:
-            pytest.skip("LM Studio not available")
+            pytest.skip("OpenAI-compatible endpoint not available")
 
 
 class TestSkillActivation:

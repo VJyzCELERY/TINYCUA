@@ -7,6 +7,7 @@ from typing import AsyncIterator
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL
 from tinycua_sdk.models.request import ResponseRequest
 from tinycua_sdk.models.response import Response, StreamEvent, StreamEventType, Usage
 
@@ -29,7 +30,7 @@ class ResponsesClient:
 
         """
         self.base_url = base_url or os.getenv(
-            "TINYCUA_API_URL", "http://localhost:8000"
+            "TINYCUA_API_URL", DEFAULT_BASE_URL
         )
         self.api_key = api_key or os.getenv("TINYCUA_API_KEY", "")
         self.max_retries = max_retries
@@ -65,7 +66,7 @@ class ResponsesClient:
             else:
                 messages.append(msg)
 
-        # Use chat completions format for LM Studio compatibility
+        # Use chat completions format for OpenAI-compatible endpoints
         payload = {
             "model": request.model,
             "messages": messages,
@@ -84,7 +85,7 @@ class ResponsesClient:
         # Try responses API first, fall back to chat completions
         try:
             response = await self._client.post(
-                "/v1/responses",
+                "/responses",
                 json=payload,
                 headers={"X-Trace-Id": trace_id},
             )
@@ -96,7 +97,7 @@ class ResponsesClient:
             if not choices:
                 # Try chat completions format
                 response = await self._client.post(
-                    "/v1/chat/completions",
+                    "/chat/completions",
                     json=payload,
                     headers={"X-Trace-Id": trace_id},
                 )
@@ -106,7 +107,7 @@ class ResponsesClient:
         except httpx.HTTPStatusError:
             # Fall back to chat completions
             response = await self._client.post(
-                "/v1/chat/completions",
+                "/chat/completions",
                 json=payload,
                 headers={"X-Trace-Id": trace_id},
             )
@@ -145,7 +146,7 @@ class ResponsesClient:
             else:
                 messages.append(msg)
 
-        # Use chat completions format for LM Studio compatibility
+        # Use chat completions format for OpenAI-compatible endpoints
         payload = {
             "model": request.model,
             "messages": messages,
@@ -165,7 +166,7 @@ class ResponsesClient:
         # Use chat completions for streaming (more compatible)
         async with self._client.stream(
             "POST",
-            "/v1/chat/completions",
+            "/chat/completions",
             json=payload,
             headers={"X-Trace-Id": trace_id},
         ) as response:

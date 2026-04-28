@@ -1,4 +1,4 @@
-"""Example: Tool Calling with LM Studio (qwen3.5-9b)
+"""Example: Tool Calling with OpenAI-compatible Server (qwen3.5-9b)
 
 This example demonstrates:
 1. Creating an Agent with tools
@@ -7,8 +7,8 @@ This example demonstrates:
 4. Streaming with tool execution
 
 Prerequisites:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- OpenAI-compatible server running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 """
 
 from tinycua_sdk.tools import tool
@@ -70,9 +70,9 @@ async def main():
     agent = Agent(
         name="weather-assistant",
         instructions="You are a helpful assistant.",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=[get_weather, calculator],
     )
@@ -97,9 +97,9 @@ async def main():
     # Create a planner agent (using ReactLoop for complex tasks)
     planner_agent = Agent(
         name="planner-assistant",
-        provider="lmstudio",
+        provider="openai-compatible",
         model="qwen/qwen3.5-9b",
-        base_url="http://localhost:1234",
+        base_url="http://localhost:1234/v1",
         api_key="dummy",
         tools=[get_weather, calculator],
         loop="react",

@@ -15,7 +15,7 @@ def sample_config():
     """Sample configuration for testing."""
     return {
         "model": "qwen/qwen3.5-9b",
-        "api_base": "http://localhost:1234",
+        "api_base": "http://localhost:1234/v1",
         "api_key": "test-key",
         "temperature": 0.7,
         "max_tokens": 2048,

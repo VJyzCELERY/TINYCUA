@@ -9,15 +9,17 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
+
 
 class LLMConfig(BaseModel):
     """Configuration for the LLM provider."""
 
     model_config = ConfigDict(frozen=True)
 
-    provider: str = "lmstudio"
+    provider: str = OPENAI_COMPATIBLE
     model: str = "qwen/qwen3.5-9b"
-    base_url: str = "http://localhost:1234"
+    base_url: str = DEFAULT_BASE_URL
     api_key: SecretStr = SecretStr("")
     temperature: float = 1.0
 

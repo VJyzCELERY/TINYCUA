@@ -1,8 +1,8 @@
 """End-to-end integration tests for memory, session, and cancel features.
 
 These tests require:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- An OpenAI-compatible endpoint running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 
 Run with: pytest tests/integration/ -v -m integration
 """
@@ -20,16 +20,16 @@ class TestMemoryToolsWithLLM:
     async def test_llm_uses_remember_tool(self):
         """Test that LLM calls remember tool when prompted."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall, list_memory
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall, list_memory
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
         agent = Agent(
             name="test-memory",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )
@@ -44,8 +44,8 @@ class TestMemoryToolsWithLLM:
     async def test_llm_uses_recall_tool(self):
         """Test that LLM calls recall tool when prompted."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
@@ -53,9 +53,9 @@ class TestMemoryToolsWithLLM:
 
         agent = Agent(
             name="test-recall",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall],
         )
@@ -71,16 +71,16 @@ class TestMemoryStreaming:
     async def test_stream_with_memory_tool(self):
         """Test streaming response with memory tool call."""
         from tinycua_sdk.models import Agent, StreamEventType
-        from tinycua_sdk.tools import remember
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 
         agent = Agent(
             name="test-stream-memory",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember],
         )
@@ -153,9 +153,9 @@ class TestCancelMechanism:
 
         agent = Agent(
             name="test-cancel",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
@@ -176,9 +176,9 @@ class TestCustomMemoryBackend:
     async def test_custom_backend_with_llm(self):
         """Test using custom memory backend with LLM."""
         from tinycua_sdk.models import Agent
-        from tinycua_sdk.tools import remember, recall, list_memory
+        from tinycua.agent.tools.memory_tools import remember, recall, list_memory
         from tinycua_sdk.tools.memory import LocalMemoryBackend
-        from tinycua_sdk.tools.memory_tools import (
+        from tinycua.agent.tools.memory_tools import (
             set_memory_backend,
             reset_memory_backend,
         )
@@ -191,9 +191,9 @@ class TestCustomMemoryBackend:
 
             agent = Agent(
                 name="test-custom",
-                provider="lmstudio",
+                provider="openai-compatible",
                 model="qwen/qwen3.5-9b",
-                base_url="http://localhost:1234",
+                base_url="http://localhost:1234/v1",
                 api_key="dummy",
                 tools=[remember, recall, list_memory],
             )
@@ -213,8 +213,8 @@ class TestMemoryPersistence:
     @pytest.mark.asyncio
     async def test_memory_persists_between_runs(self):
         """Test memory is accessible in subsequent runs."""
-        from tinycua_sdk.tools import remember, recall
-        from tinycua_sdk.tools.memory_tools import reset_memory_backend
+        from tinycua.agent.tools.memory_tools import remember, recall
+        from tinycua.agent.tools.memory_tools import reset_memory_backend
 
         reset_memory_backend()
 

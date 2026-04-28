@@ -37,4 +37,4 @@ pytest src/tinycua/tests/unit/ -k "test_output"
 4. **Descriptive names** - Test names describe behavior, not implementation
 
 ## Default Model
-Tests use `qwen/qwen3.5-9b` via LM Studio as the default model configuration.
+Tests use `qwen/qwen3.5-9b` via an OpenAI-compatible endpoint as the default model configuration.

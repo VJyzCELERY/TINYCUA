@@ -15,7 +15,7 @@ class TestUserConfigLoad:
         non_existent = tmp_path / "nonexistent" / "config.yaml"
         config = UserConfig.load(path=non_existent)
 
-        assert config.llm.provider == "lmstudio"
+        assert config.llm.provider == "openai-compatible"
         assert config.llm.model == "qwen/qwen3.5-9b"
         assert config.backend_url == "http://localhost:8000"
         assert config.environment == "dev"
@@ -28,9 +28,9 @@ class TestUserConfigLoad:
         config_file = tmp_path / "config.yaml"
         config_data = {
             "llm": {
-                "provider": "ollama",
-                "model": "llama3",
-                "base_url": "http://localhost:11434",
+                "provider": "openai-compatible",
+                "model": "qwen/qwen3.5-9b",
+                "base_url": "http://localhost:1234/v1",
             },
             "backend_url": "http://myserver:9000",
         }
@@ -38,9 +38,9 @@ class TestUserConfigLoad:
 
         config = UserConfig.load(path=config_file)
 
-        assert config.llm.provider == "ollama"
-        assert config.llm.model == "llama3"
-        assert config.llm.base_url == "http://localhost:11434"
+        assert config.llm.provider == "openai-compatible"
+        assert config.llm.model == "qwen/qwen3.5-9b"
+        assert config.llm.base_url == "http://localhost:1234/v1"
         assert config.backend_url == "http://myserver:9000"
 
     def test_env_override_defaults(self):
@@ -70,8 +70,8 @@ class TestUserConfigLoad:
         config_file = tmp_path / "config.yaml"
         config_data = {
             "llm": {
-                "provider": "ollama",
-                "model": "llama3",
+                "provider": "openai-compatible",
+                "model": "qwen/qwen3.5-9b",
             },
         }
         config_file.write_text(yaml.safe_dump(config_data))
@@ -85,8 +85,8 @@ class TestUserConfigLoad:
             config = UserConfig.load(path=config_file)
 
         # YAML should override env
-        assert config.llm.provider == "ollama"
-        assert config.llm.model == "llama3"
+        assert config.llm.provider == "openai-compatible"
+        assert config.llm.model == "qwen/qwen3.5-9b"
 
     def test_yaml_overrides_env_for_nested_fields(self, tmp_path):
         """Test YAML overrides only specified nested fields, keeping env for others."""
@@ -240,7 +240,7 @@ class TestUserConfigGenerateDefault:
                 config = UserConfig.generate_default_config()
 
         assert config_file.exists()
-        assert config.llm.provider == "lmstudio"
+        assert config.llm.provider == "openai-compatible"
 
     def test_generate_default_config_does_not_overwrite(self, tmp_path):
         """Test generate_default_config does not overwrite existing file."""

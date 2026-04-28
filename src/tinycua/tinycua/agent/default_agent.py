@@ -1,6 +1,6 @@
 """Default agent factory for TinyCUA.
 
-Creates a pre-configured agent that works out of the box with Ollama.
+Creates a pre-configured agent that works out of the box with an OpenAI-compatible endpoint.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ def create_default_agent(
     config: SDKConfig | None = None,
     tools: list[Tool] | None = None,
 ) -> Agent:
-    """Create a default agent configured for Ollama.
+    """Create a default agent configured for an OpenAI-compatible endpoint.
 
     Args:
         config: Optional user config. If None, loads from UserConfig.
@@ -26,7 +26,7 @@ def create_default_agent(
             context tools.
 
     Returns:
-        Agent instance configured for local Ollama execution.
+        Agent instance configured for local OpenAI-compatible execution.
     """
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentPolicy

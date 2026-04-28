@@ -11,7 +11,7 @@ It bypasses tenant restrictions and gives system-level access.
 Prerequisites:
 - Backend configured with global API key
 - Runner running
-- LM Studio with model
+- OpenAI-compatible server with model
 
 Usage:
     cp .env.example .env
