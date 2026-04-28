@@ -159,7 +159,7 @@ class AgentExecutor(AgentDefinition):
         instructions: str = "",
         system_prompt: str = "You are a helpful assistant.",
         model: str = "gpt-4o-mini",
-        provider: str = "openai",
+        provider: str = "openai-compatible",
         base_url: str | None = None,
         api_key: str | None = None,
         tools: list[Tool] | None = None,

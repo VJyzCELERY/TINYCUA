@@ -24,9 +24,9 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
     "openai": "openai",
 }
 
-#: Valid provider identifiers (canonical + aliases).
+#: Valid provider identifiers (canonical + aliases + future stubs).
 VALID_PROVIDERS: Final[frozenset[str]] = frozenset(
-    {OPENAI_COMPATIBLE, "openai"} | set(_PROVIDER_ALIASES.keys())
+    {OPENAI_COMPATIBLE, "openai", "anthropic"} | set(_PROVIDER_ALIASES.keys())
 )
 
 

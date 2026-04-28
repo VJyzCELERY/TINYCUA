@@ -35,8 +35,8 @@ src/tinycua-backend/
     ├── providers/
     │   ├── __init__.py
     │   ├── base.py              # BaseProvider (abstract)
-    │   ├── ollama.py            # OllamaProvider
-    │   ├── lmstudio.py          # LMStudioProvider
+    │   ├── local_openai.py      # LocalOpenAIProvider (OpenAI-compatible endpoints)
+    │   ├── anthropic.py         # AnthropicProvider (future)
     │   └── openai_passthrough.py# OpenAIPassthroughProvider
     ├── orchestration/
     │   ├── __init__.py
@@ -119,8 +119,8 @@ class Settings(BaseSettings):
 @dataclass
 class ModelEntry:
     name: str
-    provider: Literal["ollama", "lmstudio", "openai"]
-    endpoint: str                  # e.g. "http://localhost:11434"
+    provider: Literal["openai-compatible", "openai", "anthropic"]
+    endpoint: str                  # e.g. "http://localhost:1234/v1"
     default_temperature: float = 1.0
     context_length: int | None = None
     extra: dict = field(default_factory=dict)
@@ -140,17 +140,14 @@ class ModelRegistry:
 
 ```yaml
 models:
-  - name: tinycua-gguf-7b
-    provider: ollama
-    endpoint: http://localhost:11434
+  - name: local-qwen-7b
+    provider: openai-compatible
+    endpoint: http://localhost:1234/v1
     default_temperature: 0.7
     context_length: 8192
-  - name: lmstudio-mistral-7b
-    provider: lmstudio
-    endpoint: http://localhost:1234
   - name: gpt-4o
     provider: openai
-    endpoint: https://api.openai.com
+    endpoint: https://api.openai.com/v1
 ```
 
 ### `providers/base.py` — Provider Interface
@@ -178,23 +175,17 @@ class BaseProvider(ABC):
 
 ### Provider Implementations
 
-#### `providers/ollama.py`
+#### `providers/local_openai.py`
 
-- Translates `ResponseRequest` → Ollama `/api/chat` body:
-  - `input[]` items with `role`/`content` → `messages[]`
-  - `tools[]` → Ollama tool array (same JSON Schema format)
-  - `temperature`, `max_output_tokens` → `options.temperature`, `options.num_predict`
-- Normalises Ollama response:
-  - `message.content` → `output[0]` of type `"message"` with `role: "assistant"`
-  - `message.tool_calls[]` → `output[]` items of type `"function_call"`
-  - `prompt_eval_count` / `eval_count` → `usage.input_tokens` / `usage.output_tokens`
-- Streaming: reads Ollama's NDJSON stream, emits `response.output_text.delta` per chunk.
-
-#### `providers/lmstudio.py`
-
-- Uses LM Studio's `/v1/chat/completions` (OpenAI Chat Completions format).
-- Maps `choices[0].message` → `output[]` following the same rules as Ollama.
+- Uses OpenAI-compatible `/v1/chat/completions` endpoint.
+- Maps `choices[0].message` → `output[]` items.
 - Maps `choices[0].delta` to `response.output_text.delta` events for streaming.
+- Works with any OpenAI-compatible server (local or remote).
+
+#### `providers/anthropic.py` (future)
+
+- Will translate `ResponseRequest` → Anthropic Messages API format.
+- Stub for future native Anthropic API support.
 
 #### `providers/openai_passthrough.py`
 

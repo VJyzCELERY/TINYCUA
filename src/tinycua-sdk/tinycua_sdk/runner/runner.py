@@ -15,6 +15,7 @@ from tinycua_sdk.models.result import PlanRunResult
 from tinycua_sdk.models.response import StreamEvent, StreamEventType
 from tinycua_sdk.tools import Tool
 from tinycua_sdk.agent import Agent
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class Runner:
             self.sub_agents = getattr(agent, "sub_agents", [])
 
         # Resolve base URL from config (no internal /v1 appending)
-        self.base_url = self.config.base_url or "https://api.openai.com/v1"
+        self.base_url = self.config.base_url or DEFAULT_BASE_URL
 
         # Model
         self.model = self.config.model or DEFAULT_MODELS.get(
