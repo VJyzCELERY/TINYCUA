@@ -25,6 +25,8 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
 }
 
 #: Valid provider identifiers (canonical + aliases + future stubs).
+# NOTE: "anthropic" is an intentional future stub for native Anthropic API support.
+# It is NOT an OpenAI-compatible endpoint and will require separate implementation.
 VALID_PROVIDERS: Final[frozenset[str]] = frozenset(
     {OPENAI_COMPATIBLE, "openai", "anthropic"} | set(_PROVIDER_ALIASES.keys())
 )
