@@ -77,21 +77,23 @@ class TestProviderValidation:
         provider_errors = [e for e in errors if e.field == "provider"]
         assert len(provider_errors) == 0
 
-    def test_google_provider_valid(self):
-        """Google provider should be valid."""
+    def test_google_provider_warns(self):
+        """Google provider should produce a warning (not in VALID_PROVIDERS)."""
         config = AgentConfig(name="test", provider="google")
         validator = AgentConfigValidator()
         errors = validator.validate(config)
         provider_errors = [e for e in errors if e.field == "provider"]
-        assert len(provider_errors) == 0
+        assert len(provider_errors) == 1
+        assert provider_errors[0].severity.value == "warning"
 
-    def test_local_provider_valid(self):
-        """Local provider should be valid."""
+    def test_local_provider_warns(self):
+        """Local provider should produce a warning (not in VALID_PROVIDERS)."""
         config = AgentConfig(name="test", provider="local")
         validator = AgentConfigValidator()
         errors = validator.validate(config)
         provider_errors = [e for e in errors if e.field == "provider"]
-        assert len(provider_errors) == 0
+        assert len(provider_errors) == 1
+        assert provider_errors[0].severity.value == "warning"
 
     def test_unknown_provider_warns(self):
         """Unknown provider should produce a warning."""
@@ -102,23 +104,23 @@ class TestProviderValidation:
         assert len(provider_errors) == 1
         assert provider_errors[0].severity.value == "warning"
 
-    def test_provider_case_sensitive(self):
-        """Provider names are case-sensitive (uppercase produces warning)."""
+    def test_provider_case_insensitive_resolution(self):
+        """Provider names are case-insensitive via resolve_provider."""
         config = AgentConfig(name="test", provider="OPENAI")
+        assert config.provider == "openai"
         validator = AgentConfigValidator()
         errors = validator.validate(config)
         provider_errors = [e for e in errors if e.field == "provider"]
-        assert len(provider_errors) == 1
-        assert provider_errors[0].severity.value == "warning"
+        assert len(provider_errors) == 0
 
 
 class TestProviderDefaults:
     """Tests for default provider configuration."""
 
-    def test_default_provider_is_openai(self):
-        """Default provider should be openai."""
+    def test_default_provider_is_openai_compatible(self):
+        """Default provider should be openai-compatible."""
         config = AgentConfig(name="test")
-        assert config.provider == "openai"
+        assert config.provider == "openai-compatible"
 
     def test_provider_can_be_changed(self):
         """Provider can be changed to another valid provider."""

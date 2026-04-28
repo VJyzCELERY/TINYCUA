@@ -22,6 +22,21 @@ class TestResponsesClient:
         assert client.base_url == "http://custom:9000"
         assert client.api_key == "env-key"
 
+    def test_client_default_base_url(self):
+        from tinycua_sdk.clients import ResponsesClient
+
+        client = ResponsesClient()
+        assert client.base_url == "http://localhost:1234/v1"
+
+    def test_client_no_double_v1_appending(self):
+        from tinycua_sdk.clients import ResponsesClient
+
+        client = ResponsesClient(base_url="http://localhost:1234/v1")
+        # httpx.AsyncClient appends a trailing slash to base_url;
+        # the important thing is that /v1 is NOT duplicated.
+        assert "/v1/v1" not in str(client._client.base_url)
+        assert client.base_url == "http://localhost:1234/v1"
+
     @pytest.mark.asyncio
     async def test_create_request(self):
         from tinycua_sdk.clients import ResponsesClient

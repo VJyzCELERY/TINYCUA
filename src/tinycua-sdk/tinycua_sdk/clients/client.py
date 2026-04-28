@@ -7,6 +7,7 @@ from typing import AsyncIterator
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL
 from tinycua_sdk.models.request import ResponseRequest
 from tinycua_sdk.models.response import Response, StreamEvent, StreamEventType, Usage
 
@@ -29,7 +30,7 @@ class ResponsesClient:
 
         """
         self.base_url = base_url or os.getenv(
-            "TINYCUA_API_URL", "http://localhost:8000"
+            "TINYCUA_API_URL", DEFAULT_BASE_URL
         )
         self.api_key = api_key or os.getenv("TINYCUA_API_KEY", "")
         self.max_retries = max_retries

@@ -13,11 +13,11 @@ def pytest_configure(config):
 
 def pytest_collection_modifyitems(config, items):
     """Modify test collection to add skip logic for local LLM unavailable."""
-    llm_url = os.environ.get("TINYCUA_TEST_LM_STUDIO_URL")
+    llm_url = os.environ.get("TINYCUA_TEST_BASE_URL")
 
     if not llm_url:
         skip_llm = pytest.mark.skip(
-            reason="Local LLM not available. Set TINYCUA_TEST_LM_STUDIO_URL to run."
+            reason="Local LLM not available. Set TINYCUA_TEST_BASE_URL to run."
         )
         for item in items:
             if "test_local_run" in item.fspath.basename:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
 from tinycua_sdk.memory.short_term import ShortTermMemory
 from tinycua_sdk.memory.long_term import LongTermMemory
 
@@ -31,8 +32,8 @@ class Agent(AgentExecutor):
         instructions: str = "",
         system_prompt: str = "You are a helpful assistant.",
         model: str = "gpt-4o-mini",
-        provider: str = "openai",
-        base_url: str | None = None,
+        provider: str = OPENAI_COMPATIBLE,
+        base_url: str | None = DEFAULT_BASE_URL,
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: AgentPolicy | None = None,
@@ -224,8 +225,8 @@ class Agent(AgentExecutor):
         system_prompt = template.pop("system_prompt", "")
         instructions = template.pop("instructions", "")
         model = template.pop("model", "gpt-4o-mini")
-        provider = template.pop("provider", "openai")
-        base_url = template.pop("base_url", None)
+        provider = template.pop("provider", OPENAI_COMPATIBLE)
+        base_url = template.pop("base_url", DEFAULT_BASE_URL)
         api_key = template.pop("api_key", None)
         tool_names = template.pop("tools", [])
         skills = template.pop("skills", [])

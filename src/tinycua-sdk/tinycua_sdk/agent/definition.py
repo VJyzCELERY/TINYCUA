@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
 from tinycua_sdk.tools.decorators import Tool
 
 if TYPE_CHECKING:
@@ -27,8 +28,8 @@ class AgentDefinition:
         instructions: str = "",
         system_prompt: str = "You are a helpful assistant.",
         model: str = "gpt-4o-mini",
-        provider: str = "openai",
-        base_url: str | None = None,
+        provider: str = OPENAI_COMPATIBLE,
+        base_url: str | None = DEFAULT_BASE_URL,
         api_key: str | None = None,
         tools: list[Tool] | None = None,
         policy: AgentPolicy | None = None,

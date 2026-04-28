@@ -29,7 +29,7 @@ TINYCUA is a modular multi-subproject repository providing a complete agent syst
 
 - Python 3.12+
 - Docker & Docker Compose (for PostgreSQL)
-- An OpenAI-compatible endpoint (e.g., [LM Studio](https://lmstudio.ai/), [Ollama](https://ollama.com/))
+- An OpenAI-compatible endpoint running locally (e.g., http://localhost:1234/v1)
 
 ## Quick Start (Make - Easiest)
 
