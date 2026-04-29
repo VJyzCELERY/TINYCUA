@@ -81,9 +81,6 @@ class BaseLoop:
         """Execute the loop. To be overridden by subclasses."""
         ...
 
-# DefaultLoop is an alias for BaseLoop
-DefaultLoop = BaseLoop
-
 def resolve_loop(loop_config: Any) -> BaseLoop:
     """Resolve loop config to a BaseLoop instance.
     
