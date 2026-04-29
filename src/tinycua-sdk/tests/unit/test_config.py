@@ -85,12 +85,12 @@ class TestSDKConfig:
         config = SDKConfig()
         assert not hasattr(config, "session")
 
-    def test_sdk_config_no_environment_field(self):
-        """SDKConfig does not have an environment field."""
+    def test_sdk_config_has_environment_field(self):
+        """SDKConfig has an environment field."""
         from tinycua_sdk import SDKConfig
 
         config = SDKConfig()
-        assert not hasattr(config, "environment")
+        assert hasattr(config, "environment")
 
     def test_sdk_config_from_env(self, monkeypatch):
         """SDKConfig.from_env() reads environment variables."""
@@ -100,7 +100,7 @@ class TestSDKConfig:
         monkeypatch.setenv("TINYCUA_BACKEND_URL", "http://prod.example.com")
 
         config = SDKConfig.from_env()
-        assert config.llm.model_name == "gpt-4"
+        assert config.llm.model == "gpt-4"
         assert config.backend_url == "http://prod.example.com"
 
     def test_sdk_config_from_yaml(self):
@@ -109,7 +109,7 @@ class TestSDKConfig:
 
         yaml_content = """
 llm:
-  model_name: gpt-4
+  model: gpt-4
 backend_url: http://prod.example.com
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -117,7 +117,7 @@ backend_url: http://prod.example.com
             f.flush()
             config = SDKConfig.from_yaml(f.name)
 
-        assert config.llm.model_name == "gpt-4"
+        assert config.llm.model == "gpt-4"
         assert config.backend_url == "http://prod.example.com"
 
         os.unlink(f.name)

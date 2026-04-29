@@ -6,6 +6,10 @@ from tinycua_sdk.agent import (
     AgentDefinition,
     AgentExecutor,
     AgentPolicy,
+    BackendConfig,
+    BackendKind,
+    BaseLoop,
+    LLMModel,
 )
 from tinycua_sdk.models.request import Message, ResponseRequest, ToolDefinition
 from tinycua_sdk.models.response import (
@@ -32,6 +36,10 @@ __all__ = [
     "AgentPolicy",
     "AgentDefinition",
     "AgentExecutor",
+    "BackendConfig",
+    "BackendKind",
+    "BaseLoop",
+    "LLMModel",
     "Skill",
     "SkillRegistry",
     "Tool",

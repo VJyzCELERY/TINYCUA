@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.agent.llm_model import LLMModel
 
 
 class TestAgentExecutorCancel:
@@ -47,19 +48,18 @@ class TestAgentExecutorInheritance:
         agent = AgentExecutor(
             name="test",
             instructions="test instructions",
-            model="gpt-4o-mini",
+            llm_model=LLMModel(model_name="gpt-4o-mini"),
         )
 
         assert agent.name == "test"
         assert agent.instructions == "test instructions"
         assert agent.model == "gpt-4o-mini"
-        assert agent.is_deployed is False
 
-    def test_executor_has_messages_list(self):
-        """Test AgentExecutor has messages list."""
+    def test_executor_has_tools_list(self):
+        """Test AgentExecutor has tools list."""
         agent = AgentExecutor(name="test")
-        assert isinstance(agent.messages, list)
-        assert len(agent.messages) == 0
+        assert isinstance(agent.tools, list)
+        assert len(agent.tools) == 0
 
     def test_executor_has_loop_cache(self):
         """Test AgentExecutor has loop cache."""

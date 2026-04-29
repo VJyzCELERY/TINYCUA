@@ -5,7 +5,9 @@ from pathlib import Path
 
 import yaml
 
+from tinycua_sdk.agent.backend_kind import BackendConfig, BackendKind
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
+from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.agent.skill_resolver import SkillActivator, SkillToolResolver
 from tinycua_sdk.agent.tool_resolver import ToolResolver
 from tinycua_sdk.skills.models import Skill
@@ -107,6 +109,28 @@ class AgentLoader:
         api_key = metadata.get("api_key")
         system_prompt = metadata.get("system_prompt", "You are a helpful assistant.")
 
+        # Build LLMModel from legacy frontmatter fields
+        llm_model = LLMModel(
+            provider=provider,
+            model_name=model,
+            base_url=base_url,
+            api_key=api_key or "",
+            system_prompt=system_prompt,
+        )
+
+        # Extract backend fields
+        mode = metadata.get("mode")
+        backend_url = metadata.get("backend_url")
+        backend_api_key = metadata.get("backend_api_key")
+        backend_headers = metadata.get("backend_headers", {})
+        backend_kind = BackendKind.REMOTE if mode == "remote" else BackendKind.LOCAL
+        backend = BackendConfig(
+            kind=backend_kind,
+            url=backend_url,
+            api_key=backend_api_key or "",
+            headers=backend_headers or {},
+        )
+
         # Extract tools (list of tool names)
         tools = metadata.get("tools", [])
 
@@ -175,19 +199,13 @@ class AgentLoader:
         return AgentConfig(
             name=name,
             instructions=combined_instructions,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
+            llm_model=llm_model,
             tools=all_tools,
             policy=policy,
+            backend=backend,
             loop=loop_config,
             # Skill-related fields (Stage 3)
             skills=skills,
-            skill_dirs=skill_dirs_paths,
-            auto_load_dependencies=auto_load_dependencies,
-            metadata=config_metadata,
         )
 
     def _extract_instructions(self, markdown_content: str) -> str:

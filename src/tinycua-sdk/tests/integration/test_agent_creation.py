@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.config import AgentPolicy
+from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 
@@ -13,21 +14,24 @@ class TestAgentCreation:
 
     def test_create_agent_with_all_options(self):
         """Test creating agent with all configuration options."""
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
+        from tinycua_sdk.tools.decorators import Tool
+
+        mock_tool = Tool(name="test_tool", description="A test tool")
 
         policy = AgentPolicy(max_tool_calls=5, parallel_tool_calls=False)
+        llm_model = LLMModel(
+            provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
+            base_url="http://localhost:1234/v1",
+            api_key="test-key",
+            system_prompt="You are a helpful assistant.",
+        )
 
         agent = Agent(
             name="test-agent",
-            model="qwen/qwen3.5-9b",
-            provider="openai-compatible",
-            base_url="http://localhost:1234/v1",
-            api_key="test-key",
+            llm_model=llm_model,
             tools=[mock_tool],
             policy=policy,
-            system_prompt="You are a helpful assistant.",
-            mode="local",
         )
 
         assert agent.name == "test-agent"
@@ -37,10 +41,13 @@ class TestAgentCreation:
 
     def test_create_agent_with_minimal_config(self):
         """Test creating agent with only required options."""
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="minimal-agent",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
         )
 
         assert agent.name == "minimal-agent"
@@ -66,10 +73,13 @@ class TestAgentCreation:
                     skill.source = str(entry)
                     registry.register(skill)
 
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="skill-agent",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
         )
 
         skills = registry.list_skills()
@@ -78,20 +88,26 @@ class TestAgentCreation:
 
     def test_agent_model_property(self):
         """Test agent model property is accessible."""
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="update-test",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
         )
 
         assert agent.model == "test-model"
 
     def test_agent_provider_property(self):
         """Test agent provider property is accessible."""
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="provider-test",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
         )
 
         assert agent.provider == "test-provider"
@@ -103,6 +119,7 @@ class TestAgentToolsIntegration:
     def test_agent_with_memory_tools(self):
         """Test agent with memory tools attached."""
         from tinycua_sdk.tools import tool
+        from tinycua_sdk.agent.llm_model import LLMModel
 
         @tool
         def remember(content: str) -> str:
@@ -114,10 +131,13 @@ class TestAgentToolsIntegration:
             """Recall something."""
             return f"Recalled: {query}"
 
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="memory-agent",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
             tools=[remember, recall],
         )
 
@@ -129,16 +149,20 @@ class TestAgentToolsIntegration:
     def test_agent_tool_dispatch(self):
         """Test agent can dispatch to tools."""
         from tinycua_sdk.tools import tool
+        from tinycua_sdk.agent.llm_model import LLMModel
 
         @tool
         def add(x: int, y: int) -> int:
             """Add two numbers."""
             return x + y
 
+        llm_model = LLMModel(
+            provider="test-provider",
+            model_name="test-model",
+        )
         agent = Agent(
             name="dispatch-agent",
-            model="test-model",
-            provider="test-provider",
+            llm_model=llm_model,
             tools=[add],
         )
 

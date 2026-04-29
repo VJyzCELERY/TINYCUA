@@ -21,6 +21,43 @@ _security_logger = logging.getLogger("tinycua_sdk.security")
 import uuid
 
 
+class LLMClient:
+    """Client for LLM chat completion.
+
+    This is a minimal wrapper that real implementations override.
+    The test suite patches this class to mock responses.
+    """
+
+    def __init__(self, llm_model: Any = None):
+        """Initialize LLMClient.
+
+        Args:
+            llm_model: LLMModel configuration instance.
+        """
+        self.llm_model = llm_model
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+    ) -> str | AsyncIterator[str]:
+        """Send a chat completion request.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+            tools: Optional list of tool schemas.
+            stream: Whether to stream the response.
+
+        Returns:
+            Response string, or an async iterator of strings if stream=True.
+
+        Raises:
+            NotImplementedError: When not mocked in tests.
+        """
+        raise NotImplementedError("LLMClient.chat requires a real LLM backend")
+
+
 class ToolExecutor:
     """Executor with proper error handling for tool execution.
 
@@ -148,62 +185,43 @@ def _get_global_config() -> SDKConfig:
 class AgentExecutor(AgentDefinition):
     """Adds execution capabilities on top of AgentDefinition.
 
-    Provides run(), run_sync(), stream(), stream_sync(), cancel control,
-    and internal runner/loop management.
+    Provides run(), run_sync(), cancel control, and internal runner/loop management.
     """
 
     def __init__(
         self,
         name: str = "assistant",
         instructions: str = "",
-        system_prompt: str = "You are a helpful assistant.",
-        model: str = "gpt-4o-mini",
-        provider: str = "openai-compatible",
-        base_url: str | None = None,
-        api_key: str | None = None,
+        llm_model: Any = None,
         tools: list[Tool] | None = None,
+        skills: list[Any] | None = None,
         policy: Any = None,
-        mode: str = "local",
-        backend_url: str | None = None,
-        backend_api_key: str | None = None,
-        backend_headers: dict[str, str] | None = None,
-        agent_id: str | None = None,
-        runner: Any = None,
+        backend: Any = None,
         sub_agents: list[Agent] | None = None,
         max_depth: int = AgentDefinition.DEFAULT_MAX_DEPTH,
         current_depth: int = 0,
         keywords: list[str] | None = None,
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
-        skills: list[str] | None = None,
     ):
         """Initialize AgentExecutor."""
         super().__init__(
             name=name,
             instructions=instructions,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
+            llm_model=llm_model,
             tools=tools,
+            skills=skills,
             policy=policy,
-            mode=mode,
-            backend_url=backend_url,
-            backend_api_key=backend_api_key,
-            backend_headers=backend_headers,
-            agent_id=agent_id,
+            backend=backend,
             sub_agents=sub_agents,
             max_depth=max_depth,
             current_depth=current_depth,
             keywords=keywords,
             strip_thinking=strip_thinking,
             loop=loop,
-            skills=skills,
         )
         self._local_runner: Any | None = None
         self._loop_cache: Any | None = None
-        self.runner = runner
 
     @property
     def cancel_event(self) -> asyncio.Event:
@@ -225,38 +243,100 @@ class AgentExecutor(AgentDefinition):
         """Reset cancel state for next run."""
         self.cancel_event.clear()
 
+    async def _call_llm(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+    ) -> Union[str, AsyncIterator[str]]:
+        """Call the LLM with messages and optional tools.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+            tools: Optional list of tool schemas.
+            stream: Whether to stream the response.
+
+        Returns:
+            Response string, or an async iterator of strings if stream=True.
+        """
+        client = LLMClient(self.llm_model)
+        return await client.chat(messages, tools=tools, stream=stream)
+
     async def run(
         self,
-        user_input: str,
+        query: str,
+        messages: list[dict[str, Any]] | None = None,
         instructions: str | None = None,
+        stream: bool = False,
         trace: bool = False,
         verbose: bool = False,
-        stream_sse: bool = False,
-        force_local: bool = False,
-        messages: list[dict[str, Any]] | None = None,
-    ) -> Union[str, Any]:
-        """Run the agent with a user input.
+    ) -> Union[str, AsyncIterator[str]]:
+        """Run the agent with a user query.
 
-        Raises:
-            NotImplementedError: The execution infrastructure has been removed.
+        Args:
+            query: The user's input query.
+            messages: Optional list of previous messages.
+            instructions: Optional runtime instruction override.
+            stream: If True, return an async iterator of response chunks.
+            trace: If True, include trace information.
+            verbose: If True, log verbose output.
+
+        Returns:
+            Response string, or async iterator if stream=True.
         """
-        raise NotImplementedError("Agent execution infrastructure has been removed.")
+        all_messages: list[dict[str, Any]] = []
+        if self.llm_model and self.llm_model.system_prompt:
+            all_messages.append({"role": "system", "content": self.llm_model.system_prompt})
+        if self.instructions:
+            all_messages.append({"role": "system", "content": self.instructions})
+        if instructions:
+            all_messages.append({"role": "system", "content": instructions})
+        if messages:
+            all_messages.extend(messages)
+        all_messages.append({"role": "user", "content": query})
+
+        if stream:
+            tool_schemas = [t.to_config() for t in self.tools] if self.tools else None
+            return await self._call_llm(all_messages, tools=tool_schemas, stream=True)
+
+        from tinycua_sdk.agent.loop import BaseLoop
+
+        loop = self.loop or BaseLoop()
+        return await loop.run(self, all_messages, self.tools)
 
     def run_sync(
         self,
-        user_input: str,
+        query: str,
+        messages: list[dict[str, Any]] | None = None,
         instructions: str | None = None,
+        stream: bool = False,
         trace: bool = False,
         verbose: bool = False,
-        force_local: bool = False,
-        messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
         """Synchronous version of run().
 
-        Raises:
-            NotImplementedError: The execution infrastructure has been removed.
+        Args:
+            query: The user's input query.
+            messages: Optional list of previous messages.
+            instructions: Optional runtime instruction override.
+            stream: If True, return an async iterator of response chunks.
+            trace: If True, include trace information.
+            verbose: If True, log verbose output.
+
+        Returns:
+            Response string, or async iterator if stream=True.
         """
-        raise NotImplementedError("Agent execution infrastructure has been removed.")
+        import asyncio
+        return asyncio.run(
+            self.run(
+                query=query,
+                messages=messages,
+                instructions=instructions,
+                stream=stream,
+                trace=trace,
+                verbose=verbose,
+            )
+        )
 
     async def stream(
         self,
@@ -266,9 +346,9 @@ class AgentExecutor(AgentDefinition):
         """Stream response events from the agent.
 
         Raises:
-            NotImplementedError: The execution infrastructure has been removed.
+            NotImplementedError: The stream infrastructure has been removed.
         """
-        raise NotImplementedError("Agent execution infrastructure has been removed.")
+        raise NotImplementedError("Agent stream infrastructure has been removed.")
 
     def stream_sync(
         self,
@@ -278,9 +358,9 @@ class AgentExecutor(AgentDefinition):
         """Alias for stream() — returns an async iterator.
 
         Raises:
-            NotImplementedError: The execution infrastructure has been removed.
+            NotImplementedError: The stream infrastructure has been removed.
         """
-        raise NotImplementedError("Agent execution infrastructure has been removed.")
+        raise NotImplementedError("Agent stream infrastructure has been removed.")
 
     @staticmethod
     def execute_subprocess(

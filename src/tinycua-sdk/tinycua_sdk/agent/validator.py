@@ -39,12 +39,7 @@ class AgentConfigValidator:
     }
     KNOWN_LOOP_TYPES: set[str] = {
         "default",
-        "reflective",
-        "reasoning",
         "simple",
-        "react",
-        "plan",
-        "react-reasoning",
     }
     TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -69,12 +64,13 @@ class AgentConfigValidator:
                 )
             )
 
-        # Check provider
-        if config.provider and config.provider not in self.KNOWN_PROVIDERS:
+        # Check provider (now inside llm_model)
+        provider = config.llm_model.provider if config.llm_model else None
+        if provider and provider not in self.KNOWN_PROVIDERS:
             errors.append(
                 ValidationError(
-                    field="provider",
-                    message=f"Unknown provider '{config.provider}'. Known providers: {', '.join(sorted(self.KNOWN_PROVIDERS))}",
+                    field="llm_model.provider",
+                    message=f"Unknown provider '{provider}'. Known providers: {', '.join(sorted(self.KNOWN_PROVIDERS))}",
                     severity=SeverityLevel.WARNING,
                 )
             )

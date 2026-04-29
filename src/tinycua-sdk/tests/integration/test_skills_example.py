@@ -211,13 +211,18 @@ class TestSkillsWithAgent:
 
     def test_agent_creation_without_skills(self):
         """Test basic agent creation."""
+        from tinycua_sdk.agent.llm_model import LLMModel
+
+        llm_model = LLMModel(
+            provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
+            base_url="http://localhost:1234/v1",
+            api_key="dummy",
+        )
         agent = Agent(
             name="test-agent",
             instructions="You are helpful.",
-            provider="openai-compatible",
-            model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234/v1",
-            api_key="dummy",
+            llm_model=llm_model,
         )
         
         assert agent.name == "test-agent"
@@ -225,13 +230,18 @@ class TestSkillsWithAgent:
     @pytest.mark.asyncio
     async def test_agent_run_simple(self):
         """Test agent run with simple prompt."""
+        from tinycua_sdk.agent.llm_model import LLMModel
+
+        llm_model = LLMModel(
+            provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
+            base_url="http://localhost:1234/v1",
+            api_key="dummy",
+        )
         agent = Agent(
             name="test-agent",
             instructions="You are helpful.",
-            provider="openai-compatible",
-            model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234/v1",
-            api_key="dummy",
+            llm_model=llm_model,
         )
         
         try:

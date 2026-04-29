@@ -2,6 +2,7 @@
 
 import pytest
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
+from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.agent.validator import AgentConfigValidator
 from tinycua_sdk.core.providers import (
     OPENAI_COMPATIBLE,
@@ -63,62 +64,62 @@ class TestProviderValidation:
 
     def test_known_provider_valid(self):
         """Known providers should not produce errors."""
-        config = AgentConfig(name="test", provider="openai")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="openai"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 0
 
     def test_openai_compatible_provider_valid(self):
         """openai-compatible provider should be valid."""
-        config = AgentConfig(name="test", provider="openai-compatible")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="openai-compatible"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 0
 
     def test_anthropic_provider_valid(self):
         """anthropic provider should be valid (future stub)."""
-        config = AgentConfig(name="test", provider="anthropic")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="anthropic"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 0
 
     def test_google_provider_warns(self):
         """Google provider should produce a warning (not in VALID_PROVIDERS)."""
-        config = AgentConfig(name="test", provider="google")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="google"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 1
         assert provider_errors[0].severity.value == "warning"
 
     def test_local_provider_warns(self):
         """Local provider should produce a warning (not in VALID_PROVIDERS)."""
-        config = AgentConfig(name="test", provider="local")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="local"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 1
         assert provider_errors[0].severity.value == "warning"
 
     def test_unknown_provider_warns(self):
         """Unknown provider should produce a warning."""
-        config = AgentConfig(name="test", provider="unknown_provider")
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="unknown_provider"))
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 1
         assert provider_errors[0].severity.value == "warning"
 
     def test_provider_case_insensitive_resolution(self):
         """Provider names are case-insensitive via resolve_provider."""
-        config = AgentConfig(name="test", provider="OPENAI")
-        assert config.provider == "openai"
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="OPENAI"))
+        assert config.llm_model.provider == "openai"
         validator = AgentConfigValidator()
         errors = validator.validate(config)
-        provider_errors = [e for e in errors if e.field == "provider"]
+        provider_errors = [e for e in errors if e.field == "llm_model.provider"]
         assert len(provider_errors) == 0
 
 
@@ -128,21 +129,20 @@ class TestProviderDefaults:
     def test_default_provider_is_openai_compatible(self):
         """Default provider should be openai-compatible."""
         config = AgentConfig(name="test")
-        assert config.provider == "openai-compatible"
+        assert config.llm_model.provider == "openai-compatible"
 
     def test_provider_can_be_changed(self):
         """Provider can be changed to another valid provider."""
-        config = AgentConfig(name="test", provider="openai-compatible")
-        assert config.provider == "openai-compatible"
+        config = AgentConfig(name="test", llm_model=LLMModel(provider="openai-compatible"))
+        assert config.llm_model.provider == "openai-compatible"
 
     def test_provider_with_base_url(self):
         """Provider can be configured with custom base URL."""
         config = AgentConfig(
             name="test",
-            provider="local",
-            base_url="http://localhost:8000",
+            llm_model=LLMModel(provider="local", base_url="http://localhost:8000"),
         )
-        assert config.base_url == "http://localhost:8000"
+        assert config.llm_model.base_url == "http://localhost:8000"
 
 
 class TestProviderConfiguration:
@@ -152,25 +152,25 @@ class TestProviderConfiguration:
         """openai-compatible provider configuration."""
         config = AgentConfig(
             name="test",
-            provider="openai-compatible",
+            llm_model=LLMModel(provider="openai-compatible"),
         )
-        assert config.provider == "openai-compatible"
+        assert config.llm_model.provider == "openai-compatible"
 
     def test_openai_provider_config(self):
         """OpenAI provider configuration."""
         config = AgentConfig(
             name="test",
-            provider="openai",
+            llm_model=LLMModel(provider="openai"),
         )
-        assert config.provider == "openai"
+        assert config.llm_model.provider == "openai"
 
     def test_google_provider_config(self):
         """Google provider configuration."""
         config = AgentConfig(
             name="test",
-            provider="google",
+            llm_model=LLMModel(provider="google"),
         )
-        assert config.provider == "google"
+        assert config.llm_model.provider == "google"
 
 
 class TestProviderValidationIntegration:
@@ -183,20 +183,18 @@ class TestProviderValidationIntegration:
         )
         config = AgentConfig(
             name="full-agent",
-            provider="openai",
-            model="gpt-4o",
+            llm_model=LLMModel(provider="openai", model_name="gpt-4o"),
             policy=policy,
         )
-        assert config.provider == "openai"
-        assert config.model == "gpt-4o"
+        assert config.llm_model.provider == "openai"
+        assert config.llm_model.model_name == "gpt-4o"
         assert config.policy.max_tool_calls == 5
 
     def test_validator_with_complete_config(self):
         """Validator with complete provider configuration."""
         config = AgentConfig(
             name="complete-agent",
-            provider="openai-compatible",
-            model="qwen/qwen3.5-9b",
+            llm_model=LLMModel(provider="openai-compatible", model_name="qwen/qwen3.5-9b"),
         )
         validator = AgentConfigValidator()
         errors = validator.validate(config)

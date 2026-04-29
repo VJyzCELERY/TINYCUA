@@ -55,7 +55,7 @@ TEMPLATES: dict[str, AgentTemplate] = {
         "provider": "openai",
         "tools": ["search_web", "read_file", "visit_url"],
         "skills": [],
-        "loop": "react",
+        "loop": "default",
         "policy": {"max_tool_calls": 10, "temperature": 0.5},
         "keywords": ["research", "find", "analyze", "investigate", "explain"],
     },

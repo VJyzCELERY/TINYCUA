@@ -4,6 +4,7 @@ import pytest
 
 from tinycua_sdk.agent.config import AgentPolicy
 from tinycua_sdk.agent.definition import AgentDefinition
+from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.tools.decorators import tool
 
 
@@ -20,7 +21,7 @@ class TestAgentDefinition:
         agent = AgentDefinition(
             name="test",
             instructions="You are a test agent.",
-            model="gpt-4o-mini",
+            llm_model=LLMModel(model_name="gpt-4o-mini"),
         )
         assert agent.name == "test"
         assert agent.instructions == "You are a test agent."
@@ -53,8 +54,10 @@ class TestAgentDefinition:
         config = {
             "name": "test",
             "instructions": "Test instructions",
-            "model": "test-model",
-            "provider": "openai",
+            "llm_model": {
+                "model_name": "test-model",
+                "provider": "openai",
+            },
         }
 
         agent = AgentDefinition.from_config(config)
@@ -147,8 +150,7 @@ class TestAgentDefinition:
         """Test __str__ returns formatted agent details."""
         agent = AgentDefinition(
             name="test-agent",
-            model="gpt-4o-mini",
-            provider="openai",
+            llm_model=LLMModel(model_name="gpt-4o-mini", provider="openai"),
         )
 
         result = str(agent)
@@ -156,11 +158,6 @@ class TestAgentDefinition:
         assert "test-agent" in result
         assert "gpt-4o-mini" in result
         assert "openai" in result
-
-    def test_is_deployed_false_by_default(self):
-        """Test is_deployed is False by default."""
-        agent = AgentDefinition(name="test")
-        assert agent.is_deployed is False
 
     def test_add_tool(self):
         """Test adding a single tool."""

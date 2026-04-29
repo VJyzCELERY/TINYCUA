@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
-from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
+from tinycua_sdk.agent.backend_kind import BackendConfig
+from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.tools.decorators import Tool
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
+    from tinycua_sdk.agent.loop import BaseLoop
+    from tinycua_sdk.skills.models import Skill
 
 
 class AgentDefinition:
@@ -26,74 +29,48 @@ class AgentDefinition:
         self,
         name: str = "assistant",
         instructions: str = "",
-        system_prompt: str = "You are a helpful assistant.",
-        model: str = "gpt-4o-mini",
-        provider: str = OPENAI_COMPATIBLE,
-        base_url: str | None = DEFAULT_BASE_URL,
-        api_key: str | None = None,
+        llm_model: LLMModel | None = None,
         tools: list[Tool] | None = None,
+        skills: list[Any] | None = None,
         policy: AgentPolicy | None = None,
-        mode: str = "local",
-        backend_url: str | None = None,
-        backend_api_key: str | None = None,
-        backend_headers: dict[str, str] | None = None,
-        agent_id: str | None = None,
+        backend: BackendConfig | None = None,
         sub_agents: list[Agent] | None = None,
         max_depth: int = DEFAULT_MAX_DEPTH,
         current_depth: int = 0,
         keywords: list[str] | None = None,
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
-        skills: list[str] | None = None,
     ):
         """Initialize AgentDefinition.
 
         Args:
             name: Agent name for identification.
             instructions: Additional instructions for the agent.
-            system_prompt: System prompt that defines agent behavior.
-            model: Model identifier to use.
-            provider: LLM provider type. Use "openai" for OpenAI API
-                or "openai-compatible" for any OpenAI-compatible endpoint
-                (e.g., local inference servers). Aliases "lmstudio" and
-                "ollama" are supported for backward compatibility.
-            base_url: Custom base URL for the LLM API.
-            api_key: API key for authentication.
+            llm_model: LLM endpoint configuration.
             tools: List of tools available to the agent.
+            skills: List of skills available to the agent.
             policy: AgentPolicy instance for behavior settings.
-            mode: Execution mode (local or remote/deployed).
-            backend_url: URL for the backend server (for deployed agents).
-            backend_api_key: API key for backend authentication.
-            backend_headers: Additional headers for backend requests.
-            agent_id: ID of a deployed agent (for loading existing agents).
+            backend: Backend execution configuration.
             sub_agents: List of sub-agents for delegation.
             max_depth: Maximum delegation depth allowed.
             current_depth: Current delegation depth (internal).
             keywords: Keywords for task routing to this agent.
             strip_thinking: Whether to strip thinking tags from responses.
-            loop: Custom DefaultLoop subclass instance.
-            skills: List of skill names to load for the agent.
+            loop: Custom BaseLoop subclass instance.
 
         """
         self.config = AgentConfig(
             name=name,
             instructions=instructions,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
+            llm_model=llm_model or LLMModel(),
             tools=tools or [],
-            policy=policy or AgentPolicy(),
-            mode=mode,
-            backend_url=backend_url,
-            backend_api_key=backend_api_key,
-            backend_headers=backend_headers,
-            agent_id=agent_id,
-            strip_thinking=strip_thinking,
-            sub_agents=sub_agents or [],
-            loop=loop,
             skills=skills or [],
+            policy=policy or AgentPolicy(),
+            backend=backend or BackendConfig(),
+            sub_agents=sub_agents or [],
+            max_depth=max_depth,
+            strip_thinking=strip_thinking,
+            loop=loop,
         )
         self._sub_agents = sub_agents or []
         self.max_depth = max_depth
@@ -118,44 +95,69 @@ class AgentDefinition:
         return self.config.name
 
     @property
-    def mode(self) -> str:
-        """Get agent mode (local or deployed)."""
-        return self.config.mode
-
-    @property
-    def agent_id(self) -> str | None:
-        """Get deployed agent ID."""
-        return self.config.agent_id
-
-    @property
-    def is_deployed(self) -> bool:
-        """Check if agent is in deployed mode."""
-        return self.config.mode == "deployed"
-
-    @property
     def instructions(self) -> str:
         """Get agent instructions."""
         return self.config.instructions
 
     @property
+    def llm_model(self) -> LLMModel:
+        """Get LLM model configuration."""
+        return self.config.llm_model
+
+    @llm_model.setter
+    def llm_model(self, value: LLMModel) -> None:
+        """Set LLM model configuration."""
+        self.config.llm_model = value
+
+    @property
     def system_prompt(self) -> str:
-        """Get system prompt."""
-        return self.config.system_prompt
+        """Get system prompt from LLM model."""
+        return self.config.llm_model.system_prompt
 
     @property
     def model(self) -> str:
-        """Get model name."""
-        return self.config.model
+        """Get model name from LLM model."""
+        return self.config.llm_model.model_name
 
     @property
     def provider(self) -> str:
-        """Get provider name."""
-        return self.config.provider
+        """Get provider name from LLM model."""
+        return self.config.llm_model.provider
+
+    @property
+    def base_url(self) -> str | None:
+        """Get base URL from LLM model."""
+        return self.config.llm_model.base_url
+
+    @property
+    def api_key(self) -> str:
+        """Get API key from LLM model."""
+        return self.config.llm_model.api_key.get_secret_value()
+
+    @property
+    def backend(self) -> BackendConfig:
+        """Get backend configuration."""
+        return self.config.backend
 
     @property
     def tools(self) -> list[Tool]:
         """Get agent tools."""
         return self.config.tools
+
+    @property
+    def skills(self) -> list[Any]:
+        """Get agent skills."""
+        return self.config.skills
+
+    @property
+    def loop(self) -> Any:
+        """Get agent loop."""
+        return self.config.loop
+
+    @property
+    def strip_thinking(self) -> bool | list[str] | None:
+        """Get strip thinking configuration."""
+        return self.config.strip_thinking
 
     # --- Sub-agent management ---
 
@@ -232,18 +234,11 @@ class AgentDefinition:
         agent = cls(
             name=config.name,
             instructions=config.instructions,
-            system_prompt=config.system_prompt,
-            model=config.model,
-            provider=config.provider,
-            base_url=config.base_url,
-            api_key=config.api_key,
+            llm_model=config.llm_model,
             tools=config.tools,
+            skills=config.skills,
             policy=config.policy,
-            mode=config.mode,
-            backend_url=config.backend_url,
-            backend_api_key=config.backend_api_key,
-            backend_headers=config.backend_headers,
-            agent_id=config.agent_id,
+            backend=config.backend,
             sub_agents=config.sub_agents,
             max_depth=data.get("max_depth", cls.DEFAULT_MAX_DEPTH),
             current_depth=data.get("current_depth", 0),
@@ -257,15 +252,9 @@ class AgentDefinition:
         """Return formatted string representation of the agent."""
         lines = [
             f"Agent: {self.config.name}",
-            f"  Mode: {self.config.mode}",
-            f"  Model: {self.config.model}",
-            f"  Provider: {self.config.provider}",
+            f"  Model: {self.config.llm_model.model_name}",
+            f"  Provider: {self.config.llm_model.provider}",
         ]
-        if self.config.agent_id:
-            lines.append(f"  Agent ID: {self.config.agent_id}")
-            lines.append(f"  Backend: {self.config.backend_url}")
-        if self.config.backend_headers:
-            lines.append(f"  Headers: {list(self.config.backend_headers.keys())}")
         lines.append(f"  Tools: {len(self.config.tools)}")
         lines.append(f"  Sub-agents: {len(self.config.sub_agents)}")
         return "\n".join(lines)
