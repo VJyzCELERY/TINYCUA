@@ -24,8 +24,8 @@ from tinycua_sdk.models.response import (
 from tinycua_sdk.models.result import PlanRunResult, RunResult, ToolCall
 from tinycua_sdk.models.task import PlanningResult, TaskPlan, TodoItem
 from tinycua_sdk.runner import Runner
+from tinycua_sdk.core.config import SDKConfig
 from tinycua_sdk.memory import MemorySession
-from tinycua_sdk.session import Session
 from tinycua_sdk.tools.decorators import Tool, tool
 
 
@@ -133,7 +133,7 @@ __all__ = [
     "FunctionCallOutput",
     "OutputItem",
     "Runner",
-    "Session",
+    "SDKConfig",
     "MemorySession",
     "TaskPlan",
     "TodoItem",

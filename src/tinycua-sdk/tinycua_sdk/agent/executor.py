@@ -208,7 +208,6 @@ class AgentExecutor(AgentDefinition):
         self._loop_cache: BaseLoop | None = None
         self._client: BackendClient | None = None
         self.runner = runner
-        self.messages: list[dict[str, Any]] = []
 
     @property
     def cancel_event(self) -> asyncio.Event:
@@ -310,21 +309,23 @@ class AgentExecutor(AgentDefinition):
         self,
         user_input: str,
         trace: bool = False,
+        messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
         """Run via backend API when in deployed mode."""
         if not self.config.agent_id:
             raise RuntimeError("Agent not deployed. Call deploy() first.")
         client = self._get_client()
-        self.messages.append({"role": "user", "content": user_input})
+        msgs = messages if messages is not None else []
+        msgs.append({"role": "user", "content": user_input})
         response_text = ""
         async for event in client.execute(
             agent_id=self.config.agent_id,
-            messages=self.messages,
+            messages=msgs,
             tools=[t.to_config() for t in self.tools],
         ):
             if isinstance(event, dict) and event.get("type") == "content":
                 response_text += event.get("data", {}).get("content", "")
-        self.messages.append({"role": "assistant", "content": response_text})
+        msgs.append({"role": "assistant", "content": response_text})
         return response_text
 
     async def run(
@@ -335,10 +336,11 @@ class AgentExecutor(AgentDefinition):
         verbose: bool = False,
         stream_sse: bool = False,
         force_local: bool = False,
+        messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
         """Run the agent with a user input."""
         if self.is_deployed and not force_local:
-            return await self._run_deployed(user_input, trace=trace)
+            return await self._run_deployed(user_input, trace=trace, messages=messages)
         self.reset_cancel()
         loop = self._load_loop()
         return await loop.run(
@@ -347,6 +349,7 @@ class AgentExecutor(AgentDefinition):
             trace=trace,
             verbose=verbose,
             stream_sse=stream_sse,
+            messages=messages,
         )
 
     def run_sync(
@@ -356,6 +359,7 @@ class AgentExecutor(AgentDefinition):
         trace: bool = False,
         verbose: bool = False,
         force_local: bool = False,
+        messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
         """Synchronous version of run()."""
         import asyncio
@@ -367,6 +371,7 @@ class AgentExecutor(AgentDefinition):
                 trace,
                 verbose,
                 force_local=force_local,
+                messages=messages,
             ),
         )
 

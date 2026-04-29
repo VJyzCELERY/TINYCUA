@@ -33,15 +33,6 @@ class MemoryConfig(BaseModel):
     embedding_dimension: int = 1536
 
 
-class SessionConfig(BaseModel):
-    """Configuration for session management."""
-
-    model_config = ConfigDict(frozen=True)
-
-    max_turns: int = 100
-    summary_enabled: bool = True
-
-
 class LoopConfig(BaseModel):
     """Configuration for agent loop."""
 
@@ -73,7 +64,6 @@ class SDKConfig(BaseModel):
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
-    session: SessionConfig = Field(default_factory=SessionConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     backend_url: str = "http://localhost:8000"
