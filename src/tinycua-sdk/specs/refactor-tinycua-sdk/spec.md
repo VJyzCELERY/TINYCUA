@@ -71,9 +71,11 @@ response = await agent.run("What is quantum computing?")
 
 **R4.1** `Skill` is a Pydantic/dataclass value object with fields: `name`, `description`, `category`, `instructions`, `tools`, `dependencies`, `source`, `metadata`, `is_active`, `version`.
 
-**R4.2** `SkillRegistry` must be non-singleton, instantiated explicitly by the consumer.
+**R4.2** `Skill.from_markdown(text)` must parse a skill definition from a Markdown string. The consumer decides how to obtain the string (file read, DB query, inline, etc.).
 
-**R4.3** The SDK must not provide skill storage backends or ORM models.
+**R4.3** `SkillRegistry` must be non-singleton, instantiated explicitly by the consumer. No filesystem I/O.
+
+**R4.4** The SDK must not provide skill storage backends, ORM models, or directory scanners.
 
 ### R5 — Configuration System
 
@@ -209,6 +211,11 @@ class Skill:
     metadata: dict[str, Any] = field(default_factory=dict)
     is_active: bool = True
     version: str = "1.0.0"
+
+    @classmethod
+    def from_markdown(cls, text: str) -> Skill:
+        """Parse skill from Markdown text."""
+        ...
 ```
 
 ## Examples
@@ -260,7 +267,7 @@ async for chunk in await agent.run("Tell me a story", stream=True):
     print(chunk, end="")
 ```
 
-### With Skills
+### With Skills (Programmatic)
 ```python
 from tinycua_sdk import Agent, LLMModel, Skill
 
@@ -269,6 +276,46 @@ coder = Skill(
     instructions="Write clean, efficient code.",
     tools=["read_file", "write_file"],
 )
+
+agent = Agent(llm_model=LLMModel())
+agent.add_skills(coder)
+```
+
+### With Skills (From Markdown)
+```python
+from tinycua_sdk import Agent, LLMModel, Skill
+
+# Consumer decides how to obtain the markdown text
+skill_md = """
+---
+name: coder
+category: development
+tools:
+  - read_file
+  - write_file
+---
+
+# Coder
+
+## Description
+Write clean, efficient code.
+
+## Instructions
+When asked to write code, plan first, then implement.
+"""
+
+coder = Skill.from_markdown(skill_md)
+agent = Agent(llm_model=LLMModel())
+agent.add_skills(coder)
+```
+
+### With Skills (Consumer loads from file)
+```python
+from tinycua_sdk import Agent, LLMModel, Skill
+
+# Consumer handles filesystem access
+with open("./skills/coder.md") as f:
+    coder = Skill.from_markdown(f.read())
 
 agent = Agent(llm_model=LLMModel())
 agent.add_skills(coder)

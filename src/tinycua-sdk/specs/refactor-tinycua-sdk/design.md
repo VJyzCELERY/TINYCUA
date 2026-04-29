@@ -183,7 +183,7 @@ class Tool:
 
 ### SkillRegistry
 
-Non-singleton, explicit instantiation.
+Non-singleton, explicit instantiation. No filesystem I/O.
 
 ```python
 class SkillRegistry:
@@ -201,10 +201,73 @@ class SkillRegistry:
         if category:
             skills = [s for s in skills if s.category == category]
         return skills
+```
 
-    def load_from_directory(self, path: str | Path) -> None:
-        # Load SKILL.md files from directory
+### Skill Markdown Parser
+
+Skills are defined as Markdown text. The SDK provides a parser; the consumer decides how to obtain the text (file, DB, inline string, etc.).
+
+```python
+class Skill:
+    # ... existing fields ...
+
+    @classmethod
+    def from_markdown(cls, text: str) -> Skill:
+        """Parse a skill definition from Markdown text.
+
+        Args:
+            text: Markdown content following the SKILL.md format.
+
+        Returns:
+            Skill instance.
+        """
+        # Parse frontmatter (YAML between --- markers)
+        # Parse sections: # Name, ## Description, ## Instructions, ## Tools, etc.
         ...
+```
+
+**Example SKILL.md format:**
+```markdown
+---
+name: coder
+category: development
+tools:
+  - read_file
+  - write_file
+  - bash
+---
+
+# Coder
+
+## Description
+Write clean, efficient code.
+
+## Instructions
+When asked to write code:
+1. Plan the solution first
+2. Write clean, documented code
+3. Include error handling
+```
+
+**Consumer-side loading:**
+```python
+# From file (consumer decides)
+with open("./skills/coder.md") as f:
+    skill = Skill.from_markdown(f.read())
+
+# From database (consumer decides)
+row = db.query("SELECT markdown FROM skills WHERE name = 'coder'")
+skill = Skill.from_markdown(row.markdown)
+
+# Inline (no file needed)
+skill = Skill.from_markdown("""
+---
+name: helper
+---
+# Helper
+## Description
+A simple helper skill.
+""")
 ```
 
 ### BackendConfig
@@ -363,10 +426,24 @@ from tinycua_sdk import Agent, LLMModel, tool, Skill
 def search(query: str) -> str:
     return f"Results for {query}"
 
-# Load skills from filesystem
-from tinycua_sdk.skills.registry import SkillRegistry
-registry = SkillRegistry()
-registry.load_from_directory("./skills")
+# Load skill from Markdown file (consumer handles filesystem)
+with open("./skills/coder.md") as f:
+    coder = Skill.from_markdown(f.read())
+
+# Or inline
+researcher = Skill.from_markdown("""
+---
+name: researcher
+category: research
+tools:
+  - search
+---
+# Researcher
+## Description
+Research topics thoroughly.
+## Instructions
+Find accurate information from reliable sources.
+""")
 
 # Create agent
 agent = Agent(
@@ -377,7 +454,7 @@ agent = Agent(
     ),
     instructions="Answer questions concisely.",
     tools=[search],
-    skills=registry.list_skills(),
+    skills=[coder, researcher],
 )
 
 # Run

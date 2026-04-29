@@ -426,14 +426,30 @@ Skill storage is the consumer's responsibility. The SDK only loads skills from t
        is_active: bool = True
        version: str = "1.0.0"
    ```
-3. `SkillRegistry` must be **non-singleton**, instantiated by the consumer:
+3. `SkillRegistry` must be **non-singleton**, instantiated by the consumer. No filesystem I/O:
    ```python
    # BEFORE (singleton)
    registry = SkillRegistry()  # implicit global state
 
    # AFTER (explicit instance)
    registry = SkillRegistry()
-   registry.load_from_directory("./skills")
+
+   # Consumer decides how to obtain skill definitions
+   with open("./skills/coder.md") as f:
+       coder = Skill.from_markdown(f.read())
+   registry.register(coder)
+
+   # Or inline
+   researcher = Skill.from_markdown("""
+   ---
+   name: researcher
+   ---
+   # Researcher
+   ## Instructions
+   Research topics thoroughly.
+   """)
+   registry.register(researcher)
+
    agent = Agent(skills=registry.list_skills())
    ```
 
