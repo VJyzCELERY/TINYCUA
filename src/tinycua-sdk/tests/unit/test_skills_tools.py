@@ -6,9 +6,7 @@ from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.tools import (
     create_skills_list_tool,
     create_skill_view_tool,
-    CallableTool,
 )
-from tinycua_sdk.tools import tool
 
 
 class TestSkillsTools:
@@ -25,7 +23,7 @@ class TestSkillsTools:
         )
 
         tool = create_skills_list_tool(registry)
-        result = tool()
+        result = tool.invoke()
 
         assert "skills" in result
         assert len(result["skills"]) == 2
@@ -41,7 +39,7 @@ class TestSkillsTools:
         )
 
         tool = create_skills_list_tool(registry)
-        result = tool(category="tools")
+        result = tool.invoke(category="tools")
 
         assert len(result["skills"]) == 1
         assert result["skills"][0]["name"] == "Tool Skill"
@@ -61,7 +59,7 @@ class TestSkillsTools:
         )
 
         tool = create_skill_view_tool(registry)
-        result = tool("Test Skill")
+        result = tool.invoke(skill_name="Test Skill")
 
         assert result["name"] == "Test Skill"
         assert result["description"] == "Test description"
@@ -76,29 +74,13 @@ class TestSkillsTools:
         tool = create_skill_view_tool(registry)
 
         with pytest.raises(ValueError, match="not found"):
-            tool("NonExistent")
+            tool.invoke(skill_name="NonExistent")
 
     def test_skills_list_empty(self):
         """Test skills_list with no skills."""
         registry = SkillRegistry()
 
         tool = create_skills_list_tool(registry)
-        result = tool()
+        result = tool.invoke()
 
         assert result["skills"] == []
-
-    def test_callable_tool_name_property(self):
-        """Test that CallableTool exposes name property from wrapped tool."""
-
-        @tool
-        def my_custom_tool(category: str | None = None) -> dict:
-            """A custom tool."""
-            return {"category": category}
-
-        callable_tool = CallableTool(my_custom_tool)
-
-        # Test that name property returns the correct tool name
-        assert callable_tool.name == "my_custom_tool"
-
-        # Test that name property forwards to _tool.name (FR-3)
-        assert callable_tool.name == callable_tool._tool.name

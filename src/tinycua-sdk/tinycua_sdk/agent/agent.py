@@ -168,17 +168,9 @@ class Agent(AgentExecutor):
         # Resolve loop string to loop instance
         loop = resolve_loop(loop_config)
 
-        # Resolve tool string names to Tool instances
-        from tinycua_sdk.core.registry import ToolRegistry
-
+        # Tool names from templates cannot be resolved without a global registry.
+        # Tools must be passed explicitly via the tools parameter or add_tools().
         tools = []
-        registry = ToolRegistry()  # Singleton instance
-        for tool_name in tool_names:
-            entry = registry.get(tool_name)
-            # ToolRegistry returns ToolEntry, extract the Tool instance
-            if entry is not None and entry.tool is not None:
-                tools.append(entry.tool)
-            # Silently skip unknown tools (they may be registered elsewhere)
 
         # Merge any remaining template fields into kwargs (filter out description)
         # Also handle api_key conflict - pop from kwargs if already passing separately

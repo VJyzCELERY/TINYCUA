@@ -8,7 +8,6 @@ import yaml
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.skill_resolver import SkillActivator, SkillToolResolver
 from tinycua_sdk.agent.tool_resolver import ToolResolver
-from tinycua_sdk.core.registry import ToolRegistry
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool
 
@@ -267,14 +266,10 @@ class AgentLoader:
         tool_resolver = SkillToolResolver()
         skill_activator = SkillActivator()
 
-        # Get available toolsets and tools from ToolRegistry
-        registry = ToolRegistry()
-        available_toolsets = {
-            entry.toolset
-            for entry in registry._tools.values()
-            if entry.toolset is not None
-        }
-        available_tools = set(registry._tools.keys())
+        # Without a global registry, available toolsets and tools are empty.
+        # Tools must be composed explicitly via Agent.add_tools().
+        available_toolsets: set[str] = set()
+        available_tools: set[str] = set()
 
         # Load skills from skill_dirs
         for skill_dir in skill_dirs:

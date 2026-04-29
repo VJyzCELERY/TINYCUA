@@ -10,65 +10,36 @@ from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
 
 if TYPE_CHECKING:
-    from tinycua_sdk.core.registry import ToolRegistry
     from tinycua_sdk.skills.registry import SkillRegistry
 
 
 class SkillToolResolver:
     """Resolves skill tool names to Tool instances.
 
-    This class performs read-only lookups from the ToolRegistry.
-    It does NOT register tools with the registry - it only resolves
-    tool names to Tool instances for use in agent creation.
+    Without a global registry, tools must be provided explicitly.
+    This resolver returns an empty list; tools should be composed
+    directly via Agent.add_tools().
     """
 
-    def __init__(self, tool_registry: "ToolRegistry | None" = None):
-        """Initialize the resolver.
-
-        Args:
-            tool_registry: Optional ToolRegistry instance. If not provided,
-                          uses the singleton ToolRegistry.
-        """
-        self._tool_registry = tool_registry
+    def __init__(self):
+        """Initialize the resolver."""
         self._resolved_tools: dict[str, Tool] = {}
-
-    @property
-    def tool_registry(self) -> "ToolRegistry":
-        """Get the ToolRegistry instance.
-
-        Note: ToolRegistry is a singleton, so ToolRegistry() always returns
-        the same instance. This is intentional behavior.
-        """
-        if self._tool_registry is None:
-            from tinycua_sdk.core.registry import ToolRegistry
-
-            return ToolRegistry()
-        return self._tool_registry
 
     def resolve_skill_tools(self, skill: Skill) -> list[Tool]:
         """Resolve tools declared by a skill to Tool instances.
-
-        This is a read-only lookup from ToolRegistry - it does NOT
-        register tools with the registry.
 
         Args:
             skill: Skill with tools to resolve
 
         Returns:
-            List of resolved Tool instances
+            Empty list; tools must be composed explicitly.
         """
-        resolved = []
-
-        for tool_name in skill.tools:
-            entry = self.tool_registry.get(tool_name)
-            if entry and entry.tool:
-                self._resolved_tools[tool_name] = entry.tool
-                resolved.append(entry.tool)
-            else:
-                logging.warning(
-                    f"Skill '{skill.name}' declares tool '{tool_name}' not found in registry"
-                )
-        return resolved
+        if skill.tools:
+            logging.warning(
+                f"Skill '{skill.name}' declares tools {skill.tools} "
+                "but no global registry is available; pass tools explicitly to Agent"
+            )
+        return []
 
     def get_resolved_tools(
         self,
@@ -82,14 +53,9 @@ class SkillToolResolver:
             registry: SkillRegistry to look up skills
 
         Returns:
-            List of resolved Tool instances
+            Empty list; tools must be composed explicitly.
         """
-        tools = []
-        for name in skill_names:
-            skill = registry.get_skill(name)
-            if skill:
-                tools.extend(self.resolve_skill_tools(skill))
-        return tools
+        return []
 
 
 class SkillActivator:

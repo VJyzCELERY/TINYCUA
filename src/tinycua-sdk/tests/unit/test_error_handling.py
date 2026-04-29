@@ -1,82 +1,153 @@
 """Tests for tool error handling in executor."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.core.registry import ToolRegistry
+from tinycua_sdk.agent.executor import ToolExecutor
+from tinycua_sdk.tools.decorators import Tool
 
 
 class TestToolErrorHandling:
-    """Tests for tool error handling in AgentExecutor."""
+    """Tests for tool error handling in ToolExecutor."""
 
-    def setup_method(self):
-        """Clear registry before each test."""
-        self.registry = ToolRegistry()
-        self.registry.clear()
+    def test_executor_success(self):
+        """ToolExecutor handles successful tool execution."""
+        executor = ToolExecutor()
 
-    def teardown_method(self):
-        """Clear registry after each test."""
-        self.registry.clear()
+        tool = Tool(
+            name="test_tool",
+            description="A test tool",
+            _fn=lambda: "success",
+        )
 
-    def test_executor_handles_tool_not_found(self):
-        """Executor handles tool not found gracefully."""
-        executor = AgentExecutor()
-
-        def mock_handler():
-            pass
-
-        self.registry.register(name="test_tool", handler=mock_handler, schema={})
-
-        result = self.registry.get("nonexistent_tool")
-        assert result is None
+        result = executor.execute("test_tool", tool)
+        assert result["success"] is True
+        assert result["result"] == "success"
+        assert result["tool_name"] == "test_tool"
 
     def test_executor_handles_execution_error(self):
-        """Executor handles tool execution errors gracefully."""
-        executor = AgentExecutor()
+        """ToolExecutor handles tool execution errors gracefully."""
+        executor = ToolExecutor()
 
-        def failing_handler():
+        def failing_fn():
             raise RuntimeError("Tool execution failed")
 
-        self.registry.register(name="failing_tool", handler=failing_handler, schema={})
+        tool = Tool(
+            name="failing_tool",
+            description="A failing tool",
+            _fn=failing_fn,
+        )
 
-        with pytest.raises(RuntimeError) as exc_info:
-            self.registry.dispatch("failing_tool", {})
-        assert "Tool execution failed" in str(exc_info.value)
+        result = executor.execute("failing_tool", tool)
+        assert result["success"] is False
+        assert "error" in result
+        assert result["tool_name"] == "failing_tool"
+        assert "ref_id" in result
 
-    def test_executor_handles_timeout_error(self):
-        """Executor handles tool timeout errors gracefully."""
-        executor = AgentExecutor()
+    def test_executor_handles_value_error(self):
+        """ToolExecutor handles ValueError from tool."""
+        executor = ToolExecutor()
 
-        import time
+        tool = Tool(
+            name="value_error_tool",
+            description="Raises ValueError",
+            _fn=lambda: (_ for _ in ()).throw(ValueError("invalid value")),
+        )
 
-        def slow_handler():
-            time.sleep(0.1)
-            return "done"
+        result = executor.execute("value_error_tool", tool)
+        assert result["success"] is False
+        assert result["tool_name"] == "value_error_tool"
 
-        self.registry.register(name="slow_tool", handler=slow_handler, schema={})
+    def test_executor_handles_type_error(self):
+        """ToolExecutor handles TypeError from tool."""
+        executor = ToolExecutor()
 
-        result = self.registry.dispatch("slow_tool", {})
-        assert result == "done"
+        def bad_fn():
+            raise TypeError("bad type")
+
+        tool = Tool(
+            name="type_error_tool",
+            description="Raises TypeError",
+            _fn=bad_fn,
+        )
+
+        result = executor.execute("type_error_tool", tool)
+        assert result["success"] is False
+        assert result["tool_name"] == "type_error_tool"
 
     def test_executor_tool_error_recovery(self):
-        """Executor can recover from tool errors."""
-        executor = AgentExecutor()
+        """ToolExecutor returns error dict without raising."""
+        executor = ToolExecutor()
 
         call_count = 0
 
-        def recovered_handler():
+        def recovered_fn():
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise RuntimeError("First call fails")
             return "recovered"
 
-        self.registry.register(name="recovered_tool", handler=recovered_handler, schema={})
+        tool = Tool(
+            name="recovered_tool",
+            description="Recovers after first failure",
+            _fn=recovered_fn,
+        )
 
-        with pytest.raises(RuntimeError):
-            self.registry.dispatch("recovered_tool", {})
+        result1 = executor.execute("recovered_tool", tool)
+        assert result1["success"] is False
+        assert call_count == 1
 
-        result = self.registry.dispatch("recovered_tool", {})
-        assert result == "recovered"
+        result2 = executor.execute("recovered_tool", tool)
+        assert result2["success"] is True
+        assert result2["result"] == "recovered"
         assert call_count == 2
+
+    def test_executor_with_arguments(self):
+        """ToolExecutor passes arguments to tool."""
+        executor = ToolExecutor()
+
+        tool = Tool(
+            name="adder",
+            description="Adds two numbers",
+            _fn=lambda x, y: x + y,
+        )
+
+        result = executor.execute("adder", tool, {"x": 2, "y": 3})
+        assert result["success"] is True
+        assert result["result"] == 5
+
+    @pytest.mark.asyncio
+    async def test_executor_async_success(self):
+        """ToolExecutor.execute_async handles successful execution."""
+        executor = ToolExecutor()
+
+        async def async_fn():
+            return "async result"
+
+        tool = Tool(
+            name="async_tool",
+            description="An async tool",
+            _fn=async_fn,
+        )
+
+        result = await executor.execute_async("async_tool", tool)
+        assert result["success"] is True
+        assert result["result"] == "async result"
+
+    @pytest.mark.asyncio
+    async def test_executor_async_error(self):
+        """ToolExecutor.execute_async handles errors."""
+        executor = ToolExecutor()
+
+        async def async_fail():
+            raise RuntimeError("async failure")
+
+        tool = Tool(
+            name="async_fail_tool",
+            description="Fails asynchronously",
+            _fn=async_fail,
+        )
+
+        result = await executor.execute_async("async_fail_tool", tool)
+        assert result["success"] is False
+        assert result["tool_name"] == "async_fail_tool"

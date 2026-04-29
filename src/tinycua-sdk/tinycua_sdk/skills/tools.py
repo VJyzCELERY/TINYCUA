@@ -6,50 +6,6 @@ from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools import tool
 
 
-class CallableTool:
-    """Wrapper to make a Tool callable."""
-
-    def __init__(self, tool_instance):
-        """Initialize with a Tool instance.
-
-        Args:
-            tool_instance: Tool instance to wrap
-        """
-        self._tool = tool_instance
-
-    @property
-    def name(self) -> str:
-        """Return the name of the wrapped tool.
-
-        Returns:
-            Name of the wrapped tool.
-        """
-        return self._tool.name
-
-    def __call__(self, *args, **kwargs):
-        """Call the underlying tool function.
-
-        Args:
-            *args: Positional arguments
-            **kwargs: Keyword arguments
-
-        Returns:
-            Result from tool invocation
-        """
-        # Convert positional args to keyword args based on parameter names
-        import inspect
-
-        sig = inspect.signature(self._tool._fn)
-        param_names = list(sig.parameters.keys())
-
-        # Map positional args to parameter names
-        for i, arg in enumerate(args):
-            if i < len(param_names):
-                kwargs[param_names[i]] = arg
-
-        return self._tool.invoke(**kwargs)
-
-
 def create_skills_list_tool(registry: SkillRegistry):
     """Create skills_list() tool.
 
@@ -57,7 +13,7 @@ def create_skills_list_tool(registry: SkillRegistry):
         registry: SkillRegistry instance
 
     Returns:
-        CallableTool instance for listing skills
+        Tool instance for listing skills
     """
 
     @tool
@@ -87,7 +43,7 @@ def create_skills_list_tool(registry: SkillRegistry):
             ]
         }
 
-    return CallableTool(skills_list)
+    return skills_list
 
 
 def create_skill_view_tool(registry: SkillRegistry):
@@ -97,7 +53,7 @@ def create_skill_view_tool(registry: SkillRegistry):
         registry: SkillRegistry instance
 
     Returns:
-        CallableTool instance for viewing skill details
+        Tool instance for viewing skill details
     """
 
     @tool
@@ -127,4 +83,4 @@ def create_skill_view_tool(registry: SkillRegistry):
             "dependencies": skill.dependencies,
         }
 
-    return CallableTool(skill_view)
+    return skill_view

@@ -10,7 +10,6 @@ import sys
 import tempfile
 from typing import Any
 
-from tinycua_sdk.core.registry import ToolRegistry
 from tinycua_sdk.tools.decorators import Tool
 
 
@@ -41,24 +40,14 @@ class ToolResolver:
     INLINE_TOOL_TIMEOUT: float = 5.0  # seconds
     SANDBOX_MODE: bool = False  # Can be enabled to disable inline tools
 
-    def __init__(self, registry: ToolRegistry | None = None, strict_mode: bool = False):
-        """Initialize resolver with optional registry.
+    def __init__(self, strict_mode: bool = False):
+        """Initialize resolver.
 
         Args:
-            registry: ToolRegistry instance for tool lookup.
-                     If None, uses ToolRegistry singleton.
             strict_mode: If True, raise error for unresolved tools.
                         If False, keep unresolved as strings (lazy resolution).
         """
-        self._registry = registry
         self._strict_mode = strict_mode
-
-    @property
-    def registry(self) -> ToolRegistry:
-        """Get the ToolRegistry instance (singleton if not provided)."""
-        if self._registry is None:
-            return ToolRegistry()
-        return self._registry
 
     def _parse_tool_specs(self, tool_specs: list[Any]) -> list[Any]:
         """Parse tool specifications and detect their format.
@@ -132,15 +121,13 @@ class ToolResolver:
             name: Tool name to look up
 
         Returns:
-            Tool instance if found in registry, otherwise returns the string
-            (for lazy resolution at runtime)
+            Tool instance if found, otherwise returns the string
+            (for lazy resolution at runtime).
+            Without a global registry, string references are returned as-is.
         """
-        entry = self.registry.get(name)
-        if entry is not None and entry.tool is not None:
-            return entry.tool
         if self._strict_mode:
             raise ToolResolutionError(
-                f"Tool '{name}' not found in registry",
+                f"Tool '{name}' cannot be resolved without a registry",
                 tool_spec=name,
             )
         # Return string for lazy resolution
@@ -154,7 +141,7 @@ class ToolResolver:
         2. Use compile() to catch compilation errors
         3. Execute in subprocess with timeout for true termination capability
         4. Subprocess prints serialized tool config, parent reconstructs Tool
-        5. Register resolved tool with ToolRegistry for subsequent lookup
+        5. Return resolved Tool instance without global registration
 
         Args:
             source: Python source code with @tool decorator
@@ -170,13 +157,6 @@ class ToolResolver:
 
         # Parse source and create Tool
         tool = self._execute_inline_tool_with_timeout(source, self.INLINE_TOOL_TIMEOUT)
-
-        # Register the tool so it can be looked up later
-        self.registry.register(
-            name=tool.name,
-            tool=tool,
-            schema=tool.to_config(),
-        )
 
         return tool
 

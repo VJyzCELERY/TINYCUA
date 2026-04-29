@@ -98,7 +98,7 @@ class TestSkillsColdStart:
         # Test skills_list
         from tinycua_sdk.skills.tools import create_skills_list_tool
         list_tool = create_skills_list_tool(registry)
-        result = list_tool()
+        result = list_tool.invoke()
 
         assert "skills" in result
         assert len(result["skills"]) == 1
@@ -107,7 +107,7 @@ class TestSkillsColdStart:
         # Test skill_view
         from tinycua_sdk.skills.tools import create_skill_view_tool
         view_tool = create_skill_view_tool(registry)
-        result = view_tool("Test Skill")
+        result = view_tool.invoke(skill_name="Test Skill")
 
         assert result["name"] == "Test Skill"
         assert result["description"] == "A test skill"

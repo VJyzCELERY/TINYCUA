@@ -162,25 +162,26 @@ class TestSkillTools:
     def test_skills_list_tool(self, skill_registry):
         """Test skills_list tool."""
         tool = create_skills_list_tool(skill_registry)
-        result = tool(category=None)
-        
+        result = tool.invoke(category=None)
+
         assert "skills" in result
         assert len(result["skills"]) == 3
-        
+
         # Filter by category
-        result = tool(category="tools")
+        result = tool.invoke(category="tools")
         assert len(result["skills"]) == 2
 
     def test_skills_list_tool_empty_category(self, skill_registry):
         """Test skills_list with non-matching category."""
-        result = create_skills_list_tool(skill_registry)(category="nonexistent")
+        tool = create_skills_list_tool(skill_registry)
+        result = tool.invoke(category="nonexistent")
         assert len(result["skills"]) == 0
 
     def test_skill_view_tool(self, skill_registry):
         """Test skill_view tool."""
         tool = create_skill_view_tool(skill_registry)
-        result = tool(skill_name="math-helper")
-        
+        result = tool.invoke(skill_name="math-helper")
+
         assert result["name"] == "math-helper"
         assert result["description"] == "Helps with math calculations"
         assert result["tools"] == ["calculator", "add"]
@@ -189,9 +190,9 @@ class TestSkillTools:
     def test_skill_view_not_found(self, skill_registry):
         """Test skill_view with non-existent skill."""
         tool = create_skill_view_tool(skill_registry)
-        
+
         with pytest.raises(ValueError, match="not found"):
-            tool(skill_name="nonexistent")
+            tool.invoke(skill_name="nonexistent")
 
 
 class TestSkillsWithAgent:
