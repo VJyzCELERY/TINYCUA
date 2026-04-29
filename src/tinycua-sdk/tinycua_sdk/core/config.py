@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -9,47 +10,65 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
-
 
 class LLMConfig(BaseModel):
-    """Configuration for the LLM provider."""
+    """Default LLM configuration for SDK-wide defaults."""
 
     model_config = ConfigDict(frozen=True)
 
-    provider: str = OPENAI_COMPATIBLE
-    model: str = "qwen/qwen3.5-9b"
-    base_url: str = DEFAULT_BASE_URL
+    provider: str = "openai-compatible"
+    model: str = "gpt-4o-mini"
+    base_url: str = "http://localhost:1234/v1"
     api_key: SecretStr = SecretStr("")
     temperature: float = 1.0
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dictionary."""
+        return self.model_dump(mode="json")
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "LLMConfig":
+        """Deserialize from a plain dictionary."""
+        return cls(**data)
+
 
 class LoopConfig(BaseModel):
-    """Configuration for agent loop."""
+    """Default loop configuration."""
 
     model_config = ConfigDict(frozen=True)
 
-    type: str = "default"
     max_iterations: int = 5
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dictionary."""
+        return self.model_dump(mode="json")
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "LoopConfig":
+        """Deserialize from a plain dictionary."""
+        return cls(**data)
 
 
 class SkillsConfig(BaseModel):
-    """Configuration for skills system."""
+    """Default skill loading configuration."""
 
     model_config = ConfigDict(frozen=True)
 
-    directories: list[str] = Field(
-        default_factory=lambda: [
-            os.path.expanduser("~/.tinycua/skills"),
-            "./skills",
-        ]
-    )
+    directories: list[str] = Field(default_factory=lambda: ["./skills"])
     auto_load: bool = True
-    auto_improve: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dictionary."""
+        return self.model_dump(mode="json")
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SkillsConfig":
+        """Deserialize from a plain dictionary."""
+        return cls(**data)
 
 
 class SDKConfig(BaseModel):
-    """Top-level immutable SDK configuration."""
+    """Framework-level configuration."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -57,15 +76,25 @@ class SDKConfig(BaseModel):
     loop: LoopConfig = Field(default_factory=LoopConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     backend_url: str = "http://localhost:8000"
-    environment: str = "dev"
 
-    def get_skill_directories(self) -> list[Path]:
-        """Get skill directories as Path objects.
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dictionary."""
+        return self.model_dump(mode="json")
 
-        Returns:
-            List of Path objects for skill directories
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SDKConfig":
+        """Deserialize from a plain dictionary."""
+        return cls(**data)
+
+    def to_yaml(self, path: str | Path) -> None:
+        """Serialize to a YAML file.
+
+        Args:
+            path: Path to the output YAML file.
         """
-        return [Path(d) for d in self.skills.directories]
+        path = Path(path)
+        with open(path, "w") as f:
+            yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "SDKConfig":
@@ -80,7 +109,6 @@ class SDKConfig(BaseModel):
         Raises:
             FileNotFoundError: If the YAML file does not exist.
             yaml.YAMLError: If the file contains invalid YAML.
-            pydantic.ValidationError: If config values fail validation.
         """
         path = Path(path)
         if not path.exists():
@@ -92,7 +120,40 @@ class SDKConfig(BaseModel):
         if data is None:
             data = {}
 
-        return cls(**data)
+        return cls.from_dict(data)
+
+    def to_json(self, path: str | Path) -> None:
+        """Serialize to a JSON file.
+
+        Args:
+            path: Path to the output JSON file.
+        """
+        path = Path(path)
+        with open(path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_json(cls, path: str | Path) -> "SDKConfig":
+        """Load configuration from a JSON file.
+
+        Args:
+            path: Path to JSON configuration file.
+
+        Returns:
+            SDKConfig instance with values from the JSON file.
+
+        Raises:
+            FileNotFoundError: If the JSON file does not exist.
+            json.JSONDecodeError: If the file contains invalid JSON.
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Config file not found: {path}")
+
+        with open(path, "r") as f:
+            data: dict[str, Any] = json.load(f)
+
+        return cls.from_dict(data)
 
     @classmethod
     def from_env(cls) -> "SDKConfig":
@@ -103,10 +164,6 @@ class SDKConfig(BaseModel):
         """
         data: dict[str, Any] = {}
 
-        env = os.getenv("TINYCUA_ENV")
-        if env is not None:
-            data["environment"] = env
-
         backend_url = os.getenv("TINYCUA_BACKEND_URL")
         if backend_url is not None:
             data["backend_url"] = backend_url
@@ -115,7 +172,7 @@ class SDKConfig(BaseModel):
 
         api_key = os.getenv("TINYCUA_API_KEY")
         if api_key is not None:
-            llm_data["api_key"] = SecretStr(api_key)
+            llm_data["api_key"] = api_key
 
         provider = os.getenv("TINYCUA_PROVIDER")
         if provider is not None:
@@ -129,12 +186,16 @@ class SDKConfig(BaseModel):
         if base_url is not None:
             llm_data["base_url"] = base_url
 
+        temperature = os.getenv("TINYCUA_TEMPERATURE")
+        if temperature is not None:
+            llm_data["temperature"] = float(temperature)
+
         if llm_data:
             data["llm"] = llm_data
 
-        loop_type = os.getenv("TINYCUA_LOOP_TYPE")
-        if loop_type is not None:
-            data["loop"] = {"type": loop_type}
+        max_iterations = os.getenv("TINYCUA_MAX_ITERATIONS")
+        if max_iterations is not None:
+            data["loop"] = {"max_iterations": int(max_iterations)}
 
         return cls(**data)
 
