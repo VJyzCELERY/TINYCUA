@@ -71,7 +71,7 @@ response = await agent.run("What is quantum computing?")
 
 **R4.1** `Skill` is a Pydantic/dataclass value object with fields: `name`, `description`, `category`, `instructions`, `tools`, `dependencies`, `source`, `metadata`, `is_active`, `version`.
 
-**R4.2** `Skill.from_markdown(text)` must parse a skill definition from a Markdown string. The consumer decides how to obtain the string (file read, DB query, inline, etc.).
+**R4.2** `Skill.load(text)` must parse a skill definition from a Markdown string. The consumer decides how to obtain the string (file read, DB query, inline, etc.).
 
 **R4.3** `SkillRegistry` must be non-singleton, instantiated explicitly by the consumer. No filesystem I/O.
 
@@ -213,7 +213,7 @@ class Skill:
     version: str = "1.0.0"
 
     @classmethod
-    def from_markdown(cls, text: str) -> Skill:
+    def load(cls, text: str) -> Skill:
         """Parse skill from Markdown text."""
         ...
 ```
@@ -304,7 +304,7 @@ Write clean, efficient code.
 When asked to write code, plan first, then implement.
 """
 
-coder = Skill.from_markdown(skill_md)
+coder = Skill.load(skill_md)
 agent = Agent(llm_model=LLMModel())
 agent.add_skills(coder)
 ```
@@ -315,7 +315,7 @@ from tinycua_sdk import Agent, LLMModel, Skill
 
 # Consumer handles filesystem access
 with open("./skills/coder.md") as f:
-    coder = Skill.from_markdown(f.read())
+    coder = Skill.load(f.read())
 
 agent = Agent(llm_model=LLMModel())
 agent.add_skills(coder)

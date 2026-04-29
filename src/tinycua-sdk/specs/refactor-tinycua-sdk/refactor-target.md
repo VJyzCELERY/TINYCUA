@@ -436,11 +436,11 @@ Skill storage is the consumer's responsibility. The SDK only loads skills from t
 
    # Consumer decides how to obtain skill definitions
    with open("./skills/coder.md") as f:
-       coder = Skill.from_markdown(f.read())
+       coder = Skill.load(f.read())
    registry.register(coder)
 
    # Or inline
-   researcher = Skill.from_markdown("""
+   researcher = Skill.load("""
    ---
    name: researcher
    ---

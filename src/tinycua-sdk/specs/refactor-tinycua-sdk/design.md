@@ -212,7 +212,7 @@ class Skill:
     # ... existing fields ...
 
     @classmethod
-    def from_markdown(cls, text: str) -> Skill:
+    def load(cls, text: str) -> Skill:
         """Parse a skill definition from Markdown text.
 
         Args:
@@ -253,14 +253,14 @@ When asked to write code:
 ```python
 # From file (consumer decides)
 with open("./skills/coder.md") as f:
-    skill = Skill.from_markdown(f.read())
+    skill = Skill.load(f.read())
 
 # From database (consumer decides)
 row = db.query("SELECT markdown FROM skills WHERE name = 'coder'")
-skill = Skill.from_markdown(row.markdown)
+skill = Skill.load(row.markdown)
 
 # Inline (no file needed)
-skill = Skill.from_markdown("""
+skill = Skill.load("""
 ---
 name: helper
 ---
@@ -428,10 +428,10 @@ def search(query: str) -> str:
 
 # Load skill from Markdown file (consumer handles filesystem)
 with open("./skills/coder.md") as f:
-    coder = Skill.from_markdown(f.read())
+    coder = Skill.load(f.read())
 
 # Or inline
-researcher = Skill.from_markdown("""
+researcher = Skill.load("""
 ---
 name: researcher
 category: research
