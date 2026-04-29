@@ -54,6 +54,16 @@ class Tool:
             _version=data.get("version"),
         )
 
+    @property
+    def schema(self) -> dict[str, Any]:
+        """Return tool descriptor for API (alias for to_config)."""
+        return self.to_config()
+
+    @property
+    def source(self) -> str | None:
+        """Return the source code of the tool function."""
+        return self._source
+
     def invoke(self, **kwargs: Any) -> Any:
         """Invoke the tool function."""
         import asyncio

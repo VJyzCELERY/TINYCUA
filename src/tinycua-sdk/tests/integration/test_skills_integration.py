@@ -96,7 +96,8 @@ class TestSkillsColdStart:
         registry.load_skills_from_directory(tmp_path)
 
         # Test skills_list
-        from tinycua_sdk.skills.tools import create_skills_list_tool
+        from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool
+
         list_tool = create_skills_list_tool(registry)
         result = list_tool.invoke()
 
@@ -105,7 +106,7 @@ class TestSkillsColdStart:
         assert result["skills"][0]["name"] == "Test Skill"
 
         # Test skill_view
-        from tinycua_sdk.skills.tools import create_skill_view_tool
+        from tinycua_sdk.tools.native.skills_tools import create_skill_view_tool
         view_tool = create_skill_view_tool(registry)
         result = view_tool.invoke(skill_name="Test Skill")
 

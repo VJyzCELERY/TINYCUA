@@ -3,7 +3,7 @@
 import pytest
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.skills.models import Skill
-from tinycua_sdk.skills.tools import (
+from tinycua_sdk.tools.native.skills_tools import (
     create_skills_list_tool,
     create_skill_view_tool,
 )
