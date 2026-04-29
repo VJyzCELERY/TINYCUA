@@ -1015,16 +1015,29 @@ async def run_remote(agent_id: str, user_input: str, backend_client: BackendClie
 
 ---
 
-## Appendix A — Migration Order (Suggested Sprint Plan)
+## Appendix A — Implementation Roadmap
 
-| Sprint | Focus | Tickets |
-|--------|-------|---------|
-| **1** | Foundations | H-01 (remove session), H-08 (remove CLI), H-12 (remove clients) |
-| **2** | Remove stateful modules | H-02 (delete storage/), H-04 (remove memory/), M-07 (remove modeling/), delete `sqlite.py` |
-| **3** | Tool & Skill framework cleanup | H-05 (tool framework only), H-06 (delete memory tools), H-07 (skill tools), M-02 (skill backend removal) |
-| **4** | Agent simplification | H-10 (LLMModel), M-04 (remove memory/session refs), M-05 (remove planning), M-06 (BackendKind) |
-| **5** | Core cleanup | L-02 (lmstudio), H-09 (delete registry singleton), L-03 (env), M-03 (refactor config) |
-| **6** | Config & loading | H-11 (config-based loading), validation, documentation |
+The refactor is broken into **14 incremental stages**. Each stage has its own specification in `specs/refactor-tinycua-sdk/{code}-{title}/spec.md`.
+
+See `ROADMAP.md` for the complete stage plan, dependencies, and exit criteria.
+
+**Summary:**
+| Stage | Code | Title |
+|-------|------|-------|
+| 1 | `01` | Remove Legacy Tests & Examples |
+| 2 | `02` | New Unit Tests |
+| 3 | `03` | Remove Session & Utils |
+| 4 | `04` | Remove Storage |
+| 5 | `05` | Remove Memory |
+| 6 | `06` | Remove Modeling |
+| 7 | `07` | Remove CLI & Clients |
+| 8 | `08` | Remove Core Registry |
+| 9 | `09` | Refactor Tools Framework |
+| 10 | `10` | Refactor Skills Framework |
+| 11 | `11` | Refactor Agent |
+| 12 | `12` | Refactor Core Config |
+| 13 | `13` | Create Examples |
+| 14 | `14` | Create Integration Tests |
 
 ---
 

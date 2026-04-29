@@ -347,64 +347,16 @@ class SDKConfig(BaseModel):
 
 ## Migration Strategy
 
-### Phase 1 — Delete Out-of-Scope Modules
-1. Delete `session/`, `memory/`, `modeling/`, `storage/`, `clients/`, `cli/`.
-2. Delete `core/registry.py`, `tools/memory.py`, `tools/memory_tools.py`, `skills/backend.py`.
-3. Delete related tests.
+See `ROADMAP.md` for the complete staged implementation plan. Each stage has its own folder under `specs/refactor-tinycua-sdk/{code}-{title}/` with detailed specifications.
 
-### Phase 2 — Refactor Agent
-1. Move `system_prompt` from `Agent` to `LLMModel`.
-2. Remove `session_id`, `short_term_memory`, `long_term_memory`, `planning_prompt` from `Agent`.
-3. Simplify `add_tools` / `add_skills` to accept single or list.
-4. Ensure `Agent.run()` accepts `messages` parameter.
+**High-level flow:**
+1. **Stage 01** — Remove legacy tests & examples
+2. **Stage 02** — Write new unit tests (success criteria)
+3. **Stages 03-12** — Incremental implementation (delete modules, refactor frameworks, refactor agent/config)
+4. **Stage 13** — Create new examples
+5. **Stage 14** — Create integration tests
 
-### Phase 3 — Refactor Config
-1. Remove `memory`, `session`, `environment` from `SDKConfig`.
-2. Add `from_dict()` / `to_dict()` to all config classes.
-3. Update templates to use new `LLMModel.system_prompt` field.
-
-### Phase 4 — Update Tests & Examples
-1. Rewrite `docs/examples/example_main.py` with stateless examples.
-2. Delete obsolete integration tests (memory, session, storage, CLI).
-3. Update remaining tests to use explicit tool/skill composition (no singletons).
-
-## Test Strategy
-
-### Unit Tests (Keep)
-- `test_agent.py` — Agent construction, config round-trip, run() mock
-- `test_tool.py` — @tool decorator, Tool.invoke(), schema generation
-- `test_skills.py` — Skill dataclass, SkillRegistry explicit instance
-- `test_config.py` — Config serialization/deserialization
-- `test_agent_templates.py` — Template loading with new config structure
-
-### Unit Tests (Delete)
-- `test_storage*.py` — storage deleted
-- `test_memory*.py` — memory deleted
-- `test_short_term_memory.py` — memory deleted
-- `test_long_term_memory.py` — memory deleted
-- `test_local_storage.py` — storage deleted
-- `test_export_import.py` — export/import deleted
-- `test_cli_*.py` — CLI deleted
-- `test_clients.py` — clients deleted
-- `test_client.py` — clients deleted
-- `test_backend_connection.py` — clients deleted
-- `test_registry.py` — singleton registry deleted
-- `test_user_modeling.py` — modeling deleted
-- `test_personality.py` — modeling deleted
-- `test_remote_runner.py` — remote runner deleted
-- `test_prompt_cache.py` — caching is consumer concern
-
-### Integration Tests (Keep)
-- `test_agent_creation.py` — Create agent from config
-- `test_tool_execution.py` — Execute tools with agent
-- `test_skills_integration.py` — Load and use skills
-- `test_loop_execution.py` — Agent loop execution
-
-### Integration Tests (Delete)
-- `test_memory_*.py` — memory deleted
-- `test_storage_agent.py` — storage deleted
-- `test_local_run.py` — depends on storage/session
-- `test_agent_delegation.py` — if it depends on remote client
+All stages are designed to be testable independently where possible.
 
 ## Risks
 
