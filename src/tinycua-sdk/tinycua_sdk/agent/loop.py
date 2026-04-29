@@ -6,7 +6,6 @@ from tinycua_sdk.agent.hooks import HookManager, HookFunc
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent import Agent
-    from tinycua_sdk.runner import Runner
     from tinycua_sdk.models.response import StreamEvent
     from tinycua_sdk.models import RunResult
 
@@ -36,26 +35,24 @@ class BaseLoop:
 
     This is the base class used by default for all agents developed with tinycua-sdk.
     Users can extend this class to define custom execution strategies.
-    Provides access to Runner helpers for tool execution and LLM calls.
 
     Example:
         class MyLoop(BaseLoop):
             async def run(self, agent, user_input, **kwargs):
                 # Custom logic
-                result = await self.runner.call_llm(messages)
-                return result
+                return "result"
 
     Attributes:
-        runner: Runner instance for basic execution (set by AgentExecutor)
+        runner: Execution runner for basic execution (set by AgentExecutor)
     """
 
-    def __init__(self, runner: "Runner" = None):
+    def __init__(self, runner: Any = None):
         """Initialize with optional runner.
 
         Runner will be injected by Agent when loop is loaded.
 
         Args:
-            runner: Runner instance for basic execution (optional)
+            runner: Execution runner for basic execution (optional)
         """
         self.runner = runner
         self._hooks = HookManager()
@@ -107,7 +104,6 @@ class BaseLoop:
     ) -> Union["RunResult", str, AsyncIterator["StreamEvent"]]:
         """Execute the agent loop.
 
-        Default implementation wraps Runner.run() or Runner.run_sse().
         Override to define custom execution strategy.
 
         Pre-execution hooks run before main loop.
@@ -160,15 +156,15 @@ class ReactLoop(BaseLoop):
     Each iteration: Call LLM -> Extract tool calls -> Execute tools -> Add results -> Repeat.
 
     Args:
-        runner: Runner instance for LLM calls and tool execution
+        runner: Execution runner for LLM calls and tool execution
         max_iterations: Maximum number of reasoning iterations (default: 5)
     """
 
-    def __init__(self, runner: "Runner" = None, max_iterations: int = 5):
+    def __init__(self, runner: Any = None, max_iterations: int = 5):
         """Initialize ReactLoop.
 
         Args:
-            runner: Runner instance for LLM calls and tool execution
+            runner: Execution runner for LLM calls and tool execution
             max_iterations: Maximum number of reasoning iterations
         """
         super().__init__(runner=runner)
@@ -237,7 +233,7 @@ class ReactLoop(BaseLoop):
         """Extract tool calls from LLM response.
 
         Args:
-            response: Response from Runner.call_llm()
+            response: LLM response object.
 
         Returns:
             List of tool call dicts
@@ -268,7 +264,7 @@ class ReactLoop(BaseLoop):
         """Extract content from LLM response.
 
         Args:
-            response: Response from Runner.call_llm()
+            response: LLM response object.
 
         Returns:
             Content string or empty string

@@ -122,18 +122,8 @@ async def main():
     print(f"Tool Calls: {len(result.tool_calls)}")
     print(f"Total Tokens: {result.total_tokens}")
 
-    # Test deploy
-    print("\n[6] Testing deploy...")
-    deployment = await agent.deploy()
-    print(f"Status: {deployment['status']}")
-    print(f"Agent ID: {deployment['agent_id']}")
-    print(f"Backend URL: {deployment['backend_url']}")
-    print(f"Tools deployed: {deployment['tools']}")
-    print(f"Agent mode: {agent.mode}")
-    print(f"Is deployed: {agent.is_deployed}")
-
     # Test streaming (now returns StreamEvent objects)
-    print("\n[7] Testing stream (text only)...")
+    print("\n[6] Testing stream (text only)...")
     print("Streaming response: ", end="")
     async for event in agent.stream("Say hello in 3 words"):
         if event.type == StreamEventType.CONTENT:
@@ -141,7 +131,7 @@ async def main():
     print()
 
     # Test streaming with tools
-    print("\n[8] Testing stream with tools...")
+    print("\n[7] Testing stream with tools...")
     print("Streaming response: ", end="")
     async for event in agent.stream("What's the weather in Tokyo?"):
         if event.type == StreamEventType.CONTENT:

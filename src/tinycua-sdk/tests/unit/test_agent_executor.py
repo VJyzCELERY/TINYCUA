@@ -33,33 +33,6 @@ class TestAgentExecutorCancel:
         agent.reset_cancel()
         assert agent.is_cancelled is False
 
-class TestAgentExecutorRunner:
-    """Test runner and loop management."""
-
-    def test_get_runner_creates_runner(self):
-        """Test _get_runner() creates a Runner instance."""
-
-        agent = AgentExecutor(name="test")
-        with patch("tinycua_sdk.runner.Runner") as mock_runner:
-            mock_runner.return_value = MagicMock()
-            runner = agent._get_runner()
-
-            mock_runner.assert_called_once_with(agent.config)
-            assert agent._local_runner is runner
-
-    def test_get_runner_returns_cached_runner(self):
-        """Test _get_runner() returns cached runner."""
-        agent = AgentExecutor(name="test")
-        mock_runner = MagicMock()
-        agent._local_runner = mock_runner
-
-        with patch("tinycua_sdk.runner.Runner") as mock_runner_cls:
-            runner = agent._get_runner()
-
-            mock_runner_cls.assert_not_called()
-            assert runner is mock_runner
-
-
 class TestAgentExecutorInheritance:
     """Test AgentExecutor inherits from AgentDefinition."""
 

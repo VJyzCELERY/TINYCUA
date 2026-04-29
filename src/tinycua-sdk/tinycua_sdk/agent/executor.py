@@ -10,7 +10,6 @@ from tinycua_sdk.agent.definition import AgentDefinition
 from tinycua_sdk.core.config import SDKConfig
 
 if TYPE_CHECKING:
-    from tinycua_sdk.runner import Runner
     from tinycua_sdk.models.response import StreamEvent
     from tinycua_sdk.agent.loop import DefaultLoop
     from tinycua_sdk.tools.decorators import Tool
@@ -202,9 +201,8 @@ class AgentExecutor(AgentDefinition):
             loop=loop,
             skills=skills,
         )
-        self._local_runner: Runner | None = None
-        self._loop_cache: BaseLoop | None = None
-        self._client: BackendClient | None = None
+        self._local_runner: Any | None = None
+        self._loop_cache: Any | None = None
         self.runner = runner
 
     @property
@@ -227,105 +225,6 @@ class AgentExecutor(AgentDefinition):
         """Reset cancel state for next run."""
         self.cancel_event.clear()
 
-    def _get_runner(self) -> Runner:
-        """Get or create the internal runner."""
-        from tinycua_sdk.runner import Runner
-
-        if self._local_runner is None:
-            self._local_runner = Runner(self.config)
-        return self._local_runner
-
-    def _load_loop(self) -> DefaultLoop:
-        """Load custom loop from config or use DefaultLoop."""
-        from tinycua_sdk.agent.loop import DefaultLoop, resolve_loop
-        from tinycua_sdk.runner import Runner
-
-        if self._loop_cache is not None:
-            return self._loop_cache
-        runner = Runner(self.config, cancel_event=self.cancel_event)
-        loop_config = getattr(self.config, "loop", None)
-
-        # Check if loop_config is already a loop instance
-        if loop_config is not None and hasattr(loop_config, "run"):
-            loop_config.runner = runner
-            self._loop_cache = loop_config
-            return loop_config
-
-        # Use resolve_loop to resolve string/dict config to loop instance
-        loop = resolve_loop(loop_config)
-
-        # Set runner on the resolved loop (resolve_loop doesn't set it)
-        loop.runner = runner
-
-        self._loop_cache = loop
-        return loop
-
-    def _get_backend_config(self) -> tuple[str, str | None, dict[str, str] | None]:
-        """Get backend configuration with priority."""
-        global_config = _get_global_config()
-        backend_url = (
-            self.config.backend_url
-            if self.config.backend_url is not None
-            else global_config.backend_url
-        )
-        backend_api_key = (
-            self.config.backend_api_key
-            if self.config.backend_api_key is not None
-            else global_config.llm.api_key.get_secret_value()
-        )
-        return (
-            backend_url,
-            backend_api_key,
-            self.config.backend_headers,
-        )
-
-    def _get_client(self) -> BackendClient:
-        """Get or create a cached BackendClient.
-
-        Returns:
-            BackendClient instance.
-        """
-        if self._client is None:
-            from tinycua_sdk.clients import BackendClient
-            backend_url, backend_api_key, backend_headers = (
-                self._get_backend_config()
-            )
-            self._client = BackendClient(
-                base_url=backend_url,
-                api_key=backend_api_key,
-                headers=backend_headers,
-            )
-        return self._client
-
-    async def close(self) -> None:
-        """Close the executor and release the backend client."""
-        if self._client is not None:
-            await self._client.close()
-            self._client = None
-
-    async def _run_deployed(
-        self,
-        user_input: str,
-        trace: bool = False,
-        messages: list[dict[str, Any]] | None = None,
-    ) -> Union[str, Any]:
-        """Run via backend API when in deployed mode."""
-        if not self.config.agent_id:
-            raise RuntimeError("Agent not deployed. Call deploy() first.")
-        client = self._get_client()
-        msgs = messages if messages is not None else []
-        msgs.append({"role": "user", "content": user_input})
-        response_text = ""
-        async for event in client.execute(
-            agent_id=self.config.agent_id,
-            messages=msgs,
-            tools=[t.to_config() for t in self.tools],
-        ):
-            if isinstance(event, dict) and event.get("type") == "content":
-                response_text += event.get("data", {}).get("content", "")
-        msgs.append({"role": "assistant", "content": response_text})
-        return response_text
-
     async def run(
         self,
         user_input: str,
@@ -336,19 +235,12 @@ class AgentExecutor(AgentDefinition):
         force_local: bool = False,
         messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
-        """Run the agent with a user input."""
-        if self.is_deployed and not force_local:
-            return await self._run_deployed(user_input, trace=trace, messages=messages)
-        self.reset_cancel()
-        loop = self._load_loop()
-        return await loop.run(
-            self,
-            user_input,
-            trace=trace,
-            verbose=verbose,
-            stream_sse=stream_sse,
-            messages=messages,
-        )
+        """Run the agent with a user input.
+
+        Raises:
+            NotImplementedError: The execution infrastructure has been removed.
+        """
+        raise NotImplementedError("Agent execution infrastructure has been removed.")
 
     def run_sync(
         self,
@@ -359,45 +251,36 @@ class AgentExecutor(AgentDefinition):
         force_local: bool = False,
         messages: list[dict[str, Any]] | None = None,
     ) -> Union[str, Any]:
-        """Synchronous version of run()."""
-        import asyncio
+        """Synchronous version of run().
 
-        return asyncio.run(
-            self.run(
-                user_input,
-                instructions,
-                trace,
-                verbose,
-                force_local=force_local,
-                messages=messages,
-            ),
-        )
+        Raises:
+            NotImplementedError: The execution infrastructure has been removed.
+        """
+        raise NotImplementedError("Agent execution infrastructure has been removed.")
 
     async def stream(
         self,
         user_input: str,
         instructions: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """Stream response events from the agent."""
-        from tinycua_sdk.runner import Runner
+        """Stream response events from the agent.
 
-        self.reset_cancel()
-        runner = Runner(self.config, cancel_event=self.cancel_event)
-        runner.verbose = False
-        runner.trace = False
-        try:
-            async for event in runner.stream_with_tools(user_input, instructions):
-                yield event
-        finally:
-            await runner.close()
+        Raises:
+            NotImplementedError: The execution infrastructure has been removed.
+        """
+        raise NotImplementedError("Agent execution infrastructure has been removed.")
 
     def stream_sync(
         self,
         user_input: str,
         instructions: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """Alias for stream() — returns an async iterator."""
-        return self.stream(user_input, instructions)
+        """Alias for stream() — returns an async iterator.
+
+        Raises:
+            NotImplementedError: The execution infrastructure has been removed.
+        """
+        raise NotImplementedError("Agent execution infrastructure has been removed.")
 
     @staticmethod
     def execute_subprocess(

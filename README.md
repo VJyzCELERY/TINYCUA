@@ -163,41 +163,6 @@ response = agent.run("What is 5 + 3?")
 print(response)
 ```
 
-### Remote Execution (With Backend)
-
-```python
-from tinycua_sdk import Agent
-from tinycua_sdk.tools import tool
-from tinycua_sdk.clients import BackendClient
-
-# Configure backend client
-client = BackendClient(
-    base_url="http://localhost:8000",
-    email="user@example.com",
-    password="password123"
-)
-
-@tool
-def calculate(a: int, b: int) -> int:
-    """Add two numbers."""
-    return a + b
-
-agent = Agent(
-    name="math-agent",
-    instructions="You are a helpful math assistant.",
-    tools=[calculate],
-    provider="openai-compatible",
-    base_url="http://127.0.0.1:1234/v1",
-    model="qwen/qwen3.5-9b",
-    backend_client=client
-)
-
-# Deploy to backend and run remotely
-await agent.deploy()
-response = await agent.run("What is 5 + 3?")
-print(response)
-```
-
 ---
 
 ## Development Commands

@@ -12,15 +12,10 @@ if TYPE_CHECKING:
 
 
 class Agent(AgentExecutor):
-    """Thin backward-compatible class that adds lifecycle convenience wrappers.
+    """Thin backward-compatible class that extends AgentExecutor.
 
     Inherits all configuration, properties, and execution capabilities from
-    AgentExecutor (which inherits from AgentDefinition). Adds deploy(),
-    delete(), and load_agent() as thin wrappers that
-    delegate to AgentLifecycle via lazy imports.
-
-    This maintains full backward compatibility while keeping the SDK from
-    importing from tinycua at module level.
+    AgentExecutor (which inherits from AgentDefinition).
     """
 
     def __init__(
@@ -93,7 +88,6 @@ class Agent(AgentExecutor):
             backend_api_key=backend_api_key,
             backend_headers=backend_headers,
             agent_id=agent_id,
-            runner=runner,
             sub_agents=sub_agents,
             max_depth=max_depth,
             current_depth=current_depth,
@@ -102,60 +96,7 @@ class Agent(AgentExecutor):
             loop=loop,
             skills=skills,
         )
-
-    # --- Lifecycle convenience wrappers (lazy import from tinycua) ---
-
-    async def deploy(self) -> dict[str, Any]:
-        """Deploy the agent to the backend (backward-compatible wrapper).
-
-        Returns:
-            Deployment result with agent_id and status.
-
-        """
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        lifecycle = AgentLifecycle(self)
-        return await lifecycle.deploy()
-
-    async def delete(self) -> None:
-        """Delete the agent from the backend (backward-compatible wrapper)."""
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        lifecycle = AgentLifecycle(self)
-        await lifecycle.delete()
-
-    @classmethod
-    async def load_agent(
-        cls,
-        agent_id: str,
-        backend_url: str,
-        backend_api_key: str | None = None,
-        backend_headers: dict[str, str] | None = None,
-        client: Any = None,
-    ) -> Agent:
-        """Load an existing agent from the backend (backward-compatible wrapper).
-
-        Args:
-            agent_id: ID of the agent to load.
-            backend_url: Backend server URL.
-            backend_api_key: API key for authentication.
-            backend_headers: Custom headers for auth.
-            client: Optional reusable BackendClient. Pass a persistent client
-                to avoid creating ephemeral connections.
-
-        Returns:
-            Agent instance with configuration from backend.
-
-        """
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        return await AgentLifecycle.load_agent(
-            agent_id,
-            backend_url,
-            backend_api_key,
-            backend_headers,
-            client=client,
-        )
+        self.runner = runner
 
     @classmethod
     def from_template(
