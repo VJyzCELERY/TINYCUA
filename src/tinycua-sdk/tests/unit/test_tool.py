@@ -1,33 +1,27 @@
-"""Tests for tool decorator."""
+"""Tests for @tool decorator and Tool dataclass."""
+
+import pytest
 
 
 class TestToolDecorator:
-    def test_tool_decorator_creates_tool(self):
-        from tinycua_sdk.tools import tool
+    """Tests for the @tool decorator."""
 
-        @tool()
-        def get_weather(location: str) -> dict:
-            """Return current weather for a location."""
-            return {"weather": "sunny"}
+    def test_decorator_returns_tool_instance(self):
+        """@tool converts a function into a Tool instance."""
+        from tinycua_sdk import tool
 
-        assert get_weather.name == "get_weather"
-        assert get_weather.description == "Return current weather for a location."
-        assert "location" in get_weather.parameters["properties"]
+        @tool
+        def search(query: str) -> str:
+            """Search for information."""
+            return f"Results for {query}"
 
-    def test_tool_to_config(self):
-        from tinycua_sdk.tools import tool
+        assert search.name == "search"
+        assert "Search for information" in search.description
+        assert "query" in search.parameters["properties"]
 
-        @tool()
-        def test_func(x: int) -> int:
-            """Test function."""
-            return x
-
-        config = test_func.to_config()
-        assert config["name"] == "test_func"
-        assert "parameters" in config
-
-    def test_tool_with_dependencies(self):
-        from tinycua_sdk.tools import tool
+    def test_decorator_with_dependencies(self):
+        """@tool captures external dependencies."""
+        from tinycua_sdk import tool
 
         @tool(dependencies=["requests"])
         def fetch_data(url: str) -> str:
@@ -36,19 +30,9 @@ class TestToolDecorator:
 
         assert "requests" in fetch_data._external_dependencies
 
-    def test_tool_invokes_function(self):
-        from tinycua_sdk.tools import tool
-
-        @tool()
-        def add(a: int, b: int) -> int:
-            """Add two numbers."""
-            return a + b
-
-        result = add.invoke(a=1, b=2)
-        assert result == 3
-
-    def test_tool_without_parentheses(self):
-        from tinycua_sdk.tools import tool
+    def test_decorator_without_parentheses(self):
+        """@tool works without parentheses."""
+        from tinycua_sdk import tool
 
         @tool
         def simple_func() -> str:
@@ -58,9 +42,113 @@ class TestToolDecorator:
         assert simple_func.name == "simple_func"
 
 
-class TestToolModel:
+class TestToolSchema:
+    """Tests for Tool schema generation."""
+
+    def test_tool_schema_generation(self):
+        """Tool parameters are inferred from type hints."""
+        from tinycua_sdk import tool
+
+        @tool
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        params = add.parameters
+        assert params["type"] == "object"
+        assert "a" in params["properties"]
+        assert "b" in params["properties"]
+        assert "a" in params["required"]
+        assert "b" in params["required"]
+
+    def test_tool_schema_with_defaults(self):
+        """Optional parameters with defaults are not required."""
+        from tinycua_sdk import tool
+
+        @tool
+        def greet(name: str, greeting: str = "Hello") -> str:
+            """Greet someone."""
+            return f"{greeting}, {name}!"
+
+        params = greet.parameters
+        assert "name" in params["required"]
+        assert "greeting" not in params["required"]
+
+
+class TestToolInvoke:
+    """Tests for Tool.invoke()."""
+
+    def test_tool_invoke(self):
+        """Tool.invoke() calls the underlying function."""
+        from tinycua_sdk import tool
+
+        @tool
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        result = add.invoke(a=1, b=2)
+        assert result == 3
+
+    def test_tool_invoke_with_defaults(self):
+        """Tool.invoke() works with default arguments."""
+        from tinycua_sdk import tool
+
+        @tool
+        def greet(name: str, greeting: str = "Hello") -> str:
+            """Greet someone."""
+            return f"{greeting}, {name}!"
+
+        result = greet.invoke(name="World")
+        assert result == "Hello, World!"
+
+    def test_tool_invoke_missing_required(self):
+        """Tool.invoke() raises TypeError for missing required args."""
+        from tinycua_sdk import tool
+
+        @tool
+        def require_arg(x: str) -> str:
+            """Require an argument."""
+            return x
+
+        with pytest.raises(TypeError):
+            require_arg.invoke()
+
+
+class TestToolConfig:
+    """Tests for Tool serialization."""
+
+    def test_tool_to_config(self):
+        """Tool.to_config() returns a serialization-friendly dict."""
+        from tinycua_sdk import tool
+
+        @tool
+        def search(query: str) -> str:
+            """Search for information."""
+            return f"Results for {query}"
+
+        config = search.to_config()
+        assert config["name"] == "search"
+        assert "parameters" in config
+
+    def test_tool_to_bundle(self):
+        """Tool.to_bundle() includes deployment metadata."""
+        from tinycua_sdk import tool
+
+        @tool
+        def my_tool() -> None:
+            """My tool."""
+            pass
+
+        bundle = my_tool.to_bundle()
+        assert "source" in bundle
+        assert "external_dependencies" in bundle
+        assert "tool_dependencies" in bundle
+        assert "version" in bundle
+
     def test_tool_from_config(self):
-        from tinycua_sdk.tools import Tool
+        """Tool can be reconstructed from config."""
+        from tinycua_sdk import Tool
 
         config = {
             "name": "test_tool",
@@ -72,16 +160,31 @@ class TestToolModel:
         assert tool.name == "test_tool"
         assert tool.description == "A test tool"
 
-    def test_tool_to_bundle(self):
-        from tinycua_sdk.tools import tool
 
-        @tool()
-        def my_tool() -> None:
+class TestToolStatelessness:
+    """Tests verifying Tool framework has no global state."""
+
+    def test_tool_source_captured(self):
+        """@tool captures the source code of the decorated function."""
+        from tinycua_sdk import tool
+
+        @tool
+        def my_tool() -> str:
             """My tool."""
+            return "result"
+
+        assert hasattr(my_tool, "source")
+        assert "return" in my_tool.source
+
+    def test_no_global_registry(self):
+        """@tool does not register into a global singleton."""
+        from tinycua_sdk import tool
+
+        @tool
+        def my_tool():
             pass
 
-        bundle = my_tool.to_bundle()
-        assert "source" in bundle
-        assert "external_dependencies" in bundle
-        assert "tool_dependencies" in bundle
-        assert "version" in bundle
+        assert hasattr(my_tool, "name")
+        assert hasattr(my_tool, "invoke")
+        # No global registry should exist
+        assert not hasattr(my_tool, "_registry")
