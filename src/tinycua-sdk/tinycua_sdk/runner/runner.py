@@ -68,13 +68,6 @@ class Runner:
         self.verbose = False
         self.stream_sse = False
 
-        # Planning prompt for task analysis
-        self.planning_prompt = getattr(
-            self.config,
-            "planning_prompt",
-            "You are a task planning assistant. Break down the user's request into smaller, actionable todo items.",
-        )
-
         self.client = ResponsesClient(base_url=self.base_url, api_key=self.api_key)
         self.messages: list[dict[str, Any]] = []
 

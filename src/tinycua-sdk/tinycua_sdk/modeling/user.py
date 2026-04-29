@@ -67,43 +67,19 @@ class UserGoal:
 class UserModel:
     """User model for tracking preferences and context."""
 
-    def __init__(self, long_term_memory):
-        """Initialize user model.
-
-        Args:
-            long_term_memory: LongTermMemory instance for persistence
-        """
-        self.memory = long_term_memory
+    def __init__(self):
+        """Initialize user model."""
         self.preferences: dict[str, UserPreference] = {}
         self.goals: list[UserGoal] = []
         self.context: dict[str, Any] = {}
-        self._load()
 
     def _load(self) -> None:
         """Load user model from memory."""
-        data = self.memory.read_user()
-        if data:
-            try:
-                model = json.loads(data)
-                self.preferences = {
-                    k: UserPreference.from_dict(v)
-                    for k, v in model.get("preferences", {}).items()
-                }
-                self.goals = [
-                    UserGoal.from_dict(g) for g in model.get("goals", [])
-                ]
-                self.context = model.get("context", {})
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
+        pass
 
     def _save(self) -> None:
         """Save user model to memory."""
-        model = {
-            "preferences": {k: p.to_dict() for k, p in self.preferences.items()},
-            "goals": [g.to_dict() for g in self.goals],
-            "context": self.context,
-        }
-        self.memory.write_user(json.dumps(model, indent=2))
+        pass
 
     def add_preference(self, key: str, value: str, confidence: float = 1.0) -> None:
         """Add or update preference.

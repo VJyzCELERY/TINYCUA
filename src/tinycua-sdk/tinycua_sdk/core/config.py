@@ -24,15 +24,6 @@ class LLMConfig(BaseModel):
     temperature: float = 1.0
 
 
-class MemoryConfig(BaseModel):
-    """Configuration for memory/storage."""
-
-    model_config = ConfigDict(frozen=True)
-
-    database_url: str = "sqlite:///./tinycua.db"
-    embedding_dimension: int = 1536
-
-
 class LoopConfig(BaseModel):
     """Configuration for agent loop."""
 
@@ -63,7 +54,6 @@ class SDKConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
-    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     backend_url: str = "http://localhost:8000"
@@ -141,10 +131,6 @@ class SDKConfig(BaseModel):
 
         if llm_data:
             data["llm"] = llm_data
-
-        database_url = os.getenv("TINYCUA_DATABASE_URL")
-        if database_url is not None:
-            data["memory"] = {"database_url": database_url}
 
         loop_type = os.getenv("TINYCUA_LOOP_TYPE")
         if loop_type is not None:

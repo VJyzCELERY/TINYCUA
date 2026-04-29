@@ -43,57 +43,17 @@ class Personality:
 
     DEFAULT_TRAITS = PersonalityTraits()
 
-    def __init__(self, long_term_memory):
-        """Initialize personality system.
-
-        Args:
-            long_term_memory: LongTermMemory instance for persistence
-        """
-        self.memory = long_term_memory
+    def __init__(self):
+        """Initialize personality system."""
         self.traits = PersonalityTraits()
-        self._load()
-
-    def _backup_user(self) -> None:
-        """Create backup of USER.md before writes."""
-        user_file = self.memory._file_path("USER.md")
-        if user_file.exists():
-            backup_file = user_file.with_suffix(".md.bak")
-            shutil.copy2(user_file, backup_file)
-            self._cleanup_backups(user_file)
-
-    def _cleanup_backups(self, user_file: Path) -> None:
-        """Clean up old backup files.
-
-        Args:
-            user_file: Path to the user file
-        """
-        backup_files = sorted(
-            user_file.parent.glob(f"{user_file.stem}*.bak"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        for backup in backup_files[5:]:
-            backup.unlink(missing_ok=True)
 
     def _load(self) -> None:
         """Load personality from memory."""
-        data = self.memory.read_user()
-        if data:
-            try:
-                model = json.loads(data)
-                if "personality" in model:
-                    self.traits = PersonalityTraits.from_dict(model["personality"])
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
+        pass
 
     def _save(self) -> None:
         """Save personality to memory."""
-        self._backup_user()
-        data = self.memory.read_user()
-        model = json.loads(data) if data else {}
-
-        model["personality"] = self.traits.to_dict()
-        self.memory.write_user(json.dumps(model, indent=2))
+        pass
 
     def _merge_strategy(
         self, current: dict[str, Any], updates: dict[str, Any]

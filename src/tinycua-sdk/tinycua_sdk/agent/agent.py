@@ -47,7 +47,6 @@ class Agent(AgentExecutor):
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
         skills: list[str] | None = None,
-        planning_prompt: str | None = None,
     ):
         """Initialize the Agent.
 
@@ -77,9 +76,6 @@ class Agent(AgentExecutor):
             strip_thinking: Whether to strip thinking tags from responses.
             loop: Custom BaseLoop subclass instance.
             skills: List of skill names to load for the agent.
-            planning_prompt: Prompt for task planning/analysis.
-            short_term_memory: ShortTermMemory instance for session context.
-            long_term_memory: LongTermMemory instance for persistent facts.
 
         """
         super().__init__(
@@ -105,7 +101,6 @@ class Agent(AgentExecutor):
             strip_thinking=strip_thinking,
             loop=loop,
             skills=skills,
-            planning_prompt=planning_prompt,
         )
 
     # --- Lifecycle convenience wrappers (lazy import from tinycua) ---

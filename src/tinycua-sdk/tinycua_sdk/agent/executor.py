@@ -177,7 +177,6 @@ class AgentExecutor(AgentDefinition):
         strip_thinking: bool | list[str] | None = None,
         loop: Any = None,
         skills: list[str] | None = None,
-        planning_prompt: str | None = None,
     ):
         """Initialize AgentExecutor."""
         super().__init__(
@@ -202,7 +201,6 @@ class AgentExecutor(AgentDefinition):
             strip_thinking=strip_thinking,
             loop=loop,
             skills=skills,
-            planning_prompt=planning_prompt,
         )
         self._local_runner: Runner | None = None
         self._loop_cache: BaseLoop | None = None
