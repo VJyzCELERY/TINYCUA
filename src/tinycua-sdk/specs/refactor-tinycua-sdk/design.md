@@ -324,7 +324,7 @@ class AgentConfig(BaseModel):
     backend: BackendConfig = Field(default_factory=BackendConfig)
     sub_agents: list[Agent] = Field(default_factory=list)
     max_depth: int = 3
-    loop: Any = None
+    loop: BaseLoop | None = None
     strip_thinking: bool | list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:

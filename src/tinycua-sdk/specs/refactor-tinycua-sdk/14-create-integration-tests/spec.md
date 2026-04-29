@@ -56,6 +56,8 @@ tests/integration/
 - `test_run_stream` — Streaming response
 - `test_run_with_tools` — Tool calling in loop
 - `test_run_stateless` — Multiple runs are independent
+- `test_custom_loop` — Agent with custom `BaseLoop` subclass
+- `test_base_loop_default` — Default `BaseLoop()` used when `loop=None`
 
 ## Mock Strategy
 

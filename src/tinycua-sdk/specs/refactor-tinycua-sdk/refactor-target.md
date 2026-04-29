@@ -13,10 +13,10 @@ Each section maps 1-to-1 to the high-level findings in the original analysis but
 ## Design Principles
 
 ### 1. SDK Scope
-`tinycua_sdk` is a **runnable, stateless framework** for building and executing AI agents. You can create an agent in one line and run it immediately. The SDK provides the building blocks (Agent, Tool, Skill, Config, Loop) but does not manage runtime state, persistence, or infrastructure.
+`tinycua_sdk` is a **runnable, stateless framework** for building and executing AI agents. You can create an agent in one line and run it immediately. The SDK provides the building blocks (Agent, Tool, Skill, Config, BaseLoop) but does not manage runtime state, persistence, or infrastructure.
 
 **What the SDK provides:**
-- **Agent execution**: `Agent`, `AgentExecutor`, agent loop logic. Fully runnable out of the box.
+- **Agent execution**: `Agent`, `AgentExecutor`, `BaseLoop`. Fully runnable out of the box. The SDK provides only `BaseLoop`; consumers subclass it for custom behavior (e.g., ReAct).
 - **Tool framework**: `@tool` decorator, `Tool` dataclass, schema generation.
 - **Skill framework**: `Skill` dataclass, skill registry, skill loader.
 - **Configuration**: Pydantic-based config classes (`AgentConfig`, `SDKConfig`, `LLMModel`, etc.) for programmatic and file-based (YAML/JSON) agent creation.
@@ -174,7 +174,7 @@ tinycua_sdk/
     config.py          # AgentConfig, AgentPolicy
     definition.py      # AgentDefinition
     executor.py        # AgentExecutor
-    loop.py            # Loop logic
+    loop.py            # BaseLoop (extensible base class only)
     llm_model.py       # LLMModel value object
     backend_kind.py    # BackendConfig value object
     templates.py       # Agent templates
@@ -579,7 +579,6 @@ class LLMConfig(BaseModel):
 
 class LoopConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
-    type: str = "default"
     max_iterations: int = 5
 
 class SkillsConfig(BaseModel):
@@ -767,66 +766,11 @@ class Agent(AgentExecutor):
         backend: BackendConfig | None = None,
         sub_agents: list[Agent] | None = None,
         max_depth: int = 3,
-        loop: Any = None,
-        strip_thinking: bool | list[str] | None = None,
-    ):
-        ...
-
-    # --- Mutation (still stateless; mutates this instance only) ---
-    def add_tools(self, tools: Tool | list[Tool]) -> None: ...
-    def add_skills(self, skills: Skill | list[Skill]) -> None: ...
-
-    # --- Configuration serialization ---
-    def to_config(self) -> dict[str, Any]: ...
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "Agent": ...
-
-    # --- Execution ---
-    async def run(
-        self,
-        query: str,
-        messages: list[dict[str, Any]] | None = None,
-        instructions: str | None = None,
-        stream: bool = False,
-        trace: bool = False,
-        verbose: bool = False,
-    ) -> str | AsyncIterator[str]:
-        """
-        Run the agent with a user query.
-
-        Args:
-            query: The user input / task.
-            messages: Optional conversation history (consumer-managed).
-            instructions: Optional extra instructions for this turn.
-            stream: If True, return an async iterator of text chunks.
-            trace: If True, emit trace events.
-            verbose: If True, emit verbose logging.
-        """
-        ...
-```
-
-#### Usage examples
-
-**Basic usage:**
-```python
-from tinycua_sdk import Agent, LLMModel, Tool, tool
-
-@tool
-def search(query: str) -> str:
-    return f"Results for {query}"
-
-@tool
-def summarize(text: str) -> str:
-    return f"Summary: {text[:100]}..."
-
-agent = Agent(
-    llm_model=LLMModel(
-        base_url="http://localhost:1234/v1",
-        model_name="qwen3.5-9b",
-        system_prompt="You are a research assistant.",
-    ),
-    instructions="Answer questions concisely using available tools.",
-)
+        loop: BaseLoop | None = None,
+        planning_prompt=None,
+        short_term_memory=None,
+        long_term_memory=None,
+    )
 
 # Add a single tool
 agent.add_tools(search)
@@ -1058,6 +1002,8 @@ See `ROADMAP.md` for the complete stage plan, dependencies, and exit criteria.
 
 ### Refactored modules
 - [ ] `Agent` constructor accepts only: `name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `backend`, `sub_agents`, `max_depth`, `loop`, `strip_thinking`.
+- [ ] `loop` parameter accepts only `BaseLoop` instance or `None`.
+- [ ] `ReactLoop` is removed from the framework; only `BaseLoop` remains.
 - [ ] `Agent.add_tools(tool)` accepts a single tool; `Agent.add_tools([tool1, tool2])` accepts a list.
 - [ ] `Agent.add_skills(skill)` accepts a single skill; `Agent.add_skills([skill1, skill2])` accepts a list.
 - [ ] `Agent.from_config()` classmethod works for YAML/JSON config loading.
@@ -1065,6 +1011,7 @@ See `ROADMAP.md` for the complete stage plan, dependencies, and exit criteria.
 - [ ] `Agent.run()` accepts `messages` as an optional parameter; no internal message history state.
 - [ ] `Agent` does not reference session, memory, planning prompt, or system_prompt.
 - [ ] `SDKConfig` contains only: `llm`, `loop`, `skills`, `backend_url`.
+- [ ] `LoopConfig` has no `type` field; only `max_iterations`.
 - [ ] `ToolRegistry` is deleted; `@tool` decorator returns a `Tool` instance directly.
 - [ ] `SkillRegistry` is non-singleton, instantiated explicitly by the consumer.
 - [ ] All configuration classes (`AgentConfig`, `SDKConfig`, `LLMModel`, `BackendConfig`) support `from_dict()` / `to_dict()` for stateless deserialization.

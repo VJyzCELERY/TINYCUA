@@ -15,6 +15,9 @@ Refactor the `Agent` class to be stateless and fully runnable. Introduce `LLMMod
 | `agent/llm_model.py` | **New file** — `LLMModel` value object |
 | `agent/backend_kind.py` | **New file** — `BackendConfig`, `BackendKind` |
 | `agent/templates.py` | Update templates to use new config structure |
+| `agent/loop.py` | **Remove `ReactLoop`** — keep only `BaseLoop` |
+| `agent/loop_resolver.py` | Simplify to only resolve `BaseLoop` instances |
+| `agent/validator.py` | Remove `"react"` from valid loop types |
 
 ## Constructor Changes
 
@@ -57,10 +60,47 @@ Agent(
     backend=BackendConfig(),
     sub_agents=None,
     max_depth=3,
-    loop=None,
+    loop=None,  # BaseLoop instance or None (defaults to BaseLoop())
     strip_thinking=None,
 )
 ```
+
+## Loop Refactor
+
+The built-in `ReactLoop` is **removed** from the framework. The SDK provides only `BaseLoop` — a minimal, extensible base class.
+
+### `agent/loop.py` (Target)
+```python
+class BaseLoop:
+    """Minimal base class for agent execution loops."""
+    
+    def __init__(self, max_iterations: int = 5):
+        self.max_iterations = max_iterations
+    
+    async def run(self, agent, messages, tools):
+        """Execute the loop. To be overridden by subclasses."""
+        ...
+
+# DefaultLoop is an alias for BaseLoop
+DefaultLoop = BaseLoop
+
+def resolve_loop(loop_config: Any) -> BaseLoop:
+    """Resolve loop config to a BaseLoop instance.
+    
+    Only accepts:
+    - None → returns BaseLoop()
+    - BaseLoop instance → returns as-is
+    - dict with {"max_iterations": int} → returns BaseLoop(**kwargs)
+    
+    Raises ValueError for string types ("react", etc.) or unknown configs.
+    """
+    ...
+```
+
+### Removed
+- `ReactLoop` class
+- `VALID_LOOP_TYPES` set (or reduced to only `"default"`)
+- String-based loop resolution (`"react"`)
 
 ## New Classes
 
@@ -121,7 +161,7 @@ async def run(
     verbose: bool = False,
 ) -> str | AsyncIterator[str]:
     # Build prompt from llm_model.system_prompt + agent.instructions
-    # Execute agent loop
+    # Execute BaseLoop
     # Return str or async iterator
 ```
 
@@ -143,7 +183,7 @@ def from_config(cls, config: str | Path | dict[str, Any]) -> Agent:
         policy=agent_config.policy,
         backend=agent_config.backend,
         max_depth=agent_config.max_depth,
-        loop=agent_config.loop,
+        loop=agent_config.loop or BaseLoop(),
         strip_thinking=agent_config.strip_thinking,
     )
 ```
@@ -174,6 +214,9 @@ messages = [
 - [ ] `Agent.run()` returns `str` or `AsyncIterator[str]`.
 - [ ] `Agent.from_config()` works with dict, JSON file, and YAML file.
 - [ ] `Agent.to_config()` produces serialization-friendly dict.
+- [ ] `ReactLoop` is removed from `agent/loop.py`.
+- [ ] `BaseLoop` is the only loop class in the framework.
+- [ ] `resolve_loop()` only accepts `None`, `BaseLoop` instances, or `dict` with `max_iterations`.
 - [ ] New unit tests from Stage 02 pass.
 
 ## Dependencies

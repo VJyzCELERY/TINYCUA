@@ -37,6 +37,8 @@ response = await agent.run("What is quantum computing?")
 
 **R1.1** `Agent` must accept `llm_model`, `instructions`, `tools`, `skills`, `policy`, `backend`, `sub_agents`, `max_depth`, `loop`, and `strip_thinking`.
 
+**R1.1a** `loop` must accept a `BaseLoop` instance or `None`. The SDK provides only `BaseLoop`; custom loops are created by subclassing `BaseLoop` in consumer code.
+
 **R1.2** `Agent.run(query, messages, instructions, stream, trace, verbose)` must return `str` when `stream=False`, or `AsyncIterator[str]` when `stream=True`.
 
 **R1.3** `Agent.add_tools(tool_or_list)` must accept a single `Tool` or a `list[Tool]`.
@@ -83,6 +85,8 @@ response = await agent.run("What is quantum computing?")
 
 **R5.2** `SDKConfig` contains only: `llm`, `loop`, `skills`, `backend_url`.
 
+**R5.2a** `LoopConfig` contains only: `max_iterations`. No `type` field — the SDK provides only `BaseLoop`.
+
 **R5.3** `AgentConfig` contains: `name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `backend`, `sub_agents`, `max_depth`, `loop`, `strip_thinking`.
 
 ### R6 — Removed Modules
@@ -98,6 +102,7 @@ The following modules must be deleted entirely:
 - `tools/memory.py` — MemoryBackend is stateful
 - `tools/memory_tools.py` — depends on memory module
 - `skills/backend.py` — SkillBackend is stateful
+- `agent/loop.py` — `ReactLoop` is removed; only `BaseLoop` remains
 
 ## API Surface
 
@@ -109,6 +114,7 @@ from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.agent.backend_kind import BackendConfig, BackendKind
+from tinycua_sdk.agent.loop import BaseLoop
 from tinycua_sdk.tools.decorators import tool, Tool
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.core.config import SDKConfig
@@ -120,6 +126,7 @@ __all__ = [
     "LLMModel",
     "BackendConfig",
     "BackendKind",
+    "BaseLoop",
     "tool",
     "Tool",
     "Skill",
@@ -142,7 +149,7 @@ class Agent:
         backend: BackendConfig | None = None,
         sub_agents: list[Agent] | None = None,
         max_depth: int = 3,
-        loop: Any = None,
+        loop: BaseLoop | None = None,
         strip_thinking: bool | list[str] | None = None,
     ) -> None: ...
 
@@ -321,6 +328,22 @@ agent = Agent(llm_model=LLMModel())
 agent.add_skills(coder)
 ```
 
+### With Custom Loop (ReAct Pattern)
+```python
+from tinycua_sdk import Agent, LLMModel, BaseLoop
+
+class ReActLoop(BaseLoop):
+    """Consumer-defined ReAct loop extending BaseLoop."""
+    async def run(self, agent, messages, tools):
+        # Custom reasoning + acting logic
+        ...
+
+agent = Agent(
+    llm_model=LLMModel(),
+    loop=ReActLoop(max_iterations=5),
+)
+```
+
 ## Acceptance Criteria
 
 - [ ] All modules in "Removed Modules" list are deleted.
@@ -330,6 +353,8 @@ agent.add_skills(coder)
 - [ ] `ToolRegistry` singleton is deleted.
 - [ ] `SkillRegistry` is non-singleton.
 - [ ] `SDKConfig` contains only `llm`, `loop`, `skills`, `backend_url`.
+- [ ] `BaseLoop` is the only built-in loop class; `ReactLoop` is removed.
+- [ ] Custom loops are demonstrated in examples by subclassing `BaseLoop`.
 - [ ] All config classes support `from_dict()` / `to_dict()`.
 - [ ] Examples in `docs/examples/` are stateless and runnable.
 - [ ] `pytest` suite passes after deleting obsolete tests.

@@ -36,7 +36,6 @@ class LLMConfig(BaseModel):
 
 class LoopConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
-    type: str = "default"
     max_iterations: int = 5
 
 class SkillsConfig(BaseModel):
