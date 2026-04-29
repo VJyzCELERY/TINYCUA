@@ -69,6 +69,4 @@ asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (require external service running)",
     "lm_studio: marks tests that require local OpenAI-compatible server running",
-    "backend: marks tests that require backend server running",
-    "remote_runner: marks tests that require remote runner server running",
 ]

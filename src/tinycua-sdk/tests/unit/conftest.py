@@ -42,14 +42,6 @@ def temp_skill_dir(tmp_path):
 
 
 @pytest.fixture
-def temp_memory_dir(tmp_path):
-    """Temporary memory directory."""
-    memory_dir = tmp_path / "memory"
-    memory_dir.mkdir()
-    return memory_dir
-
-
-@pytest.fixture
 def mock_llm_response():
     """Mock LLM response."""
     return {"choices": [{"message": {"content": "Test response"}}]}

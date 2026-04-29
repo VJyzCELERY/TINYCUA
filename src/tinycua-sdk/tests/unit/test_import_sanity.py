@@ -24,23 +24,17 @@ class TestNoDeprecationWarnings:
             assert len(deprecation_warnings) == 0
 
 
-class TestDeprecatedRegistryPatterns:
-    """Test that deprecated registry patterns are removed."""
+class TestCoreImports:
+    """Test that core SDK imports work cleanly."""
 
-    def test_registry_import_works(self):
-        """Verify registry import works correctly."""
-        from tinycua_sdk.core.registry import ToolRegistry
+    def test_agent_import_works(self):
+        """Verify Agent import works correctly."""
+        from tinycua_sdk import Agent
 
-        registry = ToolRegistry()
-        assert registry is not None
+        assert Agent is not None
 
+    def test_tool_import_works(self):
+        """Verify tool decorator import works correctly."""
+        from tinycua_sdk import tool
 
-class TestDeprecatedStorePatterns:
-    """Test that deprecated store patterns are removed."""
-
-    def test_store_import_works(self):
-        """Verify store import works correctly."""
-        from tinycua_sdk.storage.store import SessionStore
-
-        store = SessionStore(database_url="sqlite:///:memory:")
-        assert store is not None
+        assert tool is not None
