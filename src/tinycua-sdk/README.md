@@ -55,46 +55,54 @@ TINYCUA_BASE_URL=http://localhost:1234/v1
 Run agents directly on your machine using an OpenAI-compatible endpoint:
 
 ```python
-from tinycua_sdk import Agent
-from tinycua_sdk.tools import tool
+import asyncio
+from tinycua_sdk import Agent, LLMModel, tool
 
 @tool
 def calculate(a: int, b: int) -> int:
     """Add two numbers together."""
     return a + b
 
-agent = Agent(
-    name="math-agent",
-    instructions="You are a helpful math assistant that uses tools.",
-    tools=[calculate],
-    provider="openai-compatible",
-    base_url="http://127.0.0.1:1234/v1",
-    model="qwen/qwen3.5-9b"
-)
+async def main():
+    agent = Agent(
+        name="math-agent",
+        instructions="You are a helpful math assistant that uses tools.",
+        llm_model=LLMModel(
+            provider="openai-compatible",
+            base_url="http://127.0.0.1:1234/v1",
+            model_name="qwen/qwen3.5-9b",
+        ),
+    )
+    agent.add_tools(calculate)
 
-# Run locally - no backend required
-response = agent.run("What is 5 + 3? Use the add_numbers tool.")
-print(response)
+    # Run locally - no backend required
+    response = await agent.run("What is 5 + 3? Use the calculate tool.")
+    print(response)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Examples
 
-The SDK includes example scripts in the `examples/` directory:
+The SDK includes example scripts in the `docs/examples/` directory:
 
 | Example | Description |
 |---------|-------------|
-| `01_agent_basic.py` | Basic agent with tools, local execution |
-| `02_agent_streaming.py` | Streaming responses with tools |
-| `05_agent_hierarchy.py` | Agent hierarchies and sub-agents |
-| `10_custom_loop.py` | Custom loop implementation |
-| `12_skills_example.py` | Skills and toolsets |
+| `01_basic_agent.py` | Basic agent with LLMModel |
+| `02_tools.py` | Agent with `@tool` decorator and `add_tools()` |
+| `03_skills.py` | Agent with `Skill.load()` and `add_skills()` |
+| `04_config_file.py` | Agent from YAML config (`Agent.from_config()`) |
+| `05_streaming.py` | Streaming responses with `stream=True` |
+| `06_sub_agents.py` | Agent composition and sub-agent delegation |
+| `07_custom_loop.py` | Custom ReAct loop extending `BaseLoop` |
 
 ### Running Examples
 
 ```bash
-# Local execution (no backend)
+# Local execution (requires OpenAI-compatible server running)
 cd src/tinycua-sdk
-python examples/01_agent_basic.py
+python docs/examples/01_basic_agent.py
 ```
 
 ---
