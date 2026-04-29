@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 from tinycua_sdk import Agent
-from tinycua_sdk.skills.loader import SkillLoader
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool, create_skill_view_tool
 from tinycua_sdk.tools import tool
@@ -47,6 +47,18 @@ This is a test skill called {name}. {description}
     return skill_dir
 
 
+def load_skills_from_directory(base_dir: Path, registry: SkillRegistry) -> None:
+    """Load all skills from a directory into a registry."""
+    for entry in sorted(base_dir.iterdir()):
+        if entry.is_dir() and not entry.name.startswith("."):
+            skill_md = entry / "SKILL.md"
+            if skill_md.exists():
+                content = skill_md.read_text(encoding="utf-8")
+                skill = Skill.load(content)
+                skill.source = str(entry)
+                registry.register(skill)
+
+
 # =============================================================================
 # Example 1: Basic Skill Discovery
 # =============================================================================
@@ -66,8 +78,9 @@ async def example_skill_discovery():
         create_test_skill(base_dir, "data-analysis", "Analyzes data", ["pandas"])
         
         # Load skills
-        loader = SkillLoader()
-        skills = loader.discover_skills(base_dir)
+        registry = SkillRegistry()
+        load_skills_from_directory(base_dir, registry)
+        skills = registry.list_skills()
         
         print(f"\nDiscovered {len(skills)} skills:")
         for skill in skills:
@@ -95,7 +108,7 @@ async def example_skill_registry():
         
         # Load into registry
         registry = SkillRegistry()
-        registry.load_skills_from_directory(base_dir)
+        load_skills_from_directory(base_dir, registry)
         
         print(f"\nRegistered {registry.count} skills")
         
@@ -108,7 +121,7 @@ async def example_skill_registry():
         print(f"Test category: {[s.name for s in test_skills]}")
         
         # Get specific skill
-        skill = registry.get_skill("math-helper")
+        skill = registry.get("math-helper")
         if skill:
             print(f"\nGot skill 'math-helper': {skill.description}")
         
@@ -136,7 +149,7 @@ async def example_skill_tools():
         
         # Load into registry
         registry = SkillRegistry()
-        registry.load_skills_from_directory(base_dir)
+        load_skills_from_directory(base_dir, registry)
         
         # Create tools
         list_tool = create_skills_list_tool(registry)

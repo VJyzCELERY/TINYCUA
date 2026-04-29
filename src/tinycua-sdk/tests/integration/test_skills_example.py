@@ -14,10 +14,9 @@ import tempfile
 from pathlib import Path
 
 from tinycua_sdk import Agent
-from tinycua_sdk.skills.loader import SkillLoader
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool, create_skill_view_tool
-from tinycua_sdk.skills.models import Skill
 
 
 # =============================================================================
@@ -76,11 +75,26 @@ This skill analyzes data.
         yield base_dir
 
 
+def _load_skills_from_directory(base_dir: Path) -> list[Skill]:
+    """Helper to load skills from a directory."""
+    skills = []
+    for entry in sorted(base_dir.iterdir()):
+        if entry.is_dir() and not entry.name.startswith("."):
+            skill_md = entry / "SKILL.md"
+            if skill_md.exists():
+                content = skill_md.read_text(encoding="utf-8")
+                skill = Skill.load(content)
+                skill.source = str(entry)
+                skills.append(skill)
+    return skills
+
+
 @pytest.fixture
 def skill_registry(temp_skill_dir):
     """Create a registry with loaded skills."""
     registry = SkillRegistry()
-    registry.load_skills_from_directory(temp_skill_dir)
+    for skill in _load_skills_from_directory(temp_skill_dir):
+        registry.register(skill)
     return registry
 
 
@@ -93,8 +107,7 @@ class TestSkillDiscovery:
 
     def test_discover_skills(self, temp_skill_dir):
         """Test discovering skills from directory."""
-        loader = SkillLoader()
-        skills = loader.discover_skills(temp_skill_dir)
+        skills = _load_skills_from_directory(temp_skill_dir)
         
         assert len(skills) == 3
         skill_names = [s.name for s in skills]
@@ -104,8 +117,7 @@ class TestSkillDiscovery:
 
     def test_discover_skills_with_category(self, temp_skill_dir):
         """Test discovering skills filtered by category."""
-        loader = SkillLoader()
-        skills = loader.discover_skills(temp_skill_dir)
+        skills = _load_skills_from_directory(temp_skill_dir)
         
         tools_skills = [s for s in skills if s.category == "tools"]
         assert len(tools_skills) == 2
@@ -115,8 +127,7 @@ class TestSkillDiscovery:
 
     def test_skill_metadata(self, temp_skill_dir):
         """Test skill metadata parsing."""
-        loader = SkillLoader()
-        skills = loader.discover_skills(temp_skill_dir)
+        skills = _load_skills_from_directory(temp_skill_dir)
         
         math_skill = next(s for s in skills if s.name == "math-helper")
         assert math_skill.description == "Helps with math calculations"
@@ -140,13 +151,13 @@ class TestSkillRegistry:
 
     def test_registry_get(self, skill_registry):
         """Test getting skill by name."""
-        skill = skill_registry.get_skill("math-helper")
+        skill = skill_registry.get("math-helper")
         assert skill is not None
         assert skill.description == "Helps with math calculations"
 
     def test_registry_get_not_found(self, skill_registry):
         """Test getting skill that doesn't exist."""
-        skill = skill_registry.get_skill("nonexistent")
+        skill = skill_registry.get("nonexistent")
         assert skill is None
 
     def test_registry_categories(self, skill_registry):

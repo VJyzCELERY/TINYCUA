@@ -1,18 +1,15 @@
-# Unit tests for Skills Loader
+# Unit tests for Skill.load()
 
 import pytest
-from tinycua_sdk.skills.loader import SkillLoader, SkillParseError, SkillNotFoundError
+from tinycua_sdk.skills.models import Skill
 
 
-class TestSkillLoader:
-    """Tests for the SkillLoader class."""
+class TestSkillLoad:
+    """Tests for Skill.load() classmethod."""
 
-    def test_load_skill_basic(self, tmp_path):
-        """Test loading a basic skill."""
-        skill_dir = tmp_path / "test_skill"
-        skill_dir.mkdir()
-        skill_md = skill_dir / "SKILL.md"
-        skill_md.write_text(
+    def test_load_skill_basic(self):
+        """Test loading a basic skill from markdown text."""
+        text = (
             "---\n"
             'name: "Test Skill"\n'
             'description: "A test skill"\n'
@@ -27,9 +24,7 @@ class TestSkillLoader:
             "## Instructions\n"
             "Detailed instructions for the agent...\n"
         )
-
-        loader = SkillLoader()
-        skill = loader.load_skill(skill_dir)
+        skill = Skill.load(text)
 
         assert skill.name == "Test Skill"
         assert skill.description == "A test skill"
@@ -39,21 +34,18 @@ class TestSkillLoader:
         assert "dep_one" in skill.dependencies
         assert "Detailed instructions" in skill.instructions
 
-    def test_load_skill_missing_skill_md(self, tmp_path):
-        """Test loading from a directory without SKILL.md."""
-        skill_dir = tmp_path / "missing_skill"
-        skill_dir.mkdir()
+    def test_load_skill_no_frontmatter(self):
+        """Test loading markdown without YAML frontmatter."""
+        text = "# Helper\n\n## Description\nA simple helper skill.\n\n## Instructions\nDo something helpful.\n"
+        skill = Skill.load(text)
 
-        loader = SkillLoader()
-        with pytest.raises(SkillNotFoundError):
-            loader.load_skill(skill_dir)
+        assert skill.name == "unnamed"
+        assert skill.description == "A simple helper skill."
+        assert "Do something helpful" in skill.instructions
 
-    def test_load_skill_invalid_yaml(self, tmp_path):
+    def test_load_skill_invalid_yaml(self):
         """Test handling of invalid YAML in frontmatter."""
-        skill_dir = tmp_path / "invalid_skill"
-        skill_dir.mkdir()
-        skill_md = skill_dir / "SKILL.md"
-        skill_md.write_text(
+        text = (
             "---\n"
             'name: "Invalid Skill"\n'
             "description: This has invalid yaml:\n"
@@ -64,84 +56,48 @@ class TestSkillLoader:
             "This should fail.\n"
         )
 
-        loader = SkillLoader()
-        with pytest.raises(SkillParseError):
-            loader.load_skill(skill_dir)
+        with pytest.raises(ValueError, match="Invalid YAML"):
+            Skill.load(text)
 
-    def test_discover_skills_multiple(self, tmp_path):
-        """Test discovering multiple skills."""
-        for i in range(1, 4):
-            skill_dir = tmp_path / f"skill_{i}"
-            skill_dir.mkdir()
-            skill_md = skill_dir / "SKILL.md"
-            skill_md.write_text(
-                f"---\n"
-                f'name: "Skill {i}"\n'
-                f'description: "Skill {i} description"\n'
-                f'category: "test"\n'
-                f"---\n"
-                f"\n"
-                f"## Instructions\n"
-                f"Instructions for skill {i}\n"
-            )
+    def test_load_skill_invalid_frontmatter_format(self):
+        """Test handling of malformed frontmatter."""
+        text = "---\nname: test\n"
 
-        loader = SkillLoader()
-        skills = loader.discover_skills(tmp_path)
+        with pytest.raises(ValueError, match="Invalid YAML frontmatter"):
+            Skill.load(text)
 
-        assert len(skills) == 3
-        skill_names = [s.name for s in skills]
-        assert "Skill 1" in skill_names
-        assert "Skill 2" in skill_names
-        assert "Skill 3" in skill_names
-
-    def test_discover_skills_empty_directory(self, tmp_path):
-        """Test discovering skills in an empty directory."""
-        loader = SkillLoader()
-        skills = loader.discover_skills(tmp_path)
-
-        assert len(skills) == 0
-
-    def test_discover_skills_nested(self, tmp_path):
-        """Test that discover_skills only finds direct children."""
-        parent_dir = tmp_path / "parent_skill"
-        parent_dir.mkdir()
-        (parent_dir / "SKILL.md").write_text(
+    def test_load_skill_with_sections(self):
+        """Test parsing description and instructions sections."""
+        text = (
             "---\n"
-            'name: "Parent Skill"\n'
-            'description: "Parent"\n'
-            'category: "test"\n'
+            'name: "Sectioned Skill"\n'
             "---\n"
             "\n"
-            "## Instructions\n"
-            "Parent instructions.\n"
-        )
-
-        child_dir = parent_dir / "child_skill"
-        child_dir.mkdir()
-        (child_dir / "SKILL.md").write_text(
-            "---\n"
-            'name: "Child Skill"\n'
-            'description: "Child"\n'
-            'category: "test"\n'
-            "---\n"
+            "## Description\n"
+            "This is the description.\n"
             "\n"
             "## Instructions\n"
-            "Child instructions.\n"
+            "This is the instruction.\n"
+            "\n"
+            "## Tools\n"
+            "- tool_a\n"
         )
+        skill = Skill.load(text)
 
-        loader = SkillLoader()
-        skills = loader.discover_skills(tmp_path)
+        assert skill.name == "Sectioned Skill"
+        assert skill.description == "This is the description."
+        assert "This is the instruction." in skill.instructions
 
-        # Should only find parent skill (direct child)
-        assert len(skills) == 1
-        assert skills[0].name == "Parent Skill"
+    def test_load_skill_empty_text(self):
+        """Test loading empty text."""
+        skill = Skill.load("")
+        assert skill.name == "unnamed"
+        assert skill.description == ""
+        assert skill.instructions == ""
 
-    def test_load_skill_with_special_chars(self, tmp_path):
+    def test_load_skill_special_chars(self):
         """Test loading a skill with special characters in content."""
-        skill_dir = tmp_path / "special_skill"
-        skill_dir.mkdir()
-        skill_md = skill_dir / "SKILL.md"
-        skill_md.write_text(
+        text = (
             "---\n"
             'name: "Special Skill"\n'
             'description: "Testing special chars"\n'
@@ -154,9 +110,7 @@ class TestSkillLoader:
             "print('hello')\n"
             "```\n"
         )
-
-        loader = SkillLoader()
-        skill = loader.load_skill(skill_dir)
+        skill = Skill.load(text)
 
         assert skill.name == "Special Skill"
         assert "```python" in skill.instructions

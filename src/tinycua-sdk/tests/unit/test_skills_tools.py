@@ -15,10 +15,10 @@ class TestSkillsTools:
     def test_skills_list_basic(self):
         """Test skills_list returns all skills."""
         registry = SkillRegistry()
-        registry.register_skill(
+        registry.register(
             Skill(name="Skill A", description="Desc A", category="cat1")
         )
-        registry.register_skill(
+        registry.register(
             Skill(name="Skill B", description="Desc B", category="cat2")
         )
 
@@ -31,10 +31,10 @@ class TestSkillsTools:
     def test_skills_list_with_category_filter(self):
         """Test skills_list filters by category."""
         registry = SkillRegistry()
-        registry.register_skill(
+        registry.register(
             Skill(name="Tool Skill", description="Desc", category="tools")
         )
-        registry.register_skill(
+        registry.register(
             Skill(name="Mem Skill", description="Desc", category="memory")
         )
 
@@ -47,7 +47,7 @@ class TestSkillsTools:
     def test_skill_view_basic(self):
         """Test skill_view returns full skill details."""
         registry = SkillRegistry()
-        registry.register_skill(
+        registry.register(
             Skill(
                 name="Test Skill",
                 description="Test description",

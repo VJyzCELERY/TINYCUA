@@ -2,7 +2,7 @@
 
 import time
 
-from tinycua_sdk.skills.cache import SkillCache
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 
 
@@ -32,45 +32,18 @@ class TestSkillsColdStart:
         # Measure cold start time
         start = time.time()
         registry = SkillRegistry()
-        registry.load_skills_from_directory(tmp_path)
+        for entry in sorted(tmp_path.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                skill_md = entry / "SKILL.md"
+                if skill_md.exists():
+                    content = skill_md.read_text(encoding="utf-8")
+                    skill = Skill.load(content)
+                    skill.source = str(entry)
+                    registry.register(skill)
         elapsed = time.time() - start
 
         assert elapsed < 2.0, f"Cold start took {elapsed:.2f}s, expected < 2s"
         assert len(registry.list_skills()) == 10
-
-    def test_cold_start_with_cache(self, tmp_path):
-        """Test cold start with pre-loaded cache is faster."""
-        # Create 10 skill directories
-        for i in range(10):
-            skill_dir = tmp_path / f"skill_{i}"
-            skill_dir.mkdir()
-            (skill_dir / "SKILL.md").write_text(
-                f"---\n"
-                f'name: "Skill {i}"\n'
-                f'description: "Test skill {i}"\n'
-                f'category: "test"\n'
-                f"---\n"
-                f"\n"
-                f"## Instructions\n"
-                f"Instructions for skill {i}.\n"
-            )
-
-        # First load (cold)
-        registry1 = SkillRegistry()
-        start1 = time.time()
-        registry1.load_skills_from_directory(tmp_path)
-        cold_time = time.time() - start1
-
-        # Second load with cache (warm)
-        cache = SkillCache(snapshot_dir=tmp_path / ".cache")
-        cache.load_snapshot()
-        registry2 = SkillRegistry(cache=cache)
-        start2 = time.time()
-        registry2.load_skills_from_directory(tmp_path)
-        warm_time = time.time() - start2
-
-        # Warm should be faster or equal
-        assert warm_time <= cold_time
 
     def test_skills_list_and_view(self, tmp_path):
         """Test skills_list and skill_view tools work end-to-end."""
@@ -93,7 +66,14 @@ class TestSkillsColdStart:
 
         # Load skills
         registry = SkillRegistry()
-        registry.load_skills_from_directory(tmp_path)
+        for entry in sorted(tmp_path.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                skill_md = entry / "SKILL.md"
+                if skill_md.exists():
+                    content = skill_md.read_text(encoding="utf-8")
+                    skill = Skill.load(content)
+                    skill.source = str(entry)
+                    registry.register(skill)
 
         # Test skills_list
         from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool
@@ -107,6 +87,7 @@ class TestSkillsColdStart:
 
         # Test skill_view
         from tinycua_sdk.tools.native.skills_tools import create_skill_view_tool
+
         view_tool = create_skill_view_tool(registry)
         result = view_tool.invoke(skill_name="Test Skill")
 

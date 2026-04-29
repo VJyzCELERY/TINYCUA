@@ -52,6 +52,53 @@ class TestSkillConstruction:
         assert d["name"] == "coder"
         assert d["category"] == "dev"
 
+    def test_skill_from_dict(self):
+        """Skill.from_dict() reconstructs a Skill."""
+        from tinycua_sdk import Skill
+
+        data = {
+            "name": "coder",
+            "description": "Write code",
+            "category": "dev",
+            "instructions": "Write clean code.",
+            "tools": ["read_file"],
+            "dependencies": ["git"],
+            "source": "inline",
+            "metadata": {"author": "test"},
+            "is_active": False,
+            "version": "2.0.0",
+        }
+        skill = Skill.from_dict(data)
+        assert skill.name == "coder"
+        assert skill.description == "Write code"
+        assert skill.category == "dev"
+        assert skill.instructions == "Write clean code."
+        assert skill.tools == ["read_file"]
+        assert skill.dependencies == ["git"]
+        assert skill.source == "inline"
+        assert skill.metadata == {"author": "test"}
+        assert skill.is_active is False
+        assert skill.version == "2.0.0"
+
+    def test_skill_round_trip_dict(self):
+        """Skill.to_dict() and Skill.from_dict() are round-trippable."""
+        from tinycua_sdk import Skill
+
+        original = Skill(
+            name="coder",
+            description="Write code",
+            category="dev",
+            instructions="Write clean code.",
+            tools=["read_file"],
+            dependencies=["git"],
+            source="inline",
+            metadata={"author": "test"},
+            is_active=False,
+            version="2.0.0",
+        )
+        restored = Skill.from_dict(original.to_dict())
+        assert restored == original
+
 
 class TestSkillLoad:
     """Tests for Skill.load() from Markdown."""
@@ -79,6 +126,8 @@ Find accurate information from reliable sources.
         assert skill.name == "researcher"
         assert skill.category == "research"
         assert "search" in skill.tools
+        assert skill.description == "Research topics thoroughly."
+        assert "Find accurate information" in skill.instructions
 
     def test_skill_load_without_frontmatter(self):
         """Skill.load() works without YAML frontmatter."""
@@ -87,7 +136,31 @@ Find accurate information from reliable sources.
         text = "# Helper\n\n## Description\nA simple helper skill."
         skill = Skill.load(text)
         assert skill.name == "unnamed"
-        assert skill.description == ""
+        assert skill.description == "A simple helper skill."
+
+    def test_skill_load_invalid_yaml(self):
+        """Skill.load() raises ValueError for invalid YAML."""
+        from tinycua_sdk import Skill
+
+        text = "---\nname: test\n  invalid yaml:\n---\n"
+        with pytest.raises(ValueError, match="Invalid YAML"):
+            Skill.load(text)
+
+    def test_skill_load_invalid_frontmatter_format(self):
+        """Skill.load() raises ValueError for malformed frontmatter."""
+        from tinycua_sdk import Skill
+
+        text = "---\nonly one delimiter"
+        with pytest.raises(ValueError, match="Invalid YAML frontmatter"):
+            Skill.load(text)
+
+    def test_skill_load_no_sections(self):
+        """Skill.load() uses full markdown as instructions when no sections."""
+        from tinycua_sdk import Skill
+
+        text = "Just some plain text."
+        skill = Skill.load(text)
+        assert skill.instructions == "Just some plain text."
 
 
 class TestSkillRegistry:
@@ -119,6 +192,16 @@ class TestSkillRegistry:
         retrieved = registry.get("coder")
         assert retrieved is not None
         assert retrieved.name == "coder"
+
+    def test_registry_unregister(self):
+        """SkillRegistry can unregister skills."""
+        from tinycua_sdk import SkillRegistry, Skill
+
+        registry = SkillRegistry()
+        registry.register(Skill(name="coder"))
+        registry.unregister("coder")
+        assert registry.get("coder") is None
+        assert registry.count == 0
 
     def test_registry_list_skills(self):
         """SkillRegistry.list_skills() returns all skills."""

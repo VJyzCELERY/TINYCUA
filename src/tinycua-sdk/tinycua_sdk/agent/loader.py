@@ -8,6 +8,7 @@ import yaml
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.skill_resolver import SkillActivator, SkillToolResolver
 from tinycua_sdk.agent.tool_resolver import ToolResolver
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool
 
@@ -31,7 +32,6 @@ class AgentLoader:
     """Loads agent configurations from AGENT.md files.
 
     Parses YAML frontmatter for metadata and Markdown for instructions.
-    Similar to SkillLoader but for agent configurations.
     """
 
     def load_from_markdown(self, path: Path) -> AgentConfig:
@@ -279,7 +279,17 @@ class AgentLoader:
                     skill_dir, [Path.cwd(), Path.home()]
                 )
                 if validated_path.exists() and validated_path.is_dir():
-                    skill_registry.load_skills_from_directory(validated_path)
+                    for entry in sorted(validated_path.iterdir()):
+                        if entry.is_dir() and not entry.name.startswith("."):
+                            skill_md = entry / "SKILL.md"
+                            if skill_md.exists():
+                                try:
+                                    content = skill_md.read_text(encoding="utf-8")
+                                    skill = Skill.load(content)
+                                    skill.source = str(entry)
+                                    skill_registry.register(skill)
+                                except (OSError, ValueError) as e:
+                                    logging.warning(f"Failed to load skill from '{entry}': {e}")
             except ValueError as e:
                 logging.warning(f"Skipping invalid skill directory '{skill_dir}': {e}")
             except (OSError, ValueError, TypeError) as e:
@@ -304,7 +314,7 @@ class AgentLoader:
             if skill_name in loaded_skills:
                 return
 
-            skill = skill_registry.get_skill(skill_name)
+            skill = skill_registry.get(skill_name)
             if not skill:
                 logging.warning(f"Skill '{skill_name}' not found in registry")
                 return

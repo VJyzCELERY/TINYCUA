@@ -69,7 +69,7 @@ def create_skill_view_tool(registry: SkillRegistry):
         Raises:
             ValueError: If skill not found
         """
-        skill = registry.get_skill(skill_name)
+        skill = registry.get(skill_name)
 
         if skill is None:
             raise ValueError(f"Skill '{skill_name}' not found")

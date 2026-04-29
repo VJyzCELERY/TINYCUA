@@ -21,6 +21,8 @@ from tinycua_sdk.models.response import (
 from tinycua_sdk.models.result import PlanRunResult, RunResult, ToolCall
 from tinycua_sdk.models.task import PlanningResult, TaskPlan, TodoItem
 from tinycua_sdk.core.config import SDKConfig
+from tinycua_sdk.skills.models import Skill
+from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool, tool
 
 
@@ -30,6 +32,8 @@ __all__ = [
     "AgentPolicy",
     "AgentDefinition",
     "AgentExecutor",
+    "Skill",
+    "SkillRegistry",
     "Tool",
     "tool",
     "Message",

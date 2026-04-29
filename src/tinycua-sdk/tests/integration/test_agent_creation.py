@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.config import AgentPolicy
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 
 
@@ -56,7 +57,14 @@ class TestAgentCreation:
         )
 
         registry = SkillRegistry()
-        registry.load_skills_from_directory(tmp_path)
+        for entry in sorted(tmp_path.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                skill_md = entry / "SKILL.md"
+                if skill_md.exists():
+                    content = skill_md.read_text(encoding="utf-8")
+                    skill = Skill.load(content)
+                    skill.source = str(entry)
+                    registry.register(skill)
 
         agent = Agent(
             name="skill-agent",

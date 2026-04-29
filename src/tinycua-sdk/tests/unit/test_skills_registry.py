@@ -7,29 +7,45 @@ from tinycua_sdk.skills.models import Skill
 class TestSkillRegistry:
     """Tests for the SkillRegistry class."""
 
-    def test_register_skill(self):
+    def test_register(self):
         """Test registering a skill."""
         registry = SkillRegistry()
         skill = Skill(name="Test Skill", description="Test")
 
-        registry.register_skill(skill)
+        registry.register(skill)
 
-        assert registry.get_skill("Test Skill") == skill
+        assert registry.get("Test Skill") == skill
         assert registry.count == 1
 
-    def test_get_skill_not_found(self):
+    def test_get_not_found(self):
         """Test getting a non-existent skill."""
         registry = SkillRegistry()
 
-        assert registry.get_skill("NonExistent") is None
+        assert registry.get("NonExistent") is None
+
+    def test_unregister(self):
+        """Test unregistering a skill."""
+        registry = SkillRegistry()
+        registry.register(Skill(name="Test Skill"))
+
+        registry.unregister("Test Skill")
+
+        assert registry.get("Test Skill") is None
+        assert registry.count == 0
+
+    def test_unregister_nonexistent(self):
+        """Test unregistering a skill that doesn't exist."""
+        registry = SkillRegistry()
+        registry.unregister("NonExistent")  # Should not raise
+        assert registry.count == 0
 
     def test_list_skills(self):
         """Test listing all skills."""
         registry = SkillRegistry()
 
-        registry.register_skill(Skill(name="Skill A", category="cat1"))
-        registry.register_skill(Skill(name="Skill B", category="cat2"))
-        registry.register_skill(Skill(name="Skill C", category="cat1"))
+        registry.register(Skill(name="Skill A", category="cat1"))
+        registry.register(Skill(name="Skill B", category="cat2"))
+        registry.register(Skill(name="Skill C", category="cat1"))
 
         skills = registry.list_skills()
 
@@ -41,9 +57,9 @@ class TestSkillRegistry:
         """Test listing skills with category filter."""
         registry = SkillRegistry()
 
-        registry.register_skill(Skill(name="Skill A", category="tools"))
-        registry.register_skill(Skill(name="Skill B", category="tools"))
-        registry.register_skill(Skill(name="Skill C", category="memory"))
+        registry.register(Skill(name="Skill A", category="tools"))
+        registry.register(Skill(name="Skill B", category="tools"))
+        registry.register(Skill(name="Skill C", category="memory"))
 
         skills = registry.list_skills(category="tools")
 
@@ -54,9 +70,9 @@ class TestSkillRegistry:
         """Test getting all unique categories."""
         registry = SkillRegistry()
 
-        registry.register_skill(Skill(name="S1", category="tools"))
-        registry.register_skill(Skill(name="S2", category="tools"))
-        registry.register_skill(Skill(name="S3", category="memory"))
+        registry.register(Skill(name="S1", category="tools"))
+        registry.register(Skill(name="S2", category="tools"))
+        registry.register(Skill(name="S3", category="memory"))
 
         categories = registry.get_categories()
 
@@ -66,33 +82,22 @@ class TestSkillRegistry:
         """Test clearing all skills."""
         registry = SkillRegistry()
 
-        registry.register_skill(Skill(name="S1"))
-        registry.register_skill(Skill(name="S2"))
+        registry.register(Skill(name="S1"))
+        registry.register(Skill(name="S2"))
 
         registry.clear()
 
         assert registry.count == 0
 
-    def test_load_skills_from_directory(self, tmp_path):
-        """Test loading skills from a directory."""
-        # Create skill directories
-        for i in range(1, 3):
-            skill_dir = tmp_path / f"skill_{i}"
-            skill_dir.mkdir()
-            skill_md = skill_dir / "SKILL.md"
-            skill_md.write_text(
-                f"---\n"
-                f'name: "Skill {i}"\n'
-                f'description: "Skill {i} desc"\n'
-                f'category: "test"\n'
-                f"---\n"
-                f"\n"
-                f"## Instructions\n"
-                f"Test instructions.\n"
-            )
+    def test_registry_instances_are_independent(self):
+        """Test that two SkillRegistry instances are independent."""
+        r1 = SkillRegistry()
+        r2 = SkillRegistry()
 
-        registry = SkillRegistry()
-        skills = registry.load_skills_from_directory(tmp_path)
+        r1.register(Skill(name="only_in_r1"))
+        r2.register(Skill(name="only_in_r2"))
 
-        assert len(skills) == 2
-        assert registry.count == 2
+        assert r1.get("only_in_r1") is not None
+        assert r1.get("only_in_r2") is None
+        assert r2.get("only_in_r1") is None
+        assert r2.get("only_in_r2") is not None

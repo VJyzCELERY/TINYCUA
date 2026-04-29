@@ -1,8 +1,5 @@
 # Unit tests for Skills Cache
 
-from pathlib import Path
-from datetime import datetime
-
 from tinycua_sdk.skills.cache import SkillCache
 from tinycua_sdk.skills.models import Skill
 
@@ -57,35 +54,6 @@ class TestSkillCache:
         cache.clear()
 
         assert cache.size == 0
-
-    def test_save_and_load_snapshot(self, tmp_path):
-        """Test disk snapshot persistence."""
-        cache = SkillCache(snapshot_dir=tmp_path)
-
-        cache.put("skill1", Skill(name="Skill 1", description="Desc 1"))
-        cache.put("skill2", Skill(name="Skill 2", description="Desc 2"))
-
-        cache.save_snapshot()
-
-        # Create new cache and load snapshot
-        cache2 = SkillCache(snapshot_dir=tmp_path)
-        cache2.load_snapshot()
-
-        assert cache2.get("skill1") is not None
-        assert cache2.get("skill2") is not None
-
-    def test_invalidate_if_stale(self):
-        """Test stale checking based on modification time."""
-        cache = SkillCache(check_modification=True)
-
-        skill = Skill(
-            name="Test",
-            path=Path("/nonexistent"),
-            modified_at=datetime.now(),
-        )
-
-        # Non-existent path should be stale
-        assert cache.invalidate_if_stale(skill) is True
 
     def test_access_order_tracking(self):
         """Test that access order is tracked for LRU."""
