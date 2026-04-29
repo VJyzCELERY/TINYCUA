@@ -55,7 +55,7 @@ def _substitute_env_vars(data: dict[str, Any]) -> dict[str, Any]:
         else:
             return value
 
-    return substitute_value
+    return substitute_value(data)
 
 
 class AgentPolicy(BaseModel):

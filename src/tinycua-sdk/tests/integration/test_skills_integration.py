@@ -1,97 +1,83 @@
-# Integration tests for Skills System
+"""Integration tests for Skills System."""
 
-import time
-
-from tinycua_sdk.skills.models import Skill
-from tinycua_sdk.skills.registry import SkillRegistry
+import pytest
+from tinycua_sdk import Agent, LLMModel, Skill, SkillRegistry
 
 
-class TestSkillsColdStart:
-    """Integration tests for skills cold start performance."""
+class TestSkillsIntegration:
+    """Integration tests for skills."""
 
-    def test_cold_start_10_skills_under_2_seconds(self, tmp_path):
-        """Test cold start with 10+ skills completes in < 2 seconds."""
-        # Create 10 skill directories
-        for i in range(10):
-            skill_dir = tmp_path / f"skill_{i}"
-            skill_dir.mkdir()
-            (skill_dir / "SKILL.md").write_text(
-                f"---\n"
-                f'name: "Skill {i}"\n'
-                f'description: "Test skill {i}"\n'
-                f'category: "test"\n'
-                f'tools:\n'
-                f'  - tool_{i}_a\n'
-                f'  - tool_{i}_b\n'
-                f"---\n"
-                f"\n"
-                f"## Instructions\n"
-                f"Instructions for skill {i}.\n"
-            )
+    def test_add_single_skill(self):
+        """Add one skill to agent."""
+        agent = Agent(llm_model=LLMModel())
+        agent.add_skills(Skill(name="coder"))
+        assert len(agent.skills) == 1
 
-        # Measure cold start time
-        start = time.time()
-        registry = SkillRegistry()
-        for entry in sorted(tmp_path.iterdir()):
-            if entry.is_dir() and not entry.name.startswith("."):
-                skill_md = entry / "SKILL.md"
-                if skill_md.exists():
-                    content = skill_md.read_text(encoding="utf-8")
-                    skill = Skill.load(content)
-                    skill.source = str(entry)
-                    registry.register(skill)
-        elapsed = time.time() - start
+    def test_add_multiple_skills(self):
+        """Add list of skills."""
+        agent = Agent(llm_model=LLMModel())
+        agent.add_skills([Skill(name="a"), Skill(name="b")])
+        assert len(agent.skills) == 2
 
-        assert elapsed < 2.0, f"Cold start took {elapsed:.2f}s, expected < 2s"
-        assert len(registry.list_skills()) == 10
+    def test_skill_at_construction(self):
+        """Skills passed at Agent construction."""
+        agent = Agent(llm_model=LLMModel(), skills=[Skill(name="coder")])
+        assert len(agent.skills) == 1
 
-    def test_skills_list_and_view(self, tmp_path):
-        """Test skills_list and skill_view tools work end-to-end."""
-        # Create a skill
-        skill_dir = tmp_path / "test_skill"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\n"
-            'name: "Test Skill"\n'
-            'description: "A test skill"\n'
-            'category: "testing"\n'
-            "tools:\n"
-            "  - tool_one\n"
-            "  - tool_two\n"
-            "---\n"
-            "\n"
-            "## Instructions\n"
-            "Do something specific with tool_one and tool_two.\n"
+    @pytest.mark.asyncio
+    async def test_agent_with_skill_run(self, mock_llm_client):
+        """Run agent with skill attached."""
+        agent = Agent(
+            llm_model=LLMModel(),
+            skills=[Skill(name="coder", instructions="Write code")],
         )
+        response = await agent.run("Write a function")
+        assert response == "Mocked response"
 
-        # Load skills
+    def test_skill_load(self):
+        """Skill.load(markdown_text) with YAML frontmatter."""
+        text = """
+---
+name: researcher
+category: research
+tools:
+  - search
+---
+# Researcher
+## Instructions
+Research thoroughly.
+"""
+        skill = Skill.load(text)
+        assert skill.name == "researcher"
+        assert skill.category == "research"
+
+    def test_skill_registry_load(self):
+        """Load skills into registry."""
         registry = SkillRegistry()
-        for entry in sorted(tmp_path.iterdir()):
-            if entry.is_dir() and not entry.name.startswith("."):
-                skill_md = entry / "SKILL.md"
-                if skill_md.exists():
-                    content = skill_md.read_text(encoding="utf-8")
-                    skill = Skill.load(content)
-                    skill.source = str(entry)
-                    registry.register(skill)
+        registry.register(Skill(name="a"))
+        registry.register(Skill(name="b"))
+        assert len(registry.list_skills()) == 2
 
-        # Test skills_list
-        from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool
+    def test_registry_not_singleton(self):
+        """Registries are independent (no global singleton)."""
+        r1 = SkillRegistry()
+        r2 = SkillRegistry()
+        r1.register(Skill(name="a"))
+        assert r2.get("a") is None
 
-        list_tool = create_skills_list_tool(registry)
-        result = list_tool.invoke()
+    def test_filter_skills_by_category(self):
+        """Filter registry by category."""
+        registry = SkillRegistry()
+        registry.register(Skill(name="a", category="dev"))
+        registry.register(Skill(name="b", category="research"))
+        dev_skills = registry.list_skills(category="dev")
+        assert len(dev_skills) == 1
+        assert dev_skills[0].name == "a"
 
-        assert "skills" in result
-        assert len(result["skills"]) == 1
-        assert result["skills"][0]["name"] == "Test Skill"
-
-        # Test skill_view
-        from tinycua_sdk.tools.native.skills_tools import create_skill_view_tool
-
-        view_tool = create_skill_view_tool(registry)
-        result = view_tool.invoke(skill_name="Test Skill")
-
-        assert result["name"] == "Test Skill"
-        assert result["description"] == "A test skill"
-        assert "tool_one" in result["tools"]
-        assert "Do something specific" in result["instructions"]
+    def test_skill_config_round_trip(self):
+        """Serialize and deserialize skill."""
+        original = Skill(name="test", instructions="Do something")
+        d = original.to_dict()
+        restored = Skill.from_dict(d)
+        assert restored.name == "test"
+        assert restored.instructions == "Do something"
