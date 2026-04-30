@@ -28,9 +28,9 @@ minimal_model = LanguageModel()
 # ---------------------------------------------------------------------------
 local_model = LanguageModel(
     provider="openai-compatible",
-    model_name="llama-3.1-8b",
+    model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
-    api_key="lm-studio",  # Some local servers expect a non-empty key
+    api_key="dummy",  # Some local servers expect a non-empty key
     temperature=0.7,
     max_tokens=4096,
 )

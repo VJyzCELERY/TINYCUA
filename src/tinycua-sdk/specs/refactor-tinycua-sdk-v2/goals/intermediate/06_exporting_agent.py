@@ -26,7 +26,7 @@ agent = Agent(
     instructions="You are a patient math tutor.",
     llm_model=LanguageModel(
         provider="openai-compatible",
-        model_name="llama-3.1-8b",
+        model_name="qwen/qwen3.5-9b",
         base_url="http://localhost:1234/v1",
         temperature=0.2,
     ),

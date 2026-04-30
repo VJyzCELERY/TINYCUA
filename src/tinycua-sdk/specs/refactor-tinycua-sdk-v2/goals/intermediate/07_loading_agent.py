@@ -32,7 +32,7 @@ async def main() -> None:
         "instructions": "You are a dynamic agent created from a dict.",
         "llm_model": {
             "provider": "openai-compatible",
-            "model_name": "qwen-2.5-7b",
+            "model_name": "qwen/qwen3.5-9b",
             "base_url": "http://localhost:1234/v1",
             "temperature": 0.5,
         },

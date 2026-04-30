@@ -30,7 +30,7 @@ coder = Agent(
     ),
     llm_model=LanguageModel(
         provider="openai-compatible",
-        model_name="codellama-7b",
+        model_name="qwen/qwen3.5-9b",
         base_url="http://localhost:1234/v1",
         temperature=0.2,
         max_tokens=4096,
