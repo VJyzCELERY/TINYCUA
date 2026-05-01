@@ -3,6 +3,9 @@
 ## Objective
 An `Agent` can be instantiated and configured with all v2 parameters, but cannot yet execute. The constructor shape, config model, and serialization of config must match the spec exactly.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## Reference
 - [`goals/getting-started/02_agent_creation.py`](../goals/getting-started/02_agent_creation.py)
 

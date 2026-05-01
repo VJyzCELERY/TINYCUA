@@ -3,6 +3,9 @@
 ## Objective
 Remove every dead module, stub, and obsolete concept identified in the review report so subsequent stages build on a clean foundation. Zero backward compatibility is maintained.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`REPORT_FINDINGS_TINYCUA_SDK.md`](../docs/REPORT_FINDINGS_TINYCUA_SDK.md) — source of truth for what to delete.
 

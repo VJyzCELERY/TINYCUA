@@ -3,6 +3,9 @@
 ## Objective
 Implement all four streaming modes exactly as specified.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## Reference
 - [`goals/getting-started/04_agent_streaming.py`](../goals/getting-started/04_agent_streaming.py)
 

@@ -3,6 +3,9 @@
 ## Objective
 Skills inject their instructions into the agent's system prompt. Agents can use both tools and skills together.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`goals/intermediate/04_agent_with_skills.py`](../goals/intermediate/04_agent_with_skills.py)
 - [`goals/intermediate/05_agent_with_tools_and_skills.py`](../goals/intermediate/05_agent_with_tools_and_skills.py)

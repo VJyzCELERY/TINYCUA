@@ -3,6 +3,9 @@
 ## Objective
 All 16 integration tests pass. The SDK is coherent, fully typed, linted, and documented.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - All goal scripts in [`../goals/`](../goals/)
 - [`ROADMAP.md`](../docs/ROADMAP.md)

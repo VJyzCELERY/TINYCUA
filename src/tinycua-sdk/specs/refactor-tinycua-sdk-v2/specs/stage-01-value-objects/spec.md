@@ -5,6 +5,9 @@ Implement the three pure value objects that have no I/O dependencies: `LanguageM
 
 These objects are immutable configuration containers. They do not make network calls, do not depend on each other, and can be instantiated and tested in complete isolation.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`goals/getting-started/01_language_model_definition.py`](../goals/getting-started/01_language_model_definition.py)
 - [`goals/intermediate/01_tool_creation.py`](../goals/intermediate/01_tool_creation.py)

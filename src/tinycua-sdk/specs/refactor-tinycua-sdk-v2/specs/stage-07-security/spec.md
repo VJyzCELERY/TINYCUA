@@ -3,6 +3,9 @@
 ## Objective
 Declarative and custom guardrails control tool execution. Consumers can define permission levels and approval workflows without modifying core SDK code.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`goals/advanced/02_guardrail_system.py`](../goals/advanced/02_guardrail_system.py)
 - [`goals/advanced/03_permission_system.py`](../goals/advanced/03_permission_system.py)

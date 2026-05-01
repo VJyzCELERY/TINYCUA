@@ -3,6 +3,9 @@
 ## Objective
 `BaseLoop` is a clean extension point for consumers. Custom loops can override execution behavior without modifying SDK internals.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## Reference
 - [`goals/advanced/01_custom_agent_loop.py`](../goals/advanced/01_custom_agent_loop.py)
 

@@ -9,6 +9,9 @@ The agent can actually call an LLM and return a response. This includes:
 
 Non-streaming only. Streaming is Stage 5.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`goals/getting-started/03_agent_calling.py`](../goals/getting-started/03_agent_calling.py)
 - [`goals/intermediate/03_agent_with_tools.py`](../goals/intermediate/03_agent_with_tools.py)

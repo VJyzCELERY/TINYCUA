@@ -3,6 +3,9 @@
 ## Objective
 Agents, skills, and tools can be exported and imported. Skills and tools can be bulk-loaded from directories.
 
+## Guiding Principles
+All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
+
 ## References
 - [`goals/intermediate/06_exporting_agent.py`](../goals/intermediate/06_exporting_agent.py)
 - [`goals/intermediate/07_loading_agent.py`](../goals/intermediate/07_loading_agent.py)
