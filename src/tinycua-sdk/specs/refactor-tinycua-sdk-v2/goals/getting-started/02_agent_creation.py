@@ -7,9 +7,11 @@ An Agent is stateless and fully runnable once configured.
 from tinycua_sdk import Agent, LanguageModel
 
 # ---------------------------------------------------------------------------
-# 1. Absolute minimal agent (uses all defaults)
+# 1. Absolute minimal agent (still requires a LanguageModel)
 # ---------------------------------------------------------------------------
-agent = Agent()
+agent = Agent(
+    llm_model=LanguageModel(),
+)
 
 # ---------------------------------------------------------------------------
 # 2. Agent with a custom name and instructions
@@ -17,6 +19,10 @@ agent = Agent()
 greeter = Agent(
     name="greeter",
     instructions="You are a friendly greeter. Always say hello in the user's language.",
+    llm_model=LanguageModel(
+        provider="openai-compatible",
+        base_url="http://localhost:1234/v1",
+    ),
 )
 
 # ---------------------------------------------------------------------------
@@ -56,6 +62,12 @@ researcher = Agent(
 tagged_agent = Agent(
     name="tagged_assistant",
     instructions="Help the user.",
+    llm_model=LanguageModel(
+        provider="openai-compatible",
+        model_name="qwen/qwen3.5-9b",
+        base_url="http://localhost:1234/v1",
+        api_key="dummy",
+    ),
     metadata={
         "team": "platform",
         "cost_center": "eng-123",
