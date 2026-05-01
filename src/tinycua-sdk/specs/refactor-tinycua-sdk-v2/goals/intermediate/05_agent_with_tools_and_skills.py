@@ -49,7 +49,9 @@ async def main() -> None:
         instructions="You are a research assistant that can also read code.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
             temperature=0.3,
         ),
         tools=[web_search, read_file],

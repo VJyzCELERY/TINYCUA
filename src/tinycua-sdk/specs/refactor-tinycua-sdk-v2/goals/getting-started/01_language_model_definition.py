@@ -9,7 +9,7 @@ from tinycua_sdk import LanguageModel
 # ---------------------------------------------------------------------------
 # 1. Minimal configuration (uses sensible defaults)
 # ---------------------------------------------------------------------------
-minimal_model = LanguageModel()
+minimal_model = LanguageModel(model_name="qwen/qwen3.5-9b")
 # Defaults:
 #   provider="openai-compatible"
 #   model_name="gpt-4o-mini"

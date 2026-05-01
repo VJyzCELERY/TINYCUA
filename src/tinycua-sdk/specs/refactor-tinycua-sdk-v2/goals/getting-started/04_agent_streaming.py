@@ -21,7 +21,9 @@ async def main() -> None:
         name="streaming_assistant",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
         ),
     )
 

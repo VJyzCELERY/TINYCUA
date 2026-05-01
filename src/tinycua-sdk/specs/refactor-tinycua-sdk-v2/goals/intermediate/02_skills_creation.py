@@ -1,12 +1,12 @@
 """02 - Skills Creation
 
-Shows how to create and manage Skills.
+Shows how to create and manage Skills inline.
 Skills are metadata-only in the SDK — they provide instructions and context
 that can be injected into an agent's system prompt, but they do NOT auto-resolve
 tools. Tools must always be composed explicitly via Agent.add_tools().
-"""
 
-from pathlib import Path
+For loading skills from a directory, see 08_loading_skills_from_directory.py.
+"""
 
 from tinycua_sdk import Skill
 
@@ -27,44 +27,30 @@ web_research_skill = Skill(
     },
 )
 
-# ---------------------------------------------------------------------------
-# 2. Loading a skill from a SKILL.md file
-#
-#    skills/
-#    └── web_research/
-#        └── SKILL.md
-#
-# SKILL.md contents:
-#   ---
-#   name: web_research
-#   description: Research topics using web search.
-#   ---
-#   ## Instructions
-#   When the user asks about current events...
-# ---------------------------------------------------------------------------
-skill_from_file = Skill.from_file(Path("skills/web_research/SKILL.md"))
+coding_skill = Skill(
+    name="python_expert",
+    description="Write idiomatic Python code.",
+    instructions=(
+        "When writing Python code, follow PEP 8, use type hints, "
+        "prefer dataclasses over raw dicts, and always include docstrings."
+    ),
+)
 
 # ---------------------------------------------------------------------------
-# 3. Loading all skills from a directory
-# ---------------------------------------------------------------------------
-all_skills = Skill.load_directory(Path("skills/"))
-# Returns: list[Skill] — one for each subdirectory containing a SKILL.md
-
-# ---------------------------------------------------------------------------
-# 4. Skill Registry (for discovery)
+# 2. Skill Registry (for discovery)
 # ---------------------------------------------------------------------------
 from tinycua_sdk.skills.registry import SkillRegistry
 
 registry = SkillRegistry()
 registry.register(web_research_skill)
-registry.register(skill_from_file)
+registry.register(coding_skill)
 
 print("Registered skills:")
 for skill in registry.list_skills():
     print(f"  - {skill.name}: {skill.description}")
 
 # ---------------------------------------------------------------------------
-# 5. Short description vs full instructions
+# 3. Short description vs full instructions
 # ---------------------------------------------------------------------------
 # The short `description` is what the model sees when deciding whether to use
 # a skill. The full `instructions` are only injected when the skill is active.

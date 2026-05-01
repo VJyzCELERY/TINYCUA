@@ -59,7 +59,7 @@ def main() -> None:
     agent = Agent(
         name="multi_skilled_assistant",
         instructions="You are a versatile assistant.",
-        llm_model=LanguageModel(),
+        llm_model=LanguageModel(model_name="qwen/qwen3.5-9b"),
         skills=all_skills,
     )
 

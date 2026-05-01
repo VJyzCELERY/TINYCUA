@@ -51,7 +51,7 @@ async def main() -> None:
     agent = Agent(
         name="tool_powered_agent",
         instructions="You have access to file system and HTTP tools.",
-        llm_model=LanguageModel(),
+        llm_model=LanguageModel(model_name="qwen/qwen3.5-9b"),
         tools=all_tools,
     )
 

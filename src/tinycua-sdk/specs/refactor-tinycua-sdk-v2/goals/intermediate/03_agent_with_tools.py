@@ -26,7 +26,9 @@ async def main() -> None:
         instructions="You have access to a calculator. Use it for math.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
         ),
         tools=[calculator, get_current_user],
     )

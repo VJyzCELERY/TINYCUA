@@ -2,6 +2,11 @@
 
 Shows how to subclass BaseLoop to implement custom agent behaviour.
 
+BaseLoop provides:
+  - __init__(self, max_iterations=5)  — iteration safety limit
+  - self.max_iterations                — accessible in subclasses
+  - self.is_cancelled (via agent)     — cancellation check
+
 BaseLoop.run() is the extension point:
     async def run(self, agent, messages, tools) -> str
 
@@ -23,7 +28,19 @@ from tinycua_sdk.agent.loop import BaseLoop
 # 1. A "ReAct" loop that explicitly reasons before acting
 # ---------------------------------------------------------------------------
 class ReActLoop(BaseLoop):
-    """ReAct-style loop: the model must reason (Think:) before acting (Act:)."""
+    """ReAct-style loop: the model must reason (Think:) before acting (Act:).
+
+    Inherits max_iterations from BaseLoop. Custom parameters (e.g., format_hint)
+    are stored as instance attributes after calling super().__init__().
+    """
+
+    def __init__(
+        self,
+        max_iterations: int = 5,
+        format_hint: str = "ReAct",
+    ):
+        super().__init__(max_iterations=max_iterations)
+        self.format_hint = format_hint
 
     async def run(
         self,
@@ -32,12 +49,15 @@ class ReActLoop(BaseLoop):
         tools: list[Tool],
     ) -> str:
         # Inject ReAct formatting instructions on first turn only
-        if not any(m.get("role") == "system" and "ReAct format" in m.get("content", "")
-                   for m in messages):
+        hint = self.format_hint
+        if not any(
+            m.get("role") == "system" and f"{hint} format" in m.get("content", "")
+            for m in messages
+        ):
             messages.insert(0, {
                 "role": "system",
                 "content": (
-                    "You must follow ReAct format. "
+                    f"You must follow {hint} format. "
                     "First reason with 'Think: ...' then act with 'Act: ...'."
                 ),
             })
@@ -94,7 +114,19 @@ class ReActLoop(BaseLoop):
 # 2. A "Step-by-Step" loop that forces the model to plan first
 # ---------------------------------------------------------------------------
 class PlanThenExecuteLoop(BaseLoop):
-    """Two-phase loop: planning phase, then execution phase."""
+    """Two-phase loop: planning phase, then execution phase.
+
+    Demonstrates a custom loop with its own parameter (plan_temperature)
+    while still inheriting max_iterations from BaseLoop.
+    """
+
+    def __init__(
+        self,
+        max_iterations: int = 5,
+        plan_temperature: float = 0.3,
+    ):
+        super().__init__(max_iterations=max_iterations)
+        self.plan_temperature = plan_temperature
 
     async def run(
         self,
@@ -107,7 +139,16 @@ class PlanThenExecuteLoop(BaseLoop):
             "role": "system",
             "content": "First, outline a step-by-step plan. Do not execute yet.",
         }]
+        # Use a lower temperature for planning (more deterministic)
+        original_temp = agent.llm_model.temperature
+        agent.llm_model = agent.llm_model.model_copy(
+            update={"temperature": self.plan_temperature}
+        )
         plan = await agent._call_llm(plan_messages)
+        # Restore original temperature
+        agent.llm_model = agent.llm_model.model_copy(
+            update={"temperature": original_temp}
+        )
 
         # Phase 2 — Execute the plan
         exec_messages = messages + [
@@ -161,10 +202,12 @@ async def main() -> None:
         instructions="You are a reasoning assistant.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
         ),
         tools=[weather],
-        loop=ReActLoop(max_iterations=5),
+        loop=ReActLoop(max_iterations=5, format_hint="ReAct"),
     )
 
     response = await react_agent.run("What is the weather in Tokyo?")
@@ -174,8 +217,8 @@ async def main() -> None:
     plan_agent = Agent(
         name="planner",
         instructions="You are a methodical planner.",
-        llm_model=LanguageModel(),
-        loop=PlanThenExecuteLoop(max_iterations=3),
+        llm_model=LanguageModel(model_name="qwen/qwen3.5-9b"),
+        loop=PlanThenExecuteLoop(max_iterations=3, plan_temperature=0.2),
     )
 
     response = await plan_agent.run("How do I bake sourdough bread?")

@@ -70,7 +70,9 @@ async def main() -> None:
         instructions="You are an agent with restricted tool access.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
         ),
         tools=[calculator, read_file, write_file, shell_execute],
         # Declarative permission map

@@ -39,7 +39,9 @@ async def main() -> None:
         instructions="You are a senior software engineer.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
         ),
         skills=[coding_skill, testing_skill],
     )

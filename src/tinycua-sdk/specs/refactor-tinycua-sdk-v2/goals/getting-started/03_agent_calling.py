@@ -15,7 +15,9 @@ async def main() -> None:
         instructions="You are a helpful assistant.",
         llm_model=LanguageModel(
             provider="openai-compatible",
+            model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
+            api_key="dummy",
             temperature=0.7,
         ),
     )

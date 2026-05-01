@@ -10,7 +10,7 @@ from tinycua_sdk import Agent, LanguageModel
 # 1. Absolute minimal agent (still requires a LanguageModel)
 # ---------------------------------------------------------------------------
 agent = Agent(
-    llm_model=LanguageModel(),
+    llm_model=LanguageModel(model_name="qwen/qwen3.5-9b"),
 )
 
 # ---------------------------------------------------------------------------
@@ -21,7 +21,9 @@ greeter = Agent(
     instructions="You are a friendly greeter. Always say hello in the user's language.",
     llm_model=LanguageModel(
         provider="openai-compatible",
+        model_name="qwen/qwen3.5-9b",
         base_url="http://localhost:1234/v1",
+        api_key="dummy",
     ),
 )
 
@@ -49,7 +51,7 @@ coder = Agent(
 researcher = Agent(
     name="researcher",
     instructions="You are a careful research assistant. Cite your sources.",
-    llm_model=LanguageModel(temperature=0.3),
+    llm_model=LanguageModel(model_name="qwen/qwen3.5-9b", temperature=0.3),
     policy={
         "max_tool_calls": 15,
         "parallel_tool_calls": True,
