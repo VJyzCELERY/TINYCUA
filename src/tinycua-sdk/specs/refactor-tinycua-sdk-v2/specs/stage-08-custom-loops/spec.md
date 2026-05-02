@@ -90,127 +90,26 @@ The agent stores the loop instance and calls `loop.run()` on each `run()`.
 
 ## Success Criteria
 
-### SC-8.1: Custom Loop Overrides Default
-**What:** Subclassing `BaseLoop` and passing to `Agent` uses the custom loop.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, BaseLoop
+Each success criterion must be validated by running the specified target file(s).
 
-class MyLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream='off'):
-        return 'custom result'
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), loop=MyLoop())
-r = asyncio.run(a.run('Hello'))
-assert r == 'custom result'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Custom Loop Overrides Default - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: Subclassing `BaseLoop` and passing to `Agent` uses the custom loop.
 
-### SC-8.2: Custom Loop Accesses LLM
-**What:** Custom loop can call `agent._call_llm()`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, BaseLoop
+- [ ] Custom Loop Accesses LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: Custom loop can call `agent._call_llm()`.
 
-class LLMLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream='off'):
-        resp = await agent._call_llm(messages)
-        return resp.get('content', '')
+- [ ] Cancellation Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: Custom loop respects `agent.is_cancelled`.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), loop=LLMLoop())
-r = asyncio.run(a.run('Say hi.'))
-assert isinstance(r, str)
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] max_iterations Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: Custom loop respects `self.max_iterations`.
 
-### SC-8.3: Cancellation Respected
-**What:** Custom loop respects `agent.is_cancelled`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, BaseLoop
+- [ ] ReActLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: The ReActLoop example from goals runs.
 
-class SlowLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream='off'):
-        for i in range(100):
-            if agent.is_cancelled:
-                return '[cancelled]'
-            await asyncio.sleep(0.01)
-        return 'done'
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), loop=SlowLoop())
-task = asyncio.create_task(a.run('Wait'))
-await asyncio.sleep(0.05)
-a.cancel()
-r = await task
-assert r == '[cancelled]'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-8.4: max_iterations Respected
-**What:** Custom loop respects `self.max_iterations`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, BaseLoop
-
-class CountingLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream='off'):
-        for i in range(self.max_iterations):
-            pass
-        return f'ran {self.max_iterations} times'
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), loop=CountingLoop(max_iterations=3))
-r = asyncio.run(a.run('Hello'))
-assert r == 'ran 3 times'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-8.5: ReActLoop Example Works
-**What:** The ReActLoop example from goals runs.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
-
-class ReActLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream='off'):
-        resp = await agent._call_llm(messages, tools)
-        return resp.get('content', '')
-
-@tool
-def weather(city: str) -> str:
-    return f'Sunny in {city}.'
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[weather], loop=ReActLoop())
-r = asyncio.run(a.run('What is the weather in Tokyo?'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-8.6: Integration Test Pass
-**What:** `test_adv_01_custom_agent_loop.py` passes.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v
-```
-**Pass if:** 1 passed, 0 failed.
+- [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - 1 passed, 0 failed - pytest -v
 
 ## Integration Test File
 - `tests/integration/goals/test_adv_01_custom_agent_loop.py`

@@ -69,48 +69,21 @@ Apply every issue code (H-xx, M-xx, L-xx) from the report.
 
 ## Success Criteria
 
-### SC-0.1: Import Sanity
-**What:** `from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill` succeeds without error.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill; print('OK')"
-```
-**Pass if:** prints `OK` with no exception.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-0.2: Deleted Modules Raise ImportError
-**What:** Any deleted module raises `ModuleNotFoundError` on import.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "from tinycua_sdk.agent import backend_kind" 2>&1 | grep "ModuleNotFoundError"
-cd src/tinycua-sdk && python -c "from tinycua_sdk.tools import mcp" 2>&1 | grep "ModuleNotFoundError"
-cd src/tinycua-sdk && python -c "from tinycua_sdk.events import something" 2>&1 | grep "ModuleNotFoundError"
-```
-**Pass if:** all three produce `ModuleNotFoundError`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-0.3: No Obsolete Parameters Accepted
-**What:** Passing any obsolete parameter to `Agent()` raises `TypeError`.  
-**How to check:**
-```python
-# In python shell
-try:
-    Agent(system_prompt="hello")
-except TypeError as e:
-    print("PASS:", e)
-```
-**Pass if:** `TypeError` is raised with a message mentioning the obsolete parameter.
+- [ ] Import Sanity - N/A - prints `OK` - python -c "from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill; print('OK')"
+  Description: `from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill` succeeds without error.
 
-### SC-0.4: No NotImplementedError at Import
-**What:** Importing the SDK does not trigger any `NotImplementedError`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "import tinycua_sdk"
-```
-**Pass if:** exits with code 0.
+- [ ] Deleted Modules Raise ImportError - N/A - ModuleNotFoundError - python -c "from tinycua_sdk.agent import backend_kind" 2>&1 | grep "ModuleNotFoundError"
+  Description: Any deleted module raises `ModuleNotFoundError` on import.
 
-### SC-0.5: Ruff Passes (with expected exceptions)
-**What:** `ruff check` passes on the remaining codebase.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && ruff check tinycua_sdk/
-```
-**Pass if:** exits with code 0. Missing type annotations for future stages are acceptable if explicitly marked with `# TODO(stage-N)`.
+- [ ] No Obsolete Parameters Accepted - N/A - TypeError - python -c "try: Agent(system_prompt='hello') except TypeError: print('PASS:', e)"
+  Description: Passing any obsolete parameter to `Agent()` raises `TypeError`.
+
+- [ ] No NotImplementedError at Import - N/A - exits with code 0 - python -c "import tinycua_sdk"
+  Description: Importing the SDK does not trigger any `NotImplementedError`.
+
+- [ ] Ruff Passes (with expected exceptions) - N/A - exits with code 0 - ruff check tinycua_sdk/
+  Description: `ruff check` passes on the remaining codebase.

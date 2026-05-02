@@ -51,58 +51,27 @@ No `NotImplementedError` stubs remain in production code paths.
 
 ## Success Criteria
 
-### SC-9.1: All Integration Tests Pass
-**What:** Full goal test suite passes.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/ -v
-```
-**Pass if:** 16 passed, 0 failed.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-9.2: Ruff Passes
-**What:** Code passes linting.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && ruff check tinycua_sdk/
-```
-**Pass if:** exits with code 0.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-9.3: Public API is Clean
-**What:** `from tinycua_sdk import *` imports only v2 public API.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import *
-print(sorted(dir()))
-"
-```
-**Pass if:** only exports from `__all__` are present.
+- [ ] All Integration Tests Pass - tests/integration/goals/ - 16 passed, 0 failed - pytest -v
+  Description: Full goal test suite passes.
 
-### SC-9.4: No NotImplementedError in Production
-**What:** No production code raises `NotImplementedError`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && grep -r "NotImplementedError" tinycua_sdk/ || echo "PASS: no stubs found"
-```
-**Pass if:** prints `PASS` or empty result.
+- [ ] Ruff Passes - N/A - exits with code 0 - ruff check tinycua_sdk/
+  Description: Code passes linting.
 
-### SC-9.5: Goal Scripts Runnable
-**What:** Each goal script can be executed (with mock or real LLM).  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python specs/refactor-tinycua-sdk-v2/goals/getting-started/01_language_model_definition.py
-cd src/tinycua-sdk && python specs/refactor-tinycua-sdk-v2/goals/intermediate/01_tool_creation.py
-# ... etc for all 16 scripts
-```
-**Pass if:** all scripts run without `ImportError` or `AttributeError`.
+- [ ] Public API is Clean - N/A - only exports from `__all__` are present - python -c "from tinycua_sdk import *; print(sorted(dir()))"
+  Description: `from tinycua_sdk import *` imports only v2 public API.
 
-### SC-9.6: Import Sanity
-**What:** SDK imports cleanly.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "import tinycua_sdk; print('OK')"
-```
-**Pass if:** prints `OK`.
+- [ ] No NotImplementedError in Production - N/A - PASS: no stubs found - grep -r "NotImplementedError" tinycua_sdk/
+  Description: No production code raises `NotImplementedError`.
+
+- [ ] Goal Scripts Runnable - N/A - all scripts run without `ImportError` or `AttributeError` - python <script>
+  Description: Each goal script can be executed (with mock or real LLM).
+
+- [ ] Import Sanity - N/A - prints `OK` - python -c "import tinycua_sdk; print('OK')"
+  Description: SDK imports cleanly.
 
 ## Integration Test Files
 All 16:

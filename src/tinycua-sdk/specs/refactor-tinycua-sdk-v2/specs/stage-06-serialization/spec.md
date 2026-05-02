@@ -90,101 +90,26 @@ tools/
 
 ## Success Criteria
 
-### SC-6.1: to_config Round-Trip
-**What:** Export and import produce equivalent agent.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent, LanguageModel, Skill, tool
+Each success criterion must be validated by running the specified target file(s).
 
-@tool
-def calc(expr: str) -> str:
-    return str(eval(expr))
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-s = Skill(name='math', description='Math', instructions='Show work.')
-a = Agent(name='tutor', llm_model=LanguageModel(temperature=0.2), tools=[calc], skills=[s])
-a2 = Agent.from_dict(a.to_config())
-assert a2.name == 'tutor'
-assert a2.llm_model.temperature == 0.2
-assert len(a2.tools) == 1
-assert len(a2.skills) == 1
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] to_config Round-Trip - tests/integration/goals/test_int_06_exporting_agent.py - PASS - `print('PASS')`
+  Description: Export and import produce equivalent agent.
 
-### SC-6.2: JSON Export with Redaction
-**What:** Sensitive fields are redacted when requested.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(api_key='secret123'))
-json_redacted = a.to_json(redact_sensitive=True)
-assert '***' in json_redacted
-json_full = a.to_json(redact_sensitive=False)
-assert 'secret123' in json_full
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] JSON Export with Redaction - tests/integration/goals/test_int_06_exporting_agent.py - PASS - `print('PASS')`
+  Description: Sensitive fields are redacted when requested.
 
-### SC-6.3: YAML Export/Import
-**What:** YAML serialization works.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-a = Agent(name='yaml_test')
-import tempfile, os
-with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-    f.write(a.to_yaml())
-    path = f.name
-a2 = Agent.from_yaml_file(path)
-os.unlink(path)
-assert a2.name == 'yaml_test'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] YAML Export/Import - tests/integration/goals/test_int_07_loading_agent.py - PASS - `print('PASS')`
+  Description: YAML serialization works.
 
-### SC-6.4: Skill Directory Loading
-**What:** `Skill.load_directory()` discovers and parses skills.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from pathlib import Path
-from tinycua_sdk import Skill
-skills = Skill.load_directory(Path('specs/refactor-tinycua-sdk-v2/goals/intermediate/examples/skills'))
-assert len(skills) == 3
-names = {s.name for s in skills}
-assert names == {'cli_assistant', 'data_analyst', 'web_research'}
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Skill Directory Loading - tests/integration/goals/test_int_08_loading_skills_from_directory.py - PASS - `print('PASS')`
+  Description: `Skill.load_directory()` discovers and parses skills.
 
-### SC-6.5: Tool Directory Loading
-**What:** `Tool.load_directory()` discovers and registers tools.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from pathlib import Path
-from tinycua_sdk import Tool
-tools = Tool.load_directory(Path('specs/refactor-tinycua-sdk-v2/goals/intermediate/examples/tools'))
-assert len(tools) >= 1
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Tool Directory Loading - tests/integration/goals/test_int_09_loading_tools_from_directory.py - PASS - `print('PASS')`
+  Description: `Tool.load_directory()` discovers and registers tools.
 
-### SC-6.6: Integration Tests Pass
-**What:** All 4 Stage 6 integration tests pass.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_int_06_exporting_agent.py tests/integration/goals/test_int_07_loading_agent.py tests/integration/goals/test_int_08_loading_skills_from_directory.py tests/integration/goals/test_int_09_loading_tools_from_directory.py -v
-```
-**Pass if:** 4 passed, 0 failed.
+- [ ] Integration Tests Pass - tests/integration/goals/test_int_06_exporting_agent.py, tests/integration/goals/test_int_07_loading_agent.py, tests/integration/goals/test_int_08_loading_skills_from_directory.py, tests/integration/goals/test_int_09_loading_tools_from_directory.py - 4 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_int_06_exporting_agent.py`

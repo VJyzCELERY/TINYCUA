@@ -82,121 +82,32 @@ def __init__(
 
 ## Success Criteria
 
-### SC-2.1: Minimal Agent Creation
-**What:** `Agent()` with no args creates a valid agent.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-a = Agent()
-assert a.name == 'assistant'
-assert a.llm_model.model_name == 'gpt-4o-mini'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-2.2: Named Agent with Instructions
-**What:** Agent with custom name and instructions.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(name='greeter', instructions='Say hello.', llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-assert a.name == 'greeter'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-2.3: Agent with Policy
-**What:** Policy settings are stored correctly.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-a = Agent(policy={'max_tool_calls': 15, 'parallel_tool_calls': True})
-assert a.policy.max_tool_calls == 15
-assert a.policy.parallel_tool_calls is True
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Minimal Agent Creation - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: `Agent()` with no args creates a valid agent.
 
-### SC-2.4: Agent with Metadata
-**What:** Consumer-defined metadata is preserved.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-a = Agent(metadata={'team': 'platform', 'version': '2.1.0'})
-assert a.metadata['team'] == 'platform'
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Named Agent with Instructions - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: Agent with custom name and instructions.
 
-### SC-2.5: Obsolete Parameters Rejected
-**What:** Passing obsolete params raises `TypeError`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-try:
-    Agent(system_prompt='hello')
-except TypeError:
-    print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Agent with Policy - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: Policy settings are stored correctly.
 
-### SC-2.6: Dynamic add_tools / add_skills
-**What:** Tools and skills can be added after creation.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent, Skill, tool
+- [ ] Agent with Metadata - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: Consumer-defined metadata is preserved.
 
-@tool
-def calc(expr: str) -> str:
-    return str(eval(expr))
+- [ ] Obsolete Parameters Rejected - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: Passing obsolete params raises `TypeError`.
 
-s = Skill(name='math', description='Math help', instructions='Show work.')
-a = Agent()
-a.add_tools(calc)
-a.add_skills(s)
-assert len(a.tools) == 1
-assert len(a.skills) == 1
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Dynamic add_tools / add_skills - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: Tools and skills can be added after creation.
 
-### SC-2.7: to_config Serializes
-**What:** `to_config()` returns a dict with all fields.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Agent
-a = Agent(name='test', instructions='help')
-c = a.to_config()
-assert c['name'] == 'test'
-assert c['instructions'] == 'help'
-assert 'llm_model' in c
-assert 'tools' in c
-assert 'skills' in c
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] to_config Serializes - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
+  Description: `to_config()` returns a dict with all fields.
 
-### SC-2.8: Integration Test Pass
-**What:** `test_gs_02_agent_creation.py` passes.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_gs_02_agent_creation.py -v
-```
-**Pass if:** 1 passed, 0 failed.
+- [ ] Integration Test Pass - tests/integration/goals/test_gs_02_agent_creation.py - 1 passed, 0 failed - pytest -v
 
 ## Integration Test File
 - `tests/integration/goals/test_gs_02_agent_creation.py`

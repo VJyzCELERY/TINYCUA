@@ -50,83 +50,23 @@ agent = Agent(
 
 ## Success Criteria
 
-### SC-4.1: Skill Instructions in System Prompt
-**What:** Agent with skills includes skill instructions in the prompt.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, Skill
+Each success criterion must be validated by running the specified target file(s).
 
-coding = Skill(name='python_expert', description='Write Python', instructions='Follow PEP 8.')
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), skills=[coding])
-r = asyncio.run(a.run('Write a hello world function.'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-4.2: Multiple Skills
-**What:** Multiple skills inject in order.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, Skill
+- [ ] Skill Instructions in System Prompt - tests/integration/goals/test_int_04_agent_with_skills.py - PASS - `print('PASS')`
+  Description: Agent with skills includes skill instructions in the prompt.
 
-s1 = Skill(name='s1', description='d1', instructions='Instruction A.')
-s2 = Skill(name='s2', description='d2', instructions='Instruction B.')
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), skills=[s1, s2])
-r = asyncio.run(a.run('Hello'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Multiple Skills - tests/integration/goals/test_int_04_agent_with_skills.py - PASS - `print('PASS')`
+  Description: Multiple skills inject in order.
 
-### SC-4.3: Dynamic add_skills
-**What:** Skills added after creation work on next run.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, Skill
+- [ ] Dynamic add_skills - tests/integration/goals/test_int_04_agent_with_skills.py - PASS - `print('PASS')`
+  Description: Skills added after creation work on next run.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-docs = Skill(name='documentarian', description='Docs', instructions='Use Google-style docstrings.')
-a.add_skills(docs)
-r = asyncio.run(a.run('Document this.'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Combined Tools + Skills - tests/integration/goals/test_int_05_agent_with_tools_and_skills.py - PASS - `print('PASS')`
+  Description: Agent with both tools and skills works.
 
-### SC-4.4: Combined Tools + Skills
-**What:** Agent with both tools and skills works.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, Skill, tool
-
-@tool
-def web_search(query: str) -> str:
-    return f'[Results for {query}]'
-
-s = Skill(name='researcher', description='Research', instructions='Always cite sources.')
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[web_search], skills=[s])
-r = asyncio.run(a.run('What is FastAPI?'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-4.5: Integration Tests Pass
-**What:** Both Stage 4 integration tests pass.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_int_04_agent_with_skills.py tests/integration/goals/test_int_05_agent_with_tools_and_skills.py -v
-```
-**Pass if:** 2 passed, 0 failed.
+- [ ] Integration Tests Pass - tests/integration/goals/test_int_04_agent_with_skills.py, tests/integration/goals/test_int_05_agent_with_tools_and_skills.py - 2 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_int_04_agent_with_skills.py`

@@ -117,107 +117,26 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ## Success Criteria
 
-### SC-1.1: LanguageModel Creation and Access
-**What:** All creation patterns from the goal script work.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import LanguageModel
-m1 = LanguageModel(model_name='qwen/qwen3.5-9b')
-m2 = LanguageModel(provider='openai-compatible', model_name='qwen/qwen3.5-9b', base_url='http://localhost:1234/v1', api_key='dummy', temperature=0.7, max_tokens=4096)
-m3 = LanguageModel(provider='openai', model_name='gpt-4o', api_key='\${OPENAI_API_KEY}', temperature=0.5, response_format={'type': 'json_object'})
-print('PASS')
-"
-```
-**Pass if:** prints `PASS` with no exception.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-1.2: LanguageModel Serialization Round-Trip
-**What:** `to_dict` / `from_dict` round-trip preserves all data.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import LanguageModel
-m = LanguageModel(model_name='test', temperature=0.3, max_tokens=512, response_format={'type': 'json_object'})
-m2 = LanguageModel.from_dict(m.to_dict())
-assert m.model_name == m2.model_name
-assert m.temperature == m2.temperature
-assert m.max_tokens == m2.max_tokens
-assert m.response_format == m2.response_format
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-1.3: @tool Schema Generation
-**What:** `@tool` decorator produces correct OpenAI function schema.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import tool
+- [ ] LanguageModel Creation and Access - tests/integration/goals/test_gs_01_language_model_definition.py - PASS - `print('PASS')`
+  Description: All creation patterns from the goal script work.
 
-@tool
-def get_weather(city: str, unit: str = 'celsius') -> str:
-    '''Fetch weather for a city.
-    Args:
-        city: Name of the city.
-        unit: Temperature unit.
-    '''
-    return 'sunny'
+- [ ] LanguageModel Serialization Round-Trip - N/A - PASS - `print('PASS')`
+  Description: `to_dict` / `from_dict` round-trip preserves all data.
 
-schema = get_weather.to_config()
-assert schema['type'] == 'function'
-assert schema['function']['name'] == 'get_weather'
-assert 'city' in schema['function']['parameters']['properties']
-assert schema['function']['parameters']['required'] == ['city']
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] @tool Schema Generation - tests/integration/goals/test_int_01_tool_creation.py - PASS - `print('PASS')`
+  Description: `@tool` decorator produces correct OpenAI function schema.
 
-### SC-1.4: Tool.invoke Works
-**What:** Calling `tool.invoke()` executes the underlying function.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import tool
+- [ ] Tool.invoke Works - tests/integration/goals/test_int_01_tool_creation.py - PASS - `print('PASS')`
+  Description: Calling `tool.invoke()` executes the underlying function.
 
-@tool
-def add(a: int, b: int) -> int:
-    '''Add two numbers.'''
-    return a + b
+- [ ] SkillRegistry Operations - N/A - PASS - `print('PASS')`
+  Description: Register, list, and lookup skills.
 
-assert add.invoke(a=2, b=3) == 5
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-1.5: SkillRegistry Operations
-**What:** Register, list, and lookup skills.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-from tinycua_sdk import Skill
-from tinycua_sdk.skills.registry import SkillRegistry
-
-s = Skill(name='coder', description='Write code', instructions='Use PEP 8.')
-r = SkillRegistry()
-r.register(s)
-assert len(r.list_skills()) == 1
-assert r.get('coder').name == 'coder'
-assert r.get('nonexistent') is None
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-1.6: Integration Tests Pass
-**What:** All Stage 1 integration tests pass.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_gs_01_language_model_definition.py tests/integration/goals/test_int_01_tool_creation.py tests/integration/goals/test_int_02_skills_creation.py -v
-```
-**Pass if:** 3 passed, 0 failed.
+- [ ] Integration Tests Pass - tests/integration/goals/test_gs_01_language_model_definition.py, tests/integration/goals/test_int_01_tool_creation.py, tests/integration/goals/test_int_02_skills_creation.py - 3 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_gs_01_language_model_definition.py`

@@ -60,135 +60,26 @@ class SimpleAskGuardrail(ApprovalWorkflow):
 
 ## Success Criteria
 
-### SC-7.1: DangerousToolGuardrail Blocks
-**What:** Dangerous tools are blocked by guardrail.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
-from tinycua_sdk.security.approval import ApprovalWorkflow
+Each success criterion must be validated by running the specified target file(s).
 
-@tool
-def shell_execute(command: str) -> str:
-    return command
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-class DangerousToolGuardrail(ApprovalWorkflow):
-    DANGEROUS = {'shell_execute'}
-    async def request_approval(self, tool_name, arguments):
-        if tool_name in self.DANGEROUS:
-            return {'approved': False, 'reason': 'Blocked.'}
-        return {'approved': True}
+- [ ] DangerousToolGuardrail Blocks - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+  Description: Dangerous tools are blocked by guardrail.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[shell_execute], approval_workflow=DangerousToolGuardrail())
-r = asyncio.run(a.run(\"Run 'ls'.\"))
-assert 'Blocked' in r
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] LoggingGuardrail Logs Without Blocking - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+  Description: Logging guardrail records but does not block.
 
-### SC-7.2: LoggingGuardrail Logs Without Blocking
-**What:** Logging guardrail records but does not block.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
-from tinycua_sdk.security.approval import ApprovalWorkflow
+- [ ] Permission Map Deny - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+  Description: `"deny"` in `tool_permissions` blocks without guardrail.
 
-class LogGuardrail(ApprovalWorkflow):
-    async def request_approval(self, tool_name, arguments):
-        return {'approved': True}
+- [ ] Permission Map Ask - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+  Description: `"ask"` triggers guardrail.
 
-@tool
-def read_file(path: str) -> str:
-    return 'content'
+- [ ] Runtime Permission Mutation - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+  Description: Changing `tool_permissions` at runtime works immediately.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[read_file], approval_workflow=LogGuardrail())
-r = asyncio.run(a.run('Read README.md'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-7.3: Permission Map Deny
-**What:** `"deny"` in `tool_permissions` blocks without guardrail.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
-
-@tool
-def shell_execute(command: str) -> str:
-    return command
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[shell_execute])
-a.tool_permissions['shell_execute'] = 'deny'
-r = asyncio.run(a.run(\"Run 'rm -rf /'.\"))
-assert 'denied' in r.lower()
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-7.4: Permission Map Ask
-**What:** `"ask"` triggers guardrail.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
-from tinycua_sdk.security.approval import ApprovalWorkflow
-
-class AskGuardrail(ApprovalWorkflow):
-    async def request_approval(self, tool_name, arguments):
-        return {'approved': True, 'notified': True}
-
-@tool
-def write_file(path: str, content: str) -> str:
-    return 'wrote'
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[write_file], approval_workflow=AskGuardrail())
-a.tool_permissions['write_file'] = 'ask'
-r = asyncio.run(a.run('Write hello to /tmp/test.txt'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-7.5: Runtime Permission Mutation
-**What:** Changing `tool_permissions` at runtime works immediately.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
-
-@tool
-def shell_execute(command: str) -> str:
-    return command
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[shell_execute])
-a.tool_permissions['shell_execute'] = 'deny'
-r1 = asyncio.run(a.run(\"Run 'echo hello'.\"))
-assert 'denied' in r1.lower()
-a.tool_permissions['shell_execute'] = 'allow'
-r2 = asyncio.run(a.run(\"Run 'echo hello'.\"))
-assert 'denied' not in r2.lower()
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-7.6: Integration Tests Pass
-**What:** Both Stage 7 integration tests pass.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_adv_02_guardrail_system.py tests/integration/goals/test_adv_03_permission_system.py -v
-```
-**Pass if:** 2 passed, 0 failed.
+- [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 2 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_adv_02_guardrail_system.py`

@@ -57,106 +57,26 @@ When the LLM returns tool calls during a stream:
 
 ## Success Criteria
 
-### SC-5.1: stream="off" Returns String
-**What:** Default mode returns `str`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-r = asyncio.run(a.run('Say hello.', stream='off'))
-assert isinstance(r, str)
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-5.2: stream="token" Yields Token Deltas
-**What:** Returns async iterator of token chunks.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-stream = asyncio.run(a.run('Count to 3.', stream='token'))
-tokens = []
-async for chunk in stream:
-    assert chunk['type'] == 'response.output_text.delta'
-    tokens.append(chunk['delta'])
-print('PASS: tokens =', tokens)
-"
-```
-**Pass if:** prints `PASS`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-5.3: stream="event" Yields Agent Events
-**What:** Returns async iterator of events without token deltas.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-stream = asyncio.run(a.run('What is 2+2?', stream='event'))
-events = []
-async for event in stream:
-    events.append(event['type'])
-    assert not event['type'].endswith('.delta')
-print('PASS: events =', events)
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] stream="off" Returns String - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
+  Description: Default mode returns `str`.
 
-### SC-5.4: stream="all" Yields Both
-**What:** Interleaved token deltas and events.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-stream = asyncio.run(a.run('Tell me a fact.', stream='all'))
-has_delta = False
-has_event = False
-async for item in stream:
-    if item['type'].endswith('.delta'):
-        has_delta = True
-    else:
-        has_event = True
-assert has_delta and has_event
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] stream="token" Yields Token Deltas - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: tokens =', tokens)`
+  Description: Returns async iterator of token chunks.
 
-### SC-5.5: Streaming with Tool Calls
-**What:** Tool call events appear in event/all streams.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
+- [ ] stream="event" Yields Agent Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: events =', events)`
+  Description: Returns async iterator of events without token deltas.
 
-@tool
-def calc(expr: str) -> str:
-    return str(eval(expr))
+- [ ] stream="all" Yields Both - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
+  Description: Interleaved token deltas and events.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[calc])
-stream = asyncio.run(a.run('What is 5*5?', stream='event'))
-tool_events = [e for e in stream if e.get('item', {}).get('type') == 'tool_call']
-print('PASS: tool_events =', len(tool_events))
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Streaming with Tool Calls - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: tool_events =', len(tool_events))`
+  Description: Tool call events appear in event/all streams.
 
-### SC-5.6: Integration Test Pass
-**What:** `test_gs_04_agent_streaming.py` passes.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_gs_04_agent_streaming.py -v
-```
-**Pass if:** 1 passed, 0 failed.
+- [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - 1 passed, 0 failed - pytest -v
 
 ## Integration Test File
 - `tests/integration/goals/test_gs_04_agent_streaming.py`

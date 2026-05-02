@@ -171,116 +171,29 @@ The loop checks `agent.is_cancelled` at the start of each iteration.
 
 ## Success Criteria
 
-### SC-3.1: Agent.run Returns String
-**What:** `agent.run("What is the capital of France?")` returns a `str`.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-r = asyncio.run(a.run('Say hello.'))
-assert isinstance(r, str)
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`. Requires local LLM server running.
+Each success criterion must be validated by running the specified target file(s).
 
-### SC-3.2: Agent.run with History
-**What:** `messages` parameter is respected.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-r = asyncio.run(a.run('What is my name?', messages=[{'role': 'user', 'content': 'My name is Alice.'}, {'role': 'assistant', 'content': 'Hello Alice.'}]))
-assert 'Alice' in r
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-### SC-3.3: Agent.run with Instruction Override
-**What:** Runtime instruction override works.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-r = asyncio.run(a.run('Tell me a joke.', instructions='You are a pirate.'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Agent.run Returns String - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+  Description: `agent.run("What is the capital of France?")` returns a `str`.
 
-### SC-3.4: Cancellation
-**What:** `agent.cancel()` cancels an in-flight run.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-task = asyncio.create_task(a.run('Write a long essay.'))
-await asyncio.sleep(0.1)
-a.cancel()
-try:
-    await task
-except asyncio.CancelledError:
-    print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Agent.run with History - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+  Description: `messages` parameter is respected.
 
-### SC-3.5: Tool Calling Loop
-**What:** Agent with tools correctly invokes them.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
+- [ ] Agent.run with Instruction Override - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+  Description: Runtime instruction override works.
 
-@tool
-def calculator(expression: str) -> str:
-    return str(eval(expression, {'__builtins__': {}}, {}))
+- [ ] Cancellation - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+  Description: `agent.cancel()` cancels an in-flight run.
 
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'), tools=[calculator], instructions='You have a calculator.')
-r = asyncio.run(a.run('What is 135 * 42?'))
-assert '5670' in r
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
+- [ ] Tool Calling Loop - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
+  Description: Agent with tools correctly invokes them.
 
-### SC-3.6: Dynamic add_tools
-**What:** Tools added after creation work.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && python -c "
-import asyncio
-from tinycua_sdk import Agent, LanguageModel, tool
+- [ ] Dynamic add_tools - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
+  Description: Tools added after creation work.
 
-@tool
-def convert(amount: float, from_c: str, to_c: str) -> str:
-    return f'{amount} {from_c} = {amount} {to_c}'
-
-a = Agent(llm_model=LanguageModel(base_url='http://localhost:1234/v1', api_key='dummy'))
-a.add_tools(convert)
-r = asyncio.run(a.run('Convert 100 USD to EUR.'))
-print('PASS')
-"
-```
-**Pass if:** prints `PASS`.
-
-### SC-3.7: Integration Tests Pass
-**What:** Both Stage 3 integration tests pass.  
-**How to check:**
-```bash
-cd src/tinycua-sdk && pytest tests/integration/goals/test_gs_03_agent_calling.py tests/integration/goals/test_int_03_agent_with_tools.py -v
-```
-**Pass if:** 2 passed, 0 failed.
+- [ ] Integration Tests Pass - tests/integration/goals/test_gs_03_agent_calling.py, tests/integration/goals/test_int_03_agent_with_tools.py - 2 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_gs_03_agent_calling.py`
