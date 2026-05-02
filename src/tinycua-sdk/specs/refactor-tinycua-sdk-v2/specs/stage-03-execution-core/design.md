@@ -1,5 +1,7 @@
 # Stage 3: LLM Client & Basic Execution Loop — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-03-execution-core/spec.md`
+
 ## New Files
 
 ### `tinycua_sdk/agent/llm_client.py`

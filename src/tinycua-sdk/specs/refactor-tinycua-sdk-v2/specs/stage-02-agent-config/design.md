@@ -1,5 +1,7 @@
 # Stage 2: Agent Configuration & Creation — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-02-agent-config/spec.md`
+
 ## Architecture Decision: Collapse AgentDefinition into AgentConfig
 
 The v1 codebase has both `AgentDefinition` and `AgentConfig`. For v2, we collapse this into a single `AgentConfig` that is the source of truth.

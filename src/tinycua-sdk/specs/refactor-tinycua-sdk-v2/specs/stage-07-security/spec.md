@@ -1,5 +1,10 @@
 # Stage 7: Security — Guardrails & Permissions — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 Declarative and custom guardrails control tool execution. Consumers can define permission levels and approval workflows without modifying core SDK code.
 

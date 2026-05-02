@@ -1,5 +1,7 @@
 # Stage 0: Scorched-Earth Cleanup — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-00-cleanup/spec.md`
+
 ## Implementation Order
 
 The deletion must happen in dependency order to avoid broken imports at any intermediate step.

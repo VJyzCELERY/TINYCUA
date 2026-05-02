@@ -1,5 +1,7 @@
 # Stage 1: Core Value Objects — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-01-value-objects/spec.md`
+
 ## File Changes
 
 ### `tinycua_sdk/agent/llm_model.py` → renamed class, expanded fields

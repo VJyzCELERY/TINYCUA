@@ -1,5 +1,7 @@
 # Stage 6: Serialization & Directory Loading — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/spec.md`
+
 ## Agent Serialization
 
 ### `Agent.to_config()`

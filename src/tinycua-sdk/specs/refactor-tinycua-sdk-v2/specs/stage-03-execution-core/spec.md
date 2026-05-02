@@ -1,5 +1,10 @@
 # Stage 3: LLM Client & Basic Execution Loop — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 The agent can actually call an LLM and return a response. This includes:
 1. A real LLM client implementation (not a stub).

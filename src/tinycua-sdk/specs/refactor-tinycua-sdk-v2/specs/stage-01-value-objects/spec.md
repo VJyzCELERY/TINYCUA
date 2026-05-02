@@ -1,5 +1,10 @@
 # Stage 1: Core Value Objects — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 Implement the three pure value objects that have no I/O dependencies: `LanguageModel`, `Tool`, and `Skill`.
 

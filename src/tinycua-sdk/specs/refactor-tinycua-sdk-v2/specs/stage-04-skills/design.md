@@ -1,5 +1,7 @@
 # Stage 4: Skills & Composition — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-04-skills/spec.md`
+
 ## Implementation
 
 No new files. This is a behavioral enhancement to `BaseLoop._build_system_message()` from Stage 3.

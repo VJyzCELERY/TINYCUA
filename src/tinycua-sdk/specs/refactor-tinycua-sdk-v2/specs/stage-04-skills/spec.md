@@ -1,5 +1,10 @@
 # Stage 4: Skills & Composition — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 Skills inject their instructions into the agent's system prompt. Agents can use both tools and skills together.
 

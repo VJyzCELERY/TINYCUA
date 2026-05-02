@@ -1,5 +1,10 @@
 # Stage 2: Agent Configuration & Creation — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 An `Agent` can be instantiated and configured with all v2 parameters, but cannot yet execute. The constructor shape, config model, and serialization of config must match the spec exactly.
 

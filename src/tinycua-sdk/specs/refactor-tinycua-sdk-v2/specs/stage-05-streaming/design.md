@@ -1,5 +1,7 @@
 # Stage 5: Streaming — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-05-streaming/spec.md`
+
 ## Architecture
 
 ### Streaming Decision Tree

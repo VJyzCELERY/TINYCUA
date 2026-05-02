@@ -1,5 +1,7 @@
 # Stage 7: Security — Guardrails & Permissions — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-07-security/spec.md`
+
 ## Implementation
 
 No new files. This enhances `ToolExecutor.execute()` from Stage 3.

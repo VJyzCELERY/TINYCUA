@@ -1,5 +1,10 @@
 # Stage 9: Final Integration & Polish — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 All 16 integration tests pass. The SDK is coherent, fully typed, linted, and documented.
 

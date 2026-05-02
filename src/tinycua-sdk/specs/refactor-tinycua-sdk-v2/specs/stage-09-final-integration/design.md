@@ -1,5 +1,7 @@
 # Stage 9: Final Integration & Polish — Design
 
+**Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-09-final-integration/spec.md`
+
 ## Final Architecture
 
 ### Module Structure

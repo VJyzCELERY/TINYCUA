@@ -1,5 +1,10 @@
 # Stage 0: Scorched-Earth Cleanup — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 Remove every dead module, stub, and obsolete concept identified in the review report so subsequent stages build on a clean foundation. Zero backward compatibility is maintained.
 

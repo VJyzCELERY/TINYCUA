@@ -1,5 +1,10 @@
 # Stage 5: Streaming — Specification
 
+**Status**: Draft | In Progress | Complete
+**Created**: 2026-05-02
+**Last Updated**: 2026-05-02
+**Subproject(s) Affected**: tinycua-sdk
+
 ## Objective
 Implement all four streaming modes exactly as specified.
 
