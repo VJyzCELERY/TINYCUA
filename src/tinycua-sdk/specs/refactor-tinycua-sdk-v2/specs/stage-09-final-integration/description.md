@@ -27,6 +27,8 @@ This stage includes 5 atomic test scenarios in `targets/`:
 
 Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
 
+> **Important:** These targets are **MUST-HAVE** requirements for this stage. However, you should write additional integration tests during development as needed. The targets represent the minimum coverage; you may add more tests to ensure robustness.
+
 ## Dependencies
 - Depends on: All previous stages (0–8) must be complete with all integration tests passing individually.
 - Feeds into: Release — once this stage completes, the SDK is ready for distribution.

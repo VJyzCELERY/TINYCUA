@@ -27,6 +27,8 @@ This stage includes 5 atomic test scenarios in `targets/`:
 
 Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
 
+> **Important:** These targets are **MUST-HAVE** requirements for this stage. However, you should write additional integration tests during development as needed. The targets represent the minimum coverage; you may add more tests to ensure robustness.
+
 ## Dependencies
 - Depends on: Stages 0–5 (all value objects and execution must exist).
 - Feeds into: Stage 9 (final polish includes verifying goal scripts can load from files).
