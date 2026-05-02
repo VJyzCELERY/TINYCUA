@@ -17,6 +17,16 @@ Implement declarative tool execution controls: `tool_permissions` on the agent (
 2. Implement using `design.md` — this is primarily an enhancement to `ToolExecutor.execute()` from Stage 3.
 3. Verify denial flows carefully — ensure denied tools produce clear error messages in the agent's message history.
 
+## Targets (Test Scenarios)
+This stage includes 5 atomic test scenarios in `targets/`:
+- **01_dangerous_tool_guardrail.py** — Verify DangerousToolGuardrail blocks dangerous tools
+- **02_logging_guardrail.py** — Verify LoggingGuardrail records but never blocks
+- **03_permission_deny.py** — Verify 'deny' permission blocks without needing a guardrail
+- **04_permission_ask.py** — Verify 'ask' permission routes through ApprovalWorkflow
+- **05_runtime_mutation.py** — Verify changing tool_permissions at runtime takes effect immediately
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: Stages 0–6 (execution loop and tool executor must exist).
 - Feeds into: Stage 9 (final polish includes verifying all guardrail patterns work end-to-end).

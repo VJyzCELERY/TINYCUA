@@ -17,6 +17,16 @@ Make `BaseLoop` a clean extension point for consumers. Custom loops can override
 2. Implement using `design.md`, but write integration tests first with minimal loop subclasses.
 3. Verify that `_call_llm()` works correctly from a custom loop — this is the primary extension point consumers will use.
 
+## Targets (Test Scenarios)
+This stage includes 5 atomic test scenarios in `targets/`:
+- **01_minimal_custom_loop.py** — Verify subclassing BaseLoop and passing to Agent uses the custom loop
+- **02_custom_loop_calls_llm.py** — Verify custom loop can call agent._call_llm()
+- **03_custom_loop_cancellation.py** — Verify custom loop respects agent.is_cancelled
+- **04_custom_loop_max_iterations.py** — Verify custom loop respects self.max_iterations
+- **05_react_loop.py** — Verify a ReAct-style custom loop works
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: Stages 0–7 (execution loop, permissions, and all value objects must exist).
 - Feeds into: Stage 9 (final polish includes verifying custom loops work end-to-end).

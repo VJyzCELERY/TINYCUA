@@ -17,6 +17,16 @@ Ensure all 16 goal-derived integration tests pass, the SDK is fully typed and li
 2. Follow `design.md`'s verification commands systematically — run them in order.
 3. Do not mark this stage complete until every success criterion passes and the release checklist is green.
 
+## Targets (Test Scenarios)
+This stage includes 5 atomic test scenarios in `targets/`:
+- **01_full_goal_execution.py** — Verify all 16 goal scripts can be executed without errors
+- **02_public_api_clean.py** — Verify from tinycua_sdk import * only exports v2 public API
+- **03_no_notimplementederror.py** — Verify no production code raises NotImplementedError
+- **04_ruff_passes.py** — Verify ruff check passes on the SDK
+- **05_import_sanity_final.py** — Final import sanity check
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: All previous stages (0–8) must be complete with all integration tests passing individually.
 - Feeds into: Release — once this stage completes, the SDK is ready for distribution.

@@ -17,5 +17,13 @@ This stage removes every dead module, stub, and obsolete concept from the v1 SDK
 2. Follow `design.md`'s phased approach: delete leaf modules, then gut keeping files, then clean old tests.
 3. Run each success criterion command after completing the relevant phase — do not wait until the end.
 
+## Targets (Test Scenarios)
+This stage includes 3 atomic test scenarios in `targets/`:
+- **01_import_sanity.py** — Verify SDK imports cleanly after cleanup
+- **02_deleted_modules_raise.py** — Verify deleted modules cannot be imported
+- **03_no_stubs_at_import.py** — Verify no NotImplementedError is raised during import
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 This stage has no dependencies on other stages. It is the first stage and must complete before any implementation work begins.

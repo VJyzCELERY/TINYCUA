@@ -17,6 +17,18 @@ Enable `Agent` instantiation with the v2 constructor shape. The agent can be con
 2. Implement using `design.md`, but write integration tests first.
 3. Verify obsolete parameter rejection carefully — this is the primary migration signal for consumers upgrading from v1.
 
+## Targets (Test Scenarios)
+This stage includes 7 atomic test scenarios in `targets/`:
+- **01_minimal_agent.py** — Create a minimal Agent with no arguments
+- **02_named_agent.py** — Create a named agent with custom instructions and model
+- **03_agent_with_policy.py** — Create an agent with custom policy settings
+- **04_agent_with_metadata.py** — Create an agent with consumer-defined metadata
+- **05_obsolete_params_rejected.py** — Verify obsolete parameters raise TypeError
+- **06_dynamic_composition.py** — Verify tools and skills can be added after creation
+- **07_to_config.py** — Verify to_config() captures all fields
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: Stage 0 (cleanup), Stage 1 (`LanguageModel` must exist).
 - Feeds into: Stages 3–9 (all execution stages depend on a working `Agent` constructor).

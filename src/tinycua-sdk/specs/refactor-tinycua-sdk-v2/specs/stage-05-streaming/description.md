@@ -17,6 +17,15 @@ Implement all four streaming modes (`off`, `token`, `event`, `all`) so that `age
 2. Implement using `design.md`, but write integration tests first with a mock SSE stream.
 3. Test tool-call streaming carefully — partial JSON across chunks is the hardest edge case.
 
+## Targets (Test Scenarios)
+This stage includes 4 atomic test scenarios in `targets/`:
+- **01_stream_off.py** — Verify stream='off' returns a plain string
+- **02_stream_token.py** — Verify stream='token' yields token delta events
+- **03_stream_event.py** — Verify stream='event' yields agent events without token deltas
+- **04_stream_all.py** — Verify stream='all' yields interleaved token deltas and agent events
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: Stages 0–4 (execution loop must exist).
 - Feeds into: Stage 9 (final polish includes verifying all modes work end-to-end).

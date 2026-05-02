@@ -17,6 +17,17 @@ Give the agent the ability to actually call an LLM and return a response. This i
 2. Implement using `design.md`, but write integration tests first with a mock LLM client.
 3. This is the highest-risk stage — verify tool-calling works end-to-end before proceeding.
 
+## Targets (Test Scenarios)
+This stage includes 6 atomic test scenarios in `targets/`:
+- **01_run_returns_string.py** — Verify agent.run() returns a string with stream='off'
+- **02_run_with_history.py** — Verify agent.run() respects prior message history
+- **03_instruction_override.py** — Verify runtime instruction override works
+- **04_cancellation.py** — Verify agent.cancel() stops an in-flight run
+- **05_tool_calling_loop.py** — Verify agent with tools correctly invokes them
+- **06_dynamic_add_tools.py** — Verify tools added after creation work on next run
+
+Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
+
 ## Dependencies
 - Depends on: Stages 0–2 (cleanup, value objects, agent config).
 - Feeds into: Stages 4–9 (all subsequent stages build on a working execution loop).
