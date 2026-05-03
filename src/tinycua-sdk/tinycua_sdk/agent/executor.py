@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from tinycua_sdk.agent.definition import AgentDefinition
@@ -98,7 +99,6 @@ class ToolExecutor:
             }
 
         except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
-            import uuid
             ref_id = str(uuid.uuid4())
             _security_logger.error(
                 "Tool execution error (ref_id=%s): %s: %s",
@@ -149,7 +149,6 @@ class ToolExecutor:
             }
 
         except (ValueError, TypeError, RuntimeError, OSError, AttributeError) as e:
-            import uuid
             ref_id = str(uuid.uuid4())
             _security_logger.error(
                 "Tool execution error (ref_id=%s): %s: %s",

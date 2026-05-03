@@ -12,6 +12,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
 
 
@@ -72,10 +73,10 @@ class AgentConfig(BaseModel):
     instructions: str = ""
     llm_model: LLMModel = Field(default_factory=LLMModel)
     tools: list[Tool] = Field(default_factory=list)
-    skills: list[Any] = Field(default_factory=list)
+    skills: list[Skill] = Field(default_factory=list)  # type: ignore[type-arg]
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
-    metadata: dict = Field(default_factory=dict)
-    loop: Any = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    loop: Any = None  # BaseLoop | None — kept as Any since BaseLoop is not a Pydantic model
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""

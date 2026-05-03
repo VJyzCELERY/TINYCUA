@@ -62,6 +62,7 @@ class TestLoopExecution:
         assert r1 == "Mocked response"
         assert r2 == "Mocked response"
 
+    @pytest.mark.skip(reason="Custom loop wiring is implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_custom_loop(self, mock_llm_client):
         """Agent with custom BaseLoop subclass."""

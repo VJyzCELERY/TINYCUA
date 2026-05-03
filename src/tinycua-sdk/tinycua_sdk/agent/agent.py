@@ -146,12 +146,23 @@ class Agent(AgentExecutor):
             else:
                 resolved_skills.append(s)
 
+        policy_data = data.get("policy", {})
+        from tinycua_sdk.agent.config import AgentPolicy
+        policy = AgentPolicy(
+            max_tool_calls=policy_data.get("max_tool_calls", 10),
+            parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
+        )
+
+        metadata = data.get("metadata", {})
+
         return cls(
             name=data.get("name", "assistant"),
             instructions=data.get("instructions", ""),
             llm_model=llm_model,
             tools=resolved_tools,
             skills=resolved_skills,
+            policy=policy,
+            metadata=metadata if metadata else None,
             loop=data.get("loop"),
         )
 
