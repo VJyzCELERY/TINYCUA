@@ -1,1 +1,0 @@
-"""Generic context utilities (stateless)."""

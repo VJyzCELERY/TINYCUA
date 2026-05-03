@@ -6,19 +6,15 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from tinycua_sdk.agent.backend_kind import BackendConfig
 from tinycua_sdk.agent.llm_model import LLMModel
 from tinycua_sdk.tools.decorators import Tool
 
-if TYPE_CHECKING:
-    from tinycua_sdk.agent import Agent
-    from tinycua_sdk.agent.loop import BaseLoop
-    from tinycua_sdk.skills.models import Skill
+
 
 
 def _substitute_env_vars(data: dict[str, Any]) -> dict[str, Any]:
@@ -65,7 +61,6 @@ class AgentPolicy(BaseModel):
 
     max_tool_calls: int = 10
     parallel_tool_calls: bool = True
-    temperature: float = 1.0
 
 
 class AgentConfig(BaseModel):
@@ -79,11 +74,8 @@ class AgentConfig(BaseModel):
     tools: list[Tool] = Field(default_factory=list)
     skills: list[Any] = Field(default_factory=list)
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
-    backend: BackendConfig = Field(default_factory=BackendConfig)
-    sub_agents: list[Any] = Field(default_factory=list)
-    max_depth: int = 3
+    metadata: dict = Field(default_factory=dict)
     loop: Any = None
-    strip_thinking: bool | list[str] | None = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""
@@ -98,11 +90,7 @@ class AgentConfig(BaseModel):
             "policy": {
                 "max_tool_calls": self.policy.max_tool_calls,
                 "parallel_tool_calls": self.policy.parallel_tool_calls,
-                "temperature": self.policy.temperature,
             },
-            "backend": self.backend.to_dict(),
-            "max_depth": self.max_depth,
-            "strip_thinking": self.strip_thinking,
         }
         if self.loop is not None:
             if hasattr(self.loop, "to_dict"):
@@ -131,14 +119,10 @@ class AgentConfig(BaseModel):
         policy = AgentPolicy(
             max_tool_calls=policy_data.get("max_tool_calls", 10),
             parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
-            temperature=policy_data.get("temperature", 1.0),
         )
 
         llm_data = data.get("llm_model", {})
         llm_model = LLMModel.from_dict(llm_data) if isinstance(llm_data, dict) else LLMModel()
-
-        backend_data = data.get("backend", {})
-        backend = BackendConfig.from_dict(backend_data) if isinstance(backend_data, dict) else BackendConfig()
 
         tools_data = data.get("tools", [])
         tools = []
@@ -168,10 +152,6 @@ class AgentConfig(BaseModel):
             tools=tools,
             skills=skills,
             policy=policy,
-            backend=backend,
-            sub_agents=data.get("sub_agents", []),
-            max_depth=data.get("max_depth", 3),
-            strip_thinking=data.get("strip_thinking"),
             loop=data.get("loop"),
         )
 
@@ -237,8 +217,6 @@ class AgentConfig(BaseModel):
         if redact_sensitive:
             if config.get("llm_model", {}).get("api_key"):
                 config["llm_model"]["api_key"] = "***REDACTED***"
-            if config.get("backend", {}).get("api_key"):
-                config["backend"]["api_key"] = "***REDACTED***"
         return json.dumps(config, indent=indent, default=str)
 
     def to_yaml(self, redact_sensitive: bool = False) -> str:
@@ -247,8 +225,6 @@ class AgentConfig(BaseModel):
         if redact_sensitive:
             if config.get("llm_model", {}).get("api_key"):
                 config["llm_model"]["api_key"] = "***REDACTED***"
-            if config.get("backend", {}).get("api_key"):
-                config["backend"]["api_key"] = "***REDACTED***"
         return yaml.dump(config, default_flow_style=False, sort_keys=False)
 
     @classmethod

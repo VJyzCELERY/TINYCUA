@@ -6,14 +6,14 @@ import warnings
 class TestNoDeprecationWarnings:
     """Test that no deprecation warnings are emitted in the codebase."""
 
-    def test_no_deprecation_warnings_in_core_config(self):
-        """Verify no deprecation warnings from core config."""
+    def test_no_deprecation_warnings_on_import(self):
+        """Verify no deprecation warnings when importing tinycua_sdk."""
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            from tinycua_sdk.core.config import SDKConfig
+            import tinycua_sdk
 
-            _ = SDKConfig()
+            _ = tinycua_sdk
 
             deprecation_warnings = [
                 warning for warning in w

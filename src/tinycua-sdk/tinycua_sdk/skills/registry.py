@@ -1,6 +1,5 @@
 """Skill registry for managing skills."""
 
-from typing import Any
 
 from tinycua_sdk.skills.models import Skill
 

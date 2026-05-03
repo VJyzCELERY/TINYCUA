@@ -16,14 +16,6 @@ def default_llm():
 
 
 @pytest.fixture
-def default_backend():
-    """Return a default BackendConfig instance."""
-    from tinycua_sdk import BackendConfig, BackendKind
-
-    return BackendConfig(kind=BackendKind.LOCAL)
-
-
-@pytest.fixture
 def default_loop():
     """Return a default BaseLoop instance."""
     from tinycua_sdk import BaseLoop
