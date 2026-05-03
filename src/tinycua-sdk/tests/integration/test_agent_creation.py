@@ -60,29 +60,3 @@ class TestAgentCreation:
         restored = Agent.from_config(config_path)
         assert restored.name == "roundtrip"
         assert restored.llm_model.model_name == "gpt-4"
-
-    def test_coder_template(self):
-        """Load built-in coder template."""
-        agent = Agent.from_template("coder")
-        assert agent.name == "coder"
-
-    def test_researcher_template(self):
-        """Load built-in researcher template."""
-        agent = Agent.from_template("researcher")
-        assert agent.name == "researcher"
-
-    def test_assistant_template(self):
-        """Load built-in assistant template."""
-        agent = Agent.from_template("assistant")
-        assert agent.name == "assistant"
-
-    def test_template_with_llm_override(self):
-        """Override LLMModel after template load."""
-        agent = Agent.from_template("coder")
-        agent.llm_model = LLMModel(model_name="custom-model")
-        assert agent.llm_model.model_name == "custom-model"
-
-    def test_invalid_template(self):
-        """Unknown template raises ValueError."""
-        with pytest.raises(ValueError):
-            Agent.from_template("nonexistent_template")

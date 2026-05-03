@@ -1,1 +1,0 @@
-"""Events module placeholder (future)."""

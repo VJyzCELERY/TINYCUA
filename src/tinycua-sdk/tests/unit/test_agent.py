@@ -15,7 +15,7 @@ class TestAgentConstruction:
         assert agent.name == "assistant"
         assert agent.instructions == ""
 
-    def test_agent_full_construction(self, default_llm, default_backend, default_loop):
+    def test_agent_full_construction(self, default_llm, default_loop):
         """Agent can be constructed with all valid parameters."""
         from tinycua_sdk import Agent, AgentPolicy
 
@@ -24,14 +24,10 @@ class TestAgentConstruction:
             instructions="Test instructions",
             llm_model=default_llm,
             policy=AgentPolicy(),
-            backend=default_backend,
-            max_depth=5,
             loop=default_loop,
-            strip_thinking=["think"],
         )
         assert agent.name == "test"
         assert agent.instructions == "Test instructions"
-        assert agent.max_depth == 5
         assert agent.loop == default_loop
 
     def test_agent_rejects_system_prompt(self):

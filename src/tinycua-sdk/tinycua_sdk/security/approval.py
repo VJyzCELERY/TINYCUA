@@ -18,27 +18,22 @@ class ApprovalRequest:
 
 class ApprovalWorkflow:
     """Approval workflow for dangerous operations.
-    
+
     Manages approval requests for tools that require explicit
     authorization before execution.
     """
-    
-    def __init__(self, timeout: int = 60):
-        """Initialize approval workflow.
-        
-        Args:
-            timeout: Timeout in seconds for approval requests.
-        """
+
+    def __init__(self):
+        """Initialize approval workflow."""
         self._requests: dict[str, ApprovalRequest] = {}
-        self._timeout = timeout
-    
+
     def request_approval(self, tool_name: str, arguments: dict) -> str:
         """Request approval for dangerous operation.
-        
+
         Args:
             tool_name: Name of the tool requiring approval.
             arguments: Arguments that will be passed to the tool.
-            
+
         Returns:
             Request ID for tracking the approval request.
         """
@@ -52,13 +47,13 @@ class ApprovalWorkflow:
         )
         self._requests[request_id] = request
         return request_id
-    
+
     def approve(self, request_id: str) -> bool:
         """Approve a request.
-        
+
         Args:
             request_id: ID of the request to approve.
-            
+
         Returns:
             True if approval succeeded, False if request not found.
         """
@@ -67,13 +62,13 @@ class ApprovalWorkflow:
             return False
         request.status = "approved"
         return True
-    
+
     def deny(self, request_id: str) -> bool:
         """Deny a request.
-        
+
         Args:
             request_id: ID of the request to deny.
-            
+
         Returns:
             True if denial succeeded, False if request not found.
         """
@@ -82,33 +77,33 @@ class ApprovalWorkflow:
             return False
         request.status = "denied"
         return True
-    
+
     def get_status(self, request_id: str) -> Optional[str]:
         """Get request status.
-        
+
         Args:
             request_id: ID of the request to check.
-            
+
         Returns:
             Status string if found, None otherwise.
         """
         request = self._requests.get(request_id)
         return request.status if request else None
-    
+
     def get_request(self, request_id: str) -> Optional[ApprovalRequest]:
         """Get the full request object.
-        
+
         Args:
             request_id: ID of the request to retrieve.
-            
+
         Returns:
             ApprovalRequest if found, None otherwise.
         """
         return self._requests.get(request_id)
-    
+
     def list_pending_requests(self) -> list[ApprovalRequest]:
         """List all pending approval requests.
-        
+
         Returns:
             List of pending approval requests.
         """
