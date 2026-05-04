@@ -131,7 +131,7 @@ class Agent(AgentExecutor):
             if isinstance(t, Tool):
                 resolved_tools.append(t)
             elif isinstance(t, dict):
-                resolved_tools.append(Tool.from_config(t))
+                resolved_tools.append(Tool.from_dict(t))
             else:
                 resolved_tools.append(t)
 

@@ -28,7 +28,7 @@ class TestToolDecorator:
             """Fetch data from URL."""
             return "data"
 
-        assert "requests" in fetch_data._external_dependencies
+        assert "requests" in fetch_data.dependencies
 
     def test_decorator_without_parentheses(self):
         """@tool works without parentheses."""
@@ -128,53 +128,26 @@ class TestToolConfig:
             return f"Results for {query}"
 
         config = search.to_config()
-        assert config["name"] == "search"
-        assert "parameters" in config
+        assert config["function"]["name"] == "search"
+        assert "parameters" in config["function"]
 
-    def test_tool_to_bundle(self):
-        """Tool.to_bundle() includes deployment metadata."""
-        from tinycua_sdk import tool
-
-        @tool
-        def my_tool() -> None:
-            """My tool."""
-            pass
-
-        bundle = my_tool.to_bundle()
-        assert "source" in bundle
-        assert "external_dependencies" in bundle
-        assert "tool_dependencies" in bundle
-        assert "version" in bundle
-
-    def test_tool_from_config(self):
-        """Tool can be reconstructed from config."""
+    def test_tool_from_dict(self):
+        """Tool can be reconstructed from a dict."""
         from tinycua_sdk import Tool
 
-        config = {
+        data = {
             "name": "test_tool",
             "description": "A test tool",
             "parameters": {"type": "object", "properties": {}},
         }
 
-        tool = Tool.from_config(config)
+        tool = Tool.from_dict(data)
         assert tool.name == "test_tool"
         assert tool.description == "A test tool"
 
 
 class TestToolStatelessness:
     """Tests verifying Tool framework has no global state."""
-
-    def test_tool_source_captured(self):
-        """@tool captures the source code of the decorated function."""
-        from tinycua_sdk import tool
-
-        @tool
-        def my_tool() -> str:
-            """My tool."""
-            return "result"
-
-        assert hasattr(my_tool, "source")
-        assert "return" in my_tool.source
 
     def test_no_global_registry(self):
         """@tool does not register into a global singleton."""

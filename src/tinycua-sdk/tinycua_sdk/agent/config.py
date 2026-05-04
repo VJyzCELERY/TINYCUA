@@ -67,7 +67,7 @@ class AgentPolicy(BaseModel):
 class AgentConfig(BaseModel):
     """Configuration for an agent."""
 
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=False, arbitrary_types_allowed=True)
 
     name: str = "assistant"
     instructions: str = ""
@@ -131,7 +131,7 @@ class AgentConfig(BaseModel):
             if isinstance(t, Tool):
                 tools.append(t)
             elif isinstance(t, dict):
-                tools.append(Tool.from_config(t))
+                tools.append(Tool.from_dict(t))
             else:
                 tools.append(t)
 

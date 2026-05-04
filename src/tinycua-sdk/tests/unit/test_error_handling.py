@@ -16,7 +16,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="test_tool",
             description="A test tool",
-            _fn=lambda: "success",
+            _callable=lambda: "success",
         )
 
         result = executor.execute("test_tool", tool)
@@ -34,7 +34,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="failing_tool",
             description="A failing tool",
-            _fn=failing_fn,
+            _callable=failing_fn,
         )
 
         result = executor.execute("failing_tool", tool)
@@ -50,7 +50,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="value_error_tool",
             description="Raises ValueError",
-            _fn=lambda: (_ for _ in ()).throw(ValueError("invalid value")),
+            _callable=lambda: (_ for _ in ()).throw(ValueError("invalid value")),
         )
 
         result = executor.execute("value_error_tool", tool)
@@ -67,7 +67,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="type_error_tool",
             description="Raises TypeError",
-            _fn=bad_fn,
+            _callable=bad_fn,
         )
 
         result = executor.execute("type_error_tool", tool)
@@ -90,7 +90,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="recovered_tool",
             description="Recovers after first failure",
-            _fn=recovered_fn,
+            _callable=recovered_fn,
         )
 
         result1 = executor.execute("recovered_tool", tool)
@@ -109,7 +109,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="adder",
             description="Adds two numbers",
-            _fn=lambda x, y: x + y,
+            _callable=lambda x, y: x + y,
         )
 
         result = executor.execute("adder", tool, {"x": 2, "y": 3})
@@ -127,7 +127,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="async_tool",
             description="An async tool",
-            _fn=async_fn,
+            _callable=async_fn,
         )
 
         result = await executor.execute_async("async_tool", tool)
@@ -145,7 +145,7 @@ class TestToolErrorHandling:
         tool = Tool(
             name="async_fail_tool",
             description="Fails asynchronously",
-            _fn=async_fail,
+            _callable=async_fail,
         )
 
         result = await executor.execute_async("async_fail_tool", tool)

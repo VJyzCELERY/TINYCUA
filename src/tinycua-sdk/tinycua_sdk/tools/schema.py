@@ -200,7 +200,7 @@ def _handle_primitive(type_hint: Any, description: str | None) -> dict[str, Any]
     """
     primitive_map: dict[Any, str] = {
         str: "string",
-        int: "integer",
+        int: "number",
         float: "number",
         bool: "boolean",
     }

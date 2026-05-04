@@ -3,126 +3,187 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import dataclass, field
-from typing import Any, Callable
+import re
+from typing import Any, Callable, get_origin
 
-from tinycua_sdk.tools.schema import type_to_json_schema
-
-
-@dataclass
 class Tool:
     """A tool that can be invoked by the agent."""
 
     name: str
     description: str
-    parameters: dict[str, Any] = field(default_factory=dict)
-    _fn: Callable | None = field(default=None, repr=False)
-    _source: str | None = field(default=None, repr=False)
-    _external_dependencies: list[str] = field(default_factory=list)
-    _tool_dependencies: list[dict[str, Any]] = field(default_factory=list)
-    _version: str | None = field(default=None, repr=False)
-    _is_builtin: bool = False
+    parameters: dict[str, Any]
+    _callable: Callable | None
+    dependencies: list[str]
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        parameters: dict[str, Any] | None = None,
+        _callable: Callable | None = None,
+        dependencies: list[str] | None = None,
+    ) -> None:
+        """Initialize a Tool instance.
+
+        Args:
+            name: The tool name.
+            description: The tool description.
+            parameters: The tool parameters schema.
+            _callable: The underlying callable.
+            dependencies: List of external dependencies.
+
+        """
+        self.name = name
+        self.description = description
+        self.parameters = parameters or {}
+        self._callable = _callable
+        self.dependencies = dependencies or []
 
     def to_config(self) -> dict[str, Any]:
-        """Return tool descriptor for API."""
+        """Return OpenAI function-calling schema format."""
         return {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters,
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
         }
-
-    def to_bundle(self) -> dict[str, Any]:
-        """Return full deployment bundle."""
-        return {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters,
-            "source": self._source,
-            "external_dependencies": self._external_dependencies,
-            "tool_dependencies": self._tool_dependencies,
-            "version": self._version,
-        }
-
-    @classmethod
-    def from_config(cls, data: dict[str, Any]) -> Tool:
-        """Reconstruct tool from config."""
-        return cls(
-            name=data["name"],
-            description=data["description"],
-            parameters=data.get("parameters", {}),
-            _tool_dependencies=data.get("tool_dependencies", []),
-            _version=data.get("version"),
-        )
-
-    @property
-    def schema(self) -> dict[str, Any]:
-        """Return tool descriptor for API (alias for to_config)."""
-        return self.to_config()
-
-    @property
-    def source(self) -> str | None:
-        """Return the source code of the tool function."""
-        return self._source
 
     def invoke(self, **kwargs: Any) -> Any:
-        """Invoke the tool function."""
-        import asyncio
-
-        if self._fn is None:
+        """Invoke the tool function with keyword arguments."""
+        if self._callable is None:
             raise RuntimeError(f"Tool {self.name} has no function to invoke")
-        result = self._fn(**kwargs)
-        if asyncio.iscoroutine(result):
-            try:
-                asyncio.get_running_loop()
-                return result
-            except RuntimeError:
-                return asyncio.run(result)
-        return result
+        return self._callable(**kwargs)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Tool":
+        """Create a Tool from a configuration dict.
+
+        Args:
+            data: A dict with tool configuration (name, description, parameters).
+
+        Returns:
+            A Tool instance.
+
+        """
+        if "function" in data:
+            func_config = data["function"]
+            name = func_config.get("name", "")
+            description = func_config.get("description", "")
+            parameters = func_config.get("parameters", {})
+        else:
+            name = data.get("name", "")
+            description = data.get("description", "")
+            parameters = data.get("parameters", {})
+        return cls(
+            name=name,
+            description=description,
+            parameters=parameters,
+        )
+
+    @classmethod
+    def from_callable(
+        cls, fn: Callable, dependencies: list[str] | None = None
+    ) -> "Tool":
+        """Create a Tool from a function by inspecting its signature and docstring.
+
+        Args:
+            fn: The function to convert into a Tool.
+            dependencies: Optional list of external dependency names.
+
+        Returns:
+            A Tool instance with generated schema.
+
+        """
+        sig = inspect.signature(fn)
+        docstring = fn.__doc__ or ""
+
+        param_descriptions = _parse_param_descriptions(docstring)
+
+        params: dict[str, Any] = {}
+        required: list[str] = []
+        for param_name, param in sig.parameters.items():
+            schema = _python_type_to_json_schema(param.annotation)
+            if schema is not None:
+                params[param_name] = schema
+            if param.default is inspect.Parameter.empty:
+                required.append(param_name)
+
+        # Use first line of docstring as description
+        first_line = docstring.strip().split("\n")[0] if docstring.strip() else ""
+
+        return cls(
+            name=fn.__name__,
+            description=first_line,
+            parameters={
+                "type": "object",
+                "properties": params,
+                "required": required,
+            },
+            _callable=fn,
+            dependencies=dependencies or [],
+        )
 
 
-def _make_tool(fn: Callable, dependencies: list[str]) -> Tool:
-    """Create a Tool from a function.
+def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
+    """Map Python types to JSON Schema types.
 
     Args:
-        fn: The function to convert into a Tool.
-        dependencies: List of external dependency names.
+        type_hint: A Python type annotation.
 
     Returns:
-        A Tool instance with generated schema.
+        JSON Schema dict, or None for unsupported types (allows any).
 
     """
-    sig = inspect.signature(fn)
-    description = fn.__doc__ or ""
+    origin = get_origin(type_hint) if isinstance(type_hint, type) or hasattr(type_hint, "__origin__") else None
+    if type_hint is str:
+        return {"type": "string"}
+    elif type_hint in (int, float):
+        return {"type": "number"}
+    elif type_hint is bool:
+        return {"type": "boolean"}
+    elif type_hint in (list, list[Any]) or origin is list:
+        return {"type": "array"}
+    elif type_hint in (dict, dict[Any, Any]) or origin is dict:
+        return {"type": "object"}
+    return None
 
-    params = {}
-    required = []
-    for param_name, param in sig.parameters.items():
-        schema = type_to_json_schema(param.annotation)
-        params[param_name] = schema
-        if param.default is inspect.Parameter.empty:
-            required.append(param_name)
-        else:
-            params[param_name]["default"] = param.default
 
-    source = inspect.getsource(fn)
+def _parse_param_descriptions(docstring: str) -> dict[str, str]:
+    """Extract parameter descriptions from Google-style docstring Args: section.
 
-    return Tool(
-        name=fn.__name__,
-        description=description.strip().split("\n")[0],
-        parameters={
-            "type": "object",
-            "properties": params,
-            "required": required,
-        },
-        _fn=fn,
-        _source=source,
-        _external_dependencies=dependencies,
-    )
+    Args:
+        docstring: The function docstring.
+
+    Returns:
+        Dictionary mapping parameter names to their descriptions.
+
+    """
+    descriptions: dict[str, str] = {}
+    in_args = False
+    for line in docstring.split("\n"):
+        stripped = line.strip()
+        if stripped.lower().startswith("args:"):
+            in_args = True
+            continue
+        if in_args:
+            if stripped and not stripped.startswith(("-", "*", "#")):
+                match = re.match(r"^(\w+):\s*(.+)$", stripped)
+                if match:
+                    param_name = match.group(1)
+                    desc = match.group(2).strip()
+                    descriptions[param_name] = desc
+            else:
+                in_args = False
+    return descriptions
 
 
 def tool(
-    dependencies: list[str] | Callable | None = None,
-) -> Callable[[Callable], Tool] | Tool:
+    fn: Callable | None = None,
+    *,
+    dependencies: list[str] | None = None,
+) -> Tool | Callable[[Callable], Tool]:
     """Decorator to convert a function into a Tool.
 
     Usage:
@@ -135,15 +196,12 @@ def tool(
         @tool(dependencies=["requests"])
         def func(): ...
     """
-    if callable(dependencies):
-        return _make_tool(dependencies, [])
+    if fn is None:
+        def decorator(f: Callable) -> Tool:
+            return Tool.from_callable(f, dependencies or [])
+        return decorator
 
-    _external_deps = dependencies or []
-
-    def decorator(fn: Callable) -> Tool:
-        return _make_tool(fn, _external_deps)
-
-    return decorator
+    return Tool.from_callable(fn, dependencies or [])
 
 
 __all__ = ["Tool", "tool"]
