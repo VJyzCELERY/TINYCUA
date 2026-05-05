@@ -179,7 +179,7 @@ result = add.invoke(a=2, b=3)
 assert result == 5
 
 # Test with keyword args
-result2 = add.invoke(10, 20)
+result2 = add.invoke(a=10, b=20)
 assert result2 == 30
 
 print("PASS")
@@ -270,11 +270,12 @@ assert len(registry.list_skills()) == 2
 assert registry.get("coder").name == "coder"
 assert registry.get("nonexistent") is None
 
-# Overwrite: register s1 again with different name
-s3 = Skill(name="coder_v2", description="Write code v2", instructions="Use PEP 8.")
+# Overwrite: register s1 again with different description
+s3 = Skill(name="coder", description="Write code v2", instructions="Use PEP 8.")
 registry.register(s3)
 assert len(registry.list_skills()) == 2
-assert registry.get("coder").name == "coder_v2"
+assert registry.get("coder").name == "coder"
+assert registry.get("coder").description == "Write code v2"
 
 print("PASS")
 ```

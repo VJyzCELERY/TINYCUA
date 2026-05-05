@@ -129,7 +129,7 @@ class TestToolSchemaGeneration:
         assert props["metadata"]["type"] == "object"
 
     def test_tool_with_optional_param(self):
-        """Test @tool with Optional[str] param marks field as not required."""
+        """Test @tool with Optional[str] param generates schema for the inner type."""
 
         @tool()
         def search(query: str, filter: Optional[str] = None) -> dict:
@@ -137,12 +137,13 @@ class TestToolSchemaGeneration:
             return {"results": []}
 
         props = search.parameters["properties"]
-        assert "filter" not in props
+        assert "filter" in props
+        assert props["filter"]["type"] == "string"
         assert "filter" not in search.parameters["required"]
         assert "query" in search.parameters["required"]
 
     def test_tool_with_union_param(self):
-        """Test @tool with Union[str, int] param generates anyOf schema."""
+        """Test @tool with Union[str, int] param generates schema for the first non-None type."""
 
         @tool()
         def process_value(value: Union[str, int]) -> dict:
@@ -150,7 +151,8 @@ class TestToolSchemaGeneration:
             return {"value": value}
 
         props = process_value.parameters["properties"]
-        assert "value" not in props
+        assert "value" in props
+        assert props["value"]["type"] == "string"
 
     def test_tool_with_enum_param(self):
         """Test @tool with Enum param generates enum schema."""

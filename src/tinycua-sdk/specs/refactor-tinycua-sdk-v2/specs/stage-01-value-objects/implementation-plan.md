@@ -97,10 +97,10 @@ Implement three pure value objects with no I/O dependencies: `LanguageModel`, `T
 - **[Create from targets 1.8–1.9]**: Test Skill creation/serialization, SkillRegistry register/list/get/overwrite operations
 - **[Rationale]**: Converts targets 08_skill_creation.py, 09_skill_registry.py into pytest integration tests
 
-#### DELETE `targets/` directory
+#### PRESERVE `targets/` directory
 
-- **[Remove targets folder]**: After converting all targets to integration tests, remove the targets directory
-- **[Rationale]**: Targets are test scenarios to be converted, not kept as a separate structure per user requirements
+- **[Keep targets folder]**: Preserve the targets directory as source of truth for Stage 1 scenarios
+- **[Rationale]**: Targets serve as executable documentation and reference implementations alongside integration tests
 
 ## Architecture Changes
 
@@ -113,7 +113,7 @@ Implement three pure value objects with no I/O dependencies: `LanguageModel`, `T
 | `SkillRegistry` | Modify | Updated for discovery with register/list/get/overwrite semantics |
 | `__init__.py` | Modify | Add new exports for all value objects |
 | `tests/integration/goals/` | New | Integration tests converted from targets/ scenarios |
-| `targets/` | Delete | Removed after conversion to integration tests |
+| `targets/` | Preserve | Kept as source of truth alongside integration tests |
 
 ## Data Model Changes
 

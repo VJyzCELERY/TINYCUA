@@ -49,7 +49,7 @@ class LanguageModel(BaseModel):
 
     @field_validator("api_key", mode="before")
     @classmethod
-    def _resolve_env_vars(cls, v: str | SecretStr) -> str:
+    def _resolve_env_vars(cls, v: str | SecretStr) -> SecretStr:
         """Resolve ${VAR_NAME} patterns in api_key from environment variables."""
         if isinstance(v, SecretStr):
             v = v.get_secret_value()
@@ -63,15 +63,22 @@ class LanguageModel(BaseModel):
             return match.group(0)
 
         resolved = re.sub(r"\$\{(\w+)\}", _replacer, value)
-        return resolved
+        return SecretStr(resolved)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to plain dict, excluding None values."""
         return self.model_dump(exclude_none=True)
 
     def to_json(self) -> str:
-        """Serialize to indented JSON string."""
-        return self.model_dump_json(indent=2)
+        """Serialize to indented JSON string.
+
+        Note: api_key is serialized as its plain value to preserve it
+        across JSON round-trips (unlike model_dump_json which redacts SecretStr).
+        """
+        data = self.model_dump(exclude_none=True)
+        if isinstance(data.get("api_key"), SecretStr):
+            data["api_key"] = data["api_key"].get_secret_value()
+        return json.dumps(data, indent=2)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LanguageModel":
@@ -80,8 +87,14 @@ class LanguageModel(BaseModel):
 
     @classmethod
     def from_json(cls, data: str) -> "LanguageModel":
-        """Deserialize from JSON string."""
-        return cls(**json.loads(data))
+        """Deserialize from JSON string.
+
+        Note: api_key must be provided as a plain string in JSON.
+        """
+        parsed = json.loads(data)
+        if isinstance(parsed.get("api_key"), str):
+            parsed["api_key"] = SecretStr(parsed["api_key"])
+        return cls(**parsed)
 
 
 LLMModel = LanguageModel
