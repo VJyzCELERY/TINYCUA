@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
@@ -80,8 +81,6 @@ class LanguageModel(BaseModel):
     @classmethod
     def from_json(cls, data: str) -> "LanguageModel":
         """Deserialize from JSON string."""
-        import json
-
         return cls(**json.loads(data))
 
 

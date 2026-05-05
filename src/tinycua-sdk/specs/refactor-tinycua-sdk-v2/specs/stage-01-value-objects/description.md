@@ -19,13 +19,15 @@ Implement the three pure value objects that have no I/O dependencies: `LanguageM
 
 ## Targets (Test Scenarios)
 This stage includes 9 atomic test scenarios in `targets/`:
-- **01_minimal_creation.py** — Create a minimal Agent with no arguments
-- **02_named_agent.py** — Create a named agent with custom instructions and model
-- **03_agent_with_policy.py** — Create an agent with custom policy settings
-- **04_agent_with_metadata.py** — Create an agent with consumer-defined metadata
-- **05_obsolete_params_rejected.py** — Verify obsolete parameters raise TypeError
-- **06_dynamic_composition.py** — Verify tools and skills can be added after creation
-- **07_to_config.py** — Verify to_config() captures all fields
+- **01_minimal_creation.py** — Create a minimal LanguageModel with no arguments
+- **02_full_configuration.py** — Create a LanguageModel with all configuration options
+- **03_serialize_roundtrip.py** — LanguageModel serialization round-trip (to_dict → from_dict)
+- **04_json_export_import.py** — LanguageModel JSON export and import (to_json → from_json)
+- **05_schema_generation.py** — @tool decorator generates correct JSON Schema from function signature
+- **06_tool_invoke.py** — Tool.invoke() works with keyword arguments
+- **07_tool_manual.py** — Tool can be manually constructed without a callable
+- **08_skill_serialization.py** — Skill creation and serialization round-trip
+- **09_skill_registry.py** — SkillRegistry register, list_skills, get, and overwrite operations
 
 Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
 

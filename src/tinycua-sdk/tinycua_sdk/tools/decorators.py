@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Any, Callable, get_origin
+from typing import Any, Callable, get_args, get_origin
 
 class Tool:
     """A tool that can be invoked by the agent."""
@@ -110,6 +110,10 @@ class Tool:
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
 
+        for param_name, desc in param_descriptions.items():
+            if param_name in params:
+                params[param_name]["description"] = desc
+
         # Use first line of docstring as description
         first_line = docstring.strip().split("\n")[0] if docstring.strip() else ""
 
@@ -144,6 +148,11 @@ def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
     elif type_hint is bool:
         return {"type": "boolean"}
     elif type_hint in (list, list[Any]) or origin is list:
+        args = get_args(type_hint)
+        if args:
+            item_schema = _python_type_to_json_schema(args[0])
+            if item_schema is not None:
+                return {"type": "array", "items": item_schema}
         return {"type": "array"}
     elif type_hint in (dict, dict[Any, Any]) or origin is dict:
         return {"type": "object"}
