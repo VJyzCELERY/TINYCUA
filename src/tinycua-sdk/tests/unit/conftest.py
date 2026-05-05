@@ -5,10 +5,10 @@ import pytest
 
 @pytest.fixture
 def default_llm():
-    """Return a default LLMModel instance."""
-    from tinycua_sdk import LLMModel
+    """Return a default LanguageModel instance."""
+    from tinycua_sdk import LanguageModel
 
-    return LLMModel(
+    return LanguageModel(
         provider="openai-compatible",
         model_name="gpt-4o-mini",
         base_url="http://localhost:1234/v1",

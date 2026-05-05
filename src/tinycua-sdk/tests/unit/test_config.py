@@ -64,11 +64,11 @@ class TestConfigRoundTrip:
 
     def test_agent_config_round_trip(self):
         """AgentConfig serializes and deserializes correctly."""
-        from tinycua_sdk import AgentConfig, LLMModel
+        from tinycua_sdk import AgentConfig, LanguageModel
 
         original = AgentConfig(
             name="test",
-            llm_model=LLMModel(model_name="gpt-4"),
+            llm_model=LanguageModel(model_name="gpt-4"),
         )
         d = original.to_dict()
         restored = AgentConfig.from_dict(d)

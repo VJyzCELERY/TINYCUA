@@ -4,7 +4,7 @@ import asyncio
 
 
 from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 
 
 class TestAgentExecutorCancel:
@@ -47,7 +47,7 @@ class TestAgentExecutorInheritance:
         agent = AgentExecutor(
             name="test",
             instructions="test instructions",
-            llm_model=LLMModel(model_name="gpt-4o-mini"),
+            llm_model=LanguageModel(model_name="gpt-4o-mini"),
         )
 
         assert agent.name == "test"

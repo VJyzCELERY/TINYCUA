@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.config import AgentPolicy
@@ -25,7 +25,7 @@ class Agent(AgentExecutor):
         self,
         name: str = "assistant",
         instructions: str = "",
-        llm_model: LLMModel | None = None,
+        llm_model: LanguageModel | None = None,
         tools: list[Tool] | None = None,
         skills: list[Skill] | None = None,
         policy: AgentPolicy | None = None,
@@ -122,7 +122,7 @@ class Agent(AgentExecutor):
 
         # Resolve nested value objects
         llm_data = data.get("llm_model", {})
-        llm_model = LLMModel.from_dict(llm_data) if isinstance(llm_data, dict) else LLMModel()
+        llm_model = LanguageModel.from_dict(llm_data) if isinstance(llm_data, dict) else LanguageModel()
 
         tools = data.get("tools", [])
         from tinycua_sdk.tools.decorators import Tool

@@ -20,9 +20,9 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ## Requirements
 
-### R-1.1: LanguageModel (rename from LLMModel)
+### R-1.1: LanguageModel
 
-**Rename** the existing `LLMModel` class to `LanguageModel` in `agent/llm_model.py`.
+**The `LanguageModel` class in `agent/llm_model.py`.** This is the canonical name — no backward-compatibility alias for `LLMModel` exists.
 
 **Required fields with defaults:**
 

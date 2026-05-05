@@ -72,8 +72,9 @@ class LanguageModel(BaseModel):
     def to_json(self) -> str:
         """Serialize to indented JSON string.
 
-        Note: api_key is serialized as its plain value to preserve it
-        across JSON round-trips (unlike model_dump_json which redacts SecretStr).
+        Warning: The api_key is serialized as its plain value (not redacted).
+        Do not write the output of this method to logs or shared files,
+        as it will expose the API key in plaintext.
         """
         data = self.model_dump(exclude_none=True)
         if isinstance(data.get("api_key"), SecretStr):
@@ -96,5 +97,3 @@ class LanguageModel(BaseModel):
             parsed["api_key"] = SecretStr(parsed["api_key"])
         return cls(**parsed)
 
-
-LLMModel = LanguageModel

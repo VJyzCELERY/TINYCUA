@@ -103,7 +103,6 @@ class Tool:
 
         params: dict[str, Any] = {}
         required: list[str] = []
-        param_names = list(sig.parameters.keys())
         for i, (param_name, param) in enumerate(sig.parameters.items()):
             if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
                 continue
