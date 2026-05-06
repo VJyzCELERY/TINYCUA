@@ -14,6 +14,30 @@ make complexity    # run radon complexity check
 make clean         # remove caches (.pyc, .pytest_cache, .coverage, .ruff_cache)
 ```
 
+## Critical: Always Use `uv run` for Python/Pytest (IMPORTANT)
+
+**All Python and pytest invocations MUST use `uv run`.** Never use bare `python` or `pytest`, as they may import from a different worktree or environment.
+
+```bash
+# ✅ CORRECT - uses the project's uv-managed venv
+uv run --directory src/tinycua-sdk python script.py
+uv run --directory src/tinycua-sdk pytest tests/
+
+# ❌ WRONG - may import from wrong worktree or system Python
+python script.py
+pytest tests/
+```
+
+When running inline Python snippets (e.g., for review validation), always prefix with `uv run --directory src/tinycua-sdk`:
+```bash
+uv run --directory src/tinycua-sdk python -c "from tinycua_sdk import Agent; print(Agent().name)"
+uv run --directory src/tinycua-sdk python - <<'PY'
+from tinycua_sdk import Agent
+a = Agent()
+print(a.name)
+PY
+```
+
 From the repo root (runs all subprojects):
 ```bash
 make lint          # lint all subprojects
