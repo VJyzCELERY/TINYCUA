@@ -1,55 +1,88 @@
-"""BaseLoop - Base class for custom agent execution loops."""
+"""Agent execution loop."""
 
+from __future__ import annotations
+
+import asyncio
+import json
 from typing import TYPE_CHECKING, Any
 
+from tinycua_sdk.agent.executor import ToolExecutor
+
 if TYPE_CHECKING:
-    from tinycua_sdk.agent import Agent
+    from tinycua_sdk.agent.agent import Agent
+    from tinycua_sdk.tools.decorators import Tool
 
 
 class BaseLoop:
-    """Base class for custom agent execution loops.
+    """Standard tool-calling execution loop."""
 
-    This is the base class used by default for all agents developed with tinycua-sdk.
-    Users can extend this class to define custom execution strategies.
-
-    Example:
-        class MyLoop(BaseLoop):
-            async def run(self, agent, user_input, **kwargs):
-                # Custom logic
-                return "result"
-
-    Attributes:
-        max_iterations: Maximum number of loop iterations.
-    """
-
-    def __init__(self, max_iterations: int = 5):
-        """Initialize with optional max iterations.
-
-        Args:
-            max_iterations: Maximum number of loop iterations.
-        """
+    def __init__(self, max_iterations: int = 5) -> None:
         self.max_iterations = max_iterations
+
+    def _build_system_message(
+        self, agent: Agent, override_instructions: str | None = None
+    ) -> dict:
+        parts = []
+        instructions = override_instructions or agent.instructions
+        if instructions:
+            parts.append(instructions)
+        for skill in agent.skills:
+            parts.append(f"[{skill.name}]\n{skill.instructions}")
+        return {"role": "system", "content": "\n\n".join(parts)}
 
     async def run(
         self,
-        agent: "Agent",
-        messages: list[dict[str, Any]],
-        tools: list[Any],
+        agent: Agent,
+        messages: list[dict],
+        tools: list[Tool],
+        override_instructions: str | None = None,
     ) -> str:
-        """Execute the agent loop.
+        """Execute the agent loop with tool calling and cancellation support."""
+        system_msg = self._build_system_message(agent, override_instructions)
+        messages = [system_msg] + messages
 
-        Override to define custom execution strategy.
+        tool_call_count = 0
 
-        Args:
-            agent: The agent being run.
-            messages: Full message history including system prompt.
-            tools: Tools available to the agent.
+        for _ in range(self.max_iterations):
+            if agent.is_cancelled:
+                raise asyncio.CancelledError()
 
-        Returns:
-            The final response string.
-        """
-        # Stub for now — implemented in Stage 3
-        pass
+            if tool_call_count >= agent.policy.max_tool_calls:
+                break
 
+            response = await agent._call_llm(messages, tools)
 
-__all__ = ["BaseLoop"]
+            assistant_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": response.get("content") or "",
+            }
+            if response.get("tool_calls"):
+                assistant_msg["tool_calls"] = response["tool_calls"]
+            messages.append(assistant_msg)
+
+            if response.get("tool_calls"):
+                for tc in response["tool_calls"]:
+                    tool_name = tc["function"]["name"]
+                    arguments = json.loads(tc["function"]["arguments"])
+
+                    tool = next(
+                        (t for t in tools if t.name == tool_name), None
+                    )
+                    if tool is None:
+                        result = {"error": f"Unknown tool: {tool_name}"}
+                    else:
+                        result = await ToolExecutor.execute(
+                            tool, arguments, agent
+                        )
+                        tool_call_count += 1
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "name": tool_name,
+                        "content": str(result),
+                    })
+            else:
+                return response.get("content") or ""
+
+        return messages[-1].get("content") or "[max iterations reached]"

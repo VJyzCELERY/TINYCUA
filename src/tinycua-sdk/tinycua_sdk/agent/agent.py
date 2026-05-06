@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any, Literal
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.agent.loop import BaseLoop
 
 if TYPE_CHECKING:
-    from tinycua_sdk.agent.loop import BaseLoop
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.skills.models import Skill
 
@@ -123,6 +123,21 @@ class Agent(AgentExecutor):
             self.config.skills.extend(skill_or_list)
         else:
             self.config.skills.append(skill_or_list)
+
+    async def run(
+        self,
+        query: str,
+        messages: list[dict] | None = None,
+        instructions: str | None = None,
+        stream: str = "off",
+    ) -> str:
+        """Run the agent with a query and return the response string."""
+        if stream != "off":
+            raise NotImplementedError("Streaming implemented in Stage 5")
+
+        loop = self.config.loop or BaseLoop()
+        msgs = (messages or []) + [{"role": "user", "content": query}]
+        return await loop.run(self, msgs, self.tools, instructions)
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent to a configuration dict.

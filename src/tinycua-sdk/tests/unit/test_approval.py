@@ -1,4 +1,4 @@
-"""Tests for security module."""
+"""Tests for ApprovalWorkflow and DefaultApprovalWorkflow."""
 
 import pytest
 from tinycua_sdk.security.approval import (
@@ -16,16 +16,18 @@ class TestApprovalWorkflowABC:
 
 
 class TestDefaultApprovalWorkflow:
-    """Test DefaultApprovalWorkflow class."""
+    """Test DefaultApprovalWorkflow."""
 
     @pytest.mark.asyncio
     async def test_request_approval_returns_approved(self):
         workflow = DefaultApprovalWorkflow()
-        result = await workflow.request_approval("shell_execute", {"cmd": "ls"})
+        result = await workflow.request_approval(
+            "any_tool", {"param": "value"}
+        )
         assert result == {"approved": True}
 
     @pytest.mark.asyncio
-    async def test_request_approval_always_returns_approved(self):
+    async def test_request_approval_always_approves(self):
         workflow = DefaultApprovalWorkflow()
         result1 = await workflow.request_approval("tool_a", {})
         result2 = await workflow.request_approval("tool_b", {"x": 1})

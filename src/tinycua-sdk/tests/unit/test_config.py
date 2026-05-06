@@ -1,6 +1,9 @@
 """Tests for config serialization and deserialization."""
 
+from tinycua_sdk import LanguageModel
 
+
+_DEFAULT = LanguageModel(model_name="test-default")
 
 
 class TestAgentConfig:
@@ -10,7 +13,7 @@ class TestAgentConfig:
         """AgentConfig has sensible defaults."""
         from tinycua_sdk import AgentConfig
 
-        config = AgentConfig()
+        config = AgentConfig(llm_model=_DEFAULT)
         assert config.name == "assistant"
         assert config.instructions == ""
 
@@ -18,7 +21,7 @@ class TestAgentConfig:
         """AgentConfig.to_dict() returns a plain dict."""
         from tinycua_sdk import AgentConfig
 
-        config = AgentConfig(name="test")
+        config = AgentConfig(name="test", llm_model=_DEFAULT)
         d = config.to_dict()
         assert d["name"] == "test"
 
@@ -26,7 +29,7 @@ class TestAgentConfig:
         """AgentConfig.from_dict() reconstructs the config."""
         from tinycua_sdk import AgentConfig
 
-        d = {"name": "test", "instructions": "Be helpful"}
+        d = {"name": "test", "instructions": "Be helpful", "llm_model": _DEFAULT.to_dict()}
         config = AgentConfig.from_dict(d)
         assert config.name == "test"
         assert config.instructions == "Be helpful"
@@ -35,21 +38,21 @@ class TestAgentConfig:
         """AgentConfig does not have a system_prompt field."""
         from tinycua_sdk import AgentConfig
 
-        config = AgentConfig()
+        config = AgentConfig(llm_model=_DEFAULT)
         assert not hasattr(config, "system_prompt")
 
     def test_agent_config_no_session_id_field(self):
         """AgentConfig does not have a session_id field."""
         from tinycua_sdk import AgentConfig
 
-        config = AgentConfig()
+        config = AgentConfig(llm_model=_DEFAULT)
         assert not hasattr(config, "session_id")
 
     def test_agent_config_no_memory_fields(self):
         """AgentConfig does not have memory fields."""
         from tinycua_sdk import AgentConfig
 
-        config = AgentConfig()
+        config = AgentConfig(llm_model=_DEFAULT)
         assert not hasattr(config, "short_term_memory")
         assert not hasattr(config, "long_term_memory")
 
