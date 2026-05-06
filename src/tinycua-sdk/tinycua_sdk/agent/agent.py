@@ -14,30 +14,6 @@ if TYPE_CHECKING:
     from tinycua_sdk.skills.models import Skill
 
 
-_OBSOLETE_PARAMS = frozenset(
-    {
-        "system_prompt",
-        "model",
-        "provider",
-        "base_url",
-        "api_key",
-        "mode",
-        "backend_url",
-        "backend_api_key",
-        "backend_headers",
-        "agent_id",
-        "planning_prompt",
-        "short_term_memory",
-        "long_term_memory",
-        "session_id",
-        "sub_agents",
-        "max_depth",
-        "strip_thinking",
-        "backend",
-    }
-)
-
-
 class Agent(AgentExecutor):
     """Stateless, fully runnable agent class."""
 
@@ -53,35 +29,7 @@ class Agent(AgentExecutor):
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
         approval_workflow: Any | None = None,
-        **kwargs,
     ):
-        """Initialize the Agent.
-
-        Args:
-            name: Agent name for identification.
-            instructions: Additional instructions for the agent.
-            llm_model: LLM endpoint configuration.
-            tools: List of tools available to the agent.
-            skills: List of skills available to the agent.
-            policy: AgentPolicy instance for behavior settings.
-            metadata: Optional metadata dict.
-            loop: Custom BaseLoop subclass instance.
-            tool_permissions: Tool permission map.
-            approval_workflow: Optional approval workflow.
-            **kwargs: Additional keyword arguments (unused).
-
-        Raises:
-            TypeError: If obsolete parameters are passed.
-
-        """
-        for key in kwargs:
-            if key in _OBSOLETE_PARAMS:
-                raise TypeError(
-                    f"Agent() got an unexpected keyword argument '{key}'. "
-                    "This parameter has been removed in v2."
-                )
-
-
         config = AgentConfig(
             name=name,
             instructions=instructions,

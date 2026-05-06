@@ -58,7 +58,7 @@ else:
 **File:** `targets/02_public_api_clean.py`
 
 ```python
-"""Target 9.2: Verify from tinycua_sdk import * only exports v2 public API."""
+"""Target 9.2: Verify from tinycua_sdk import * only exports the public API."""
 
 from tinycua_sdk import *
 

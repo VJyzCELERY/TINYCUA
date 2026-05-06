@@ -71,7 +71,7 @@ tinycua_sdk/
 ## `__init__.py` Final State
 
 ```python
-"""tinycua_sdk - TINYCUA AI Agent Development Kit v2."""
+"""tinycua_sdk - TINYCUA AI Agent Development Kit."""
 
 from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.llm_model import LanguageModel
@@ -141,7 +141,7 @@ Replace old unit tests with focused tests for:
 | `test_tool.py` | Schema generation, type mapping, invoke |
 | `test_skill.py` | Creation, to_dict, from_dict |
 | `test_skill_registry.py` | Register, list, get, overwrite |
-| `test_agent_config.py` | Config construction, to_config, obsolete param rejection |
+| `test_agent_config.py` | Config construction, to_config |
 | `test_tool_executor.py` | Permission checks, approval workflow integration |
 | `test_base_loop.py` | Iteration limits, cancellation, message building |
 | `test_llm_client.py` | Mocked HTTP requests, response normalization |

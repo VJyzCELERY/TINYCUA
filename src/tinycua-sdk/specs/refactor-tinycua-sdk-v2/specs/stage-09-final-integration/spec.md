@@ -26,7 +26,7 @@ All 16 goal-derived integration tests must pass.
 - Internal functions should also be typed where possible.
 
 ### R-9.3: Public API Exports
-`tinycua_sdk/__init__.py` exports only the v2 public API:
+`tinycua_sdk/__init__.py` exports only the public API:
 ```python
 __all__ = [
     "Agent",
@@ -67,7 +67,7 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
   Description: Code passes linting.
 
 - [ ] Public API is Clean - N/A - only exports from `__all__` are present - python -c "from tinycua_sdk import *; print(sorted(dir()))"
-  Description: `from tinycua_sdk import *` imports only v2 public API.
+  Description: `from tinycua_sdk import *` imports only public API.
 
 - [ ] No NotImplementedError in Production - N/A - PASS: no stubs found - grep -r "NotImplementedError" tinycua_sdk/
   Description: No production code raises `NotImplementedError`.

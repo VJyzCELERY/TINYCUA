@@ -108,8 +108,8 @@ Remove every dead module, stub, and obsolete concept from tinycua-sdk so subsequ
 - **[Rationale]**: H-13, L-13 — Sub-agent code is not wired; deferred to later stages
 
 #### [MODIFY] `tinycua_sdk/agent/agent.py`
-- **[Description]**: Remove _OBSOLETE_PARAMS set and all obsolete parameter handling. Remove from_template() classmethod. Remove BackendConfig import. Remove sub_agents, max_depth, backend, strip_thinking parameters from __init__. Apply new constructor signature with name, instructions, llm_model, tools, skills, policy, metadata, loop, **kwargs.
-- **[Rationale]**: M-12, M-11, H-15, H-13 — Obsolete params must not be accepted; new constructor shape is the clean baseline
+- **[Description]**: Remove from_template() classmethod. Remove BackendConfig import. Remove sub_agents, max_depth, backend, strip_thinking parameters from __init__. Apply new constructor signature with name, instructions, llm_model, tools, skills, policy, metadata, loop.
+- **[Rationale]**: M-11, H-15, H-13 — Clean unused v1 artifacts from constructor; backward-compat validation is handled separately in Stage 2.5
 
 #### [MODIFY] `tinycua_sdk/security/approval.py`
 - **[Description]**: Remove timeout parameter from ApprovalWorkflow.__init__. Remove any method referencing self.timeout. Keep ApprovalWorkflow class.

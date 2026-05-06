@@ -42,7 +42,7 @@ Implementation tasks for Stage 0: Scorched-Earth Cleanup. Check off items as com
 
 - [ ] Simplify `tinycua_sdk/agent/executor.py` — remove stub methods (run_sync, stream, stream_sync, check_tool_permission, execute_subprocess, _get_global_config), remove sub-agent params from __init__ <!-- id: 26 -->
 
-- [ ] Simplify `tinycua_sdk/agent/agent.py` — remove _OBSOLETE_PARAMS, from_template(), BackendConfig import, obsolete constructor params; apply new constructor signature <!-- id: 27 -->
+- [ ] Simplify `tinycua_sdk/agent/agent.py` — remove from_template(), BackendConfig import, obsolete constructor params; apply new constructor signature <!-- id: 27 -->
 
 - [ ] Simplify `tinycua_sdk/security/approval.py` — remove timeout parameter and references <!-- id: 28 -->
 

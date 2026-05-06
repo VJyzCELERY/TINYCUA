@@ -1,7 +1,7 @@
 # Stage 2: Agent Configuration & Creation — Targets
 
 ## Purpose
-Verify `Agent` can be instantiated and configured with all v2 parameters. No LLM calls needed.
+Verify `Agent` can be instantiated and configured with all parameters. No LLM calls needed.
 
 ---
 
@@ -110,42 +110,12 @@ print("PASS")
 
 ---
 
-### Target 2.5: Obsolete Parameters Rejected
+### Target 2.5: Dynamic add_tools and add_skills
 
-**File:** `targets/05_obsolete_params_rejected.py`
-
-```python
-"""Target 2.5: Verify obsolete parameters raise TypeError."""
-
-from tinycua_sdk import Agent
-
-obsolete_params = [
-    "system_prompt", "model", "provider", "base_url", "api_key",
-    "mode", "backend_url", "backend_api_key", "backend_headers",
-    "agent_id", "planning_prompt", "short_term_memory", "long_term_memory",
-    "session_id", "sub_agents", "max_depth", "strip_thinking", "backend",
-]
-
-for param in obsolete_params:
-    try:
-        Agent(**{param: "test"})
-        assert False, f"{param} should raise TypeError"
-    except TypeError as e:
-        assert param in str(e) or "unexpected keyword argument" in str(e)
-
-print("PASS")
-```
-
-**Expected Output:** `targets/05_obsolete_params_rejected_expected-output.txt` → `PASS`
-
----
-
-### Target 2.6: Dynamic add_tools and add_skills
-
-**File:** `targets/06_dynamic_composition.py`
+**File:** `targets/05_dynamic_composition.py`
 
 ```python
-"""Target 2.6: Verify tools and skills can be added after creation."""
+"""Target 2.5: Verify tools and skills can be added after creation."""
 
 from tinycua_sdk import Agent, Skill, tool
 
@@ -183,16 +153,16 @@ assert len(a.skills) == 2
 print("PASS")
 ```
 
-**Expected Output:** `targets/06_dynamic_composition_expected-output.txt` → `PASS`
+**Expected Output:** `targets/05_dynamic_composition_expected-output.txt` → `PASS`
 
 ---
 
-### Target 2.7: to_config Serializes All Fields
+### Target 2.6: to_config Serializes All Fields
 
-**File:** `targets/07_to_config.py`
+**File:** `targets/06_to_config.py`
 
 ```python
-"""Target 2.7: Verify to_config() captures all fields."""
+"""Target 2.6: Verify to_config() captures all fields."""
 
 from tinycua_sdk import Agent, LanguageModel, Skill, tool
 
@@ -226,4 +196,4 @@ assert config["tool_permissions"] == {}
 print("PASS")
 ```
 
-**Expected Output:** `targets/07_to_config_expected-output.txt` → `PASS`
+**Expected Output:** `targets/06_to_config_expected-output.txt` → `PASS`

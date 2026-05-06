@@ -6,7 +6,7 @@
 **Subproject(s) Affected**: tinycua-sdk
 
 ## Objective
-An `Agent` can be instantiated and configured with all v2 parameters, but cannot yet execute. The constructor shape, config model, and serialization of config must match the spec exactly.
+An `Agent` can be instantiated and configured with all parameters, but cannot yet execute. The constructor shape, config model, and serialization of config must match the spec exactly.
 
 ## Guiding Principles
 All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
@@ -59,7 +59,6 @@ def __init__(
     loop: BaseLoop | None = None,
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
     approval_workflow: ApprovalWorkflow | None = None,
-    **kwargs,
 ):
 ```
 
@@ -71,9 +70,7 @@ def __init__(
 - If `metadata` is `None`, use empty dict.
 - If `tool_permissions` is `None`, use empty dict.
 
-**Obsolete parameter rejection:**
-- Any keyword in `kwargs` that matches an obsolete parameter name raises `TypeError` with a clear message.
-- Obsolete names: `system_prompt`, `model`, `provider`, `base_url`, `api_key`, `mode`, `backend_url`, `backend_api_key`, `backend_headers`, `agent_id`, `planning_prompt`, `short_term_memory`, `long_term_memory`, `session_id`, `sub_agents`, `max_depth`, `strip_thinking`, `backend`.
+**Constructor is clean:** No backward-compatibility validation. Unknown keyword arguments produce Python's standard `TypeError`.
 
 ### R-2.4: Dynamic Composition
 
@@ -102,9 +99,6 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 
 - [ ] Agent with Metadata - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
   Description: Consumer-defined metadata is preserved.
-
-- [ ] Obsolete Parameters Rejected - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
-  Description: Passing obsolete params raises `TypeError`.
 
 - [ ] Dynamic add_tools / add_skills - tests/integration/goals/test_gs_02_agent_creation.py - PASS - `print('PASS')`
   Description: Tools and skills can be added after creation.

@@ -127,7 +127,6 @@ class AgentConfig(BaseModel):
 #### `agent/agent.py`
 
 **Remove:**
-- `_OBSOLETE_PARAMS` set and all references
 - `from_template()` classmethod
 - `BackendConfig` import
 - `sub_agents` parameter from `__init__`

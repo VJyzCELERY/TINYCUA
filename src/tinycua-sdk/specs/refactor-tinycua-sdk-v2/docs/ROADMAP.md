@@ -1,7 +1,7 @@
 # TINYCUA SDK v2 Refactor Roadmap
 
 > **Status:** Draft  
-> **Scope:** Complete overhaul of `tinycua-sdk` with zero backward compatibility.  
+> **Scope:** Complete project reset of `tinycua-sdk` targeting the API defined in [`../goals/`](../goals/). This is a clean-slate build — not a migration from v1.  
 > **End Goal:** All 16 goal-derived integration tests pass.
 
 ---
@@ -9,7 +9,7 @@
 ## Principles
 
 1. **Tests First** — Every stage begins by writing the integration tests that define success. Implementation follows.
-2. **No Backward Compatibility** — Obsolete parameters, dead code, and unused abstractions are deleted, not deprecated.
+2. **Clean Slate** — This is a project reset, not a migration. There is no backward compatibility because there is no prior version to be compatible with. Obsolete parameters and dead code are simply not created.
 3. **Goals as Test Specs** — Each script in [`../goals/`](../goals/) becomes a comprehensive integration test.
 4. **Automated & Mockable** — Tests that call `agent.run()` use a mock OpenAI-compatible transport so they run in CI without an external LLM server.
 
@@ -66,7 +66,6 @@ Each goal script maps to one integration test file under `tests/integration/goal
 - `tools/cua/`, `tools/mcp.py`, `tools/parser.py`, `tools/resolver.py`
 - `skills/cache.py`, `skills/improver.py`
 - `events/`, `utils/`, planning models
-- `_OBSOLETE_PARAMS` and everything it lists
 - Sub-agent code, hook system, `DefaultLoop`, `run_sync()`, `stream_sync()`
 - `PermissionSystem` standalone class / `PermissionLevel` enum
 
@@ -102,9 +101,25 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 **What to build (test first):**
 1. **`AgentConfig` / `AgentPolicy`** — behavior settings only (`max_tool_calls`, `parallel_tool_calls`). Remove `temperature` from policy.
-2. **`Agent` constructor** — matches the v2 spec: `name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `metadata`, `loop`, `tool_permissions`, `approval_workflow`. `add_tools()`, `add_skills()`, `to_config()`. Rejects obsolete parameters.
+2. **`Agent` constructor** — matches the spec: `name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `metadata`, `loop`, `tool_permissions`, `approval_workflow`. `add_tools()`, `add_skills()`, `to_config()`. Clean constructor with no backward-compatibility validation.
 
 **Tests targeted:** `test_gs_02`
+
+---
+
+### Stage 2.5: Clear Backward Compatibility
+
+**Objective:** Strip all backward-compatibility artifacts from the project. This is a spec-and-test cleanup stage with no runtime code changes.
+
+**Reference:** `specs/stage-2.5-clear-backward-compat/`
+
+**What to do:**
+1. Remove `_OBSOLETE_PARAMS` and its validation logic from Stage 2's constructor design.
+2. Delete the "obsolete params rejected" target from Stage 2.
+3. Update all subsequent stages (3–9) to remove any backward-compatibility framing.
+4. Renumber remaining Stage 2 targets (2.6→2.5, 2.7→2.6).
+
+**Tests targeted:** Verify Stage 2 constructor is clean (no custom obsolete-param validation).
 
 ---
 
@@ -236,6 +251,9 @@ Stage 1 (Value Objects) ──► test_gs_01, test_int_01, test_int_02
     │
     ▼
 Stage 2 (Agent Creation) ──► test_gs_02
+    │
+    ▼
+Stage 2.5 (Clear Backward Compat)
     │
     ▼
 Stage 3 (Execution Core) ──► test_gs_03, test_int_03

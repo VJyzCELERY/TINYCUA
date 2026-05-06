@@ -20,7 +20,7 @@ Ensure all 16 goal-derived integration tests pass, the SDK is fully typed and li
 ## Targets (Test Scenarios)
 This stage includes 5 atomic test scenarios in `targets/`:
 - **01_full_goal_execution.py** — Verify all 16 goal scripts can be executed without errors
-- **02_public_api_clean.py** — Verify from tinycua_sdk import * only exports v2 public API
+- **02_public_api_clean.py** — Verify from tinycua_sdk import * only exports the public API
 - **03_no_notimplementederror.py** — Verify no production code raises NotImplementedError
 - **04_ruff_passes.py** — Verify ruff check passes on the SDK
 - **05_import_sanity_final.py** — Final import sanity check

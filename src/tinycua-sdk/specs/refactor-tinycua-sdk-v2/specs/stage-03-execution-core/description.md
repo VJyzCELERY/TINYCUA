@@ -31,5 +31,5 @@ Each target has an accompanying `_expected-output.txt` file showing the expected
 > **Important:** These targets are **MUST-HAVE** requirements for this stage. However, you should write additional integration tests during development as needed. The targets represent the minimum coverage; you may add more tests to ensure robustness.
 
 ## Dependencies
-- Depends on: Stages 0–2 (cleanup, value objects, agent config).
+- Depends on: Stages 0–2.5 (cleanup, value objects, agent config, backward-compat cleanup).
 - Feeds into: Stages 4–9 (all subsequent stages build on a working execution loop).

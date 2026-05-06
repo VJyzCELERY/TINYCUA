@@ -50,7 +50,7 @@ Apply every issue code (H-xx, M-xx, L-xx) from the report.
 | 2 | `agent/executor.py` | `run_sync()`, `stream()`, `stream_sync()`, static permission methods, `execute_subprocess()`, `_get_global_config()`, sub-agent params | M-10, M-16, L-10, L-11, M-14, H-13 |
 | 3 | `agent/config.py` | `temperature` from `AgentPolicy`, `BackendConfig` references, `strip_thinking` | L-07, H-15, L-13 |
 | 4 | `agent/definition.py` | All sub-agent methods/fields, `strip_thinking`, `BackendConfig` | H-13, L-13, H-15 |
-| 5 | `agent/agent.py` | `_OBSOLETE_PARAMS` and all obsolete parameter handling, `from_template()`, `BackendConfig`, `sub_agents`/`max_depth` params | M-12, M-11, H-15, H-13 |
+| 5 | `agent/agent.py` | `from_template()`, `BackendConfig`, `sub_agents`/`max_depth` params | M-11, H-15, H-13 |
 | 6 | `security/approval.py` | `timeout` param | L-06 |
 | 7 | `security/permissions.py` | Hardcoded defaults, `PermissionLevel` enum, standalone `PermissionSystem` class | M-05 |
 | 8 | `core/providers.py` | Anthropic stub | L-14 |
@@ -84,8 +84,8 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] Deleted Modules Raise ImportError - N/A - ModuleNotFoundError - python -c "from tinycua_sdk.agent import backend_kind" 2>&1 | grep "ModuleNotFoundError"
   Description: Any deleted module raises `ModuleNotFoundError` on import.
 
-- [ ] No Obsolete Parameters Accepted - N/A - TypeError - python -c "try: Agent(system_prompt='hello') except TypeError: print('PASS:', e)"
-  Description: Passing any obsolete parameter to `Agent()` raises `TypeError`.
+- [ ] TypeError on Unknown Keyword Arguments - N/A - TypeError - python -c "try: Agent(system_prompt='hello') except TypeError: print('PASS:', e)"
+  Description: Passing an unknown keyword argument to `Agent()` raises `TypeError`.
 
 - [ ] No NotImplementedError at Import - N/A - exits with code 0 - python -c "import tinycua_sdk"
   Description: Importing the SDK does not trigger any `NotImplementedError`.

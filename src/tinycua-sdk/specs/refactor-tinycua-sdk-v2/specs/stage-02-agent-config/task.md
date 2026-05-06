@@ -7,7 +7,7 @@ Implementation tasks for Stage 2 Agent Configuration and Creation. Check off ite
 - [x] Update AgentPolicy and AgentConfig models in `tinycua_sdk/agent/config.py` to match v2 spec fields and defaults <!-- id: 0 -->
 - [x] Implement `AgentConfig.to_config()` to serialize nested models per spec <!-- id: 1 -->
 - [x] Remove v1 `AgentDefinition` and update references to use `AgentConfig` <!-- id: 2 -->
-- [x] Update `Agent` constructor signature, defaults, and obsolete param rejection in `tinycua_sdk/agent/agent.py` <!-- id: 3 -->
+- [x] Update `Agent` constructor signature and defaults in `tinycua_sdk/agent/agent.py` <!-- id: 3 -->
 - [x] Add `Agent` proxies and `add_tools` / `add_skills` mutation helpers <!-- id: 4 -->
 - [x] Simplify `AgentExecutor` to config holder with cancel stub and NotImplemented `run` <!-- id: 5 -->
 
@@ -23,7 +23,7 @@ Implementation tasks for Stage 2 Agent Configuration and Creation. Check off ite
 
 ## Documentation Phase
 
-- [ ] Update any affected v2 migration notes if present <!-- id: 10 -->
+- [x] Update any affected migration notes if present <!-- id: 10 -->
 
 ## Review and Merge
 

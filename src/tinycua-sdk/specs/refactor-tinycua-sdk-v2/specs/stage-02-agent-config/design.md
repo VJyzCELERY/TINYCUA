@@ -4,14 +4,14 @@
 
 ## Architecture Decision: Collapse AgentDefinition into AgentConfig
 
-The v1 codebase has both `AgentDefinition` and `AgentConfig`. For v2, we collapse this into a single `AgentConfig` that is the source of truth.
+The previous codebase had both `AgentDefinition` and `AgentConfig`. We collapse this into a single `AgentConfig` that is the source of truth.
 
 ### Why?
 - Having two config classes confuses consumers.
 - `AgentDefinition` was bloated with sub-agent and backend features that are being removed.
 - `AgentConfig` already has Pydantic validation.
 
-### Migration:
+### Strategy:
 1. Move any remaining useful fields from `AgentDefinition` into `AgentConfig`.
 2. Delete `AgentDefinition` class.
 3. `Agent` stores an `AgentConfig` instance internally.
@@ -85,15 +85,6 @@ from tinycua_sdk.tools.decorators import Tool
 from tinycua_sdk.skills.models import Skill
 
 
-# Parameters removed in v2 that should be rejected
-_OBSOLETE_PARAMS = frozenset({
-    "system_prompt", "model", "provider", "base_url", "api_key",
-    "mode", "backend_url", "backend_api_key", "backend_headers",
-    "agent_id", "planning_prompt", "short_term_memory", "long_term_memory",
-    "session_id", "sub_agents", "max_depth", "strip_thinking", "backend",
-})
-
-
 class Agent(AgentExecutor):
     """Stateless, fully runnable agent."""
 
@@ -109,16 +100,7 @@ class Agent(AgentExecutor):
         loop: Any = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
         approval_workflow: Any = None,
-        **kwargs: Any,
     ):
-        # Reject obsolete parameters
-        for key in kwargs:
-            if key in _OBSOLETE_PARAMS:
-                raise TypeError(
-                    f"Agent() got an unexpected keyword argument '{key}'. "
-                    f"This parameter has been removed in v2."
-                )
-
         # Build config
         config = AgentConfig(
             name=name,
@@ -227,7 +209,7 @@ class AgentExecutor:
 |------|--------|---------|
 | `agent/config.py` | Modify | Add `AgentConfig`, simplify `AgentPolicy`, remove `BackendConfig` refs |
 | `agent/definition.py` | Delete | Collapse into `AgentConfig` |
-| `agent/agent.py` | Rewrite | New constructor, property proxies, obsolete param rejection |
+| `agent/agent.py` | Rewrite | New constructor, property proxies, no backward-compat baggage |
 | `agent/executor.py` | Simplify | Keep as config holder + cancel stub |
 
 ## Data Flow
@@ -237,7 +219,6 @@ Consumer
     │
     ├──► Agent(name="x", llm_model=LanguageModel(...), ...)
     │       │
-    │       ├──► validates kwargs against _OBSOLETE_PARAMS
     │       ├──► builds AgentConfig
     │       └──► passes AgentConfig to AgentExecutor.__init__
     │
@@ -250,6 +231,5 @@ Consumer
 
 | Scenario | Behavior |
 |----------|----------|
-| Obsolete parameter passed | `TypeError` with message naming the param |
 | `add_tools` with non-Tool | `TypeError` (Pydantic validation on list) |
 | `add_skills` with non-Skill | `TypeError` (Pydantic validation on list) |

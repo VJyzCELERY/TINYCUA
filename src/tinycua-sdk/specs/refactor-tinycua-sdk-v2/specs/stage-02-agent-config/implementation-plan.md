@@ -1,6 +1,6 @@
 # Implementation: Stage 2 Agent Configuration and Creation
 
-Implement the v2 Agent configuration model and constructor behavior so agents can be instantiated and configured (but not executed) exactly per spec, including serialization and obsolete-parameter rejection.
+Implement the Agent configuration model and constructor behavior so agents can be instantiated and configured (but not executed) exactly per spec, including serialization.
 
 ## Context
 
@@ -16,7 +16,7 @@ Implement the v2 Agent configuration model and constructor behavior so agents ca
 #### [MODIFY] `src/tinycua-sdk/tinycua_sdk/agent/config.py`
 
 - **Define AgentPolicy**: Keep behavior-only fields (`max_tool_calls`, `parallel_tool_calls`) with defaults and frozen config.
-- **Define AgentConfig**: Single source of truth for v2 fields (`name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `metadata`, `loop`, `tool_permissions`, `approval_workflow`).
+- **Define AgentConfig**: Single source of truth for fields (`name`, `instructions`, `llm_model`, `tools`, `skills`, `policy`, `metadata`, `loop`, `tool_permissions`, `approval_workflow`).
 - **Implement serialization**: `to_config()` returns a plain dict with nested serialization of `llm_model`, `tools`, `skills`, and `policy`.
 
 #### [DELETE] `src/tinycua-sdk/tinycua_sdk/agent/definition.py`
@@ -27,8 +27,7 @@ Implement the v2 Agent configuration model and constructor behavior so agents ca
 
 #### [MODIFY] `src/tinycua-sdk/tinycua_sdk/agent/agent.py`
 
-- **Constructor update**: Match v2 signature and defaults, instantiate `LanguageModel()` and `AgentPolicy()` when absent, and fill empty lists/dicts.
-- **Obsolete param rejection**: Reject obsolete kwargs with `TypeError` including the removed parameter name.
+- **Constructor update**: Match signature and defaults, instantiate `LanguageModel()` and `AgentPolicy()` when absent, and fill empty lists/dicts.
 - **Config storage**: Build `AgentConfig` and pass to `AgentExecutor`.
 - **Convenience proxies**: Properties for core config fields plus `add_tools`, `add_skills`, and `to_config` methods.
 
@@ -40,15 +39,15 @@ Implement the v2 Agent configuration model and constructor behavior so agents ca
 
 #### [MODIFY] `src/tinycua-sdk/tests/integration/goals/test_gs_02_agent_creation.py`
 
-- **Align with v2 spec**: Ensure tests cover minimal creation, named agent, policy, metadata, obsolete params, dynamic add, and serialization.
+- **Align with spec**: Ensure tests cover minimal creation, named agent, policy, metadata, dynamic add, and serialization.
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| AgentConfig | Modify | Becomes the single, full config model for v2 |
-| AgentDefinition | Remove | Eliminated in favor of AgentConfig |
-| Agent | Modify | New constructor and proxy surface per v2 |
+| AgentConfig | Modify | Becomes the single, full config model |
+
+| Agent | Modify | New constructor and proxy surface |
 | AgentExecutor | Modify | Simplified config holder with cancel stub |
 
 ## Data Model Changes
@@ -78,7 +77,7 @@ class AgentConfig(BaseModel):
 
 | Area | Change |
 |------|--------|
-| Agent constructor | New signature with v2 defaults and obsolete param rejection |
+| Agent constructor | New signature with defaults |
 | Agent API | `add_tools`, `add_skills`, `to_config` added/updated |
 
 ## Verification Plan
