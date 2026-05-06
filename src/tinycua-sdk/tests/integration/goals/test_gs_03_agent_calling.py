@@ -46,7 +46,7 @@ class TestGS03AgentCalling:
         assert isinstance(response, str)
 
     @pytest.mark.asyncio
-    async def test_gs_04_cancellation(self, mock_llm_client):
+    async def test_gs_04_cancellation(self):
         """Target 3.4: Agent.cancel() stops an in-flight run."""
         agent = Agent(llm_model=LanguageModel())
 
@@ -58,7 +58,7 @@ class TestGS03AgentCalling:
             call_count += 1
             if call_count == 1:
                 step_1_started.set()
-                await asyncio.sleep(10)
+                await asyncio.sleep(0.1)
                 return {
                     "content": None,
                     "tool_calls": [

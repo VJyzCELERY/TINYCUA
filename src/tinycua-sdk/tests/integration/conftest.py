@@ -69,7 +69,12 @@ def mock_llm_client():
 
 @pytest.fixture
 def mock_llm_with_tool_calls():
-    """Mock LLM client that returns tool calls then a final response."""
+    """Mock LLM client that returns tool calls then a final response.
+
+    Note: This fixture hardcodes the tool name ``"search"`` and arguments
+    ``{"query": "quantum"}``.  Tests that use it *must* register a tool
+    with the same name and parameter shape for the tool call to resolve.
+    """
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
@@ -108,5 +113,43 @@ def mock_llm_with_tool_calls():
 
         import httpx
         mock_post = AsyncMock(side_effect=[first_response, second_response])
+        mp.setattr(httpx.AsyncClient, "post", mock_post)
+        yield mock_post
+
+
+@pytest.fixture
+def mock_llm_with_failing_tool_call():
+    """Mock LLM client that returns a tool call to a tool named ``'failing_tool'``
+    (no arguments).  The tool call triggers the tool, which raises
+    ``RuntimeError("Tool failed")`` — allowing tests to verify that tool
+    exceptions propagate correctly through the execution loop.
+    """
+    with (
+        pytest.MonkeyPatch.context() as mp,
+    ):
+        first_response = _make_fake_response(json_data={
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call_fail_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "failing_tool",
+                                    "arguments": "{}",
+                                },
+                            }
+                        ],
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        })
+
+        import httpx
+        mock_post = AsyncMock(return_value=first_response)
         mp.setattr(httpx.AsyncClient, "post", mock_post)
         yield mock_post

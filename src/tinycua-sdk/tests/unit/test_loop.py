@@ -197,7 +197,6 @@ class TestBaseLoopRun:
             return "result"
 
         agent._call_llm = tool_call_llm
-        agent.add_tools(dummy_tool)
 
         result = await loop.run(
             agent,
@@ -227,7 +226,7 @@ class TestBaseLoopRun:
 
         agent = Agent(
             llm_model=LanguageModel(),
-            policy=AgentPolicy(max_tool_calls=1),
+            policy=AgentPolicy(max_tool_calls=2),
         )
 
         call_count = 0
@@ -236,7 +235,71 @@ class TestBaseLoopRun:
             nonlocal call_count
             call_count += 1
             return {
-                "content": "still going",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": f"call_{call_count}",
+                        "type": "function",
+                        "function": {
+                            "name": "dummy",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
+
+        @tool
+        def dummy() -> str:
+            return "ok"
+
+        agent._call_llm = mock_call_llm
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Go"}],
+            tools=[dummy],
+        )
+        assert call_count == 2
+        assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_run_multiple_tool_calls_in_one_response(self):
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        @tool
+        def get_date() -> str:
+            return "2026-05-07"
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "get_time", "arguments": "{}"},
+                        },
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {"name": "get_date", "arguments": "{}"},
+                        },
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "The time is 12:00 and date is 2026-05-07.",
                 "tool_calls": None,
                 "usage": None,
             }
@@ -245,11 +308,11 @@ class TestBaseLoopRun:
 
         result = await loop.run(
             agent,
-            messages=[{"role": "user", "content": "Go"}],
-            tools=[],
+            messages=[{"role": "user", "content": "What time and date?"}],
+            tools=[get_time, get_date],
         )
-        assert result == "still going"
-        assert call_count == 1
+        assert result == "The time is 12:00 and date is 2026-05-07."
+        assert call_count == 2
 
     @pytest.mark.asyncio
     async def test_run_with_override_instructions(self):

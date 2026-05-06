@@ -139,7 +139,7 @@ class TestAgentRun:
             call_count += 1
             if call_count == 1:
                 step_1_started.set()
-                await asyncio.sleep(10)
+                await asyncio.sleep(0.1)
                 return {
                     "content": None,
                     "tool_calls": [

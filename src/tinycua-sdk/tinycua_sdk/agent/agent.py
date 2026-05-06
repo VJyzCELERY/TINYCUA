@@ -10,6 +10,7 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.agent.loop import BaseLoop
 
 if TYPE_CHECKING:
+    from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.skills.models import Skill
 
@@ -28,7 +29,7 @@ class Agent(AgentExecutor):
         metadata: dict | None = None,
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
-        approval_workflow: Any | None = None,
+        approval_workflow: ApprovalWorkflow | None = None,
     ):
         config = AgentConfig(
             name=name,
@@ -98,7 +99,7 @@ class Agent(AgentExecutor):
         self.config.tool_permissions = value
 
     @property
-    def approval_workflow(self) -> Any:
+    def approval_workflow(self) -> ApprovalWorkflow | None:
         """Get approval workflow."""
         return self.config.approval_workflow
 
@@ -108,10 +109,12 @@ class Agent(AgentExecutor):
         Args:
             tool_or_list: A single Tool or a list of Tools.
         """
-        if isinstance(tool_or_list, list):
-            self.config.tools.extend(tool_or_list)
-        else:
-            self.config.tools.append(tool_or_list)
+        new_tools = tool_or_list if isinstance(tool_or_list, list) else [tool_or_list]
+        existing_names = {t.name for t in self.config.tools}
+        for t in new_tools:
+            if t.name not in existing_names:
+                self.config.tools.append(t)
+                existing_names.add(t.name)
 
     def add_skills(self, skill_or_list: Skill | list[Skill]) -> None:
         """Append one or more skills to the agent.
@@ -119,17 +122,19 @@ class Agent(AgentExecutor):
         Args:
             skill_or_list: A single Skill or a list of Skills.
         """
-        if isinstance(skill_or_list, list):
-            self.config.skills.extend(skill_or_list)
-        else:
-            self.config.skills.append(skill_or_list)
+        new_skills = skill_or_list if isinstance(skill_or_list, list) else [skill_or_list]
+        existing_names = {s.name for s in self.config.skills}
+        for s in new_skills:
+            if s.name not in existing_names:
+                self.config.skills.append(s)
+                existing_names.add(s.name)
 
     async def run(
         self,
         query: str,
         messages: list[dict] | None = None,
         instructions: str | None = None,
-        stream: str = "off",
+        stream: Literal["off", "event", "token", "all"] = "off",
     ) -> str:
         """Run the agent with a query and return the response string."""
         if stream != "off":
@@ -137,7 +142,10 @@ class Agent(AgentExecutor):
 
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
-        return await loop.run(self, msgs, self.tools, instructions)
+        try:
+            return await loop.run(self, msgs, self.tools, instructions)
+        finally:
+            self._cancelled = False
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent to a configuration dict.

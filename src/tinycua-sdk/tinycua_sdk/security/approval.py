@@ -24,3 +24,6 @@ class DefaultApprovalWorkflow(ApprovalWorkflow):
     ) -> dict[str, Any]:
         """Request approval — always returns approved."""
         return {"approved": True}
+
+
+__all__ = ["ApprovalWorkflow", "DefaultApprovalWorkflow"]

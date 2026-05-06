@@ -139,6 +139,47 @@ class Tool:
         )
 
 
+def _handle_enum_type(type_hint: Any) -> dict[str, Any] | None:
+    """Handle Enum type hint for schema generation.
+
+    Args:
+        type_hint: A Python type annotation.
+
+    Returns:
+        JSON Schema dict for Enum, or None if not an Enum.
+
+    """
+    import enum
+
+    if isinstance(type_hint, type) and issubclass(type_hint, enum.Enum):
+        return {"type": "string", "enum": [e.value for e in type_hint]}
+    return None
+
+
+def _handle_annotated_type(type_hint: Any) -> dict[str, Any] | None:
+    """Handle Annotated type hint for schema generation.
+
+    Args:
+        type_hint: A Python type annotation.
+
+    Returns:
+        JSON Schema dict for Annotated, or None if not Annotated.
+
+    """
+    from typing import Annotated
+
+    origin = get_origin(type_hint)
+    if origin is Annotated:
+        args = get_args(type_hint)
+        if args:
+            inner_schema = _python_type_to_json_schema(args[0])
+            if inner_schema is not None and len(args) > 1 and isinstance(args[1], str):
+                inner_schema["description"] = args[1]
+            return inner_schema
+        return {"type": "string"}
+    return None
+
+
 def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
     """Map Python types to JSON Schema types.
 
@@ -158,28 +199,31 @@ def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
     )
     if type_hint is str:
         return {"type": "string"}
-    elif type_hint in (int, float):
+    if type_hint in (int, float):
         return {"type": "number"}
-    elif type_hint is bool:
+    if type_hint is bool:
         return {"type": "boolean"}
-    elif type_hint in (list, list[Any]) or origin is list:
+    if type_hint in (list, list[Any]) or origin is list:
         args = get_args(type_hint)
         if args:
             item_schema = _python_type_to_json_schema(args[0])
             if item_schema is not None:
                 return {"type": "array", "items": item_schema}
         return {"type": "array"}
-    elif type_hint in (dict, dict[Any, Any]) or origin is dict:
+    if type_hint in (dict, dict[Any, Any]) or origin is dict:
         return {"type": "object"}
-    if origin is not None:
-        if origin is typing.Union:
-            args = get_args(type_hint)
-            non_none = [a for a in args if a is not type(None)]
-            if len(non_none) == 1:
-                return _python_type_to_json_schema(non_none[0])
-            if non_none:
-                return {"type": "string"}
-    return None
+    if origin is typing.Union:
+        args = get_args(type_hint)
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _python_type_to_json_schema(non_none[0])
+        if non_none:
+            return {"type": "string"}
+        return None
+    result = _handle_annotated_type(type_hint)
+    if result is not None:
+        return result
+    return _handle_enum_type(type_hint)
 
 
 def _parse_param_descriptions(docstring: str) -> dict[str, str]:

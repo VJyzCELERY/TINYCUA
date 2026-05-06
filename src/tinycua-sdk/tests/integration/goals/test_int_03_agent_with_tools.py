@@ -15,16 +15,16 @@ class TestInt03AgentWithTools:
     async def test_int_01_tool_calling_loop(self, mock_llm_with_tool_calls):
         """Target 3.5: Agent with tools correctly invokes them."""
         @tool
-        def calculator(expression: str) -> str:
-            return str(eval(expression, {"__builtins__": {}}, {}))
+        def search(query: str) -> str:
+            return f"Results for: {query}"
 
         agent = Agent(
             llm_model=LanguageModel(),
-            tools=[calculator],
-            instructions="You have access to a calculator. Use it for math.",
+            tools=[search],
+            instructions="You have access to a search tool. Use it for lookups.",
         )
 
-        response = await agent.run("What is 135 * 42?", stream="off")
+        response = await agent.run("Search for quantum", stream="off")
         assert isinstance(response, str)
 
     @pytest.mark.asyncio

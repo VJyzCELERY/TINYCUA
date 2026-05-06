@@ -21,7 +21,7 @@ class BaseLoop:
 
     def _build_system_message(
         self, agent: Agent, override_instructions: str | None = None
-    ) -> dict:
+    ) -> dict[str, str]:
         parts = []
         instructions = override_instructions or agent.instructions
         if instructions:
@@ -39,50 +39,83 @@ class BaseLoop:
     ) -> str:
         """Execute the agent loop with tool calling and cancellation support."""
         system_msg = self._build_system_message(agent, override_instructions)
-        messages = [system_msg] + messages
+        working_messages = [system_msg] + messages
 
         tool_call_count = 0
+        max_tool_calls_reached = False
 
         for _ in range(self.max_iterations):
             if agent.is_cancelled:
                 raise asyncio.CancelledError()
 
             if tool_call_count >= agent.policy.max_tool_calls:
+                max_tool_calls_reached = True
                 break
 
-            response = await agent._call_llm(messages, tools)
+            response = await agent._call_llm(working_messages, tools)
 
-            assistant_msg: dict[str, Any] = {
-                "role": "assistant",
-                "content": response.get("content") or "",
-            }
-            if response.get("tool_calls"):
-                assistant_msg["tool_calls"] = response["tool_calls"]
-            messages.append(assistant_msg)
+            content = response.get("content")
+            tool_calls = response.get("tool_calls")
+            if content or tool_calls:
+                assistant_msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
+                if tool_calls:
+                    assistant_msg["tool_calls"] = tool_calls
+                working_messages.append(assistant_msg)
 
-            if response.get("tool_calls"):
-                for tc in response["tool_calls"]:
+            if tool_calls:
+                for tc in tool_calls:
+                    if tool_call_count >= agent.policy.max_tool_calls:
+                        break
+
                     tool_name = tc["function"]["name"]
-                    arguments = json.loads(tc["function"]["arguments"])
+
+                    try:
+                        arguments = json.loads(tc["function"]["arguments"])
+                    except json.JSONDecodeError as e:
+                        tool_call_count += 1
+                        tool_result = {"error": f"Failed to parse arguments for tool '{tool_name}': {e}"}
+                        working_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "name": tool_name,
+                            "content": str(tool_result),
+                        })
+                        continue
 
                     tool = next(
                         (t for t in tools if t.name == tool_name), None
                     )
                     if tool is None:
-                        result = {"error": f"Unknown tool: {tool_name}"}
+                        tool_result = {"error": f"Unknown tool: {tool_name}"}
                     else:
-                        result = await ToolExecutor.execute(
-                            tool, arguments, agent
-                        )
+                        try:
+                            tool_result = await ToolExecutor.execute(
+                                tool, arguments, agent
+                            )
+                        except Exception as e:
+                            tool_result = {"error": f"Tool execution failed: {e}"}
                         tool_call_count += 1
 
-                    messages.append({
+                    working_messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
                         "name": tool_name,
-                        "content": str(result),
+                        "content": str(tool_result),
                     })
             else:
-                return response.get("content") or ""
+                return content or ""
 
-        return messages[-1].get("content") or "[max iterations reached]"
+        last_assistant = self._last_assistant_content(working_messages)
+        if max_tool_calls_reached:
+            return last_assistant or "[max tool calls reached]"
+        return last_assistant or "[max iterations reached]"
+
+    @staticmethod
+    def _last_assistant_content(messages: list[dict]) -> str:
+        for msg in reversed(messages):
+            if msg.get("role") == "assistant":
+                return msg.get("content") or ""
+        return ""
+
+
+__all__ = ["BaseLoop"]

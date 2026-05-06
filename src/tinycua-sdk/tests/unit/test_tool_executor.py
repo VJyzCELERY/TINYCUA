@@ -1,7 +1,6 @@
 """Tests for ToolExecutor."""
 
 import pytest
-from unittest.mock import AsyncMock
 
 from tinycua_sdk import Agent, LanguageModel, tool
 from tinycua_sdk.agent.executor import ToolExecutor
@@ -11,10 +10,9 @@ from tinycua_sdk.security.approval import ApprovalWorkflow
 class MockApprovalWorkflow(ApprovalWorkflow):
     def __init__(self, return_value=None):
         self._return_value = return_value or {"approved": True}
-        self.request_approval = AsyncMock(return_value=self._return_value)
 
     async def request_approval(self, tool_name, arguments):
-        return await self.request_approval(tool_name, arguments)
+        return self._return_value
 
 
 class TestToolExecutor:
@@ -96,7 +94,7 @@ class TestToolExecutor:
         assert result == "Hello, World!"
 
     @pytest.mark.asyncio
-    async def test_execute_ask_without_workflow_falls_through(self):
+    async def test_execute_ask_without_workflow_denies(self):
         @tool
         def simple_tool() -> str:
             return "done"
@@ -107,4 +105,6 @@ class TestToolExecutor:
             approval_workflow=None,
         )
         result = await ToolExecutor.execute(simple_tool, {}, agent)
-        assert result == "done"
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "approval_workflow" in result["error"]

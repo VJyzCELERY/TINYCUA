@@ -22,24 +22,38 @@ class LLMClient(ABC):
     ) -> dict[str, Any]:
         """Send chat request and return normalized response."""
 
+    async def close(self) -> None:
+        """Close and release any resources held by the client."""
+
 
 class OpenAICompatibleClient(LLMClient):
     """Client for OpenAI-compatible endpoints using httpx."""
 
     def __init__(self) -> None:
-        self._client: httpx.AsyncClient | None = None
+        self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
+
+    def _client_key(self, model_config: LanguageModel) -> tuple[str, str]:
+        api_key = model_config.api_key.get_secret_value()
+        base_url = model_config.base_url or "https://api.openai.com/v1"
+        return (base_url, api_key)
 
     def _get_client(self, model_config: LanguageModel) -> httpx.AsyncClient:
-        if self._client is None:
+        key = self._client_key(model_config)
+        if key not in self._clients:
+            api_key = key[1]
             headers: dict[str, str] = {}
-            api_key = model_config.api_key.get_secret_value()
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
-            base_url = model_config.base_url or "https://api.openai.com/v1"
-            self._client = httpx.AsyncClient(
-                base_url=base_url, headers=headers, timeout=60.0
+            self._clients[key] = httpx.AsyncClient(
+                base_url=key[0], headers=headers, timeout=60.0
             )
-        return self._client
+        return self._clients[key]
+
+    async def close(self) -> None:
+        """Close all cached HTTP clients and clear the cache."""
+        for client in self._clients.values():
+            await client.aclose()
+        self._clients.clear()
 
     async def chat(
         self,
@@ -69,11 +83,24 @@ class OpenAICompatibleClient(LLMClient):
             if "tool_choice" not in payload:
                 payload["tool_choice"] = "auto"
 
-        response = await client.post("/chat/completions", json=payload)
+        try:
+            response = await client.post("chat/completions", json=payload)
+        except httpx.RequestError as e:
+            raise RuntimeError(
+                f"Failed to connect to LLM at {model_config.base_url}: {e}"
+            ) from e
         response.raise_for_status()
         data = response.json()
 
+        if "choices" not in data or not data["choices"]:
+            raise RuntimeError(
+                f"LLM response missing 'choices' field: {data}"
+            )
         choice = data["choices"][0]
+        if "message" not in choice:
+            raise RuntimeError(
+                f"LLM response choice missing 'message' field: {choice}"
+            )
         message = choice["message"]
 
         tool_calls = None
@@ -95,3 +122,6 @@ class OpenAICompatibleClient(LLMClient):
             "tool_calls": tool_calls,
             "usage": data.get("usage"),
         }
+
+
+__all__ = ["LLMClient", "OpenAICompatibleClient"]

@@ -4,6 +4,7 @@ import httpx
 import pytest
 from unittest.mock import AsyncMock
 
+from tests.conftest import FakeLLMResponse
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 
@@ -40,18 +41,7 @@ class TestOpenAICompatibleClient:
         }
 
         mock_post = AsyncMock()
-        mock_post.return_value.status_code = 200
-
-        class FakeResponse:
-            status_code = 200
-
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return fake_response_data
-
-        mock_post.return_value = FakeResponse()
+        mock_post.return_value = FakeLLMResponse(json_data=fake_response_data)
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -98,16 +88,7 @@ class TestOpenAICompatibleClient:
             "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25},
         }
 
-        class FakeResponse:
-            status_code = 200
-
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return fake_response_data
-
-        mock_post = AsyncMock(return_value=FakeResponse())
+        mock_post = AsyncMock(return_value=FakeLLMResponse(json_data=fake_response_data))
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -131,24 +112,19 @@ class TestOpenAICompatibleClient:
     async def test_chat_sends_tool_choice_auto_when_tools_present(self):
         client = OpenAICompatibleClient()
 
-        class FakeResponse:
-            status_code = 200
-
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {
-                    "choices": [{"message": {"content": "ok", "role": "assistant"}}],
-                    "usage": None,
-                }
-
-        mock_post = AsyncMock(return_value=FakeResponse())
+        fake_response = FakeLLMResponse(json_data={
+            "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+            "usage": None,
+        })
+        mock_post = AsyncMock(return_value=fake_response)
         captured_payload = {}
 
         async def capture_post(url, **kwargs):
             captured_payload.update(kwargs.get("json", {}))
-            return FakeResponse()
+            return FakeLLMResponse(json_data={
+                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                "usage": None,
+            })
 
         mock_post.side_effect = capture_post
 
@@ -169,24 +145,16 @@ class TestOpenAICompatibleClient:
     async def test_chat_forwards_model_config_fields(self):
         client = OpenAICompatibleClient()
 
-        class FakeResponse:
-            status_code = 200
-
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {
-                    "choices": [{"message": {"content": "ok", "role": "assistant"}}],
-                    "usage": None,
-                }
-
-        mock_post = AsyncMock(return_value=FakeResponse())
+        fake_ok = FakeLLMResponse(json_data={
+            "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+            "usage": None,
+        })
+        mock_post = AsyncMock(return_value=fake_ok)
         captured_payload = {}
 
         async def capture_post(url, **kwargs):
             captured_payload.update(kwargs.get("json", {}))
-            return FakeResponse()
+            return fake_ok
 
         mock_post.side_effect = capture_post
 
@@ -199,6 +167,7 @@ class TestOpenAICompatibleClient:
                 temperature=0.5,
                 max_tokens=100,
                 top_p=0.9,
+                user="test-user",
             )
             await client.chat(
                 messages=[{"role": "user", "content": "hi"}],
@@ -210,23 +179,16 @@ class TestOpenAICompatibleClient:
         assert captured_payload["temperature"] == 0.5
         assert captured_payload["max_tokens"] == 100
         assert captured_payload["top_p"] == 0.9
+        assert captured_payload["user"] == "test-user"
 
     @pytest.mark.asyncio
     async def test_chat_raises_on_http_error(self):
         client = OpenAICompatibleClient()
 
-        class FakeErrorResponse:
-            status_code = 401
-
-            def raise_for_status(self):
-                raise httpx.HTTPStatusError(
-                    "401 Unauthorized", request=None, response=self
-                )
-
-            def json(self):
-                return {"error": "unauthorized"}
-
-        mock_post = AsyncMock(return_value=FakeErrorResponse())
+        mock_post = AsyncMock(return_value=FakeLLMResponse(
+            json_data={"error": "unauthorized"},
+            status_code=401,
+        ))
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -245,26 +207,17 @@ class TestOpenAICompatibleClient:
     async def test_chat_no_tool_calls_when_omitted(self):
         client = OpenAICompatibleClient()
 
-        class FakeResponse:
-            status_code = 200
-
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "No tools needed.",
-                                "role": "assistant",
-                            }
-                        }
-                    ],
-                    "usage": None,
+        mock_post = AsyncMock(return_value=FakeLLMResponse(json_data={
+            "choices": [
+                {
+                    "message": {
+                        "content": "No tools needed.",
+                        "role": "assistant",
+                    }
                 }
-
-        mock_post = AsyncMock(return_value=FakeResponse())
+            ],
+            "usage": None,
+        }))
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -280,9 +233,9 @@ class TestOpenAICompatibleClient:
         assert result["tool_calls"] is None
         assert result["content"] == "No tools needed."
 
-    def test_get_client_lazy_initialization(self):
+    @pytest.mark.asyncio
+    async def test_create_client(self):
         client = OpenAICompatibleClient()
-        assert client._client is None
 
         model = LanguageModel(
             model_name="gpt-4o-mini",
@@ -292,5 +245,10 @@ class TestOpenAICompatibleClient:
 
         httpx_client = client._get_client(model)
         assert httpx_client is not None
-        assert client._client is httpx_client
         assert str(httpx_client.base_url) == "http://test.local/v1/"
+
+        # Verify caching: same config returns same client
+        httpx_client_2 = client._get_client(model)
+        assert httpx_client_2 is httpx_client
+
+        await client.close()

@@ -22,7 +22,11 @@ class ToolExecutor:
         if permission == "deny":
             return {"error": f"Tool '{tool.name}' is denied by permission map."}
 
-        if permission == "ask" and agent.approval_workflow:
+        if permission == "ask":
+            if agent.approval_workflow is None:
+                return {
+                    "error": f"Tool '{tool.name}' requires approval but no approval_workflow is configured."
+                }
             approval = await agent.approval_workflow.request_approval(
                 tool.name, arguments
             )
@@ -49,6 +53,12 @@ class AgentExecutor:
         """Cancel current execution."""
         self._cancelled = True
 
+    async def close(self) -> None:
+        """Close the LLM client and release resources."""
+        if self._llm_client is not None:
+            await self._llm_client.close()
+            self._llm_client = None
+
     def _get_llm_client(self) -> LLMClient:
         if self._llm_client is None:
             self._llm_client = OpenAICompatibleClient()
@@ -63,3 +73,6 @@ class AgentExecutor:
         client = self._get_llm_client()
         tool_schemas = [t.to_config() for t in tools] if tools else None
         return await client.chat(messages, tool_schemas, self.config.llm_model)
+
+
+__all__ = ["ToolExecutor", "AgentExecutor"]

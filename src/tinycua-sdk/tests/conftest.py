@@ -6,6 +6,28 @@ import os
 import logging
 
 
+class FakeLLMResponse:
+    """Fake httpx response for LLM client unit tests.
+
+    Provides a consistent interface across tests without defining
+    separate FakeResponse classes in each test method.
+    """
+
+    def __init__(self, json_data=None, status_code=200):
+        self.status_code = status_code
+        self._json_data = json_data or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import httpx
+            raise httpx.HTTPStatusError(
+                f"{self.status_code} error", request=None, response=self
+            )
+
+    def json(self):
+        return self._json_data
+
+
 # =============================================================================
 # Configuration
 # =============================================================================
