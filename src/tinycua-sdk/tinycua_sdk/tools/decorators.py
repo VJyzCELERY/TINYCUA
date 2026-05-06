@@ -114,6 +114,8 @@ class Tool:
             schema = _python_type_to_json_schema(param.annotation)
             if schema is not None:
                 params[param_name] = schema
+            else:
+                params[param_name] = {}
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
 

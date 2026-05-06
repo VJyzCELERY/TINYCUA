@@ -81,7 +81,7 @@ class Agent(AgentExecutor):
         return self.config.metadata
 
     @property
-    def loop(self) -> Any:
+    def loop(self) -> BaseLoop | None:
         """Get agent loop."""
         return self.config.loop
 

@@ -7,6 +7,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.agent.loop import BaseLoop
+from tinycua_sdk.security.approval import ApprovalWorkflow
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
 
@@ -26,16 +28,16 @@ class AgentConfig(BaseModel):
 
     name: str = "assistant"
     instructions: str = ""
-    llm_model: LanguageModel = Field(default_factory=LanguageModel)
+    llm_model: LanguageModel
     tools: list[Tool] = Field(default_factory=list)
     skills: list[Skill] = Field(default_factory=list)  # type: ignore[type-arg]
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    loop: Any = None  # BaseLoop | None — kept as Any since BaseLoop is not a Pydantic model
+    loop: BaseLoop | None = None
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
         default_factory=dict
     )
-    approval_workflow: Any = None  # ApprovalWorkflow | None after Stage 3
+    approval_workflow: ApprovalWorkflow | None = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict.
