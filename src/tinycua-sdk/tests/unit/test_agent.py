@@ -111,6 +111,55 @@ class TestAgentConstruction:
         with pytest.raises(TypeError, match="backend_url"):
             Agent(backend_url="http://localhost:8000")
 
+    def test_agent_rejects_backend_api_key(self):
+        """Agent rejects obsolete backend_api_key parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend_api_key"):
+            Agent(backend_api_key="test")
+
+    def test_agent_rejects_backend_headers(self):
+        """Agent rejects obsolete backend_headers parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend_headers"):
+            Agent(backend_headers={})
+
+    def test_agent_rejects_agent_id(self):
+        """Agent rejects obsolete agent_id parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="agent_id"):
+            Agent(agent_id="old-id")
+
+    def test_agent_rejects_sub_agents(self):
+        """Agent rejects obsolete sub_agents parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="sub_agents"):
+            Agent(sub_agents=[])
+
+    def test_agent_rejects_max_depth(self):
+        """Agent rejects obsolete max_depth parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="max_depth"):
+            Agent(max_depth=5)
+
+    def test_agent_rejects_strip_thinking(self):
+        """Agent rejects obsolete strip_thinking parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="strip_thinking"):
+            Agent(strip_thinking=True)
+
+    def test_agent_rejects_backend(self):
+        """Agent rejects obsolete backend parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend"):
+            Agent(backend="test")
+
 
 class TestAgentToolSkillComposition:
     """Tests for Agent tool and skill composition."""

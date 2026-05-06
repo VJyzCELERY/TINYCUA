@@ -28,7 +28,7 @@ def temp_skill_dir():
     """Create a temporary directory with test skills."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base_dir = Path(tmpdir)
-        
+
         # Create test skills
         skill_dir = base_dir / "math-helper"
         skill_dir.mkdir()
@@ -43,7 +43,7 @@ dependencies: []
 ## Instructions
 This skill helps with math calculations.
 """)
-        
+
         skill_dir = base_dir / "web-search"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("""---
@@ -57,7 +57,7 @@ dependencies: []
 ## Instructions
 This skill searches the web.
 """)
-        
+
         skill_dir = base_dir / "data-analysis"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("""---
@@ -71,7 +71,7 @@ dependencies: []
 ## Instructions
 This skill analyzes data.
 """)
-        
+
         yield base_dir
 
 
@@ -198,7 +198,7 @@ class TestSkillsWithAgent:
             instructions="You are helpful.",
             llm_model=llm_model,
         )
-        
+
         assert agent.name == "test-agent"
 
     @pytest.mark.asyncio
@@ -217,7 +217,7 @@ class TestSkillsWithAgent:
             instructions="You are helpful.",
             llm_model=llm_model,
         )
-        
+
         try:
             response = await agent.run("Say 'hello' in one word.")
             assert isinstance(response, str)

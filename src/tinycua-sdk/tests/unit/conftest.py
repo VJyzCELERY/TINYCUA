@@ -23,7 +23,4 @@ def default_loop():
     return BaseLoop(max_iterations=3)
 
 
-@pytest.fixture
-def mock_llm_response():
-    """Return a mock LLM response string."""
-    return "Mocked LLM response"
+
