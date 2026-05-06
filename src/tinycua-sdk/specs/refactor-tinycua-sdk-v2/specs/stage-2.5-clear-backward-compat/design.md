@@ -54,7 +54,7 @@ class Agent(AgentExecutor):
 
 ### 3. Remove Target 2.5
 
-Delete `targets/05_obsolete_params_rejected.py` and its expected output file. Renumber targets 2.6 → 2.5, 2.7 → 2.6.
+Deleted `targets/05_obsolete_params_rejected.py` and its expected output file. Renumbered targets 2.6 → 2.5, 2.7 → 2.6.
 
 ## Changes to Subsequent Stages
 

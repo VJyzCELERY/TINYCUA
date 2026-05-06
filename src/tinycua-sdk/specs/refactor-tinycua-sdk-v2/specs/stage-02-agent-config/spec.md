@@ -26,7 +26,7 @@ class AgentPolicy(BaseModel):
     parallel_tool_calls: bool = True
 ```
 
-**Removed from v1:** `temperature` (lives on `LanguageModel` only).
+**Removed from prior version:** `temperature` (lives on `LanguageModel` only).
 
 ### R-2.2: AgentConfig
 

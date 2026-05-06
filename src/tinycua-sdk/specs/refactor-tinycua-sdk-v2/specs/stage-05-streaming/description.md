@@ -30,4 +30,4 @@ Each target has an accompanying `_expected-output.txt` file showing the expected
 
 ## Dependencies
 - Depends on: Stages 0–4 (execution loop must exist).
-- Feeds into: Stage 9 (final polish includes verifying all modes work end-to-end).
+- Feeds into: Stages 6-9 (serialization, security, custom loops, and final polish all build on streaming).

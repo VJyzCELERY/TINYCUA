@@ -146,7 +146,6 @@ def __init__(
     policy: AgentPolicy | None = None,
     metadata: dict | None = None,
     loop: BaseLoop | None = None,
-    **kwargs,
 ):
 ```
 
@@ -183,10 +182,6 @@ def __init__(
 ```python
 from tinycua_sdk.agent import (
     Agent,
-    AgentConfig,
-    AgentDefinition,
-    AgentExecutor,
-    AgentPolicy,
     BaseLoop,
     LLMModel,
 )
@@ -196,10 +191,6 @@ from tinycua_sdk.tools.decorators import Tool, tool
 
 __all__ = [
     "Agent",
-    "AgentConfig",
-    "AgentDefinition",
-    "AgentExecutor",
-    "AgentPolicy",
     "BaseLoop",
     "LLMModel",
     "Skill",
@@ -207,6 +198,10 @@ __all__ = [
     "Tool",
     "tool",
 ]
+
+# Note: AgentConfig/AgentPolicy/AgentExecutor are not in __all__.
+# They are available for import by later stages but are internal implementation
+# details not part of the public API. Stage 9 finalizes the public exports.
 ```
 
 ### Phase 3: Clean Old Tests

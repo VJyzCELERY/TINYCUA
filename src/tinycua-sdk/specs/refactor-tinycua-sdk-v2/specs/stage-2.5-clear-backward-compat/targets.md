@@ -14,20 +14,13 @@ Verify the Agent constructor is clean — no backward-compatibility validation, 
 
 from tinycua_sdk import Agent
 
-# These should cause a normal TypeError (not a custom message about being obsolete)
-obsolete_names = [
-    "system_prompt", "model", "provider", "base_url", "api_key",
-    "mode", "backend_url", "backend_api_key", "backend_headers",
-    "agent_id", "planning_prompt", "short_term_memory", "long_term_memory",
-    "session_id", "sub_agents", "max_depth", "strip_thinking", "backend",
-]
-
-for param in obsolete_names:
-    try:
-        Agent(**{param: "test"})
-        assert False, f"{param} should raise TypeError"
-    except TypeError:
-        pass  # Standard Python behavior — no custom message
+# Any unknown keyword should produce Python's standard TypeError
+# (no custom message about obsolete parameters)
+try:
+    Agent(unknown_param="test")
+    assert False, "unknown param should raise TypeError"
+except TypeError:
+    pass  # Standard Python behavior — clean constructor
 
 print("PASS")
 ```

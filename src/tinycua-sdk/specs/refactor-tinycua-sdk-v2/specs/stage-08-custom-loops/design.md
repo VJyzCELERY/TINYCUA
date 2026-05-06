@@ -4,7 +4,7 @@
 
 ## Why No Hook System?
 
-The v1 codebase had a hook system (`add_pre_hook()`, `add_post_hook()`) that was completely unwired — hooks could be registered but never executed. Instead of fixing this complex system, we remove it entirely.
+The previous codebase had a hook system (`add_pre_hook()`, `add_post_hook()`) that was completely unwired — hooks could be registered but never executed. Instead of fixing this complex system, we remove it entirely.
 
 **Customization path:**
 ```python

@@ -31,4 +31,4 @@ Each target has an accompanying `_expected-output.txt` file showing the expected
 
 ## Dependencies
 - Depends on: Stages 0–6 (execution loop and tool executor must exist).
-- Feeds into: Stage 9 (final polish includes verifying all guardrail patterns work end-to-end).
+- Feeds into: Stages 8-9 (custom loops and final polish build on the permission system).

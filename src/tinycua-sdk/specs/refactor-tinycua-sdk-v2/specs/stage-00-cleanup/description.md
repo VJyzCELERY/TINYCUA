@@ -1,7 +1,7 @@
 # Stage 0: Scorched-Earth Cleanup — Description
 
 ## Purpose
-This stage removes every dead module, stub, and obsolete concept from the v1 SDK so that subsequent stages build on a clean foundation. It is not a refactor — it is deletion. Nothing is deprecated; everything is removed.
+This stage removes every dead module, stub, and obsolete concept from the previous codebase so that subsequent stages build on a clean foundation. It is not a refactor — it is deletion. Nothing is deprecated; everything is removed.
 
 ## What You'll Find Here
 - **`spec.md`** — The authoritative list of what to delete, organized by file and issue code from the review report. Includes 5 concrete success criteria with copy-paste verification commands.

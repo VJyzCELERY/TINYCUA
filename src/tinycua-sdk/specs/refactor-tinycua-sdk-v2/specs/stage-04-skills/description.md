@@ -30,4 +30,4 @@ Each target has an accompanying `_expected-output.txt` file showing the expected
 
 ## Dependencies
 - Depends on: Stages 0–3 (execution loop must exist).
-- Feeds into: Stage 6 (directory loading builds on this stage's prompt injection).
+- Feeds into: Stages 5-6 (streaming then directory loading builds on this stage's prompt injection).

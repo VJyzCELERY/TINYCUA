@@ -70,7 +70,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 - `PermissionSystem` standalone class / `PermissionLevel` enum
 
 **Tests targeted:**
-- Sanity import: `from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill` succeeds.
+- Sanity import: `from tinycua_sdk import Agent, LLMModel, Tool, tool, Skill` succeeds.
 - Deleted-module import raises `ModuleNotFoundError`.
 
 ---
@@ -117,7 +117,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 1. Remove `_OBSOLETE_PARAMS` and its validation logic from Stage 2's constructor design.
 2. Delete the "obsolete params rejected" target from Stage 2.
 3. Update all subsequent stages (3–9) to remove any backward-compatibility framing.
-4. Renumber remaining Stage 2 targets (2.6→2.5, 2.7→2.6).
+4. Renumber remaining Stage 2 targets (2.6→2.5, 2.7→2.6) — completed.
 
 **Tests targeted:** Verify Stage 2 constructor is clean (no custom obsolete-param validation).
 

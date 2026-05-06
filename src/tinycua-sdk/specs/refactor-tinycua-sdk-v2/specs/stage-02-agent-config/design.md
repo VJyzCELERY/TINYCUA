@@ -53,9 +53,9 @@ class AgentConfig(BaseModel):
     skills: list[Skill] = Field(default_factory=list)
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
     metadata: dict = Field(default_factory=dict)
-    loop: Any = None  # Will be BaseLoop | None after Stage 3
+    loop: BaseLoop | None = None
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(default_factory=dict)
-    approval_workflow: Any = None  # Will be ApprovalWorkflow | None after Stage 3
+    approval_workflow: ApprovalWorkflow | None = None
 
     def to_config(self) -> dict:
         return {
@@ -79,8 +79,10 @@ from __future__ import annotations
 from typing import Literal
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
+from tinycua_sdk.agent.loop import BaseLoop
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.security.approval import ApprovalWorkflow
 from tinycua_sdk.tools.decorators import Tool
 from tinycua_sdk.skills.models import Skill
 
@@ -97,9 +99,9 @@ class Agent(AgentExecutor):
         skills: list[Skill] | None = None,
         policy: AgentPolicy | None = None,
         metadata: dict | None = None,
-        loop: Any = None,
+        loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
-        approval_workflow: Any = None,
+        approval_workflow: ApprovalWorkflow | None = None,
     ):
         # Build config
         config = AgentConfig(

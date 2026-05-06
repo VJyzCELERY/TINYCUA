@@ -79,7 +79,7 @@ Each success criterion must be validated by running the specified target file(s)
 Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
 - [ ] Import Sanity - N/A - prints `OK` - python -c "from tinycua_sdk import Agent, LLMModel, Tool, tool, Skill; print('OK')"
-  Description: `from tinycua_sdk import Agent, LanguageModel, Tool, tool, Skill` succeeds without error.
+  Description: `from tinycua_sdk import Agent, LLMModel, Tool, tool, Skill` succeeds without error.
 
 - [ ] Deleted Modules Raise ImportError - N/A - ModuleNotFoundError - python -c "from tinycua_sdk.agent import backend_kind" 2>&1 | grep "ModuleNotFoundError"
   Description: Any deleted module raises `ModuleNotFoundError` on import.

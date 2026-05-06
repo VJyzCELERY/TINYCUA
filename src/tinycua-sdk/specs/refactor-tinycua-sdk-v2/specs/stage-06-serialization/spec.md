@@ -17,6 +17,8 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 - [`goals/intermediate/08_loading_skills_from_directory.py`](../goals/intermediate/08_loading_skills_from_directory.py)
 - [`goals/intermediate/09_loading_tools_from_directory.py`](../goals/intermediate/09_loading_tools_from_directory.py)
 
+> **Note on serialization boundary:** LanguageModel, Tool, and Skill each have their own `to_dict`/`from_dict` serialization (Stage 1). This stage adds agent-level serialization (`Agent.to_json`, `from_yaml_file`, etc.) which wraps the internal model dicts inside the top-level agent config. The model-level methods operate on individual value objects; the agent-level methods operate on the full agent configuration. They are complementary — model-level serialization handles one object, agent-level serialization handles the entire agent.
+
 ## Requirements
 
 ### R-6.1: Agent Serialization
