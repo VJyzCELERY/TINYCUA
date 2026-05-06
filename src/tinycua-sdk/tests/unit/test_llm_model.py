@@ -1,27 +1,27 @@
-"""Tests for LLMModel value object."""
+"""Tests for LanguageModel value object."""
 
 import pytest
 
 
-class TestLLMModel:
-    """Tests for LLMModel."""
+class TestLanguageModel:
+    """Tests for LanguageModel."""
 
-    def test_llm_model_defaults(self):
-        """LLMModel has sensible defaults."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_defaults(self):
+        """LanguageModel has sensible defaults."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel()
+        llm = LanguageModel()
         assert llm.provider == "openai-compatible"
         assert llm.model_name == "gpt-4o-mini"
         assert llm.max_context == 128_000
         assert llm.temperature == 1.0
         assert llm.system_prompt == "You are a helpful assistant."
 
-    def test_llm_model_custom_values(self):
-        """LLMModel accepts custom values."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_custom_values(self):
+        """LanguageModel accepts custom values."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel(
+        llm = LanguageModel(
             provider="openai",
             model_name="gpt-4",
             base_url="http://localhost:1234/v1",
@@ -36,53 +36,53 @@ class TestLLMModel:
         assert llm.temperature == 0.5
         assert llm.system_prompt == "You are a coder."
 
-    def test_llm_model_to_dict(self):
-        """LLMModel.to_dict() returns a plain dict."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_to_dict(self):
+        """LanguageModel.to_dict() returns a plain dict."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel(model_name="gpt-4")
+        llm = LanguageModel(model_name="gpt-4")
         d = llm.to_dict()
         assert d["model_name"] == "gpt-4"
         assert "provider" in d
 
-    def test_llm_model_from_dict(self):
-        """LLMModel.from_dict() reconstructs the model."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_from_dict(self):
+        """LanguageModel.from_dict() reconstructs the model."""
+        from tinycua_sdk import LanguageModel
 
         d = {"model_name": "gpt-4", "provider": "openai"}
-        llm = LLMModel.from_dict(d)
+        llm = LanguageModel.from_dict(d)
         assert llm.model_name == "gpt-4"
         assert llm.provider == "openai"
 
-    def test_llm_model_immutable(self):
-        """LLMModel is immutable after creation."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_immutable(self):
+        """LanguageModel is immutable after creation."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel()
+        llm = LanguageModel()
         with pytest.raises(Exception):
             llm.model_name = "custom"
 
-    def test_llm_model_no_io_methods(self):
-        """LLMModel has no save/load methods."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_no_io_methods(self):
+        """LanguageModel has no save/load methods."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel()
+        llm = LanguageModel()
         assert not hasattr(llm, "save")
         assert not hasattr(llm, "load")
 
-    def test_llm_model_round_trip(self):
-        """LLMModel serializes and deserializes correctly."""
-        from tinycua_sdk import LLMModel
+    def test_language_model_round_trip(self):
+        """LanguageModel serializes and deserializes correctly."""
+        from tinycua_sdk import LanguageModel
 
-        original = LLMModel(model_name="gpt-4", temperature=0.5)
+        original = LanguageModel(model_name="gpt-4", temperature=0.5)
         d = original.to_dict()
-        restored = LLMModel.from_dict(d)
+        restored = LanguageModel.from_dict(d)
         assert restored.model_name == "gpt-4"
         assert restored.temperature == 0.5
 
-    def test_system_prompt_on_llm_model(self):
-        """LLMModel carries the system_prompt field."""
-        from tinycua_sdk import LLMModel
+    def test_system_prompt_on_language_model(self):
+        """LanguageModel carries the system_prompt field."""
+        from tinycua_sdk import LanguageModel
 
-        llm = LLMModel(system_prompt="You are a coding assistant.")
+        llm = LanguageModel(system_prompt="You are a coding assistant.")
         assert llm.system_prompt == "You are a coding assistant."

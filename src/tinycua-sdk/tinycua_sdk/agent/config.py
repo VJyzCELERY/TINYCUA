@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
 
@@ -67,11 +67,11 @@ class AgentPolicy(BaseModel):
 class AgentConfig(BaseModel):
     """Configuration for an agent."""
 
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=False, arbitrary_types_allowed=True)
 
     name: str = "assistant"
     instructions: str = ""
-    llm_model: LLMModel = Field(default_factory=LLMModel)
+    llm_model: LanguageModel = Field(default_factory=LanguageModel)
     tools: list[Tool] = Field(default_factory=list)
     skills: list[Skill] = Field(default_factory=list)  # type: ignore[type-arg]
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
@@ -123,7 +123,7 @@ class AgentConfig(BaseModel):
         )
 
         llm_data = data.get("llm_model", {})
-        llm_model = LLMModel.from_dict(llm_data) if isinstance(llm_data, dict) else LLMModel()
+        llm_model = LanguageModel.from_dict(llm_data) if isinstance(llm_data, dict) else LanguageModel()
 
         tools_data = data.get("tools", [])
         tools = []
@@ -131,7 +131,7 @@ class AgentConfig(BaseModel):
             if isinstance(t, Tool):
                 tools.append(t)
             elif isinstance(t, dict):
-                tools.append(Tool.from_config(t))
+                tools.append(Tool.from_dict(t))
             else:
                 tools.append(t)
 

@@ -2,7 +2,7 @@
 
 import pytest
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import (
     OPENAI_COMPATIBLE,
     DEFAULT_BASE_URL,
@@ -68,14 +68,14 @@ class TestProviderDefaults:
 
     def test_provider_can_be_changed(self):
         """Provider can be changed to another valid provider."""
-        config = AgentConfig(name="test", llm_model=LLMModel(provider="openai-compatible"))
+        config = AgentConfig(name="test", llm_model=LanguageModel(provider="openai-compatible"))
         assert config.llm_model.provider == "openai-compatible"
 
     def test_provider_with_base_url(self):
         """Provider can be configured with custom base URL."""
         config = AgentConfig(
             name="test",
-            llm_model=LLMModel(provider="local", base_url="http://localhost:8000"),
+            llm_model=LanguageModel(provider="local", base_url="http://localhost:8000"),
         )
         assert config.llm_model.base_url == "http://localhost:8000"
 
@@ -87,7 +87,7 @@ class TestProviderConfiguration:
         """openai-compatible provider configuration."""
         config = AgentConfig(
             name="test",
-            llm_model=LLMModel(provider="openai-compatible"),
+            llm_model=LanguageModel(provider="openai-compatible"),
         )
         assert config.llm_model.provider == "openai-compatible"
 
@@ -95,7 +95,7 @@ class TestProviderConfiguration:
         """OpenAI provider configuration."""
         config = AgentConfig(
             name="test",
-            llm_model=LLMModel(provider="openai"),
+            llm_model=LanguageModel(provider="openai"),
         )
         assert config.llm_model.provider == "openai"
 
@@ -110,7 +110,7 @@ class TestProviderValidationIntegration:
         )
         config = AgentConfig(
             name="full-agent",
-            llm_model=LLMModel(provider="openai", model_name="gpt-4o"),
+            llm_model=LanguageModel(provider="openai", model_name="gpt-4o"),
             policy=policy,
         )
         assert config.llm_model.provider == "openai"

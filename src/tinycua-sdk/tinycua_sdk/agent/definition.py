@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.tools.decorators import Tool
 
 
@@ -22,7 +22,7 @@ class AgentDefinition:
         self,
         name: str = "assistant",
         instructions: str = "",
-        llm_model: LLMModel | None = None,
+        llm_model: LanguageModel | None = None,
         tools: list[Tool] | None = None,
         skills: list[Any] | None = None,
         policy: AgentPolicy | None = None,
@@ -43,7 +43,7 @@ class AgentDefinition:
         self.config = AgentConfig(
             name=name,
             instructions=instructions,
-            llm_model=llm_model or LLMModel(),
+            llm_model=llm_model or LanguageModel(),
             tools=tools or [],
             skills=skills or [],
             policy=policy or AgentPolicy(),
@@ -68,12 +68,12 @@ class AgentDefinition:
         return self.config.instructions
 
     @property
-    def llm_model(self) -> LLMModel:
+    def llm_model(self) -> LanguageModel:
         """Get LLM model configuration."""
         return self.config.llm_model
 
     @llm_model.setter
-    def llm_model(self, value: LLMModel) -> None:
+    def llm_model(self, value: LanguageModel) -> None:
         """Set LLM model configuration."""
         self.config.llm_model = value
 

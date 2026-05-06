@@ -7,7 +7,7 @@ from tinycua_sdk.agent import (
     AgentExecutor,
     AgentPolicy,
     BaseLoop,
-    LLMModel,
+    LanguageModel,
 )
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
@@ -20,7 +20,7 @@ __all__ = [
     "AgentExecutor",
     "AgentPolicy",
     "BaseLoop",
-    "LLMModel",
+    "LanguageModel",
     "Skill",
     "SkillRegistry",
     "Tool",

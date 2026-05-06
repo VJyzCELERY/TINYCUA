@@ -16,10 +16,10 @@ class TestSkillsTools:
         """Test skills_list returns all skills."""
         registry = SkillRegistry()
         registry.register(
-            Skill(name="Skill A", description="Desc A", category="cat1")
+            Skill(name="Skill A", description="Desc A", instructions="")
         )
         registry.register(
-            Skill(name="Skill B", description="Desc B", category="cat2")
+            Skill(name="Skill B", description="Desc B", instructions="")
         )
 
         tool = create_skills_list_tool(registry)
@@ -28,22 +28,6 @@ class TestSkillsTools:
         assert "skills" in result
         assert len(result["skills"]) == 2
 
-    def test_skills_list_with_category_filter(self):
-        """Test skills_list filters by category."""
-        registry = SkillRegistry()
-        registry.register(
-            Skill(name="Tool Skill", description="Desc", category="tools")
-        )
-        registry.register(
-            Skill(name="Mem Skill", description="Desc", category="memory")
-        )
-
-        tool = create_skills_list_tool(registry)
-        result = tool.invoke(category="tools")
-
-        assert len(result["skills"]) == 1
-        assert result["skills"][0]["name"] == "Tool Skill"
-
     def test_skill_view_basic(self):
         """Test skill_view returns full skill details."""
         registry = SkillRegistry()
@@ -51,10 +35,7 @@ class TestSkillsTools:
             Skill(
                 name="Test Skill",
                 description="Test description",
-                category="testing",
                 instructions="Do something specific",
-                tools=["tool1", "tool2"],
-                dependencies=["dep1"],
             )
         )
 
@@ -64,8 +45,6 @@ class TestSkillsTools:
         assert result["name"] == "Test Skill"
         assert result["description"] == "Test description"
         assert result["instructions"] == "Do something specific"
-        assert result["tools"] == ["tool1", "tool2"]
-        assert result["dependencies"] == ["dep1"]
 
     def test_skill_view_not_found(self):
         """Test skill_view raises error for missing skill."""

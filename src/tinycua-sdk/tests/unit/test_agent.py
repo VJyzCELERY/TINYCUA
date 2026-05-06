@@ -144,7 +144,7 @@ class TestAgentToolSkillComposition:
         """add_skills accepts a single Skill."""
         from tinycua_sdk import Agent, Skill
 
-        skill = Skill(name="coder", instructions="Write code")
+        skill = Skill(name="coder", description="", instructions="Write code")
         agent = Agent(llm_model=default_llm)
         agent.add_skills(skill)
         assert len(agent.skills) == 1
@@ -153,8 +153,8 @@ class TestAgentToolSkillComposition:
         """add_skills accepts a list of Skills."""
         from tinycua_sdk import Agent, Skill
 
-        s1 = Skill(name="coder")
-        s2 = Skill(name="researcher")
+        s1 = Skill(name="coder", description="", instructions="")
+        s2 = Skill(name="researcher", description="", instructions="")
         agent = Agent(llm_model=default_llm)
         agent.add_skills([s1, s2])
         assert len(agent.skills) == 2
@@ -189,7 +189,7 @@ class TestAgentConfigRoundTrip:
         """Agent round-trips through to_config and from_config."""
         from tinycua_sdk import Agent, Skill
 
-        skill = Skill(name="coder")
+        skill = Skill(name="coder", description="", instructions="")
         agent = Agent(
             llm_model=default_llm,
             name="roundtrip",

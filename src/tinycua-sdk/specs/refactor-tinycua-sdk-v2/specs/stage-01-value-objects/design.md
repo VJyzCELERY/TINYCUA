@@ -4,7 +4,7 @@
 
 ## File Changes
 
-### `tinycua_sdk/agent/llm_model.py` → renamed class, expanded fields
+### `tinycua_sdk/agent/llm_model.py`
 
 ```python
 """LanguageModel configuration value object."""
@@ -69,8 +69,17 @@ class LanguageModel(BaseModel):
         return self.model_dump(exclude_none=True)
 
     def to_json(self) -> str:
-        """Serialize to JSON string."""
-        return self.model_dump_json(indent=2)
+        """Serialize to JSON string.
+
+        Warning: api_key is serialized as its plain value (not redacted).
+        Do not write the output of this method to logs or shared files,
+        as it will expose the API key in plaintext.
+        """
+        import json
+        data = self.model_dump(exclude_none=True)
+        if isinstance(data.get("api_key"), SecretStr):
+            data["api_key"] = data["api_key"].get_secret_value()
+        return json.dumps(data, indent=2)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LanguageModel:
@@ -79,9 +88,15 @@ class LanguageModel(BaseModel):
 
     @classmethod
     def from_json(cls, data: str) -> LanguageModel:
-        """Deserialize from JSON string."""
+        """Deserialize from JSON string.
+
+        Note: api_key must be provided as a plain string in JSON.
+        """
         import json
-        return cls(**json.loads(data))
+        parsed = json.loads(data)
+        if isinstance(parsed.get("api_key"), str):
+            parsed["api_key"] = SecretStr(parsed["api_key"])
+        return cls(**parsed)
 ```
 
 ### `tinycua_sdk/tools/decorators.py`
@@ -271,7 +286,7 @@ class SkillRegistry:
 ### `tinycua_sdk/__init__.py` (update)
 
 ```python
-from tinycua_sdk.agent.llm_model import LanguageModel  # renamed
+from tinycua_sdk.agent import LanguageModel
 from tinycua_sdk.tools.decorators import Tool, tool
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
@@ -283,7 +298,7 @@ __all__ = [
     "AgentExecutor",
     "AgentPolicy",
     "BaseLoop",
-    "LanguageModel",  # renamed from LLMModel
+    "LanguageModel",
     "Skill",
     "SkillRegistry",
     "Tool",

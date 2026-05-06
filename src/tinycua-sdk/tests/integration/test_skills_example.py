@@ -77,14 +77,23 @@ This skill analyzes data.
 
 def _load_skills_from_directory(base_dir: Path) -> list[Skill]:
     """Helper to load skills from a directory."""
+    import yaml
+
     skills = []
     for entry in sorted(base_dir.iterdir()):
         if entry.is_dir() and not entry.name.startswith("."):
             skill_md = entry / "SKILL.md"
             if skill_md.exists():
                 content = skill_md.read_text(encoding="utf-8")
-                skill = Skill.load(content)
-                skill.source = str(entry)
+                frontmatter = {}
+                if content.startswith("---"):
+                    parts = content.split("---", 2)
+                    if len(parts) >= 3:
+                        frontmatter = yaml.safe_load(parts[1]) or {}
+                name = frontmatter.get("name", entry.name)
+                description = frontmatter.get("description", "")
+                instructions = parts[2].strip() if len(parts) >= 3 else ""
+                skill = Skill(name=name, description=description, instructions=instructions)
                 skills.append(skill)
     return skills
 
@@ -108,30 +117,19 @@ class TestSkillDiscovery:
     def test_discover_skills(self, temp_skill_dir):
         """Test discovering skills from directory."""
         skills = _load_skills_from_directory(temp_skill_dir)
-        
+
         assert len(skills) == 3
         skill_names = [s.name for s in skills]
         assert "math-helper" in skill_names
         assert "web-search" in skill_names
         assert "data-analysis" in skill_names
 
-    def test_discover_skills_with_category(self, temp_skill_dir):
-        """Test discovering skills filtered by category."""
-        skills = _load_skills_from_directory(temp_skill_dir)
-        
-        tools_skills = [s for s in skills if s.category == "tools"]
-        assert len(tools_skills) == 2
-        
-        analytics_skills = [s for s in skills if s.category == "analytics"]
-        assert len(analytics_skills) == 1
-
     def test_skill_metadata(self, temp_skill_dir):
         """Test skill metadata parsing."""
         skills = _load_skills_from_directory(temp_skill_dir)
-        
+
         math_skill = next(s for s in skills if s.name == "math-helper")
         assert math_skill.description == "Helps with math calculations"
-        assert math_skill.tools == ["calculator", "add"]
         assert "calculations" in math_skill.instructions.lower()
 
 
@@ -142,12 +140,6 @@ class TestSkillRegistry:
         """Test listing all skills."""
         skills = skill_registry.list_skills()
         assert len(skills) == 3
-
-    def test_registry_list_filtered(self, skill_registry):
-        """Test listing skills with category filter."""
-        skills = skill_registry.list_skills(category="tools")
-        assert len(skills) == 2
-        assert all(s.category == "tools" for s in skills)
 
     def test_registry_get(self, skill_registry):
         """Test getting skill by name."""
@@ -160,33 +152,16 @@ class TestSkillRegistry:
         skill = skill_registry.get("nonexistent")
         assert skill is None
 
-    def test_registry_categories(self, skill_registry):
-        """Test getting all categories."""
-        categories = skill_registry.get_categories()
-        assert "tools" in categories
-        assert "analytics" in categories
-
-
 class TestSkillTools:
     """Test skill tools."""
 
     def test_skills_list_tool(self, skill_registry):
         """Test skills_list tool."""
         tool = create_skills_list_tool(skill_registry)
-        result = tool.invoke(category=None)
+        result = tool.invoke()
 
         assert "skills" in result
         assert len(result["skills"]) == 3
-
-        # Filter by category
-        result = tool.invoke(category="tools")
-        assert len(result["skills"]) == 2
-
-    def test_skills_list_tool_empty_category(self, skill_registry):
-        """Test skills_list with non-matching category."""
-        tool = create_skills_list_tool(skill_registry)
-        result = tool.invoke(category="nonexistent")
-        assert len(result["skills"]) == 0
 
     def test_skill_view_tool(self, skill_registry):
         """Test skill_view tool."""
@@ -195,7 +170,6 @@ class TestSkillTools:
 
         assert result["name"] == "math-helper"
         assert result["description"] == "Helps with math calculations"
-        assert result["tools"] == ["calculator", "add"]
         assert result["instructions"] != ""
 
     def test_skill_view_not_found(self, skill_registry):
@@ -211,9 +185,9 @@ class TestSkillsWithAgent:
 
     def test_agent_creation_without_skills(self):
         """Test basic agent creation."""
-        from tinycua_sdk.agent.llm_model import LLMModel
+        from tinycua_sdk.agent.llm_model import LanguageModel
 
-        llm_model = LLMModel(
+        llm_model = LanguageModel(
             provider="openai-compatible",
             model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
@@ -230,9 +204,9 @@ class TestSkillsWithAgent:
     @pytest.mark.asyncio
     async def test_agent_run_simple(self):
         """Test agent run with simple prompt."""
-        from tinycua_sdk.agent.llm_model import LLMModel
+        from tinycua_sdk.agent.llm_model import LanguageModel
 
-        llm_model = LLMModel(
+        llm_model = LanguageModel(
             provider="openai-compatible",
             model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",

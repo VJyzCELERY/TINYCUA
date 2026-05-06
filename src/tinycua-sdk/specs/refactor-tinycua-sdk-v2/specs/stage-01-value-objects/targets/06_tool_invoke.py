@@ -12,8 +12,8 @@ def add(a: int, b: int) -> int:
 result = add.invoke(a=2, b=3)
 assert result == 5
 
-# Test with positional args
-result2 = add.invoke(10, 20)
+# Test with keyword args
+result2 = add.invoke(a=10, b=20)
 assert result2 == 30
 
 print("PASS")

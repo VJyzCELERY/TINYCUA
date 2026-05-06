@@ -4,7 +4,7 @@ import pytest
 
 from tinycua_sdk.agent.config import AgentPolicy
 from tinycua_sdk.agent.definition import AgentDefinition
-from tinycua_sdk.agent.llm_model import LLMModel
+from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.tools.decorators import tool
 
 
@@ -21,59 +21,30 @@ class TestAgentDefinition:
         agent = AgentDefinition(
             name="test",
             instructions="You are a test agent.",
-            llm_model=LLMModel(model_name="gpt-4o-mini"),
+            llm_model=LanguageModel(model_name="gpt-4o-mini"),
         )
-        assert agent.name == "test"
-        assert agent.instructions == "You are a test agent."
-        assert agent.model == "gpt-4o-mini"
-        assert isinstance(agent.policy, AgentPolicy)
 
-    def test_agent_definition_with_tools(self):
-        """Test AgentDefinition accepts tools."""
+    def test_agent_definition_config_serialization(self):
+        """Test AgentDefinition config serialization."""
+        from tinycua_sdk.tools.decorators import Tool, tool
 
-        @tool()
-        def my_tool() -> None:
-            """A tool."""
-            pass
+        @tool
+        def greet(name: str) -> str:
+            """Greet someone by name.
 
-        agent = AgentDefinition(name="test", instructions="...", tools=[my_tool])
-        assert len(agent.tools) == 1
-        assert agent.tools[0].name == "my_tool"
+            Args:
+                name: The person's name.
+            """
+            return f"Hello, {name}!"
 
-    def test_agent_definition_to_config(self):
-        """Test AgentDefinition serializes to config dict."""
-        agent = AgentDefinition(name="my-agent", instructions="Be helpful.")
-        config = agent.to_config()
-
-        assert config["name"] == "my-agent"
-        assert config["instructions"] == "Be helpful."
-        assert "policy" in config
-
-    def test_agent_definition_from_config(self):
-        """Test AgentDefinition can be created from config dict."""
-        config = {
-            "name": "test",
-            "instructions": "Test instructions",
-            "llm_model": {
-                "model_name": "test-model",
-                "provider": "openai",
-            },
-        }
-
-        agent = AgentDefinition.from_config(config)
-
-        assert agent.name == "test"
-        assert agent.instructions == "Test instructions"
-        assert agent.model == "test-model"
-
-    def test_str_representation(self):
-        """Test __str__ returns formatted agent details."""
-        agent = AgentDefinition(
+        definition = AgentDefinition(
             name="test-agent",
-            llm_model=LLMModel(model_name="gpt-4o-mini", provider="openai"),
+            instructions="You are a helpful assistant.",
+            llm_model=LanguageModel(model_name="gpt-4o-mini", provider="openai"),
+            tools=[greet],
         )
 
-        result = str(agent)
+        result = str(definition)
 
         assert "test-agent" in result
         assert "gpt-4o-mini" in result

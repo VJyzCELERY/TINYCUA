@@ -17,27 +17,22 @@ def create_skills_list_tool(registry: SkillRegistry):
     """
 
     @tool
-    def skills_list(category: str | None = None) -> dict[str, Any]:
+    def skills_list() -> dict[str, Any]:
         """List available skills with their metadata.
 
         Use this to discover what skills are available for extending
         the agent's capabilities.
 
-        Args:
-            category: Optional category filter
-
         Returns:
             Dictionary containing list of skills
         """
-        skills = registry.list_skills(category=category)
+        skills = registry.list_skills()
 
         return {
             "skills": [
                 {
                     "name": s.name,
                     "description": s.description,
-                    "category": s.category,
-                    "tools": s.tools,
                 }
                 for s in skills
             ]
@@ -77,10 +72,8 @@ def create_skill_view_tool(registry: SkillRegistry):
         return {
             "name": skill.name,
             "description": skill.description,
-            "category": skill.category,
             "instructions": skill.instructions,
-            "tools": skill.tools,
-            "dependencies": skill.dependencies,
+            "metadata": skill.metadata,
         }
 
     return skill_view
