@@ -36,8 +36,8 @@ This project uses `uv` for Python environment management. All validation command
 
 ```bash
 # Always use uv run for Python commands
-uv run --directory src/tinycua-sdk python -c "..."
-uv run --directory src/tinycua-sdk pytest tests/...
+cd src/tinycua-sdk && uv run python -c "..."
+cd src/tinycua-sdk && uv run pytest tests/...
 
 # ❌ Wrong - bare python/pytest may import from wrong worktree
 python ...

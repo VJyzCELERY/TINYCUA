@@ -24,12 +24,12 @@ Run any command by typing it directly in opencode.
 
 This project uses `uv` for Python environment management. **Never use bare `python` or `pytest`** — they may import from the wrong worktree.
 
-Always prefix Python invocations with `uv run --directory src/<subproject>`:
+Always `cd` into the subproject directory first, then use `uv run`:
 
 ```bash
 # ✅ Correct
-uv run --directory src/tinycua-sdk python script.py
-uv run --directory src/tinycua-sdk pytest tests/
+cd src/tinycua-sdk && uv run python script.py
+cd src/tinycua-sdk && uv run pytest tests/
 
 # ❌ Wrong
 python script.py

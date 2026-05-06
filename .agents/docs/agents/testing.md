@@ -113,9 +113,9 @@ make test          # run all tests
 make coverage      # run with coverage report
 
 # Directly with pytest (must use uv run)
-uv run --directory src/tinycua-sdk pytest tests/unit/ -v
-uv run --directory src/tinycua-sdk pytest tests/integration/ -v
-uv run --directory src/tinycua-sdk pytest tests/ -k "test_returns_none"
+cd src/tinycua-sdk && uv run pytest tests/unit/ -v
+cd src/tinycua-sdk && uv run pytest tests/integration/ -v
+cd src/tinycua-sdk && uv run pytest tests/ -k "test_returns_none"
 
 # ❌ WRONG - bare pytest may import from wrong worktree
 # pytest tests/unit/ -v

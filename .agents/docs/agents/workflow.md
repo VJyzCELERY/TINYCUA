@@ -20,18 +20,18 @@ make clean         # remove caches (.pyc, .pytest_cache, .coverage, .ruff_cache)
 
 ```bash
 # ✅ CORRECT - uses the project's uv-managed venv
-uv run --directory src/tinycua-sdk python script.py
-uv run --directory src/tinycua-sdk pytest tests/
+cd src/tinycua-sdk && uv run python script.py
+cd src/tinycua-sdk && uv run pytest tests/
 
 # ❌ WRONG - may import from wrong worktree or system Python
 python script.py
 pytest tests/
 ```
 
-When running inline Python snippets (e.g., for review validation), always prefix with `uv run --directory src/tinycua-sdk`:
+When running inline Python snippets (e.g., for review validation), always `cd src/tinycua-sdk && uv run`:
 ```bash
-uv run --directory src/tinycua-sdk python -c "from tinycua_sdk import Agent; print(Agent().name)"
-uv run --directory src/tinycua-sdk python - <<'PY'
+cd src/tinycua-sdk && uv run python -c "from tinycua_sdk import Agent; print(Agent().name)"
+cd src/tinycua-sdk && uv run python - <<'PY'
 from tinycua_sdk import Agent
 a = Agent()
 print(a.name)
