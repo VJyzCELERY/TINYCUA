@@ -3,7 +3,6 @@
 from tinycua_sdk.agent import (
     Agent,
     AgentConfig,
-    AgentDefinition,
     AgentExecutor,
     AgentPolicy,
     BaseLoop,
@@ -16,7 +15,6 @@ from tinycua_sdk.tools.decorators import Tool, tool
 __all__ = [
     "Agent",
     "AgentConfig",
-    "AgentDefinition",
     "AgentExecutor",
     "AgentPolicy",
     "BaseLoop",

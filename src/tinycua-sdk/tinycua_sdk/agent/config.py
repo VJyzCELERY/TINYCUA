@@ -6,7 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -77,6 +77,10 @@ class AgentConfig(BaseModel):
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
     metadata: dict[str, Any] = Field(default_factory=dict)
     loop: Any = None  # BaseLoop | None — kept as Any since BaseLoop is not a Pydantic model
+    tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
+        default_factory=dict
+    )
+    approval_workflow: Any = None  # ApprovalWorkflow | None after Stage 3
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict."""
@@ -88,10 +92,9 @@ class AgentConfig(BaseModel):
             "skills": [
                 s.to_dict() if hasattr(s, "to_dict") else s for s in self.skills
             ],
-            "policy": {
-                "max_tool_calls": self.policy.max_tool_calls,
-                "parallel_tool_calls": self.policy.parallel_tool_calls,
-            },
+            "policy": self.policy.model_dump(),
+            "metadata": self.metadata,
+            "tool_permissions": self.tool_permissions,
         }
         if self.loop is not None:
             if hasattr(self.loop, "to_dict"):
@@ -99,9 +102,16 @@ class AgentConfig(BaseModel):
             elif hasattr(self.loop, "max_iterations"):
                 config["loop"] = {"max_iterations": self.loop.max_iterations}
             else:
-                config["loop"] = None
+                config["loop"] = self.loop
         else:
             config["loop"] = None
+        if self.approval_workflow is not None:
+            if hasattr(self.approval_workflow, "to_dict"):
+                config["approval_workflow"] = self.approval_workflow.to_dict()
+            else:
+                config["approval_workflow"] = self.approval_workflow
+        else:
+            config["approval_workflow"] = None
         return config
 
     def to_dict(self) -> dict[str, Any]:
@@ -153,7 +163,10 @@ class AgentConfig(BaseModel):
             tools=tools,
             skills=skills,
             policy=policy,
+            metadata=data.get("metadata", {}),
             loop=data.get("loop"),
+            tool_permissions=data.get("tool_permissions", {}),
+            approval_workflow=data.get("approval_workflow"),
         )
 
     @classmethod

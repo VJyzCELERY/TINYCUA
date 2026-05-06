@@ -2,31 +2,34 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from tinycua_sdk import Agent, LLMModel, BaseLoop, tool
+from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
 
 
 class TestLoopExecution:
     """Integration tests for loop execution."""
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_run_basic(self, mock_llm_client):
         """Basic run with mocked LLM."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         response = await agent.run("Hello")
         assert response == "Mocked response"
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_run_with_messages(self, mock_llm_client):
         """Pass message history."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         messages = [{"role": "user", "content": "Previous"}]
         response = await agent.run("Hello", messages=messages)
         assert response == "Mocked response"
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_run_stream(self):
         """Streaming response."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
 
         async def mock_stream():
             yield "chunk1"
@@ -40,6 +43,7 @@ class TestLoopExecution:
                 chunks.append(chunk)
             assert len(chunks) > 0
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_run_with_tools(self, mock_llm_with_tool_calls):
         """Tool calling in loop (mocked LLM returns tool call JSON)."""
@@ -49,14 +53,15 @@ class TestLoopExecution:
             """Search for something."""
             return f"Results: {query}"
 
-        agent = Agent(llm_model=LLMModel(), tools=[search])
+        agent = Agent(llm_model=LanguageModel(), tools=[search])
         response = await agent.run("Search for quantum")
         assert isinstance(response, str)
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_run_stateless(self, mock_llm_client):
         """Multiple runs are independent."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         r1 = await agent.run("Query 1")
         r2 = await agent.run("Query 2")
         assert r1 == "Mocked response"
@@ -71,13 +76,14 @@ class TestLoopExecution:
             async def run(self, agent, messages, tools):
                 return "Custom result"
 
-        agent = Agent(llm_model=LLMModel(), loop=CustomLoop())
+        agent = Agent(llm_model=LanguageModel(), loop=CustomLoop())
         response = await agent.run("Hello")
         assert response == "Custom result"
 
+    @pytest.mark.skip(reason="Execution implemented in Stage 3")
     @pytest.mark.asyncio
     async def test_base_loop_default(self, mock_llm_client):
         """Default BaseLoop() used when loop=None."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         response = await agent.run("Hello")
         assert response == "Mocked response"

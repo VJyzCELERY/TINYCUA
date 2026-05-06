@@ -2,24 +2,44 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
+from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_model import LanguageModel
 
 if TYPE_CHECKING:
-    from tinycua_sdk.agent.config import AgentPolicy
     from tinycua_sdk.agent.loop import BaseLoop
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.skills.models import Skill
 
 
-class Agent(AgentExecutor):
-    """Stateless, fully runnable agent class.
+_OBSOLETE_PARAMS = frozenset(
+    {
+        "system_prompt",
+        "model",
+        "provider",
+        "base_url",
+        "api_key",
+        "mode",
+        "backend_url",
+        "backend_api_key",
+        "backend_headers",
+        "agent_id",
+        "planning_prompt",
+        "short_term_memory",
+        "long_term_memory",
+        "session_id",
+        "sub_agents",
+        "max_depth",
+        "strip_thinking",
+        "backend",
+    }
+)
 
-    Inherits execution capabilities from AgentExecutor (which inherits from
-    AgentDefinition).
-    """
+
+class Agent(AgentExecutor):
+    """Stateless, fully runnable agent class."""
 
     def __init__(
         self,
@@ -31,6 +51,8 @@ class Agent(AgentExecutor):
         policy: AgentPolicy | None = None,
         metadata: dict | None = None,
         loop: BaseLoop | None = None,
+        tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
+        approval_workflow: Any | None = None,
         **kwargs,
     ):
         """Initialize the Agent.
@@ -44,26 +66,97 @@ class Agent(AgentExecutor):
             policy: AgentPolicy instance for behavior settings.
             metadata: Optional metadata dict.
             loop: Custom BaseLoop subclass instance.
+            tool_permissions: Tool permission map.
+            approval_workflow: Optional approval workflow.
             **kwargs: Additional keyword arguments (unused).
 
         Raises:
             TypeError: If unknown parameters are passed.
 
         """
+        for key in kwargs:
+            if key in _OBSOLETE_PARAMS:
+                raise TypeError(
+                    f"Agent() got an unexpected keyword argument '{key}'. "
+                    "This parameter has been removed in v2."
+                )
         if kwargs:
             raise TypeError(
-                f"Agent() got unexpected keyword argument(s): {', '.join(sorted(kwargs.keys()))}"
+                "Agent() got unexpected keyword argument(s): "
+                f"{', '.join(sorted(kwargs.keys()))}"
             )
 
-        super().__init__(
+        config = AgentConfig(
             name=name,
             instructions=instructions,
-            llm_model=llm_model,
-            tools=tools,
-            skills=skills,
-            policy=policy,
+            llm_model=llm_model or LanguageModel(),
+            tools=tools or [],
+            skills=skills or [],
+            policy=policy or AgentPolicy(),
+            metadata=metadata or {},
             loop=loop,
+            tool_permissions=tool_permissions or {},
+            approval_workflow=approval_workflow,
         )
+
+        super().__init__(config=config)
+
+    @property
+    def name(self) -> str:
+        """Get agent name."""
+        return self.config.name
+
+    @property
+    def instructions(self) -> str:
+        """Get agent instructions."""
+        return self.config.instructions
+
+    @property
+    def llm_model(self) -> LanguageModel:
+        """Get LLM model configuration."""
+        return self.config.llm_model
+
+    @property
+    def tools(self) -> list[Tool]:
+        """Get agent tools."""
+        return self.config.tools
+
+    @property
+    def skills(self) -> list[Skill]:
+        """Get agent skills."""
+        return self.config.skills
+
+    @property
+    def policy(self) -> AgentPolicy:
+        """Get agent policy."""
+        return self.config.policy
+
+    @property
+    def metadata(self) -> dict:
+        """Get agent metadata."""
+        return self.config.metadata
+
+    @property
+    def loop(self) -> Any:
+        """Get agent loop."""
+        return self.config.loop
+
+    @property
+    def tool_permissions(self) -> dict[str, Literal["allow", "ask", "deny"]]:
+        """Get tool permissions."""
+        return self.config.tool_permissions
+
+    @tool_permissions.setter
+    def tool_permissions(
+        self, value: dict[str, Literal["allow", "ask", "deny"]]
+    ) -> None:
+        """Set tool permissions."""
+        self.config.tool_permissions = value
+
+    @property
+    def approval_workflow(self) -> Any:
+        """Get approval workflow."""
+        return self.config.approval_workflow
 
     def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
         """Append one or more tools to the agent.
@@ -76,7 +169,7 @@ class Agent(AgentExecutor):
         else:
             self.config.tools.append(tool_or_list)
 
-    def add_skills(self, skill_or_list: Any | list[Any]) -> None:
+    def add_skills(self, skill_or_list: Skill | list[Skill]) -> None:
         """Append one or more skills to the agent.
 
         Args:
@@ -96,7 +189,7 @@ class Agent(AgentExecutor):
         return self.config.to_config()
 
     @classmethod
-    def from_config(cls, config: str | Any) -> Agent:
+    def from_config(cls, config: str | Any) -> "Agent":
         """Create an agent from a configuration dict, JSON file path, or YAML file path.
 
         Args:
@@ -146,24 +239,17 @@ class Agent(AgentExecutor):
             else:
                 resolved_skills.append(s)
 
-        policy_data = data.get("policy", {})
-        from tinycua_sdk.agent.config import AgentPolicy
-        policy = AgentPolicy(
-            max_tool_calls=policy_data.get("max_tool_calls", 10),
-            parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
-        )
-
-        metadata = data.get("metadata", {})
-
         return cls(
             name=data.get("name", "assistant"),
             instructions=data.get("instructions", ""),
             llm_model=llm_model,
             tools=resolved_tools,
             skills=resolved_skills,
-            policy=policy,
-            metadata=metadata if metadata else None,
+            policy=AgentPolicy(**data.get("policy", {})) if data.get("policy") else None,
+            metadata=data.get("metadata"),
             loop=data.get("loop"),
+            tool_permissions=data.get("tool_permissions"),
+            approval_workflow=data.get("approval_workflow"),
         )
 
 
