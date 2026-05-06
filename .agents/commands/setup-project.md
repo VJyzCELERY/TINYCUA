@@ -24,11 +24,12 @@ If no GitHub repository is provided ($2 is empty), use local config from ~/.conf
 
    **If NO GitHub repository (use local config)**:
    ```bash
-   mkdir -p "$1/.agents/commands"
-   mkdir -p "$1/.agents/templates"
-   mkdir -p "$1/.agents/docs/agents"
-   mkdir -p "$1/.agents/docs/project_rules"
-   mkdir -p "$1/.agents/reviews"
+    mkdir -p "$1/.agents/commands"
+    mkdir -p "$1/.agents/templates"
+    mkdir -p "$1/.agents/docs/agents"
+    mkdir -p "$1/.agents/docs/project_rules"
+    mkdir -p "$1/.agents/reviews"
+    mkdir -p "$1/reviews"   # Review output directory (consistent location)
 
    # Copy commands
    cp ~/.config/opencode/commands/*.md "$1/.agents/commands/"

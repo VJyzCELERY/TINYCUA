@@ -1,6 +1,5 @@
 """Tests for Skill dataclass, Skill.load(), and SkillRegistry."""
 
-import pytest
 
 
 class TestSkillConstruction:

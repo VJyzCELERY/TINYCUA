@@ -1,7 +1,6 @@
 """Tests for security module."""
 
-import pytest
-from tinycua_sdk.security.approval import ApprovalWorkflow, ApprovalRequest
+from tinycua_sdk.security.approval import ApprovalWorkflow
 
 
 class TestApprovalWorkflow:

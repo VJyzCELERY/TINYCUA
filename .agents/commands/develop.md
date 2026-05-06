@@ -66,9 +66,9 @@ Each stage folder contains:
 ## Alternative Commands
 - `/implementation-plan <dir>` - Creates implementation-plan.md from spec.md/design.md
 - `/implement-plan <dir>` - Executes implementation plan
-- `/review-project <dir>` - Reviews project and generates report
-- `/validate-review <file>` - Validates review findings
-- `/review-implement <file>` - Implements fixes for review findings
+- `/review-project <dir>` - Reviews project and generates report at `./reviews/`
+- `/validate-review <file>` - Validates review findings and updates `./reviews/` report
+- `/review-implement <file>` - Implements fixes and updates `./reviews/` statuses
 
 ## Important
 - Stage IDs must be zero-padded (01, 02, 03...)

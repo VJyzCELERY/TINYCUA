@@ -29,4 +29,6 @@ assert len(config["tools"]) == 1
 assert config["tools"][0]["function"]["name"] == "calc"
 assert len(config["skills"]) == 1
 assert config["skills"][0]["name"] == "math"
+assert "tool_permissions" in config
+assert config["tool_permissions"] == {}
 print("PASS")

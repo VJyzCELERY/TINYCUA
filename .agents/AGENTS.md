@@ -20,6 +20,39 @@ Run any command by typing it directly in opencode.
 
 ---
 
+## Critical: Use `uv run` for All Python/Pytest Commands
+
+This project uses `uv` for Python environment management. **Never use bare `python` or `pytest`** — they may import from the wrong worktree.
+
+Always `cd` into the subproject directory first, then use `uv run`:
+
+```bash
+# ✅ Correct
+cd src/tinycua-sdk && uv run python script.py
+cd src/tinycua-sdk && uv run pytest tests/
+
+# ❌ Wrong
+python script.py
+pytest tests/
+```
+
+See [Workflow docs](docs/agents/workflow.md) for full details.
+
+---
+
+## Review File Convention
+
+All review files live at `./reviews/REVIEW-{name}.md` (relative to repo root / workdir).  
+This is a consistent, predictable location so agents always know where to find reviews.
+
+| Command | Output Location |
+|---------|----------------|
+| `/review-project <dir>` | Writes to `./reviews/REVIEW-{dir-name}.md` |
+| `/validate-review <file>` | Updates `./reviews/REVIEW-{name}.md` |
+| `/review-implement <file>` | Updates statuses in `./reviews/REVIEW-{name}.md` |
+
+---
+
 ## Documentation Contents
 
 ### 1. [Agent Rules](docs/agents/agent_rules.md)

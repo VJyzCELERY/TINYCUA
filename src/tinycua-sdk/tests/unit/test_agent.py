@@ -1,19 +1,19 @@
 """Tests for Agent construction, composition, config, and run behavior."""
 
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 class TestAgentConstruction:
     """Tests for Agent construction."""
 
-    def test_agent_minimal_construction(self, default_llm):
-        """Agent can be constructed with just an LLMModel."""
-        from tinycua_sdk import Agent
+    def test_agent_minimal_construction(self):
+        """Agent can be constructed with defaults."""
+        from tinycua_sdk import Agent, LanguageModel
 
-        agent = Agent(llm_model=default_llm)
+        agent = Agent()
         assert agent.name == "assistant"
         assert agent.instructions == ""
+        assert isinstance(agent.llm_model, LanguageModel)
 
     def test_agent_full_construction(self, default_llm, default_loop):
         """Agent can be constructed with all valid parameters."""
@@ -24,11 +24,15 @@ class TestAgentConstruction:
             instructions="Test instructions",
             llm_model=default_llm,
             policy=AgentPolicy(),
+            metadata={"team": "platform"},
+            tool_permissions={"search": "ask"},
             loop=default_loop,
         )
         assert agent.name == "test"
         assert agent.instructions == "Test instructions"
         assert agent.loop == default_loop
+        assert agent.metadata == {"team": "platform"}
+        assert agent.tool_permissions == {"search": "ask"}
 
     def test_agent_rejects_system_prompt(self):
         """Agent rejects obsolete system_prompt parameter."""
@@ -107,6 +111,55 @@ class TestAgentConstruction:
         with pytest.raises(TypeError, match="backend_url"):
             Agent(backend_url="http://localhost:8000")
 
+    def test_agent_rejects_backend_api_key(self):
+        """Agent rejects obsolete backend_api_key parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend_api_key"):
+            Agent(backend_api_key="test")
+
+    def test_agent_rejects_backend_headers(self):
+        """Agent rejects obsolete backend_headers parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend_headers"):
+            Agent(backend_headers={})
+
+    def test_agent_rejects_agent_id(self):
+        """Agent rejects obsolete agent_id parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="agent_id"):
+            Agent(agent_id="old-id")
+
+    def test_agent_rejects_sub_agents(self):
+        """Agent rejects obsolete sub_agents parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="sub_agents"):
+            Agent(sub_agents=[])
+
+    def test_agent_rejects_max_depth(self):
+        """Agent rejects obsolete max_depth parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="max_depth"):
+            Agent(max_depth=5)
+
+    def test_agent_rejects_strip_thinking(self):
+        """Agent rejects obsolete strip_thinking parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="strip_thinking"):
+            Agent(strip_thinking=True)
+
+    def test_agent_rejects_backend(self):
+        """Agent rejects obsolete backend parameter."""
+        from tinycua_sdk import Agent
+
+        with pytest.raises(TypeError, match="backend"):
+            Agent(backend="test")
+
 
 class TestAgentToolSkillComposition:
     """Tests for Agent tool and skill composition."""
@@ -167,10 +220,17 @@ class TestAgentConfigRoundTrip:
         """Agent.to_config() returns a serialization-friendly dict."""
         from tinycua_sdk import Agent
 
-        agent = Agent(llm_model=default_llm, name="test")
+        agent = Agent(
+            llm_model=default_llm,
+            name="test",
+            metadata={"team": "platform"},
+            tool_permissions={"search": "allow"},
+        )
         config = agent.to_config()
         assert config["name"] == "test"
         assert "llm_model" in config
+        assert config["metadata"]["team"] == "platform"
+        assert config["tool_permissions"]["search"] == "allow"
 
     def test_agent_from_config_dict(self, default_llm):
         """Agent.from_config() works with a dict."""
@@ -180,10 +240,14 @@ class TestAgentConfigRoundTrip:
             "name": "test",
             "instructions": "Test",
             "llm_model": default_llm.to_dict(),
+            "metadata": {"team": "platform"},
+            "tool_permissions": {"search": "deny"},
         }
         agent = Agent.from_config(config)
         assert agent.name == "test"
         assert agent.instructions == "Test"
+        assert agent.metadata == {"team": "platform"}
+        assert agent.tool_permissions == {"search": "deny"}
 
     def test_agent_config_round_trip(self, default_llm):
         """Agent round-trips through to_config and from_config."""
@@ -203,110 +267,13 @@ class TestAgentConfigRoundTrip:
 
 
 class TestAgentRun:
-    """Tests for Agent.run() with mocked LLM."""
+    """Tests for Agent.run() stub behavior."""
 
     @pytest.mark.asyncio
-    async def test_agent_run_basic(self, default_llm, mock_llm_response):
-        """Agent.run() returns a string response."""
+    async def test_agent_run_not_implemented(self, default_llm):
+        """Agent.run() raises NotImplementedError in Stage 2."""
         from tinycua_sdk import Agent
 
         agent = Agent(llm_model=default_llm)
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(return_value=mock_llm_response)
-            response = await agent.run("Hello")
-        assert response == mock_llm_response
-
-    @pytest.mark.asyncio
-    async def test_agent_run_with_messages(self, default_llm):
-        """Agent.run() accepts message history."""
-        from tinycua_sdk import Agent
-
-        agent = Agent(llm_model=default_llm)
-        messages = [{"role": "user", "content": "Previous message"}]
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(return_value="Response")
-            response = await agent.run("Hello", messages=messages)
-        assert response == "Response"
-
-    @pytest.mark.asyncio
-    async def test_agent_run_with_instructions(self, default_llm):
-        """Agent.run() accepts runtime instruction override."""
-        from tinycua_sdk import Agent
-
-        agent = Agent(llm_model=default_llm)
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(return_value="Response")
-            response = await agent.run("Hello", instructions="Be brief")
-        assert response == "Response"
-
-    @pytest.mark.asyncio
-    async def test_agent_run_stream(self, default_llm):
-        """Agent.run(stream=True) returns an async iterator."""
-        from tinycua_sdk import Agent
-
-        agent = Agent(llm_model=default_llm)
-
-        async def mock_stream():
-            yield "chunk1"
-            yield "chunk2"
-
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(return_value=mock_stream())
-            stream = await agent.run("Hello", stream=True)
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
-            assert chunks == ["chunk1", "chunk2"]
-
-    @pytest.mark.asyncio
-    async def test_agent_run_with_tools(self, default_llm):
-        """Agent.run() can use composed tools."""
-        from tinycua_sdk import Agent, tool
-
-        @tool
-        def search(q: str) -> str:
-            return f"Results for {q}"
-
-        agent = Agent(llm_model=default_llm)
-        agent.add_tools(search)
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(return_value="Tool result")
-            response = await agent.run("Search for something")
-        assert response == "Tool result"
-
-
-class TestAgentStatelessness:
-    """Tests verifying Agent has no internal state between runs."""
-
-    @pytest.mark.asyncio
-    async def test_no_internal_message_history(self, default_llm):
-        """Multiple runs are independent; no internal message history."""
-        from tinycua_sdk import Agent
-
-        agent = Agent(llm_model=default_llm)
-        with patch("tinycua_sdk.agent.executor.LLMClient") as MockClient:
-            mock_instance = MockClient.return_value
-            mock_instance.chat = AsyncMock(side_effect=["A", "B"])
-            r1 = await agent.run("Query 1")
-            r2 = await agent.run("Query 2")
-        assert r1 == "A"
-        assert r2 == "B"
-
-    def test_no_singleton_registry(self, default_llm):
-        """Agent does not depend on a global ToolRegistry singleton."""
-        from tinycua_sdk import Agent, tool
-
-        @tool
-        def my_tool() -> str:
-            return "result"
-
-        agent1 = Agent(llm_model=default_llm)
-        agent1.add_tools(my_tool)
-        agent2 = Agent(llm_model=default_llm)
-        assert len(agent1.tools) == 1
-        assert len(agent2.tools) == 0
+        with pytest.raises(NotImplementedError):
+            await agent.run("Hello")

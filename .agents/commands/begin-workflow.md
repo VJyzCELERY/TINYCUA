@@ -16,6 +16,11 @@ This command runs a complete implementation workflow using subagents for each ph
 3. Review loop (Subagents 3-6+) → review → validate → fix → validate → fresh review → repeat until truly clean
 4. Cleanup phase → archive resolved reviews
 
+## Important Global Rule: Use `uv run` for Python
+
+All subagents MUST `cd src/tinycua-sdk && uv run` for Python/pytest commands.
+Bare `python` or `pytest` may import from the wrong worktree.
+
 ## Instructions
 
 ### Phase 1: Planning (Subagent 1)
@@ -47,15 +52,15 @@ Task: Run /review-project for $1 with focus on code quality and spec compliance
 ```
 
 **Step 2: Validate (Subagent 4)**
-Use Task tool:
+Use Task tool — review file is always at `./reviews/REVIEW-{name}.md`:
 ```
-Task: Run /validate-review for the review file in $1/reviews/
+Task: Run /validate-review for ./reviews/REVIEW-{name}.md
 ```
 
 **Step 3: If OPEN issues exist → Fix (Subagent 5)**
-Use Task tool:
+Use Task tool — review file is at `./reviews/REVIEW-{name}.md`:
 ```
-Task: Run /review-implement for the review file in $1/reviews/
+Task: Run /review-implement for ./reviews/REVIEW-{name}.md
 ```
 
 After fixing, return to Step 2 for re-validation.
@@ -67,6 +72,7 @@ IMPORTANT: When running the fresh review:
 - Do NOT mention what issues were found or fixed before
 - Tell the subagent this is a completely fresh, independent review
 - The subagent should approach it like they are reviewing for the first time
+- Tell the subagent to `cd src/tinycua-sdk && uv run` for all Python commands
 
 Use Task tool:
 ```
@@ -81,7 +87,7 @@ Task: Run /review-project for $1 - perform a FRESH independent review. Do NOT us
 
 Use Task tool:
 ```
-Task: Run /cleanup-review for $1/reviews/ or .agents/reviews/
+Task: Run /cleanup-review for ./reviews/
 ```
 
 ## Workflow Summary
@@ -90,9 +96,9 @@ Task: Run /cleanup-review for $1/reviews/ or .agents/reviews/
 Planning (Subagent 1) → Implementation (Subagent 2) → Review Loop → Cleanup
 
 Review Loop:
-  Review (Subagent 3)
+  Review (Subagent 3) → writes to ./reviews/REVIEW-{name}.md
        ↓
-  Validate (Subagent 4) → If OPEN: Fix (Subagent 5) → Validate (repeat until clean)
+  Validate (Subagent 4) → updates ./reviews/REVIEW-{name}.md → If OPEN: Fix (Subagent 5) → updates ./reviews/REVIEW-{name}.md → Validate (repeat until clean)
        ↓
   If CLEAN → Fresh Review (Subagent 6) - INDEPENDENT, no prior context
        ↓
@@ -108,5 +114,7 @@ Review Loop:
 - For FRESH review: explicitly tell subagent to be independent with no prior context
 - Stay scoped to the spec - don't implement or review things outside the scope
 - Run actual commands and tests - don't assume results
+- Always instruct subagents to `cd src/tinycua-sdk && uv run` for Python/pytest
+- All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location
 
 Begin by starting Subagent 1 for planning phase.
