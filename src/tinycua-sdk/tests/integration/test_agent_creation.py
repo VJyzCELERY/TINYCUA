@@ -1,7 +1,6 @@
 """Integration tests for Agent creation and initialization."""
 
-import pytest
-from tinycua_sdk import Agent, LLMModel
+from tinycua_sdk import Agent
 
 
 class TestAgentCreation:
@@ -34,29 +33,3 @@ class TestAgentCreation:
         }
         agent = Agent.from_config(config)
         assert len(agent.tools) == 2
-
-    def test_from_json_file(self, tmp_path):
-        """Load agent from JSON file."""
-        config_file = tmp_path / "agent.json"
-        config_file.write_text('{"name": "json_agent", "instructions": "From JSON"}')
-        agent = Agent.from_config(config_file)
-        assert agent.name == "json_agent"
-
-    def test_from_yaml_file(self, tmp_path):
-        """Load agent from YAML file."""
-        config_file = tmp_path / "agent.yaml"
-        config_file.write_text("name: yaml_agent\ninstructions: From YAML\n")
-        agent = Agent.from_config(config_file)
-        assert agent.name == "yaml_agent"
-
-    def test_config_round_trip_file(self, tmp_path):
-        """Serialize to file and restore."""
-        original = Agent(
-            name="roundtrip",
-            llm_model=LLMModel(model_name="gpt-4"),
-        )
-        config_path = tmp_path / "agent.json"
-        original.config.to_json_file(config_path)
-        restored = Agent.from_config(config_path)
-        assert restored.name == "roundtrip"
-        assert restored.llm_model.model_name == "gpt-4"

@@ -4,7 +4,7 @@ Shows how to create an Agent with different levels of configuration.
 An Agent is stateless and fully runnable once configured.
 """
 
-from tinycua_sdk import Agent, LanguageModel
+from tinycua_sdk import Agent, AgentPolicy, LanguageModel
 
 # ---------------------------------------------------------------------------
 # 1. Absolute minimal agent (still requires a LanguageModel)
@@ -52,10 +52,7 @@ researcher = Agent(
     name="researcher",
     instructions="You are a careful research assistant. Cite your sources.",
     llm_model=LanguageModel(model_name="qwen/qwen3.5-9b", temperature=0.3),
-    policy={
-        "max_tool_calls": 15,
-        "parallel_tool_calls": True,
-    },
+    policy=AgentPolicy(max_tool_calls=15, parallel_tool_calls=True),
 )
 
 # ---------------------------------------------------------------------------

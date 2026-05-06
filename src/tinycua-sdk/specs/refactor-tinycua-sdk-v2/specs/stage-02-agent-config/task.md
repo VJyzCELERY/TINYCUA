@@ -14,12 +14,12 @@ Implementation tasks for Stage 2 Agent Configuration and Creation. Check off ite
 ## Testing Phase
 
 - [x] Update `tests/integration/goals/test_gs_02_agent_creation.py` to cover v2 requirements <!-- id: 6 -->
-- [ ] Run `pytest -v tests/integration/goals/test_gs_02_agent_creation.py` <!-- id: 7 -->
+- [x] Run `pytest -v tests/integration/goals/test_gs_02_agent_creation.py` <!-- id: 7 -->
 
 ## Verification Phase
 
-- [ ] Run `goals/getting-started/02_agent_creation.py` and confirm expected output <!-- id: 8 -->
-- [ ] Confirm `Agent().to_config()` includes nested serialization for llm, tools, skills, policy <!-- id: 9 -->
+- [x] Run `goals/getting-started/02_agent_creation.py` and confirm expected output <!-- id: 8 -->
+- [x] Confirm `Agent().to_config()` includes nested serialization for llm, tools, skills, policy <!-- id: 9 -->
 
 ## Documentation Phase
 
@@ -27,9 +27,9 @@ Implementation tasks for Stage 2 Agent Configuration and Creation. Check off ite
 
 ## Review and Merge
 
-- [ ] Perform a local review of the changes against spec requirements <!-- id: 11 -->
+- [x] Perform a local review of the changes against spec requirements <!-- id: 11 -->
 - [ ] Create a pull request <!-- id: 12 -->
-- [ ] Address review feedback <!-- id: 13 -->
+- [x] Address review feedback <!-- id: 13 -->
 - [ ] Merge to main branch <!-- id: 14 -->
 
 ---

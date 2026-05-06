@@ -71,7 +71,7 @@ class Agent(AgentExecutor):
             **kwargs: Additional keyword arguments (unused).
 
         Raises:
-            TypeError: If unknown parameters are passed.
+            TypeError: If obsolete parameters are passed.
 
         """
         for key in kwargs:
@@ -80,11 +80,7 @@ class Agent(AgentExecutor):
                     f"Agent() got an unexpected keyword argument '{key}'. "
                     "This parameter has been removed in v2."
                 )
-        if kwargs:
-            raise TypeError(
-                "Agent() got unexpected keyword argument(s): "
-                f"{', '.join(sorted(kwargs.keys()))}"
-            )
+
 
         config = AgentConfig(
             name=name,
@@ -189,67 +185,27 @@ class Agent(AgentExecutor):
         return self.config.to_config()
 
     @classmethod
-    def from_config(cls, config: str | Any) -> "Agent":
-        """Create an agent from a configuration dict, JSON file path, or YAML file path.
+    def from_config(cls, config: dict[str, Any]) -> "Agent":
+        """Create an agent from a configuration dict.
 
         Args:
-            config: A dict, Path, or str path to a JSON/YAML file.
+            config: A configuration dictionary.
 
         Returns:
             A new Agent instance.
         """
-        from pathlib import Path
-
-        if isinstance(config, (str, Path)):
-            path = Path(config)
-            if path.suffix.lower() in (".yaml", ".yml"):
-                from tinycua_sdk.agent.config import AgentConfig
-                data = AgentConfig.from_yaml_file(path).to_config()
-            else:
-                from tinycua_sdk.agent.config import AgentConfig
-                data = AgentConfig.from_json_file(path).to_config()
-        elif isinstance(config, dict):
-            data = config
-        else:
-            raise ValueError(f"Unsupported config type: {type(config)}")
-
-        # Resolve nested value objects
-        llm_data = data.get("llm_model", {})
-        llm_model = LanguageModel.from_dict(llm_data) if isinstance(llm_data, dict) else LanguageModel()
-
-        tools = data.get("tools", [])
-        from tinycua_sdk.tools.decorators import Tool
-        resolved_tools = []
-        for t in tools:
-            if isinstance(t, Tool):
-                resolved_tools.append(t)
-            elif isinstance(t, dict):
-                resolved_tools.append(Tool.from_dict(t))
-            else:
-                resolved_tools.append(t)
-
-        skills = data.get("skills", [])
-        resolved_skills = []
-        for s in skills:
-            if hasattr(s, "to_dict"):
-                resolved_skills.append(s)
-            elif isinstance(s, dict):
-                from tinycua_sdk.skills.models import Skill
-                resolved_skills.append(Skill.from_dict(s))
-            else:
-                resolved_skills.append(s)
-
+        agent_config = AgentConfig.from_config(config)
         return cls(
-            name=data.get("name", "assistant"),
-            instructions=data.get("instructions", ""),
-            llm_model=llm_model,
-            tools=resolved_tools,
-            skills=resolved_skills,
-            policy=AgentPolicy(**data.get("policy", {})) if data.get("policy") else None,
-            metadata=data.get("metadata"),
-            loop=data.get("loop"),
-            tool_permissions=data.get("tool_permissions"),
-            approval_workflow=data.get("approval_workflow"),
+            name=agent_config.name,
+            instructions=agent_config.instructions,
+            llm_model=agent_config.llm_model,
+            tools=agent_config.tools,
+            skills=agent_config.skills,
+            policy=agent_config.policy,
+            metadata=agent_config.metadata,
+            loop=agent_config.loop,
+            tool_permissions=agent_config.tool_permissions,
+            approval_workflow=agent_config.approval_workflow,
         )
 
 

@@ -70,3 +70,8 @@ markers = [
     "integration: marks tests as integration tests (require external service running)",
     "lm_studio: marks tests that require local OpenAI-compatible server running",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
