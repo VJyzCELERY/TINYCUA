@@ -30,5 +30,12 @@ class Skill(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Skill":
-        """Deserialize from plain dict."""
+        """Deserialize from plain dict.
+
+        Args:
+            data: A dictionary with skill configuration values.
+
+        Returns:
+            A new Skill instance.
+        """
         return cls(**data)

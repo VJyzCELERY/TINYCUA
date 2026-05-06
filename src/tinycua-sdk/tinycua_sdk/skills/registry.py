@@ -21,6 +21,9 @@ class SkillRegistry:
 
         Args:
             skill: Skill to register.
+
+        Returns:
+            None.
         """
         self._skills[skill.name] = skill
 

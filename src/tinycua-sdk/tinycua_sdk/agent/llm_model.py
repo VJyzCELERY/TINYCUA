@@ -83,7 +83,14 @@ class LanguageModel(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LanguageModel":
-        """Deserialize from plain dict."""
+        """Deserialize from plain dict.
+
+        Args:
+            data: A dictionary of model configuration values.
+
+        Returns:
+            A new LanguageModel instance.
+        """
         return cls(**data)
 
     @classmethod
@@ -91,6 +98,12 @@ class LanguageModel(BaseModel):
         """Deserialize from JSON string.
 
         Note: api_key must be provided as a plain string in JSON.
+
+        Args:
+            data: A JSON string of model configuration values.
+
+        Returns:
+            A new LanguageModel instance.
         """
         parsed = json.loads(data)
         if isinstance(parsed.get("api_key"), str):

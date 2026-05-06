@@ -104,7 +104,10 @@ class Tool:
         params: dict[str, Any] = {}
         required: list[str] = []
         for i, (param_name, param) in enumerate(sig.parameters.items()):
-            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
                 continue
             if param_name in ("self", "cls") and i == 0:
                 continue
@@ -146,7 +149,11 @@ def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
     """
     import typing
 
-    origin = get_origin(type_hint) if isinstance(type_hint, type) or hasattr(type_hint, "__origin__") else None
+    origin = (
+        get_origin(type_hint)
+        if isinstance(type_hint, type) or hasattr(type_hint, "__origin__")
+        else None
+    )
     if type_hint is str:
         return {"type": "string"}
     elif type_hint in (int, float):
@@ -223,6 +230,13 @@ def tool(
 
         @tool(dependencies=["requests"])
         def func(): ...
+
+    Args:
+        fn: The function to convert. If None, returns a decorator.
+        dependencies: Optional list of external dependency package names.
+
+    Returns:
+        A Tool instance, or a decorator function if fn is None.
     """
     if fn is None:
         def decorator(f: Callable) -> Tool:
