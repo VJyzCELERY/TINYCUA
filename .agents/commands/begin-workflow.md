@@ -8,9 +8,13 @@ Automate the complete specs implementation process: planning → implementation 
 **Target Directory**: $1 (directory containing spec.md and design.md)
 **Additional Context (Optional)**: $2 (any additional context or priorities)
 
+## Orchestrator Role
+
+The agent that executes this command is the **orchestrator**. You (the running agent) are the orchestrator — you use Task tool to delegate to subagents for each phase, but you own the loop, apply oversight rules, and make go/no-go decisions. Subagents are intentionally kept free of prior review context.
+
 ## Overview
 
-This command runs a complete implementation workflow using subagents for each phase:
+This command runs a complete implementation workflow using subagents for each phase, with the orchestrator overseeing the entire process:
 1. Planning phase (Subagent 1) → creates implementation-plan.md and task.md
 2. Implementation phase (Subagent 2) → executes the plan
 3. Review loop (Subagents 3-6+) → review → validate → fix → validate → fresh review → repeat until truly clean
@@ -106,12 +110,54 @@ Review Loop:
   If CLEAN (zero issues) → Exit Loop → Cleanup
 ```
 
+## Review Loop Oversight Rules (Orchestrator Responsibilities)
+
+The **orchestrator** (you — the agent executing this command) owns the loop and must apply these rules. The reviewer, validator, and fixer subagents are intentionally kept free of prior context to ensure fresh perspectives.
+
+> **Rule of thumb**: The orchestrator says "no, we already fixed that" or "that's out of scope now" to prevent infinite loops. Subagents are useful idiots — they generate creative thoroughness that the orchestrator filters.
+
+### 1. Bookkeep Review History
+
+Maintain a running ledger of every finding across all cycles. For each new fresh review:
+
+1. **Check each finding against the ledger**: has this exact issue been raised and addressed before?
+2. **If yes → Invalidate**: mark it INVALID with a note: "Already addressed in cycle N — no regression detected."
+3. **If no → Keep as OPEN**: the finding is genuinely new.
+
+### 2. Handle Reopened Issues
+
+A previously addressed finding may legitimately reopen:
+- If **code has changed** since the fix (the fix was reverted or modified), treat as a valid new OPEN finding.
+- If **code has NOT changed** since the fix, the reviewer is wrong — **invalidate**.
+- Verification: `git diff <commit-where-fix-was-applied> -- <file>` to check for regressions.
+
+### 3. Tighten Scope as Issues Shrink
+
+As the loop progresses and findings become increasingly nitpicky (minor, info, suggestions), the orchestrator should tighten review scope to enable better termination:
+
+- **First 1-2 cycles**: Full scope — all spec compliance, code quality, test coverage.
+- **Cycles 3-4**: Narrow to spec compliance and correctness issues. Defer cosmetic/style suggestions.
+- **Cycles 5+**: Only accept findings that represent **real bugs**, **spec violations**, or **test gaps that would let actual bugs through**. Reject pure style preferences, missing `__all__`, annotation preferences, naming nits, etc.
+
+### 4. Orchestrator Validation Gate
+
+After each fresh review, before passing findings to the validate-fix pipeline:
+
+1. Run each finding through the ledger (rule 1).
+2. Check for reopened issues with code diff verification (rule 2).
+3. Assess severity against current cycle scope (rule 3).
+4. Produce a filtered findings list — only genuinely new, in-scope, non-duplicate issues proceed to Step 2 (Validate).
+
+This keeps the reviewer free to be creatively thorough while the orchestrator prevents infinite loops from diminishing-returns nitpicking.
+
 ## Important
 
+- The **orchestrator** (the agent running this command) is responsible for applying the Review Loop Oversight Rules. Do NOT pass oversight context to subagents.
 - Use Task tool to invoke each subagent for each phase
 - Wait for each subagent to complete before proceeding
 - After validation returns clean, ALWAYS run one more fresh review
-- For FRESH review: explicitly tell subagent to be independent with no prior context
+- For FRESH review: explicitly tell subagent to be independent with no prior context — do NOT mention any previous findings or fixes
+- The orchestrator filters and gates fresh review findings through the oversight rules before passing to validate
 - Stay scoped to the spec - don't implement or review things outside the scope
 - Run actual commands and tests - don't assume results
 - Always instruct subagents to `cd src/tinycua-sdk && uv run` for Python/pytest
