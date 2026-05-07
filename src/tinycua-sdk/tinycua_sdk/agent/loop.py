@@ -94,7 +94,7 @@ class BaseLoop:
                             )
                         except Exception as e:
                             tool_result = {"error": f"Tool execution failed: {e}"}
-                        tool_call_count += 1
+                    tool_call_count += 1
 
                     working_messages.append({
                         "role": "tool",

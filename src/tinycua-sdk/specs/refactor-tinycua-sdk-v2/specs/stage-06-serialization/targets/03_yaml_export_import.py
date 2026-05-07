@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from tinycua_sdk import Agent, LanguageModel
+from tinycua_sdk import Agent
 
 
 a = Agent(name="yaml_test", instructions="test")
