@@ -12,6 +12,7 @@ from tinycua_sdk.security.approval import ApprovalWorkflow
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
 
+
 class AgentPolicy(BaseModel):
     """Policy for agent behavior."""
 
@@ -79,7 +80,11 @@ class AgentConfig(BaseModel):
         )
 
         llm_data = data.get("llm_model", {})
-        llm_model = LanguageModel.from_dict(llm_data) if isinstance(llm_data, dict) else LanguageModel()
+        llm_model = (
+            LanguageModel.from_dict(llm_data)
+            if isinstance(llm_data, dict)
+            else LanguageModel()
+        )
 
         tools_data = data.get("tools", [])
         tools = []
@@ -98,6 +103,7 @@ class AgentConfig(BaseModel):
                 skills.append(s)
             elif isinstance(s, dict):
                 from tinycua_sdk.skills.models import Skill
+
                 skills.append(Skill.from_dict(s))
             else:
                 skills.append(s)

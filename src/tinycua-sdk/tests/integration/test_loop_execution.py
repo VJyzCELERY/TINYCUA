@@ -55,7 +55,9 @@ class TestLoopExecution:
         """Agent with custom BaseLoop subclass."""
 
         class CustomLoop(BaseLoop):
-            async def run(self, agent, messages, tools, override_instructions=None):
+            async def run(
+                self, agent, messages, tools, override_instructions=None, **kwargs
+            ):
                 return "Custom result"
 
         agent = Agent(llm_model=LanguageModel(), loop=CustomLoop())

@@ -38,9 +38,7 @@ class TestToolExecutor:
             llm_model=LanguageModel(),
             tool_permissions={"delete_file": "deny"},
         )
-        result = await ToolExecutor.execute(
-            delete_file, {"path": "/etc/passwd"}, agent
-        )
+        result = await ToolExecutor.execute(delete_file, {"path": "/etc/passwd"}, agent)
         assert isinstance(result, dict)
         assert "error" in result
         assert "denied" in result["error"]
@@ -58,9 +56,7 @@ class TestToolExecutor:
             tool_permissions={"risky_op": "ask"},
             approval_workflow=mock_workflow,
         )
-        result = await ToolExecutor.execute(
-            risky_op, {"param": "test"}, agent
-        )
+        result = await ToolExecutor.execute(risky_op, {"param": "test"}, agent)
         assert result == "Executed test"
 
     @pytest.mark.asyncio
@@ -78,9 +74,7 @@ class TestToolExecutor:
             tool_permissions={"risky_op": "ask"},
             approval_workflow=mock_workflow,
         )
-        result = await ToolExecutor.execute(
-            risky_op, {"param": "test"}, agent
-        )
+        result = await ToolExecutor.execute(risky_op, {"param": "test"}, agent)
         assert result == {"approved": False, "reason": "Not allowed"}
 
     @pytest.mark.asyncio

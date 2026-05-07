@@ -82,9 +82,7 @@ class TestGS03AgentCalling:
         agent._call_llm = multi_step_call_llm
         agent.add_tools(dummy_tool)
 
-        task = asyncio.create_task(
-            agent.run("Write a long essay about cheese.")
-        )
+        task = asyncio.create_task(agent.run("Write a long essay about cheese."))
         await step_1_started.wait()
         agent.cancel()
 

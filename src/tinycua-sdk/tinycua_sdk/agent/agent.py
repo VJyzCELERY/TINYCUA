@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, Literal
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
@@ -15,10 +16,19 @@ if TYPE_CHECKING:
     from tinycua_sdk.skills.models import Skill
 
 
-_CONFIG_ATTRS = frozenset({
-    "name", "instructions", "llm_model", "tools", "skills",
-    "policy", "metadata", "loop", "approval_workflow",
-})
+_CONFIG_ATTRS = frozenset(
+    {
+        "name",
+        "instructions",
+        "llm_model",
+        "tools",
+        "skills",
+        "policy",
+        "metadata",
+        "loop",
+        "approval_workflow",
+    }
+)
 
 
 class Agent(AgentExecutor):
@@ -56,7 +66,9 @@ class Agent(AgentExecutor):
         """Delegate config attribute access."""
         if name in _CONFIG_ATTRS:
             return getattr(self.config, name)
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
 
     @property
     def tool_permissions(self) -> dict[str, Literal["allow", "ask", "deny"]]:
@@ -89,7 +101,9 @@ class Agent(AgentExecutor):
         Args:
             skill_or_list: A single Skill or a list of Skills.
         """
-        new_skills = skill_or_list if isinstance(skill_or_list, list) else [skill_or_list]
+        new_skills = (
+            skill_or_list if isinstance(skill_or_list, list) else [skill_or_list]
+        )
         existing_names = {s.name for s in self.config.skills}
         for s in new_skills:
             if s.name not in existing_names:
@@ -102,15 +116,23 @@ class Agent(AgentExecutor):
         messages: list[dict] | None = None,
         instructions: str | None = None,
         stream: Literal["off", "event", "token", "all"] = "off",
-    ) -> str:
-        """Run the agent with a query and return the response string."""
-        if stream != "off":
-            raise NotImplementedError("Streaming implemented in Stage 5")
+    ) -> str | AsyncIterator[dict]:
+        """Run the agent with a query.
 
+        Args:
+            query: The user query string.
+            messages: Optional message history to prepend.
+            instructions: Optional instructions override.
+            stream: Streaming mode - 'off', 'token', 'event', or 'all'.
+
+        Returns:
+            Final response string when stream='off', or an async iterator
+            of event dicts when streaming.
+        """
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
         try:
-            return await loop.run(self, msgs, self.tools, instructions)
+            return await loop.run(self, msgs, self.tools, instructions, stream=stream)
         finally:
             self._cancelled = False
 

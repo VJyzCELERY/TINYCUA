@@ -2,7 +2,7 @@
 
 import httpx
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from tests.conftest import FakeLLMResponse
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
@@ -88,7 +88,9 @@ class TestOpenAICompatibleClient:
             "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25},
         }
 
-        mock_post = AsyncMock(return_value=FakeLLMResponse(json_data=fake_response_data))
+        mock_post = AsyncMock(
+            return_value=FakeLLMResponse(json_data=fake_response_data)
+        )
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -112,19 +114,23 @@ class TestOpenAICompatibleClient:
     async def test_chat_sends_tool_choice_auto_when_tools_present(self):
         client = OpenAICompatibleClient()
 
-        fake_response = FakeLLMResponse(json_data={
-            "choices": [{"message": {"content": "ok", "role": "assistant"}}],
-            "usage": None,
-        })
+        fake_response = FakeLLMResponse(
+            json_data={
+                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                "usage": None,
+            }
+        )
         mock_post = AsyncMock(return_value=fake_response)
         captured_payload = {}
 
         async def capture_post(url, **kwargs):
             captured_payload.update(kwargs.get("json", {}))
-            return FakeLLMResponse(json_data={
-                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
-                "usage": None,
-            })
+            return FakeLLMResponse(
+                json_data={
+                    "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                    "usage": None,
+                }
+            )
 
         mock_post.side_effect = capture_post
 
@@ -145,10 +151,12 @@ class TestOpenAICompatibleClient:
     async def test_chat_forwards_model_config_fields(self):
         client = OpenAICompatibleClient()
 
-        fake_ok = FakeLLMResponse(json_data={
-            "choices": [{"message": {"content": "ok", "role": "assistant"}}],
-            "usage": None,
-        })
+        fake_ok = FakeLLMResponse(
+            json_data={
+                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                "usage": None,
+            }
+        )
         mock_post = AsyncMock(return_value=fake_ok)
         captured_payload = {}
 
@@ -185,10 +193,12 @@ class TestOpenAICompatibleClient:
     async def test_chat_raises_on_http_error(self):
         client = OpenAICompatibleClient()
 
-        mock_post = AsyncMock(return_value=FakeLLMResponse(
-            json_data={"error": "unauthorized"},
-            status_code=401,
-        ))
+        mock_post = AsyncMock(
+            return_value=FakeLLMResponse(
+                json_data={"error": "unauthorized"},
+                status_code=401,
+            )
+        )
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -207,17 +217,21 @@ class TestOpenAICompatibleClient:
     async def test_chat_no_tool_calls_when_omitted(self):
         client = OpenAICompatibleClient()
 
-        mock_post = AsyncMock(return_value=FakeLLMResponse(json_data={
-            "choices": [
-                {
-                    "message": {
-                        "content": "No tools needed.",
-                        "role": "assistant",
-                    }
+        mock_post = AsyncMock(
+            return_value=FakeLLMResponse(
+                json_data={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "No tools needed.",
+                                "role": "assistant",
+                            }
+                        }
+                    ],
+                    "usage": None,
                 }
-            ],
-            "usage": None,
-        }))
+            )
+        )
 
         with (
             pytest.MonkeyPatch.context() as mp,
@@ -232,6 +246,165 @@ class TestOpenAICompatibleClient:
 
         assert result["tool_calls"] is None
         assert result["content"] == "No tools needed."
+
+    @pytest.mark.asyncio
+    async def test_chat_dispatches_to_chat_sync_when_stream_false(self):
+        """chat(stream=False) calls _chat_sync and returns a dict."""
+        client = OpenAICompatibleClient()
+        fake_data = {
+            "choices": [{"message": {"content": "sync", "role": "assistant"}}],
+            "usage": None,
+        }
+        mock_post = AsyncMock(return_value=FakeLLMResponse(json_data=fake_data))
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(httpx.AsyncClient, "post", mock_post)
+            model = LanguageModel(model_name="gpt-4o-mini")
+            result = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                model_config=model,
+                stream=False,
+            )
+
+        assert isinstance(result, dict)
+        assert result["content"] == "sync"
+
+    def _make_fake_stream_response(self, sse_lines):
+        """Create a FakeStreamResponse that yields the given SSE lines."""
+
+        async def fake_aiter_lines():
+            for line in sse_lines:
+                yield line
+
+        class FakeStreamResponse:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                pass
+
+            def raise_for_status(self):
+                pass
+
+            def aiter_lines(self):
+                return fake_aiter_lines()
+
+        return FakeStreamResponse()
+
+    @pytest.mark.asyncio
+    async def test_chat_stream_returns_async_iterator_when_stream_true(self):
+        """chat(stream=True) returns an async iterator."""
+        client = OpenAICompatibleClient()
+
+        fake_sse_lines = [
+            'data: {"choices":[{"delta":{"content":"Hello"},"id":"1"}]}\n',
+            'data: {"choices":[{"delta":{"content":" world"},"id":"2"}]}\n',
+            "data: [DONE]\n",
+        ]
+
+        fake_response = self._make_fake_stream_response(fake_sse_lines)
+        mock_client = MagicMock()
+        mock_client.stream.return_value = fake_response
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            model = LanguageModel(
+                base_url="http://test.local/v1", model_name="gpt-4o-mini"
+            )
+            result = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                model_config=model,
+                stream=True,
+            )
+
+            chunks = [c async for c in result]
+
+        assert len(chunks) == 2
+        assert chunks[0] == {
+            "type": "response.output_text.delta",
+            "delta": "Hello",
+            "item_id": "1",
+        }
+        assert chunks[1] == {
+            "type": "response.output_text.delta",
+            "delta": " world",
+            "item_id": "2",
+        }
+
+    @pytest.mark.asyncio
+    async def test_chat_stream_parses_tool_call_deltas(self):
+        """SSE parsing yields tool_call.delta events."""
+        client = OpenAICompatibleClient()
+
+        fake_sse_lines = [
+            'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","index":0,"function":{"name":"get_weather","arguments":""}}]}}]}\n',
+            'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","index":0,"function":{"name":"","arguments":"{\\"city\\": \\"Tokyo\\"}"}}]}}]}\n',
+            "data: [DONE]\n",
+        ]
+
+        fake_response = self._make_fake_stream_response(fake_sse_lines)
+        mock_client = MagicMock()
+        mock_client.stream.return_value = fake_response
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            model = LanguageModel(
+                base_url="http://test.local/v1", model_name="gpt-4o-mini"
+            )
+            result = await client.chat(
+                messages=[{"role": "user", "content": "weather?"}],
+                tools=[{"type": "function", "function": {"name": "get_weather"}}],
+                model_config=model,
+                stream=True,
+            )
+
+            chunks = [c async for c in result]
+
+        assert len(chunks) == 2
+        assert chunks[0]["type"] == "response.tool_call.delta"
+        assert chunks[0]["id"] == "call_1"
+        assert chunks[0]["name"] == "get_weather"
+        assert chunks[1]["type"] == "response.tool_call.delta"
+        assert chunks[1]["id"] == "call_1"
+
+    @pytest.mark.asyncio
+    async def test_chat_stream_skips_done_sentinel(self):
+        """[DONE] sentinel is skipped."""
+        client = OpenAICompatibleClient()
+
+        fake_sse_lines = [
+            "data: [DONE]\n",
+        ]
+
+        fake_response = self._make_fake_stream_response(fake_sse_lines)
+        mock_client = MagicMock()
+        mock_client.stream.return_value = fake_response
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            model = LanguageModel(
+                base_url="http://test.local/v1", model_name="gpt-4o-mini"
+            )
+            result = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                model_config=model,
+                stream=True,
+            )
+
+            chunks = [c async for c in result]
+
+        assert len(chunks) == 0
 
     @pytest.mark.asyncio
     async def test_create_client(self):

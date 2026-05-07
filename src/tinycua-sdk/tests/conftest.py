@@ -20,6 +20,7 @@ class FakeLLMResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             import httpx
+
             raise httpx.HTTPStatusError(
                 f"{self.status_code} error", request=None, response=self
             )
@@ -43,6 +44,7 @@ os.environ["TINYCUA_API_KEY"] = "dummy"
 # Logging Configuration
 # =============================================================================
 
+
 def pytest_configure(config):
     """Configure logging for tests."""
     logging.basicConfig(
@@ -55,6 +57,7 @@ def pytest_configure(config):
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture(scope="session")
 def event_loop():
