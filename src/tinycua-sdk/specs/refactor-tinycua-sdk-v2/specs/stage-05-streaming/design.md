@@ -230,6 +230,17 @@ Stream Start
   └── response.failed + error (on failure)
 ```
 
+### Deferred Events
+
+The following OpenAI Responses API event types are recognized but deferred to later stages. The "stage" field in spec.md R-5.2.0 references the stage that will implement each:
+
+| Deferred Event | Assigned To | Rationale |
+|---|---|---|
+| `response.in_progress` | Stage 8 (Custom Loops) | Lifecycle completeness — custom loops should emit full event sets |
+| `response.function_call_arguments.delta` / `.done` | Stage 8 (Custom Loops) | Standard OpenAI event naming — custom loop consumers benefit |
+| `response.content_part.added` / `.done` | Stage 9 (Final Integration) | Multi-part response support — requires wider integration |
+| `response.output_text.annotation.added` | Stage 9 (Final Integration) | Citation/annotation support — final polish item |
+
 ### Return Type
 `Agent.run()` must return `str` when `stream="off"` and `AsyncIterator[dict]` otherwise. This is a type union. In practice, consumers will know which mode they requested.
 

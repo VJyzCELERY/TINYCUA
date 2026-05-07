@@ -54,6 +54,35 @@ __all__ = [
 ### R-9.7: No Stubs
 No `NotImplementedError` stubs remain in production code paths.
 
+### R-9.8: Streaming Event Completeness
+
+Complete the OpenAI Responses API streaming event set with these deferred event types from Stage 5:
+
+**R-9.8.1: response.content_part Events**
+
+For multi-part responses (e.g., text + image), emit content part lifecycle events:
+
+```python
+{"type": "response.content_part.added", "part": {"type": "text", "text": "Hello"}}
+{"type": "response.content_part.done", "part": {"type": "text", "text": "Hello world"}}
+```
+
+**R-9.8.2: response.output_text.annotation.added Event**
+
+Emitted when a citation or annotation is attached to a text output:
+
+```python
+{
+    "type": "response.output_text.annotation.added",
+    "item_id": "msg_abc123",
+    "annotation": {
+        "type": "url_citation",
+        "url": "https://example.com",
+        "title": "Example",
+    },
+}
+```
+
 ## Success Criteria
 
 Each success criterion must be validated by running the specified target file(s).
