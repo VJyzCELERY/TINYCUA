@@ -15,7 +15,7 @@ If no focus area is provided, validate ALL OPEN findings.
 Before running, always run the review pre-flight:
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --mode validate --review-file "$1"
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$1"
 ```
 
 If it exits non-zero, read the script to recover:

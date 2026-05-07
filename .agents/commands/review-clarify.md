@@ -15,7 +15,7 @@ If no focus area is provided, clarify ALL OPEN findings.
 ## Pre-Flight Checks
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --mode clarify --review-file "$REVIEW_FILE"
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
 
 ---

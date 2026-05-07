@@ -14,7 +14,7 @@ Run the review loop independently: review-report → review-validate → review-
 Before starting the loop, run the review pre-flight:
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --mode report --review-file "$REVIEW_FILE"
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
 
 ---

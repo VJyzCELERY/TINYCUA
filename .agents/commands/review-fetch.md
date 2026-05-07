@@ -22,7 +22,7 @@ PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")
 Also run the review pre-flight for scope context:
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --mode report
+uv run python .agents/scripts/preflight-review.py --scope pr
 ```
 
 ---
