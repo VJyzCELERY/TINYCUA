@@ -7,17 +7,7 @@ Update an existing PR review with follow-up comments and resolve findings that h
 
 **Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
-Update an existing PR review with follow-up comments and resolve findings that have been addressed.
 
-**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
-**PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
-Update an existing PR review with follow-up comments and resolve findings that have been addressed.
-
-**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
-**PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
-**PR Number (Optional)**: $2 (if not provided, detect from current branch)
-
----
 
 ## Overview
 

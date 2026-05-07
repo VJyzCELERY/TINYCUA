@@ -7,20 +7,7 @@ Create an implementation plan from existing spec.md and design.md files.
 
 **Query**: $1 (natural language query — specify the feature or directory, e.g., "plan the auth feature in specs/user-auth/" or simply "specs/my-feature/")
 **Additional Context (Optional)**: $2 (any additional context or priorities to consider)
-Create an implementation plan from existing spec.md and design.md files.
 
-**Query**: $1 (natural language query — specify the feature or directory, e.g., "plan the auth feature in specs/user-auth/" or simply "specs/my-feature/")
-**Additional Context (Optional)**: $2 (any additional context or priorities to consider)
-Create an implementation plan from existing spec.md and design.md files.
-
-**Query**: $1 (natural language query — specify the feature or directory, e.g., "plan the auth feature in specs/user-auth/" or simply "specs/my-feature/")
-**Additional Context (Optional)**: $2 (any additional context or priorities to consider)
-Create an implementation plan from existing spec.md and design.md files.
-
-**Query**: $1 (natural language query — specify the feature or directory, e.g., "plan the auth feature in specs/user-auth/" or simply "specs/my-feature/")
-**Additional Context (Optional)**: $2 (any additional context or priorities to consider)
-
-## Instructions
 
 1. **Locate spec.md**: Search for spec.md in `$1` or its subdirectories
 2. **Locate design.md**: Find design.md in the same directory as spec.md

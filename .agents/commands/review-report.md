@@ -8,32 +8,7 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 **Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
 **Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
 **Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
-Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
 
-**Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
-**Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
-**Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
-Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
-
-**Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
-**Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
-**Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
-Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
-
-**Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
-**Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
-**Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
-Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
-
-**Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
-**Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
-**Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
-Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
-
-**Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
-**Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
-**Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
----
 
 ## Scope Determination (IMPORTANT)
 
