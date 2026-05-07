@@ -193,6 +193,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Stay scoped to the spec — don't implement or review things outside the scope.
 - Run actual commands and tests — don't assume results.
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
+- Always instruct subagents to check `.agents/templates/` before generating documents (PR body, implementation plan, review report, etc.) — the relevant template defines the expected structure.
 - All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location.
 
 Begin by starting Subagent 1 for the planning phase.

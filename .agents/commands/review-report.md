@@ -130,6 +130,7 @@ Use format: `REVIEW-{name}.md`
 
 ## Important
 
+- **Check template first**: Read `.agents/templates/REVIEW-template.md` before generating the report — follow its structure
 - MUST determine scope before reviewing
 - MUST scope the review to the current branch diff unless unscoped
 - MUST create the review file at `./reviews/REVIEW-{name}.md`

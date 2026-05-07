@@ -53,6 +53,22 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 ---
 
+## Critical: Always Check Templates First
+
+**Before generating any document** (PR body, implementation plan, review report, task list, spec, or design), **always check `.agents/templates/` first**. Use Read to load the relevant template and follow its structure.
+
+Available templates:
+- `PR-body.md` — Pull request description
+- `implementation-plan.md` — Implementation plan
+- `task.md` — Task checklist
+- `REVIEW-template.md` — Review report
+- `spec.md` — Feature specification
+- `design.md` — Design document
+
+If no template exists for the document you need, create one following the conventions of existing templates.
+
+---
+
 ## Critical: Use `uv run` for All Python/Pytest Commands
 
 This project uses `uv` for Python environment management. **Never use bare `python` or `pytest`** — they may import from the wrong worktree.

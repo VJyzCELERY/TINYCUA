@@ -30,7 +30,8 @@ Create an implementation plan from existing spec.md and design.md files.
 7. **Use Task IDs**: Add `<!-- id: N -->` tags to each task for tracking
 
 ## Important
-- Do NOT make any code changes - only create planning documents
+- **Check templates first**: Read `.agents/templates/implementation-plan.md` and `.agents/templates/task.md` before generating — follow their structure
+- Do NOT make any code changes — only create planning documents
 - Output files must be in the same directory as spec.md
 - Make the implementation plan detailed and actionable
 
