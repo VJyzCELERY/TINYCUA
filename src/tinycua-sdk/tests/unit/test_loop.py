@@ -613,6 +613,64 @@ class TestBaseLoopRunStream:
         assert events[1] == {"type": "response.completed"}
 
     @pytest.mark.asyncio
+    async def test_run_stream_accumulates_tool_call_args(self):
+        """Multi-chunk tool call arguments are accumulated correctly."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_weather(city: str) -> str:
+            return f"Weather in {city}: sunny"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.tool_call.delta",
+                        "id": "call_1",
+                        "name": "get_weather",
+                        "arguments": '{"cit',
+                    }
+                    yield {
+                        "type": "response.tool_call.delta",
+                        "id": "call_1",
+                        "name": "",
+                        "arguments": 'y": "Tokyo"}',
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "It is sunny.",
+                        "item_id": "2",
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(
+            agent,
+            [{"role": "user", "content": "weather?"}],
+            [get_weather],
+            stream_mode="all",
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed"}
+        tool_outputs = [
+            e
+            for e in events
+            if e.get("type") == "response.output_item.added"
+            and e["item"]["type"] == "tool_output"
+        ]
+        assert len(tool_outputs) == 1
+        assert "sunny" in tool_outputs[0]["item"]["output"]
+
+    @pytest.mark.asyncio
     async def test_run_stream_max_iterations(self):
         """Stream stops after max_iterations."""
         loop = BaseLoop(max_iterations=1)

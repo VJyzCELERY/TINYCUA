@@ -174,7 +174,11 @@ class BaseLoop:
             if agent.is_cancelled:
                 break
 
-            content_parts, tool_calls_buffer, tool_calls_list = await self._stream_llm(
+            (
+                content_parts,
+                content_delta_events,
+                tool_calls_list,
+            ) = await self._stream_llm(
                 agent,
                 working_messages,
                 tools,
@@ -193,14 +197,14 @@ class BaseLoop:
                         "type": "function",
                         "function": {
                             "name": tc["name"],
-                            "arguments": tc["arguments"],
+                            "arguments": json.loads(tc["arguments"]),
                         },
                     }
                     for tc in tool_calls_list
                 ]
             working_messages.append(assistant_msg)
 
-            for chunk in tool_calls_buffer:
+            for chunk in content_delta_events:
                 if stream_mode in ("token", "all"):
                     yield chunk
 
@@ -355,7 +359,7 @@ class BaseLoop:
                     "item": {
                         "type": "tool_call",
                         "name": tool_name,
-                        "arguments": tc["arguments"],
+                        "arguments": json.loads(tc["arguments"]),
                     },
                 }
             )
