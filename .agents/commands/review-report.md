@@ -38,6 +38,19 @@ head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC
 ---
 
 
+## PR Context (IMPORTANT — always read when reviewing against a PR)
+
+If reviewing against a PR (detected in scope check below), always read the PR body and title first:
+
+```bash
+PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
+gh pr view "$PR_NUMBER" --json title,body --jq '"TITLE: \(.title)\n\nBODY:\n\(.body)"'
+```
+
+Use the PR title and body to **adjust your review scope** — the PR may be narrower or broader than the branch diff. If the PR body/title do not match the actual changes or do not comply with project standards (missing context, no spec references, etc.), flag this as a **finding** with severity MEDIUM. Include a suggestion for what the PR body/title should say.
+
+---
+
 ## Scope Determination (IMPORTANT)
 
 This command **must** determine what files are in scope before reviewing. The review is scoped to the branch diff by default.
@@ -87,7 +100,8 @@ This command **must** determine what files are in scope before reviewing. The re
 
 ## Instructions
 
-1. **Determine scope**: Follow the Scope Determination section above
+1. **Read PR context** (if reviewing against a PR): Follow the PR Context section above — read PR body/title and adjust scope accordingly
+2. **Determine scope**: Follow the Scope Determination section above
 2. **Analyze scoped files**: Use Read to examine all in-scope files
 3. **Focus Review**: If `$2` is provided (and not "unscoped"), prioritize reviewing for that aspect:
    - "security" — focus on security vulnerabilities
@@ -168,6 +182,7 @@ Use format: `REVIEW-{name}.md`
 - MUST determine scope before reviewing
 - MUST scope the review to the current branch diff unless unscoped
 - **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
+- **PR body/title compliance** — if reviewing against a PR, always check that the PR body and title accurately reflect the changes and comply with spec references. Flag non-compliance as a finding
 - **Record the commit range** in the review header — this lets the user know if the review is stale (new commits since review)
 - MUST create the review file at `./reviews/REVIEW-{name}.md`
 - Each finding MUST include an executable validation command (prefixed with `uv run`)

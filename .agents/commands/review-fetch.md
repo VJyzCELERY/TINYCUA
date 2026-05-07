@@ -31,15 +31,30 @@ uv run python .agents/scripts/preflight-review.py --scope pr
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-2. **Fetch PR details**:
+2. **Fetch PR details** (including title, body, and spec references):
    ```bash
-   uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"
+   gh pr view "$PR_NUMBER" --json title,body --jq '"TITLE: \(.title)\n\nBODY:\n\(.body)"'
    ```
 3. **Fetch unresolved comments and reviews**:
    ```bash
    uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
    ```
-4. **Compile findings**: For each unresolved comment, extract:
+4. **Check PR body/title compliance**: Before compiling findings, check if the PR body and title accurately describe the changes and reference any relevant specs. If the PR body or title need updating (e.g., stale description, missing spec references, misleading title), add a finding:
+   ```markdown
+   ### [FETCH-001] - [MEDIUM] - [PR body/title needs update]
+   
+   **Status**: OPEN
+   
+   **Severity**: MEDIUM
+   
+   [Explain what's wrong — e.g., PR title doesn't match changes, PR body lacks spec reference]
+   
+   **Location**: [PR #number]
+   
+   **Suggested Fix**:
+   [What the title or body should say]
+   ```
+5. **Compile findings**: For each unresolved comment, extract:
    - **Issue Code**: FETCH-001, FETCH-002, ...
    - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
    - **Location**: The file path and line number from the comment

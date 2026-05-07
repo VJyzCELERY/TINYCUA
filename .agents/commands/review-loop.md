@@ -59,7 +59,7 @@ Enter a loop that continues until truly clean (no issues found in a FRESH review
 
 Delegate to a fresh subagent:
 
-> Run /review-report for $1 with focus on code quality and spec compliance
+> Run /review-report for $1 with focus on code quality and spec compliance — read the PR body and title first, adjust scope accordingly, and check PR body/title compliance against specs
 
 The review file is written to `./reviews/REVIEW-{name}.md`.
 
@@ -81,7 +81,7 @@ After fixing, return to Step 2 for re-validation (new subagent each time).
 
 This MUST be a fresh, independent review. No prior context:
 
-> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
+> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch — also read the PR body and title, adjust scope, and check PR body/title compliance
 
 **Step 5: Check Fresh Review Result**
 - If fresh review has ANY new issues → return to Step 2
@@ -129,4 +129,5 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Stay scoped to the target directory
 - Run actual commands and tests — don't assume results
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
+- When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
 - All review files live at `./reviews/REVIEW-{name}.md`

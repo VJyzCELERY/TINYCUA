@@ -103,7 +103,7 @@ Enter a loop that continues until truly clean (no issues found in a FRESH review
 
 Delegate to a fresh subagent:
 
-> Run /review-report for $1 with focus on code quality and spec compliance
+> Run /review-report for $1 with focus on code quality and spec compliance — read the PR body and title first, adjust scope accordingly, and check PR body/title compliance against specs
 
 **Step 2: Review-validate (Subagent 4)**
 
@@ -123,7 +123,7 @@ After fixing, return to Step 2 for re-validation (this uses a NEW subagent — S
 
 This MUST be a fresh, independent review. Do NOT give the subagent any context about previous reviews or findings:
 
-> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
+> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch — also read the PR body and title, adjust scope, and check PR body/title compliance
 
 **Step 5: Check Fresh Review Result**
 - If fresh review has ANY new issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
@@ -208,6 +208,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Run actual commands and tests — don't assume results.
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
+- When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
 - All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location.
 
 Begin by starting Subagent 1 for the planning phase.
