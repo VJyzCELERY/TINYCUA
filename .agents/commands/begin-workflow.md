@@ -9,6 +9,19 @@ Automate the complete specs implementation process: planning → implementation 
 **Additional Context (Optional)**: $2 (any additional context or priorities)
 
 
+## Initial Questions
+
+Before starting, ask the user for any unclear details using the question/ask tool. The orchestrator must resolve these before delegating to any subagent:
+
+1. **Specs/Design**: "Do you have spec.md and design.md ready, or should I create them?" If not, use `.agents/templates/spec.md` and `.agents/templates/design.md`.
+2. **Branch/PR**: If no PR exists for the current branch: "Do you want me to create a PR after implementation, or skip PR creation?" If yes, the PR is created after Phase 2 (implement) completes, before entering the review loop.
+3. **Scope tightening**: "Do you want to tighten the review scope as iterations progress, or keep every cycle fresh?" Default is tighten if not specified.
+4. **Any other clarifications**: If the query is ambiguous, ask for specifics.
+
+Once answered, the entire workflow runs fully automated — the orchestrator delegates to fresh subagents for each phase without further user input.
+
+---
+
 ## Workflow-Orchestrator Role
 
 The agent that executes this command is the **workflow-orchestrator**. You (the running agent) are the workflow-orchestrator — you use the Task tool to delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
@@ -74,6 +87,17 @@ Task: Run /implement for $1
 ```
 
 Wait for the subagent to complete and verify tasks are marked complete in task.md.
+
+### Phase 2.5: Create PR (if opted in)
+
+If the user opted for PR creation during initial questions, push the branch and create a PR:
+
+```bash
+git push origin <branch>
+uv run python .agents/scripts/gh.py create "type(scope): title" ./tmp/pr-body.md --head <branch> --base main
+```
+
+Use `.agents/templates/PR-body.md` for the PR body. Record the PR number for the review loop.
 
 ### Phase 3: Review Loop
 

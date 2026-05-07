@@ -9,6 +9,17 @@ Run the review loop independently: review-report → review-validate → review-
 **Review Name**: $2 (optional — defaults to directory name from query)
 **Unscoped (Optional)**: $3 (set to "unscoped" to bypass branch diff scoping)
 
+## Initial Questions
+
+Before starting the loop, ask the user for any unclear details using the question/ask tool:
+
+1. **Scope tightening**: "Do you want to tighten the review scope as iterations progress (narrow to critical issues after 3-4 cycles), or keep every cycle as a full fresh review?" Default is tighten if not specified.
+2. **Any other clarifications**: If the query is ambiguous, ask for specifics.
+
+Once answered, the rest of the loop runs fully automated.
+
+---
+
 ## Pre-Flight
 
 Before starting the loop, run the review pre-flight:
