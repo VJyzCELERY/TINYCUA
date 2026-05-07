@@ -107,5 +107,5 @@ When reviewing code for security, check:
 
 ## References
 
-- `docs/agents/code_review.md` — full security review checklist under "Security (High Priority)"
-- `docs/project_rules/logging_guidelines.md` — logging standards
+- `.agents/docs/agents/code_review.md` — full security review checklist under "Security (High Priority)"
+- `.agents/docs/project_rules/logging_guidelines.md` — logging standards

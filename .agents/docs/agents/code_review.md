@@ -89,7 +89,7 @@ When reviewing code, apply these principles:
 - Avoids deep nesting and duplicated logic
 
 ### Cognitive Complexity
-- All functions must have a complexity score of **15 or below** (see `docs/project_rules/cognitive_complexity.md`)
+- All functions must have a complexity score of **15 or below** (see `.agents/docs/project_rules/cognitive_complexity.md`)
 - Flag any function that would fail `make lint` (Ruff C901)
 - Suggest refactors: early returns, extracted helpers, lookup tables
 

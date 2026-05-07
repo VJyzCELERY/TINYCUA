@@ -7,8 +7,8 @@ The `MAIN-PROJECT` is organized to facilitate modular subproject development and
 MAIN-PROJECT/
 ├── docs/                          # Main documentation
 ├── specs/                         # Project-level feature specs
-│   ├── spec-template.md           # Copy for new specs
-│   ├── design-template.md         # Copy for new designs
+│   ├── spec-template.md           # Symlink → .agents/templates/spec.md
+│   ├── design-template.md         # Symlink → .agents/templates/design.md
 │   └── <feature-name>/            # One folder per feature
 │       ├── spec.md
 │       └── design.md

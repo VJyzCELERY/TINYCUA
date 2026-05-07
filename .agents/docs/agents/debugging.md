@@ -18,7 +18,7 @@ By default, Python applications built from this template write logs to:
 src/my-subproject/logs/application.log
 ```
 
-Check `docs/project_rules/logging_guidelines.md` for the configured log level and format.
+Check `.agents/docs/project_rules/logging_guidelines.md` for the configured log level and format.
 
 ---
 
@@ -143,5 +143,5 @@ If `make test` fails unexpectedly:
 
 ## References
 
-- `docs/project_rules/logging_guidelines.md` — logging configuration and standards
-- `docs/agents/testing.md` — test organization and debugging tests
+- `.agents/docs/project_rules/logging_guidelines.md` — logging configuration and standards
+- `.agents/docs/agents/testing.md` — test organization and debugging tests

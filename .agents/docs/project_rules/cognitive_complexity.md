@@ -32,9 +32,10 @@ make lint
 ### 2. Radon (Detailed Complexity Reports)
 Radon provides granular cyclomatic complexity analysis and maintainability index reporting beyond what Ruff offers. Use it for deeper audits.
 
-#### Installation
+Radon is included in the `dev` dependency group. To add it to a new subproject:
+
 ```bash
-uv pip install radon
+uv add --dev radon
 ```
 
 #### Usage

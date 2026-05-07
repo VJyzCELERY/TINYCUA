@@ -1,4 +1,8 @@
-# Testing Guidelines
+# Testing Guidelines (Developer Workflow)
+
+For pytest configuration and coverage setup, see `.agents/docs/project_rules/testing_guidelines.md`.
+
+---
 
 ## Test Directory Structure
 
@@ -10,7 +14,7 @@ src/my-subproject/
     ├── unit/
     │   └── test_<module>.py
     └── integration/
-        └── test_<feature>.py
+        └── test_<feature-name>.py
 ```
 
 - **Unit tests** (`tests/unit/`): test individual functions and classes in isolation
@@ -125,5 +129,5 @@ cd src/<subproject-dir> && uv run pytest tests/ -k "test_returns_none"
 
 ## References
 
-- `docs/project_rules/testing_guidelines.md` — full testing rules
-- `docs/agents/workflow.md` — full development commands
+- `.agents/docs/project_rules/testing_guidelines.md` — full testing rules
+- `.agents/docs/agents/workflow.md` — full development commands

@@ -48,10 +48,10 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 ## General Agent Rules
 
 - **Responsible Use**: AI agents must be used to assist, not replace, developer judgment.
-- **Document AI Contributions**: Clearly indicate which parts of the codebase were AI-assisted.
+- **Document AI Contributions**: Indicate AI-assisted code in commit messages (e.g., `feat(scope): description [ai]`) or via inline comments (`# AI-generated`).
 - **Task Scoping**: Define specific, bounded tasks for AI agents. Avoid open-ended instructions.
 - **Review All Output**: All AI-generated code must be reviewed by a human before merging.
-- **Follow Project Standards**: AI agents must produce code that passes `make lint`, `make test`, and `make complexity` before output is considered complete.
+- **Follow Project Standards**: AI agents must produce code that passes `make lint`, `make test`, and `make complexity` (run from the subproject directory: `cd src/<subproject> && make lint`) before output is considered complete.
 - **No Secrets in Output**: AI must never generate code that contains hardcoded secrets, credentials, or API keys.
 
 ---
@@ -62,16 +62,16 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 - Generate the minimum code that satisfies the spec
 - Include docstrings for all functions and classes
 - Include corresponding tests alongside generated code
-- Follow naming conventions in `docs/project_rules/naming_conventions.md`
-- Follow coding standards in `docs/project_rules/coding_standards.md`
+- Follow naming conventions in `.agents/docs/project_rules/naming_conventions.md`
+- Follow coding standards in `.agents/docs/project_rules/coding_standards.md`
 
 ---
 
 ## References
 
-- `docs/agents/workflow.md` — development commands and commit guidelines
-- `docs/agents/style.md` — code style enforcement rules
-- `docs/agents/testing.md` — test organization and naming
-- `docs/agents/code_review.md` — review standards and severity levels
-- `docs/project_rules/coding_standards.md` — full coding standards
-- `docs/project_rules/cognitive_complexity.md` — complexity limits
+- `.agents/docs/agents/workflow.md` — development commands and commit guidelines
+- `.agents/docs/agents/style.md` — code style enforcement rules
+- `.agents/docs/agents/testing.md` — test organization and naming
+- `.agents/docs/agents/code_review.md` — review standards and severity levels
+- `.agents/docs/project_rules/coding_standards.md` — full coding standards
+- `.agents/docs/project_rules/cognitive_complexity.md` — complexity limits

@@ -41,7 +41,7 @@ Pre-commit iteration: run `make lint` repeatedly until all checks pass. Ruff may
 
 ## Commit Guidelines
 
-All commits must follow the `type(scope): message` format defined in `docs/project_rules/commit_naming.md`.
+All commits must follow the `type(scope): message` format defined in `.agents/docs/project_rules/commit_naming.md`.
 
 **Allowed types:** `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `style`
 
@@ -76,26 +76,26 @@ Keep PRs scoped: one logical change per PR. Large refactors and feature addition
 
 ## Code Review
 
-- Use the review standards in `docs/agents/code_review.md`
+- Use the review standards in `.agents/docs/agents/code_review.md`
 - Always compare against the `main` branch
-- Review reports should be saved as `reviews/REVIEW_<branch>.md`
+- Review reports should be saved as `reviews/REVIEW-<branch>.md`
 - Reviews are read-only: analyze and report, do not modify code files during a review pass
 
 ---
 
 ## Feature Development Workflow
 
-1. **Spec first**: Write or update the spec in `specs/` before writing code (use `specs/spec-template.md`)
+1. **Spec first**: Write or update the spec in `specs/` before writing code (use `.agents/templates/spec.md`)
 2. **Design review**: For significant changes, create a `design.md` alongside the spec
 3. **Test-first**: Write failing tests before implementation
 4. **Implement**: Write the minimum code to make tests pass
 5. **Lint + Complexity**: Run `make lint` and `make complexity` — fix all findings
-6. **Review**: Open a PR and apply `docs/agents/code_review.md` standards
+6. **Review**: Open a PR and apply `.agents/docs/agents/code_review.md` standards
 
 ---
 
 ## References
 
-- `docs/project_rules/commit_naming.md` — full commit naming rules
-- `docs/agents/code_review.md` — review standards
-- `docs/agents/testing.md` — testing guidelines
+- `.agents/docs/project_rules/commit_naming.md` — full commit naming rules
+- `.agents/docs/agents/code_review.md` — review standards
+- `.agents/docs/agents/testing.md` — testing guidelines

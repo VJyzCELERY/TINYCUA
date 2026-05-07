@@ -35,8 +35,10 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 ├── docs/
 │   ├── agents/       # Agent rules and guidelines
 │   └── project_rules/ # Project-specific rules
-├── reviews/          # Review outputs
-└── AGENTS.md         # [REMOVED]
+├── reviews/          # Archived reviews
+├── AGENTS.md         # [REMOVED]
+───
+reviews/              # Active review outputs (root level)
 ```
 
 ### Key Files
