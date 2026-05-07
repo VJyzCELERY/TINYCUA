@@ -8,11 +8,11 @@
 >
 > | Stage | Status | Tests Targeted |
 > |-------|--------|----------------|
-> | 0 — Cleanup | 📝 Draft | Sanity imports |
-> | 1 — Value Objects | 📝 Draft | `test_gs_01`, `test_int_01`, `test_int_02` |
-> | 2 — Agent Config | 📝 Draft | `test_gs_02` |
-> | 2.5 — Clear Backward Compat | 📝 Draft | Stage 2 constructor clean |
-> | **3 — Execution Core** | ✅ **Complete** | `test_gs_03`, `test_int_03` |
+> | 0 — Cleanup | ✅ Complete | Sanity imports |
+> | 1 — Value Objects | ✅ Complete | `test_gs_01`, `test_int_01`, `test_int_02` |
+> | 2 — Agent Config | ✅ Complete | `test_gs_02` |
+> | 2.5 — Clear Backward Compat | ✅ Complete | Stage 2 constructor clean |
+> | 3 — Execution Core | ✅ Complete | `test_gs_03`, `test_int_03` |
 > | 4 — Skills & Composition | 📝 Draft | `test_int_04`, `test_int_05` |
 > | 5 — Streaming | 📝 Draft | `test_gs_04` |
 > | 6 — Serialization | 📝 Draft | `test_int_06–09` |
@@ -71,7 +71,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ## Stages
 
-### Stage 0: Cleanup
+### Stage 0: Cleanup — ✅ Complete
 
 **Objective:** Remove every dead module, stub, and obsolete concept so subsequent stages build on a clean foundation.
 
@@ -91,7 +91,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 1: Core Value Objects
+### Stage 1: Core Value Objects — ✅ Complete
 
 **Objective:** Implement the three pure value objects that have no I/O dependencies.
 
@@ -109,7 +109,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 2: Agent Configuration & Creation
+### Stage 2: Agent Configuration & Creation — ✅ Complete
 
 **Objective:** An `Agent` can be instantiated and configured, but cannot yet execute.
 
@@ -123,7 +123,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 2.5: Clear Backward Compatibility
+### Stage 2.5: Clear Backward Compatibility — ✅ Complete
 
 **Objective:** Strip all backward-compatibility artifacts from the project. This is a spec-and-test cleanup stage with no runtime code changes.
 
