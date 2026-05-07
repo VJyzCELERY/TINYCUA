@@ -88,8 +88,6 @@ Feature subfolder names use `lower-kebab-case`.
 - Subprojects live in `src/` using lower-kebab-case folder names (e.g., `src/my-subproject/`)
 - Source code (Python package) folders use lower_snake_case (e.g., `my_subproject/`)
 - Each subproject must have:
-  - `docs/agents/` — agent rules and guidelines
-  - `docs/project_rules/` — project-specific rules
   - `specs/` — feature specs in `specs/<feature-name>/` subfolders (see above)
   - `tests/unit/` and `tests/integration/` — test directories
   - `Makefile` with `install`, `lint`, `test`, `coverage`, `complexity`, `clean` targets
@@ -126,11 +124,27 @@ Rules:
 
 ---
 
+## Agent Documentation
+
+Agent rules, project rules, commands, templates, and skills live in `.agents/`. This is the single source of truth.
+
+| Directory | Contents |
+|-----------|----------|
+| `.agents/commands/` | Opencode command definitions |
+| `.agents/templates/` | Document templates (spec, design, PR body, review, task, implementation plan) |
+| `.agents/skills/` | Skill references (gh-pr-management, git-rebase, gh-review) |
+| `.agents/docs/agents/` | Agent rules (agent_rules, workflow, style, testing, debugging, security, code_generation, code_review) |
+| `.agents/docs/project_rules/` | Project-specific rules (naming, structure, complexity, commits, testing, logging, coding standards, deployment, PR guidelines) |
+| `.agents/docs/guides.md` | Human-readable command reference |
+| `docs/project_rules/` | Symlink → `.agents/docs/project_rules/` |
+
+**Always read the relevant rules from `.agents/docs/` before starting a task.** Always check `.agents/templates/` before generating any document.
+
 ## Documentation Maintenance
 
 ### Comprehensive Documentation (`docs/full-docs/`)
 
-The project maintains detailed, line-by-line documentation for all three subprojects under `docs/full-docs/`. These docs are the primary reference for developers and contributors.
+Subprojects maintain detailed documentation under `docs/full-docs/<subproject>/`. These docs are the primary reference for developers and contributors.
 
 **Any code change must include a corresponding documentation update:**
 
@@ -142,10 +156,5 @@ The project maintains detailed, line-by-line documentation for all three subproj
 | Change behavior | Update explanations, data flows, and snippets |
 | Add new doc file | Update `docs/full-docs/INDEX.md` tree |
 | Remove doc relevance | Remove from `INDEX.md` and cross-references |
-
-**Projects covered:**
-- `docs/full-docs/tinycua/` — CLI, TUI, agent lifecycle, storage, remote, config, tools
-- `docs/full-docs/tinycua-sdk/` — SDK core (agent, clients, tools, memory, session, storage, skills, runner, models, security, middleware, context, modeling, CLI, core)
-- `docs/full-docs/tinycua-backend/` — FastAPI backend (main, API, auth, storage, sync, tenant, config, migrations)
 
 **Verification:** Before finishing a change, `grep` the docs for stale references to removed/renamed code. Stale documentation is treated the same as stale code.
