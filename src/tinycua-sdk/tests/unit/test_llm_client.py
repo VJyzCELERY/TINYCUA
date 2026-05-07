@@ -407,6 +407,37 @@ class TestOpenAICompatibleClient:
         assert len(chunks) == 0
 
     @pytest.mark.asyncio
+    async def test_chat_stream_raises_on_http_error(self):
+        """HTTP error during streaming raises HTTPStatusError."""
+        client = OpenAICompatibleClient()
+
+        fake_response = self._make_fake_stream_response([])
+        fake_response.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError(
+                "401 Unauthorized", request=None, response=MagicMock()
+            )
+        )
+        mock_client = MagicMock()
+        mock_client.stream.return_value = fake_response
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            model = LanguageModel(
+                base_url="http://test.local/v1", model_name="gpt-4o-mini"
+            )
+            stream = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                model_config=model,
+                stream=True,
+            )
+            with pytest.raises(httpx.HTTPStatusError):
+                async for _ in stream:
+                    pass
+
+    @pytest.mark.asyncio
     async def test_create_client(self):
         client = OpenAICompatibleClient()
 
