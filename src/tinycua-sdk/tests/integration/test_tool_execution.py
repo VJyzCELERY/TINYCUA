@@ -75,7 +75,7 @@ class TestToolExecution:
         """Tool exceptions are caught and returned as error messages."""
         agent = Agent(llm_model=LanguageModel(), tools=[failing_tool])
         response = await agent.run("Use failing tool")
-        assert isinstance(response, str)
+        assert isinstance(response, str) and len(response) > 0
 
     @pytest.mark.asyncio
     async def test_add_tools_then_run(self, mock_llm_client):

@@ -26,6 +26,7 @@ class TestInt03AgentWithTools:
 
         response = await agent.run("Search for quantum", stream="off")
         assert isinstance(response, str)
+        assert len(response) > 0
 
     @pytest.mark.asyncio
     async def test_int_02_dynamic_add_tools(self, mock_llm_client):

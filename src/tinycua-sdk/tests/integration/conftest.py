@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock
 
+from tests.conftest import FakeLLMResponse
+
 
 def pytest_configure(config):
     """Configure integration tests."""
@@ -14,28 +16,6 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     """Modify test collection to add skip logic for local LLM unavailable."""
     pass
-
-
-def _make_fake_response(status_code=200, json_data=None):
-    """Create a fake httpx.Response-like object."""
-    class FakeResponse:
-        def __init__(self, status_code, json_data):
-            self.status_code = status_code
-            self._json_data = json_data
-
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                import httpx
-                raise httpx.HTTPStatusError(
-                    f"HTTP {self.status_code}",
-                    request=None,
-                    response=self,
-                )
-
-        def json(self):
-            return self._json_data
-
-    return FakeResponse(status_code, json_data or {})
 
 
 @pytest.fixture
@@ -59,7 +39,7 @@ def mock_llm_client():
                 "total_tokens": 15,
             },
         }
-        fake_resp = _make_fake_response(json_data=fake_response_data)
+        fake_resp = FakeLLMResponse(json_data=fake_response_data)
 
         import httpx
         mock_post = AsyncMock(return_value=fake_resp)
@@ -71,14 +51,18 @@ def mock_llm_client():
 def mock_llm_with_tool_calls():
     """Mock LLM client that returns tool calls then a final response.
 
-    Note: This fixture hardcodes the tool name ``"search"`` and arguments
-    ``{"query": "quantum"}``.  Tests that use it *must* register a tool
-    with the same name and parameter shape for the tool call to resolve.
+    .. warning::
+
+       This fixture hardcodes the tool name ``"search"`` and arguments
+       ``{"query": "quantum"}``.  Tests that use it **must** register a
+       tool named ``search`` with a ``query: str`` parameter, or the
+       tool lookup will silently fail with ``{"error": "Unknown tool:
+       search"}``.
     """
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
-        first_response = _make_fake_response(json_data={
+        first_response = FakeLLMResponse(json_data={
             "choices": [
                 {
                     "message": {
@@ -99,7 +83,7 @@ def mock_llm_with_tool_calls():
             ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         })
-        second_response = _make_fake_response(json_data={
+        second_response = FakeLLMResponse(json_data={
             "choices": [
                 {
                     "message": {
@@ -112,7 +96,18 @@ def mock_llm_with_tool_calls():
         })
 
         import httpx
-        mock_post = AsyncMock(side_effect=[first_response, second_response])
+
+        _responses = [first_response, second_response]
+
+        async def _mock_post(*args, **kwargs):
+            if _responses:
+                return _responses.pop(0)
+            return FakeLLMResponse(json_data={
+                "choices": [{"message": {"content": "Fallback response.", "role": "assistant"}}],
+                "usage": None,
+            })
+
+        mock_post = AsyncMock(side_effect=_mock_post)
         mp.setattr(httpx.AsyncClient, "post", mock_post)
         yield mock_post
 
@@ -127,7 +122,7 @@ def mock_llm_with_failing_tool_call():
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
-        first_response = _make_fake_response(json_data={
+        first_response = FakeLLMResponse(json_data={
             "choices": [
                 {
                     "message": {
@@ -148,8 +143,12 @@ def mock_llm_with_failing_tool_call():
             ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         })
+        second_response = FakeLLMResponse(json_data={
+            "choices": [{"message": {"content": "Recovered from error.", "role": "assistant"}}],
+            "usage": None,
+        })
 
         import httpx
-        mock_post = AsyncMock(return_value=first_response)
+        mock_post = AsyncMock(side_effect=[first_response, second_response])
         mp.setattr(httpx.AsyncClient, "post", mock_post)
         yield mock_post

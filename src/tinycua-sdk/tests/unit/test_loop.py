@@ -343,3 +343,57 @@ class TestBaseLoopRun:
 
         assert any("Override instructions." in m["content"] for m in captured_messages if m["role"] == "system")
         assert not any("Original instructions." in m["content"] for m in captured_messages if m["role"] == "system")
+
+    @pytest.mark.asyncio
+    async def test_run_max_tool_calls_in_single_response(self):
+        """Single response with 3 tool calls, max_tool_calls=2 -> only 2 executed."""
+        loop = BaseLoop(max_iterations=5)
+        policy = AgentPolicy(max_tool_calls=2)
+        agent = Agent(llm_model=LanguageModel(), policy=policy)
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "a"}'},
+                        },
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "b"}'},
+                        },
+                        {
+                            "id": "call_3",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "c"}'},
+                        },
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "Done.",
+                "tool_calls": None,
+                "usage": None,
+            }
+
+        agent._call_llm = mock_call_llm
+
+        @tool
+        def search(query: str) -> str:
+            return f"Result: {query}"
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Search"}],
+            tools=[search],
+        )
+        assert call_count == 1
+        assert result == "[max tool calls reached]"
