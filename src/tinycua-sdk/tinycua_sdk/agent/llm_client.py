@@ -244,8 +244,10 @@ class OpenAICompatibleClient(LLMClient):
                             yield {
                                 "type": "response.tool_call.delta",
                                 "id": tc.get("id", ""),
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"],
+                                "name": tc.get("function", {}).get("name", ""),
+                                "arguments": tc.get("function", {}).get(
+                                    "arguments", ""
+                                ),
                             }
 
 
