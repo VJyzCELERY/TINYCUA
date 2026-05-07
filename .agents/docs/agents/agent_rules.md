@@ -48,6 +48,7 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 ## General Agent Rules
 
 - **Responsible Use**: AI agents must be used to assist, not replace, developer judgment.
+- **Ask Before Committing**: Agents must NEVER commit or push changes without explicit user permission. Always ask first, unless the current session context already includes user authorization to commit and push.
 - **Document AI Contributions**: Indicate AI-assisted code in commit messages (e.g., `feat(scope): description [ai]`) or via inline comments (`# AI-generated`).
 - **Ask When Uncertain**: If any instruction is ambiguous, incomplete, or conflicting, the agent MUST ask for clarification using a question/ask tool (agent-harness agnostic — use whatever mechanism the environment provides to prompt the user). Do NOT guess, assume, or proceed with partial information.
 - **Subagent Exception**: Subagents MUST NOT ask the user directly. If a subagent has a question, it MUST report it to the parent orchestrator agent, which will decide whether to ask the user or resolve it internally.
