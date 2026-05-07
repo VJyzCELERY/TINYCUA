@@ -18,6 +18,7 @@
 | `/review-fetch` | Pulls unresolved PR comments into a local review file |
 | `/review-cleanup` | Archives resolved review reports |
 | `/rebase` | Safely rebases branch onto target (avoids commit duplication) |
+| `/commit-cleanup` | Cleans up commit history — squashes fixups, removes duplicates |
 | `/begin-worktree` | Creates a new worktree + branch for feature development |
 | `/worktree-prune` | Removes inactive worktrees (checks PR status) |
 | `/worktree-cleanup` | Cleans up local artifacts (reviews, tmp, caches) in current worktree |
