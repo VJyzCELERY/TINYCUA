@@ -45,3 +45,4 @@ dev/
 */reviews/*
 reviews/
 tmp/
+*.lock
