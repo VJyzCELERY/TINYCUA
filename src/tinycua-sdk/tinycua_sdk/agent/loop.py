@@ -18,6 +18,12 @@ class BaseLoop:
     """Standard tool-calling execution loop."""
 
     def __init__(self, max_iterations: int = 5) -> None:
+        """Initialize the execution loop.
+
+        Args:
+            max_iterations: Maximum number of LLM call iterations
+                before the loop terminates.
+        """
         self.max_iterations = max_iterations
 
     def _build_system_message(
@@ -230,6 +236,7 @@ class BaseLoop:
                         tool_call_count,
                         executed_tool_calls,
                         tool_events,
+                        assistant_index,
                     ) = await self._execute_tools_stream(
                         agent,
                         tools,
@@ -250,10 +257,7 @@ class BaseLoop:
                             }
                             for tc in executed_tool_calls
                         ]
-                        working_messages.insert(
-                            len(working_messages) - len(executed_tool_calls),
-                            assistant_msg,
-                        )
+                        working_messages.insert(assistant_index, assistant_msg)
                     for event in tool_events:
                         yield event
                 else:
@@ -262,10 +266,6 @@ class BaseLoop:
         except Exception as e:
             yield {
                 "type": "response.failed",
-                "error": {"message": str(e)},
-            }
-            yield {
-                "type": "error",
                 "error": {"message": str(e)},
             }
             return
@@ -289,7 +289,11 @@ class BaseLoop:
                       content_item_id, usage).
         """
         llm_stream = await agent._call_llm(working_messages, tools, stream=True)
-        assert isinstance(llm_stream, AsyncIterator)
+        if not isinstance(llm_stream, AsyncIterator):
+            raise TypeError(
+                f"Expected AsyncIterator from _call_llm(stream=True), "
+                f"got {type(llm_stream).__name__}"
+            )
         content_parts: list[str] = []
         content_delta_events: list[dict] = []
         content_item_id: str = ""
@@ -339,7 +343,7 @@ class BaseLoop:
         tool_call_count: int,
         working_messages: list[dict],
         stream_mode: str,
-    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]], int]:
         """Execute tool calls and return events for streaming.
 
         Args:
@@ -351,8 +355,10 @@ class BaseLoop:
             stream_mode: Streaming mode for filtering.
 
         Returns:
-            Tuple of (updated tool_call_count, executed_tool_calls, list of event dicts).
+            Tuple of (updated tool_call_count, executed_tool_calls, list of
+            event dicts, assistant message insert index).
         """
+        assistant_index = len(working_messages)
         events: list[dict[str, Any]] = []
         executed_tool_calls: list[dict[str, Any]] = []
         for tc in tool_calls_list:
@@ -403,7 +409,7 @@ class BaseLoop:
                 }
             )
 
-        return tool_call_count, executed_tool_calls, events
+        return tool_call_count, executed_tool_calls, events, assistant_index
 
     @staticmethod
     def _build_tool_events(
