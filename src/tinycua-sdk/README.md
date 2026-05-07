@@ -56,7 +56,7 @@ Run agents directly on your machine using an OpenAI-compatible endpoint:
 
 ```python
 import asyncio
-from tinycua_sdk import Agent, LLMModel, tool
+from tinycua_sdk import Agent, LanguageModel, tool
 
 @tool
 def calculate(a: int, b: int) -> int:
@@ -67,7 +67,7 @@ async def main():
     agent = Agent(
         name="math-agent",
         instructions="You are a helpful math assistant that uses tools.",
-        llm_model=LLMModel(
+        llm_model=LanguageModel(
             provider="openai-compatible",
             base_url="http://127.0.0.1:1234/v1",
             model_name="qwen/qwen3.5-9b",
@@ -89,11 +89,11 @@ The SDK includes example scripts in the `docs/examples/` directory:
 
 | Example | Description |
 |---------|-------------|
-| `01_basic_agent.py` | Basic agent with LLMModel |
+| `01_basic_agent.py` | Basic agent with LanguageModel |
 | `02_tools.py` | Agent with `@tool` decorator and `add_tools()` |
 | `03_skills.py` | Agent with `Skill.load()` and `add_skills()` |
 | `04_config_file.py` | Agent from YAML config (`Agent.from_config()`) |
-| `05_streaming.py` | Streaming responses with `stream=True` |
+| `05_streaming.py` | Streaming responses with `stream="off"` |
 | `06_sub_agents.py` | Agent composition and sub-agent delegation |
 | `07_custom_loop.py` | Custom ReAct loop extending `BaseLoop` |
 

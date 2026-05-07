@@ -60,7 +60,7 @@ class TestProviderDefaults:
 
     def test_default_provider_is_openai_compatible(self):
         """Default provider should be openai-compatible."""
-        config = AgentConfig(name="test")
+        config = AgentConfig(name="test", llm_model=LanguageModel())
         assert config.llm_model.provider == "openai-compatible"
 
     def test_provider_can_be_changed(self):

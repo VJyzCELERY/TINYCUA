@@ -1,7 +1,7 @@
 """Integration tests for Skills System."""
 
 import pytest
-from tinycua_sdk import Agent, LLMModel, Skill, SkillRegistry
+from tinycua_sdk import Agent, LanguageModel, Skill, SkillRegistry
 
 
 class TestSkillsIntegration:
@@ -9,26 +9,26 @@ class TestSkillsIntegration:
 
     def test_add_single_skill(self):
         """Add one skill to agent."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         agent.add_skills(Skill(name="coder", description="", instructions=""))
         assert len(agent.skills) == 1
 
     def test_add_multiple_skills(self):
         """Add list of skills."""
-        agent = Agent(llm_model=LLMModel())
+        agent = Agent(llm_model=LanguageModel())
         agent.add_skills([Skill(name="a", description="", instructions=""), Skill(name="b", description="", instructions="")])
         assert len(agent.skills) == 2
 
     def test_skill_at_construction(self):
         """Skills passed at Agent construction."""
-        agent = Agent(llm_model=LLMModel(), skills=[Skill(name="coder", description="", instructions="")])
+        agent = Agent(llm_model=LanguageModel(), skills=[Skill(name="coder", description="", instructions="")])
         assert len(agent.skills) == 1
 
     @pytest.mark.asyncio
     async def test_agent_with_skill_run(self, mock_llm_client):
         """Run agent with skill attached."""
         agent = Agent(
-            llm_model=LLMModel(),
+            llm_model=LanguageModel(),
             skills=[Skill(name="coder", description="", instructions="Write code")],
         )
         response = await agent.run("Write a function")

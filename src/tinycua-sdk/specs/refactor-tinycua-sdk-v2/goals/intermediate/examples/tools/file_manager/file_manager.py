@@ -6,7 +6,6 @@ This tool demonstrates a tool that wraps a whole mini-library:
   permissions.py   → read/write permission checks
 """
 
-from pathlib import Path
 
 from tinycua_sdk import tool
 

@@ -1,6 +1,5 @@
 """Low-level HTTP wrapper for the http_client tool."""
 
-import json as _json
 
 import requests
 

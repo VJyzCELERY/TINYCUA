@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Any, Callable, get_args, get_origin
+from typing import Any, Callable
+
+from tinycua_sdk.tools.schema import type_to_json_schema
 
 class Tool:
     """A tool that can be invoked by the agent."""
@@ -111,11 +113,8 @@ class Tool:
                 continue
             if param_name in ("self", "cls") and i == 0:
                 continue
-            schema = _python_type_to_json_schema(param.annotation)
-            if schema is not None:
-                params[param_name] = schema
-            else:
-                params[param_name] = {}
+            schema = type_to_json_schema(param.annotation)
+            params[param_name] = schema
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
 
@@ -137,49 +136,6 @@ class Tool:
             _callable=fn,
             dependencies=dependencies or [],
         )
-
-
-def _python_type_to_json_schema(type_hint: Any) -> dict[str, Any] | None:
-    """Map Python types to JSON Schema types.
-
-    Args:
-        type_hint: A Python type annotation.
-
-    Returns:
-        JSON Schema dict, or None for unsupported types (allows any).
-
-    """
-    import typing
-
-    origin = (
-        get_origin(type_hint)
-        if isinstance(type_hint, type) or hasattr(type_hint, "__origin__")
-        else None
-    )
-    if type_hint is str:
-        return {"type": "string"}
-    elif type_hint in (int, float):
-        return {"type": "number"}
-    elif type_hint is bool:
-        return {"type": "boolean"}
-    elif type_hint in (list, list[Any]) or origin is list:
-        args = get_args(type_hint)
-        if args:
-            item_schema = _python_type_to_json_schema(args[0])
-            if item_schema is not None:
-                return {"type": "array", "items": item_schema}
-        return {"type": "array"}
-    elif type_hint in (dict, dict[Any, Any]) or origin is dict:
-        return {"type": "object"}
-    if origin is not None:
-        if origin is typing.Union:
-            args = get_args(type_hint)
-            non_none = [a for a in args if a is not type(None)]
-            if len(non_none) == 1:
-                return _python_type_to_json_schema(non_none[0])
-            if non_none:
-                return {"type": "string"}
-    return None
 
 
 def _parse_param_descriptions(docstring: str) -> dict[str, str]:

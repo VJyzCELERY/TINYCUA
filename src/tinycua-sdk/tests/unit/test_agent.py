@@ -266,14 +266,4 @@ class TestAgentConfigRoundTrip:
         assert restored.instructions == "Test"
 
 
-class TestAgentRun:
-    """Tests for Agent.run() stub behavior."""
 
-    @pytest.mark.asyncio
-    async def test_agent_run_not_implemented(self, default_llm):
-        """Agent.run() raises NotImplementedError in Stage 2."""
-        from tinycua_sdk import Agent
-
-        agent = Agent(llm_model=default_llm)
-        with pytest.raises(NotImplementedError):
-            await agent.run("Hello")

@@ -383,7 +383,7 @@ BaseLoop.run(agent, messages, tools)
 | Scenario | Behavior |
 |----------|----------|
 | Tool not found | Append `{"error": "Unknown tool: X"}` to messages |
-| Tool invoke fails | Exception propagates up (consumer handles) |
+| Tool invoke fails | Exception caught, error message appended to tool result for LLM recovery |
 | LLM request fails | `httpx.HTTPStatusError` propagates |
 | Cancelled | `asyncio.CancelledError` raised |
 | Max tool calls reached | Return last content with `[max iterations reached]` hint |

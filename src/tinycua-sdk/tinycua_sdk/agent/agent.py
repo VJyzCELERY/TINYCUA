@@ -7,11 +7,18 @@ from typing import TYPE_CHECKING, Any, Literal
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.agent.loop import BaseLoop
 
 if TYPE_CHECKING:
-    from tinycua_sdk.agent.loop import BaseLoop
+    from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
     from tinycua_sdk.skills.models import Skill
+
+
+_CONFIG_ATTRS = frozenset({
+    "name", "instructions", "llm_model", "tools", "skills",
+    "policy", "metadata", "loop", "approval_workflow",
+})
 
 
 class Agent(AgentExecutor):
@@ -28,7 +35,7 @@ class Agent(AgentExecutor):
         metadata: dict | None = None,
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
-        approval_workflow: Any | None = None,
+        approval_workflow: ApprovalWorkflow | None = None,
     ):
         config = AgentConfig(
             name=name,
@@ -45,45 +52,11 @@ class Agent(AgentExecutor):
 
         super().__init__(config=config)
 
-    @property
-    def name(self) -> str:
-        """Get agent name."""
-        return self.config.name
-
-    @property
-    def instructions(self) -> str:
-        """Get agent instructions."""
-        return self.config.instructions
-
-    @property
-    def llm_model(self) -> LanguageModel:
-        """Get LLM model configuration."""
-        return self.config.llm_model
-
-    @property
-    def tools(self) -> list[Tool]:
-        """Get agent tools."""
-        return self.config.tools
-
-    @property
-    def skills(self) -> list[Skill]:
-        """Get agent skills."""
-        return self.config.skills
-
-    @property
-    def policy(self) -> AgentPolicy:
-        """Get agent policy."""
-        return self.config.policy
-
-    @property
-    def metadata(self) -> dict:
-        """Get agent metadata."""
-        return self.config.metadata
-
-    @property
-    def loop(self) -> BaseLoop | None:
-        """Get agent loop."""
-        return self.config.loop
+    def __getattr__(self, name: str) -> Any:
+        """Delegate config attribute access."""
+        if name in _CONFIG_ATTRS:
+            return getattr(self.config, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     @property
     def tool_permissions(self) -> dict[str, Literal["allow", "ask", "deny"]]:
@@ -97,21 +70,18 @@ class Agent(AgentExecutor):
         """Set tool permissions."""
         self.config.tool_permissions = value
 
-    @property
-    def approval_workflow(self) -> Any:
-        """Get approval workflow."""
-        return self.config.approval_workflow
-
     def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
         """Append one or more tools to the agent.
 
         Args:
             tool_or_list: A single Tool or a list of Tools.
         """
-        if isinstance(tool_or_list, list):
-            self.config.tools.extend(tool_or_list)
-        else:
-            self.config.tools.append(tool_or_list)
+        new_tools = tool_or_list if isinstance(tool_or_list, list) else [tool_or_list]
+        existing_names = {t.name for t in self.config.tools}
+        for t in new_tools:
+            if t.name not in existing_names:
+                self.config.tools.append(t)
+                existing_names.add(t.name)
 
     def add_skills(self, skill_or_list: Skill | list[Skill]) -> None:
         """Append one or more skills to the agent.
@@ -119,10 +89,30 @@ class Agent(AgentExecutor):
         Args:
             skill_or_list: A single Skill or a list of Skills.
         """
-        if isinstance(skill_or_list, list):
-            self.config.skills.extend(skill_or_list)
-        else:
-            self.config.skills.append(skill_or_list)
+        new_skills = skill_or_list if isinstance(skill_or_list, list) else [skill_or_list]
+        existing_names = {s.name for s in self.config.skills}
+        for s in new_skills:
+            if s.name not in existing_names:
+                self.config.skills.append(s)
+                existing_names.add(s.name)
+
+    async def run(
+        self,
+        query: str,
+        messages: list[dict] | None = None,
+        instructions: str | None = None,
+        stream: Literal["off", "event", "token", "all"] = "off",
+    ) -> str:
+        """Run the agent with a query and return the response string."""
+        if stream != "off":
+            raise NotImplementedError("Streaming implemented in Stage 5")
+
+        loop = self.config.loop or BaseLoop()
+        msgs = (messages or []) + [{"role": "user", "content": query}]
+        try:
+            return await loop.run(self, msgs, self.tools, instructions)
+        finally:
+            self._cancelled = False
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent to a configuration dict.

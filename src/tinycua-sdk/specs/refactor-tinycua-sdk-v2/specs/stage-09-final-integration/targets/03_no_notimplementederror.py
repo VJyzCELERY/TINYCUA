@@ -1,6 +1,5 @@
 """Target 9.3: Verify no production code raises NotImplementedError."""
 
-import ast
 from pathlib import Path
 
 

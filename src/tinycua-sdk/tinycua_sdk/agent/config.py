@@ -117,20 +117,7 @@ class AgentConfig(BaseModel):
 
 
 def _tool_from_config_dict(data: dict[str, Any]) -> Tool:
-    """Validate and convert a tool configuration dict."""
-    if "function" in data:
-        func_config = data.get("function")
-        if not isinstance(func_config, dict):
-            raise ValueError("Tool function config must be a dict")
-        name = func_config.get("name")
-        description = func_config.get("description")
-    else:
-        name = data.get("name")
-        description = data.get("description")
-
-    if not name or not description:
-        raise ValueError("Tool config requires name and description")
-
+    """Convert a tool configuration dict to a Tool."""
     return Tool.from_dict(data)
 
 

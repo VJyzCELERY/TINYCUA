@@ -143,7 +143,7 @@ class TestToolSchemaGeneration:
         assert "query" in search.parameters["required"]
 
     def test_tool_with_union_param(self):
-        """Test @tool with Union[str, int] param generates schema for the first non-None type."""
+        """Test @tool with Union[str, int] param generates anyOf schema."""
 
         @tool()
         def process_value(value: Union[str, int]) -> dict:
@@ -152,7 +152,7 @@ class TestToolSchemaGeneration:
 
         props = process_value.parameters["properties"]
         assert "value" in props
-        assert props["value"]["type"] == "string"
+        assert props["value"]["anyOf"] == [{"type": "string"}, {"type": "number"}]
 
     def test_tool_with_enum_param(self):
         """Test @tool with Enum param generates enum schema."""
@@ -167,7 +167,9 @@ class TestToolSchemaGeneration:
             return {"title": title, "priority": priority.value}
 
         props = create_task.parameters["properties"]
-        assert "priority" not in props
+        assert "priority" in props
+        assert props["priority"]["type"] == "string"
+        assert "low" in props["priority"]["enum"]
 
     def test_tool_with_annotated_param(self):
         """Test @tool with Annotated param includes description."""
@@ -181,7 +183,8 @@ class TestToolSchemaGeneration:
             return {"title": title}
 
         props = create_task.parameters["properties"]
-        assert "description" not in props
+        assert "description" in props
+        assert props["description"]["description"] == "Detailed task description"
 
     def test_tool_complex_types(self):
         """Test @tool with multiple complex types in one function."""

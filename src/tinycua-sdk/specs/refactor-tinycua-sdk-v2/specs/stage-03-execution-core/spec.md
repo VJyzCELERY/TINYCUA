@@ -180,25 +180,25 @@ Each success criterion must be validated by running the specified target file(s)
 
 Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-- [ ] Agent.run Returns String - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+- [x] Agent.run Returns String - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
   Description: `agent.run("What is the capital of France?")` returns a `str`.
 
-- [ ] Agent.run with History - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+- [x] Agent.run with History - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
   Description: `messages` parameter is respected.
 
-- [ ] Agent.run with Instruction Override - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+- [x] Agent.run with Instruction Override - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
   Description: Runtime instruction override works.
 
-- [ ] Cancellation - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
+- [x] Cancellation - tests/integration/goals/test_gs_03_agent_calling.py - PASS - `print('PASS')`
   Description: `agent.cancel()` cancels an in-flight run.
 
-- [ ] Tool Calling Loop - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
+- [x] Tool Calling Loop - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
   Description: Agent with tools correctly invokes them.
 
-- [ ] Dynamic add_tools - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
+- [x] Dynamic add_tools - tests/integration/goals/test_int_03_agent_with_tools.py - PASS - `print('PASS')`
   Description: Tools added after creation work.
 
-- [ ] Integration Tests Pass - tests/integration/goals/test_gs_03_agent_calling.py, tests/integration/goals/test_int_03_agent_with_tools.py - 2 passed, 0 failed - pytest -v
+- [x] Integration Tests Pass - tests/integration/goals/test_gs_03_agent_calling.py, tests/integration/goals/test_int_03_agent_with_tools.py - 2 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_gs_03_agent_calling.py`
