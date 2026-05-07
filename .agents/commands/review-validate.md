@@ -10,6 +10,22 @@ Full review validation: first clarify vague findings, then verify each one's sta
 
 If no focus area is provided, validate ALL OPEN findings.
 
+## Pre-Flight
+
+Before running, always run the review pre-flight:
+
+```bash
+uv run python .agents/scripts/preflight-review.py --mode validate --review-file "$1"
+```
+
+If it exits non-zero, read the script to recover:
+
+```bash
+head -20 .agents/scripts/preflight-review.py
+```
+
+---
+
 ---
 
 ## Role

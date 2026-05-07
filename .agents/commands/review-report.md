@@ -9,6 +9,22 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 **Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
 **Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
 
+## Pre-Flight
+
+Before running, always run the review pre-flight:
+
+```bash
+uv run python .agents/scripts/preflight-review.py --mode report --review-file "$1"
+```
+
+If it exits non-zero, you may still proceed but should read the script manually to understand what's wrong:
+
+```bash
+head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC>
+```
+
+---
+
 
 ## Scope Determination (IMPORTANT)
 

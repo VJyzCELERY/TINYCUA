@@ -9,6 +9,16 @@ Run the review loop independently: review-report → review-validate → review-
 **Review Name**: $2 (optional — defaults to directory name from query)
 **Unscoped (Optional)**: $3 (set to "unscoped" to bypass branch diff scoping)
 
+## Pre-Flight
+
+Before starting the loop, run the review pre-flight:
+
+```bash
+uv run python .agents/scripts/preflight-review.py --mode report --review-file "$REVIEW_FILE"
+```
+
+---
+
 
 ## Workflow-Orchestrator Role
 

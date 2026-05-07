@@ -11,6 +11,22 @@ Clean up commit history after a rebase: squash fixup commits, remove duplicates,
 
 ## Instructions
 
+## Pre-Flight
+
+Before cleaning up commits, run the rebase pre-flight:
+
+```bash
+uv run python .agents/scripts/preflight-rebase.py --target main --list-commits
+```
+
+If it exits non-zero, read the script to recover:
+
+```bash
+head -20 .agents/scripts/preflight-rebase.py
+```
+
+---
+
 Read `.agents/skills/git-rebase/SKILL.md` before proceeding for the full rebase workflow reference.
 
 ### 1. Check Current State

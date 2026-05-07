@@ -11,6 +11,22 @@ Fetch unresolved comments and review requests from a GitHub PR and generate a st
 
 ## Instructions
 
+## Pre-Flight
+
+Before fetching, run the PR pre-flight to detect the PR:
+
+```bash
+PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")
+```
+
+Also run the review pre-flight for scope context:
+
+```bash
+uv run python .agents/scripts/preflight-review.py --mode report
+```
+
+---
+
 1. **Detect PR**: If `$1` is not provided, detect the PR number:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
