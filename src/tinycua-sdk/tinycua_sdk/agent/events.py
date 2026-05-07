@@ -6,7 +6,7 @@ from typing import Any, Literal, TypedDict
 
 
 class ResponseCreatedEvent(TypedDict):
-    """Emitteed at the start of every stream session."""
+    """Emitted at the start of every stream session."""
 
     type: Literal["response.created"]
 
@@ -25,20 +25,20 @@ class ResponseFailedEvent(TypedDict):
 
 
 class ResponseCompletedEvent(TypedDict):
-    """Emitteed at the end of a successful stream session."""
+    """Emitted at the end of a successful stream session."""
 
     type: Literal["response.completed"]
 
 
 class ResponseUsageEvent(TypedDict):
-    """Emitteed with token usage data from the LLM."""
+    """Emitted with token usage data from the LLM."""
 
     type: Literal["response.usage"]
     usage: dict[str, Any]
 
 
 class ResponseOutputTextDeltaEvent(TypedDict):
-    """Emitteed for each text content delta in streaming."""
+    """Emitted for each text content delta in streaming."""
 
     type: Literal["response.output_text.delta"]
     delta: str
@@ -46,7 +46,7 @@ class ResponseOutputTextDeltaEvent(TypedDict):
 
 
 class ResponseOutputTextDoneEvent(TypedDict):
-    """Emitteed when text content is fully accumulated."""
+    """Emitted when text content is fully accumulated."""
 
     type: Literal["response.output_text.done"]
     item_id: str
@@ -54,7 +54,7 @@ class ResponseOutputTextDoneEvent(TypedDict):
 
 
 class ResponseToolCallDeltaEvent(TypedDict):
-    """Emitteed for each tool call argument delta in streaming."""
+    """Emitted for each tool call argument delta in streaming."""
 
     type: Literal["response.tool_call.delta"]
     index: int
@@ -64,14 +64,14 @@ class ResponseToolCallDeltaEvent(TypedDict):
 
 
 class ResponseOutputItemAddedEvent(TypedDict):
-    """Emitteed when a new output item (tool call / output) is added."""
+    """Emitted when a new output item (tool call / output) is added."""
 
     type: Literal["response.output_item.added"]
     item: dict[str, Any]
 
 
 class ResponseOutputItemDoneEvent(TypedDict):
-    """Emitteed when an output item is fully processed."""
+    """Emitted when an output item is fully processed."""
 
     type: Literal["response.output_item.done"]
     item: dict[str, Any]

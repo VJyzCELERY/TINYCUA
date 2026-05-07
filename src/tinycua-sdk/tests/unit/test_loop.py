@@ -548,6 +548,10 @@ class TestBaseLoopRunStream:
         ]
         assert any(t["item"]["type"] == "tool_call" for t in tool_events)
         assert any(t["item"]["type"] == "tool_output" for t in tool_events)
+        delta_events = [
+            e for e in events if e.get("type") == "response.output_text.delta"
+        ]
+        assert any("The time is 12:00." in e.get("delta", "") for e in delta_events)
 
     @pytest.mark.asyncio
     async def test_run_stream_mode_filters_tool_events(self):
@@ -789,8 +793,8 @@ class TestBaseLoopRunStream:
         assert "tool_output" in types
 
     @pytest.mark.asyncio
-    async def test_run_stream_emits_failed_on_exception(self):
-        """Only response.failed event is emitted on stream failure (no redundant error event)."""
+    async def test_run_stream_emits_failed_and_error_on_exception(self):
+        """response.failed and error events are emitted on stream failure."""
         loop = BaseLoop(max_iterations=5)
         agent = Agent(llm_model=LanguageModel())
 
@@ -817,5 +821,6 @@ class TestBaseLoopRunStream:
         error_events = [e for e in events if e["type"] == "error"]
         assert len(failed_events) == 1
         assert "message" in failed_events[0]["error"]
-        assert len(error_events) == 0
-        assert events[-1]["type"] == "response.failed"
+        assert len(error_events) == 1
+        assert "message" in error_events[0]["error"]
+        assert events[-1]["type"] == "error"
