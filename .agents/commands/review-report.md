@@ -11,11 +11,21 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 
 ## Pre-Flight
 
-Before running, always run the review pre-flight to check for unstaged changes and scope info:
+Before running, always run the review pre-flight to determine scope and initialize the review file:
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --scope pr
+uv run python .agents/scripts/preflight-review.py --scope pr --init-review
 ```
+
+This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW-{branch}.md` with the header and commit range already filled in.
+
+If the pre-flight exits non-zero, read the script manually to understand what's wrong:
+
+```bash
+head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC>
+```
+
+After pre-flight succeeds, the review file is ready at `./reviews/REVIEW-{branch}.md`. Read it, then fill in the findings section.
 
 Note: Do NOT pass `--review-file` here — the review report doesn't exist yet. The pre-flight only checks unstaged changes and prints scope info.
 
@@ -86,8 +96,7 @@ This command **must** determine what files are in scope before reviewing. The re
    - "code" — focus on code quality
    - "full" — comprehensive review (default if no focus)
 4. **Identify Findings**: Document issues with clear Issue Codes (e.g., ISSUE-001)
-5. **Create review output directory**: Use Bash to create `./reviews/` directory if it doesn't exist
-6. **Create Review Report**: Use Write to write the review to `./reviews/REVIEW-{name}.md`
+5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW-{name}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
 
 ## Report Path Convention
 
