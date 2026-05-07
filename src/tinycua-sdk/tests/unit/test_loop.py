@@ -520,6 +520,7 @@ class TestBaseLoopRunStream:
                 if call_count == 1:
                     yield {
                         "type": "response.tool_call.delta",
+                        "index": 0,
                         "id": "call_1",
                         "name": "get_time",
                         "arguments": "{}",
@@ -562,6 +563,7 @@ class TestBaseLoopRunStream:
             async def _gen():
                 yield {
                     "type": "response.tool_call.delta",
+                    "index": 0,
                     "id": "call_1",
                     "name": "get_time",
                     "arguments": "{}",
@@ -610,7 +612,7 @@ class TestBaseLoopRunStream:
 
         assert len(events) == 2
         assert events[0] == {"type": "response.created"}
-        assert events[1] == {"type": "response.completed"}
+        assert events[1] == {"type": "response.cancelled"}
 
     @pytest.mark.asyncio
     async def test_run_stream_accumulates_tool_call_args(self):
@@ -631,12 +633,14 @@ class TestBaseLoopRunStream:
                 if call_count == 1:
                     yield {
                         "type": "response.tool_call.delta",
+                        "index": 0,
                         "id": "call_1",
                         "name": "get_weather",
                         "arguments": '{"cit',
                     }
                     yield {
                         "type": "response.tool_call.delta",
+                        "index": 0,
                         "id": "call_1",
                         "name": "",
                         "arguments": 'y": "Tokyo"}',
@@ -680,6 +684,7 @@ class TestBaseLoopRunStream:
             async def _gen():
                 yield {
                     "type": "response.tool_call.delta",
+                    "index": 0,
                     "id": "call_1",
                     "name": "dummy_tool",
                     "arguments": "{}",
@@ -752,6 +757,7 @@ class TestBaseLoopRunStream:
                 if call_count == 1:
                     yield {
                         "type": "response.tool_call.delta",
+                        "index": 0,
                         "id": "call_1",
                         "name": "get_time",
                         "arguments": "{}",

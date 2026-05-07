@@ -151,25 +151,30 @@ def _parse_param_descriptions(docstring: str) -> dict[str, str]:
     """
     descriptions: dict[str, str] = {}
     in_args = False
+    current_param: str | None = None
     for line in docstring.split("\n"):
         stripped = line.strip()
         if stripped.lower().startswith("args:"):
             in_args = True
             continue
         if in_args:
-            if stripped and not stripped.startswith("#"):
-                clean_line = stripped
-                if clean_line.startswith(("-", "*")):
-                    clean_line = clean_line[1:].strip()
-                match = re.match(r"^(\w+):\s*(.+)$", clean_line)
-                if match:
-                    param_name = match.group(1)
-                    desc = match.group(2).strip()
-                    descriptions[param_name] = desc
-                elif not stripped:
-                    in_args = False
+            if not stripped or stripped.startswith("#"):
+                in_args = False
+                current_param = None
+                continue
+            clean_line = stripped
+            if clean_line.startswith(("-", "*")):
+                clean_line = clean_line[1:].strip()
+            match = re.match(r"^(\w+)(?:\s*\([^)]*\))?:\s*(.*)$", clean_line)
+            if match:
+                current_param = match.group(1)
+                desc = match.group(2).strip()
+                descriptions[current_param] = desc
+            elif line.startswith((" ", "\t")) and current_param is not None:
+                descriptions[current_param] += " " + clean_line
             else:
                 in_args = False
+                current_param = None
     return descriptions
 
 

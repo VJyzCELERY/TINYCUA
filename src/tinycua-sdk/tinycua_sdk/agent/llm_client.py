@@ -226,12 +226,15 @@ class OpenAICompatibleClient(LLMClient):
 
         async with client.stream("POST", "/chat/completions", json=payload) as response:
             response.raise_for_status()
+            last_chunk_usage = None
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line or line == "data: [DONE]":
                     continue
                 if line.startswith("data: "):
                     data = json.loads(line[6:])
+                    if data.get("usage"):
+                        last_chunk_usage = data["usage"]
                     delta = data["choices"][0].get("delta", {})
                     if delta.get("content"):
                         yield {
@@ -243,12 +246,15 @@ class OpenAICompatibleClient(LLMClient):
                         for tc in delta["tool_calls"]:
                             yield {
                                 "type": "response.tool_call.delta",
+                                "index": tc.get("index", 0),
                                 "id": tc.get("id", ""),
                                 "name": tc.get("function", {}).get("name", ""),
                                 "arguments": tc.get("function", {}).get(
                                     "arguments", ""
                                 ),
                             }
+            if last_chunk_usage:
+                yield {"type": "response.usage", "usage": last_chunk_usage}
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]
