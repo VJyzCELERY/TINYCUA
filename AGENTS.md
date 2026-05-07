@@ -32,7 +32,8 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 ├── skills/            # Reusable skill references
 │   ├── gh-pr-management/
 │   ├── git-rebase/
-│   └── gh-review/
+│   ├── gh-review/
+│   └── self-learning/
 ├── docs/
 │   ├── agents/       # Agent rules and guidelines
 │   └── project_rules/ # Project-specific rules
@@ -73,6 +74,7 @@ Skills provide specialized instructions for common workflows. Read the relevant 
 | [gh-pr-management](.agents/skills/gh-pr-management/SKILL.md) | Creating, updating, and managing PRs with `gh` |
 | [git-rebase](.agents/skills/git-rebase/SKILL.md) | Rebasing branches without dirtying commit history |
 | [gh-review](.agents/skills/gh-review/SKILL.md) | Fetching, posting, and updating PR reviews with `gh` |
+| [self-learning](.agents/skills/self-learning/SKILL.md) | Creating and updating project-specific skills based on recurring patterns |
 
 ---
 

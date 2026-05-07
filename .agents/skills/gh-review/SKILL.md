@@ -1,5 +1,15 @@
 # Skill: GitHub Review Workflow via `gh`
 
+## Golden Rule: Always Use Temp Files for Body Content
+
+**Never pass review body content directly in bash.** Inline heredocs and string escaping in `gh pr review --body` cause frequent failures. Instead:
+
+1. Write the content to a temporary `.md` file
+2. Use `--body "$(cat <file>)"` and `--comments "$(cat <file>)"` to pass it to `gh`
+3. Delete the temp files after the command succeeds
+
+---
+
 ## Fetch PR Information
 
 ### Get PR Details
@@ -37,27 +47,30 @@ gh api "repos/:owner/:repo/pulls/$PR_NUMBER/comments" --jq '.[] | select(.positi
 ### Check Review State
 
 ```bash
-# Check if PR has been reviewed
 gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[-1].state'
-
 # Possible states: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING
 ```
 
-## Post a Review
+---
 
-### Submit a Full PR Review
+## Post a Review (Using Temp Files)
+
+### Submit a Full PR Review with Inline Comments
 
 ```bash
-# Request changes with inline comments
-gh pr review "$PR_NUMBER" \
-  --request-changes \
-  --body "$(cat <<'BODY'
+# 1. Write the review body to a temp file
+cat > /tmp/gh-review-body.md << 'EOF'
 ## General Review Summary
 
-[Overall assessment, key findings, scope notes]
-BODY
-)" \
-  --comments "$(cat <<'COMMENTS'
+[Overall assessment, key findings, scope notes, positive points]
+
+### Key Findings
+- Finding 1: [summary]
+- Finding 2: [summary]
+EOF
+
+# 2. Write inline comments to a temp JSON file
+cat > /tmp/gh-review-comments.json << 'EOF'
 [
   {
     "path": "src/file.py",
@@ -66,13 +79,21 @@ BODY
     "body": "**Issue**: [description]\n\n**Why**: [impact]\n\n**Suggestion**: [specific fix]\n\n**How to Validate**: [command]"
   }
 ]
-COMMENTS
-)"
+EOF
+
+# 3. Submit the review using temp files
+gh pr review "$PR_NUMBER" \
+  --request-changes \
+  --body "$(cat /tmp/gh-review-body.md)" \
+  --comments "$(cat /tmp/gh-review-comments.json)"
+
+# 4. Clean up
+rm /tmp/gh-review-body.md /tmp/gh-review-comments.json
 ```
 
 ### Inline Comment Format
 
-Each inline comment should include:
+Each inline comment in the JSON should include:
 - **Issue**: What's wrong and where
 - **Why**: Why it matters (readability, performance, security)
 - **Suggestion**: Specific fix or pattern
@@ -81,65 +102,89 @@ Each inline comment should include:
 ### Approval
 
 ```bash
-# Approve the PR
-gh pr review "$PR_NUMBER" --approve --body "LGTM. [brief positive note]"
+cat > /tmp/gh-approve.md << 'EOF'
+LGTM. [brief positive note about what looks good]
+EOF
+
+gh pr review "$PR_NUMBER" --approve --body "$(cat /tmp/gh-approve.md)"
+rm /tmp/gh-approve.md
 ```
 
 ### Comment Only
 
 ```bash
-# Comment without explicit approval or changes request
-gh pr review "$PR_NUMBER" --comment --body "Just some thoughts..."
+cat > /tmp/gh-comment.md << 'EOF'
+[General feedback, questions, or observations]
+EOF
+
+gh pr review "$PR_NUMBER" --comment --body "$(cat /tmp/gh-comment.md)"
+rm /tmp/gh-comment.md
 ```
+
+---
 
 ## Reply to Review Threads
 
 ```bash
-# Reply to a specific review comment thread
+cat > /tmp/gh-reply.md << 'EOF'
+Addressed in commit <sha>. The fix uses X instead of Y.
+EOF
+
 gh api -X POST "repos/:owner/:repo/pulls/$PR_NUMBER/comments" \
-  -f body="Addressed in commit <sha>. The fix uses X instead of Y." \
+  --input /tmp/gh-reply.md \
   -f in_reply_to=<comment-id>
+rm /tmp/gh-reply.md
 ```
 
 ## Resolve Review Threads
 
 ```bash
-# Mark a review thread as resolved
+cat > /tmp/gh-resolve.md << 'EOF'
+Resolved in commit <sha>.
+EOF
+
 gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/comments/<comment-id>" \
-  -f body="Resolved in commit <sha>" \
-  --field "event=RESOLVE"
+  --input /tmp/gh-resolve.md
+rm /tmp/gh-resolve.md
 ```
 
-Note: Not all comment types support direct resolution via API. Use `gh pr review` to re-review with updated status.
+---
 
 ## Update Existing Review
 
 ```bash
-# Dismiss a previous review and submit a new one
-# First, dismiss the old review
-gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
-  -f message="Code has been updated since this review"
+# Dismiss a previous review
+cat > /tmp/gh-dismiss.md << 'EOF'
+Code has been updated since this review.
+EOF
 
-# Then submit a new review
-gh pr review "$PR_NUMBER" --comment --body "Re-review after fixes: ..."
+gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
+  --input /tmp/gh-dismiss.md
+
+# Submit new review
+cat > /tmp/gh-re-review.md << 'EOF'
+Re-review after fixes: [summary of what changed and what's still pending]
+EOF
+
+gh pr review "$PR_NUMBER" --comment --body "$(cat /tmp/gh-re-review.md)"
+rm /tmp/gh-dismiss.md /tmp/gh-re-review.md
 ```
+
+---
 
 ## Common Patterns
 
 ### Full Review Cycle
 
 1. **Fetch**: `gh pr view` + `gh pr diff` to understand the PR
-2. **Review**: `gh pr review --request-changes` with inline comments
-3. **Update**: After fixes, `gh pr review --comment` with follow-up
-4. **Approve**: `gh pr review --approve` when all issues resolved
+2. **Review**: Write review to temp files, submit with `gh pr review --request-changes`
+3. **Update**: After fixes, write follow-up to temp file, submit with `gh pr review --comment`
+4. **Approve**: Write approval to temp file, submit with `gh pr review --approve`
 
 ### Check for Stale Reviews
 
 ```bash
-# Get the latest commit SHA on the PR branch
 LATEST_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
-
-# Get the commit SHA that the last review was on
 REVIEW_SHA=$(gh api "repos/:owner/:repo/pulls/$PR_NUMBER/reviews" --jq '.[-1].commit_id')
 
 if [ "$LATEST_SHA" != "$REVIEW_SHA" ]; then
@@ -147,10 +192,13 @@ if [ "$LATEST_SHA" != "$REVIEW_SHA" ]; then
 fi
 ```
 
+---
+
 ## Common Pitfalls
 
-- **Inline comments require valid line numbers** in the current diff — use `gh pr diff` to verify
+- **Always use temp files** — never inline heredocs in `gh pr review` commands
 - **`side: "RIGHT"`** is for the new version; `side: "LEFT"` for the old version
-- **Review JSON is fragile** — validate with `--jq` before posting
-- **Rate limits**: gh api calls are rate-limited; batch where possible
-- Use `:owner/:repo` pattern from `gh repo view --json owner,name --jq '{owner: .owner.login, name: .name}'`
+- **Validate JSON** before posting — use `echo '$comments_json' | jq .` to syntax-check
+- **Rate limits**: `gh api` calls are rate-limited; batch where possible
+- **Clean up**: Always `rm /tmp/gh-*.md /tmp/gh-*.json` after each operation
+- Write temp files to `/tmp/` to avoid cluttering the repo
