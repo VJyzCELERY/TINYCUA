@@ -18,19 +18,19 @@ Out of scope:
 
 1. Run the test suite:
    ```bash
-   cd src/tinycua-sdk && uv run pytest
+   cd <subproject-dir> && uv run pytest
    ```
    - Expected: [describe expected test results]
 
 2. Run lint:
    ```bash
-   cd src/tinycua-sdk && uv run ruff check .
+   cd <subproject-dir> && uv run ruff check .
    ```
    - Expected: `All checks passed!`
 
 3. Run type checking:
    ```bash
-   cd src/tinycua-sdk && uv run mypy tinycua_sdk/
+   cd <subproject-dir> && uv run mypy <python_package>/
    ```
    - Expected: Success, no issues.
 

@@ -30,10 +30,10 @@ This project uses `uv` for Python environment management. Always use `uv run`:
 
 ```bash
 # ✅ Correct
-cd src/tinycua-sdk && uv run python - <<'PY'
+cd <subproject-dir> && uv run python - <<'PY'
 ...
 PY
-cd src/tinycua-sdk && uv run pytest tests/
+cd <subproject-dir> && uv run pytest tests/
 
 # ❌ Wrong
 python ...

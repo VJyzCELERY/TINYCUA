@@ -13,9 +13,9 @@
 
 - **Total Findings**: [N]
 - **Critical Issues**: [N]
-- **Major Issues**: [N]
-- **Minor Issues**: [N]
-- **Suggestions**: [N]
+- **High Issues**: [N]
+- **Medium Issues**: [N]
+- **Low Issues**: [N]
 
 ---
 
@@ -25,7 +25,7 @@
 
 **Status**: OPEN | ADDRESSED | INVALID
 
-**Severity**: CRITICAL | MAJOR | MINOR | SUGGESTION
+**Severity**: CRITICAL | HIGH | MEDIUM | LOW
 
 [Detailed description of the issue. What specifically is wrong?]
 
@@ -51,11 +51,11 @@
 
 ---
 
-### [ISSUE-CODE-002] - [MAJOR] - [Another Issue]
+### [ISSUE-CODE-002] - [HIGH] - [Another Issue]
 
 **Status**: OPEN
 
-**Severity**: MAJOR
+**Severity**: HIGH
 
 [Description]
 
@@ -73,11 +73,11 @@
 
 ---
 
-### [ISSUE-CODE-003] - [MINOR] - [Minor Issue]
+### [ISSUE-CODE-003] - [MEDIUM] - [Minor Issue]
 
 **Status**: OPEN
 
-**Severity**: MINOR
+**Severity**: MEDIUM
 
 [Description - lower priority issues]
 

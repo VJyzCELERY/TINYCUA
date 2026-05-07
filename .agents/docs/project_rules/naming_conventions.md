@@ -1,6 +1,6 @@
 # Naming Conventions
 
-This document defines the naming conventions for the MAIN-PROJECT-TEMPLATE and its subprojects.
+This document defines the naming conventions for the MAIN-PROJECT and its subprojects.
 
 ## Subproject Naming Convention
 1. Each subproject folder should be named using lower-kebab-case:

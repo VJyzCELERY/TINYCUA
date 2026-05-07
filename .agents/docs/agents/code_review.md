@@ -171,11 +171,14 @@ Recommendations
 Priority 1 (Critical):
 - [File:Line] Risk of SQL injection - use parameterized queries instead
 
-Priority 2 (Important):
+Priority 2 (High):
 - [File:Line] Missing input validation may allow incorrect values to pass silently
 
-Priority 3 (Nice to have):
+Priority 3 (Medium):
 - [File:Line] Could simplify logic using early returns or guard clauses
+
+Priority 4 (Low):
+- [File:Line] Minor style or documentation improvement
 ```
 
 ---

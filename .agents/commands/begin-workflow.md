@@ -22,7 +22,7 @@ This command runs a complete implementation workflow using subagents for each ph
 
 ## Important Global Rule: Use `uv run` for Python
 
-All subagents MUST `cd src/tinycua-sdk && uv run` for Python/pytest commands.
+All subagents MUST `cd <subproject-dir> && uv run` for Python/pytest commands.
 Bare `python` or `pytest` may import from the wrong worktree.
 
 ## Instructions
@@ -76,7 +76,7 @@ IMPORTANT: When running the fresh review:
 - Do NOT mention what issues were found or fixed before
 - Tell the subagent this is a completely fresh, independent review
 - The subagent should approach it like they are reviewing for the first time
-- Tell the subagent to `cd src/tinycua-sdk && uv run` for all Python commands
+- Tell the subagent to `cd <subproject-dir> && uv run` for all Python commands
 
 Use Task tool:
 ```
@@ -160,7 +160,7 @@ This keeps the reviewer free to be creatively thorough while the orchestrator pr
 - The orchestrator filters and gates fresh review findings through the oversight rules before passing to validate
 - Stay scoped to the spec - don't implement or review things outside the scope
 - Run actual commands and tests - don't assume results
-- Always instruct subagents to `cd src/tinycua-sdk && uv run` for Python/pytest
+- Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
 - All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location
 
 Begin by starting Subagent 1 for planning phase.

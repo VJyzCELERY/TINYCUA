@@ -20,22 +20,12 @@ make clean         # remove caches (.pyc, .pytest_cache, .coverage, .ruff_cache)
 
 ```bash
 # ✅ CORRECT - uses the project's uv-managed venv
-cd src/tinycua-sdk && uv run python script.py
-cd src/tinycua-sdk && uv run pytest tests/
+cd <subproject-dir> && uv run python script.py
+cd <subproject-dir> && uv run pytest tests/
 
 # ❌ WRONG - may import from wrong worktree or system Python
 python script.py
 pytest tests/
-```
-
-When running inline Python snippets (e.g., for review validation), always `cd src/tinycua-sdk && uv run`:
-```bash
-cd src/tinycua-sdk && uv run python -c "from tinycua_sdk import Agent; print(Agent().name)"
-cd src/tinycua-sdk && uv run python - <<'PY'
-from tinycua_sdk import Agent
-a = Agent()
-print(a.name)
-PY
 ```
 
 From the repo root (runs all subprojects):
@@ -51,18 +41,18 @@ Pre-commit iteration: run `make lint` repeatedly until all checks pass. Ruff may
 
 ## Commit Guidelines
 
-All commits must follow the `(type): message` format defined in `docs/project_rules/commit_naming.md`.
+All commits must follow the `type(scope): message` format defined in `docs/project_rules/commit_naming.md`.
 
 **Allowed types:** `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `style`
 
 **Examples:**
 ```
-(feat): add user authentication endpoint
-(fix): resolve null pointer in token refresh
-(docs): update README with installation steps
-(test): add unit tests for payment processor
-(refactor): extract validation logic into helpers
-(chore): update ruff to 0.4.0
+feat(auth): add user authentication endpoint
+fix(auth): resolve null pointer in token refresh
+docs(readme): update README with installation steps
+test(payment): add unit tests for payment processor
+refactor(validation): extract validation logic into helpers
+chore(deps): update ruff to 0.4.0
 ```
 
 **Commit hygiene rules:**
