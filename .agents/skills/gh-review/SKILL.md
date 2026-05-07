@@ -59,7 +59,7 @@ gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[-1].state'
 
 ```bash
 # 1. Write the review body to a temp file
-cat > /tmp/gh-review-body.md << 'EOF'
+cat > ./tmp/gh-review-body.md << 'EOF'
 ## General Review Summary
 
 [Overall assessment, key findings, scope notes, positive points]
@@ -70,7 +70,7 @@ cat > /tmp/gh-review-body.md << 'EOF'
 EOF
 
 # 2. Write inline comments to a temp JSON file
-cat > /tmp/gh-review-comments.json << 'EOF'
+cat > ./tmp/gh-review-comments.json << 'EOF'
 [
   {
     "path": "src/file.py",
@@ -84,11 +84,11 @@ EOF
 # 3. Submit the review using temp files
 gh pr review "$PR_NUMBER" \
   --request-changes \
-  --body "$(cat /tmp/gh-review-body.md)" \
-  --comments "$(cat /tmp/gh-review-comments.json)"
+  --body "$(cat ./tmp/gh-review-body.md)" \
+  --comments "$(cat ./tmp/gh-review-comments.json)"
 
 # 4. Clean up
-rm /tmp/gh-review-body.md /tmp/gh-review-comments.json
+rm ./tmp/gh-review-body.md ./tmp/gh-review-comments.json
 ```
 
 ### Inline Comment Format
@@ -102,23 +102,23 @@ Each inline comment in the JSON should include:
 ### Approval
 
 ```bash
-cat > /tmp/gh-approve.md << 'EOF'
+cat > ./tmp/gh-approve.md << 'EOF'
 LGTM. [brief positive note about what looks good]
 EOF
 
-gh pr review "$PR_NUMBER" --approve --body "$(cat /tmp/gh-approve.md)"
-rm /tmp/gh-approve.md
+gh pr review "$PR_NUMBER" --approve --body "$(cat ./tmp/gh-approve.md)"
+rm ./tmp/gh-approve.md
 ```
 
 ### Comment Only
 
 ```bash
-cat > /tmp/gh-comment.md << 'EOF'
+cat > ./tmp/gh-comment.md << 'EOF'
 [General feedback, questions, or observations]
 EOF
 
-gh pr review "$PR_NUMBER" --comment --body "$(cat /tmp/gh-comment.md)"
-rm /tmp/gh-comment.md
+gh pr review "$PR_NUMBER" --comment --body "$(cat ./tmp/gh-comment.md)"
+rm ./tmp/gh-comment.md
 ```
 
 ---
@@ -126,26 +126,26 @@ rm /tmp/gh-comment.md
 ## Reply to Review Threads
 
 ```bash
-cat > /tmp/gh-reply.md << 'EOF'
+cat > ./tmp/gh-reply.md << 'EOF'
 Addressed in commit <sha>. The fix uses X instead of Y.
 EOF
 
 gh api -X POST "repos/:owner/:repo/pulls/$PR_NUMBER/comments" \
-  --input /tmp/gh-reply.md \
+  --input ./tmp/gh-reply.md \
   -f in_reply_to=<comment-id>
-rm /tmp/gh-reply.md
+rm ./tmp/gh-reply.md
 ```
 
 ## Resolve Review Threads
 
 ```bash
-cat > /tmp/gh-resolve.md << 'EOF'
+cat > ./tmp/gh-resolve.md << 'EOF'
 Resolved in commit <sha>.
 EOF
 
 gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/comments/<comment-id>" \
-  --input /tmp/gh-resolve.md
-rm /tmp/gh-resolve.md
+  --input ./tmp/gh-resolve.md
+rm ./tmp/gh-resolve.md
 ```
 
 ---
@@ -154,20 +154,20 @@ rm /tmp/gh-resolve.md
 
 ```bash
 # Dismiss a previous review
-cat > /tmp/gh-dismiss.md << 'EOF'
+cat > ./tmp/gh-dismiss.md << 'EOF'
 Code has been updated since this review.
 EOF
 
 gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
-  --input /tmp/gh-dismiss.md
+  --input ./tmp/gh-dismiss.md
 
 # Submit new review
-cat > /tmp/gh-re-review.md << 'EOF'
+cat > ./tmp/gh-re-review.md << 'EOF'
 Re-review after fixes: [summary of what changed and what's still pending]
 EOF
 
-gh pr review "$PR_NUMBER" --comment --body "$(cat /tmp/gh-re-review.md)"
-rm /tmp/gh-dismiss.md /tmp/gh-re-review.md
+gh pr review "$PR_NUMBER" --comment --body "$(cat ./tmp/gh-re-review.md)"
+rm ./tmp/gh-dismiss.md ./tmp/gh-re-review.md
 ```
 
 ---
@@ -200,5 +200,5 @@ fi
 - **`side: "RIGHT"`** is for the new version; `side: "LEFT"` for the old version
 - **Validate JSON** before posting — use `echo '$comments_json' | jq .` to syntax-check
 - **Rate limits**: `gh api` calls are rate-limited; batch where possible
-- **Clean up**: Always `rm /tmp/gh-*.md /tmp/gh-*.json` after each operation
-- Write temp files to `/tmp/` to avoid cluttering the repo
+- **Clean up**: Always `rm ./tmp/gh-*.md ./tmp/gh-*.json` after each operation
+- Write temp files to `./tmp/` to avoid cluttering the repo
