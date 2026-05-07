@@ -368,15 +368,60 @@ def detect_pr_base(head: str | None = None) -> str:
             return out
     except Exception:
         pass
-    for candidate in ["main", "master", "develop"]:
-        try:
-            mb = subprocess.check_output(["git", "merge-base", candidate, branch], text=True, stderr=subprocess.DEVNULL).strip()
-            head_rev = subprocess.check_output(["git", "rev-parse", branch], text=True).strip()
-            if mb and mb != head_rev:
-                return candidate
-        except Exception:
-            continue
-    return "main"
+
+    # Get merge-base with main as baseline
+    main_mb = ""
+    try:
+        main_mb = subprocess.check_output(["git", "merge-base", "main", branch], text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        pass
+
+    # Find the tightest parent branch (most recent common ancestor = closest to HEAD)
+    best_candidate = "main"
+    best_distance = 999999  # lower = closer to HEAD
+
+    try:
+        head_rev = subprocess.check_output(["git", "rev-parse", branch], text=True).strip()
+        branches = subprocess.check_output(
+            ["git", "branch", "--list", "--format", "%(refname:short)"],
+            text=True, stderr=subprocess.DEVNULL).splitlines()
+        for b in branches:
+            b = b.strip().replace("* ", "")
+            if b in ("main", "master", "develop", branch):
+                continue
+            try:
+                subprocess.check_output(
+                    ["git", "merge-base", "--is-ancestor", b, branch],
+                    stderr=subprocess.DEVNULL)
+                # b is an ancestor → it's a potential parent
+                # Get the merge-base commit
+                mb = subprocess.check_output(
+                    ["git", "merge-base", b, branch], text=True, stderr=subprocess.DEVNULL).strip()
+                if not mb:
+                    continue
+                # Count commits between merge-base and HEAD — smaller = tighter
+                count_out = subprocess.check_output(
+                    ["git", "rev-list", "--count", f"{mb}..{head_rev}"],
+                    text=True, stderr=subprocess.DEVNULL).strip()
+                count = int(count_out) if count_out else 999999
+                # Also count commits between mb and b's HEAD — 0 means b hasn't moved
+                b_head = subprocess.check_output(
+                    ["git", "rev-parse", b], text=True, stderr=subprocess.DEVNULL).strip()
+                b_count_out = subprocess.check_output(
+                    ["git", "rev-list", "--count", f"{mb}..{b_head}"],
+                    text=True, stderr=subprocess.DEVNULL).strip()
+                b_count = int(b_count_out) if b_count_out else 999999
+
+                total = count + b_count
+                if total < best_distance:
+                    best_distance = total
+                    best_candidate = b
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return best_candidate if best_candidate else "main"
 
 
 def push_branch_if_needed(branch: str):
