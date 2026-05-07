@@ -7,6 +7,17 @@ import json
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
+from tinycua_sdk.agent.events import (
+    ResponseCancelledEvent,
+    ResponseCompletedEvent,
+    ResponseCreatedEvent,
+    ResponseFailedEvent,
+    ResponseOutputItemAddedEvent,
+    ResponseOutputItemDoneEvent,
+    ResponseOutputTextDeltaEvent,
+    ResponseOutputTextDoneEvent,
+    ResponseUsageEvent,
+)
 from tinycua_sdk.agent.executor import ToolExecutor
 
 if TYPE_CHECKING:
@@ -175,6 +186,7 @@ class BaseLoop:
         yield {"type": "response.created"}
 
         tool_call_count = 0
+        usage: dict[str, Any] | None = None
 
         try:
             for _ in range(self.max_iterations):
@@ -259,12 +271,10 @@ class BaseLoop:
                 "type": "response.failed",
                 "error": {"message": str(e)},
             }
-            yield {
-                "type": "error",
-                "error": {"message": str(e)},
-            }
             return
 
+        if usage:
+            yield {"type": "response.usage", "usage": usage}
         if not agent.is_cancelled:
             yield {"type": "response.completed"}
 
