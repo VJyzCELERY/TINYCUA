@@ -350,37 +350,42 @@ def cmd_update_body(args):
 
 
 def detect_pr_base(head: str | None = None) -> str:
-    """Auto-detect the best base branch for a PR.
-
-    Priority:
-    1. If PR already exists for this branch → use its base
-    2. If branch diverged from a non-main branch → use that (sub-branch)
-    3. Default to 'main'
-    """
-    branch = head or run(["git", "branch", "--show-current"])
+    if head:
+        branch = head
+    else:
+        try:
+            branch = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
+        except Exception:
+            branch = ""
     if not branch:
         return "main"
-
-    # Check if PR already exists
-    out, _, _ = run(["gh", "pr", "list", "--head", branch, "--state", "open",
-                      "--json", "baseRefName", "--jq", ".[0].baseRefName"])
-    if out:
-        return out
-
-    # Check merge-base: which branch did we diverge from?
-    # Try common parents
+    try:
+        out = subprocess.check_output(
+            ["gh", "pr", "list", "--head", branch, "--state", "open",
+             "--json", "baseRefName", "--jq", ".[0].baseRefName"],
+            text=True, stderr=subprocess.DEVNULL).strip()
+        if out:
+            return out
+    except Exception:
+        pass
     for candidate in ["main", "master", "develop"]:
-        mb = run(["git", "merge-base", candidate, branch])
-        if mb and mb != run(["git", "rev-parse", branch]):
-            return candidate
-
+        try:
+            mb = subprocess.check_output(["git", "merge-base", candidate, branch], text=True, stderr=subprocess.DEVNULL).strip()
+            head_rev = subprocess.check_output(["git", "rev-parse", branch], text=True).strip()
+            if mb and mb != head_rev:
+                return candidate
+        except Exception:
+            continue
     return "main"
 
 
 def cmd_create_pr(args):
     title = args.title
     body_file = args.body_file
-    head = args.head or run(["git", "branch", "--show-current"])
+    try:
+        head = args.head or subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
+    except Exception:
+        head = ""
     base = args.base or detect_pr_base(head)
     
     if not head:
@@ -391,9 +396,17 @@ def cmd_create_pr(args):
     
     data = {"title": title, "head": head, "base": base, "body": open(body_file).read()}
     if args.draft:
-        data["draft"] = "true"
+        data["draft"] = True
     
-    out, err, rc = api("POST", "pulls", data)
+    # Use JSON temp file to avoid -f multiline issues
+    tf = TMP_DIR / f"gh-create-pr-{int(time.time())}.json"
+    with open(tf, "w") as f:
+        json.dump(data, f)
+    
+    OWNER_REPO = get_owner_repo()
+    cmd = ["gh", "api", f"repos/{OWNER_REPO}/pulls", "--method", "POST", "--input", str(tf)]
+    out, err, rc = run(cmd)
+    clean_temp(tf)
     if rc != 0:
         print(f"[FAIL] PR creation failed: {err}", file=sys.stderr)
         sys.exit(1)
