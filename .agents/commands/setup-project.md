@@ -53,7 +53,7 @@ project/
 │   ├── commands/
 │   │   ├── plan.md
 │   │   ├── implement.md
-│   │   ├── review-project.md
+│   │   ├── review-report.md
 │   │   ├── review-validate.md
 │   │   ├── review-implement.md
 │   │   ├── review-cleanup.md

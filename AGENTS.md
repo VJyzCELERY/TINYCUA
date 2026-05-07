@@ -13,7 +13,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/begin-workflow <dir>` | Automates complete specs implementation process |
 | `/plan <dir>` | Creates implementation plan from spec.md/design.md |
 | `/implement <dir>` | Executes implementation plan using TDD |
-| `/review-project <dir>` | Reviews project and generates report |
+| `/review-report <dir>` | Reviews project changes and generates a scoped report |
 | `/review-validate <file>` | Validates findings from a previous review |
 | `/review-implement <file>` | Implements fixes for review findings |
 | `/review-cleanup <file>` | Archives resolved reviews |
@@ -80,7 +80,7 @@ This is a consistent, predictable location so agents always know where to find r
 
 | Command | Output Location |
 |---------|----------------|
-| `/review-project <dir>` | Writes to `./reviews/REVIEW-{dir-name}.md` |
+| `/review-report <dir>` | Writes to `./reviews/REVIEW-{name}.md` |
 | `/review-validate <file>` | Updates `./reviews/REVIEW-{name}.md` |
 | `/review-implement <file>` | Updates statuses in `./reviews/REVIEW-{name}.md` |
 
@@ -91,6 +91,6 @@ This is a consistent, predictable location so agents always know where to find r
 1. **Setup project**: Run `/setup-project <project-dir>` to initialize
 2. **Create plan**: Run `/plan <dir>` with spec.md and design.md
 3. **Implement**: Run `/implement <dir>` to execute the plan
-4. **Review**: Run `/review-project <dir>` to review code
+4. **Review**: Run `/review-report <dir>` to review code
 5. **Validate**: Run `/review-validate <review-file>` to validate findings
 6. **Fix**: Run `/review-implement <review-file>` to implement fixes

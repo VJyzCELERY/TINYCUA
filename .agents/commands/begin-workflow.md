@@ -52,7 +52,7 @@ Enter a loop that continues until truly clean (no issues found in a FRESH review
 **Step 1: Review (Subagent 3)**
 Use Task tool:
 ```
-Task: Run /review-project for $1 with focus on code quality and spec compliance
+Task: Run /review-report for $1 with focus on code quality and spec compliance
 ```
 
 **Step 2: Validate (Subagent 4)**
@@ -80,7 +80,7 @@ IMPORTANT: When running the fresh review:
 
 Use Task tool:
 ```
-Task: Run /review-project for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
+Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
 ```
 
 **Step 5: Check Fresh Review Result**
