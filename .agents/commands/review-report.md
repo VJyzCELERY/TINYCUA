@@ -11,11 +11,13 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 
 ## Pre-Flight
 
-Before running, always run the review pre-flight:
+Before running, always run the review pre-flight to check for unstaged changes and scope info:
 
 ```bash
-uv run python .agents/scripts/preflight-review.py --mode report --review-file "$1"
+uv run python .agents/scripts/preflight-review.py --mode report
 ```
+
+Note: Do NOT pass `--review-file` here — the review report doesn't exist yet. The pre-flight only checks unstaged changes and prints scope info.
 
 If it exits non-zero, you may still proceed but should read the script manually to understand what's wrong:
 

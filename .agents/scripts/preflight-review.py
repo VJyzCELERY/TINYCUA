@@ -18,6 +18,7 @@ Exits 0 if all clear, non-zero with warnings otherwise.
 """
 
 import subprocess, sys, re, argparse
+from pathlib import Path
 
 
 def run(cmd):
@@ -29,6 +30,15 @@ def run(cmd):
 
 def check_stale(review_file: str) -> list[str]:
     warnings = []
+    if not review_file:
+        return warnings
+    p = Path(review_file)
+    if not p.exists():
+        warnings.append(f"[WARN] Review file not found: {review_file} — skipping stale check.")
+        return warnings
+    if p.is_dir():
+        warnings.append(f"[WARN] Expected a review file but got a directory: {review_file} — skipping stale check.")
+        return warnings
     try:
         with open(review_file) as f:
             content = f.read()
