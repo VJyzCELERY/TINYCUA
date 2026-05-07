@@ -22,12 +22,6 @@ class TestLoopExecution:
         response = await agent.run("Hello", messages=messages)
         assert response == "Mocked response"
 
-    @pytest.mark.skip(reason="Streaming implemented in Stage 5")
-    @pytest.mark.asyncio
-    async def test_run_stream(self):
-        """Streaming response."""
-        pass
-
     @pytest.mark.asyncio
     async def test_run_with_tools(self, mock_llm_with_tool_calls):
         """Tool calling in loop (mocked LLM returns tool call JSON)."""
