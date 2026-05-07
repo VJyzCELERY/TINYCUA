@@ -58,6 +58,10 @@ ban-relative-imports = "all"
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["D"]
 "examples/**" = ["D"]
+"specs/**" = ["D"]
+"docs/**" = ["D"]
+"**/02_skills_creation.py" = ["E402"]
+"**/02_public_api_clean.py" = ["F403"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -69,6 +73,10 @@ asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (require external service running)",
     "lm_studio: marks tests that require local OpenAI-compatible server running",
-    "backend: marks tests that require backend server running",
-    "remote_runner: marks tests that require remote runner server running",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
 ]

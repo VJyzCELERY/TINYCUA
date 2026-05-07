@@ -6,14 +6,14 @@ import warnings
 class TestNoDeprecationWarnings:
     """Test that no deprecation warnings are emitted in the codebase."""
 
-    def test_no_deprecation_warnings_in_core_config(self):
-        """Verify no deprecation warnings from core config."""
+    def test_no_deprecation_warnings_on_import(self):
+        """Verify no deprecation warnings when importing tinycua_sdk."""
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            from tinycua_sdk.core.config import SDKConfig
+            import tinycua_sdk
 
-            _ = SDKConfig()
+            _ = tinycua_sdk
 
             deprecation_warnings = [
                 warning for warning in w
@@ -24,23 +24,17 @@ class TestNoDeprecationWarnings:
             assert len(deprecation_warnings) == 0
 
 
-class TestDeprecatedRegistryPatterns:
-    """Test that deprecated registry patterns are removed."""
+class TestCoreImports:
+    """Test that core SDK imports work cleanly."""
 
-    def test_registry_import_works(self):
-        """Verify registry import works correctly."""
-        from tinycua_sdk.core.registry import ToolRegistry
+    def test_agent_import_works(self):
+        """Verify Agent import works correctly."""
+        from tinycua_sdk import Agent
 
-        registry = ToolRegistry()
-        assert registry is not None
+        assert Agent is not None
 
+    def test_tool_import_works(self):
+        """Verify tool decorator import works correctly."""
+        from tinycua_sdk import tool
 
-class TestDeprecatedStorePatterns:
-    """Test that deprecated store patterns are removed."""
-
-    def test_store_import_works(self):
-        """Verify store import works correctly."""
-        from tinycua_sdk.storage.store import SessionStore
-
-        store = SessionStore(database_url="sqlite:///:memory:")
-        assert store is not None
+        assert tool is not None

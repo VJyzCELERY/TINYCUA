@@ -1,104 +1,399 @@
-"""Tests for BaseLoop and execution loops."""
+"""Tests for BaseLoop execution."""
 
+import asyncio
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from tinycua_sdk.agent.loop import BaseLoop, ReactLoop, DefaultLoop, resolve_loop
+from unittest.mock import AsyncMock
+
+from tinycua_sdk import Agent, AgentPolicy, BaseLoop, LanguageModel, Skill, tool
 
 
-class TestBaseLoop:
-    """Tests for BaseLoop class."""
+class TestBaseLoopBuildSystemMessage:
+    """Test _build_system_message method."""
 
-    def test_base_loop_init(self):
-        """BaseLoop initializes with optional runner."""
+    def test_build_system_message_with_instructions(self):
+        agent = Agent(
+            instructions="You are helpful.",
+            llm_model=LanguageModel(),
+        )
         loop = BaseLoop()
-        assert loop is not None
-        assert loop.runner is None
+        msg = loop._build_system_message(agent)
+        assert msg["role"] == "system"
+        assert "You are helpful." in msg["content"]
 
-    def test_base_loop_with_runner(self):
-        """BaseLoop accepts runner."""
-        mock_runner = MagicMock()
-        loop = BaseLoop(runner=mock_runner)
-        assert loop.runner is mock_runner
+    def test_build_system_message_with_override(self):
+        agent = Agent(
+            instructions="Original.",
+            llm_model=LanguageModel(),
+        )
+        loop = BaseLoop()
+        msg = loop._build_system_message(agent, "Override.")
+        assert "Override." in msg["content"]
+        assert "Original." not in msg["content"]
 
+    def test_build_system_message_with_skills(self):
+        skill = Skill(
+            name="coder",
+            description="Write code",
+            instructions="Write clean code.",
+        )
+        agent = Agent(
+            instructions="Be helpful.",
+            llm_model=LanguageModel(),
+            skills=[skill],
+        )
+        loop = BaseLoop()
+        msg = loop._build_system_message(agent)
+        assert "[coder]" in msg["content"]
+        assert "Write clean code." in msg["content"]
 
-class TestReactLoop:
-    """Tests for ReactLoop class."""
-
-    def test_react_loop_init(self):
-        """ReactLoop initializes with default max_iterations."""
-        loop = ReactLoop()
-        assert loop is not None
-        assert loop.max_iterations == 5
-
-    def test_react_loop_custom_max(self):
-        """ReactLoop accepts custom max_iterations."""
-        loop = ReactLoop(max_iterations=10)
-        assert loop.max_iterations == 10
-
-    def test_react_loop_with_runner(self):
-        """ReactLoop accepts runner."""
-        mock_runner = MagicMock()
-        loop = ReactLoop(runner=mock_runner)
-        assert loop.runner is mock_runner
-
-
-class TestDefaultLoop:
-    """Tests for DefaultLoop (alias for BaseLoop)."""
-
-    def test_default_loop_is_base_loop(self):
-        """DefaultLoop is BaseLoop."""
-        assert DefaultLoop is BaseLoop
+    def test_build_system_message_no_instructions_no_skills(self):
+        agent = Agent(llm_model=LanguageModel())
+        loop = BaseLoop()
+        msg = loop._build_system_message(agent)
+        assert msg["content"] == ""
 
 
-class TestResolveLoop:
-    """Tests for resolve_loop function."""
+class TestBaseLoopRun:
+    """Test BaseLoop.run() execution flow."""
 
-    def test_resolve_loop_default_string(self):
-        """resolve_loop('default') returns BaseLoop."""
-        loop = resolve_loop("default")
-        assert isinstance(loop, BaseLoop)
+    @pytest.mark.asyncio
+    async def test_run_returns_content(self):
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
 
-    def test_resolve_loop_react_string(self):
-        """resolve_loop('react') returns ReactLoop."""
-        loop = resolve_loop("react")
-        assert isinstance(loop, ReactLoop)
+        agent._call_llm = AsyncMock(
+            return_value={
+                "content": "Hello, world!",
+                "tool_calls": None,
+                "usage": None,
+            }
+        )
 
-    def test_resolve_loop_none(self):
-        """resolve_loop(None) returns BaseLoop."""
-        loop = resolve_loop(None)
-        assert isinstance(loop, BaseLoop)
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Say hi"}],
+            tools=[],
+        )
+        assert result == "Hello, world!"
+        agent._call_llm.assert_awaited_once()
 
-    def test_resolve_loop_instance(self):
-        """resolve_loop(BaseLoop()) returns same instance."""
-        original_loop = BaseLoop()
-        loop = resolve_loop(original_loop)
-        assert loop is original_loop
+    @pytest.mark.asyncio
+    async def test_run_with_tool_calls(self):
+        @tool
+        def get_time() -> str:
+            return "12:00"
 
-    def test_resolve_loop_invalid_type(self):
-        """resolve_loop('invalid') raises ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            resolve_loop("invalid")
-        assert "Invalid loop type" in str(exc_info.value)
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
 
-    def test_resolve_loop_case_insensitive(self):
-        """resolve_loop is case insensitive."""
-        loop = resolve_loop("DEFAULT")
-        assert isinstance(loop, BaseLoop)
-        loop = resolve_loop("React")
-        assert isinstance(loop, ReactLoop)
+        call_count = 0
 
-    def test_resolve_loop_dict_default(self):
-        """resolve_loop({type: 'default'}) returns BaseLoop."""
-        loop = resolve_loop({"type": "default"})
-        assert isinstance(loop, BaseLoop)
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "get_time",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "The time is 12:00.",
+                "tool_calls": None,
+                "usage": None,
+            }
 
-    def test_resolve_loop_dict_react(self):
-        """resolve_loop({type: 'react', max_iterations: 3}) returns ReactLoop."""
-        loop = resolve_loop({"type": "react", "max_iterations": 3})
-        assert isinstance(loop, ReactLoop)
-        assert loop.max_iterations == 3
+        agent._call_llm = mock_call_llm
 
-    def test_resolve_loop_empty_dict(self):
-        """resolve_loop({}) returns BaseLoop."""
-        loop = resolve_loop({})
-        assert isinstance(loop, BaseLoop)
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "What time?"}],
+            tools=[get_time],
+        )
+        assert result == "The time is 12:00."
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_unknown_tool(self):
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "nonexistent_tool",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "Tool not found.",
+                "tool_calls": None,
+                "usage": None,
+            }
+
+        agent._call_llm = mock_call_llm
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Do something"}],
+            tools=[],
+        )
+        assert result == "Tool not found."
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_max_iterations(self):
+        loop = BaseLoop(max_iterations=2)
+
+        agent = Agent(
+            llm_model=LanguageModel(),
+            policy=AgentPolicy(max_tool_calls=100),
+        )
+
+        call_count = 0
+
+        async def tool_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            return {
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": f"call_{call_count}",
+                        "type": "function",
+                        "function": {
+                            "name": "dummy_tool",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
+
+        @tool
+        def dummy_tool() -> str:
+            return "result"
+
+        agent._call_llm = tool_call_llm
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Keep going"}],
+            tools=[dummy_tool],
+        )
+        assert call_count == 2
+        assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_run_cancellation(self):
+        loop = BaseLoop(max_iterations=10)
+        agent = Agent(llm_model=LanguageModel())
+
+        agent._cancelled = True
+
+        with pytest.raises(asyncio.CancelledError):
+            await loop.run(
+                agent,
+                messages=[{"role": "user", "content": "Cancel me"}],
+                tools=[],
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_max_tool_calls_break(self):
+        loop = BaseLoop(max_iterations=10)
+
+        agent = Agent(
+            llm_model=LanguageModel(),
+            policy=AgentPolicy(max_tool_calls=2),
+        )
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            return {
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": f"call_{call_count}",
+                        "type": "function",
+                        "function": {
+                            "name": "dummy",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+                "usage": None,
+            }
+
+        @tool
+        def dummy() -> str:
+            return "ok"
+
+        agent._call_llm = mock_call_llm
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Go"}],
+            tools=[dummy],
+        )
+        assert call_count == 2
+        assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_run_multiple_tool_calls_in_one_response(self):
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        @tool
+        def get_date() -> str:
+            return "2026-05-07"
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "get_time", "arguments": "{}"},
+                        },
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {"name": "get_date", "arguments": "{}"},
+                        },
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "The time is 12:00 and date is 2026-05-07.",
+                "tool_calls": None,
+                "usage": None,
+            }
+
+        agent._call_llm = mock_call_llm
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "What time and date?"}],
+            tools=[get_time, get_date],
+        )
+        assert result == "The time is 12:00 and date is 2026-05-07."
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_with_override_instructions(self):
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(
+            instructions="Original instructions.",
+            llm_model=LanguageModel(),
+        )
+
+        captured_messages = []
+
+        async def mock_call_llm(messages, tools):
+            captured_messages.extend(messages)
+            return {
+                "content": "Done.",
+                "tool_calls": None,
+                "usage": None,
+            }
+
+        agent._call_llm = mock_call_llm
+
+        await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Hi"}],
+            tools=[],
+            override_instructions="Override instructions.",
+        )
+
+        assert any("Override instructions." in m["content"] for m in captured_messages if m["role"] == "system")
+        assert not any("Original instructions." in m["content"] for m in captured_messages if m["role"] == "system")
+
+    @pytest.mark.asyncio
+    async def test_run_max_tool_calls_in_single_response(self):
+        """Single response with 3 tool calls, max_tool_calls=2 -> only 2 executed."""
+        loop = BaseLoop(max_iterations=5)
+        policy = AgentPolicy(max_tool_calls=2)
+        agent = Agent(llm_model=LanguageModel(), policy=policy)
+
+        call_count = 0
+
+        async def mock_call_llm(messages, tools):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "a"}'},
+                        },
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "b"}'},
+                        },
+                        {
+                            "id": "call_3",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"query": "c"}'},
+                        },
+                    ],
+                    "usage": None,
+                }
+            return {
+                "content": "Done.",
+                "tool_calls": None,
+                "usage": None,
+            }
+
+        agent._call_llm = mock_call_llm
+
+        @tool
+        def search(query: str) -> str:
+            return f"Result: {query}"
+
+        result = await loop.run(
+            agent,
+            messages=[{"role": "user", "content": "Search"}],
+            tools=[search],
+        )
+        assert call_count == 1
+        assert result == "[max tool calls reached]"

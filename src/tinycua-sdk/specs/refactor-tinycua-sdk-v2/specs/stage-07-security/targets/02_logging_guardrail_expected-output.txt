@@ -1,0 +1,2 @@
+[AUDIT] tool=read_file args={...}
+Response: <any string>
