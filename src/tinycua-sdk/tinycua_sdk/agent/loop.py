@@ -242,10 +242,10 @@ class BaseLoop:
                             }
                             for tc in executed_tool_calls
                         ]
-                    working_messages.insert(
-                        len(working_messages) - len(executed_tool_calls),
-                        assistant_msg,
-                    )
+                        working_messages.insert(
+                            len(working_messages) - len(executed_tool_calls),
+                            assistant_msg,
+                        )
                     for event in tool_events:
                         yield event
                 else:
