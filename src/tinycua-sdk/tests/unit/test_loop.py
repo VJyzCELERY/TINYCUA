@@ -699,3 +699,118 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert any(e["type"] == "response.completed" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_emits_output_text_done(self):
+        """response.output_text.done is emitted with accumulated text."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "msg_1",
+                }
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": " world",
+                    "item_id": "msg_1",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="event"
+        )
+        events = [e async for e in stream_iter]
+
+        done_events = [e for e in events if e["type"] == "response.output_text.done"]
+        assert len(done_events) == 1
+        assert done_events[0]["content"] == "Hello world"
+        assert done_events[0]["item_id"] == "msg_1"
+
+    @pytest.mark.asyncio
+    async def test_run_stream_emits_output_item_done(self):
+        """response.output_item.done is emitted after text and tool items."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.tool_call.delta",
+                        "id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "The time is 12:00.",
+                        "item_id": "msg_2",
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent,
+            [{"role": "user", "content": "time?"}],
+            [get_time],
+            stream_mode="all",
+        )
+        events = [e async for e in stream_iter]
+
+        done_events = [e for e in events if e["type"] == "response.output_item.done"]
+        assert len(done_events) == 3  # text, tool_call, tool_output
+        types = [e["item"]["type"] for e in done_events]
+        assert "text" in types
+        assert "tool_call" in types
+        assert "tool_output" in types
+
+    @pytest.mark.asyncio
+    async def test_run_stream_emits_failed_and_error_on_exception(self):
+        """response.failed and error events are emitted on stream failure."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def failing_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "msg_1",
+                }
+                raise RuntimeError("Stream failure")
+
+            return _gen()
+
+        agent._call_llm = failing_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="all"
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        failed_events = [e for e in events if e["type"] == "response.failed"]
+        error_events = [e for e in events if e["type"] == "error"]
+        assert len(failed_events) == 1
+        assert "message" in failed_events[0]["error"]
+        assert len(error_events) == 1
+        assert "message" in error_events[0]["error"]
+        assert events[-1]["type"] in ("response.failed", "error")
