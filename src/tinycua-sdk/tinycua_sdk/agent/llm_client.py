@@ -105,17 +105,17 @@ class OpenAICompatibleClient(LLMClient):
 
         tool_calls = None
         if message.get("tool_calls"):
-            tool_calls = [
-                {
-                    "id": tc["id"],
-                    "type": tc["type"],
+            tool_calls = []
+            for tc in message["tool_calls"]:
+                func = tc.get("function", {})
+                tool_calls.append({
+                    "id": tc.get("id", ""),
+                    "type": tc.get("type", "function"),
                     "function": {
-                        "name": tc["function"]["name"],
-                        "arguments": tc["function"]["arguments"],
+                        "name": func.get("name", ""),
+                        "arguments": func.get("arguments", "{}"),
                     },
-                }
-                for tc in message["tool_calls"]
-            ]
+                })
 
         return {
             "content": message.get("content"),

@@ -74,5 +74,4 @@ def test_timeout():
 # Markers
 # =============================================================================
 
-# Define custom markers
-pytestmark = pytest.mark.asyncio
+# Custom markers are defined in pyproject.toml

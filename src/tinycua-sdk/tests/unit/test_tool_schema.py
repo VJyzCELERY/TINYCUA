@@ -143,7 +143,7 @@ class TestToolSchemaGeneration:
         assert "query" in search.parameters["required"]
 
     def test_tool_with_union_param(self):
-        """Test @tool with Union[str, int] param generates schema for the first non-None type."""
+        """Test @tool with Union[str, int] param generates anyOf schema."""
 
         @tool()
         def process_value(value: Union[str, int]) -> dict:
@@ -152,7 +152,7 @@ class TestToolSchemaGeneration:
 
         props = process_value.parameters["properties"]
         assert "value" in props
-        assert props["value"]["type"] == "string"
+        assert props["value"]["anyOf"] == [{"type": "string"}, {"type": "number"}]
 
     def test_tool_with_enum_param(self):
         """Test @tool with Enum param generates enum schema."""

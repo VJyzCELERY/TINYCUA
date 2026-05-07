@@ -59,6 +59,14 @@ class AgentExecutor:
             await self._llm_client.close()
             self._llm_client = None
 
+    async def __aenter__(self) -> "AgentExecutor":
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        """Exit async context and close resources."""
+        await self.close()
+
     def _get_llm_client(self) -> LLMClient:
         if self._llm_client is None:
             self._llm_client = OpenAICompatibleClient()

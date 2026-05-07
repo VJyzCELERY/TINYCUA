@@ -15,6 +15,12 @@ if TYPE_CHECKING:
     from tinycua_sdk.skills.models import Skill
 
 
+_CONFIG_ATTRS = frozenset({
+    "name", "instructions", "llm_model", "tools", "skills",
+    "policy", "metadata", "loop", "approval_workflow",
+})
+
+
 class Agent(AgentExecutor):
     """Stateless, fully runnable agent class."""
 
@@ -46,45 +52,11 @@ class Agent(AgentExecutor):
 
         super().__init__(config=config)
 
-    @property
-    def name(self) -> str:
-        """Get agent name."""
-        return self.config.name
-
-    @property
-    def instructions(self) -> str:
-        """Get agent instructions."""
-        return self.config.instructions
-
-    @property
-    def llm_model(self) -> LanguageModel:
-        """Get LLM model configuration."""
-        return self.config.llm_model
-
-    @property
-    def tools(self) -> list[Tool]:
-        """Get agent tools."""
-        return self.config.tools
-
-    @property
-    def skills(self) -> list[Skill]:
-        """Get agent skills."""
-        return self.config.skills
-
-    @property
-    def policy(self) -> AgentPolicy:
-        """Get agent policy."""
-        return self.config.policy
-
-    @property
-    def metadata(self) -> dict:
-        """Get agent metadata."""
-        return self.config.metadata
-
-    @property
-    def loop(self) -> BaseLoop | None:
-        """Get agent loop."""
-        return self.config.loop
+    def __getattr__(self, name: str) -> Any:
+        """Delegate config attribute access."""
+        if name in _CONFIG_ATTRS:
+            return getattr(self.config, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     @property
     def tool_permissions(self) -> dict[str, Literal["allow", "ask", "deny"]]:
@@ -97,11 +69,6 @@ class Agent(AgentExecutor):
     ) -> None:
         """Set tool permissions."""
         self.config.tool_permissions = value
-
-    @property
-    def approval_workflow(self) -> ApprovalWorkflow | None:
-        """Get approval workflow."""
-        return self.config.approval_workflow
 
     def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
         """Append one or more tools to the agent.
