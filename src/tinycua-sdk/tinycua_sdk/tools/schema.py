@@ -6,6 +6,11 @@ import enum
 from typing import Any, get_args, get_origin
 
 
+def generate_schema(type_hint: Any) -> dict[str, Any]:
+    """Alias for type_to_json_schema."""
+    return type_to_json_schema(type_hint)
+
+
 def type_to_json_schema(type_hint: Any) -> dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema dict.
 
@@ -195,7 +200,7 @@ def _handle_primitive(type_hint: Any, description: str | None) -> dict[str, Any]
     """
     primitive_map: dict[Any, str] = {
         str: "string",
-        int: "integer",
+        int: "number",
         float: "number",
         bool: "boolean",
     }

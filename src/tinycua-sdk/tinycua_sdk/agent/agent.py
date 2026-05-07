@@ -1,291 +1,149 @@
-"""Agent with backward-compatible lifecycle convenience wrappers."""
+"""Agent with lifecycle convenience wrappers."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
+from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.core.providers import DEFAULT_BASE_URL, OPENAI_COMPATIBLE
-from tinycua_sdk.memory.short_term import ShortTermMemory
-from tinycua_sdk.memory.long_term import LongTermMemory
+from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.agent.loop import BaseLoop
 
 if TYPE_CHECKING:
-    from tinycua_sdk.agent.config import AgentPolicy
+    from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
+    from tinycua_sdk.skills.models import Skill
+
+
+_CONFIG_ATTRS = frozenset({
+    "name", "instructions", "llm_model", "tools", "skills",
+    "policy", "metadata", "loop", "approval_workflow",
+})
 
 
 class Agent(AgentExecutor):
-    """Thin backward-compatible class that adds lifecycle convenience wrappers.
-
-    Inherits all configuration, properties, and execution capabilities from
-    AgentExecutor (which inherits from AgentDefinition). Adds deploy(),
-    delete(), and load_agent() as thin wrappers that
-    delegate to AgentLifecycle via lazy imports.
-
-    This maintains full backward compatibility while keeping the SDK from
-    importing from tinycua at module level.
-    """
+    """Stateless, fully runnable agent class."""
 
     def __init__(
         self,
         name: str = "assistant",
         instructions: str = "",
-        system_prompt: str = "You are a helpful assistant.",
-        model: str = "gpt-4o-mini",
-        provider: str = OPENAI_COMPATIBLE,
-        base_url: str | None = DEFAULT_BASE_URL,
-        api_key: str | None = None,
+        llm_model: LanguageModel | None = None,
         tools: list[Tool] | None = None,
+        skills: list[Skill] | None = None,
         policy: AgentPolicy | None = None,
-        mode: str = "local",
-        backend_url: str | None = None,
-        backend_api_key: str | None = None,
-        backend_headers: dict[str, str] | None = None,
-        agent_id: str | None = None,
-        runner: Any = None,
-        sub_agents: list[Agent] | None = None,
-        max_depth: int = AgentExecutor.DEFAULT_MAX_DEPTH,
-        current_depth: int = 0,
-        keywords: list[str] | None = None,
-        strip_thinking: bool | list[str] | None = None,
-        loop: Any = None,
-        skills: list[str] | None = None,
-        planning_prompt: str | None = None,
-        short_term_memory: ShortTermMemory | None = None,
-        long_term_memory: LongTermMemory | None = None,
+        metadata: dict | None = None,
+        loop: BaseLoop | None = None,
+        tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
+        approval_workflow: ApprovalWorkflow | None = None,
     ):
-        """Initialize the Agent.
-
-        Args:
-            name: Agent name for identification.
-            instructions: Additional instructions for the agent.
-            system_prompt: System prompt that defines agent behavior.
-            model: Model identifier to use.
-            provider: LLM provider type. Use "openai" for OpenAI API
-                or "openai-compatible" for any OpenAI-compatible endpoint
-                (e.g., local inference servers). Aliases "lmstudio" and
-                "ollama" are supported for backward compatibility.
-            base_url: Custom base URL for the LLM API.
-            api_key: API key for authentication.
-            tools: List of tools available to the agent.
-            policy: AgentPolicy instance for behavior settings.
-            mode: Execution mode (local or remote/deployed).
-            backend_url: URL for the backend server (for deployed agents).
-            backend_api_key: API key for backend authentication.
-            backend_headers: Additional headers for backend requests.
-            agent_id: ID of a deployed agent (for loading existing agents).
-            runner: Optional runner instance for remote execution.
-            sub_agents: List of sub-agents for delegation.
-            max_depth: Maximum delegation depth allowed.
-            current_depth: Current delegation depth (internal).
-            keywords: Keywords for task routing to this agent.
-            strip_thinking: Whether to strip thinking tags from responses.
-            loop: Custom BaseLoop subclass instance.
-            skills: List of skill names to load for the agent.
-            planning_prompt: Prompt for task planning/analysis.
-            short_term_memory: ShortTermMemory instance for session context.
-            long_term_memory: LongTermMemory instance for persistent facts.
-
-        """
-        super().__init__(
+        config = AgentConfig(
             name=name,
             instructions=instructions,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
-            tools=tools,
-            policy=policy,
-            mode=mode,
-            backend_url=backend_url,
-            backend_api_key=backend_api_key,
-            backend_headers=backend_headers,
-            agent_id=agent_id,
-            runner=runner,
-            sub_agents=sub_agents,
-            max_depth=max_depth,
-            current_depth=current_depth,
-            keywords=keywords,
-            strip_thinking=strip_thinking,
+            llm_model=llm_model or LanguageModel(),
+            tools=tools or [],
+            skills=skills or [],
+            policy=policy or AgentPolicy(),
+            metadata=metadata or {},
             loop=loop,
-            skills=skills,
-            planning_prompt=planning_prompt,
+            tool_permissions=tool_permissions or {},
+            approval_workflow=approval_workflow,
         )
-        self._short_term_memory = short_term_memory
-        self._long_term_memory = long_term_memory
+
+        super().__init__(config=config)
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate config attribute access."""
+        if name in _CONFIG_ATTRS:
+            return getattr(self.config, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     @property
-    def short_term_memory(self) -> ShortTermMemory | None:
-        """Get short-term memory instance."""
-        return self._short_term_memory
+    def tool_permissions(self) -> dict[str, Literal["allow", "ask", "deny"]]:
+        """Get tool permissions."""
+        return self.config.tool_permissions
 
-    @property
-    def long_term_memory(self) -> LongTermMemory | None:
-        """Get long-term memory instance."""
-        return self._long_term_memory
+    @tool_permissions.setter
+    def tool_permissions(
+        self, value: dict[str, Literal["allow", "ask", "deny"]]
+    ) -> None:
+        """Set tool permissions."""
+        self.config.tool_permissions = value
 
-    # --- Lifecycle convenience wrappers (lazy import from tinycua) ---
-
-    async def deploy(self) -> dict[str, Any]:
-        """Deploy the agent to the backend (backward-compatible wrapper).
-
-        Returns:
-            Deployment result with agent_id and status.
-
-        """
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        lifecycle = AgentLifecycle(self)
-        return await lifecycle.deploy()
-
-    async def delete(self) -> None:
-        """Delete the agent from the backend (backward-compatible wrapper)."""
-        from tinycua.agent.lifecycle import AgentLifecycle
-
-        lifecycle = AgentLifecycle(self)
-        await lifecycle.delete()
-
-    @classmethod
-    async def load_agent(
-        cls,
-        agent_id: str,
-        backend_url: str,
-        backend_api_key: str | None = None,
-        backend_headers: dict[str, str] | None = None,
-        client: Any = None,
-    ) -> Agent:
-        """Load an existing agent from the backend (backward-compatible wrapper).
+    def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
+        """Append one or more tools to the agent.
 
         Args:
-            agent_id: ID of the agent to load.
-            backend_url: Backend server URL.
-            backend_api_key: API key for authentication.
-            backend_headers: Custom headers for auth.
-            client: Optional reusable BackendClient. Pass a persistent client
-                to avoid creating ephemeral connections.
-
-        Returns:
-            Agent instance with configuration from backend.
-
+            tool_or_list: A single Tool or a list of Tools.
         """
-        from tinycua.agent.lifecycle import AgentLifecycle
+        new_tools = tool_or_list if isinstance(tool_or_list, list) else [tool_or_list]
+        existing_names = {t.name for t in self.config.tools}
+        for t in new_tools:
+            if t.name not in existing_names:
+                self.config.tools.append(t)
+                existing_names.add(t.name)
 
-        return await AgentLifecycle.load_agent(
-            agent_id,
-            backend_url,
-            backend_api_key,
-            backend_headers,
-            client=client,
-        )
-
-    @classmethod
-    def from_template(
-        cls, template_name: str, overrides: dict | None = None, **kwargs
-    ) -> Agent:
-        """Create an agent from a pre-built template.
+    def add_skills(self, skill_or_list: Skill | list[Skill]) -> None:
+        """Append one or more skills to the agent.
 
         Args:
-            template_name: Name of template to use ("coder", "researcher", "assistant")
-            overrides: Optional dictionary of values to override in template
-            **kwargs: Additional arguments to pass to Agent constructor
+            skill_or_list: A single Skill or a list of Skills.
+        """
+        new_skills = skill_or_list if isinstance(skill_or_list, list) else [skill_or_list]
+        existing_names = {s.name for s in self.config.skills}
+        for s in new_skills:
+            if s.name not in existing_names:
+                self.config.skills.append(s)
+                existing_names.add(s.name)
+
+    async def run(
+        self,
+        query: str,
+        messages: list[dict] | None = None,
+        instructions: str | None = None,
+        stream: Literal["off", "event", "token", "all"] = "off",
+    ) -> str:
+        """Run the agent with a query and return the response string."""
+        if stream != "off":
+            raise NotImplementedError("Streaming implemented in Stage 5")
+
+        loop = self.config.loop or BaseLoop()
+        msgs = (messages or []) + [{"role": "user", "content": query}]
+        try:
+            return await loop.run(self, msgs, self.tools, instructions)
+        finally:
+            self._cancelled = False
+
+    def to_config(self) -> dict[str, Any]:
+        """Serialize agent to a configuration dict.
 
         Returns:
-            Agent instance configured from template
-
-        Raises:
-            ValueError: If template name is not found or override keys are invalid
-
-        Example:
-            # Create coder agent
-            agent = Agent.from_template("coder")
-
-            # Customize template
-            agent = Agent.from_template("coder", overrides={"model": "gpt-4o"})
-
-            # Add additional configuration
-            agent = Agent.from_template("coder", api_key="...")
+            Dictionary representation of the agent.
         """
-        from tinycua_sdk.agent.templates import (
-            get_template,
-            apply_template_overrides,
-        )
-        from tinycua_sdk.agent.config import AgentPolicy
-        from tinycua_sdk.agent.loop import resolve_loop
+        return self.config.to_config()
 
-        # Get base template
-        template = get_template(template_name)
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "Agent":
+        """Create an agent from a configuration dict.
 
-        # Apply overrides (with validation)
-        if overrides:
-            template = apply_template_overrides(template, overrides)
+        Args:
+            config: A configuration dictionary.
 
-        # Extract config fields
-        name = template.pop("name", template_name)
-        system_prompt = template.pop("system_prompt", "")
-        instructions = template.pop("instructions", "")
-        model = template.pop("model", "gpt-4o-mini")
-        provider = template.pop("provider", OPENAI_COMPATIBLE)
-        base_url = template.pop("base_url", DEFAULT_BASE_URL)
-        api_key = template.pop("api_key", None)
-        tool_names = template.pop("tools", [])
-        skills = template.pop("skills", [])
-        loop_config = template.pop("loop", "default")
-        policy_data = template.pop("policy", {})
-        keywords = template.pop("keywords", [])
-        strip_thinking = template.pop("strip_thinking", None)
-
-        # Override with kwargs if provided
-        api_key = kwargs.pop("api_key", api_key)
-        base_url = kwargs.pop("base_url", base_url)
-
-        # Handle policy
-        policy = AgentPolicy(
-            max_tool_calls=policy_data.get("max_tool_calls", 10),
-            parallel_tool_calls=policy_data.get("parallel_tool_calls", True),
-            temperature=policy_data.get("temperature", 1.0),
-        )
-
-        # Resolve loop string to loop instance
-        loop = resolve_loop(loop_config)
-
-        # Resolve tool string names to Tool instances
-        from tinycua_sdk.core.registry import ToolRegistry
-
-        tools = []
-        registry = ToolRegistry()  # Singleton instance
-        for tool_name in tool_names:
-            entry = registry.get(tool_name)
-            # ToolRegistry returns ToolEntry, extract the Tool instance
-            if entry is not None and entry.tool is not None:
-                tools.append(entry.tool)
-            # Silently skip unknown tools (they may be registered elsewhere)
-
-        # Merge any remaining template fields into kwargs (filter out description)
-        # Also handle api_key conflict - pop from kwargs if already passing separately
-        kwargs.pop("api_key", None)
-        kwargs.pop("base_url", None)
-
-        for key, value in template.items():
-            if key not in kwargs and key != "description":
-                kwargs[key] = value
-
-        # Create and return agent with all config parameters
+        Returns:
+            A new Agent instance.
+        """
+        agent_config = AgentConfig.from_config(config)
         return cls(
-            name=name,
-            instructions=instructions,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
-            tools=tools,
-            policy=policy,
-            strip_thinking=strip_thinking,
-            loop=loop,
-            keywords=keywords,
-            skills=skills,
-            **kwargs,
+            name=agent_config.name,
+            instructions=agent_config.instructions,
+            llm_model=agent_config.llm_model,
+            tools=agent_config.tools,
+            skills=agent_config.skills,
+            policy=agent_config.policy,
+            metadata=agent_config.metadata,
+            loop=agent_config.loop,
+            tool_permissions=agent_config.tool_permissions,
+            approval_workflow=agent_config.approval_workflow,
         )
 
 

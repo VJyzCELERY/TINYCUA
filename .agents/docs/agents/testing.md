@@ -112,10 +112,13 @@ Rather than one large `test_user.py` covering everything.
 make test          # run all tests
 make coverage      # run with coverage report
 
-# Directly with pytest
-pytest tests/unit/ -v
-pytest tests/integration/ -v
-pytest tests/ -k "test_returns_none"   # run a specific test by name pattern
+# Directly with pytest (must use uv run)
+cd src/tinycua-sdk && uv run pytest tests/unit/ -v
+cd src/tinycua-sdk && uv run pytest tests/integration/ -v
+cd src/tinycua-sdk && uv run pytest tests/ -k "test_returns_none"
+
+# ❌ WRONG - bare pytest may import from wrong worktree
+# pytest tests/unit/ -v
 ```
 
 ---

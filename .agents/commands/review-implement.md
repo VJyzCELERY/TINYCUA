@@ -1,11 +1,11 @@
 ---
-description: Implements fixes according to review findings
+description: Implements fixes according to review findings and updates report statuses
 subtask: true
 ---
 
-Implement fixes based on review findings.
+Implement fixes based on review findings and update the review report statuses.
 
-**Review File**: $1 (path to the REVIEW-{name}.md file)
+**Review File**: $1 (path to the REVIEW-{name}.md file — look in `./reviews/` first if not found)
 **Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, implement fixes for ALL OPEN findings.
@@ -19,9 +19,23 @@ If no focus area is provided, implement fixes for ALL OPEN findings.
 5. **Implement Fixes**: For each OPEN finding:
    - Go to the location specified
    - Implement the fix as suggested
-   - Run any validation commands provided
-6. **Update Review Status**: After fixing each issue, update the finding status to "ADDRESSED"
-7. **Update Validation Log**: Add entry to the Validation Log section
+   - Run any validation commands provided (use `uv run` for Python)
+6. **SHOULD Update Review Statuses**: After fixing each issue, update the finding status to "ADDRESSED" or "INVALID" in the review file
+7. **SHOULD Update Validation Log**: Add entry to the Validation Log section documenting what was fixed
+
+## Python Usage
+
+This project uses `uv` for Python environment management. Always use `uv run`:
+
+```bash
+# ✅ Correct
+cd <subproject-dir> && uv run python -c "..."
+cd <subproject-dir> && uv run pytest tests/
+
+# ❌ Wrong
+python ...
+pytest ...
+```
 
 ## Finding Status Definitions
 - **ADDRESSED**: Issue has been fixed
@@ -34,8 +48,9 @@ If no focus area is provided, implement fixes for ALL OPEN findings.
 - If validation fails, note the issue and keep as OPEN
 
 ## Important
+- SHOULD update the review file with new statuses after each fix
 - Only fix OPEN findings - don't modify ADDRESSED or INVALID ones
 - Run validation commands after each fix
-- Update the review file with new status after each fix
+- Do NOT rewrite finding content — only update statuses and append to the Validation Log
 
 Begin by reading the review file and implementing fixes for OPEN findings.

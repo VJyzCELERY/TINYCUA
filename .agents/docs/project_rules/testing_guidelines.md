@@ -67,5 +67,5 @@ def test_app_runs():
    - Use `pytest-cov` for measuring coverage.
    - Example command:
      ```bash
-     pytest --cov=src --cov-report=html
+     uv run pytest --cov=src --cov-report=html
      ```

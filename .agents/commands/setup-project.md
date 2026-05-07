@@ -24,11 +24,12 @@ If no GitHub repository is provided ($2 is empty), use local config from ~/.conf
 
    **If NO GitHub repository (use local config)**:
    ```bash
-   mkdir -p "$1/.agents/commands"
-   mkdir -p "$1/.agents/templates"
-   mkdir -p "$1/.agents/docs/agents"
-   mkdir -p "$1/.agents/docs/project_rules"
-   mkdir -p "$1/.agents/reviews"
+    mkdir -p "$1/.agents/commands"
+    mkdir -p "$1/.agents/templates"
+    mkdir -p "$1/.agents/docs/agents"
+    mkdir -p "$1/.agents/docs/project_rules"
+    mkdir -p "$1/.agents/reviews"
+    mkdir -p "$1/reviews"   # Review output directory (consistent location)
 
    # Copy commands
    cp ~/.config/opencode/commands/*.md "$1/.agents/commands/"
@@ -50,17 +51,20 @@ After setup:
 project/
 ├── .agents/
 │   ├── commands/
-│   │   ├── implementation-plan.md
-│   │   ├── implement-plan.md
-│   │   ├── review-project.md
-│   │   ├── validate-review.md
+│   │   ├── plan.md
+│   │   ├── implement.md
+│   │   ├── review-report.md
+│   │   ├── review-validate.md
 │   │   ├── review-implement.md
-│   │   ├── develop.md
+│   │   ├── review-cleanup.md
+│   │   ├── begin-workflow.md
 │   │   └── setup-project.md
 │   ├── templates/
 │   │   ├── implementation-plan.md
 │   │   ├── task.md
-│   │   └── REVIEW-template.md
+│   │   ├── REVIEW-template.md
+│   │   ├── spec.md
+│   │   └── design.md
 │   ├── docs/
 │   │   ├── agents/
 │   │   └── project_rules/

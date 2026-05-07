@@ -1,0 +1,1 @@
+PASS — no SDK-level errors in any goal script

@@ -42,6 +42,5 @@ dev/
 *dev/*
 *.github/*
 /.worktrees/
-/reviews/
-
-
+*/reviews/*
+reviews/

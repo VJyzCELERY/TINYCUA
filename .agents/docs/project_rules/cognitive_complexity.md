@@ -34,16 +34,16 @@ Radon provides granular cyclomatic complexity analysis and maintainability index
 
 #### Installation
 ```bash
-pip install radon
+uv pip install radon
 ```
 
 #### Usage
 ```bash
 # Cyclomatic complexity report, show only C grade and below
-radon cc . -a -nc
+uv run radon cc . -a -nc
 
 # Maintainability index, show only B grade and below
-radon mi . -n B
+uv run radon mi . -n B
 ```
 
 A dedicated Makefile target is available:

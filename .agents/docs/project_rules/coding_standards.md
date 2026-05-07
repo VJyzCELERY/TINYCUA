@@ -6,9 +6,7 @@
    - **Auto-Fix**: Ruff is configured to auto-fix all known issues (`fixable = ["ALL"]`).
    - **Absolute Imports**: Relative imports are disallowed (`ban-relative-imports = "all"`).
 
-2. **Testing Flexibility**:
-
-3. **Logging Practices**:
+2. **Logging Practices**:
    - Use `logging` for debugging and messaging across all subprojects.
    - Follow centralized logging rules as detailed in `docs/project_rules/logging_guidelines.md`. 
    - Test directories are exempt from docstring rules (`"**/tests/**" = ["D"]`).

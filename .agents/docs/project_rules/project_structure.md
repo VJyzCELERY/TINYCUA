@@ -1,10 +1,10 @@
 # Project Structure
 
 ## Overview
-The `MAIN-PROJECT-TEMPLATE` is organized to facilitate modular subproject development and collaboration. Below is the general structure:
+The `MAIN-PROJECT` is organized to facilitate modular subproject development and collaboration. Below is the general structure:
 
 ```
-MAIN-PROJECT-TEMPLATE/
+MAIN-PROJECT/
 ├── docs/                          # Main documentation
 ├── specs/                         # Project-level feature specs
 │   ├── spec-template.md           # Copy for new specs

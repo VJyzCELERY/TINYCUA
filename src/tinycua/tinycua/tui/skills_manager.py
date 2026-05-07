@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from tinycua_sdk.skills.loader import SkillLoader
+from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 
 if TYPE_CHECKING:
@@ -29,20 +29,20 @@ class SkillInfo:
         name: Skill name.
         description: Skill description.
         category: Skill category.
-        path: Path to skill directory.
+        source: Source of the skill.
     """
 
     name: str
     description: str
     category: str
-    path: Path
+    source: str | None
 
 
 class SkillsManager:
     """Skills manager for TUI.
 
     Provides skill discovery, loading, and listing capabilities
-    using the SDK's SkillLoader and SkillRegistry.
+    using the SDK's SkillRegistry.
     """
 
     def __init__(self, skill_directories: list[Path] | None = None) -> None:
@@ -53,7 +53,6 @@ class SkillsManager:
         """
         self._skill_directories = skill_directories or DEFAULT_SKILL_DIRS
         self._registry = SkillRegistry()
-        self._loader = SkillLoader(self._skill_directories)
         self._loaded_skills: dict[str, SkillInfo] = {}
         self._skills_loaded = False
 
@@ -66,16 +65,23 @@ class SkillsManager:
         try:
             for directory in self._skill_directories:
                 if directory.exists() and directory.is_dir():
-                    self._registry.load_skills_from_directory(directory)
-
-            skills = self._loader.discover()
-            for skill in skills:
-                self._loaded_skills[skill.name] = SkillInfo(
-                    name=skill.name,
-                    description=skill.description or "",
-                    category=skill.category,
-                    path=skill.path,
-                )
+                    for entry in sorted(directory.iterdir()):
+                        if entry.is_dir() and not entry.name.startswith("."):
+                            skill_md = entry / "SKILL.md"
+                            if skill_md.exists():
+                                try:
+                                    content = skill_md.read_text(encoding="utf-8")
+                                    skill = Skill.load(content)
+                                    skill.source = str(entry)
+                                    self._registry.register(skill)
+                                    self._loaded_skills[skill.name] = SkillInfo(
+                                        name=skill.name,
+                                        description=skill.description or "",
+                                        category=skill.category,
+                                        source=skill.source,
+                                    )
+                                except (OSError, ValueError) as e:
+                                    logger.warning(f"Failed to load skill from '{entry}': {e}")
 
             self._skills_loaded = True
             return True
@@ -91,7 +97,6 @@ class SkillsManager:
         """
         self._loaded_skills.clear()
         self._registry = SkillRegistry()
-        self._loader = SkillLoader(self._skill_directories)
         self._skills_loaded = False
         return self.load_skills()
 
@@ -117,7 +122,7 @@ class SkillsManager:
         if name in self._loaded_skills:
             return self._loaded_skills[name]
 
-        skill = self._registry.get_skill(name)
+        skill = self._registry.get(name)
         if skill is None:
             return None
 
@@ -125,7 +130,7 @@ class SkillsManager:
             name=skill.name,
             description=skill.description or "",
             category=skill.category,
-            path=skill.path,
+            source=skill.source,
         )
 
     def get_skills_by_category(self, category: str) -> list[SkillInfo]:
