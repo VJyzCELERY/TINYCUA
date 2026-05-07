@@ -45,6 +45,14 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 
 ---
 
+## Project Boundary
+
+- **Stay Inside the Project Root**: Your attached root directory is your entire world. Do NOT read, write, or execute anything outside it. The preflight-start.py script establishes this boundary at session start.
+- **Use `./tmp/` for Temp Files**: If you need temporary files, create them in `./tmp/` (already gitignored) and clean up after yourself. Never use system `/tmp/`.
+- **Boundary Check**: If you are ever uncertain whether a path is inside the project root, resolve it explicitly before proceeding.
+
+---
+
 ## General Agent Rules
 
 - **Responsible Use**: AI agents must be used to assist, not replace, developer judgment.

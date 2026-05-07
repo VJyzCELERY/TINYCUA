@@ -6,13 +6,14 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 ## Critical: Always Ask, Read, and Check First
 
-0. **Detect OS first** — At the start of every session, run `uv run python .agents/scripts/preflight-os.py` to know which platform you're on. This ensures you use the correct commands and paths.
-1. **Ask when uncertain** — If any instruction is ambiguous or incomplete, use the question/ask tool to clarify. Do NOT guess. Subagents report questions to the parent orchestrator, not the user.
-2. **Ask before committing** — Never commit or push without explicit user permission. Each batch needs a fresh ask unless the user grants unrestricted permission.
-3. **Read rules first** — Before starting any task, read relevant rules from `.agents/docs/` (both `agents/` and `project_rules/`). Each file defines conventions and constraints.
-3. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure.
-4. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
-5. **Use `uv run` for Python** — Never bare `python` or `pytest`. Always `cd <subproject-dir> && uv run`.
+0. **Run start preflight** — At the start of every session, run `uv run python .agents/scripts/preflight-start.py`. This detects your OS and establishes the project boundary so you never operate outside it.
+1. **Never leave the project root** — Your attached root directory is your entire world. Do NOT read, write, or execute anything outside it. If you need temporary files, use `./tmp/` (already gitignored) and clean up after yourself. Never use system `/tmp/`.
+2. **Ask when uncertain** — If any instruction is ambiguous or incomplete, use the question/ask tool to clarify. Do NOT guess. Subagents report questions to the parent orchestrator, not the user.
+3. **Ask before committing** — Never commit or push without explicit user permission. Each batch needs a fresh ask unless the user grants unrestricted permission.
+4. **Read rules first** — Before starting any task, read relevant rules from `.agents/docs/` (both `agents/` and `project_rules/`). Each file defines conventions and constraints.
+5. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure.
+6. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
+7. **Use `uv run` for Python** — Never bare `python` or `pytest`. Always `cd <subproject-dir> && uv run`.
 
 ---
 
@@ -55,7 +56,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 │   └── self-learning/
 ├── scripts/           # Reusable Python scripts (cross-platform)
 │   ├── gh.py          # All PR/review operations via REST API
-│   ├── preflight-os.py     # OS detection (run at session start)
+│   ├── preflight-start.py  # OS detection + project boundary (run at session start)
 │   ├── preflight-review.py
 │   ├── preflight-pr.py
 │   └── preflight-rebase.py

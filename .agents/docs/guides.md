@@ -115,4 +115,4 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `preflight-pr.py` | PR number detection |
 | `preflight-rebase.py` | Rebase safety check |
 | `gh.py` | GitHub PR/review helper (fetch, post, inline, reply, resolve, update, create) |
-| `preflight-os.py` | OS detection (run at session start)
+| `preflight-start.py` | OS detection + project boundary (run at session start)
