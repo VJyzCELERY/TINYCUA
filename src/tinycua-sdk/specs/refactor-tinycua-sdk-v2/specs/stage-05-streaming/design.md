@@ -68,11 +68,14 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
         # Stream LLM response
         stream = await agent._call_llm(messages, tools, stream=True)
         content_parts = []
+        content_item_id = ""
         tool_calls_data = []
 
         async for chunk in stream:
             chunk_type = chunk.get("type", "")
             if chunk_type == "response.output_text.delta":
+                if not content_item_id:
+                    content_item_id = chunk.get("item_id", "")
                 content_parts.append(chunk.get("delta", ""))
                 if stream_mode in ("token", "all"):
                     yield chunk
@@ -80,7 +83,18 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
                 # Accumulate tool call data
                 tool_calls_data.append(chunk)
 
-        # ... parse accumulated tool calls, execute, yield events ...
+        # Emit completion events for text output
+        if content_parts:
+            if stream_mode in ("event", "all"):
+                yield {
+                    "type": "response.output_text.done",
+                    "item_id": content_item_id,
+                    "content": "".join(content_parts),
+                }
+                yield {
+                    "type": "response.output_item.done",
+                    "item": {"type": "text"},
+                }
 
         if tool_calls_data:
             for tc in tool_calls_data:
@@ -88,6 +102,10 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
                     yield {
                         "type": "response.output_item.added",
                         "item": {"type": "tool_call", "name": tc["name"], "arguments": tc["arguments"]},
+                    }
+                    yield {
+                        "type": "response.output_item.done",
+                        "item": {"type": "tool_call", "name": tc["name"]},
                     }
 
             # Execute tools
@@ -98,6 +116,10 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
                     yield {
                         "type": "response.output_item.added",
                         "item": {"type": "tool_output", "name": tc["name"], "output": str(result)},
+                    }
+                    yield {
+                        "type": "response.output_item.done",
+                        "item": {"type": "tool_output", "name": tc["name"]},
                     }
 
             # Continue loop
@@ -164,6 +186,49 @@ The same `_run_stream` code path is used for all modes. Filtering is done at yie
 - `stream="token"`: yield only `.delta` events.
 - `stream="event"`: yield only non-delta events.
 - `stream="all"`: yield everything.
+
+### Error Handling in Streaming
+The `_run_stream` generator wraps its main loop in a try/except block. On any exception:
+1. A `response.failed` event is yielded with error details.
+2. An `error` event is yielded with the same details.
+3. The generator returns (stops iteration).
+
+```python
+async def _run_stream(self, ...):
+    yield {"type": "response.created"}
+    try:
+        for _ in range(self.max_iterations):
+            ...
+    except Exception as e:
+        yield {"type": "response.failed", "error": {"message": str(e)}}
+        yield {"type": "error", "error": {"message": str(e)}}
+        return
+    yield {"type": "response.completed"}
+```
+
+### Event Flow Summary
+
+```
+Stream Start
+  │
+  ├── response.created
+  │
+  ├── [while iterating]
+  │     ├── response.output_text.delta (0..N, token/all modes only)
+  │     ├── response.output_text.done  (if text present, event/all)
+  │     ├── response.output_item.done  (text item, event/all)
+  │     │
+  │     ├── response.output_item.added (tool_call, event/all)
+  │     ├── response.output_item.done  (tool_call, event/all)
+  │     ├── response.output_item.added (tool_output, event/all)
+  │     ├── response.output_item.done  (tool_output, event/all)
+  │     │
+  │     └── [repeat if more tool calls]
+  │
+  ├── response.completed  (on success)
+  │
+  └── response.failed + error (on failure)
+```
 
 ### Return Type
 `Agent.run()` must return `str` when `stream="off"` and `AsyncIterator[dict]` otherwise. This is a type union. In practice, consumers will know which mode they requested.
