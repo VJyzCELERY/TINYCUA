@@ -141,9 +141,7 @@ class BaseLoop:
                 working_messages.extend(tool_result_messages)
             else:
                 if content:
-                    working_messages.append(
-                        {"role": "assistant", "content": content}
-                    )
+                    working_messages.append({"role": "assistant", "content": content})
                 return content or ""
 
         last_assistant = self._last_assistant_content(working_messages)
@@ -192,6 +190,7 @@ class BaseLoop:
                     content_delta_events,
                     tool_calls_list,
                     content_item_id,
+                    usage,
                 ) = await self._stream_llm(
                     agent,
                     working_messages,
@@ -222,7 +221,11 @@ class BaseLoop:
                         }
 
                 if tool_calls_list:
-                    tool_call_count, executed_tool_calls, tool_events = await self._execute_tools_stream(
+                    (
+                        tool_call_count,
+                        executed_tool_calls,
+                        tool_events,
+                    ) = await self._execute_tools_stream(
                         agent,
                         tools,
                         tool_calls_list,
@@ -237,7 +240,7 @@ class BaseLoop:
                                 "type": "function",
                                 "function": {
                                     "name": tc["name"],
-                                    "arguments": json.loads(tc["arguments"]),
+                                    "arguments": tc["arguments"],
                                 },
                             }
                             for tc in executed_tool_calls
@@ -271,18 +274,19 @@ class BaseLoop:
         working_messages: list[dict],
         tools: list[Tool],
         stream_mode: str,
-    ) -> tuple[list[str], list[dict], list[dict[str, Any]]]:
+    ) -> tuple[list[str], list[dict], list[dict[str, Any]], str, dict[str, Any] | None]:
         """Stream LLM response and accumulate data.
 
         Returns:
             Tuple of (content_parts, content_delta_events, tool_calls_list,
-                      content_item_id).
+                      content_item_id, usage).
         """
         llm_stream = await agent._call_llm(working_messages, tools, stream=True)
         content_parts: list[str] = []
         content_delta_events: list[dict] = []
         content_item_id: str = ""
         tool_calls_buffer: dict[int, dict[str, Any]] = {}
+        usage: dict[str, Any] | None = None
 
         async for chunk in llm_stream:
             chunk_type = chunk.get("type", "")
@@ -308,12 +312,15 @@ class BaseLoop:
                     if chunk.get("name"):
                         buf["name"] = chunk["name"]
                     buf["arguments"] += chunk.get("arguments", "")
+            elif chunk_type == "response.usage":
+                usage = chunk.get("usage", {})
 
         return (
             content_parts,
             content_delta_events,
             list(tool_calls_buffer.values()),
             content_item_id,
+            usage,
         )
 
     async def _execute_tools_stream(
