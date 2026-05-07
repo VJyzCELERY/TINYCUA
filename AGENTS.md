@@ -34,6 +34,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 ```
 .agents/
+├── scripts/           # Reusable scripts (Python, cross-platform)
 ├── commands/          # Opencode commands
 ├── templates/         # Document templates
 ├── skills/            # Reusable skill references
@@ -70,6 +71,8 @@ reviews/              # Active review outputs (root level)
 - [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
 - [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
 - [.agents/docs/project_rules/worktree.md](.agents/docs/project_rules/worktree.md) — Worktree management rules
+- [.agents/scripts/check-preflight.py](.agents/scripts/check-preflight.py) — Pre-flight checks (stale review, unstaged changes)
+- [.agents/scripts/get-pr-number.py](.agents/scripts/get-pr-number.py) — PR number detection from current branch
 
 ---
 

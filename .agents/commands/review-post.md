@@ -20,7 +20,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 1. **Read the review report**: Load the REVIEW-{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash
-   PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --state open --json number --jq '.[0].number')
+   PR_NUMBER=$(uv run python .agents/scripts/get-pr-number.py)
    ```
 3. **Get PR diff**: Download the PR diff to map line numbers:
    ```bash

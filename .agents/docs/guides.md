@@ -111,3 +111,5 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/begin-worktree` | Creates `.worktrees/<branch>/` with matching branch |
 | `/worktree-prune` | Removes stale `.worktrees/` directories |
 | `/worktree-cleanup` | Deletes `./reviews/`, `./tmp/`, `./dev/`, caches |
+| `check-preflight.py` | Pre-flight check script (stale review + unstaged changes) |
+| `get-pr-number.py` | PR number detection script |

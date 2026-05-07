@@ -20,42 +20,20 @@ If no focus area is provided, verify ALL OPEN findings.
 
 ## Pre-Flight Checks
 
-Before starting, check for two conditions that affect reliability:
-
-### Stale Review Check
-
-Extract the **Commit Range** from the review header and compare to current HEAD:
+Before starting, run the pre-flight script:
 
 ```bash
-REVIEW_HEAD=$(grep 'Commit Range' "$REVIEW_FILE" | sed 's/.*\.\.\.//')
-CURRENT_HEAD=$(git rev-parse HEAD)
-if [ "$REVIEW_HEAD" != "$CURRENT_HEAD" ]; then
-  echo "⚠ Review is stale — HEAD has moved since review was created."
-  echo "  Review was on: $REVIEW_HEAD"
-  echo "  Current HEAD:  $CURRENT_HEAD"
-  git log --oneline "$REVIEW_HEAD..$CURRENT_HEAD"
-fi
+uv run python .agents/scripts/check-preflight.py "$REVIEW_FILE"
 ```
 
-If stale, warn the user via the question/ask tool. Let them decide whether to continue or request a fresh review.
-
-### Unstaged Changes Check
-
-```bash
-if [ -n "$(git status --porcelain)" ]; then
-  echo "⚠ There are unstaged or uncommitted changes in the working tree."
-  git status --short
-fi
-```
-
-If unstaged changes exist, warn the user via the question/ask tool. Verifying a review against modified code can produce misleading results.
+If the script exits non-zero, warn the user via the question/ask tool. Let them decide whether to continue or request a fresh review.
 
 ---
 
 ## Instructions
 
 1. **Read the Review**: Load the review report
-2. **Run pre-flight checks**: Check for stale review and unstaged changes — warn user if either is true
+2. **Run pre-flight checks**: `uv run python .agents/scripts/check-preflight.py "$REVIEW_FILE"` — warn user if issues found
 3. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
 3. **Filter Findings**: If `$2` is provided, only verify those findings
 4. **Verify Each Finding**: For each OPEN finding:
