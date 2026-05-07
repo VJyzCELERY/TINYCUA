@@ -33,13 +33,20 @@ This command **must** determine what files are in scope before reviewing. The re
 3. **Determine the diff base**:
    - If PR exists: diff against the PR target branch
    - If no PR: use `git merge-base main HEAD` as the base
+   - Record the base commit SHA and the diff range: `<base>...HEAD`
    - Diff command: `git diff <base>...HEAD --name-only`
 
-4. **Build the scope list**:
-   - Collect all changed files from the diff
-   - If `$3` is provided, add those files (they are explicitly requested)
-   - If the focus `$2` contains "unscoped", skip scope entirely — review the full target directory
-   - Otherwise, **only** review files in the scope list
+4. **Record the commit range**: Capture the exact commits being reviewed:
+   ```bash
+   BASE_SHA=$(git merge-base <base> HEAD 2>/dev/null || git rev-parse <base>)
+   HEAD_SHA=$(git rev-parse HEAD)
+   COMMIT_RANGE="$BASE_SHA...$HEAD_SHA"
+   COMMITS=$(git log --oneline "$COMMIT_RANGE")
+   echo "Review range: $COMMIT_RANGE"
+   echo "$COMMITS"
+   ```
+
+5. **Build the scope list**:
 
 ### Scope Rules
 
@@ -97,6 +104,7 @@ Use format: `REVIEW-{name}.md`
 **Scope**: [branch diff | PR #N | unscoped]
 **Review Focus**: [focus or "full"]
 **Reviewer**: Code Reviewer
+**Commit Range**: [base_sha...head_sha]
 
 ---
 
@@ -133,6 +141,7 @@ Use format: `REVIEW-{name}.md`
 - MUST determine scope before reviewing
 - MUST scope the review to the current branch diff unless unscoped
 - **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
+- **Record the commit range** in the review header — this lets the user know if the review is stale (new commits since review)
 - MUST create the review file at `./reviews/REVIEW-{name}.md`
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
