@@ -3,75 +3,109 @@ description: Initializes or updates the .agents structure from a template reposi
 subtask: true
 ---
 
-Initialize a new `.agents/` directory or update an existing one with new files from a template.
+Initialize a new `.agents/` directory or update an existing one with improvements from MAIN-PROJECT-TEMPLATE.
 
 **Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
-**Template Source (Optional)**: $2 (GitHub repo URL or local path, e.g., https://github.com/user/repo)
+**Template Source (Optional)**: $2 (GitHub repo URL, defaults to MAIN-PROJECT-TEMPLATE)
 
 ---
 
 ## Behavior
 
-- **If `.agents/` does NOT exist**: Clone or copy the entire template structure (fresh setup).
-- **If `.agents/` already exists**: Soft update — copy only files from the template that do NOT yet exist in the project. Existing project-specific files are never overwritten. This lets you pull in new commands, templates, and rules without losing customizations.
+- **Fresh setup**: `.agents/` doesn't exist → clone entire template.
+- **Soft update**: `.agents/` exists → compare each file against the template:
+  - **New files** (in template, not in project) → copy in
+  - **Updated files** (in both, but template is newer/different) → check if project has customizations:
+    - If project file is mostly similar to template → replace with new template (template is authoritative for `.agents/` infrastructure)
+    - If project file has significant project-specific additions → skip and flag it
+  - **Removed files** (in project, not in template) → keep (project-specific)
+  - **Custom subdirectories** (`reviews/`, `skills/`, project-specific docs) → always preserved
 
 ---
 
 ## Instructions
 
-1. **Determine the target directory**: `$1` (defaults to current directory if empty)
-
-2. **Determine the template source**:
-   - If `$2` is provided, use it as a GitHub repo URL
-   - If `$2` is empty, default to `https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE`
-
-3. **Clone the template to a temporary location**:
+1. **Determine target**: `$1` (defaults to current directory)
+2. **Determine source**: `$2` or `https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE`
+3. **Clone template**:
    ```bash
    TMP_DIR=$(mktemp -d)
    git clone --depth 1 "$TEMPLATE_URL" "$TMP_DIR"
    ```
 
-4. **Check if `.agents/` already exists** in the target:
+4. **Update `.agents/`**:
 
-   **If NOT exists (fresh setup)**:
    ```bash
-   mkdir -p "$1"
-   cp -r "$TMP_DIR/.agents" "$1/.agents"
-   ln -sf .agents "$1/.opencode"
-   echo "Fresh .agents created from template."
-   ```
+   AGENTS_DIR="$1/.agents"
+   TEMPLATE_AGENTS="$TMP_DIR/.agents"
+   mkdir -p "$AGENTS_DIR"
 
-   **If EXISTS (soft update)**:
-   ```bash
-   # For each file in the template's .agents/:
-   #   - If the file doesn't exist in the project's .agents/, copy it
-   #   - If the file already exists, skip it (preserve project customizations)
-   cd "$TMP_DIR/.agents"
-   find . -type f | while read -r f; do
-     target="$1/.agents/$f"
+   echo "=== Soft update: $AGENTS_DIR ==="
+
+   # Walk through every file in the template
+   find "$TEMPLATE_AGENTS" -type f | while read -r tf; do
+     rel="${tf#$TEMPLATE_AGENTS/}"
+     target="$AGENTS_DIR/$rel"
+
      if [ ! -f "$target" ]; then
+       # NEW file — copy from template
        mkdir -p "$(dirname "$target")"
-       cp "$f" "$target"
-       echo "  + $f (new)"
+       cp "$tf" "$target"
+       echo "  + $rel (new)"
      else
-       echo "  · $f (already exists — skipped)"
+       # EXISTING file — check similarity
+       template_lines=$(wc -l < "$tf")
+       diff_lines=$(diff --brief "$tf" "$target" 2>/dev/null && echo "0" || diff "$tf" "$target" | grep -c '^[<>]' 2>/dev/null || echo "999")
+       total=$((template_lines > 0 ? template_lines : 1))
+       similarity=$(( (total - (diff_lines / 2)) * 100 / total ))
+
+       if [ "$diff_lines" -eq 0 ]; then
+         # IDENTICAL — update to new template version
+         cp "$tf" "$target"
+         echo "  ~ $rel (updated)"
+       elif [ "$similarity" -gt 80 ]; then
+         # HIGHLY SIMILAR — project has minor tweaks, still safe to update
+         cp "$tf" "$target"
+         echo "  ~ $rel (updated — minor project tweaks overwritten, reapply if needed)"
+       else
+         # SIGNIFICANTLY DIFFERENT — project has customizations, skip
+         echo "  · $rel (skipped — project has significant customizations)"
+       fi
      fi
    done
-   echo "Soft update complete."
+
+   # Ensure .opencode symlink
+   if [ ! -L "$1/.opencode" ]; then
+     ln -sf .agents "$1/.opencode"
+     echo "  + .opencode symlink created"
+   fi
+
+   echo "=== Update complete ==="
    ```
 
-5. **Clean up**: Remove the temporary clone:
+5. **Clean up**:
    ```bash
    rm -rf "$TMP_DIR"
    ```
 
-6. **Report**: List what was added (new files) vs skipped (existing files).
-
 ---
+
+## What Gets Updated vs Preserved
+
+| File Type | Behavior |
+|-----------|----------|
+| Commands (`.agents/commands/*.md`) | Updated from template — template is authoritative |
+| Templates (`.agents/templates/*.md`) | Updated from template |
+| Agent rules (`.agents/docs/agents/*.md`) | Updated from template |
+| Project rules (`.agents/docs/project_rules/*.md`) | Updated if similar (>80%), skipped if heavily customized |
+| Scripts (`.agents/scripts/*.py`) | Updated from template |
+| Skills (`.agents/skills/*/SKILL.md`) | Updated if from template, preserved if project-created |
+| Reviews (`.agents/reviews/`) | Always preserved — project-specific |
+| Custom files (anything project-added) | Always preserved |
 
 ## Important
 
-- Existing project-specific files in `.agents/` are NEVER overwritten — only new files from the template are added
-- To force a full refresh, delete `.agents/` first, then run setup-project again
-- The `.opencode` symlink is created if it doesn't exist; if it exists and points elsewhere, it's updated
-- Template source defaults to `MAIN-PROJECT-TEMPLATE` on GitHub
+- Template is authoritative for `.agents/` infrastructure files (commands, templates, docs)
+- Project-specific customizations in `.agents/` are preserved when they differ significantly
+- To force a full refresh, delete `.agents/` and re-run setup
+- The `.opencode` symlink is created if missing
