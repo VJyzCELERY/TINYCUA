@@ -109,4 +109,3 @@ class LanguageModel(BaseModel):
         if isinstance(parsed.get("api_key"), str):
             parsed["api_key"] = SecretStr(parsed["api_key"])
         return cls(**parsed)
-

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
@@ -76,11 +77,23 @@ class AgentExecutor:
         self,
         messages: list[dict],
         tools: list[Tool] | None = None,
-    ) -> dict[str, Any]:
-        """Call the LLM with messages and optional tools."""
+        stream: bool = False,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+        """Call the LLM with messages and optional tools.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of Tool instances.
+            stream: When True, return an async iterator of SSE chunk events.
+
+        Returns:
+            Normalized response dict or async iterator of event dicts.
+        """
         client = self._get_llm_client()
         tool_schemas = [t.to_config() for t in tools] if tools else None
-        return await client.chat(messages, tool_schemas, self.config.llm_model)
+        return await client.chat(
+            messages, tool_schemas, self.config.llm_model, stream=stream
+        )
 
 
 __all__ = ["ToolExecutor", "AgentExecutor"]

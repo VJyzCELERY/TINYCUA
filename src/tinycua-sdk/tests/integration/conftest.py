@@ -42,6 +42,7 @@ def mock_llm_client():
         fake_resp = FakeLLMResponse(json_data=fake_response_data)
 
         import httpx
+
         mock_post = AsyncMock(return_value=fake_resp)
         mp.setattr(httpx.AsyncClient, "post", mock_post)
         yield mock_post
@@ -62,38 +63,50 @@ def mock_llm_with_tool_calls():
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
-        first_response = FakeLLMResponse(json_data={
-            "choices": [
-                {
-                    "message": {
-                        "content": None,
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "type": "function",
-                                "function": {
-                                    "name": "search",
-                                    "arguments": '{"query": "quantum"}',
-                                },
-                            }
-                        ],
+        first_response = FakeLLMResponse(
+            json_data={
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "search",
+                                        "arguments": '{"query": "quantum"}',
+                                    },
+                                }
+                            ],
+                        }
                     }
-                }
-            ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
-        })
-        second_response = FakeLLMResponse(json_data={
-            "choices": [
-                {
-                    "message": {
-                        "content": "Quantum computing is fascinating.",
-                        "role": "assistant",
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 15,
+                    "total_tokens": 25,
+                },
+            }
+        )
+        second_response = FakeLLMResponse(
+            json_data={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Quantum computing is fascinating.",
+                            "role": "assistant",
+                        }
                     }
-                }
-            ],
-            "usage": {"prompt_tokens": 30, "completion_tokens": 5, "total_tokens": 35},
-        })
+                ],
+                "usage": {
+                    "prompt_tokens": 30,
+                    "completion_tokens": 5,
+                    "total_tokens": 35,
+                },
+            }
+        )
 
         import httpx
 
@@ -102,10 +115,19 @@ def mock_llm_with_tool_calls():
         async def _mock_post(*args, **kwargs):
             if _responses:
                 return _responses.pop(0)
-            return FakeLLMResponse(json_data={
-                "choices": [{"message": {"content": "Fallback response.", "role": "assistant"}}],
-                "usage": None,
-            })
+            return FakeLLMResponse(
+                json_data={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "Fallback response.",
+                                "role": "assistant",
+                            }
+                        }
+                    ],
+                    "usage": None,
+                }
+            )
 
         mock_post = AsyncMock(side_effect=_mock_post)
         mp.setattr(httpx.AsyncClient, "post", mock_post)
@@ -122,33 +144,49 @@ def mock_llm_with_failing_tool_call():
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
-        first_response = FakeLLMResponse(json_data={
-            "choices": [
-                {
-                    "message": {
-                        "content": None,
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "id": "call_fail_1",
-                                "type": "function",
-                                "function": {
-                                    "name": "failing_tool",
-                                    "arguments": "{}",
-                                },
-                            }
-                        ],
+        first_response = FakeLLMResponse(
+            json_data={
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call_fail_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "failing_tool",
+                                        "arguments": "{}",
+                                    },
+                                }
+                            ],
+                        }
                     }
-                }
-            ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
-        })
-        second_response = FakeLLMResponse(json_data={
-            "choices": [{"message": {"content": "Recovered from error.", "role": "assistant"}}],
-            "usage": None,
-        })
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 15,
+                    "total_tokens": 25,
+                },
+            }
+        )
+        second_response = FakeLLMResponse(
+            json_data={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Recovered from error.",
+                            "role": "assistant",
+                        }
+                    }
+                ],
+                "usage": None,
+            }
+        )
 
         import httpx
+
         mock_post = AsyncMock(side_effect=[first_response, second_response])
         mp.setattr(httpx.AsyncClient, "post", mock_post)
         yield mock_post
