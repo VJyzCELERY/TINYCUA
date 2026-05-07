@@ -13,6 +13,7 @@ Rules for reviewing code, identifying issues, and providing feedback.
 - **Focus on Overengineering**: Actively look for unnecessary complexity, excessive helper functions, and over-abstraction
 - **Check Spec Compliance**: When reviewing features, find and read the relevant spec file first, then compare implementation
 - **YAGNI Principle**: Flag any code that goes beyond spec requirements without clear, documented justification
+- **Documentation equals code**: Documentation changes are as important as code changes. Flag missing or stale docs with the same priority as code bugs
 - **Impact first**: Prioritize findings with material impact; only raise style issues when they affect clarity, correctness, or consistency
 - **Cite evidence**: Reference findings with `file:line` (from the diff) so fixes are traceable
 - **Focus on Actionable Feedback**: Every comment should include a specific recommendation
@@ -116,6 +117,13 @@ When reviewing code, apply these principles:
 - **Edge case handling**: Verify null/None handling, empty string/list/dict handling, boundary conditions
 - **Error condition testing**: Verify error paths are tested (exceptions, failures)
 - **Test execution**: Ensure test suites run from component roots (`make test`)
+
+### Documentation (Equal Priority to Code)
+- **Spec/design sync**: Verify implementation matches the spec and design — flag any drift
+- **API docs**: New endpoints, functions, or classes must have corresponding docstrings and docs
+- **README/guides**: Feature changes must update relevant README or guide files
+- **Stale docs**: Flag documentation that references removed/renamed code
+- **Docstring completeness**: All public functions and classes must have Google-style docstrings
 
 ### Maintainability
 - Easy to read and extend

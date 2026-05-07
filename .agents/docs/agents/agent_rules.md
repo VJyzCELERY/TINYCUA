@@ -52,6 +52,7 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 - **Task Scoping**: Define specific, bounded tasks for AI agents. Avoid open-ended instructions.
 - **Review All Output**: All AI-generated code must be reviewed by a human before merging.
 - **Follow Project Standards**: AI agents must produce code that passes `make lint`, `make test`, and `make complexity` (run from the subproject directory: `cd src/<subproject> && make lint`) before output is considered complete.
+- **Documentation Alongside Code**: AI agents must produce or update documentation (docstrings, README, guides, API docs) with the same priority as code changes. A feature is not complete until its docs are updated.
 - **No Secrets in Output**: AI must never generate code that contains hardcoded secrets, credentials, or API keys.
 
 ---

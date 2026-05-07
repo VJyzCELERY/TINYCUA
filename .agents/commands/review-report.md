@@ -157,6 +157,7 @@ Use format: `REVIEW-{name}.md`
 - **Check template first**: Read `.agents/templates/REVIEW-template.md` before generating the report — follow its structure
 - MUST determine scope before reviewing
 - MUST scope the review to the current branch diff unless unscoped
+- **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
 - MUST create the review file at `./reviews/REVIEW-{name}.md`
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
