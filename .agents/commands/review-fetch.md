@@ -15,28 +15,15 @@ Fetch unresolved comments and review requests from a GitHub PR and generate a st
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-2. **Detect owner/repo**:
+2. **Fetch PR details**:
    ```bash
-   OWNER_REPO=$(gh repo view --json owner,name --jq '{owner: .owner.login, name: .name}' | jq -r '"\(.owner)/\(.name)"')
+   uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"
    ```
-3. **Fetch PR details**:
+3. **Fetch unresolved comments and reviews**:
    ```bash
-   gh pr view "$PR_NUMBER" --json number,headRefName,baseRefName,title,author,state,reviews,comments,files
+   uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
    ```
-4. **Fetch inline review comments** (unresolved):
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null)'
-   ```
-   Filter for unresolved threads (those without a resolution event).
-5. **Fetch review summaries** (top-level review comments requesting changes):
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | select(.state == "CHANGES_REQUESTED")'
-   ```
-6. **Fetch pending/OPEN review threads**:
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null) | {id: .id, path: .path, line: .line, body: .body, user: .user.login}'
-   ```
-7. **Compile findings**: For each unresolved comment, extract:
+4. **Compile findings**: For each unresolved comment, extract:
    - **Issue Code**: FETCH-001, FETCH-002, ...
    - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
    - **Location**: The file path and line number from the comment

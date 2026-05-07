@@ -1,27 +1,10 @@
-# Skill: GitHub PR Management via `gh`
+# Skill: GitHub PR Management via `gh.py`
 
-## Golden Rule: Always Use Temp Files for Body Content
+## Golden Rule: Use `.agents/scripts/gh.py`
 
-**Never pass PR body content directly in bash.** Inline heredocs and string escaping cause frequent failures. Instead:
+All PR operations should use `.agents/scripts/gh.py` — a Python script that uses the stable REST API instead of the deprecated GraphQL API that `gh pr edit --body` relies on.
 
-1. Write the content to a temporary `.md` file
-2. Use `--body-file` or `--body "$(cat <file>)"` to pass it to `gh`
-3. Delete the temp file after the command succeeds
-
-```bash
-# ✅ CORRECT - write body to temp file first
-cat > ./tmp/pr-body.md << 'EOF'
-## Summary
-
-[content here]
-EOF
-
-gh pr create --title "type(scope): title" --body "$(cat ./tmp/pr-body.md)"
-rm ./tmp/pr-body.md
-
-# ❌ WRONG - inline heredocs in gh command break with complex content
-gh pr create --title "..." --body "$(cat <<'EOF' ... EOF)"
-```
+Temp files go in `./tmp/` (gitignored) and are auto-deleted on success.
 
 ---
 
@@ -29,107 +12,101 @@ gh pr create --title "..." --body "$(cat <<'EOF' ... EOF)"
 
 ```bash
 cat > ./tmp/pr-body.md << 'EOF'
-## Summary
 [content using .agents/templates/PR-body.md]
 EOF
 
-gh pr create \
-  --title "type(scope): title" \
-  --body "$(cat ./tmp/pr-body.md)"
+uv run python .agents/scripts/gh.py create "type(scope): title" ./tmp/pr-body.md --head <branch> --base main
 
-rm ./tmp/pr-body.md
+# ./tmp/pr-body.md is auto-deleted on success
 ```
 
-- Use `--base <branch>` to target a specific branch
-- Use `--draft` to create as draft
-- Always check `.agents/templates/PR-body.md` first for the body structure
+- Add `--draft` for draft PRs
+- Change `--base` to target a different branch
+- Always check `.agents/templates/PR-body.md` first
 
 ## Update PR Body
 
 ```bash
 cat > ./tmp/pr-body.md << 'EOF'
-## Summary
 [updated content]
 EOF
 
-gh pr edit <number> --body "$(cat ./tmp/pr-body.md)"
-rm ./tmp/pr-body.md
+uv run python .agents/scripts/gh.py update body <pr> ./tmp/pr-body.md
 ```
 
 ## Add PR Comment
 
 ```bash
 cat > ./tmp/pr-comment.md << 'EOF'
-Your comment here — can include markdown, code blocks, etc.
+[comment content]
 EOF
 
-gh pr comment <number> --body "$(cat ./tmp/pr-comment.md)"
-rm ./tmp/pr-comment.md
+uv run python .agents/scripts/gh.py post comment <pr> ./tmp/pr-comment.md
 ```
 
-## List PRs
+## List / Get PR Details
 
 ```bash
 gh pr list --head <branch> --state open --json number,headRefName,baseRefName,title
-```
-
-## Get PR Details
-
-```bash
-gh pr view <number> --json number,headRefName,baseRefName,title,body,comments,reviews
-gh pr view <number> --json files --jq '.files[].path'   # list changed files
+uv run python .agents/scripts/gh.py fetch pr <pr>
 ```
 
 ## PR Review with Inline Comments
 
 ```bash
-# Write the review body to a temp file
+# Write review body
 cat > ./tmp/review-body.md << 'EOF'
 ## Summary
 [review summary]
 EOF
 
-# Write inline comments to a temp JSON file
+# Write inline comments JSON
 cat > ./tmp/review-comments.json << 'EOF'
 [
-  {"path": "file.py", "line": 10, "body": "**Issue**: ...\n\n**Suggestion**: ...", "side": "RIGHT"},
-  {"path": "file.py", "line": 25, "body": "**Issue**: ...\n\n**Suggestion**: ...", "side": "RIGHT"}
+  {"path": "file.py", "line": 10, "body": "**Issue**: ...", "side": "RIGHT"}
 ]
 EOF
 
-# Submit review using temp files
-gh pr review <number> \
-  --request-changes \
-  --body "$(cat ./tmp/review-body.md)" \
-  --comments "$(cat ./tmp/review-comments.json)"
+# Post review with inline comments
+uv run python .agents/scripts/gh.py post review <pr> ./tmp/review-body.md ./tmp/review-comments.json --event REQUEST_CHANGES
 
-rm ./tmp/review-body.md ./tmp/review-comments.json
+# Both temp files are auto-deleted on success
 ```
 
-- Approve: `gh pr review <number> --approve --body "$(cat ./tmp/body.md)"`
-- Comment only: `gh pr review <number> --comment --body "$(cat ./tmp/body.md)"`
-- Request changes: `gh pr review <number> --request-changes --body "$(cat ./tmp/body.md)"`
+- `--event APPROVE` — approve
+- `--event COMMENT` — comment only  
+- `--event REQUEST_CHANGES` — request changes
 
-**Inline comments via `--comments` use JSON array format.** Each item needs `path`, `line`/`startLine`, `body`, and `side` (`LEFT` for old diff, `RIGHT` for new diff).
-
-## Resolve Review Threads
+## Reply to a Review Thread
 
 ```bash
-cat > ./tmp/resolve-comment.md << 'EOF'
-Resolved in <commit>.
+cat > ./tmp/reply.md << 'EOF'
+Addressed in commit <sha>.
 EOF
 
-gh api -X POST "repos/:owner/:repo/pulls/<number>/comments/<comment-id>/replies" \
-  --input ./tmp/resolve-comment.md
-rm ./tmp/resolve-comment.md
+uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/reply.md
+```
+
+## Resolve a Review Thread
+
+```bash
+uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
+```
+
+## Post Single Inline Comment
+
+```bash
+cat > ./tmp/inline.md << 'EOF'
+**Issue**: ...
+**Suggestion**: ...
+EOF
+
+uv run python .agents/scripts/gh.py post inline <pr> ./tmp/inline.md --path src/file.py --line 42
 ```
 
 ## Common Pitfalls
 
-- **Always use temp files** — never inline heredocs directly in `gh` commands
-- **Don't** use `--body` with inline JSON for `--comments` — they must be separate
-- **Don't** forget `side: "RIGHT"` for the new diff side
-- **Do** write body to `./tmp/` to avoid cluttering the repo
-- **Do** use `gh pr view <number> --json files --jq '.files[].path'` to get changed files
-- **Do** clean up temp files after each command (`rm ./tmp/gh-*.md`)
-- PR numbers can be obtained from `gh pr list --head <branch> --json number --jq '.[0].number'`
+- Always use `gh.py` for write operations — `gh pr edit` uses deprecated GraphQL
+- Temp files in `./tmp/` are auto-cleaned on success; no need to `rm` manually
+- Use `gh.py fetch unresolved <pr>` to see outstanding review threads
+- PR numbers from: `gh pr list --head <branch> --json number --jq '.[0].number'`

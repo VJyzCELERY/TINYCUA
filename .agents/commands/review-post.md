@@ -40,18 +40,19 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    - Map the location to the current diff — if the line no longer exists, skip or adjust
 5. **Build the review summary**: Extract the **Summary** section from the report as the top-level review body
 6. **Post the review**:
+   Write the review body and inline comments to temp files and use `gh.py`:
    ```bash
-   gh pr review "$PR_NUMBER" \
-     --request-changes \
-     --body "$(cat <<'BODY'
+   cat > ./tmp/review-body.md << 'BODY'
    [review summary from report]
    BODY
-   )" \
-     --comments "$(cat <<'COMMENTS'
+   
+   cat > ./tmp/review-comments.json << 'COMMENTS'
    [JSON array of inline comments]
    COMMENTS
-   )"
+
+   uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event REQUEST_CHANGES
    ```
+   Temp files are auto-deleted on success. Use `--event COMMENT` for MEDIUM/LOW findings only.
 
 ---
 
@@ -98,6 +99,7 @@ If any finding is CRITICAL or HIGH, use `--request-changes`. If all findings are
 
 ## Important
 
+- Read `.agents/scripts/gh.py` usage before posting — all PR writes go through it
 - Read `.agents/skills/gh-review/SKILL.md` before posting — it contains the full gh review workflow reference
 - Always verify line numbers against the current PR diff before posting
 - Inline comments with invalid line numbers will be rejected by GitHub

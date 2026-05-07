@@ -1,18 +1,24 @@
 # Skill: GitHub Review Workflow via `gh`
 
-## Golden Rule: Always Use Temp Files for Body Content
+## Golden Rule: Use Temp Files + REST API
 
-**Never pass review body content directly in bash.** Inline heredocs and string escaping in `gh pr review --body` cause frequent failures. Instead:
+**Never pass review body content directly in bash.** `gh pr review --body` and `gh pr edit --body` use a deprecated GraphQL API that may fail silently.
 
-1. Write the content to a temporary `.md` file
-2. Use `--body "$(cat <file>)"` and `--comments "$(cat <file>)"` to pass it to `gh`
+Instead, use `gh api` REST endpoints with temp files:
+
+1. Write the content to a temporary file under `./tmp/`
+2. Pass it via `gh api ... -f body="$(cat <file>)"`
 3. Delete the temp files after the command succeeds
+
+### Detect Owner/Repo
+
+```bash
+OWNER_REPO=$(gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"')
+```
 
 ---
 
 ## Fetch PR Information
-
-### Get PR Details
 
 ```bash
 # Get PR number from branch name
@@ -31,29 +37,22 @@ gh pr diff "$PR_NUMBER"
 ### Fetch Review Comments
 
 ```bash
-# Get all review comments on a PR (inline comments from reviews)
-gh api "repos/:owner/:repo/pulls/$PR_NUMBER/comments" --jq '.[] | {path: .path, line: .line, body: .body, author: .user.login}'
+# All inline comments
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | {path, line, body, user: .user.login}'
 
-# Get review summaries (top-level review comments)
-gh api "repos/:owner/:repo/pulls/$PR_NUMBER/reviews" --jq '.[] | {id: .id, state: .state, body: .body, author: .user.login}'
+# Review summaries (top-level)
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | {id, state, body, user: .user.login}'
 
-# Get unresolved comments (reviews that requested changes)
-gh api "repos/:owner/:repo/pulls/$PR_NUMBER/reviews" --jq '.[] | select(.state == "CHANGES_REQUESTED") | {id: .id, body: .body, author: .user.login}'
+# Unresolved/CHANGES_REQUESTED reviews
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | select(.state == "CHANGES_REQUESTED") | {id, body, user: .user.login}'
 
-# Get pending/OPEN review threads
-gh api "repos/:owner/:repo/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null) | {id: .id, path: .path, line: .line, body: .body}'
-```
-
-### Check Review State
-
-```bash
-gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[-1].state'
-# Possible states: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING
+# Pending/OPEN review threads
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null) | {id, path, line, body}'
 ```
 
 ---
 
-## Post a Review (Using Temp Files)
+## Post a Review (Using REST API)
 
 ### Submit a Full PR Review with Inline Comments
 
@@ -62,7 +61,7 @@ gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[-1].state'
 cat > ./tmp/gh-review-body.md << 'EOF'
 ## General Review Summary
 
-[Overall assessment, key findings, scope notes, positive points]
+[Overall assessment, key findings, scope notes]
 
 ### Key Findings
 - Finding 1: [summary]
@@ -81,11 +80,12 @@ cat > ./tmp/gh-review-comments.json << 'EOF'
 ]
 EOF
 
-# 3. Submit the review using temp files
-gh pr review "$PR_NUMBER" \
-  --request-changes \
-  --body "$(cat ./tmp/gh-review-body.md)" \
-  --comments "$(cat ./tmp/gh-review-comments.json)"
+# 3. Submit via REST API (stable, no GraphQL deprecation)
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
+  --method POST \
+  -f body="$(cat ./tmp/gh-review-body.md)" \
+  -f event="REQUEST_CHANGES" \
+  --input ./tmp/gh-review-comments.json
 
 # 4. Clean up
 rm ./tmp/gh-review-body.md ./tmp/gh-review-comments.json
@@ -93,7 +93,7 @@ rm ./tmp/gh-review-body.md ./tmp/gh-review-comments.json
 
 ### Inline Comment Format
 
-Each inline comment in the JSON should include:
+Each inline comment should include:
 - **Issue**: What's wrong and where
 - **Why**: Why it matters (readability, performance, security)
 - **Suggestion**: Specific fix or pattern
@@ -103,10 +103,14 @@ Each inline comment in the JSON should include:
 
 ```bash
 cat > ./tmp/gh-approve.md << 'EOF'
-LGTM. [brief positive note about what looks good]
+LGTM. [brief positive note]
 EOF
 
-gh pr review "$PR_NUMBER" --approve --body "$(cat ./tmp/gh-approve.md)"
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
+  --method POST \
+  -f body="$(cat ./tmp/gh-approve.md)" \
+  -f event="APPROVE"
+
 rm ./tmp/gh-approve.md
 ```
 
@@ -114,10 +118,14 @@ rm ./tmp/gh-approve.md
 
 ```bash
 cat > ./tmp/gh-comment.md << 'EOF'
-[General feedback, questions, or observations]
+[General feedback]
 EOF
 
-gh pr review "$PR_NUMBER" --comment --body "$(cat ./tmp/gh-comment.md)"
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
+  --method POST \
+  -f body="$(cat ./tmp/gh-comment.md)" \
+  -f event="COMMENT"
+
 rm ./tmp/gh-comment.md
 ```
 
@@ -127,12 +135,14 @@ rm ./tmp/gh-comment.md
 
 ```bash
 cat > ./tmp/gh-reply.md << 'EOF'
-Addressed in commit <sha>. The fix uses X instead of Y.
+Addressed in commit <sha>.
 EOF
 
-gh api -X POST "repos/:owner/:repo/pulls/$PR_NUMBER/comments" \
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" \
+  --method POST \
   --input ./tmp/gh-reply.md \
   -f in_reply_to=<comment-id>
+
 rm ./tmp/gh-reply.md
 ```
 
@@ -143,8 +153,10 @@ cat > ./tmp/gh-resolve.md << 'EOF'
 Resolved in commit <sha>.
 EOF
 
-gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/comments/<comment-id>" \
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments/<comment-id>" \
+  --method PATCH \
   --input ./tmp/gh-resolve.md
+
 rm ./tmp/gh-resolve.md
 ```
 
@@ -158,34 +170,30 @@ cat > ./tmp/gh-dismiss.md << 'EOF'
 Code has been updated since this review.
 EOF
 
-gh api -X PUT "repos/:owner/:repo/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
+  --method PUT \
   --input ./tmp/gh-dismiss.md
 
 # Submit new review
 cat > ./tmp/gh-re-review.md << 'EOF'
-Re-review after fixes: [summary of what changed and what's still pending]
+Re-review after fixes: [summary]
 EOF
 
-gh pr review "$PR_NUMBER" --comment --body "$(cat ./tmp/gh-re-review.md)"
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
+  --method POST \
+  -f body="$(cat ./tmp/gh-re-review.md)" \
+  -f event="COMMENT"
+
 rm ./tmp/gh-dismiss.md ./tmp/gh-re-review.md
 ```
 
 ---
 
-## Common Patterns
-
-### Full Review Cycle
-
-1. **Fetch**: `gh pr view` + `gh pr diff` to understand the PR
-2. **Review**: Write review to temp files, submit with `gh pr review --request-changes`
-3. **Update**: After fixes, write follow-up to temp file, submit with `gh pr review --comment`
-4. **Approve**: Write approval to temp file, submit with `gh pr review --approve`
-
-### Check for Stale Reviews
+## Check for Stale Reviews
 
 ```bash
 LATEST_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
-REVIEW_SHA=$(gh api "repos/:owner/:repo/pulls/$PR_NUMBER/reviews" --jq '.[-1].commit_id')
+REVIEW_SHA=$(gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[-1].commit_id')
 
 if [ "$LATEST_SHA" != "$REVIEW_SHA" ]; then
   echo "Review is stale — new commits since last review"
@@ -196,9 +204,9 @@ fi
 
 ## Common Pitfalls
 
-- **Always use temp files** — never inline heredocs in `gh pr review` commands
+- **Always use `gh api` REST** for write operations — avoids GraphQL deprecation issues
 - **`side: "RIGHT"`** is for the new version; `side: "LEFT"` for the old version
-- **Validate JSON** before posting — use `echo '$comments_json' | jq .` to syntax-check
-- **Rate limits**: `gh api` calls are rate-limited; batch where possible
+- **Validate JSON** before posting — use `cat ./tmp/file.json | python -m json.tool`
+- **Detect `$OWNER_REPO`** dynamically — never hardcode it
 - **Clean up**: Always `rm ./tmp/gh-*.md ./tmp/gh-*.json` after each operation
-- Write temp files to `./tmp/` to avoid cluttering the repo
+- Write temp files under `./tmp/` — it's gitignored

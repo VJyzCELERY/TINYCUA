@@ -77,6 +77,7 @@ reviews/              # Active review outputs (root level)
 - [.agents/scripts/preflight-review.py](.agents/scripts/preflight-review.py) — Pre-flight: stale review, unstaged changes, scope
 - [.agents/scripts/preflight-pr.py](.agents/scripts/preflight-pr.py) — Pre-flight: PR number detection
 - [.agents/scripts/preflight-rebase.py](.agents/scripts/preflight-rebase.py) — Pre-flight: rebase safety check
+- [.agents/scripts/gh.py](.agents/scripts/gh.py) — GitHub PR/review helper (fetch, post, update, resolve, create)
 
 ---
 

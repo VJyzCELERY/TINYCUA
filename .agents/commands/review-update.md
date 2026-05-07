@@ -24,33 +24,36 @@ After fixes have been implemented and validated, this command updates the PR rev
    ```
 3. **Fetch existing review comments**: Get all current inline comments on the PR:
    ```bash
-   gh api "repos/:owner/:repo/pulls/$PR_NUMBER/comments"
+   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
    ```
 4. **Map findings to comments**: For each finding in the review report:
    - Find the matching review comment by path/line or issue code
    - Check the finding's **Status** (ADDRESSED, INVALID, or OPEN)
-   - **If ADDRESSED or INVALID**: Post a reply resolving the thread:
+   - **If ADDRESSED or INVALID**: Post a reply and resolve:
      ```bash
-     gh api -X POST "repos/:owner/:repo/pulls/$PR_NUMBER/comments" \
-       -f body="✅ **Resolved**: [brief note on how it was fixed]" \
-       -f in_reply_to=<comment-id>
+     cat > ./tmp/reply.md << 'EOF'
+     ✅ **Resolved**: [brief note on how it was fixed]
+     EOF
+     uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
+     uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
      ```
    - **If still OPEN**: Post a reply noting it remains open:
      ```bash
-     gh api -X POST "repos/:owner/:repo/pulls/$PR_NUMBER/comments" \
-       -f body="❌ **Still open**: [note on what's still needed]" \
-       -f in_reply_to=<comment-id>
+     cat > ./tmp/reply.md << 'EOF'
+     ❌ **Still open**: [note on what's still needed]
+     EOF
+     uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
      ```
 5. **Post a summary comment**: Add a top-level review comment summarizing the update:
    ```bash
-   gh pr review "$PR_NUMBER" --comment --body "$(cat <<'BODY'
+   cat > ./tmp/summary.md << 'BODY'
    ## Review Update
 
    **N findings resolved**, **N still open**.
 
    See inline replies for details on each finding.
    BODY
-   )"
+   uv run python .agents/scripts/gh.py post comment "$PR_NUMBER" ./tmp/summary.md
    ```
 
 ---
@@ -67,8 +70,9 @@ After fixes have been implemented and validated, this command updates the PR rev
 
 ## Important
 
+- Read `.agents/scripts/gh.py` usage first — all PR operations go through it
 - Read `.agents/skills/gh-review/SKILL.md` before updating — it contains the full gh review workflow reference
-- Find the original comment ID before replying — use `gh api` to list PR comments
+- Find the original comment ID before replying — use `uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"` to list
 - Only reply to threads that had inline comments in the original review
 - New findings (not present in the original review) should use `review-post` instead
-- After all findings are resolved, suggest using `gh pr review --approve` to approve
+- After all findings are resolved, post an approval: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/approve.md --event APPROVE`

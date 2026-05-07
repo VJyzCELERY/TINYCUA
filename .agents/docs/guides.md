@@ -111,5 +111,7 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/begin-worktree` | Creates `.worktrees/<branch>/` with matching branch |
 | `/worktree-prune` | Removes stale `.worktrees/` directories |
 | `/worktree-cleanup` | Deletes `./reviews/`, `./tmp/`, `./dev/`, caches |
-| `check-preflight.py` | Pre-flight check script (stale review + unstaged changes) |
-| `get-pr-number.py` | PR number detection script |
+| `preflight-review.py` | Pre-flight: stale review + unstaged changes + scope |
+| `preflight-pr.py` | PR number detection |
+| `preflight-rebase.py` | Rebase safety check |
+| `gh.py` | GitHub PR/review helper (fetch, post, inline, reply, resolve, update, create) |
