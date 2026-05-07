@@ -1,0 +1,118 @@
+---
+description: Runs the review loop independently: review → validate → fix → fresh review → cleanup
+subtask: true
+---
+
+Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-cleanup.
+
+**Target Directory**: $1 (relative path from repo root, e.g. "src/<subproject-dir>")
+**Review Name**: $2 (optional — defaults to directory name)
+**Unscoped (Optional)**: $3 (set to "unscoped" to bypass branch diff scoping)
+
+---
+
+## Workflow-Orchestrator Role
+
+The agent that executes this command is the **workflow-orchestrator**. You use the Task tool to delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
+
+### Every Step Uses a Fresh Subagent
+
+- `/review-report` → Subagent 1, 4, 7, ...
+- `/review-validate` → Subagent 2, 5, 8, ...
+- `/review-implement` → Subagent 3, 6, 9, ...
+- `/review-cleanup` → Subagent N
+
+---
+
+## Important Global Rule: Use `uv run` for Python
+
+All subagents MUST `cd <subproject-dir> && uv run` for Python/pytest commands.
+Bare `python` or `pytest` may import from the wrong worktree.
+
+---
+
+## Instructions
+
+Enter a loop that continues until truly clean (no issues found in a FRESH review):
+
+**Step 1: Review-report (Subagent 1)**
+
+Use Task tool to invoke a fresh subagent:
+```
+Task: Run /review-report for $1 with focus on code quality and spec compliance
+```
+
+The review file is written to `./reviews/REVIEW-{name}.md`.
+
+**Step 2: Review-validate (Subagent 2)**
+
+Use Task tool:
+```
+Task: Run /review-validate for ./reviews/REVIEW-{name}.md
+```
+
+**Step 3: If OPEN issues exist → Review-implement (Subagent 3)**
+
+Use Task tool:
+```
+Task: Run /review-implement for ./reviews/REVIEW-{name}.md
+```
+
+After fixing, return to Step 2 for re-validation (new subagent each time).
+
+**Step 4: If VALIDATE returns CLEAN → Run FRESH Review-report (Subagent N)**
+
+This MUST be a fresh, independent review. No prior context:
+```
+Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
+```
+
+**Step 5: Check Fresh Review Result**
+- If fresh review has ANY new issues → return to Step 2
+- If fresh review returns CLEAN (zero issues) → Exit Review Loop → proceed to Cleanup
+
+**Step 6: Review-cleanup (Subagent N)**
+
+```
+Task: Run /review-cleanup for ./reviews/
+```
+
+---
+
+## Review Loop Oversight Rules (Workflow-Orchestrator)
+
+### 1. Bookkeep Review History
+
+Maintain a running ledger of every finding across all cycles. For each new fresh review:
+
+1. Check each finding against the ledger — has this been raised and addressed before?
+2. If yes → Invalidate: mark it INVALID with note: "Already addressed in cycle N"
+3. If no → Keep as OPEN
+
+### 2. Handle Reopened Issues
+
+- If **code has changed** since the fix, treat as valid new OPEN finding
+- If **code has NOT changed**, the reviewer is wrong — invalidate
+
+### 3. Tighten Scope as Issues Shrink
+
+- **Cycles 1-2**: Full scope — spec compliance, code quality, test coverage
+- **Cycles 3-4**: Narrow to spec compliance and correctness issues
+- **Cycles 5+**: Only real bugs, spec violations, or test gaps
+
+### 4. Orchestrator Validation Gate
+
+After each fresh review, before passing to validate-fix: filter through ledger, check reopen status, assess severity against current cycle scope.
+
+---
+
+## Important
+
+- Use Task tool to invoke each subagent for each step
+- Wait for each subagent to complete before proceeding
+- After validation returns clean, ALWAYS run one more fresh review
+- For FRESH review: explicitly tell subagent to be independent with no prior context
+- Stay scoped to the target directory
+- Run actual commands and tests — don't assume results
+- Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
+- All review files live at `./reviews/REVIEW-{name}.md`

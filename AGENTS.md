@@ -13,6 +13,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/begin-workflow <dir>` | Automates complete specs implementation process |
 | `/plan <dir>` | Creates implementation plan from spec.md/design.md |
 | `/implement <dir>` | Executes implementation plan using TDD |
+| `/review-loop <dir>` | Runs review loop: report → validate → fix → fresh → cleanup |
 | `/review-report <dir>` | Reviews project changes and generates a scoped report |
 | `/review-validate <file>` | Validates findings from a previous review |
 | `/review-implement <file>` | Implements fixes for review findings |
