@@ -29,7 +29,11 @@ class TestAgentConfig:
         """AgentConfig.from_dict() reconstructs the config."""
         from tinycua_sdk import AgentConfig
 
-        d = {"name": "test", "instructions": "Be helpful", "llm_model": _DEFAULT.to_dict()}
+        d = {
+            "name": "test",
+            "instructions": "Be helpful",
+            "llm_model": _DEFAULT.to_dict(),
+        }
         config = AgentConfig.from_dict(d)
         assert config.name == "test"
         assert config.instructions == "Be helpful"

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -19,8 +21,20 @@ class LLMClient(ABC):
         messages: list[dict],
         tools: list[dict] | None,
         model_config: LanguageModel,
-    ) -> dict[str, Any]:
-        """Send chat request and return normalized response."""
+        stream: bool = False,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+        """Send chat request and return normalized response.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of tool schemas.
+            model_config: Language model configuration.
+            stream: When True, return an async iterator of SSE chunk events.
+
+        Returns:
+            Normalized response dict when stream=False, or an async iterator
+            of event dicts when stream=True.
+        """
 
     async def close(self) -> None:
         """Close and release any resources held by the client."""
@@ -60,8 +74,40 @@ class OpenAICompatibleClient(LLMClient):
         messages: list[dict],
         tools: list[dict] | None,
         model_config: LanguageModel,
+        stream: bool = False,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+        """Send a chat completion request.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of tool schemas.
+            model_config: Language model configuration.
+            stream: When True, return an async generator of SSE chunk events.
+
+        Returns:
+            Normalized response dict when stream=False, or an async iterator
+            of event dicts when stream=True.
+        """
+        if not stream:
+            return await self._chat_sync(messages, tools, model_config)
+        return self._chat_stream(messages, tools, model_config)
+
+    async def _chat_sync(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None,
+        model_config: LanguageModel,
     ) -> dict[str, Any]:
-        """Send a chat completion request and return the normalized response."""
+        """Non-streaming chat completion (original logic).
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of tool schemas.
+            model_config: Language model configuration.
+
+        Returns:
+            Normalized response dict with content, tool_calls, and usage.
+        """
         client = self._get_client(model_config)
 
         payload: dict[str, Any] = {
@@ -70,9 +116,18 @@ class OpenAICompatibleClient(LLMClient):
         }
 
         for field in (
-            "temperature", "max_tokens", "top_p", "frequency_penalty",
-            "presence_penalty", "stop", "seed", "response_format",
-            "tool_choice", "logprobs", "top_logprobs", "user",
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+            "response_format",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs",
+            "user",
         ):
             value = getattr(model_config, field)
             if value is not None:
@@ -93,14 +148,10 @@ class OpenAICompatibleClient(LLMClient):
         data = response.json()
 
         if "choices" not in data or not data["choices"]:
-            raise RuntimeError(
-                f"LLM response missing 'choices' field: {data}"
-            )
+            raise RuntimeError(f"LLM response missing 'choices' field: {data}")
         choice = data["choices"][0]
         if "message" not in choice:
-            raise RuntimeError(
-                f"LLM response choice missing 'message' field: {choice}"
-            )
+            raise RuntimeError(f"LLM response choice missing 'message' field: {choice}")
         message = choice["message"]
 
         tool_calls = None
@@ -108,20 +159,94 @@ class OpenAICompatibleClient(LLMClient):
             tool_calls = []
             for tc in message["tool_calls"]:
                 func = tc.get("function", {})
-                tool_calls.append({
-                    "id": tc.get("id", ""),
-                    "type": tc.get("type", "function"),
-                    "function": {
-                        "name": func.get("name", ""),
-                        "arguments": func.get("arguments", "{}"),
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": tc.get("id", ""),
+                        "type": tc.get("type", "function"),
+                        "function": {
+                            "name": func.get("name", ""),
+                            "arguments": func.get("arguments", "{}"),
+                        },
+                    }
+                )
 
         return {
             "content": message.get("content"),
             "tool_calls": tool_calls,
             "usage": data.get("usage"),
         }
+
+    async def _chat_stream(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None,
+        model_config: LanguageModel,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Streaming chat completion via SSE.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of tool schemas.
+            model_config: Language model configuration.
+
+        Yields:
+            Normalised event dicts for content deltas and tool call deltas.
+        """
+        client = self._get_client(model_config)
+
+        payload: dict[str, Any] = {
+            "model": model_config.model_name,
+            "messages": messages,
+        }
+
+        for field in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+            "response_format",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs",
+            "user",
+        ):
+            value = getattr(model_config, field)
+            if value is not None:
+                payload[field] = value
+
+        if tools:
+            payload["tools"] = tools
+            if "tool_choice" not in payload:
+                payload["tool_choice"] = "auto"
+
+        payload["stream"] = True
+
+        async with client.stream("POST", "/chat/completions", json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                line = line.strip()
+                if not line or line == "data: [DONE]":
+                    continue
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    delta = data["choices"][0].get("delta", {})
+                    if delta.get("content"):
+                        yield {
+                            "type": "response.output_text.delta",
+                            "delta": delta["content"],
+                            "item_id": data["choices"][0].get("id", ""),
+                        }
+                    elif delta.get("tool_calls"):
+                        for tc in delta["tool_calls"]:
+                            yield {
+                                "type": "response.tool_call.delta",
+                                "id": tc.get("id", ""),
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"],
+                            }
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]

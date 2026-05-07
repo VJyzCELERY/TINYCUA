@@ -71,7 +71,9 @@ class TestInt02SkillsCreation:
     def test_int_06_skill_registry_register_and_list(self):
         """Target 1.9: Verify SkillRegistry register and list."""
         s1 = Skill(name="coder", description="Write code", instructions="Use PEP 8.")
-        s2 = Skill(name="tester", description="Write tests", instructions="Cover edge cases.")
+        s2 = Skill(
+            name="tester", description="Write tests", instructions="Cover edge cases."
+        )
 
         registry = SkillRegistry()
         registry.register(s1)
@@ -93,7 +95,9 @@ class TestInt02SkillsCreation:
     def test_int_08_skill_registry_overwrite(self):
         """Target 1.9: Verify SkillRegistry overwrites on duplicate name registration."""
         s1 = Skill(name="coder", description="Write code", instructions="Use PEP 8.")
-        s2 = Skill(name="tester", description="Write tests", instructions="Cover edge cases.")
+        s2 = Skill(
+            name="tester", description="Write tests", instructions="Cover edge cases."
+        )
         s3 = Skill(name="coder", description="Write code v2", instructions="Use PEP 8.")
 
         registry = SkillRegistry()

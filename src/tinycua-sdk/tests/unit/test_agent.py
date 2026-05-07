@@ -264,6 +264,3 @@ class TestAgentConfigRoundTrip:
         restored = Agent.from_config(config)
         assert restored.name == "roundtrip"
         assert restored.instructions == "Test"
-
-
-

@@ -14,6 +14,7 @@ class TestInt05AgentWithToolsAndSkills:
     @pytest.mark.asyncio
     async def test_int_01_combined_tools_and_skills(self, mock_llm_with_tool_calls):
         """Target 4.4: Agent with instructions, tools, and skills."""
+
         @tool
         def search(query: str) -> str:
             return f"[Search results for: {query}]"
@@ -34,7 +35,9 @@ class TestInt05AgentWithToolsAndSkills:
             instructions="You are a research assistant.",
         )
 
-        response = await agent.run("What is the latest version of FastAPI?", stream="off")
+        response = await agent.run(
+            "What is the latest version of FastAPI?", stream="off"
+        )
         assert isinstance(response, str)
         assert len(response) > 0
 
