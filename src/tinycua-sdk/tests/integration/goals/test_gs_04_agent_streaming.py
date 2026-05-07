@@ -146,6 +146,7 @@ class TestStreamingWithToolCalls:
                 if call_count == 1:
                     yield {
                         "type": "response.tool_call.delta",
+                        "index": 0,
                         "id": "call_1",
                         "name": "get_time",
                         "arguments": "{}",
@@ -186,6 +187,7 @@ class TestStreamingWithToolCalls:
             async def _gen():
                 yield {
                     "type": "response.tool_call.delta",
+                    "index": 0,
                     "id": "call_1",
                     "name": "get_time",
                     "arguments": "{}",
