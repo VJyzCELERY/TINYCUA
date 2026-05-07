@@ -50,10 +50,15 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 - [.agents/docs/project_rules/logging_guidelines.md](.agents/docs/project_rules/logging_guidelines.md) — Logging standards
 - [.agents/docs/project_rules/coding_standards.md](.agents/docs/project_rules/coding_standards.md) — Code standards
 - [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
+- [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
 
 ---
 
-## Critical: Always Check Templates First
+## Critical: Always Read Rules and Check Templates First
+
+**Before starting any task**, read the relevant rules from `.agents/docs/` first. This includes agent rules (`.agents/docs/agents/`) and project rules (`.agents/docs/project_rules/`). Each rule file defines conventions, constraints, and expectations that the agent must follow.
+
+**Before generating any document**, always check `.agents/templates/` first. Use Read to load the relevant template and follow its structure.
 
 **Before generating any document** (PR body, implementation plan, review report, task list, spec, or design), **always check `.agents/templates/` first**. Use Read to load the relevant template and follow its structure.
 

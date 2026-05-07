@@ -1,18 +1,24 @@
 ## Summary
 
+### Spec / Design References
+- **Spec**: `specs/<feature-name>/spec.md`
+- **Design**: `specs/<feature-name>/design.md`
+
 ### Problem
-[Describe the problem being solved. What was missing, broken, or unclear before this change? Be specific about the user-facing or developer-facing impact.]
+[Describe the problem being solved. Reference the spec's problem statement. What was missing, broken, or unclear before this change?]
 
 ### Solution
-[Describe the solution implemented. List key changes, new modules, modified files, and architectural decisions. Be specific about what was added/changed/removed.]
+[Describe the solution implemented. Map key changes to spec functional requirements (FR-001, FR-002, etc.). List new modules, modified files, and architectural decisions.]
 
 ### Scope
 
 In scope:
-- [Item 1: concise description of what's included]
+- [Map to spec FRs: e.g., FR-001 — user authentication via OAuth]
+- [Item 2]
 
 Out of scope:
-- [Item 1: concise description of what's explicitly excluded]
+- [Item 1: explicitly excluded — if from spec, note which FR is deferred]
+- [Item 2]
 
 ## How to Test
 
