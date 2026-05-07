@@ -300,8 +300,8 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
-            'data: {"choices":[{"delta":{"content":"Hello"},"id":"1"}]}\n',
-            'data: {"choices":[{"delta":{"content":" world"},"id":"2"}]}\n',
+            'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n',
+            'data: {"id":"2","choices":[{"delta":{"content":" world"}}]}\n',
             "data: [DONE]\n",
         ]
 

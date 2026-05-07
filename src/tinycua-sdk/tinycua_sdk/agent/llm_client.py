@@ -237,7 +237,7 @@ class OpenAICompatibleClient(LLMClient):
                         yield {
                             "type": "response.output_text.delta",
                             "delta": delta["content"],
-                            "item_id": data["choices"][0].get("id", ""),
+                            "item_id": data.get("id", ""),
                         }
                     elif delta.get("tool_calls"):
                         for tc in delta["tool_calls"]:
