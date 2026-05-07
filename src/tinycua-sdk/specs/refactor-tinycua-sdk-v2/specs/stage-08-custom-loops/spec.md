@@ -81,7 +81,40 @@ class PlanThenExecuteLoop(BaseLoop):
         pass
 ```
 
-### R-8.4: Loop Assignment
+### R-8.4: Standard OpenAI Event Completeness
+
+The default `BaseLoop._run_stream()` and `BaseLoop.run()` MUST emit these additional streaming events deferred from Stage 5, completing the OpenAI Responses API event coverage:
+
+**R-8.4.1: response.in_progress Event**
+
+Emitted when the response transitions to the "in progress" state (after `response.created`, before first content delta).
+
+```python
+{"type": "response.in_progress"}
+```
+
+**R-8.4.2: response.function_call_arguments Events**
+
+When the LLM emits tool calls during streaming, the standard OpenAI `response.function_call_arguments.delta` and `response.function_call_arguments.done` event types MUST be emitted alongside the internal `response.tool_call.delta` event.
+
+```python
+# Per chunk of tool call arguments:
+{
+    "type": "response.function_call_arguments.delta",
+    "item_id": "call_abc123",
+    "delta": '{"expr',
+}
+
+# When all arguments for a tool call are complete:
+{
+    "type": "response.function_call_arguments.done",
+    "item_id": "call_abc123",
+    "name": "calculator",
+    "arguments": '{"expression": "2+2"}',
+}
+```
+
+### R-8.5: Loop Assignment
 
 ```python
 agent = Agent(

@@ -48,24 +48,24 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 All streaming events MUST follow the OpenAI Responses API SSE event format. Each event is a JSON dict with a `type` field identifying the event kind. The table below enumerates all standard OpenAI Responses API event types, annotated with implementation status for this stage.
 
-| Event Type | Implemented | Description |
-|---|---|---|
-| `response.created` | ✅ | Emitted once when the response is created. |
-| `response.in_progress` | ❌ Deferred | Response is being processed. |
-| `response.output_text.delta` | ✅ | Text content delta chunk. |
-| `response.output_text.done` | ✅ | Text output item complete — contains full accumulated text. |
-| `response.output_text.annotation.added` | ❌ Deferred | Citation/annotation on text output. |
-| `response.output_item.added` | ✅ | Output item (tool_call, tool_output) added. |
-| `response.output_item.done` | ✅ | Output item complete. |
-| `response.content_part.added` | ❌ Deferred | Content part added (multi-part responses). |
-| `response.content_part.done` | ❌ Deferred | Content part complete. |
-| `response.function_call_arguments.delta` | ❌ Deferred | Function call argument delta (standard event; `response.tool_call.delta` is used internally as equivalent). |
-| `response.function_call_arguments.done` | ❌ Deferred | Function call arguments complete. |
-| `response.completed` | ✅ | Response completed successfully. |
-| `response.failed` | ✅ | Response failed with error details. |
-| `error` | ✅ | Transient streaming error event. |
+| Event Type | Implemented | Stage | Description |
+|---|---|---|---|
+| `response.created` | ✅ | 5 | Emitted once when the response is created. |
+| `response.in_progress` | ❌ Deferred | 8 | Response is being processed. |
+| `response.output_text.delta` | ✅ | 5 | Text content delta chunk. |
+| `response.output_text.done` | ✅ | 5 | Text output item complete — contains full accumulated text. |
+| `response.output_text.annotation.added` | ❌ Deferred | 9 | Citation/annotation on text output. |
+| `response.output_item.added` | ✅ | 5 | Output item (tool_call, tool_output) added. |
+| `response.output_item.done` | ✅ | 5 | Output item complete. |
+| `response.content_part.added` | ❌ Deferred | 9 | Content part added (multi-part responses). |
+| `response.content_part.done` | ❌ Deferred | 9 | Content part complete. |
+| `response.function_call_arguments.delta` | ❌ Deferred | 8 | Function call argument delta (standard event; `response.tool_call.delta` is used internally as equivalent). |
+| `response.function_call_arguments.done` | ❌ Deferred | 8 | Function call arguments complete. |
+| `response.completed` | ✅ | 5 | Response completed successfully. |
+| `response.failed` | ✅ | 5 | Response failed with error details. |
+| `error` | ✅ | 5 | Transient streaming error event. |
 
-Events marked ❌ Deferred are recognized OpenAI standard events that are out of scope for this stage. They MUST be emitted with the correct type string when implemented in future stages to maintain backward compatibility.
+Events marked ❌ Deferred are recognized OpenAI standard events that are out of scope for this stage. The "Stage" column indicates which future stage should implement each event. Deferred events MUST be emitted with the correct type string when implemented to maintain backward compatibility.
 
 ### R-5.2.1: response.output_text.done Event
 
