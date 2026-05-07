@@ -129,6 +129,11 @@ class Agent(AgentExecutor):
             Final response string when stream='off', or an async iterator
             of event dicts when streaming.
         """
+        valid_modes = {"off", "token", "event", "all"}
+        if stream not in valid_modes:
+            raise ValueError(
+                f"Invalid stream mode '{stream}'. Must be one of: {', '.join(sorted(valid_modes))}"
+            )
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
         try:
