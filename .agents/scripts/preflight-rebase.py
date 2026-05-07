@@ -1,71 +1,137 @@
-"""Pre-flight check for rebase commands.
+"""Pre-flight check for rebase and commit-cleanup commands.
 
-Checks ahead/behind status, detects already-applied commits, and warns about conflicts.
-Call before running /rebase or any manual rebase.
+Checks: unique commits, already-applied duplicates, potential merge conflicts,
+and uncommitted changes. Call before running /rebase or /commit-cleanup.
 
 Usage:
-    uv run python .agents/scripts/preflight-rebase.py [--target <branch>]
+    uv run python .agents/scripts/preflight-rebase.py [--target <branch>] [--list-commits]
 
-Defaults target to 'main'.
+Options:
+    --target <branch>     Target branch to check against (default: main)
+    --list-commits        Show the full list of unique commits on this branch
+
 Exits 0 if rebase is safe, non-zero with warnings otherwise.
 <EOF_DESC>
 """
 
-import subprocess, sys, argparse
+import subprocess, sys, argparse, json
 
 
 def run(cmd):
     try:
         return subprocess.check_output(cmd, text=True).strip()
+    except subprocess.CalledProcessError as e:
+        return e.output.strip() if e.output else ""
     except Exception:
         return ""
 
 
+def get_unique_commits(target: str) -> list[str]:
+    """Get commits on HEAD that are not in target."""
+    out = run(["git", "log", "--oneline", f"{target}..HEAD"])
+    return [l for l in out.splitlines() if l.strip()] if out else []
+
+
 def check_ahead_behind(target: str) -> list[str]:
-    warnings = []
-    ahead = run(["git", "rev-list", "--count", f"{target}..HEAD"])
-    behind = run(["git", "rev-list", "--count", f"HEAD..{target}"])
-    ahead = int(ahead) if ahead else 0
-    behind = int(behind) if behind else 0
+    msgs = []
+    ahead = int(run(["git", "rev-list", "--count", f"{target}..HEAD"]) or 0)
+    behind = int(run(["git", "rev-list", "--count", f"HEAD..{target}"]) or 0)
 
     if ahead == 0 and behind == 0:
-        warnings.append("[INFO] Branch is already up to date — nothing to rebase.")
+        msgs.append("[INFO] Branch is already up to date — nothing to rebase.")
     elif ahead > 0:
-        warnings.append(f"[INFO] {ahead} unique commit(s) on this branch (will be replayed).")
+        msgs.append(f"[INFO] {ahead} unique commit(s) on this branch (will be replayed).")
     if behind > 0:
-        warnings.append(f"[INFO] {behind} commit(s) behind {target} (will be pulled in).")
-    return warnings
+        msgs.append(f"[INFO] {behind} commit(s) behind {target} (will be pulled in).")
+    return msgs
 
 
 def check_duplicates(target: str) -> list[str]:
-    """Detect commits already applied to target via cherry-pick detection."""
     dupes = run(["git", "log", "--oneline", "--cherry-pick", f"{target}...HEAD"])
     if dupes:
-        lines = dupes.splitlines()
-        eq = [l for l in lines if l.startswith("=")]
+        eq = [l for l in dupes.splitlines() if l.startswith("=")]
         if eq:
             return [f"[WARN] {len(eq)} commit(s) already in {target} (will be skipped):"] + \
-                   [f"       {l[1:].strip()}" for l in eq]
+                   [f"       {l[1:]}".strip() for l in eq]
     return []
 
 
 def check_uncommitted() -> list[str]:
     status = run(["git", "status", "--porcelain"])
     if status:
-        return [f"[WARN] Uncommitted changes will be carried into rebase:"] + \
-               [f"       {l}" for l in status.splitlines()]
+        lines = status.splitlines()
+        return [f"[WARN] {len(lines)} uncommitted file(s) (carried into rebase):"] + \
+               [f"       {l}" for l in lines]
     return []
+
+
+def check_potential_conflicts(target: str) -> list[str]:
+    """Check for potential merge conflicts using merge-tree.
+
+    Runs a dry three-way merge between the merge-base and each side.
+    This is the most reliable pre-rebase conflict detection without actually
+    running the rebase.
+    """
+    msgs = []
+    merge_base = run(["git", "merge-base", target, "HEAD"])
+    if not merge_base:
+        return ["[WARN] Cannot determine merge base — skipping conflict check."]
+
+    # Try merge-tree
+    try:
+        merged = subprocess.check_output(["git", "merge-tree", merge_base, target, "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ["[WARN] `git merge-tree` not available (git >= 2.35 required) — skipping conflict check."]
+    
+    if not merged:
+        return ["[INFO] No merge conflicts detected in dry run — rebase should be clean."]
+
+    # Parse merge-tree output for conflicting files
+    conflict_files = set()
+    for line in merged.splitlines():
+        if line.startswith("changed in both"):
+            parts = line.split()
+            if len(parts) >= 4:
+                conflict_files.add(parts[3])
+        elif "<<<<<<<" in line or "=======" in line or ">>>>>>>" in line:
+            in_conflict = True
+
+    if conflict_files:
+        msgs.append(f"[WARN] {len(conflict_files)} file(s) may conflict during rebase:")
+        for f in conflict_files:
+            msgs.append(f"       {f}")
+        msgs.append("[INFO] Run `git rebase {target}` to see exact conflicts.")
+        msgs.append("[INFO] Use the question/ask tool to involve the user in conflict resolution.")
+    else:
+        msgs.append("[INFO] No merge conflicts detected in dry run — rebase should be clean.")
+
+    return msgs
+
+
+def list_unique_commits(target: str) -> list[str]:
+    commits = get_unique_commits(target)
+    if not commits:
+        return ["[INFO] No unique commits on this branch."]
+    result = [f"[INFO] {len(commits)} unique commit(s):"]
+    for c in commits:
+        result.append(f"       {c}")
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(description="Pre-flight check for rebase")
-    parser.add_argument("--target", type=str, default="main", help="Target branch to rebase onto")
+    parser.add_argument("--target", type=str, default="main", help="Target branch (default: main)")
+    parser.add_argument("--list-commits", action="store_true", help="Show unique commits on this branch")
     args = parser.parse_args()
 
     all_warnings = []
     all_warnings.extend(check_ahead_behind(args.target))
     all_warnings.extend(check_duplicates(args.target))
+    all_warnings.extend(check_potential_conflicts(args.target))
     all_warnings.extend(check_uncommitted())
+
+    if args.list_commits:
+        all_warnings.extend(list_unique_commits(args.target))
 
     for w in all_warnings:
         print(w)
