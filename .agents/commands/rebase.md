@@ -56,15 +56,67 @@ git rebase <target>
 
 ### 4. Handle Conflicts
 
-```bash
-git status                    # see which files conflict
-# Fix conflicts manually
-git add <resolved-file>       # stage resolved file
-git rebase --continue         # continue rebase
+If `git rebase <target>` fails with conflicts, do NOT resolve silently. Involve the user:
 
-# To abort:
+#### 4a. Notify the User
+
+Use the question/ask tool to tell the user a conflict occurred. Do NOT try to auto-resolve without user input.
+
+#### 4b. Analyze the Conflicts
+
+```bash
+git status                         # show which files have conflicts
+```
+
+For each conflicted file, examine the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`):
+
+```bash
+# Show conflict regions with line numbers
+grep -rn '<<<<<<<\|=======\|>>>>>>>' <conflicted-file>
+```
+
+#### 4c. Present to the User
+
+For each conflict, tell the user:
+- **File**: The file path
+- **Lines**: The line range of the conflict
+- **What changed on YOUR branch**: The commit message and what it changed
+- **What changed on THEIRS (target)**: The commit message and what it changed
+- **Suggested resolution**: Recommend which side to keep, or how to merge both
+- **Ask for their input**: Use the question/ask tool to ask the user how to proceed
+
+Example:
+```
+Conflict in src/agent.py:45-52
+
+Your branch (feat/new-feature): "Add timeout handling" — added try/except around API call
+Target (main): "Refactor error handling" — moved error handling to middleware
+
+Suggested: Keep both — wrap the try/except with the new middleware pattern.
+How would you like to resolve this?
+```
+
+#### 4d. Apply the User's Decision
+
+Once the user tells you what to do:
+1. Edit the file accordingly
+2. Remove conflict markers
+3. Stage the resolved file: `git add <resolved-file>`
+4. Continue: `git rebase --continue`
+
+#### 4e. Repeat
+
+If there are multiple conflicts, repeat steps 4b-4d for each one. Conflicts are resolved one commit at a time — you may encounter the same file in a later commit with different conflicts.
+
+#### 4f. Abort Option
+
+If the user wants to stop the rebase entirely:
+
+```bash
 git rebase --abort
 ```
+
+Provide this option at any point if the user seems unsure.
 
 ### 5. Verify After Rebase
 
@@ -92,7 +144,7 @@ fi
 - Always check for already-applied commits before rebasing
 - Never use `--reapply-cherry-picks` unless you explicitly want duplicates
 - After rebasing, force push is required (`git push --force origin <branch>`)
-- If unsure, use `git rebase --abort` to return to original state
-- Conflicts during rebase are normal — resolve them carefully, don't abort unless the conflicts are unresolvable
+- **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input using the question/ask tool. Never resolve conflicts silently.
+- Use the question/ask tool at every step that needs user input — don't proceed with assumptions
 
 Begin by reading the git-rebase skill, then check the current branch state and rebase onto the target.
