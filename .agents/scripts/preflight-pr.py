@@ -10,6 +10,7 @@ If --pr is given, validates that PR exists.
 If --branch is given, finds PR for that branch.
 If neither, detects from current branch.
 Exits 0 with PR number on stdout, non-zero otherwise.
+<EOF_DESC>
 """
 
 import subprocess, sys, argparse, json

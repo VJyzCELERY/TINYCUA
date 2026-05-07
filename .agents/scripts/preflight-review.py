@@ -14,6 +14,7 @@ Options:
 If --review-file is provided, checks if the commit range in the report matches HEAD.
 Always checks for unstaged changes.
 Exits 0 if all clear, non-zero with warnings otherwise.
+<EOF_DESC>
 """
 
 import subprocess, sys, re, argparse

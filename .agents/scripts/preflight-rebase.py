@@ -8,6 +8,7 @@ Usage:
 
 Defaults target to 'main'.
 Exits 0 if rebase is safe, non-zero with warnings otherwise.
+<EOF_DESC>
 """
 
 import subprocess, sys, argparse
