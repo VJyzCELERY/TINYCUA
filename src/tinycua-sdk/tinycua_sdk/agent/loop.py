@@ -7,17 +7,6 @@ import json
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-from tinycua_sdk.agent.events import (
-    ResponseCancelledEvent,
-    ResponseCompletedEvent,
-    ResponseCreatedEvent,
-    ResponseFailedEvent,
-    ResponseOutputItemAddedEvent,
-    ResponseOutputItemDoneEvent,
-    ResponseOutputTextDeltaEvent,
-    ResponseOutputTextDoneEvent,
-    ResponseUsageEvent,
-)
 from tinycua_sdk.agent.executor import ToolExecutor
 
 if TYPE_CHECKING:
@@ -90,7 +79,7 @@ class BaseLoop:
                 break
 
             response = await agent._call_llm(working_messages, tools)
-
+            assert isinstance(response, dict)
             content = response.get("content")
             tool_calls = response.get("tool_calls")
             if tool_calls:
@@ -223,6 +212,10 @@ class BaseLoop:
                 if content_parts:
                     if stream_mode in ("event", "all"):
                         yield {
+                            "type": "response.output_item.added",
+                            "item": {"type": "text", "item_id": content_item_id},
+                        }
+                        yield {
                             "type": "response.output_text.done",
                             "item_id": content_item_id,
                             "content": combined_content,
@@ -271,6 +264,10 @@ class BaseLoop:
                 "type": "response.failed",
                 "error": {"message": str(e)},
             }
+            yield {
+                "type": "error",
+                "error": {"message": str(e)},
+            }
             return
 
         if usage:
@@ -292,6 +289,7 @@ class BaseLoop:
                       content_item_id, usage).
         """
         llm_stream = await agent._call_llm(working_messages, tools, stream=True)
+        assert isinstance(llm_stream, AsyncIterator)
         content_parts: list[str] = []
         content_delta_events: list[dict] = []
         content_item_id: str = ""
@@ -371,7 +369,7 @@ class BaseLoop:
                     "error": f"Failed to parse arguments for tool '{tool_name}': {e}"
                 }
                 events.extend(
-                    self._build_tool_events(tc, tool_name, tool_result, stream_mode)
+                    self._build_tool_events(tc, tool_name, {}, tool_result, stream_mode)
                 )
                 working_messages.append(
                     {
@@ -394,7 +392,7 @@ class BaseLoop:
             tool_call_count += 1
 
             events.extend(
-                self._build_tool_events(tc, tool_name, tool_result, stream_mode)
+                self._build_tool_events(tc, tool_name, arguments, tool_result, stream_mode)
             )
             working_messages.append(
                 {
@@ -411,6 +409,7 @@ class BaseLoop:
     def _build_tool_events(
         tc: dict[str, Any],
         tool_name: str,
+        arguments: dict[str, Any],
         tool_result: Any,
         stream_mode: str,
     ) -> list[dict[str, Any]]:
@@ -419,6 +418,7 @@ class BaseLoop:
         Args:
             tc: Tool call data dict.
             tool_name: Name of the tool.
+            arguments: Parsed tool call arguments dict.
             tool_result: Result from tool execution.
             stream_mode: Streaming mode for filtering.
 
@@ -433,7 +433,7 @@ class BaseLoop:
                     "item": {
                         "type": "tool_call",
                         "name": tool_name,
-                        "arguments": json.loads(tc["arguments"]),
+                        "arguments": arguments,
                     },
                 }
             )
