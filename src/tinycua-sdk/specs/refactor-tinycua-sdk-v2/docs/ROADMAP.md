@@ -1,24 +1,8 @@
 # TINYCUA SDK v2 Refactor Roadmap
 
-> **Status:** In Progress  
+> **Status:** Draft  
 > **Scope:** Complete project reset of `tinycua-sdk` targeting the API defined in [`../goals/`](../goals/). This is a clean-slate build — not a migration from v1.  
 > **End Goal:** All 16 goal-derived integration tests pass.
->
-> ### Progress Summary
->
-> | Stage | Status | Tests Targeted |
-> |-------|--------|----------------|
-> | 0 — Cleanup | 📝 Draft | Sanity imports |
-> | 1 — Value Objects | 📝 Draft | `test_gs_01`, `test_int_01`, `test_int_02` |
-> | 2 — Agent Config | 📝 Draft | `test_gs_02` |
-> | 2.5 — Clear Backward Compat | 📝 Draft | Stage 2 constructor clean |
-> | **3 — Execution Core** | ✅ **Complete** | `test_gs_03`, `test_int_03` |
-> | 4 — Skills & Composition | 📝 Draft | `test_int_04`, `test_int_05` |
-> | 5 — Streaming | 📝 Draft | `test_gs_04` |
-> | 6 — Serialization | 📝 Draft | `test_int_06–09` |
-> | 7 — Security | 📝 Draft | `test_adv_02`, `test_adv_03` |
-> | 8 — Custom Loops | 📝 Draft | `test_adv_01` |
-> | 9 — Final Integration | 📝 Draft | All 16 pass |
 
 ---
 
@@ -139,7 +123,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 3: LLM Client & Basic Execution Loop — ✅ Complete
+### Stage 3: LLM Client & Basic Execution Loop
 
 **Objective:** The agent can call an LLM and return a response. Non-streaming only.
 
