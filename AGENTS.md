@@ -15,7 +15,9 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/implement` | Executes plan tasks using TDD (red → green → refactor) |
 | `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
 | `/review-report` | Scoped code review of current branch changes |
-| `/review-validate` | Re-checks review findings (marks fixed/stale) |
+| `/review-validate` | Full pipeline: clarify vague findings → verify statuses |
+| `/review-clarify` | Improves review precision — rewrites vague findings |
+| `/review-verify` | Checks each finding: addressed, invalid, or still OPEN |
 | `/review-implement` | Applies fixes for review findings |
 | `/review-post` | Posts review as a GitHub PR review with inline comments |
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |

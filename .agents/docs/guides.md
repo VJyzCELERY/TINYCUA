@@ -9,7 +9,9 @@
 | `/implement` | Executes plan tasks using TDD (red → green → refactor) |
 | `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
 | `/review-report` | Scoped code review of current branch changes |
-| `/review-validate` | Re-checks review findings (marks fixed/stale) |
+| `/review-validate` | Full pipeline: clarify vague findings → verify statuses |
+| `/review-clarify` | Improves review precision — rewrites vague findings |
+| `/review-verify` | Checks each finding: addressed, invalid, or still OPEN |
 | `/review-implement` | Applies fixes for review findings |
 | `/review-post` | Posts review as a GitHub PR review with inline comments |
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
@@ -28,7 +30,9 @@
 | Write code following a plan | `/implement specs/my-feature/` |
 | Run the full review loop (report → fix → fresh report) until clean | `/review-loop src/my-subproject/` |
 | Check if your branch code is clean before merging | `/review-report src/my-subproject/` |
-| Re-check if previously flagged issues are actually fixed | `/review-validate reviews/REVIEW-foo.md` |
+| Run full validation (clarify + verify) on a review | `/review-validate reviews/REVIEW-foo.md` |
+| Improve vague review findings to be more precise | `/review-clarify reviews/REVIEW-foo.md` |
+| Check if previously flagged issues are actually fixed | `/review-verify reviews/REVIEW-foo.md` |
 | Fix issues found by a review | `/review-implement reviews/REVIEW-foo.md` |
 | Publish review results on a GitHub PR | `/review-post reviews/REVIEW-foo.md` |
 | Update a PR review after fixes landed | `/review-update reviews/REVIEW-foo.md` |
@@ -86,7 +90,9 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/implement` | Code changes + updates `task.md` |
 | `/review-loop` | Runs report → validate → fix → cleanup cycle |
 | `/review-report` | `./reviews/REVIEW-{name}.md` |
-| `/review-validate` | Updates `./reviews/REVIEW-{name}.md` |
+| `/review-validate` | Clarifies + verifies: updates `./reviews/REVIEW-{name}.md` |
+| `/review-clarify` | Rewrites vague findings in `./reviews/REVIEW-{name}.md` |
+| `/review-verify` | Updates statuses in `./reviews/REVIEW-{name}.md` |
 | `/review-implement` | Code changes + updates `./reviews/REVIEW-{name}.md` |
 | `/review-post` | Posts on GitHub PR |
 | `/review-update` | Comments/resolutions on GitHub PR |
