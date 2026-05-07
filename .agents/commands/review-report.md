@@ -5,7 +5,7 @@ subtask: true
 
 Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
 
-**Target Directory**: $1 (relative path from repo root, e.g. "src/tinycua-sdk")
+**Target Directory**: $1 (relative path from repo root, e.g. "src/<subproject-dir>")
 **Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped")
 **Explicit Files (Optional)**: $3 (comma-separated list of files to review outside the diff scope)
 

@@ -101,8 +101,8 @@ Always `cd` into the subproject directory first, then use `uv run`:
 
 ```bash
 # ✅ Correct
-cd src/tinycua-sdk && uv run python script.py
-cd src/tinycua-sdk && uv run pytest tests/
+cd src/<subproject-dir> && uv run python script.py
+cd src/<subproject-dir> && uv run pytest tests/
 
 # ❌ Wrong
 python script.py
