@@ -82,21 +82,15 @@ class BaseLoop:
 
             content = response.get("content")
             tool_calls = response.get("tool_calls")
-            if content or tool_calls:
-                assistant_msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "content": content or "",
-                }
-                if tool_calls:
-                    assistant_msg["tool_calls"] = tool_calls
-                working_messages.append(assistant_msg)
-
             if tool_calls:
+                executed_tool_calls: list[dict[str, Any]] = []
+                tool_result_messages: list[dict[str, Any]] = []
                 for tc in tool_calls:
                     if tool_call_count >= agent.policy.max_tool_calls:
                         break
 
                     tool_name = tc["function"]["name"]
+                    executed_tool_calls.append(tc)
 
                     try:
                         arguments = json.loads(tc["function"]["arguments"])
@@ -105,7 +99,7 @@ class BaseLoop:
                         tool_result = {
                             "error": f"Failed to parse arguments for tool '{tool_name}': {e}"
                         }
-                        working_messages.append(
+                        tool_result_messages.append(
                             {
                                 "role": "tool",
                                 "tool_call_id": tc["id"],
@@ -127,7 +121,7 @@ class BaseLoop:
                             tool_result = {"error": f"Tool execution failed: {e}"}
                     tool_call_count += 1
 
-                    working_messages.append(
+                    tool_result_messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tc["id"],
@@ -135,7 +129,21 @@ class BaseLoop:
                             "content": str(tool_result),
                         }
                     )
+
+                if content or executed_tool_calls:
+                    assistant_msg: dict[str, Any] = {
+                        "role": "assistant",
+                        "content": content or "",
+                    }
+                    if executed_tool_calls:
+                        assistant_msg["tool_calls"] = executed_tool_calls
+                    working_messages.append(assistant_msg)
+                working_messages.extend(tool_result_messages)
             else:
+                if content:
+                    working_messages.append(
+                        {"role": "assistant", "content": content}
+                    )
                 return content or ""
 
         last_assistant = self._last_assistant_content(working_messages)
@@ -173,6 +181,7 @@ class BaseLoop:
         try:
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
+                    yield {"type": "response.cancelled"}
                     break
 
                 if tool_call_count >= agent.policy.max_tool_calls:
@@ -195,19 +204,6 @@ class BaseLoop:
                     "role": "assistant",
                     "content": combined_content,
                 }
-                if tool_calls_list:
-                    assistant_msg["tool_calls"] = [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["name"],
-                                "arguments": json.loads(tc["arguments"]),
-                            },
-                        }
-                        for tc in tool_calls_list
-                    ]
-                working_messages.append(assistant_msg)
 
                 for chunk in content_delta_events:
                     if stream_mode in ("token", "all"):
@@ -226,7 +222,7 @@ class BaseLoop:
                         }
 
                 if tool_calls_list:
-                    tool_call_count, tool_events = await self._execute_tools_stream(
+                    tool_call_count, executed_tool_calls, tool_events = await self._execute_tools_stream(
                         agent,
                         tools,
                         tool_calls_list,
@@ -234,9 +230,26 @@ class BaseLoop:
                         working_messages,
                         stream_mode,
                     )
+                    if executed_tool_calls:
+                        assistant_msg["tool_calls"] = [
+                            {
+                                "id": tc["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": tc["name"],
+                                    "arguments": json.loads(tc["arguments"]),
+                                },
+                            }
+                            for tc in executed_tool_calls
+                        ]
+                    working_messages.insert(
+                        len(working_messages) - len(executed_tool_calls),
+                        assistant_msg,
+                    )
                     for event in tool_events:
                         yield event
                 else:
+                    working_messages.append(assistant_msg)
                     break
         except Exception as e:
             yield {
@@ -249,7 +262,8 @@ class BaseLoop:
             }
             return
 
-        yield {"type": "response.completed"}
+        if not agent.is_cancelled:
+            yield {"type": "response.completed"}
 
     async def _stream_llm(
         self,
@@ -268,7 +282,7 @@ class BaseLoop:
         content_parts: list[str] = []
         content_delta_events: list[dict] = []
         content_item_id: str = ""
-        tool_calls_buffer: dict[str, dict[str, Any]] = {}
+        tool_calls_buffer: dict[int, dict[str, Any]] = {}
 
         async for chunk in llm_stream:
             chunk_type = chunk.get("type", "")
@@ -279,16 +293,21 @@ class BaseLoop:
                 if stream_mode in ("token", "all"):
                     content_delta_events.append(chunk)
             elif chunk_type == "response.tool_call.delta":
-                tc_id = chunk.get("id", "")
-                if tc_id not in tool_calls_buffer:
-                    tool_calls_buffer[tc_id] = {
-                        "id": tc_id,
-                        "index": len(tool_calls_buffer),
+                tc_index = chunk.get("index", len(tool_calls_buffer))
+                if tc_index not in tool_calls_buffer:
+                    tool_calls_buffer[tc_index] = {
+                        "id": chunk.get("id", ""),
+                        "index": tc_index,
                         "name": chunk.get("name", ""),
                         "arguments": chunk.get("arguments", ""),
                     }
                 else:
-                    tool_calls_buffer[tc_id]["arguments"] += chunk.get("arguments", "")
+                    buf = tool_calls_buffer[tc_index]
+                    if chunk.get("id"):
+                        buf["id"] = chunk["id"]
+                    if chunk.get("name"):
+                        buf["name"] = chunk["name"]
+                    buf["arguments"] += chunk.get("arguments", "")
 
         return (
             content_parts,
@@ -305,7 +324,7 @@ class BaseLoop:
         tool_call_count: int,
         working_messages: list[dict],
         stream_mode: str,
-    ) -> tuple[int, list[dict[str, Any]]]:
+    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
         """Execute tool calls and return events for streaming.
 
         Args:
@@ -317,14 +336,16 @@ class BaseLoop:
             stream_mode: Streaming mode for filtering.
 
         Returns:
-            Tuple of (updated tool_call_count, list of event dicts).
+            Tuple of (updated tool_call_count, executed_tool_calls, list of event dicts).
         """
         events: list[dict[str, Any]] = []
+        executed_tool_calls: list[dict[str, Any]] = []
         for tc in tool_calls_list:
             if tool_call_count >= agent.policy.max_tool_calls:
                 break
 
             tool_name = tc["name"]
+            executed_tool_calls.append(tc)
             try:
                 arguments = json.loads(tc["arguments"])
             except json.JSONDecodeError as e:
@@ -367,7 +388,7 @@ class BaseLoop:
                 }
             )
 
-        return tool_call_count, events
+        return tool_call_count, executed_tool_calls, events
 
     @staticmethod
     def _build_tool_events(
