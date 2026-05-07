@@ -23,6 +23,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
 | `/review-fetch` | Fetches unresolved PR comments into a review report |
 | `/review-cleanup` | Archives resolved reviews |
+| `/rebase` | Safely rebases current branch onto target (avoids commit duplication) |
 | `/begin-worktree` | Creates a new worktree + branch for feature development |
 | `/worktree-prune` | Removes inactive worktrees (checks PR status) |
 | `/worktree-cleanup` | Cleans up local artifacts in the current worktree |
