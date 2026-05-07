@@ -37,5 +37,5 @@ Implementation tasks for [Feature Name]. Check off items as completed.
 ---
 
 *Task IDs enable tracking and cross-referencing*
-*Run `/implement-plan` to execute these tasks*
+*Run `/implement` to execute these tasks*
 *Last updated: [ISO Date]*

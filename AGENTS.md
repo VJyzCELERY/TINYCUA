@@ -10,17 +10,14 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 | Command | Description |
 |---------|-------------|
-| `/analyze <dir>` | Analyzes project structure and runs system tests |
 | `/begin-workflow <dir>` | Automates complete specs implementation process |
-| `/cleanup-review <file>` | Cleans up reviews that have been fully addressed |
-| `/develop <query>` | Full development workflow |
-| `/implementation-plan <dir>` | Creates plan from spec.md/design.md |
-| `/implement-plan <dir>` | Executes implementation plan using TDD |
-| `/research <query>` | Conducts research on a specific topic |
-| `/review-implement <file>` | Implements fixes for review findings |
+| `/plan <dir>` | Creates implementation plan from spec.md/design.md |
+| `/implement <dir>` | Executes implementation plan using TDD |
 | `/review-project <dir>` | Reviews project and generates report |
+| `/review-validate <file>` | Validates findings from a previous review |
+| `/review-implement <file>` | Implements fixes for review findings |
+| `/review-cleanup <file>` | Archives resolved reviews |
 | `/setup-project <dir>` | Sets up project with .agents structure |
-| `/validate-review <file>` | Validates findings from a previous review |
 
 ### Project Structure
 
@@ -32,7 +29,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 │   ├── agents/       # Agent rules and guidelines
 │   └── project_rules/ # Project-specific rules
 ├── reviews/          # Review outputs
-└── AGENTS.md         # Redirect stub → root AGENTS.md
+└── AGENTS.md         # [REMOVED]
 ```
 
 ### Key Files
@@ -84,7 +81,7 @@ This is a consistent, predictable location so agents always know where to find r
 | Command | Output Location |
 |---------|----------------|
 | `/review-project <dir>` | Writes to `./reviews/REVIEW-{dir-name}.md` |
-| `/validate-review <file>` | Updates `./reviews/REVIEW-{name}.md` |
+| `/review-validate <file>` | Updates `./reviews/REVIEW-{name}.md` |
 | `/review-implement <file>` | Updates statuses in `./reviews/REVIEW-{name}.md` |
 
 ---
@@ -92,8 +89,8 @@ This is a consistent, predictable location so agents always know where to find r
 ## Quick Start
 
 1. **Setup project**: Run `/setup-project <project-dir>` to initialize
-2. **Create plan**: Run `/implementation-plan <dir>` with spec.md and design.md
-3. **Implement**: Run `/implement-plan <dir>` to execute the plan
+2. **Create plan**: Run `/plan <dir>` with spec.md and design.md
+3. **Implement**: Run `/implement <dir>` to execute the plan
 4. **Review**: Run `/review-project <dir>` to review code
-5. **Validate**: Run `/validate-review <review-file>` to validate findings
+5. **Validate**: Run `/review-validate <review-file>` to validate findings
 6. **Fix**: Run `/review-implement <review-file>` to implement fixes

@@ -31,7 +31,7 @@ Bare `python` or `pytest` may import from the wrong worktree.
 
 Use Task tool to invoke a subagent with the implementation-plan command:
 ```
-Task: Run /implementation-plan for $1
+Task: Run /plan for $1
 ```
 
 Wait for the subagent to complete and verify implementation-plan.md and task.md are created.
@@ -40,7 +40,7 @@ Wait for the subagent to complete and verify implementation-plan.md and task.md 
 
 Use Task tool to invoke a subagent with the implement-plan command:
 ```
-Task: Run /implement-plan for $1
+Task: Run /implement for $1
 ```
 
 Wait for the subagent to complete and verify tasks are marked complete in task.md.
@@ -58,7 +58,7 @@ Task: Run /review-project for $1 with focus on code quality and spec compliance
 **Step 2: Validate (Subagent 4)**
 Use Task tool — review file is always at `./reviews/REVIEW-{name}.md`:
 ```
-Task: Run /validate-review for ./reviews/REVIEW-{name}.md
+Task: Run /review-validate for ./reviews/REVIEW-{name}.md
 ```
 
 **Step 3: If OPEN issues exist → Fix (Subagent 5)**
@@ -91,7 +91,7 @@ Task: Run /review-project for $1 - perform a FRESH independent review. Do NOT us
 
 Use Task tool:
 ```
-Task: Run /cleanup-review for ./reviews/
+Task: Run /review-cleanup for ./reviews/
 ```
 
 ## Workflow Summary

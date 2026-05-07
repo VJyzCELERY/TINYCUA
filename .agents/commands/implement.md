@@ -34,7 +34,7 @@ Execute an implementation plan from implementation-plan.md and task.md.
 
 ## Available Commands
 - Use `/review-project <directory>` to review your implementation
-- Use `/validate-review <review-file>` to validate review findings
+- Use `/review-validate <review-file>` to validate review findings
 - Use `/review-implement <review-file>` to implement fixes
 
 Begin by reading the implementation-plan.md and task.md, then start executing tasks in order.

@@ -51,17 +51,20 @@ After setup:
 project/
 ├── .agents/
 │   ├── commands/
-│   │   ├── implementation-plan.md
-│   │   ├── implement-plan.md
+│   │   ├── plan.md
+│   │   ├── implement.md
 │   │   ├── review-project.md
-│   │   ├── validate-review.md
+│   │   ├── review-validate.md
 │   │   ├── review-implement.md
-│   │   ├── develop.md
+│   │   ├── review-cleanup.md
+│   │   ├── begin-workflow.md
 │   │   └── setup-project.md
 │   ├── templates/
 │   │   ├── implementation-plan.md
 │   │   ├── task.md
-│   │   └── REVIEW-template.md
+│   │   ├── REVIEW-template.md
+│   │   ├── spec.md
+│   │   └── design.md
 │   ├── docs/
 │   │   ├── agents/
 │   │   └── project_rules/
