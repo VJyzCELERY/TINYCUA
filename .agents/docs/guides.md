@@ -17,6 +17,9 @@
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
 | `/review-fetch` | Pulls unresolved PR comments into a local review file |
 | `/review-cleanup` | Archives resolved review reports |
+| `/begin-worktree` | Creates a new worktree + branch for feature development |
+| `/worktree-prune` | Removes inactive worktrees (checks PR status) |
+| `/worktree-cleanup` | Cleans up local artifacts (reviews, tmp, caches) in current worktree |
 | `/setup-project` | Bootstraps `.agents/` structure in a new project |
 
 ---
@@ -38,6 +41,9 @@
 | Update a PR review after fixes landed | `/review-update reviews/REVIEW-foo.md` |
 | Get PR review comments into a local file for tracking | `/review-fetch 42` |
 | Archive a review where all issues are resolved | `/review-cleanup reviews/REVIEW-foo.md` |
+| Create a new worktree + branch for feature development | `/begin-worktree feat/new-feature` |
+| Remove inactive/stale worktrees (checks PRs) | `/worktree-prune` |
+| Clean up local artifacts (reviews, caches, tmp) | `/worktree-cleanup` |
 | Set up a fresh project with the `.agents/` structure | `/setup-project ./my-new-project` |
 
 ---
@@ -98,3 +104,6 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/review-update` | Comments/resolutions on GitHub PR |
 | `/review-fetch` | `./reviews/REVIEW-{name}-fetched.md` |
 | `/review-cleanup` | Archives to `./reviews/archived/` |
+| `/begin-worktree` | Creates `.worktrees/<branch>/` with matching branch |
+| `/worktree-prune` | Removes stale `.worktrees/` directories |
+| `/worktree-cleanup` | Deletes `./reviews/`, `./tmp/`, `./dev/`, caches |

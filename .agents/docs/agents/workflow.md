@@ -85,6 +85,7 @@ Keep PRs scoped: one logical change per PR. Large refactors and feature addition
 
 ## Feature Development Workflow
 
+0. **Worktree first (if on main)**: If the current branch is `main`, create a worktree via `/begin-worktree <branch-name>` before starting work. This keeps main clean and enables parallel feature branches.
 1. **Spec first**: Write or update the spec in `specs/` before writing code (use `.agents/templates/spec.md`)
 2. **Design review**: For significant changes, create a `design.md` alongside the spec
 3. **Test-first**: Write failing tests before implementation

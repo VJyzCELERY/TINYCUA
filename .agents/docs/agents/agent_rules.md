@@ -54,6 +54,12 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 - **Follow Project Standards**: AI agents must produce code that passes `make lint`, `make test`, and `make complexity` (run from the subproject directory: `cd src/<subproject> && make lint`) before output is considered complete.
 - **Documentation Alongside Code**: AI agents must produce or update documentation (docstrings, README, guides, API docs) with the same priority as code changes. A feature is not complete until its docs are updated.
 - **No Secrets in Output**: AI must never generate code that contains hardcoded secrets, credentials, or API keys.
+- **Spec-Driven Development**: Before implementing any feature, ensure a spec.md and design.md exist. If the user asks for new work without specs, prompt them to create specs first. Use `.agents/templates/spec.md` and `.agents/templates/design.md`.
+- **Worktree Enforcement on Main**: If the current branch is `main` and the user requests new feature work, the agent MUST:
+  1. Ask for a branch name before proceeding
+  2. Offer to create a worktree via `/begin-worktree <branch-name>`
+  3. Allow bypass — this is a soft enforcement, the user can decline
+  4. Only skip if user explicitly confirms they want to work directly on `main`
 
 ---
 
@@ -76,3 +82,4 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 - `.agents/docs/agents/code_review.md` — review standards and severity levels
 - `.agents/docs/project_rules/coding_standards.md` — full coding standards
 - `.agents/docs/project_rules/cognitive_complexity.md` — complexity limits
+- `.agents/docs/project_rules/worktree.md` — worktree creation and management

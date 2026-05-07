@@ -23,6 +23,9 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
 | `/review-fetch` | Fetches unresolved PR comments into a review report |
 | `/review-cleanup` | Archives resolved reviews |
+| `/begin-worktree` | Creates a new worktree + branch for feature development |
+| `/worktree-prune` | Removes inactive worktrees (checks PR status) |
+| `/worktree-cleanup` | Cleans up local artifacts in the current worktree |
 | `/setup-project` | Bootstraps `.agents/` structure in a new project |
 
 ### Project Structure
@@ -64,6 +67,7 @@ reviews/              # Active review outputs (root level)
 - [.agents/docs/project_rules/coding_standards.md](.agents/docs/project_rules/coding_standards.md) — Code standards
 - [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
 - [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
+- [.agents/docs/project_rules/worktree.md](.agents/docs/project_rules/worktree.md) — Worktree management rules
 
 ---
 
