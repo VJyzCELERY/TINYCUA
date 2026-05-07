@@ -170,57 +170,84 @@ class BaseLoop:
 
         tool_call_count = 0
 
-        for _ in range(self.max_iterations):
-            if agent.is_cancelled:
-                break
+        try:
+            for _ in range(self.max_iterations):
+                if agent.is_cancelled:
+                    break
 
-            (
-                content_parts,
-                content_delta_events,
-                tool_calls_list,
-            ) = await self._stream_llm(
-                agent,
-                working_messages,
-                tools,
-                stream_mode,
-            )
+                if tool_call_count >= agent.policy.max_tool_calls:
+                    break
 
-            combined_content = "".join(content_parts)
-            assistant_msg: dict[str, Any] = {
-                "role": "assistant",
-                "content": combined_content,
-            }
-            if tool_calls_list:
-                assistant_msg["tool_calls"] = [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": json.loads(tc["arguments"]),
-                        },
-                    }
-                    for tc in tool_calls_list
-                ]
-            working_messages.append(assistant_msg)
-
-            for chunk in content_delta_events:
-                if stream_mode in ("token", "all"):
-                    yield chunk
-
-            if tool_calls_list:
-                tool_call_count, tool_events = await self._execute_tools_stream(
-                    agent,
-                    tools,
+                (
+                    content_parts,
+                    content_delta_events,
                     tool_calls_list,
-                    tool_call_count,
+                    content_item_id,
+                ) = await self._stream_llm(
+                    agent,
                     working_messages,
+                    tools,
                     stream_mode,
                 )
-                for event in tool_events:
-                    yield event
-            else:
-                break
+
+                combined_content = "".join(content_parts)
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": combined_content,
+                }
+                if tool_calls_list:
+                    assistant_msg["tool_calls"] = [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": json.loads(tc["arguments"]),
+                            },
+                        }
+                        for tc in tool_calls_list
+                    ]
+                working_messages.append(assistant_msg)
+
+                for chunk in content_delta_events:
+                    if stream_mode in ("token", "all"):
+                        yield chunk
+
+                if content_parts:
+                    if stream_mode in ("event", "all"):
+                        yield {
+                            "type": "response.output_text.done",
+                            "item_id": content_item_id,
+                            "content": combined_content,
+                        }
+                        yield {
+                            "type": "response.output_item.done",
+                            "item": {"type": "text"},
+                        }
+
+                if tool_calls_list:
+                    tool_call_count, tool_events = await self._execute_tools_stream(
+                        agent,
+                        tools,
+                        tool_calls_list,
+                        tool_call_count,
+                        working_messages,
+                        stream_mode,
+                    )
+                    for event in tool_events:
+                        yield event
+                else:
+                    break
+        except Exception as e:
+            yield {
+                "type": "response.failed",
+                "error": {"message": str(e)},
+            }
+            yield {
+                "type": "error",
+                "error": {"message": str(e)},
+            }
+            return
 
         yield {"type": "response.completed"}
 
@@ -234,16 +261,20 @@ class BaseLoop:
         """Stream LLM response and accumulate data.
 
         Returns:
-            Tuple of (content_parts, content_delta_events, tool_calls_list).
+            Tuple of (content_parts, content_delta_events, tool_calls_list,
+                      content_item_id).
         """
         llm_stream = await agent._call_llm(working_messages, tools, stream=True)
         content_parts: list[str] = []
         content_delta_events: list[dict] = []
+        content_item_id: str = ""
         tool_calls_buffer: dict[str, dict[str, Any]] = {}
 
         async for chunk in llm_stream:
             chunk_type = chunk.get("type", "")
             if chunk_type == "response.output_text.delta":
+                if not content_item_id:
+                    content_item_id = chunk.get("item_id", "")
                 content_parts.append(chunk.get("delta", ""))
                 if stream_mode in ("token", "all"):
                     content_delta_events.append(chunk)
@@ -259,7 +290,12 @@ class BaseLoop:
                 else:
                     tool_calls_buffer[tc_id]["arguments"] += chunk.get("arguments", "")
 
-        return content_parts, content_delta_events, list(tool_calls_buffer.values())
+        return (
+            content_parts,
+            content_delta_events,
+            list(tool_calls_buffer.values()),
+            content_item_id,
+        )
 
     async def _execute_tools_stream(
         self,
@@ -365,11 +401,29 @@ class BaseLoop:
             )
             events.append(
                 {
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "tool_call",
+                        "name": tool_name,
+                    },
+                }
+            )
+            events.append(
+                {
                     "type": "response.output_item.added",
                     "item": {
                         "type": "tool_output",
                         "name": tool_name,
                         "output": str(tool_result),
+                    },
+                }
+            )
+            events.append(
+                {
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "tool_output",
+                        "name": tool_name,
                     },
                 }
             )
