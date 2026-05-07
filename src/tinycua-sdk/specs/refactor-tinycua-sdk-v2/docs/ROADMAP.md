@@ -226,13 +226,15 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 8: Extensibility — Custom Loops
 
-**Objective:** `BaseLoop` is a clean extension point for consumers.
+**Objective:** `BaseLoop` is a clean extension point for consumers. Also completes deferred OpenAI SSE streaming events from Stage 5.
 
 **Reference:** [`goals/advanced/01_custom_agent_loop.py`](../goals/advanced/01_custom_agent_loop.py)
 
 **What to build (test first):**
 1. **`BaseLoop`** — `__init__(max_iterations=5)`, `async run(agent, messages, tools)`. Default implementation is the standard tool-calling loop. No hook system — customization via subclassing.
 2. **Protected helper** — `agent._call_llm(messages, tools)` so custom loops can call the LLM without reimplementing transport.
+3. **`response.in_progress` event** — emit standard lifecycle event after `response.created` (deferred from Stage 5).
+4. **`response.function_call_arguments.delta` / `response.function_call_arguments.done`** — emit standard OpenAI event names for tool call streaming alongside internal `response.tool_call.delta` (deferred from Stage 5).
 
 **Tests targeted:** `test_adv_01`
 
@@ -240,7 +242,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 9: Final Integration & Polish
 
-**Objective:** All 16 integration tests pass. SDK is coherent and documented.
+**Objective:** All 16 integration tests pass. SDK is coherent and documented. Completes remaining deferred streaming events.
 
 **What to do:**
 1. Run full suite: `pytest tests/integration/goals/ -v`
@@ -249,6 +251,8 @@ Each goal script maps to one integration test file under `tests/integration/goal
 4. Update `__init__.py` exports to the v2 public API.
 5. Update `AGENTS.md` if it references deleted APIs.
 6. Delete old unit tests for removed modules.
+7. **`response.content_part.added/done`** — emit multi-part content lifecycle events (deferred from Stage 5).
+8. **`response.output_text.annotation.added`** — emit citation/annotation events (deferred from Stage 5).
 
 **Acceptance criteria:**
 - `pytest tests/integration/goals/` → 16 passed, 0 failed.
