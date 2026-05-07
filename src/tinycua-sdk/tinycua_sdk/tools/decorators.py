@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from tinycua_sdk.tools.schema import type_to_json_schema
 
+
 class Tool:
     """A tool that can be invoked by the agent."""
 
@@ -197,8 +198,10 @@ def tool(
         A Tool instance, or a decorator function if fn is None.
     """
     if fn is None:
+
         def decorator(f: Callable) -> Tool:
             return Tool.from_callable(f, dependencies or [])
+
         return decorator
 
     return Tool.from_callable(fn, dependencies or [])

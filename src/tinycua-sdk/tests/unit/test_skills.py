@@ -1,7 +1,6 @@
 """Tests for Skill dataclass, Skill.load(), and SkillRegistry."""
 
 
-
 class TestSkillConstruction:
     """Tests for Skill construction."""
 
@@ -34,7 +33,12 @@ class TestSkillConstruction:
         """Skill.to_dict() returns a plain dict."""
         from tinycua_sdk import Skill
 
-        skill = Skill(name="coder", description="Write code", instructions="Do code", metadata={"author": "test"})
+        skill = Skill(
+            name="coder",
+            description="Write code",
+            instructions="Do code",
+            metadata={"author": "test"},
+        )
         d = skill.to_dict()
         assert d["name"] == "coder"
         assert d["description"] == "Write code"
@@ -71,9 +75,6 @@ class TestSkillConstruction:
         assert restored == original
 
 
-
-
-
 class TestSkillRegistry:
     """Tests for SkillRegistry."""
 
@@ -98,7 +99,9 @@ class TestSkillRegistry:
         from tinycua_sdk import SkillRegistry, Skill
 
         registry = SkillRegistry()
-        skill = Skill(name="coder", description="Write code", instructions="Write clean code.")
+        skill = Skill(
+            name="coder", description="Write code", instructions="Write clean code."
+        )
         registry.register(skill)
         retrieved = registry.get("coder")
         assert retrieved is not None

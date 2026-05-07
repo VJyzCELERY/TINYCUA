@@ -15,12 +15,8 @@ class TestSkillsTools:
     def test_skills_list_basic(self):
         """Test skills_list returns all skills."""
         registry = SkillRegistry()
-        registry.register(
-            Skill(name="Skill A", description="Desc A", instructions="")
-        )
-        registry.register(
-            Skill(name="Skill B", description="Desc B", instructions="")
-        )
+        registry.register(Skill(name="Skill A", description="Desc A", instructions=""))
+        registry.register(Skill(name="Skill B", description="Desc B", instructions=""))
 
         tool = create_skills_list_tool(registry)
         result = tool.invoke()
