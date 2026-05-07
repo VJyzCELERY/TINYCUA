@@ -62,7 +62,7 @@ def check_scope():
     branch = run(["git", "branch", "--show-current"])
     info = [f"[INFO] Current branch: {branch}"]
     # Check if ahead/behind main
-    behind = run(["git", "rev-list", "--count", "main..HEAD@\{u\}"]) if branch != "main" else "0"
+    behind = run(["git", "rev-list", "--count", "main..HEAD@{u}"]) if branch != "main" else "0"
     if behind and behind != "0":
         info.append(f"[INFO] Branch is {behind} commit(s) behind remote.")
     return info
