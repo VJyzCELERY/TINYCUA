@@ -225,10 +225,16 @@ class OpenAICompatibleClient(LLMClient):
                 if not line or line == "data: [DONE]":
                     continue
                 if line.startswith("data: "):
-                    data = json.loads(line[6:])
+                    try:
+                        data = json.loads(line[6:])
+                    except json.JSONDecodeError as e:
+                        raise RuntimeError(f"Malformed SSE data line: {e}") from e
                     if data.get("usage"):
                         last_chunk_usage = data["usage"]
-                    delta = data["choices"][0].get("delta", {})
+                    choices = data.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
                     if delta.get("content"):
                         yield {
                             "type": "response.output_text.delta",
