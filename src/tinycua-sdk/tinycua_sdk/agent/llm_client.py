@@ -69,6 +69,52 @@ class OpenAICompatibleClient(LLMClient):
             await client.aclose()
         self._clients.clear()
 
+    @staticmethod
+    def _build_payload(
+        messages: list[dict],
+        tools: list[dict] | None,
+        model_config: LanguageModel,
+    ) -> dict[str, Any]:
+        """Build the chat completion payload shared by sync and streaming paths.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of tool schemas.
+            model_config: Language model configuration.
+
+        Returns:
+            Complete payload dict ready for the LLM API request.
+        """
+        payload: dict[str, Any] = {
+            "model": model_config.model_name,
+            "messages": messages,
+        }
+
+        for field in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+            "response_format",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs",
+            "user",
+        ):
+            value = getattr(model_config, field)
+            if value is not None:
+                payload[field] = value
+
+        if tools:
+            payload["tools"] = tools
+            if "tool_choice" not in payload:
+                payload["tool_choice"] = "auto"
+
+        return payload
+
     async def chat(
         self,
         messages: list[dict],
@@ -110,33 +156,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client(model_config)
 
-        payload: dict[str, Any] = {
-            "model": model_config.model_name,
-            "messages": messages,
-        }
-
-        for field in (
-            "temperature",
-            "max_tokens",
-            "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "stop",
-            "seed",
-            "response_format",
-            "tool_choice",
-            "logprobs",
-            "top_logprobs",
-            "user",
-        ):
-            value = getattr(model_config, field)
-            if value is not None:
-                payload[field] = value
-
-        if tools:
-            payload["tools"] = tools
-            if "tool_choice" not in payload:
-                payload["tool_choice"] = "auto"
+        payload = self._build_payload(messages, tools, model_config)
 
         try:
             response = await client.post("chat/completions", json=payload)
@@ -194,34 +214,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client(model_config)
 
-        payload: dict[str, Any] = {
-            "model": model_config.model_name,
-            "messages": messages,
-        }
-
-        for field in (
-            "temperature",
-            "max_tokens",
-            "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "stop",
-            "seed",
-            "response_format",
-            "tool_choice",
-            "logprobs",
-            "top_logprobs",
-            "user",
-        ):
-            value = getattr(model_config, field)
-            if value is not None:
-                payload[field] = value
-
-        if tools:
-            payload["tools"] = tools
-            if "tool_choice" not in payload:
-                payload["tool_choice"] = "auto"
-
+        payload = self._build_payload(messages, tools, model_config)
         payload["stream"] = True
 
         async with client.stream("POST", "/chat/completions", json=payload) as response:
