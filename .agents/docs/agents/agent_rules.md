@@ -49,6 +49,8 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 
 - **Responsible Use**: AI agents must be used to assist, not replace, developer judgment.
 - **Document AI Contributions**: Indicate AI-assisted code in commit messages (e.g., `feat(scope): description [ai]`) or via inline comments (`# AI-generated`).
+- **Ask When Uncertain**: If any instruction is ambiguous, incomplete, or conflicting, the agent MUST ask for clarification using a question/ask tool (agent-harness agnostic — use whatever mechanism the environment provides to prompt the user). Do NOT guess, assume, or proceed with partial information.
+- **Subagent Exception**: Subagents MUST NOT ask the user directly. If a subagent has a question, it MUST report it to the parent orchestrator agent, which will decide whether to ask the user or resolve it internally.
 - **Task Scoping**: Define specific, bounded tasks for AI agents. Avoid open-ended instructions.
 - **Review All Output**: All AI-generated code must be reviewed by a human before merging.
 - **Follow Project Standards**: AI agents must produce code that passes `make lint`, `make test`, and `make complexity` (run from the subproject directory: `cd src/<subproject> && make lint`) before output is considered complete.

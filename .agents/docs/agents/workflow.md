@@ -14,6 +14,12 @@ make complexity    # run radon complexity check
 make clean         # remove caches (.pyc, .pytest_cache, .coverage, .ruff_cache)
 ```
 
+## Important: Always Ask When Uncertain
+
+If any instruction is ambiguous, incomplete, or conflicting, use the question/ask tool to clarify with the user. Do NOT guess or assume. Subagents MUST report questions to their parent orchestrator instead of asking the user directly.
+
+---
+
 ## Critical: Always Use `uv run` for Python/Pytest (IMPORTANT)
 
 **All Python and pytest invocations MUST use `uv run`.** Never use bare `python` or `pytest`, as they may import from a different worktree or environment.

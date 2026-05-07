@@ -86,6 +86,12 @@ Skills provide specialized instructions for common workflows. Read the relevant 
 
 ---
 
+## Critical: Always Ask When Uncertain
+
+If any instruction is ambiguous, incomplete, or conflicting, use the question/ask tool (agent-harness agnostic) to clarify with the user. Do NOT guess or assume. If you are a subagent, report questions to your parent orchestrator instead.
+
+---
+
 ## Critical: Always Read Rules and Check Templates First
 
 **Before starting any task**, read the relevant rules from `.agents/docs/` first. This includes agent rules (`.agents/docs/agents/`) and project rules (`.agents/docs/project_rules/`). Each rule file defines conventions, constraints, and expectations that the agent must follow.
