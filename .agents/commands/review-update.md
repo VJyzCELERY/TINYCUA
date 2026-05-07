@@ -20,7 +20,7 @@ After fixes have been implemented and validated, this command updates the PR rev
 1. **Read the updated review report**: Load the REVIEW-{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash
-   PR_NUMBER=$(uv run python .agents/scripts/get-pr-number.py)
+   PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
 3. **Fetch existing review comments**: Get all current inline comments on the PR:
    ```bash

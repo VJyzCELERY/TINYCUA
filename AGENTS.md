@@ -35,6 +35,9 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 ```
 .agents/
 ├── scripts/           # Reusable scripts (Python, cross-platform)
+│   ├── preflight-review.py
+│   ├── preflight-pr.py
+│   └── preflight-rebase.py
 ├── commands/          # Opencode commands
 ├── templates/         # Document templates
 ├── skills/            # Reusable skill references
@@ -71,8 +74,9 @@ reviews/              # Active review outputs (root level)
 - [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
 - [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
 - [.agents/docs/project_rules/worktree.md](.agents/docs/project_rules/worktree.md) — Worktree management rules
-- [.agents/scripts/check-preflight.py](.agents/scripts/check-preflight.py) — Pre-flight checks (stale review, unstaged changes)
-- [.agents/scripts/get-pr-number.py](.agents/scripts/get-pr-number.py) — PR number detection from current branch
+- [.agents/scripts/preflight-review.py](.agents/scripts/preflight-review.py) — Pre-flight: stale review, unstaged changes, scope
+- [.agents/scripts/preflight-pr.py](.agents/scripts/preflight-pr.py) — Pre-flight: PR number detection
+- [.agents/scripts/preflight-rebase.py](.agents/scripts/preflight-rebase.py) — Pre-flight: rebase safety check
 
 ---
 

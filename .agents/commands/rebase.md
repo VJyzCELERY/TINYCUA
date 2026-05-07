@@ -14,7 +14,15 @@ Safely rebase the current branch onto a target branch (default: `main`) without 
 
 Read `.agents/skills/git-rebase/SKILL.md` before proceeding — it contains the full rebase workflow reference.
 
-### 1. Check Current State
+### 1. Run Pre-Flight
+
+```bash
+uv run python .agents/scripts/preflight-rebase.py --target <target>
+```
+
+Review any warnings before proceeding. If critical issues are flagged, address them first.
+
+### 2. Check Current State
 
 ```bash
 git log --oneline --graph --all --decorate -10

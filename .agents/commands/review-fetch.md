@@ -13,7 +13,7 @@ Fetch unresolved comments and review requests from a GitHub PR and generate a st
 
 1. **Detect PR**: If `$1` is not provided, detect the PR number:
    ```bash
-   PR_NUMBER=$(uv run python .agents/scripts/get-pr-number.py)
+   PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
 2. **Detect owner/repo**:
    ```bash

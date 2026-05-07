@@ -23,7 +23,7 @@ If no focus area is provided, verify ALL OPEN findings.
 Before starting, run the pre-flight script:
 
 ```bash
-uv run python .agents/scripts/check-preflight.py "$REVIEW_FILE"
+uv run python .agents/scripts/preflight-review.py --mode verify --review-file "$REVIEW_FILE"
 ```
 
 If the script exits non-zero, warn the user via the question/ask tool. Let them decide whether to continue or request a fresh review.
