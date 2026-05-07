@@ -94,10 +94,10 @@ If the user opted for PR creation during initial questions, push the branch and 
 
 ```bash
 git push origin <branch>
-uv run python .agents/scripts/gh.py create "type(scope): title" ./tmp/pr-body.md --head <branch> --base main
+uv run python .agents/scripts/gh.py create "type(scope): title" ./tmp/pr-body.md
 ```
 
-Use `.agents/templates/PR-body.md` for the PR body. Record the PR number for the review loop.
+The base branch is auto-detected — `gh.py` checks if a PR already exists for this branch (uses that base), or determines the logical parent branch. Use `.agents/templates/PR-body.md` for the PR body.
 
 ### Phase 3: Review Loop
 

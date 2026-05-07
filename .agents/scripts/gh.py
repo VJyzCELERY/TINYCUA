@@ -349,12 +349,43 @@ def cmd_update_body(args):
     print(f"[OK] PR #{pr} body updated")
 
 
+def detect_pr_base(head: str | None = None) -> str:
+    """Auto-detect the best base branch for a PR.
+
+    Priority:
+    1. If PR already exists for this branch → use its base
+    2. If branch diverged from a non-main branch → use that (sub-branch)
+    3. Default to 'main'
+    """
+    branch = head or run(["git", "branch", "--show-current"])
+    if not branch:
+        return "main"
+
+    # Check if PR already exists
+    out, _, _ = run(["gh", "pr", "list", "--head", branch, "--state", "open",
+                      "--json", "baseRefName", "--jq", ".[0].baseRefName"])
+    if out:
+        return out
+
+    # Check merge-base: which branch did we diverge from?
+    # Try common parents
+    for candidate in ["main", "master", "develop"]:
+        mb = run(["git", "merge-base", candidate, branch])
+        if mb and mb != run(["git", "rev-parse", branch]):
+            return candidate
+
+    return "main"
+
+
 def cmd_create_pr(args):
     title = args.title
     body_file = args.body_file
-    head = args.head
-    base = args.base or "main"
+    head = args.head or run(["git", "branch", "--show-current"])
+    base = args.base or detect_pr_base(head)
     
+    if not head:
+        print("[FAIL] Could not determine head branch. Use --head <branch>.", file=sys.stderr)
+        sys.exit(1)
     if not check_file(body_file):
         sys.exit(1)
     
@@ -370,7 +401,7 @@ def cmd_create_pr(args):
     clean_temp(body_file)
     try:
         pr_data = json.loads(out)
-        print(f"[OK] PR created: {pr_data.get('html_url', '')}")
+        print(f"[OK] PR created: {pr_data.get('html_url', '')} ({head} → {base})")
     except json.JSONDecodeError:
         print(out)
 
@@ -517,8 +548,8 @@ def main():
     p = sub.add_parser("create", help="Create a PR")
     p.add_argument("title", help="PR title")
     p.add_argument("body_file", help="Path to markdown file with PR body")
-    p.add_argument("--head", required=True, help="Head branch")
-    p.add_argument("--base", default="main", help="Base branch (default: main)")
+    p.add_argument("--head", type=str, default=None, help="Head branch (defaults to current branch)")
+    p.add_argument("--base", type=str, default=None, help="Base branch (auto-detected if not specified)")
     p.add_argument("--draft", action="store_true", help="Create as draft")
     p.set_defaults(func=cmd_create_pr)
 
