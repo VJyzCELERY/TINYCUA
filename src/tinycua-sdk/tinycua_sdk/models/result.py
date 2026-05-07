@@ -38,5 +38,3 @@ class RunResult:
     def output_tokens(self) -> int:
         """Get output token count."""
         return self.usage.get("output_tokens", 0)
-
-

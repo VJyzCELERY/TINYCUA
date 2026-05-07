@@ -16,12 +16,16 @@ from pathlib import Path
 from tinycua_sdk import Agent
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
-from tinycua_sdk.tools.native.skills_tools import create_skills_list_tool, create_skill_view_tool
+from tinycua_sdk.tools.native.skills_tools import (
+    create_skills_list_tool,
+    create_skill_view_tool,
+)
 
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def temp_skill_dir():
@@ -93,7 +97,9 @@ def _load_skills_from_directory(base_dir: Path) -> list[Skill]:
                 name = frontmatter.get("name", entry.name)
                 description = frontmatter.get("description", "")
                 instructions = parts[2].strip() if len(parts) >= 3 else ""
-                skill = Skill(name=name, description=description, instructions=instructions)
+                skill = Skill(
+                    name=name, description=description, instructions=instructions
+                )
                 skills.append(skill)
     return skills
 
@@ -110,6 +116,7 @@ def skill_registry(temp_skill_dir):
 # =============================================================================
 # Test Cases
 # =============================================================================
+
 
 class TestSkillDiscovery:
     """Test skill discovery from directory."""
@@ -151,6 +158,7 @@ class TestSkillRegistry:
         """Test getting skill that doesn't exist."""
         skill = skill_registry.get("nonexistent")
         assert skill is None
+
 
 class TestSkillTools:
     """Test skill tools."""

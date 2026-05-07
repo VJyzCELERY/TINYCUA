@@ -21,6 +21,3 @@ def default_loop():
     from tinycua_sdk import BaseLoop
 
     return BaseLoop(max_iterations=3)
-
-
-

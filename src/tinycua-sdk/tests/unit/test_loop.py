@@ -341,8 +341,16 @@ class TestBaseLoopRun:
             override_instructions="Override instructions.",
         )
 
-        assert any("Override instructions." in m["content"] for m in captured_messages if m["role"] == "system")
-        assert not any("Original instructions." in m["content"] for m in captured_messages if m["role"] == "system")
+        assert any(
+            "Override instructions." in m["content"]
+            for m in captured_messages
+            if m["role"] == "system"
+        )
+        assert not any(
+            "Original instructions." in m["content"]
+            for m in captured_messages
+            if m["role"] == "system"
+        )
 
     @pytest.mark.asyncio
     async def test_run_max_tool_calls_in_single_response(self):
@@ -363,17 +371,26 @@ class TestBaseLoopRun:
                         {
                             "id": "call_1",
                             "type": "function",
-                            "function": {"name": "search", "arguments": '{"query": "a"}'},
+                            "function": {
+                                "name": "search",
+                                "arguments": '{"query": "a"}',
+                            },
                         },
                         {
                             "id": "call_2",
                             "type": "function",
-                            "function": {"name": "search", "arguments": '{"query": "b"}'},
+                            "function": {
+                                "name": "search",
+                                "arguments": '{"query": "b"}',
+                            },
                         },
                         {
                             "id": "call_3",
                             "type": "function",
-                            "function": {"name": "search", "arguments": '{"query": "c"}'},
+                            "function": {
+                                "name": "search",
+                                "arguments": '{"query": "c"}',
+                            },
                         },
                     ],
                     "usage": None,
@@ -397,3 +414,230 @@ class TestBaseLoopRun:
         )
         assert call_count == 1
         assert result == "[max tool calls reached]"
+
+
+class TestBaseLoopRunStream:
+    """Test BaseLoop._run_stream() execution flow."""
+
+    @pytest.mark.asyncio
+    async def test_run_stream_token_yields_only_deltas(self):
+        """token mode yields only response.output_text.delta events."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "1",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="token"
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed"}
+        assert any(e["type"] == "response.output_text.delta" for e in events)
+        assert not any(e["type"] == "response.output_item.added" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_event_yields_only_lifecycle_events(self):
+        """event mode yields lifecycle/tool events, no delta events."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "1",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="event"
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed"}
+        assert not any(e["type"] == "response.output_text.delta" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_all_yields_both_deltas_and_events(self):
+        """all mode yields both delta and lifecycle events."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "1",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="all"
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed"}
+        assert any(e["type"] == "response.output_text.delta" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_with_tool_calls(self):
+        """Tool calls yield output_item.added events and stream resumes."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.tool_call.delta",
+                        "id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "The time is 12:00.",
+                        "item_id": "2",
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "time?"}], [get_time], stream_mode="all"
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed"}
+        tool_events = [
+            e for e in events if e.get("type") == "response.output_item.added"
+        ]
+        assert any(t["item"]["type"] == "tool_call" for t in tool_events)
+        assert any(t["item"]["type"] == "tool_output" for t in tool_events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_mode_filters_tool_events(self):
+        """token mode does NOT yield tool events."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.tool_call.delta",
+                    "id": "call_1",
+                    "name": "get_time",
+                    "arguments": "{}",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent,
+            [{"role": "user", "content": "time?"}],
+            [get_time],
+            stream_mode="token",
+        )
+        events = [e async for e in stream_iter]
+
+        tool_events = [
+            e for e in events if e.get("type") == "response.output_item.added"
+        ]
+        assert len(tool_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_run_stream_cancellation(self):
+        """Cancellation during stream stops iteration."""
+        loop = BaseLoop(max_iterations=10)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "1",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+        agent._cancelled = True
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="token"
+        )
+        events = [e async for e in stream_iter]
+
+        assert len(events) == 2
+        assert events[0] == {"type": "response.created"}
+        assert events[1] == {"type": "response.completed"}
+
+    @pytest.mark.asyncio
+    async def test_run_stream_max_iterations(self):
+        """Stream stops after max_iterations."""
+        loop = BaseLoop(max_iterations=1)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.tool_call.delta",
+                    "id": "call_1",
+                    "name": "dummy_tool",
+                    "arguments": "{}",
+                }
+
+            return _gen()
+
+        @tool
+        def dummy_tool() -> str:
+            return "result"
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "go"}], [dummy_tool], stream_mode="all"
+        )
+        events = [e async for e in stream_iter]
+
+        assert any(e["type"] == "response.completed" for e in events)
