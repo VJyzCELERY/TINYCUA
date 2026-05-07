@@ -8,28 +8,58 @@ Automate the complete specs implementation process: planning → implementation 
 **Target Directory**: $1 (directory containing spec.md and design.md)
 **Additional Context (Optional)**: $2 (any additional context or priorities)
 
-## Orchestrator Role
+---
 
-The agent that executes this command is the **orchestrator**. You (the running agent) are the orchestrator — you use Task tool to delegate to subagents for each phase, but you own the loop, apply oversight rules, and make go/no-go decisions. Subagents are intentionally kept free of prior review context.
+## Workflow-Orchestrator Role
+
+The agent that executes this command is the **workflow-orchestrator**. You (the running agent) are the workflow-orchestrator — you use the Task tool to delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
+
+### Critical Rule: Every Step Uses a Fresh Subagent with Clean Context
+
+**Every step in this workflow uses a dedicated subagent that starts with zero context from any prior step.** Subagents are intentionally kept free of prior context to ensure fresh perspectives. This applies to:
+
+- `/plan` → Subagent 1
+- `/implement` → Subagent 2
+- `/review-report` → Subagent 3, 6, 9, ...
+- `/review-validate` → Subagent 4, 7, 10, ...
+- `/review-implement` → Subagent 5, 8, 11, ...
+- `/review-cleanup` → Subagent N
+
+Each subagent is a clean, independent invocation. Do NOT pass prior findings, fix history, or any context between them. The workflow-orchestrator alone maintains the bookkeeping.
+
+---
 
 ## Overview
 
-This command runs a complete implementation workflow using subagents for each phase, with the orchestrator overseeing the entire process:
-1. Planning phase (Subagent 1) → creates implementation-plan.md and task.md
-2. Implementation phase (Subagent 2) → executes the plan
-3. Review loop (Subagents 3-6+) → review → validate → fix → validate → fresh review → repeat until truly clean
-4. Cleanup phase → archive resolved reviews
+```
+Planning (Subagent 1) → Implementation (Subagent 2) → Review Loop → Cleanup
+
+Review Loop:
+  Review-report (Subagent 3)
+       ↓
+  Review-validate (Subagent 4) → If OPEN: Review-implement (Subagent 5) → Review-validate (Subagent 6) → repeat
+       ↓
+  If CLEAN → Fresh Review-report (Subagent 7) ← independent, zero prior context
+       ↓
+  If NEW ISSUES → Return to Validate
+  If CLEAN (zero issues) → Exit Loop → Review-cleanup (Subagent N)
+```
+
+---
 
 ## Important Global Rule: Use `uv run` for Python
 
 All subagents MUST `cd <subproject-dir> && uv run` for Python/pytest commands.
 Bare `python` or `pytest` may import from the wrong worktree.
 
+---
+
 ## Instructions
 
 ### Phase 1: Planning (Subagent 1)
 
-Use Task tool to invoke a subagent with the implementation-plan command:
+Use Task tool to invoke a fresh subagent:
+
 ```
 Task: Run /plan for $1
 ```
@@ -38,7 +68,8 @@ Wait for the subagent to complete and verify implementation-plan.md and task.md 
 
 ### Phase 2: Implementation (Subagent 2)
 
-Use Task tool to invoke a subagent with the implement-plan command:
+Use Task tool to invoke a fresh subagent:
+
 ```
 Task: Run /implement for $1
 ```
@@ -49,36 +80,32 @@ Wait for the subagent to complete and verify tasks are marked complete in task.m
 
 Enter a loop that continues until truly clean (no issues found in a FRESH review):
 
-**Step 1: Review (Subagent 3)**
-Use Task tool:
+**Step 1: Review-report (Subagent 3)**
+
+Use Task tool to invoke a fresh subagent:
 ```
 Task: Run /review-report for $1 with focus on code quality and spec compliance
 ```
 
-**Step 2: Validate (Subagent 4)**
+**Step 2: Review-validate (Subagent 4)**
+
 Use Task tool — review file is always at `./reviews/REVIEW-{name}.md`:
 ```
 Task: Run /review-validate for ./reviews/REVIEW-{name}.md
 ```
 
-**Step 3: If OPEN issues exist → Fix (Subagent 5)**
-Use Task tool — review file is at `./reviews/REVIEW-{name}.md`:
+**Step 3: If OPEN issues exist → Review-implement (Subagent 5)**
+
+Use Task tool:
 ```
 Task: Run /review-implement for ./reviews/REVIEW-{name}.md
 ```
 
-After fixing, return to Step 2 for re-validation.
+After fixing, return to Step 2 for re-validation (this uses a NEW subagent — Subagent 6, then 8, then 10, etc.).
 
-**Step 4: If VALIDATE returns CLEAN (no OPEN issues) → Run FRESH Review (Subagent 6)**
+**Step 4: If VALIDATE returns CLEAN (no OPEN issues) → Run FRESH Review-report (Subagent N)**
 
-IMPORTANT: When running the fresh review:
-- Do NOT give the subagent any context about previous reviews or findings
-- Do NOT mention what issues were found or fixed before
-- Tell the subagent this is a completely fresh, independent review
-- The subagent should approach it like they are reviewing for the first time
-- Tell the subagent to `cd <subproject-dir> && uv run` for all Python commands
-
-Use Task tool:
+This MUST be a fresh, independent review. Do NOT give the subagent any context about previous reviews or findings:
 ```
 Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
 ```
@@ -87,34 +114,39 @@ Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use
 - If fresh review has ANY new issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
 - If fresh review returns CLEAN (zero issues) → Exit Review Loop and proceed to Cleanup
 
-### Phase 4: Cleanup (Subagent 7)
+### Phase 4: Review-cleanup (Subagent N)
 
-Use Task tool:
+Use Task tool to invoke a fresh subagent:
 ```
 Task: Run /review-cleanup for ./reviews/
 ```
 
-## Workflow Summary
+---
+
+## Workflow Summary (Subagent Sequence)
 
 ```
-Planning (Subagent 1) → Implementation (Subagent 2) → Review Loop → Cleanup
-
-Review Loop:
-  Review (Subagent 3) → writes to ./reviews/REVIEW-{name}.md
-       ↓
-  Validate (Subagent 4) → updates ./reviews/REVIEW-{name}.md → If OPEN: Fix (Subagent 5) → updates ./reviews/REVIEW-{name}.md → Validate (repeat until clean)
-       ↓
-  If CLEAN → Fresh Review (Subagent 6) - INDEPENDENT, no prior context
-       ↓
-  If NEW ISSUES → Return to Validate
-  If CLEAN (zero issues) → Exit Loop → Cleanup
+Subagent 1:  /plan
+Subagent 2:  /implement
+  ── Review Loop ──
+Subagent 3:  /review-report                               (initial review)
+Subagent 4:  /review-validate                             (validate findings)
+Subagent 5:  /review-implement                            (fix open issues)
+Subagent 6:  /review-validate                             (re-validate after fix)
+             ...repeat 4-6 as needed...
+Subagent N:  /review-report                               (fresh, independent review)
+             if issues → back to Subagent N+1 (validate)
+             if clean → proceed to cleanup
+Subagent N:  /review-cleanup                              (archive resolved reviews)
 ```
 
-## Review Loop Oversight Rules (Orchestrator Responsibilities)
+---
 
-The **orchestrator** (you — the agent executing this command) owns the loop and must apply these rules. The reviewer, validator, and fixer subagents are intentionally kept free of prior context to ensure fresh perspectives.
+## Review Loop Oversight Rules (Workflow-Orchestrator Responsibilities)
 
-> **Rule of thumb**: The orchestrator says "no, we already fixed that" or "that's out of scope now" to prevent infinite loops. Subagents are useful idiots — they generate creative thoroughness that the orchestrator filters.
+The **workflow-orchestrator** (you) owns the loop and must apply these rules. The subagents are intentionally kept free of prior context to ensure fresh perspectives.
+
+> **Rule of thumb**: The workflow-orchestrator says "no, we already fixed that" or "that's out of scope now" to prevent infinite loops. Subagents are useful idiots — they generate creative thoroughness that the workflow-orchestrator filters.
 
 ### 1. Bookkeep Review History
 
@@ -133,34 +165,34 @@ A previously addressed finding may legitimately reopen:
 
 ### 3. Tighten Scope as Issues Shrink
 
-As the loop progresses and findings become increasingly nitpicky (minor, info, suggestions), the orchestrator should tighten review scope to enable better termination:
+As the loop progresses and findings become increasingly nitpicky, the orchestrator should tighten review scope:
 
 - **First 1-2 cycles**: Full scope — all spec compliance, code quality, test coverage.
 - **Cycles 3-4**: Narrow to spec compliance and correctness issues. Defer cosmetic/style suggestions.
-- **Cycles 5+**: Only accept findings that represent **real bugs**, **spec violations**, or **test gaps that would let actual bugs through**. Reject pure style preferences, missing `__all__`, annotation preferences, naming nits, etc.
+- **Cycles 5+**: Only accept findings that represent **real bugs**, **spec violations**, or **test gaps that would let actual bugs through**.
 
-### 4. Orchestrator Validation Gate
+### 4. Workflow-Orchestrator Validation Gate
 
 After each fresh review, before passing findings to the validate-fix pipeline:
 
 1. Run each finding through the ledger (rule 1).
 2. Check for reopened issues with code diff verification (rule 2).
 3. Assess severity against current cycle scope (rule 3).
-4. Produce a filtered findings list — only genuinely new, in-scope, non-duplicate issues proceed to Step 2 (Validate).
+4. Produce a filtered findings list — only genuinely new, in-scope, non-duplicate issues proceed to validation.
 
-This keeps the reviewer free to be creatively thorough while the orchestrator prevents infinite loops from diminishing-returns nitpicking.
+---
 
 ## Important
 
-- The **orchestrator** (the agent running this command) is responsible for applying the Review Loop Oversight Rules. Do NOT pass oversight context to subagents.
-- Use Task tool to invoke each subagent for each phase
-- Wait for each subagent to complete before proceeding
-- After validation returns clean, ALWAYS run one more fresh review
-- For FRESH review: explicitly tell subagent to be independent with no prior context — do NOT mention any previous findings or fixes
-- The orchestrator filters and gates fresh review findings through the oversight rules before passing to validate
-- Stay scoped to the spec - don't implement or review things outside the scope
-- Run actual commands and tests - don't assume results
-- Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
-- All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location
+- The **workflow-orchestrator** (you) is responsible for applying the Review Loop Oversight Rules. Do NOT pass oversight context to subagents.
+- Use Task tool to invoke each subagent for each phase.
+- Wait for each subagent to complete before proceeding.
+- After validation returns clean, ALWAYS run one more fresh review.
+- For FRESH review: explicitly tell subagent to be independent with no prior context.
+- The orchestrator filters and gates fresh review findings through the oversight rules before passing to validate.
+- Stay scoped to the spec — don't implement or review things outside the scope.
+- Run actual commands and tests — don't assume results.
+- Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
+- All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location.
 
-Begin by starting Subagent 1 for planning phase.
+Begin by starting Subagent 1 for the planning phase.
