@@ -379,6 +379,22 @@ def detect_pr_base(head: str | None = None) -> str:
     return "main"
 
 
+def push_branch_if_needed(branch: str):
+    """Push a branch to remote if it doesn't have a remote tracking branch."""
+    try:
+        r = subprocess.run(["git", "rev-parse", f"origin/{branch}"], text=True, capture_output=True, check=False)
+        if r.returncode == 0:
+            return
+        print(f"[INFO] Pushing '{branch}' to remote...")
+        r = subprocess.run(["git", "push", "--force", "origin", branch], text=True, capture_output=True, check=False)
+        if r.returncode != 0:
+            print(f"[WARN] Failed to push '{branch}': {r.stderr.strip()}")
+        else:
+            print(f"[OK] '{branch}' pushed to remote.")
+    except Exception as e:
+        print(f"[WARN] Could not push '{branch}': {e}")
+
+
 def cmd_create_pr(args):
     title = args.title
     body_file = args.body_file
@@ -393,6 +409,11 @@ def cmd_create_pr(args):
         sys.exit(1)
     if not check_file(body_file):
         sys.exit(1)
+    
+    # Ensure both branches are pushed to remote before creating PR
+    push_branch_if_needed(head)
+    if base != head:
+        push_branch_if_needed(base)
     
     data = {"title": title, "head": head, "base": base, "body": open(body_file).read()}
     if args.draft:
