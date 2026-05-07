@@ -16,6 +16,9 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 | `/review-report <dir>` | Reviews project changes and generates a scoped report |
 | `/review-validate <file>` | Validates findings from a previous review |
 | `/review-implement <file>` | Implements fixes for review findings |
+| `/review-post <file>` | Posts a review report as a PR review with inline comments |
+| `/review-update <file>` | Updates an existing PR review with follow-up and resolutions |
+| `/review-fetch [pr]` | Fetches unresolved PR comments into a review report |
 | `/review-cleanup <file>` | Archives resolved reviews |
 | `/setup-project <dir>` | Sets up project with .agents structure |
 
@@ -25,6 +28,10 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 .agents/
 ├── commands/          # Opencode commands
 ├── templates/         # Document templates
+├── skills/            # Reusable skill references
+│   ├── gh-pr-management/
+│   ├── git-rebase/
+│   └── gh-review/
 ├── docs/
 │   ├── agents/       # Agent rules and guidelines
 │   └── project_rules/ # Project-specific rules
@@ -51,6 +58,18 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 - [.agents/docs/project_rules/coding_standards.md](.agents/docs/project_rules/coding_standards.md) — Code standards
 - [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
 - [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
+
+---
+
+## Skills
+
+Skills provide specialized instructions for common workflows. Read the relevant skill before performing the task.
+
+| Skill | Description |
+|-------|-------------|
+| [gh-pr-management](.agents/skills/gh-pr-management/SKILL.md) | Creating, updating, and managing PRs with `gh` |
+| [git-rebase](.agents/skills/git-rebase/SKILL.md) | Rebasing branches without dirtying commit history |
+| [gh-review](.agents/skills/gh-review/SKILL.md) | Fetching, posting, and updating PR reviews with `gh` |
 
 ---
 
