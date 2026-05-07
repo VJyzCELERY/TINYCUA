@@ -39,21 +39,21 @@ head -20 .agents/scripts/preflight-review.py
 
 ## Instructions
 
-Use Task tool to invoke subagents for each phase:
+Run both phases inline by default. Only delegate to subagents if the user explicitly says to use subagents.
 
-### Phase 1: Clarify (Subagent 1)
+### Phase 1: Clarify
 
-```
-Task: Run /review-clarify for $1
-```
+Run `/review-clarify` directly:
+
+> Run /review-clarify for $1
 
 This improves finding descriptions, adds missing context, sharpens validation commands.
 
-### Phase 2: Verify (Subagent 2)
+### Phase 2: Verify
 
-```
-Task: Run /review-verify for $1
-```
+Run `/review-verify` directly:
+
+> Run /review-verify for $1
 
 This runs each finding's validation command and determines its status (ADDRESSED, INVALID, or OPEN).
 
@@ -62,5 +62,5 @@ This runs each finding's validation command and determines its status (ADDRESSED
 ## Important
 
 - Always run clarify BEFORE verify — precise findings lead to accurate validation
-- Use a fresh subagent for each phase to keep context clean
+- Run steps inline unless the user explicitly requests subagent delegation
 - After verify returns, review the report to confirm all findings are properly statused

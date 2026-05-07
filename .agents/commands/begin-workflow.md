@@ -24,7 +24,7 @@ Once answered, the entire workflow runs fully automated — the orchestrator del
 
 ## Workflow-Orchestrator Role
 
-The agent that executes this command is the **workflow-orchestrator**. You (the running agent) are the workflow-orchestrator — you use the Task tool to delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
+The agent that executes this command is the **workflow-orchestrator**. You (the running agent) are the workflow-orchestrator — you delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
 
 ### Critical Rule: Every Step Uses a Fresh Subagent with Clean Context
 
@@ -70,21 +70,17 @@ Bare `python` or `pytest` may import from the wrong worktree.
 
 ### Phase 1: Planning (Subagent 1)
 
-Use Task tool to invoke a fresh subagent:
+Delegate to a fresh subagent:
 
-```
-Task: Run /plan for $1
-```
+> Run /plan for $1
 
 Wait for the subagent to complete and verify implementation-plan.md and task.md are created.
 
 ### Phase 2: Implementation (Subagent 2)
 
-Use Task tool to invoke a fresh subagent:
+Delegate to a fresh subagent:
 
-```
-Task: Run /implement for $1
-```
+> Run /implement for $1
 
 Wait for the subagent to complete and verify tasks are marked complete in task.md.
 
@@ -105,33 +101,29 @@ Enter a loop that continues until truly clean (no issues found in a FRESH review
 
 **Step 1: Review-report (Subagent 3)**
 
-Use Task tool to invoke a fresh subagent:
-```
-Task: Run /review-report for $1 with focus on code quality and spec compliance
-```
+Delegate to a fresh subagent:
+
+> Run /review-report for $1 with focus on code quality and spec compliance
 
 **Step 2: Review-validate (Subagent 4)**
 
-Use Task tool — review file is always at `./reviews/REVIEW-{name}.md`:
-```
-Task: Run /review-validate for ./reviews/REVIEW-{name}.md
-```
+Delegate — review file is always at `./reviews/REVIEW-{name}.md`:
+
+> Run /review-validate for ./reviews/REVIEW-{name}.md
 
 **Step 3: If OPEN issues exist → Review-implement (Subagent 5)**
 
-Use Task tool:
-```
-Task: Run /review-implement for ./reviews/REVIEW-{name}.md
-```
+Delegate:
+
+> Run /review-implement for ./reviews/REVIEW-{name}.md
 
 After fixing, return to Step 2 for re-validation (this uses a NEW subagent — Subagent 6, then 8, then 10, etc.).
 
 **Step 4: If VALIDATE returns CLEAN (no OPEN issues) → Run FRESH Review-report (Subagent N)**
 
 This MUST be a fresh, independent review. Do NOT give the subagent any context about previous reviews or findings:
-```
-Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
-```
+
+> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
 
 **Step 5: Check Fresh Review Result**
 - If fresh review has ANY new issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
@@ -139,10 +131,9 @@ Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use
 
 ### Phase 4: Review-cleanup (Subagent N)
 
-Use Task tool to invoke a fresh subagent:
-```
-Task: Run /review-cleanup for ./reviews/
-```
+Delegate to a fresh subagent:
+
+> Run /review-cleanup for ./reviews/
 
 ---
 
@@ -208,7 +199,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 ## Important
 
 - The **workflow-orchestrator** (you) is responsible for applying the Review Loop Oversight Rules. Do NOT pass oversight context to subagents.
-- Use Task tool to invoke each subagent for each phase.
+- Delegate each phase to a fresh subagent.
 - Wait for each subagent to complete before proceeding.
 - After validation returns clean, ALWAYS run one more fresh review.
 - For FRESH review: explicitly tell subagent to be independent with no prior context.

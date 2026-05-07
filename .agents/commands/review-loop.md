@@ -33,7 +33,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
 
 ## Workflow-Orchestrator Role
 
-The agent that executes this command is the **workflow-orchestrator**. You use the Task tool to delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
+The agent that executes this command is the **workflow-orchestrator**. You delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
 
 ### Every Step Uses a Fresh Subagent
 
@@ -57,35 +57,31 @@ Enter a loop that continues until truly clean (no issues found in a FRESH review
 
 **Step 1: Review-report (Subagent 1)**
 
-Use Task tool to invoke a fresh subagent:
-```
-Task: Run /review-report for $1 with focus on code quality and spec compliance
-```
+Delegate to a fresh subagent:
+
+> Run /review-report for $1 with focus on code quality and spec compliance
 
 The review file is written to `./reviews/REVIEW-{name}.md`.
 
 **Step 2: Review-validate (Subagent 2)**
 
-Use Task tool:
-```
-Task: Run /review-validate for ./reviews/REVIEW-{name}.md
-```
+Delegate:
+
+> Run /review-validate for ./reviews/REVIEW-{name}.md
 
 **Step 3: If OPEN issues exist → Review-implement (Subagent 3)**
 
-Use Task tool:
-```
-Task: Run /review-implement for ./reviews/REVIEW-{name}.md
-```
+Delegate:
+
+> Run /review-implement for ./reviews/REVIEW-{name}.md
 
 After fixing, return to Step 2 for re-validation (new subagent each time).
 
 **Step 4: If VALIDATE returns CLEAN → Run FRESH Review-report (Subagent N)**
 
 This MUST be a fresh, independent review. No prior context:
-```
-Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
-```
+
+> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch.
 
 **Step 5: Check Fresh Review Result**
 - If fresh review has ANY new issues → return to Step 2
@@ -93,9 +89,7 @@ Task: Run /review-report for $1 - perform a FRESH independent review. Do NOT use
 
 **Step 6: Review-cleanup (Subagent N)**
 
-```
-Task: Run /review-cleanup for ./reviews/
-```
+> Run /review-cleanup for ./reviews/
 
 ---
 
@@ -128,7 +122,7 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 
 ## Important
 
-- Use Task tool to invoke each subagent for each step
+- Delegate each step to a fresh subagent
 - Wait for each subagent to complete before proceeding
 - After validation returns clean, ALWAYS run one more fresh review
 - For FRESH review: explicitly tell subagent to be independent with no prior context
