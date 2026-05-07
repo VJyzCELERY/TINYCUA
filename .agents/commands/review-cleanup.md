@@ -5,7 +5,16 @@ subtask: true
 
 Clean up reviews that have been fully addressed (all findings resolved).
 
-**Reviews Directory**: $1 (path to reviews folder, e.g., "reviews/" or ".agents/reviews/")
+**Query**: $1 (natural language query or reviews directory, e.g., "clean up resolved reviews in reviews/" or simply "reviews/")
+**Archive Directory (Optional)**: $2 (where to move resolved reviews, defaults to "reviews/archived/")
+Clean up reviews that have been fully addressed (all findings resolved).
+
+**Query**: $1 (natural language query or reviews directory, e.g., "clean up resolved reviews in reviews/" or simply "reviews/")
+**Archive Directory (Optional)**: $2 (where to move resolved reviews, defaults to "reviews/archived/")
+Clean up reviews that have been fully addressed (all findings resolved).
+
+**Query**: $1 (natural language query or reviews directory, e.g., "clean up resolved reviews in reviews/" or simply "reviews/")
+**Archive Directory (Optional)**: $2 (where to move resolved reviews, defaults to "reviews/archived/")
 **Archive Directory (Optional)**: $2 (where to move resolved reviews, defaults to "reviews/archived/")
 
 ## Instructions

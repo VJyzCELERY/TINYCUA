@@ -10,18 +10,18 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 | Command | Description |
 |---------|-------------|
-| `/begin-workflow <dir>` | Automates complete specs implementation process |
-| `/plan <dir>` | Creates implementation plan from spec.md/design.md |
-| `/implement <dir>` | Executes implementation plan using TDD |
-| `/review-loop <dir>` | Runs review loop: report → validate → fix → fresh → cleanup |
-| `/review-report <dir>` | Reviews project changes and generates a scoped report |
-| `/review-validate <file>` | Validates findings from a previous review |
-| `/review-implement <file>` | Implements fixes for review findings |
-| `/review-post <file>` | Posts a review report as a PR review with inline comments |
-| `/review-update <file>` | Updates an existing PR review with follow-up and resolutions |
-| `/review-fetch [pr]` | Fetches unresolved PR comments into a review report |
-| `/review-cleanup <file>` | Archives resolved reviews |
-| `/setup-project <dir>` | Sets up project with .agents structure |
+| `/begin-workflow` | Full pipeline: plan → implement → review → cleanup |
+| `/plan` | Creates implementation plan + task list from spec & design |
+| `/implement` | Executes plan tasks using TDD (red → green → refactor) |
+| `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
+| `/review-report` | Scoped code review of current branch changes |
+| `/review-validate` | Re-checks review findings (marks fixed/stale) |
+| `/review-implement` | Applies fixes for review findings |
+| `/review-post` | Posts review as a GitHub PR review with inline comments |
+| `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
+| `/review-fetch` | Fetches unresolved PR comments into a review report |
+| `/review-cleanup` | Archives resolved reviews |
+| `/setup-project` | Bootstraps `.agents/` structure in a new project |
 
 ### Project Structure
 

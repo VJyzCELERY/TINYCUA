@@ -5,7 +5,37 @@ subtask: true
 
 Set up the opencode project structure.
 
-**Target Directory**: $1 (defaults to current directory if not specified)
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+**GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
+
+If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/
+Set up the opencode project structure.
+
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+**GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
+
+If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/
+Set up the opencode project structure.
+
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+**GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
+
+If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/
+Set up the opencode project structure.
+
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+**GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
+
+If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/
+Set up the opencode project structure.
+
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+**GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
+
+If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/
+Set up the opencode project structure.
+
+**Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
 **GitHub Repository (Optional)**: $2 (GitHub repo URL to clone .agents from, e.g., https://github.com/user/repo)
 
 If no GitHub repository is provided ($2 is empty), use local config from ~/.config/opencode/

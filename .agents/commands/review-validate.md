@@ -5,7 +5,37 @@ subtask: true
 
 Validate findings from a previous review and MUST update the report with validation results.
 
-**Review File**: $1 (path to the REVIEW-{name}.md file — look in `./reviews/` first if not found)
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, validate ALL OPEN findings.
+Validate findings from a previous review and MUST update the report with validation results.
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, validate ALL OPEN findings.
+Validate findings from a previous review and MUST update the report with validation results.
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, validate ALL OPEN findings.
+Validate findings from a previous review and MUST update the report with validation results.
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, validate ALL OPEN findings.
+Validate findings from a previous review and MUST update the report with validation results.
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, validate ALL OPEN findings.
+Validate findings from a previous review and MUST update the report with validation results.
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, validate ALL OPEN findings.

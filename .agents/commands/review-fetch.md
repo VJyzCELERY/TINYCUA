@@ -5,7 +5,16 @@ subtask: true
 
 Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
 
-**PR Number (Optional)**: $1 (if not provided, detect from current branch)
+**Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
+**Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
+Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
+
+**Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
+**Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
+Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
+
+**Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
+**Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
 **Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
 
 ---

@@ -5,8 +5,28 @@ subtask: true
 
 Implement fixes based on review findings and update the review report statuses.
 
-**Review File**: $1 (path to the REVIEW-{name}.md file — look in `./reviews/` first if not found)
+**Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, implement fixes for ALL OPEN findings.
+Implement fixes based on review findings and update the review report statuses.
+
+**Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, implement fixes for ALL OPEN findings.
+Implement fixes based on review findings and update the review report statuses.
+
+**Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, implement fixes for ALL OPEN findings.
+Implement fixes based on review findings and update the review report statuses.
+
+**Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
+
+If no focus area is provided, implement fixes for ALL OPEN findings.
 
 If no focus area is provided, implement fixes for ALL OPEN findings.
 

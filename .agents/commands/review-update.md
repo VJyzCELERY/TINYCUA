@@ -5,7 +5,16 @@ subtask: true
 
 Update an existing PR review with follow-up comments and resolve findings that have been addressed.
 
-**Review File**: $1 (path to the REVIEW-{name}.md file — the updated report)
+**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
+Update an existing PR review with follow-up comments and resolve findings that have been addressed.
+
+**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
+Update an existing PR review with follow-up comments and resolve findings that have been addressed.
+
+**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 **PR Number (Optional)**: $2 (if not provided, detect from current branch)
 
 ---

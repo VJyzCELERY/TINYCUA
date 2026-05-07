@@ -4,17 +4,18 @@
 
 | Command | What it does |
 |---------|-------------|
-| `/begin-workflow <dir>` | Full pipeline: plan → implement → review → cleanup |
-| `/plan <dir>` | Creates implementation plan + task list from spec & design |
-| `/implement <dir>` | Executes plan tasks using TDD (red → green → refactor) |
-| `/review-report <dir>` | Scoped code review of current branch changes |
-| `/review-validate <file>` | Re-checks review findings (marks fixed/stale) |
-| `/review-implement <file>` | Applies fixes for review findings |
-| `/review-post <file>` | Posts review as a GitHub PR review with inline comments |
-| `/review-update <file>` | Follows up on PR review (resolve threads, flag remaining) |
-| `/review-fetch [pr]` | Pulls unresolved PR comments into a local review file |
-| `/review-cleanup <file>` | Archives resolved review reports |
-| `/setup-project <dir>` | Bootstraps `.agents/` structure in a new project |
+| `/begin-workflow` | Full pipeline: plan → implement → review → cleanup |
+| `/plan` | Creates implementation plan + task list from spec & design |
+| `/implement` | Executes plan tasks using TDD (red → green → refactor) |
+| `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
+| `/review-report` | Scoped code review of current branch changes |
+| `/review-validate` | Re-checks review findings (marks fixed/stale) |
+| `/review-implement` | Applies fixes for review findings |
+| `/review-post` | Posts review as a GitHub PR review with inline comments |
+| `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
+| `/review-fetch` | Pulls unresolved PR comments into a local review file |
+| `/review-cleanup` | Archives resolved review reports |
+| `/setup-project` | Bootstraps `.agents/` structure in a new project |
 
 ---
 
@@ -25,6 +26,7 @@
 | Automate the whole feature cycle (spec → code → review → PR) | `/begin-workflow specs/my-feature/` |
 | Break a spec into actionable tasks | `/plan specs/my-feature/` |
 | Write code following a plan | `/implement specs/my-feature/` |
+| Run the full review loop (report → fix → fresh report) until clean | `/review-loop src/my-subproject/` |
 | Check if your branch code is clean before merging | `/review-report src/my-subproject/` |
 | Re-check if previously flagged issues are actually fixed | `/review-validate reviews/REVIEW-foo.md` |
 | Fix issues found by a review | `/review-implement reviews/REVIEW-foo.md` |
@@ -44,7 +46,15 @@
 /begin-workflow specs/my-feature/
 ```
 
-This runs the entire pipeline automatically: `plan` → `implement` → review loop (review-report → review-validate → review-implement → ... until clean) → `review-cleanup`.
+This runs the entire pipeline automatically: `plan` → `implement` → `review-loop` → `review-cleanup`.
+
+### Review Loop (Standalone)
+
+```bash
+/review-loop src/my-subproject/            # Run review cycle until clean
+```
+
+This runs: review-report → review-validate → review-implement → ... → fresh review-report → ... → review-cleanup.
 
 ### Manual PR Review Cycle
 
@@ -74,6 +84,7 @@ This runs the entire pipeline automatically: `plan` → `implement` → review l
 |---------|------------------|
 | `/plan` | `implementation-plan.md` + `task.md` in the target directory |
 | `/implement` | Code changes + updates `task.md` |
+| `/review-loop` | Runs report → validate → fix → cleanup cycle |
 | `/review-report` | `./reviews/REVIEW-{name}.md` |
 | `/review-validate` | Updates `./reviews/REVIEW-{name}.md` |
 | `/review-implement` | Code changes + updates `./reviews/REVIEW-{name}.md` |
