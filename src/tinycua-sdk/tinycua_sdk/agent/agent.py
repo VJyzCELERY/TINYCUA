@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
@@ -136,8 +136,16 @@ class Agent(AgentExecutor):
             )
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
+        result = await loop.run(self, msgs, self.tools, instructions, stream=stream)
+        if stream == "off":
+            self._cancelled = False
+            return result
+        return self._wrap_stream(result)
+
+    async def _wrap_stream(self, gen: AsyncIterator[dict]) -> AsyncGenerator[dict, None]:
         try:
-            return await loop.run(self, msgs, self.tools, instructions, stream=stream)
+            async for event in gen:
+                yield event
         finally:
             self._cancelled = False
 
