@@ -165,7 +165,7 @@ class BaseLoop:
         yield {"type": "response.created"}
 
         tool_call_count = 0
-        cumulative_usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         finish_reason = "completed"
 
         try:
@@ -345,8 +345,14 @@ class BaseLoop:
                 buf["arguments"] += chunk.get("arguments", "")
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
-            for key in cumulative_usage:
-                cumulative_usage[key] += usage.get(key, 0)
+            if usage:
+                _accumulate_usage(cumulative_usage, usage)
+        elif chunk_type == "response.completed":
+            resp = chunk.get("response")
+            if isinstance(resp, dict):
+                usage = resp.get("usage")
+                if usage:
+                    _accumulate_usage(cumulative_usage, usage)
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
@@ -354,6 +360,29 @@ class BaseLoop:
             if msg.get("role") == "assistant":
                 return msg.get("content") or ""
         return ""
+
+
+def _accumulate_usage(
+    cumulative: dict[str, int],
+    usage: dict[str, Any],
+) -> None:
+    """Accumulate usage dict into cumulative counters with key normalization.
+
+    Normalises both Responses API keys (``input_tokens``, ``output_tokens``)
+    and Chat Completions keys (``prompt_tokens``, ``completion_tokens``) into
+    the SDK's canonical ``input_tokens`` / ``output_tokens`` / ``total_tokens``.
+
+    Args:
+        cumulative: Dict of cumulative token counts (mutated in place).
+        usage: Usage dict from the provider response.
+    """
+    cumulative["input_tokens"] += usage.get(
+        "input_tokens", usage.get("prompt_tokens", 0)
+    )
+    cumulative["output_tokens"] += usage.get(
+        "output_tokens", usage.get("completion_tokens", 0)
+    )
+    cumulative["total_tokens"] += usage.get("total_tokens", 0)
 
 
 __all__ = ["BaseLoop"]

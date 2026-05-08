@@ -25,17 +25,18 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient()
 
         fake_response_data = {
-            "choices": [
+            "output": [
                 {
-                    "message": {
-                        "content": "Hello!",
-                        "role": "assistant",
-                    }
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "Hello!", "annotations": []}
+                    ],
                 }
             ],
             "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
+                "input_tokens": 10,
+                "output_tokens": 5,
                 "total_tokens": 15,
             },
         }
@@ -57,35 +58,26 @@ class TestOpenAICompatibleClient:
         assert result["content"] == "Hello!"
         assert result["tool_calls"] is None
         assert result["usage"] == {
-            "prompt_tokens": 10,
-            "completion_tokens": 5,
+            "input_tokens": 10,
+            "output_tokens": 5,
             "total_tokens": 15,
         }
+        assert mock_post.call_args[0][0] == "/responses"
 
     @pytest.mark.asyncio
     async def test_chat_with_tool_calls(self):
         client = OpenAICompatibleClient()
 
         fake_response_data = {
-            "choices": [
+            "output": [
                 {
-                    "message": {
-                        "content": None,
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "id": "call_abc123",
-                                "type": "function",
-                                "function": {
-                                    "name": "get_weather",
-                                    "arguments": '{"city": "Tokyo"}',
-                                },
-                            }
-                        ],
-                    }
+                    "type": "function_call",
+                    "id": "call_abc123",
+                    "name": "get_weather",
+                    "arguments": '{"city": "Tokyo"}',
                 }
             ],
-            "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25},
+            "usage": {"input_tokens": 15, "output_tokens": 10, "total_tokens": 25},
         }
 
         mock_post = AsyncMock(
@@ -109,6 +101,7 @@ class TestOpenAICompatibleClient:
         assert result["tool_calls"][0]["id"] == "call_abc123"
         assert result["tool_calls"][0]["function"]["name"] == "get_weather"
         assert result["tool_calls"][0]["function"]["arguments"] == '{"city": "Tokyo"}'
+        assert mock_post.call_args[0][0] == "/responses"
 
     @pytest.mark.asyncio
     async def test_chat_sends_tool_choice_auto_when_tools_present(self):
@@ -116,18 +109,33 @@ class TestOpenAICompatibleClient:
 
         fake_response = FakeLLMResponse(
             json_data={
-                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                    }
+                ],
                 "usage": None,
             }
         )
         mock_post = AsyncMock(return_value=fake_response)
         captured_payload = {}
+        captured_url = None
 
         async def capture_post(url, **kwargs):
+            nonlocal captured_url
+            captured_url = url
             captured_payload.update(kwargs.get("json", {}))
             return FakeLLMResponse(
                 json_data={
-                    "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                        }
+                    ],
                     "usage": None,
                 }
             )
@@ -145,6 +153,7 @@ class TestOpenAICompatibleClient:
                 model_config=model,
             )
 
+        assert captured_url == "/responses"
         assert captured_payload.get("tool_choice") == "auto"
 
     @pytest.mark.asyncio
@@ -153,14 +162,23 @@ class TestOpenAICompatibleClient:
 
         fake_ok = FakeLLMResponse(
             json_data={
-                "choices": [{"message": {"content": "ok", "role": "assistant"}}],
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                    }
+                ],
                 "usage": None,
             }
         )
         mock_post = AsyncMock(return_value=fake_ok)
         captured_payload = {}
+        captured_url = None
 
         async def capture_post(url, **kwargs):
+            nonlocal captured_url
+            captured_url = url
             captured_payload.update(kwargs.get("json", {}))
             return fake_ok
 
@@ -183,6 +201,7 @@ class TestOpenAICompatibleClient:
                 model_config=model,
             )
 
+        assert captured_url == "/responses"
         assert captured_payload["model"] == "gpt-4o-mini"
         assert captured_payload["temperature"] == 0.5
         assert captured_payload["max_tokens"] == 100
@@ -213,6 +232,8 @@ class TestOpenAICompatibleClient:
                     model_config=model,
                 )
 
+        assert mock_post.call_args[0][0] == "/responses"
+
     @pytest.mark.asyncio
     async def test_chat_no_tool_calls_when_omitted(self):
         client = OpenAICompatibleClient()
@@ -220,12 +241,17 @@ class TestOpenAICompatibleClient:
         mock_post = AsyncMock(
             return_value=FakeLLMResponse(
                 json_data={
-                    "choices": [
+                    "output": [
                         {
-                            "message": {
-                                "content": "No tools needed.",
-                                "role": "assistant",
-                            }
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "No tools needed.",
+                                    "annotations": [],
+                                }
+                            ],
                         }
                     ],
                     "usage": None,
@@ -246,13 +272,22 @@ class TestOpenAICompatibleClient:
 
         assert result["tool_calls"] is None
         assert result["content"] == "No tools needed."
+        assert mock_post.call_args[0][0] == "/responses"
 
     @pytest.mark.asyncio
     async def test_chat_dispatches_to_chat_sync_when_stream_false(self):
         """chat(stream=False) calls _chat_sync and returns a dict."""
         client = OpenAICompatibleClient()
         fake_data = {
-            "choices": [{"message": {"content": "sync", "role": "assistant"}}],
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "sync", "annotations": []}
+                    ],
+                }
+            ],
             "usage": None,
         }
         mock_post = AsyncMock(return_value=FakeLLMResponse(json_data=fake_data))
@@ -271,6 +306,7 @@ class TestOpenAICompatibleClient:
 
         assert isinstance(result, dict)
         assert result["content"] == "sync"
+        assert mock_post.call_args[0][0] == "/responses"
 
     def _make_fake_stream_response(self, sse_lines):
         """Create a FakeStreamResponse that yields the given SSE lines."""
@@ -300,8 +336,8 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
-            'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n',
-            'data: {"id":"2","choices":[{"delta":{"content":" world"}}]}\n',
+            'data: {"type":"response.output_text.delta","delta":"Hello","item_id":"1"}\n',
+            'data: {"type":"response.output_text.delta","delta":" world","item_id":"2"}\n',
             "data: [DONE]\n",
         ]
 
@@ -341,8 +377,8 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
-            'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","index":0,"function":{"name":"get_weather","arguments":""}}]}}]}\n',
-            'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","index":0,"function":{"name":"","arguments":"{\\"city\\": \\"Tokyo\\"}"}}]}}]}\n',
+            'data: {"type":"response.tool_call.delta","index":0,"id":"call_1","name":"get_weather","arguments":""}\n',
+            'data: {"type":"response.tool_call.delta","index":0,"id":"call_1","name":"","arguments":"{\\"city\\": \\"Tokyo\\"}"}\n',
             "data: [DONE]\n",
         ]
 
@@ -365,11 +401,20 @@ class TestOpenAICompatibleClient:
             chunks = [c async for c in result]
 
         assert len(chunks) == 2
-        assert chunks[0]["type"] == "response.tool_call.delta"
-        assert chunks[0]["id"] == "call_1"
-        assert chunks[0]["name"] == "get_weather"
-        assert chunks[1]["type"] == "response.tool_call.delta"
-        assert chunks[1]["id"] == "call_1"
+        assert chunks[0] == {
+            "type": "response.tool_call.delta",
+            "index": 0,
+            "id": "call_1",
+            "name": "get_weather",
+            "arguments": "",
+        }
+        assert chunks[1] == {
+            "type": "response.tool_call.delta",
+            "index": 0,
+            "id": "call_1",
+            "name": "",
+            "arguments": '{"city": "Tokyo"}',
+        }
 
     @pytest.mark.asyncio
     async def test_chat_stream_skips_done_sentinel(self):
@@ -431,12 +476,12 @@ class TestOpenAICompatibleClient:
 
     @pytest.mark.asyncio
     async def test_chat_stream_emits_usage_event(self):
-        """SSE with usage data in final chunk yields response.usage event."""
+        """SSE with usage event yields response.usage event."""
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
-            'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n',
-            'data: {"id":"2","choices":[{"delta":{}}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}\n',
+            'data: {"type":"response.output_text.delta","delta":"Hello","item_id":"1"}\n',
+            'data: {"type":"response.usage","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}\n',
             "data: [DONE]\n",
         ]
 
