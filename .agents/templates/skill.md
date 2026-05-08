@@ -17,6 +17,9 @@ metadata:
 <When an agent should load this skill. Prerequisites, context needed.>
 <Use this when you are...>
 
+If your harness has a native skill loading mechanism, use it. Otherwise, read this file directly — you can list available skills with `ls .agents/skills/`:
+> Read .agents/skills/<skill-name>/SKILL.md
+
 ## How to use me
 
 <Step-by-step guide with concrete commands and examples.>

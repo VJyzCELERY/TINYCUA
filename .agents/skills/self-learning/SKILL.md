@@ -34,7 +34,7 @@ Each skill lives in its own directory under `.agents/skills/<name>/SKILL.md`:
 │   └── SKILL.md
 ```
 
-Every SKILL.md must start with opencode-compatible YAML frontmatter:
+Every SKILL.md must start with YAML frontmatter (opencode format shown, compatible with other harnesses):
 
 ```yaml
 ---
@@ -92,6 +92,26 @@ After the frontmatter, the body follows this structure:
 2. Add the new pattern, gotcha, or example
 3. Preserve existing content — only add or refine
 4. Update the `## Common Pitfalls` section if a new mistake was discovered
+
+## How Agents Load Skills
+
+Agents load skills differently depending on the harness:
+
+```
+# Native skill loading (harness-dependent):
+#   opencode: skill({ name: "<skill-name>" })
+#   claude:   Read .agents/skills/<skill-name>/SKILL.md
+#   generic:  Read .agents/skills/<skill-name>/SKILL.md
+```
+
+If you don't know the harness, list the directory and read directly — always works:
+
+```
+ls .agents/skills/
+Read .agents/skills/<name>/SKILL.md
+```
+
+When delegating to a subagent, tell it to load the relevant skill by name. If you don't know the subagent's harness, just tell it to read the file directly.
 
 ## When NOT to Create a Skill
 

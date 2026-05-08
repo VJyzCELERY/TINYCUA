@@ -2,6 +2,8 @@
 
 This project uses the `.agents/` directory for all AI agent-related configuration, commands, templates, and documentation.
 
+**Baseline harness is opencode, but all instructions are harness-agnostic.** If your harness does not support a specific mechanism (skill loading, tool detection, etc.), fall back to reading files directly and executing commands via bash.
+
 ---
 
 ## Critical: Always Ask, Read, and Check First
@@ -44,9 +46,7 @@ Skills teach you **how** to use the tools and scripts. Before running any tool, 
 | Rebase branches safely | `git-rebase` — rebase workflow, conflict handling, worktrees |
 | Create or update a skill | `self-learning` — skill structure, frontmatter, and `.agents/templates/skill.md` |
 
-If your harness does not detect skills automatically, read them directly:
-
-> Read skill: `.agents/skills/<name>/SKILL.md`
+If your harness does not detect skills automatically, read them from the directory directly — the skill files are always at `.agents/skills/<name>/SKILL.md` and you can list them with `ls .agents/skills/`.
 
 The full list of available skills is also documented in XML format (matching opencode convention):
 
@@ -151,14 +151,25 @@ The full list of available skills is also documented in XML format (matching ope
 </available_skills>
 ```
 
-The agent loads a skill by calling the skill tool with the name:
+The agent loads a skill by calling the native mechanism (if your harness has one). If your harness does not support it, read the file directly:
 
 ```
-skill({ name: "review-report" })
+# Native skill loading (harness-dependent):
+#   opencode: skill({ name: "review-report" })
+#   claude:   Read .agents/skills/review-report/SKILL.md
+#   generic:  Read .agents/skills/review-report/SKILL.md
+```
+
+If you don't know what harness you're on, list available skills and read the one you need:
+
+```
+ls .agents/skills/
+# then
+Read .agents/skills/<name>/SKILL.md
 ```
 
 ### Layer 3: Tools (`.agents/tools/*.ts`)
-Tools are the executable functions agents can call directly (opencone custom tool format). The following tools are available:
+Tools are the executable functions agents can call directly (opencode custom tool format). The following tools are available:
 
 | Tool | What it does |
 |------|-------------|
@@ -232,7 +243,7 @@ head -20 .agents/scripts/preflight-review.py
 
 ```
 .agents/
-├── commands/          # Opencode command definitions
+├── commands/          # Slash command definitions (harness-agnostic)
 ├── templates/         # Document templates (check before generating)
 ├── skills/            # Specialized workflow instructions
 │   ├── begin-workflow/
@@ -265,7 +276,7 @@ head -20 .agents/scripts/preflight-review.py
 │   ├── preflight-review.py
 │   ├── preflight-pr.py
 │   └── preflight-rebase.py
-├── tools/             # Opencode custom tool definitions (calls scripts/)
+├── tools/             # Custom tool definitions (opencode custom tool format, calls scripts/)
 │   ├── gh.ts          # gh.py wrapped as opencode tools
 │   └── preflight.ts   # preflight scripts wrapped as opencode tools
 ├── docs/
