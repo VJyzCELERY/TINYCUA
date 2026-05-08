@@ -443,7 +443,7 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert events[0] == {"type": "response.created"}
-        assert events[-1] == {"type": "response.completed"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         assert any(e["type"] == "response.output_text.delta" for e in events)
         assert not any(e["type"] == "response.output_item.added" for e in events)
 
@@ -471,7 +471,7 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert events[0] == {"type": "response.created"}
-        assert events[-1] == {"type": "response.completed"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         assert not any(e["type"] == "response.output_text.delta" for e in events)
 
     @pytest.mark.asyncio
@@ -498,7 +498,7 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert events[0] == {"type": "response.created"}
-        assert events[-1] == {"type": "response.completed"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         assert any(e["type"] == "response.output_text.delta" for e in events)
 
     @pytest.mark.asyncio
@@ -542,7 +542,7 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert events[0] == {"type": "response.created"}
-        assert events[-1] == {"type": "response.completed"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         tool_events = [
             e for e in events if e.get("type") == "response.output_item.added"
         ]
@@ -668,7 +668,7 @@ class TestBaseLoopRunStream:
         events = [e async for e in stream_iter]
 
         assert events[0] == {"type": "response.created"}
-        assert events[-1] == {"type": "response.completed"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         tool_outputs = [
             e
             for e in events
@@ -821,5 +821,67 @@ class TestBaseLoopRunStream:
         error_events = [e for e in events if e["type"] == "error"]
         assert len(failed_events) == 1
         assert "message" in failed_events[0]["error"]
-        assert len(error_events) == 0
+        assert len(error_events) == 1
         assert events[-1]["type"] == "response.failed"
+
+
+class TestLoopExecution:
+    """Tests for loop execution (mocked LLM)."""
+
+    @pytest.mark.asyncio
+    async def test_run_basic(self, mock_llm_client):
+        """Basic run with mocked LLM."""
+        agent = Agent(llm_model=LanguageModel())
+        response = await agent.run("Hello")
+        assert response == "Mocked response"
+
+    @pytest.mark.asyncio
+    async def test_run_with_messages(self, mock_llm_client):
+        """Pass message history."""
+        agent = Agent(llm_model=LanguageModel())
+        messages = [{"role": "user", "content": "Previous"}]
+        response = await agent.run("Hello", messages=messages)
+        assert response == "Mocked response"
+
+    @pytest.mark.asyncio
+    async def test_run_with_tools(self, mock_llm_with_tool_calls):
+        """Tool calling in loop (mocked LLM returns tool call JSON)."""
+
+        @tool
+        def search(query: str) -> str:
+            """Search for something."""
+            return f"Results: {query}"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[search])
+        response = await agent.run("Search for quantum")
+        assert isinstance(response, str)
+
+    @pytest.mark.asyncio
+    async def test_run_stateless(self, mock_llm_client):
+        """Multiple runs are independent."""
+        agent = Agent(llm_model=LanguageModel())
+        r1 = await agent.run("Query 1")
+        r2 = await agent.run("Query 2")
+        assert r1 == "Mocked response"
+        assert r2 == "Mocked response"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop(self, mock_llm_client):
+        """Agent with custom BaseLoop subclass."""
+
+        class CustomLoop(BaseLoop):
+            async def run(
+                self, agent, messages, tools, override_instructions=None, **kwargs
+            ):
+                return "Custom result"
+
+        agent = Agent(llm_model=LanguageModel(), loop=CustomLoop())
+        response = await agent.run("Hello")
+        assert response == "Custom result"
+
+    @pytest.mark.asyncio
+    async def test_base_loop_default(self, mock_llm_client):
+        """Default BaseLoop() used when loop=None."""
+        agent = Agent(llm_model=LanguageModel())
+        response = await agent.run("Hello")
+        assert response == "Mocked response"

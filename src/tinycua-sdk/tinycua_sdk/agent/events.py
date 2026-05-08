@@ -28,6 +28,7 @@ class ResponseCompletedEvent(TypedDict):
     """Emitted at the end of a successful stream session."""
 
     type: Literal["response.completed"]
+    finish_reason: str
 
 
 class ResponseUsageEvent(TypedDict):
