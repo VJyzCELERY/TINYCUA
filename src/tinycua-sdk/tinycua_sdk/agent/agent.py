@@ -152,6 +152,8 @@ class Agent(AgentExecutor):
                 yield event
         finally:
             self._cancelled = False
+            if hasattr(gen, "aclose"):
+                await gen.aclose()
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent to a configuration dict.

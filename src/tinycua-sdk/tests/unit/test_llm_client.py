@@ -91,7 +91,7 @@ class TestOpenAICompatibleClient:
             model = LanguageModel(model_name="gpt-4o-mini")
             result = await client.chat(
                 messages=[{"role": "user", "content": "Weather?"}],
-                tools=[{"type": "function", "function": {"name": "get_weather"}}],
+                tools=[{"type": "function", "name": "get_weather"}],
                 model_config=model,
             )
 
@@ -99,8 +99,8 @@ class TestOpenAICompatibleClient:
         assert result["tool_calls"] is not None
         assert len(result["tool_calls"]) == 1
         assert result["tool_calls"][0]["id"] == "call_abc123"
-        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert result["tool_calls"][0]["function"]["arguments"] == '{"city": "Tokyo"}'
+        assert result["tool_calls"][0]["name"] == "get_weather"
+        assert result["tool_calls"][0]["arguments"] == '{"city": "Tokyo"}'
         assert mock_post.call_args[0][0] == "/responses"
 
     @pytest.mark.asyncio
@@ -149,7 +149,7 @@ class TestOpenAICompatibleClient:
             model = LanguageModel(model_name="gpt-4o-mini")
             await client.chat(
                 messages=[],
-                tools=[{"type": "function", "function": {"name": "test"}}],
+                tools=[{"type": "function", "name": "test"}],
                 model_config=model,
             )
 
@@ -393,7 +393,7 @@ class TestOpenAICompatibleClient:
             )
             result = await client.chat(
                 messages=[{"role": "user", "content": "weather?"}],
-                tools=[{"type": "function", "function": {"name": "get_weather"}}],
+                tools=[{"type": "function", "name": "get_weather"}],
                 model_config=model,
                 stream=True,
             )
