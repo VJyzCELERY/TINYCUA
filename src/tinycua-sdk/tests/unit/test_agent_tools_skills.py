@@ -36,7 +36,7 @@ class TestInt05AgentWithToolsAndSkills:
         )
 
         response = await agent.run(
-            "What is the latest version of FastAPI?", stream="off"
+            "What is the latest version of FastAPI?", stream=False
         )
         assert isinstance(response, str)
         assert len(response) > 0

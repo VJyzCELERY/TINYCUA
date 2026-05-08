@@ -115,7 +115,7 @@ class Agent(AgentExecutor):
         query: str,
         messages: list[dict] | None = None,
         instructions: str | None = None,
-        stream: Literal["off", "event", "token", "all"] = "off",
+        stream: bool = False,
     ) -> str | AsyncIterator[dict]:
         """Run the agent with a query.
 
@@ -123,26 +123,21 @@ class Agent(AgentExecutor):
             query: The user query string.
             messages: Optional message history to prepend.
             instructions: Optional instructions override.
-            stream: Streaming mode - 'off', 'token', 'event', or 'all'.
+            stream: If True, returns an async iterator of raw SSE events.
 
         Returns:
-            Final response string when stream='off', or an async iterator
+            Final response string when stream=False, or an async iterator
             of event dicts when streaming.
         """
-        valid_modes = {"off", "token", "event", "all"}
-        if stream not in valid_modes:
-            raise ValueError(
-                f"Invalid stream mode '{stream}'. Must be one of: {', '.join(sorted(valid_modes))}"
-            )
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
         try:
             result = await loop.run(self, msgs, self.tools, instructions, stream=stream)
         finally:
-            if stream == "off":
+            if not stream:
                 self._cancelled = False
 
-        if stream == "off":
+        if not stream:
             return result
         return self._wrap_stream(result)
 

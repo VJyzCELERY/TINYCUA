@@ -242,7 +242,7 @@ class OpenAICompatibleClient(LLMClient):
                             "delta": delta["content"],
                             "item_id": data.get("id", ""),
                         }
-                    elif delta.get("tool_calls"):
+                    if delta.get("tool_calls"):
                         for tc in delta["tool_calls"]:
                             yield {
                                 "type": "response.tool_call.delta",

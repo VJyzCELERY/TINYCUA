@@ -25,7 +25,7 @@ class TestInt03AgentWithTools:
             instructions="You have access to a search tool. Use it for lookups.",
         )
 
-        response = await agent.run("Search for quantum", stream="off")
+        response = await agent.run("Search for quantum", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
@@ -43,5 +43,5 @@ class TestInt03AgentWithTools:
 
         agent.add_tools(convert_currency)
 
-        response = await agent.run("Convert 100 USD to EUR.", stream="off")
+        response = await agent.run("Convert 100 USD to EUR.", stream=False)
         assert isinstance(response, str)
