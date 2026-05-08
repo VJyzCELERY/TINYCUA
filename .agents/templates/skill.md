@@ -5,21 +5,19 @@ license: MIT
 compatibility: opencode
 metadata:
   type: <command-skill | infrastructure | workflow>
-  source: <relevant source command or tool, e.g., .agents/commands/<name>.md>
+  source: <relevant source command or tool>
 ---
 
-# Skill: <Skill Name — Human Readable Title>
-
-## Purpose
+## What I do
 
 <What this skill helps with — 1-3 sentences.>
 
-## Prerequisites
+## When to use me
 
-<Any tools, permissions, or context needed before using this skill.>
-<Load skill: <other-skill> if it depends on another skill.>
+<When an agent should load this skill. Prerequisites, context needed.>
+<Use this when you are...>
 
-## Execution
+## How to use me
 
 <Step-by-step guide with concrete commands and examples.>
 
@@ -39,7 +37,3 @@ metadata:
 
 - <Thing to watch out for>
 - <Another common mistake>
-
-## Examples
-
-<Optional: real-world usage examples.>

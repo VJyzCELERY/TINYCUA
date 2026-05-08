@@ -48,6 +48,115 @@ If your harness does not detect skills automatically, read them directly:
 
 > Read skill: `.agents/skills/<name>/SKILL.md`
 
+The full list of available skills is also documented in XML format (matching opencode convention):
+
+```
+<available_skills>
+  <skill>
+    <name>begin-workflow</name>
+    <description>Automate the complete specs implementation process using subagents for each phase</description>
+  </skill>
+  <skill>
+    <name>begin-worktree</name>
+    <description>Create isolated development worktrees with matching branches</description>
+  </skill>
+  <skill>
+    <name>commit-cleanup</name>
+    <description>Clean up commit history after rebase — squash fixups, remove duplicates</description>
+  </skill>
+  <skill>
+    <name>gh-pr-management</name>
+    <description>Create, update, and manage GitHub PRs via gh.py</description>
+  </skill>
+  <skill>
+    <name>gh-review</name>
+    <description>Post, reply, resolve, and update PR reviews via gh.py and gh api</description>
+  </skill>
+  <skill>
+    <name>git-rebase</name>
+    <description>Safely rebase branches without dirtying history</description>
+  </skill>
+  <skill>
+    <name>implement</name>
+    <description>Execute implementation plan tasks using strict TDD</description>
+  </skill>
+  <skill>
+    <name>plan</name>
+    <description>Create implementation plans and task lists from spec and design documents</description>
+  </skill>
+  <skill>
+    <name>preflight</name>
+    <description>Run preflight checks before session start, reviews, PRs, and rebases</description>
+  </skill>
+  <skill>
+    <name>rebase</name>
+    <description>Safely rebase current branch onto target without duplicating commits</description>
+  </skill>
+  <skill>
+    <name>review-cleanup</name>
+    <description>Archive resolved review reports after all findings are addressed</description>
+  </skill>
+  <skill>
+    <name>review-clarify</name>
+    <description>Improve review finding precision — rewrite vague descriptions, add context</description>
+  </skill>
+  <skill>
+    <name>review-fetch</name>
+    <description>Fetch unresolved PR review comments into a local structured report</description>
+  </skill>
+  <skill>
+    <name>review-implement</name>
+    <description>Apply code fixes from review findings without updating the review report</description>
+  </skill>
+  <skill>
+    <name>review-loop</name>
+    <description>Orchestrate review-until-clean cycles with fresh subagents per step</description>
+  </skill>
+  <skill>
+    <name>review-post</name>
+    <description>Post completed review reports as GitHub PR reviews with inline comments</description>
+  </skill>
+  <skill>
+    <name>review-report</name>
+    <description>Conduct scoped code reviews of branch changes and generate structured reports</description>
+  </skill>
+  <skill>
+    <name>review-update</name>
+    <description>Update PR reviews after fixes — resolve addressed, reply on remaining</description>
+  </skill>
+  <skill>
+    <name>review-validate</name>
+    <description>Run the complete validation pipeline — clarify then verify findings</description>
+  </skill>
+  <skill>
+    <name>review-verify</name>
+    <description>Execute validation commands to determine finding status — addressed, invalid, or open</description>
+  </skill>
+  <skill>
+    <name>self-learning</name>
+    <description>Guide for creating and updating project-specific agent skills</description>
+  </skill>
+  <skill>
+    <name>setup-project</name>
+    <description>Bootstrap or update .agents/ structure from MAIN-PROJECT-TEMPLATE</description>
+  </skill>
+  <skill>
+    <name>worktree-cleanup</name>
+    <description>Remove local artifacts in current worktree — reviews, tmp, caches</description>
+  </skill>
+  <skill>
+    <name>worktree-prune</name>
+    <description>Remove inactive worktrees whose branches have been merged or abandoned</description>
+  </skill>
+</available_skills>
+```
+
+The agent loads a skill by calling the skill tool with the name:
+
+```
+skill({ name: "review-report" })
+```
+
 ### Layer 3: Tools (`.agents/tools/*.ts`)
 Tools are the executable functions agents can call directly (opencone custom tool format). The following tools are available:
 
