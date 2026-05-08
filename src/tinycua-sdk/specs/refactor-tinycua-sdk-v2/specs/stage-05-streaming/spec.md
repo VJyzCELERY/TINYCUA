@@ -54,12 +54,12 @@ All streaming events follow the OpenAI Responses API SSE event format. Each even
 | `response.output_text.delta` | ✅ | 5 | Text content delta chunk (passthrough from LLM). |
 | `response.output_text.done` | ❌ Removed | — | No longer emitted — consumers track completion via the end of delta stream or response.completed. |
 | `response.output_text.annotation.added` | ❌ Deferred | 9 | Citation/annotation on text output. |
-| `response.output_item.added` | ❌ Removed | — | No longer emitted — synthetic events removed in favor of raw passthrough. |
+| `response.output_item.added` | ✅ Handled | 5 | Passthrough — handled for `function_call` items from provider. |
 | `response.output_item.done` | ❌ Removed | — | No longer emitted — synthetic events removed in favor of raw passthrough. |
 | `response.content_part.added` | ❌ Deferred | 9 | Content part added (multi-part responses). |
 | `response.content_part.done` | ❌ Deferred | 9 | Content part complete. |
-| `response.function_call_arguments.delta` | ❌ Deferred | 8 | Function call argument delta. |
-| `response.function_call_arguments.done` | ❌ Deferred | 8 | Function call arguments complete. |
+| `response.function_call_arguments.delta` | ✅ Implemented | 5 | Tool call argument delta accumulation. |
+| `response.function_call_arguments.done` | ✅ Implemented | 5 | Tool call argument completion. |
 | `response.completed` | ✅ | 5 | Response completed successfully. |
 | `response.failed` | ✅ | 5 | Response failed with error details. |
 | `error` | ✅ | 5 | Transient streaming error event. |

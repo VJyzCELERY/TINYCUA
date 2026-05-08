@@ -190,7 +190,7 @@ class BaseLoop:
                     async for chunk in llm_stream:
                         if agent.is_cancelled:
                             yield {"type": "response.cancelled"}
-                            return
+                            break
                         chunk_type = chunk.get("type", "")
                         if chunk_type not in ("response.created", "response.completed"):
                             yield chunk
