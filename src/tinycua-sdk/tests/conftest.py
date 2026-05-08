@@ -1,9 +1,13 @@
 """Conftest for integration tests."""
 
+import os
+from pathlib import Path
+
 import pytest
 import asyncio
-import os
 import logging
+
+from dotenv import load_dotenv
 
 
 class FakeLLMResponse:
@@ -33,11 +37,26 @@ class FakeLLMResponse:
 # Configuration
 # =============================================================================
 
-# Set environment variables for tests
-os.environ["TINYCUA_PROVIDER"] = "openai-compatible"
-os.environ["TINYCUA_MODEL"] = "qwen/qwen3.5-9b"
-os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234/v1"
-os.environ["TINYCUA_API_KEY"] = "dummy"
+# Load environment from .env.test (user-specific, gitignored)
+# Falls back to .env.test.example (committed template)
+env_test = Path(__file__).parent / ".env.test"
+if env_test.exists():
+    load_dotenv(env_test)
+else:
+    env_test_example = Path(__file__).parent / ".env.test.example"
+    if env_test_example.exists():
+        load_dotenv(env_test_example)
+
+# Set environment variables for tests with defaults
+os.environ.setdefault("LLM_BASE_URL", "http://localhost:1234/v1")
+os.environ.setdefault("LLM_MODEL", "qwen/qwen3.5-9b")
+os.environ.setdefault("LLM_API_KEY", "dummy")
+
+# Backward compatibility: map LLM_* vars to TINYCUA_* names
+os.environ.setdefault("TINYCUA_PROVIDER", "openai-compatible")
+os.environ.setdefault("TINYCUA_MODEL", os.environ["LLM_MODEL"])
+os.environ.setdefault("TINYCUA_BASE_URL", os.environ["LLM_BASE_URL"])
+os.environ.setdefault("TINYCUA_API_KEY", os.environ["LLM_API_KEY"])
 
 
 # =============================================================================

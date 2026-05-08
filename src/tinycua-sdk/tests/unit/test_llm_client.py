@@ -306,13 +306,11 @@ class TestOpenAICompatibleClient:
         ]
 
         fake_response = self._make_fake_stream_response(fake_sse_lines)
-        mock_client = MagicMock()
-        mock_client.stream.return_value = fake_response
 
         with (
             pytest.MonkeyPatch.context() as mp,
         ):
-            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
             model = LanguageModel(
                 base_url="http://test.local/v1", model_name="gpt-4o-mini"
             )
@@ -349,13 +347,11 @@ class TestOpenAICompatibleClient:
         ]
 
         fake_response = self._make_fake_stream_response(fake_sse_lines)
-        mock_client = MagicMock()
-        mock_client.stream.return_value = fake_response
 
         with (
             pytest.MonkeyPatch.context() as mp,
         ):
-            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
             model = LanguageModel(
                 base_url="http://test.local/v1", model_name="gpt-4o-mini"
             )
@@ -385,13 +381,11 @@ class TestOpenAICompatibleClient:
         ]
 
         fake_response = self._make_fake_stream_response(fake_sse_lines)
-        mock_client = MagicMock()
-        mock_client.stream.return_value = fake_response
 
         with (
             pytest.MonkeyPatch.context() as mp,
         ):
-            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
             model = LanguageModel(
                 base_url="http://test.local/v1", model_name="gpt-4o-mini"
             )
@@ -417,13 +411,11 @@ class TestOpenAICompatibleClient:
                 "401 Unauthorized", request=None, response=MagicMock()
             )
         )
-        mock_client = MagicMock()
-        mock_client.stream.return_value = fake_response
 
         with (
             pytest.MonkeyPatch.context() as mp,
         ):
-            mp.setattr(client, "_get_client", MagicMock(return_value=mock_client))
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
             model = LanguageModel(
                 base_url="http://test.local/v1", model_name="gpt-4o-mini"
             )
