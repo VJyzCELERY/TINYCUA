@@ -3,6 +3,7 @@
 from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.events import (
+    ErrorEvent,
     ResponseCancelledEvent,
     ResponseCompletedEvent,
     ResponseCreatedEvent,
@@ -28,6 +29,7 @@ __all__ = [
     "LanguageModel",
     "LLMClient",
     "OpenAICompatibleClient",
+    "ErrorEvent",
     "ResponseCancelledEvent",
     "ResponseCompletedEvent",
     "ResponseCreatedEvent",

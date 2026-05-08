@@ -24,6 +24,13 @@ class ResponseFailedEvent(TypedDict):
     error: dict[str, str]
 
 
+class ErrorEvent(TypedDict):
+    """Emitted for transient errors during streaming."""
+
+    type: Literal["error"]
+    error: dict[str, str]
+
+
 class ResponseCompletedEvent(TypedDict):
     """Emitted at the end of a successful stream session."""
 
@@ -82,6 +89,7 @@ __all__ = [
     "ResponseCreatedEvent",
     "ResponseCancelledEvent",
     "ResponseFailedEvent",
+    "ErrorEvent",
     "ResponseCompletedEvent",
     "ResponseUsageEvent",
     "ResponseOutputTextDeltaEvent",
