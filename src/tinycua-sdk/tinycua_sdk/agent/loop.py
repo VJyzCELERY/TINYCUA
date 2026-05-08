@@ -18,12 +18,6 @@ class BaseLoop:
     """Standard tool-calling execution loop."""
 
     def __init__(self, max_iterations: int = 5) -> None:
-        """Initialize the execution loop.
-
-        Args:
-            max_iterations: Maximum number of LLM call iterations
-                before the loop terminates.
-        """
         self.max_iterations = max_iterations
 
     def _build_system_message(
@@ -43,7 +37,7 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
-        stream: str = "off",
+        stream: bool = False,
     ) -> str | AsyncIterator[dict[str, Any]]:
         """Execute the agent loop with optional streaming.
 
@@ -52,15 +46,15 @@ class BaseLoop:
             messages: List of message dicts.
             tools: List of available tools.
             override_instructions: Optional instructions override.
-            stream: Streaming mode - 'off', 'token', 'event', or 'all'.
+            stream: When True, returns an async iterator of raw SSE events.
 
         Returns:
-            Final response string when stream='off', or an async iterator
+            Final response string when stream=False, or an async iterator
             of event dicts when streaming.
         """
-        if stream == "off":
+        if not stream:
             return await self._run_sync(agent, messages, tools, override_instructions)
-        return self._run_stream(agent, messages, tools, override_instructions, stream)
+        return self._run_stream(agent, messages, tools, override_instructions)
 
     async def _run_sync(
         self,
@@ -69,7 +63,6 @@ class BaseLoop:
         tools: list[Tool],
         override_instructions: str | None = None,
     ) -> str:
-        """Synchronous execution loop (stream='off')."""
         system_msg = self._build_system_message(agent, override_instructions)
         working_messages = [system_msg] + messages
 
@@ -96,6 +89,7 @@ class BaseLoop:
                 tool_result_messages: list[dict[str, Any]] = []
                 for tc in tool_calls:
                     if tool_call_count >= agent.policy.max_tool_calls:
+                        max_tool_calls_reached = True
                         break
 
                     tool_name = tc["function"]["name"]
@@ -164,27 +158,14 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
-        stream_mode: str = "token",
     ) -> AsyncIterator[dict[str, Any]]:
-        """Streaming execution loop.
-
-        Args:
-            agent: The agent to execute.
-            messages: List of message dicts.
-            tools: List of available tools.
-            override_instructions: Optional instructions override.
-            stream_mode: Streaming mode - 'token', 'event', or 'all'.
-
-        Yields:
-            Event dicts filtered by stream_mode.
-        """
         system_msg = self._build_system_message(agent, override_instructions)
         working_messages = [system_msg] + messages
 
         yield {"type": "response.created"}
 
         tool_call_count = 0
-        usage: dict[str, Any] | None = None
+        cumulative_usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         finish_reason = "completed"
 
         try:
@@ -197,49 +178,32 @@ class BaseLoop:
                     finish_reason = "max_tool_calls"
                     break
 
-                (
-                    content_parts,
-                    content_delta_events,
-                    tool_calls_list,
-                    content_item_id,
-                    usage,
-                ) = await self._stream_llm(
-                    agent,
-                    working_messages,
-                    tools,
-                    stream_mode,
-                )
+                content_parts: list[str] = []
+                tool_calls_buffer: dict[int, dict[str, Any]] = {}
+                content_item_id: list[str] = [""]
+
+                llm_stream = await agent._call_llm(working_messages, tools, stream=True)
+                if not isinstance(llm_stream, AsyncIterator):
+                    raise TypeError(
+                        f"Expected AsyncIterator from _call_llm(stream=True), "
+                        f"got {type(llm_stream).__name__}"
+                    )
+
+                async for chunk in llm_stream:
+                    yield chunk
+                    self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, content_item_id, cumulative_usage)
 
                 combined_content = "".join(content_parts)
+                tool_calls_list = list(tool_calls_buffer.values())
                 assistant_msg: dict[str, Any] = {
                     "role": "assistant",
                     "content": combined_content,
                 }
 
-                for chunk in content_delta_events:
-                    yield chunk
-
-                if content_parts:
-                    if stream_mode in ("event", "all"):
-                        yield {
-                            "type": "response.output_item.added",
-                            "item": {"type": "text", "item_id": content_item_id},
-                        }
-                        yield {
-                            "type": "response.output_text.done",
-                            "item_id": content_item_id,
-                            "content": combined_content,
-                        }
-                        yield {
-                            "type": "response.output_item.done",
-                            "item": {"type": "text"},
-                        }
-
                 if tool_calls_list:
                     (
                         tool_call_count,
                         executed_tool_calls,
-                        tool_events,
                         assistant_index,
                     ) = await self._execute_tools_stream(
                         agent,
@@ -247,7 +211,6 @@ class BaseLoop:
                         tool_calls_list,
                         tool_call_count,
                         working_messages,
-                        stream_mode,
                     )
                     if executed_tool_calls:
                         assistant_msg["tool_calls"] = [
@@ -262,8 +225,6 @@ class BaseLoop:
                             for tc in executed_tool_calls
                         ]
                         working_messages.insert(assistant_index, assistant_msg)
-                    for event in tool_events:
-                        yield event
                 else:
                     working_messages.append(assistant_msg)
                     break
@@ -277,70 +238,10 @@ class BaseLoop:
             yield {"type": "error", "error": {"message": str(e)}}
             return
 
-        if usage:
-            yield {"type": "response.usage", "usage": usage}
+        if cumulative_usage["total_tokens"] > 0:
+            yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
-
-    async def _stream_llm(
-        self,
-        agent: Agent,
-        working_messages: list[dict],
-        tools: list[Tool],
-        stream_mode: str,
-    ) -> tuple[list[str], list[dict], list[dict[str, Any]], str, dict[str, Any] | None]:
-        """Stream LLM response and accumulate data.
-
-        Returns:
-            Tuple of (content_parts, content_delta_events, tool_calls_list,
-                      content_item_id, usage).
-        """
-        llm_stream = await agent._call_llm(working_messages, tools, stream=True)
-        if not isinstance(llm_stream, AsyncIterator):
-            raise TypeError(
-                f"Expected AsyncIterator from _call_llm(stream=True), "
-                f"got {type(llm_stream).__name__}"
-            )
-        content_parts: list[str] = []
-        content_delta_events: list[dict] = []
-        content_item_id: str = ""
-        tool_calls_buffer: dict[int, dict[str, Any]] = {}
-        usage: dict[str, Any] | None = None
-
-        async for chunk in llm_stream:
-            chunk_type = chunk.get("type", "")
-            if chunk_type == "response.output_text.delta":
-                if not content_item_id:
-                    content_item_id = chunk.get("item_id", "")
-                content_parts.append(chunk.get("delta", ""))
-                if stream_mode in ("token", "all"):
-                    content_delta_events.append(chunk)
-            elif chunk_type == "response.tool_call.delta":
-                tc_index = chunk.get("index", len(tool_calls_buffer))
-                if tc_index not in tool_calls_buffer:
-                    tool_calls_buffer[tc_index] = {
-                        "id": chunk.get("id", ""),
-                        "index": tc_index,
-                        "name": chunk.get("name", ""),
-                        "arguments": chunk.get("arguments", ""),
-                    }
-                else:
-                    buf = tool_calls_buffer[tc_index]
-                    if chunk.get("id"):
-                        buf["id"] = chunk["id"]
-                    if chunk.get("name"):
-                        buf["name"] = chunk["name"]
-                    buf["arguments"] += chunk.get("arguments", "")
-            elif chunk_type == "response.usage":
-                usage = chunk.get("usage", {})
-
-        return (
-            content_parts,
-            content_delta_events,
-            list(tool_calls_buffer.values()),
-            content_item_id,
-            usage,
-        )
 
     async def _execute_tools_stream(
         self,
@@ -349,24 +250,8 @@ class BaseLoop:
         tool_calls_list: list[dict[str, Any]],
         tool_call_count: int,
         working_messages: list[dict],
-        stream_mode: str,
-    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]], int]:
-        """Execute tool calls and return events for streaming.
-
-        Args:
-            agent: The agent to execute.
-            tools: List of available tools.
-            tool_calls_list: List of accumulated tool call data.
-            tool_call_count: Current tool call count.
-            working_messages: Current message list (mutated in place).
-            stream_mode: Streaming mode for filtering.
-
-        Returns:
-            Tuple of (updated tool_call_count, executed_tool_calls, list of
-            event dicts, assistant message insert index).
-        """
+    ) -> tuple[int, list[dict[str, Any]], int]:
         assistant_index = len(working_messages)
-        events: list[dict[str, Any]] = []
         executed_tool_calls: list[dict[str, Any]] = []
         for tc in tool_calls_list:
             if tool_call_count >= agent.policy.max_tool_calls:
@@ -381,9 +266,6 @@ class BaseLoop:
                 tool_result = {
                     "error": f"Failed to parse arguments for tool '{tool_name}': {e}"
                 }
-                events.extend(
-                    self._build_tool_events(tc, tool_name, {}, tool_result, stream_mode)
-                )
                 working_messages.append(
                     {
                         "role": "tool",
@@ -404,9 +286,6 @@ class BaseLoop:
                     tool_result = {"error": f"Tool execution failed: {e}"}
             tool_call_count += 1
 
-            events.extend(
-                self._build_tool_events(tc, tool_name, arguments, tool_result, stream_mode)
-            )
             working_messages.append(
                 {
                     "role": "tool",
@@ -416,93 +295,41 @@ class BaseLoop:
                 }
             )
 
-        tc_list_len = len(tool_calls_list)
-        processed_count = len(executed_tool_calls)
-        if processed_count < tc_list_len:
-            for dropped_tc in tool_calls_list[processed_count:]:
-                dropped_name = dropped_tc.get("name", "unknown")
-                if stream_mode in ("event", "all"):
-                    events.append({
-                        "type": "response.output_item.added",
-                        "item": {
-                            "type": "tool_call",
-                            "name": dropped_name,
-                            "arguments": {},
-                        },
-                    })
-                    events.append({
-                        "type": "response.output_item.done",
-                        "item": {
-                            "type": "tool_call",
-                            "name": dropped_name,
-                            "status": "skipped",
-                            "reason": "max_tool_calls_limit",
-                        },
-                    })
-
-        return tool_call_count, executed_tool_calls, events, assistant_index
+        return tool_call_count, executed_tool_calls, assistant_index
 
     @staticmethod
-    def _build_tool_events(
-        tc: dict[str, Any],
-        tool_name: str,
-        arguments: dict[str, Any],
-        tool_result: Any,
-        stream_mode: str,
-    ) -> list[dict[str, Any]]:
-        """Build tool call/output event dicts for the given stream_mode.
-
-        Args:
-            tc: Tool call data dict.
-            tool_name: Name of the tool.
-            arguments: Parsed tool call arguments dict.
-            tool_result: Result from tool execution.
-            stream_mode: Streaming mode for filtering.
-
-        Returns:
-            List of event dicts to yield.
-        """
-        events: list[dict[str, Any]] = []
-        if stream_mode in ("event", "all"):
-            events.append(
-                {
-                    "type": "response.output_item.added",
-                    "item": {
-                        "type": "tool_call",
-                        "name": tool_name,
-                        "arguments": arguments,
-                    },
+    def _accumulate_chunk(
+        chunk: dict[str, Any],
+        content_parts: list[str],
+        tool_calls_buffer: dict[int, dict[str, Any]],
+        content_item_id: list[str],
+        cumulative_usage: dict[str, int],
+    ) -> None:
+        chunk_type = chunk.get("type", "")
+        if chunk_type == "response.output_text.delta":
+            if not content_item_id[0]:
+                content_item_id[0] = chunk.get("item_id", "")
+            content_parts.append(chunk.get("delta", ""))
+        elif chunk_type == "response.tool_call.delta":
+            tc_index = chunk.get("index", len(tool_calls_buffer))
+            if tc_index not in tool_calls_buffer:
+                tool_calls_buffer[tc_index] = {
+                    "id": chunk.get("id", ""),
+                    "index": tc_index,
+                    "name": chunk.get("name", ""),
+                    "arguments": chunk.get("arguments", ""),
                 }
-            )
-            events.append(
-                {
-                    "type": "response.output_item.done",
-                    "item": {
-                        "type": "tool_call",
-                        "name": tool_name,
-                    },
-                }
-            )
-            events.append(
-                {
-                    "type": "response.output_item.added",
-                    "item": {
-                        "type": "tool_output",
-                        "name": tool_name,
-                        "output": str(tool_result),
-                    },
-                }
-            )
-            events.append(
-                {
-                    "type": "response.output_item.done",
-                    "item": {
-                        "type": "tool_output",
-                        "name": tool_name,
-                    },
-                }
-            )
-        return events
+            else:
+                buf = tool_calls_buffer[tc_index]
+                if chunk.get("id"):
+                    buf["id"] = chunk["id"]
+                if chunk.get("name"):
+                    buf["name"] = chunk["name"]
+                buf["arguments"] += chunk.get("arguments", "")
+        elif chunk_type == "response.usage":
+            usage = chunk.get("usage", {})
+            for key in cumulative_usage:
+                cumulative_usage[key] += usage.get(key, 0)
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:

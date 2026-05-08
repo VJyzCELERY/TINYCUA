@@ -4,32 +4,19 @@
 
 ## Architecture
 
-### Streaming Decision Tree
+### Streaming Decision (simplified)
 
 ```
-Agent.run(stream="off")
+Agent.run(stream=False)
     │
-    ├──► BaseLoop.run() ──► returns str
-    │       └──► LLMClient.chat(stream=False) ──► single response dict
+    └──► BaseLoop.run() ──► _run_sync() ──► returns str
+            └──► LLMClient.chat(stream=False) ──► single response dict
 
-Agent.run(stream="token")
+Agent.run(stream=True)
     │
-    ├──► BaseLoop.run() ──► returns AsyncIterator[dict]
-    │       └──► LLMClient.chat(stream=True) ──► AsyncIterator[chunk]
-    │               └──► Yield only .delta chunks
-
-Agent.run(stream="event")
-    │
-    ├──► BaseLoop.run() ──► returns AsyncIterator[dict]
-    │       └──► LLMClient.chat(stream=True) ──► AsyncIterator[chunk]
-    │               └──► Skip .delta chunks
-    │               └──► Yield tool_call events, completion events
-
-Agent.run(stream="all")
-    │
-    ├──► BaseLoop.run() ──► returns AsyncIterator[dict]
-    │       └──► LLMClient.chat(stream=True) ──► AsyncIterator[chunk]
-    │               └──► Yield everything
+    └──► BaseLoop.run() ──► _run_stream() ──► AsyncIterator[dict]
+            └──► LLMClient.chat(stream=True) ──► AsyncIterator[chunk]
+                    └──► Yield every chunk as-is (raw passthrough)
 ```
 
 ## Implementation
@@ -37,114 +24,76 @@ Agent.run(stream="all")
 ### `BaseLoop.run()` with Streaming
 
 ```python
-from typing import AsyncIterator
-
 async def run(
     self,
     agent: Agent,
     messages: list[dict],
     tools: list[Tool],
     override_instructions: str | None = None,
-    stream: str = "off",
+    stream: bool = False,
 ) -> str | AsyncIterator[dict]:
-    if stream == "off":
+    if not stream:
         return await self._run_sync(agent, messages, tools, override_instructions)
-    return self._run_stream(agent, messages, tools, override_instructions, stream)
+    return self._run_stream(agent, messages, tools, override_instructions)
 
-async def _run_sync(self, agent, messages, tools, override_instructions):
-    # Same as Stage 3 implementation
-    ...
-
-async def _run_stream(self, agent, messages, tools, override_instructions, stream_mode):
+async def _run_stream(self, agent, messages, tools, override_instructions=None):
     system_msg = self._build_system_message(agent, override_instructions)
     messages = [system_msg] + messages
 
     yield {"type": "response.created"}
 
+    cumulative_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
     for iteration in range(self.max_iterations):
         if agent.is_cancelled:
+            yield {"type": "response.cancelled"}
             break
 
-        # Stream LLM response
+        # Stream LLM response — yield raw events, accumulate internally
         stream = await agent._call_llm(messages, tools, stream=True)
         content_parts = []
         content_item_id = ""
-        tool_calls_data = []
+        tool_calls_buffer = {}
 
         async for chunk in stream:
+            yield chunk  # raw passthrough
+
             chunk_type = chunk.get("type", "")
             if chunk_type == "response.output_text.delta":
                 if not content_item_id:
                     content_item_id = chunk.get("item_id", "")
                 content_parts.append(chunk.get("delta", ""))
-                if stream_mode in ("token", "all"):
-                    yield chunk
             elif chunk_type == "response.tool_call.delta":
                 # Accumulate tool call data
-                tool_calls_data.append(chunk)
+                ...
+            elif chunk_type == "response.usage":
+                usage = chunk.get("usage", {})
+                for key in cumulative_usage:
+                    cumulative_usage[key] += usage.get(key, 0)
 
-        # Emit completion events for text output
-        if content_parts:
-            if stream_mode in ("event", "all"):
-                yield {
-                    "type": "response.output_item.added",
-                    "item": {"type": "text", "item_id": content_item_id},
-                }
-                yield {
-                    "type": "response.output_text.done",
-                    "item_id": content_item_id,
-                    "content": "".join(content_parts),
-                }
-                yield {
-                    "type": "response.output_item.done",
-                    "item": {"type": "text"},
-                }
-
+        # No synthetic events — just accumulate message state
         if tool_calls_data:
-            for tc in tool_calls_data:
-                if stream_mode in ("event", "all"):
-                    yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "tool_call", "name": tc["name"], "arguments": tc["arguments"]},
-                    }
-                    yield {
-                        "type": "response.output_item.done",
-                        "item": {"type": "tool_call", "name": tc["name"]},
-                    }
-
-            # Execute tools
-            for tc in tool_calls_data:
-                tool = next((t for t in tools if t.name == tc["name"]), None)
-                result = await ToolExecutor.execute(tool, tc["arguments"], agent)
-                if stream_mode in ("event", "all"):
-                    yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "tool_output", "name": tc["name"], "output": str(result)},
-                    }
-                    yield {
-                        "type": "response.output_item.done",
-                        "item": {"type": "tool_output", "name": tc["name"]},
-                    }
-
-            # Continue loop
+            # Execute tools, append results to messages
+            ...
             continue
         else:
             break
 
-    yield {"type": "response.completed", "finish_reason": "completed"}
+    if cumulative_usage["total_tokens"] > 0:
+        yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+    yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
-
 ## Design Decisions
+
+### Raw Passthrough
+The SDK is a thin passthrough for events. Consumers who want filtering can add it in their own layer. This eliminates 4 code paths through the same generator, reduces bug surface area, and aligns with the OpenAI Responses API design.
 
 ### Stream Accumulation
 Tool calls may be split across multiple SSE chunks. The loop must accumulate partial tool call JSON before executing. We use an in-memory buffer that assembles the full tool call before execution.
 
-### Filtering
-The same `_run_stream` code path is used for all modes. Filtering is done at yield time:
-- `stream="token"`: yield only `.delta` events.
-- `stream="event"`: yield only non-delta events.
-- `stream="all"`: yield everything.
+### Cumulative Usage
+Usage data is accumulated across all LLM iterations in a single `cumulative_usage` dict. Raw usage events are forwarded during the stream, and a final cumulative `response.usage` event is emitted at the end.
 
 ### Error Handling in Streaming
 The `_run_stream` generator wraps its main loop in a try/except block. On any exception:
@@ -162,7 +111,7 @@ async def _run_stream(self, ...):
         yield {"type": "response.failed", "error": {"message": str(e)}}
         yield {"type": "error", "error": {"message": str(e)}}
         return
-    yield {"type": "response.completed"}
+    yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
 ### Event Flow Summary
@@ -173,54 +122,47 @@ Stream Start
   ├── response.created
   │
   ├── [while iterating]
-  │     ├── response.output_text.delta (0..N, token/all modes only)
-  │     ├── response.output_item.added (text item, event/all)
-  │     ├── response.output_text.done  (if text present, event/all)
-  │     ├── response.output_item.done  (text item, event/all)
+  │     ├── Raw SSE events passthrough from LLM
+  │     │   (response.output_text.delta, response.tool_call.delta, response.usage, ...)
   │     │
-  │     ├── response.output_item.added (tool_call, event/all)
-  │     ├── response.output_item.done  (tool_call, event/all)
-  │     ├── response.output_item.added (tool_output, event/all)
-  │     ├── response.output_item.done  (tool_output, event/all)
+  │     ├── [tool calls detected: execute tools silently]
+  │     │   └── (no synthetic events emitted)
   │     │
   │     └── [repeat if more tool calls]
   │
+  ├── response.usage (cumulative, at end)
   ├── response.completed  (on success)
   │
   └── response.failed + error (on failure)
 ```
 
-### Deferred Events
+### Deferred/Removed Events
 
-The following OpenAI Responses API event types are recognized but deferred to later stages. The "stage" field in spec.md R-5.2.0 references the stage that will implement each:
-
-| Deferred Event | Assigned To | Rationale |
+| Event | Status | Rationale |
 |---|---|---|
-| `response.in_progress` | Stage 8 (Custom Loops) | Lifecycle completeness — custom loops should emit full event sets |
-| `response.function_call_arguments.delta` / `.done` | Stage 8 (Custom Loops) | Standard OpenAI event naming — custom loop consumers benefit |
-| `response.content_part.added` / `.done` | Stage 9 (Final Integration) | Multi-part response support — requires wider integration |
-| `response.output_text.annotation.added` | Stage 9 (Final Integration) | Citation/annotation support — final polish item |
+| `response.output_text.done` | Removed | No longer synthetic — consumers track completion via delta stream end |
+| `response.output_item.added` | Removed | No longer synthetic — raw passthrough only |
+| `response.output_item.done` | Removed | No longer synthetic — raw passthrough only |
+| `response.in_progress` | Deferred to Stage 8 | Lifecycle completeness |
+| `response.function_call_arguments.delta/.done` | Deferred to Stage 8 | Standard OpenAI naming |
+| `response.content_part.added/.done` | Deferred to Stage 9 | Multi-part response support |
+| `response.output_text.annotation.added` | Deferred to Stage 9 | Citation/annotation support |
 
 ### Return Type
-`Agent.run()` must return `str` when `stream="off"` and `AsyncIterator[dict]` otherwise. This is a type union. In practice, consumers will know which mode they requested.
+`Agent.run()` returns `str` when `stream=False` and `AsyncIterator[dict]` when `stream=True`.
 
 ## File Changes
 
 | File | Change |
 |------|--------|
-| `agent/loop.py` | Add `_run_stream` generator, update `run()` signature |
-| `agent/llm_client.py` | Add `_chat_stream`, update `chat()` signature |
-| `agent/agent.py` | Remove `NotImplementedError` for streaming |
+| `agent/loop.py` | `_run_stream` generator with raw passthrough; remove `_stream_llm`, `_build_tool_events`, `stream_mode` params; add cumulative usage |
+| `agent/llm_client.py` | No change needed (already returns raw chunks) |
+| `agent/agent.py` | Change `stream: bool = False`, remove mode validation |
 
 ## Testing Strategy
 
-- Mock `httpx.AsyncClient.stream` to yield fake SSE lines.
-- Test each mode independently:
-  - `token` mode: count `.delta` events, ensure no `tool_call` events.
-  - `event` mode: ensure no `.delta` events.
-  - `all` mode: ensure both types present.
-- Test tool-calling with streaming:
-  - Mock LLM returns tool call in stream.
-  - Verify tool_call event is emitted.
-  - Verify tool_output event is emitted.
-  - Verify stream resumes with next LLM response.
+- Mock `agent._call_llm(stream=True)` to yield fake event dicts.
+- Verify raw events passthrough unchanged.
+- Verify lifecycle events (created, completed, failed, cancelled, usage).
+- Verify tool call execution still works (but no synthetic tool events).
+- Verify cumulative usage across multiple LLM iterations.
