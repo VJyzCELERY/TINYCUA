@@ -2,7 +2,7 @@
 
 **Spec**: [specs/tinycua-finetune/spec.md](spec.md)
 **Status**: In Progress
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-05-08
 
 ---
 
@@ -18,9 +18,77 @@ is to use PEFT LoRA adapters on top of a quantized (bitsandbytes 4-bit) base mod
 pipeline remains runnable on a single consumer GPU while the final artifact is a standalone
 GGUF file loadable by llama.cpp.
 
+## Alternative: Notebook-based Pipeline (Implemented)
+
+For rapid experimentation, a Jupyter notebook implementation provides a simplified workflow
+using pre-built HuggingFace datasets:
+
+```
+[HuggingFace Dataset] → [Data Processing] → [QLoRA Training] → [Model Save/Push to Hub]
+```
+
+The notebook `pipeline-finetune-qwen3-5-9B.ipynb` demonstrates:
+- Direct loading from HuggingFace datasets (e.g., younissk/tool-calling-mix)
+- QLoRA via Unsloth (NF4 + double quantization)
+- W&B integration for experiment tracking
+- Optional model upload to HuggingFace Hub
+
 ---
 
 ## Architecture
+
+The pipeline supports two approaches:
+
+### Approach 1: Full CLI Pipeline (Phase 1)
+
+```
+[Tool Manifest Directory]
+         |
+         v
+[Dataset Synthesizer]  ──────────────────────>  [JSONL Training Dataset]
+(synthesize_dataset.py)                                    |
+         |                                                    v
+         v                                           [Data Preprocessor]
+(synthesize_dataset.py)                               (preprocess.py)
+         |                                                    |
+         v                                           tokenized HF Dataset
+[Base Model (HF format, local dir)]                      |
+         |                                              v
+         v                                    [Training Engine]
+(synthesize_dataset.py)                          (train.py)
+         |                                    modes: qlora | lora | offload
+         |                                              |
+         v                                             v
+[LoRA Adapter Checkpoint]                        (train.py)
+(safetensors, output_dir/)                            |
+         |                                              v
+         v                                       [Adapter Merge Step]
+[Adapter Merge Step]                        (convert_to_gguf.py, phase 1 of 2)
+         |                                              |
+         v                                             v
+[Merged HF Checkpoint (safetensors)]           (convert_to_gguf.py, phase 2 of 2)
+         |                                              |
+         v                                             v
+[GGUF Conversion Wrapper]                   (wraps community llama.cpp converter)
+         |                                              |
+         v                                             v
+[.gguf artifact (output_dir/)]
+```
+
+### Approach 2: Notebook Pipeline (Implemented)
+
+```
+[HuggingFace Dataset] (younissk/tool-calling-mix)
+         |
+         v
+[Data Processing] (convert to conversations, filter)
+         |
+         v
+[QLoRA Training via Unsloth] (pipeline-finetune-qwen3-5-9B.ipynb)
+         |
+         v
+[Model Save] (local or push to HF Hub)
+```
 
 ### Component Overview
 
@@ -71,6 +139,7 @@ GGUF file loadable by llama.cpp.
 | `tinycua_finetune/synthesize_dataset.py`   | New         | Tool manifest discovery, JSONL generation          |
 | `tinycua_finetune/train.py`                | New         | Training entry-point, QLoRA/LoRA/offload modes     |
 | `tinycua_finetune/convert_to_gguf.py`      | New         | Adapter merge + GGUF conversion wrapper            |
+| `tinycua_finetune/pipeline-finetune-qwen3-5-9B.ipynb` | New | Notebook-based pipeline using HF datasets          |
 | `data/examples/`                           | New         | Example tool manifests and JSONL training datasets |
 | `src/tinycua-finetune/Makefile`            | New         | Build targets for this subproject                  |
 | Root `Makefile`                            | Modified    | Add tinycua-finetune to all top-level targets      |
@@ -114,6 +183,27 @@ ToolCall:
     args: str                      # serialized arguments (JSON string)
     result: str                    # tool execution result (from dry_run_output)
 ```
+
+### HuggingFace Dataset Schema (Alternative)
+
+For the notebook-based pipeline, datasets are loaded directly from HuggingFace:
+
+```python
+# Example: younissk/tool-calling-mix
+DatasetRecordHF:
+    tools_json: str                # JSON string of tool definitions
+    messages_json: str             # JSON string of conversation messages
+    target_json: str               # JSON string of target tool calls
+    n_calls: int                   # number of tool calls in this example
+    difficulty: str                # simple | parallel | multiple
+    meta_source: str               # source dataset name
+    valid: bool                    # whether the example is valid
+```
+
+Common tool-calling datasets:
+- `younissk/tool-calling-mix` (~76K samples)
+- `Salesforce/xlam-function-calling-60k` (60K samples)
+- `glaiveai/glaive-function-calling-v2` (10K samples)
 
 ### Training Prompt Format
 
@@ -262,6 +352,7 @@ python -m tinycua_finetune.convert_to_gguf \
 - [ ] `tinycua_finetune/synthesize_dataset.py` — manifest discovery + JSONL generator
 - [ ] `tinycua_finetune/train.py` — training entry-point (qlora, lora, offload modes)
 - [ ] `tinycua_finetune/convert_to_gguf.py` — adapter merge + GGUF conversion wrapper
+- [x] `tinycua_finetune/pipeline-finetune-qwen3-5-9B.ipynb` — Notebook-based pipeline (IMPLEMENTED)
 - [ ] `data/examples/manifest.json` — example tool manifest
 - [ ] `data/examples/train.jsonl` — example training dataset (10 records)
 - [ ] `tests/unit/test_preprocess.py` — unit tests for preprocessor
@@ -296,6 +387,21 @@ python -m tinycua_finetune.convert_to_gguf \
    - **Alternatives Considered**: DeepSpeed ZeRO stage 3 — retained as a Phase 2 option
      for users who need maximum memory reduction; rejected for Phase 1 due to setup
      complexity.
+
+3. **Unsloth for optimized QLoRA training**
+   - **Reason**: Unsloth provides 30% less VRAM usage and 2x faster training compared to
+     standard PEFT. Uses NF4 quantization with double quantization for additional memory
+     savings. Integrated seamlessly with transformers and bitsandbytes.
+   - **Alternatives Considered**: Standard PEFT + bitsandbytes — functional but less optimized.
+     Full fine-tuning — requires significantly more VRAM.
+
+4. **HuggingFace datasets as alternative data source**
+   - **Reason**: Pre-built tool-calling datasets (e.g., younissk/tool-calling-mix) provide
+     high-quality training data without requiring manual tool manifest creation. Enables
+     rapid prototyping and experimentation. Useful for initial model development before
+     building production pipeline with custom data.
+   - **Alternatives Considered**: Tool manifest synthesis — remains the production path for
+     custom tool-specific training. JSONL files — still supported for custom datasets.
 
 3. **safetensors for all checkpoint output**
    - **Reason**: Safer serialization (no arbitrary code execution), broadly compatible
