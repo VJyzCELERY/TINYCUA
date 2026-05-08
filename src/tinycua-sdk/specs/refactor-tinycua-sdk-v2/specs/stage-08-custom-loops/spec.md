@@ -29,7 +29,7 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
-        stream: str = "off",
+        stream: bool = False,
     ) -> str | AsyncIterator[dict]:
         """Default implementation: standard tool-calling loop.
 
@@ -61,7 +61,7 @@ class ReActLoop(BaseLoop):
         super().__init__(max_iterations)
         self.format_hint = format_hint
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream=False):
         # Custom logic: inject ReAct format hint
         # Call agent._call_llm() when needed
         # Return final string
@@ -75,7 +75,7 @@ class PlanThenExecuteLoop(BaseLoop):
         super().__init__(max_iterations)
         self.plan_temperature = plan_temperature
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream=False):
         # Phase 1: Get plan
         # Phase 2: Execute plan
         pass

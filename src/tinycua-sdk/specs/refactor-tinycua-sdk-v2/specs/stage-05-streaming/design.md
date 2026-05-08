@@ -156,7 +156,7 @@ Stream Start
 | File | Change |
 |------|--------|
 | `agent/loop.py` | `_run_stream` generator with raw passthrough; remove `_stream_llm`, `_build_tool_events`, `stream_mode` params; add cumulative usage |
-| `agent/llm_client.py` | No change needed (already returns raw chunks) |
+| `agent/llm_client.py` | Add `stream: bool` param; add `_chat_stream()` for SSE parsing/raw event passthrough; add `_chat_sync()` for non-streaming path request; update `chat()` dispatch to return `AsyncIterator[dict]` when `stream=True` |
 | `agent/agent.py` | Change `stream: bool = False`, remove mode validation |
 
 ## Testing Strategy
