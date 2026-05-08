@@ -103,6 +103,8 @@ Maintain a running ledger of every finding across all cycles. For each new fresh
 2. If yes → Invalidate: mark it INVALID with note: "Already addressed in cycle N"
 3. If no → Keep as OPEN
 
+**Do NOT invalidate simply because a finding looks similar or overlaps.** Only invalidate if the exact same issue (same file, same line, same description) was previously addressed.
+
 ### 2. Handle Reopened Issues
 
 - If **code has changed** since the fix, treat as valid new OPEN finding
@@ -110,13 +112,15 @@ Maintain a running ledger of every finding across all cycles. For each new fresh
 
 ### 3. Tighten Scope as Issues Shrink
 
-- **Cycles 1-2**: Full scope — spec compliance, code quality, test coverage
-- **Cycles 3-4**: Narrow to spec compliance and correctness issues
-- **Cycles 5+**: Only real bugs, spec violations, or test gaps
+Bias toward keeping scope wide:
+
+- **First 4 cycles**: Full scope — spec compliance, code quality, test coverage
+- **Cycles 5-8**: Narrow to spec compliance and correctness issues
+- **Cycles 9+**: Only real bugs, spec violations, or test gaps
 
 ### 4. Orchestrator Validation Gate
 
-After each fresh review, before passing to validate-fix: filter through ledger, check reopen status, assess severity against current cycle scope.
+After each fresh review, before passing to validate-fix: filter through ledger, check reopen status, assess severity against current cycle scope. **Pass all remaining findings through** — do NOT proactively filter or dismiss. Let review-validate and review-verify make the final determination. The orchestrator only removes true duplicates (exact same finding from prior cycle) and out-of-scope items (findings about code not in the diff).
 
 ---
 
@@ -125,6 +129,7 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Delegate each step to a fresh subagent
 - Wait for each subagent to complete before proceeding
 - After validation returns clean, ALWAYS run one more fresh review
+- **Do NOT fix code yourself** — always delegate implementation to subagents via review-implement. The orchestrator owns the loop, not the code
 - For FRESH review: explicitly tell subagent to be independent with no prior context
 - Stay scoped to the target directory
 - Run actual commands and tests — don't assume results

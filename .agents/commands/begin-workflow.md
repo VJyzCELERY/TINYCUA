@@ -160,8 +160,6 @@ Subagent N:  /review-cleanup                              (archive resolved revi
 
 The **workflow-orchestrator** (you) owns the loop and must apply these rules. The subagents are intentionally kept free of prior context to ensure fresh perspectives.
 
-> **Rule of thumb**: The workflow-orchestrator says "no, we already fixed that" or "that's out of scope now" to prevent infinite loops. Subagents are useful idiots — they generate creative thoroughness that the workflow-orchestrator filters.
-
 ### 1. Bookkeep Review History
 
 Maintain a running ledger of every finding across all cycles. For each new fresh review:
@@ -169,6 +167,8 @@ Maintain a running ledger of every finding across all cycles. For each new fresh
 1. **Check each finding against the ledger**: has this exact issue been raised and addressed before?
 2. **If yes → Invalidate**: mark it INVALID with a note: "Already addressed in cycle N — no regression detected."
 3. **If no → Keep as OPEN**: the finding is genuinely new.
+
+**Do NOT invalidate simply because a finding looks similar or overlaps.** Only invalidate if the exact same issue (same file, same line, same description) was previously addressed.
 
 ### 2. Handle Reopened Issues
 
@@ -179,11 +179,11 @@ A previously addressed finding may legitimately reopen:
 
 ### 3. Tighten Scope as Issues Shrink
 
-As the loop progresses and findings become increasingly nitpicky, the orchestrator should tighten review scope:
+As the loop progresses and findings become increasingly nitpicky, the orchestrator should tighten review scope **conservatively** — bias toward keeping scope wide:
 
-- **First 1-2 cycles**: Full scope — all spec compliance, code quality, test coverage.
-- **Cycles 3-4**: Narrow to spec compliance and correctness issues. Defer cosmetic/style suggestions.
-- **Cycles 5+**: Only accept findings that represent **real bugs**, **spec violations**, or **test gaps that would let actual bugs through**.
+- **First 4 cycles**: Full scope — all spec compliance, code quality, test coverage.
+- **Cycles 5-8**: Narrow to spec compliance and correctness issues. Defer cosmetic/style suggestions.
+- **Cycles 9+**: Only accept findings that represent **real bugs**, **spec violations**, or **test gaps that would let actual bugs through**.
 
 ### 4. Workflow-Orchestrator Validation Gate
 
@@ -192,7 +192,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 1. Run each finding through the ledger (rule 1).
 2. Check for reopened issues with code diff verification (rule 2).
 3. Assess severity against current cycle scope (rule 3).
-4. Produce a filtered findings list — only genuinely new, in-scope, non-duplicate issues proceed to validation.
+4. **Pass all remaining findings through** — do NOT proactively filter or dismiss. Let `review-validate` and `review-verify` make the final determination. The orchestrator only removes true duplicates (exact same finding from prior cycle) and out-of-scope items (findings about code not in the diff).
 
 ---
 
@@ -200,6 +200,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 
 - The **workflow-orchestrator** (you) is responsible for applying the Review Loop Oversight Rules. Do NOT pass oversight context to subagents.
 - Delegate each phase to a fresh subagent.
+- **Do NOT fix code yourself** — always delegate implementation to subagents via review-implement. The orchestrator owns the loop, not the code.
 - Wait for each subagent to complete before proceeding.
 - After validation returns clean, ALWAYS run one more fresh review.
 - For FRESH review: explicitly tell subagent to be independent with no prior context.
