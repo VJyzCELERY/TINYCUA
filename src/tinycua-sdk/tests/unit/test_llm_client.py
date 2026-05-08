@@ -430,6 +430,39 @@ class TestOpenAICompatibleClient:
                     pass
 
     @pytest.mark.asyncio
+    async def test_chat_stream_emits_usage_event(self):
+        """SSE with usage data in final chunk yields response.usage event."""
+        client = OpenAICompatibleClient()
+
+        fake_sse_lines = [
+            'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n',
+            'data: {"id":"2","choices":[{"delta":{}}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}\n',
+            "data: [DONE]\n",
+        ]
+
+        fake_response = self._make_fake_stream_response(fake_sse_lines)
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
+            model = LanguageModel(
+                base_url="http://test.local/v1", model_name="gpt-4o-mini"
+            )
+            result = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                model_config=model,
+                stream=True,
+            )
+
+            chunks = [c async for c in result]
+
+        assert any(c["type"] == "response.usage" for c in chunks)
+        usage = [c for c in chunks if c["type"] == "response.usage"][0]
+        assert usage["usage"]["total_tokens"] == 8
+
+    @pytest.mark.asyncio
     async def test_create_client(self):
         client = OpenAICompatibleClient()
 

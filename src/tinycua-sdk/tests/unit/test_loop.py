@@ -826,6 +826,37 @@ class TestBaseLoopRunStream:
         error_idx = next(i for i, e in enumerate(events) if e["type"] == "error")
         assert failed_idx < error_idx
 
+    @pytest.mark.asyncio
+    async def test_run_stream_emits_usage_event(self):
+        """response.usage is emitted when the LLM stream includes usage data."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "1",
+                }
+                yield {
+                    "type": "response.usage",
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], [], stream_mode="token"
+        )
+        events = [e async for e in stream_iter]
+
+        usage_events = [e for e in events if e["type"] == "response.usage"]
+        assert len(usage_events) == 1
+        assert usage_events[0]["usage"]["total_tokens"] == 8
+
 
 class TestLoopExecution:
     """Tests for loop execution (mocked LLM)."""
