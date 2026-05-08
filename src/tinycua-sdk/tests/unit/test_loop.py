@@ -426,6 +426,24 @@ class TestBaseLoopRunStream:
         assert any(e["type"] == "response.output_text.delta" for e in events)
 
     @pytest.mark.asyncio
+    async def test_run_stream_empty_llm_response(self):
+        """Empty LLM stream completes cleanly with no intermediate events."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                return
+                yield  # pragma: no cover
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [], [])
+        events = [e async for e in stream_iter]
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
+
+    @pytest.mark.asyncio
     async def test_run_stream_with_tool_calls(self):
         """Tool calls execute and stream resumes with raw events."""
         loop = BaseLoop(max_iterations=5)
@@ -496,9 +514,10 @@ class TestBaseLoopRunStream:
         )
         events = [e async for e in stream_iter]
 
-        assert len(events) == 2
+        assert len(events) == 3
         assert events[0] == {"type": "response.created"}
         assert events[1] == {"type": "response.cancelled"}
+        assert events[2] == {"type": "response.usage", "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}}
 
     @pytest.mark.asyncio
     async def test_run_stream_accumulates_tool_call_args(self):
