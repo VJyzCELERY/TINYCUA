@@ -18,6 +18,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 7. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
 8. **Use `uv run` for Python** — Never bare `python` or `pytest`. Always `cd <subproject-dir> && uv run`.
 9. **Use gh.py for PR operations** — All PR/review write operations must go through `.agents/scripts/gh.py`. Never use raw `gh pr edit`, `gh pr review`, or similar direct commands for PR writes. Check `uv run python .agents/scripts/gh.py --help` for available subcommands.
+10. **Review files are local-only** — Files under `./reviews/` are gitignored and must NEVER be committed or pushed. They are local artifacts for tracking findings during the review cycle. Subagents: if you generate a review file, do NOT `git add` or commit it.
 
 ---
 

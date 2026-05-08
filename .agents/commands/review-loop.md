@@ -139,4 +139,4 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
-- All review files live at `./reviews/REVIEW-{name}.md`
+- All review files live at `./reviews/REVIEW-{name}.md` — they are gitignored and must NEVER be committed or pushed

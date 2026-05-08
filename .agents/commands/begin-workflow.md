@@ -214,6 +214,6 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
-- All review files live at `./reviews/REVIEW-{name}.md` — a consistent, predictable location.
+- All review files live at `./reviews/REVIEW-{name}.md` — they are gitignored and must NEVER be committed or pushed.
 
 Begin by starting Subagent 1 for the planning phase.

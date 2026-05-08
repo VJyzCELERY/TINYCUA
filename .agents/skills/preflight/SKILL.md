@@ -33,21 +33,24 @@ Output tells you:
 
 ### preflight-review.py — Before Any Review
 
-Run before starting a review. Checks scope, stale reviews, and unstaged changes. Can pre-generate the review file header.
+Run before starting a review. Checks scope, stale reviews, and unstaged changes. Has two modes that are **mutually exclusive**:
 
+**Mode A — New review** (`--init-review`, no `--review-file`):
 ```bash
-# Detect scope (auto-detects PR or branch)
-uv run python .agents/scripts/preflight-review.py --scope pr
-
-# Or for a local branch review
-uv run python .agents/scripts/preflight-review.py --scope branch
-
-# Pre-generate review file with Commit Range pre-filled
 uv run python .agents/scripts/preflight-review.py --scope pr --init-review --review-name "my-review"
+```
 
-# Check an existing review for staleness
+**Mode B — Existing review staleness check** (`--review-file`, no `--init-review`):
+```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file ./reviews/REVIEW-foo.md
 ```
+
+**Scope-only** (no init, no review file):
+```bash
+uv run python .agents/scripts/preflight-review.py --scope branch
+```
+
+> ⚠️ Do NOT pass both `--init-review` and `--review-file` — they conflict.
 
 If the preflight exits non-zero, read the script's `<EOF_DESC>` to understand what's wrong:
 ```bash

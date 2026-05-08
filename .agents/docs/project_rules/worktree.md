@@ -92,7 +92,7 @@ git push origin --delete <branch-name>
 When the work is complete and ready for review:
 
 1. Push the branch: `git push origin <branch-name>`
-2. Create a PR: `gh pr create --title "type(scope): title" --body "$(cat ./tmp/pr-body.md)"`
+2. Create a PR: `uv run python .agents/scripts/gh.py create "type(scope): title" ./tmp/pr-body.md`
 3. The PR will track the worktree's branch automatically
 
 ## Best Practices

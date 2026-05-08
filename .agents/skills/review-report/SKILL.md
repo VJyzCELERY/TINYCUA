@@ -34,3 +34,4 @@ Conduct a scoped code review of the current branch's changes and generate a stru
 - Record commit range in header for staleness detection
 - Always check PR body/title compliance against specs
 - Use `uv run` prefix on all Python validation commands
+- Review files in `./reviews/` are gitignored — do NOT `git add` or commit them

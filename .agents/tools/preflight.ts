@@ -32,13 +32,19 @@ export const preflight_review = tool({
     initReview: tool.schema
       .boolean()
       .optional()
-      .describe("Pre-generate review file header with Commit Range"),
+      .describe("Pre-generate review file header with Commit Range. Conflicts with reviewFile — pick one."),
     reviewName: tool.schema
       .string()
       .optional()
       .describe("Name for the review file (defaults to branch name)"),
   },
   async execute(args, context) {
+    if (args.reviewFile && args.initReview) {
+      return "Error: --review-file and --init-review are mutually exclusive.\nUse --init-review for a NEW review (pre-generates header).\nUse --review-file to check an EXISTING review for staleness.\nPlease retry with only one of these flags."
+    }
+    if (args.initReview && !args.scope) {
+      return "Error: --init-review requires --scope (pr or branch) to determine the commit range."
+    }
     const cmd = []
     if (args.scope) cmd.push("--scope", args.scope)
     if (args.reviewFile) cmd.push("--review-file", args.reviewFile)
