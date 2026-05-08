@@ -167,7 +167,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool

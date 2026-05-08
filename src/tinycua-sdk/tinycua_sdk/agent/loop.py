@@ -104,10 +104,9 @@ class BaseLoop:
                         }
                         tool_result_messages.append(
                             {
-                                "role": "tool",
-                                "tool_call_id": tc["id"],
-                                "name": tool_name,
-                                "content": str(tool_result),
+                                "type": "function_call_output",
+                                "call_id": tc.get("call_id", tc["id"]),
+                                "output": str(tool_result),
                             }
                         )
                         continue
@@ -126,10 +125,9 @@ class BaseLoop:
 
                     tool_result_messages.append(
                         {
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "name": tool_name,
-                            "content": str(tool_result),
+                            "type": "function_call_output",
+                            "call_id": tc.get("call_id", tc["id"]),
+                            "output": str(tool_result),
                         }
                     )
 
@@ -179,7 +177,7 @@ class BaseLoop:
                     break
 
                 content_parts: list[str] = []
-                tool_calls_buffer: dict[int, dict[str, Any]] = {}
+                tool_calls_buffer: dict[str, dict[str, Any]] = {}
 
                 llm_stream = await agent._call_llm(working_messages, tools, stream=True)
                 if not isinstance(llm_stream, AsyncIterator):
@@ -193,7 +191,9 @@ class BaseLoop:
                         if agent.is_cancelled:
                             yield {"type": "response.cancelled"}
                             return
-                        yield chunk
+                        chunk_type = chunk.get("type", "")
+                        if chunk_type not in ("response.created", "response.completed"):
+                            yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
                     if hasattr(llm_stream, "aclose"):
@@ -222,6 +222,7 @@ class BaseLoop:
                         assistant_msg["tool_calls"] = [
                             {
                                 "id": tc["id"],
+                                "call_id": tc.get("call_id", tc["id"]),
                                 "name": tc["name"],
                                 "arguments": tc["arguments"],
                             }
@@ -284,10 +285,9 @@ class BaseLoop:
                 }
                 working_messages.append(
                     {
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "name": tool_name,
-                        "content": str(tool_result),
+                        "type": "function_call_output",
+                        "call_id": tc.get("call_id", tc["id"]),
+                        "output": str(tool_result),
                     }
                 )
                 continue
@@ -301,10 +301,9 @@ class BaseLoop:
 
             working_messages.append(
                 {
-                    "role": "tool",
-                    "tool_call_id": tc["id"],
-                    "name": tool_name,
-                    "content": str(tool_result),
+                    "type": "function_call_output",
+                    "call_id": tc.get("call_id", tc["id"]),
+                    "output": str(tool_result),
                 }
             )
 
@@ -314,7 +313,7 @@ class BaseLoop:
     def _accumulate_chunk(
         chunk: dict[str, Any],
         content_parts: list[str],
-        tool_calls_buffer: dict[int, dict[str, Any]],
+        tool_calls_buffer: dict[str, dict[str, Any]],
         cumulative_usage: dict[str, int],
     ) -> None:
         """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
@@ -328,28 +327,20 @@ class BaseLoop:
         chunk_type = chunk.get("type", "")
         if chunk_type == "response.output_text.delta":
             content_parts.append(chunk.get("delta", ""))
-        elif chunk_type == "response.tool_call.delta":
-            tc_index = chunk.get("index", len(tool_calls_buffer))
-            if tc_index not in tool_calls_buffer:
-                tool_calls_buffer[tc_index] = {
-                    "id": chunk.get("id", ""),
-                    "index": tc_index,
-                    "name": chunk.get("name", ""),
-                    "arguments": chunk.get("arguments", ""),
-                }
-            else:
-                buf = tool_calls_buffer[tc_index]
-                if chunk.get("id"):
-                    buf["id"] = chunk["id"]
-                if chunk.get("name"):
-                    buf["name"] = chunk["name"]
-                buf["arguments"] += chunk.get("arguments", "")
+        elif chunk_type in ("response.tool_call.delta", "response.output_item.added",
+                            "response.function_call_arguments.delta",
+                            "response.function_call_arguments.done"):
+            _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
             if usage:
                 _accumulate_usage(cumulative_usage, usage)
         elif chunk_type == "response.completed":
-            pass
+            response_data = chunk.get("response", {})
+            if isinstance(response_data, dict):
+                usage = response_data.get("usage", {})
+                if usage:
+                    _accumulate_usage(cumulative_usage, usage)
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
@@ -357,6 +348,55 @@ class BaseLoop:
             if msg.get("role") == "assistant":
                 return msg.get("content") or ""
         return ""
+
+
+def _accumulate_tool_chunk(
+    chunk: dict[str, Any],
+    chunk_type: str,
+    tool_calls_buffer: dict[str, dict[str, Any]],
+) -> None:
+    """Accumulate tool call data from a stream chunk into the buffer.
+
+    Args:
+        chunk: Raw SSE event dict from the LLM stream.
+        chunk_type: The type of the chunk event.
+        tool_calls_buffer: Dict of tool call key to accumulated data (mutated in place).
+    """
+    if chunk_type == "response.tool_call.delta":
+        tc_index = str(chunk.get("index", len(tool_calls_buffer)))
+        if tc_index not in tool_calls_buffer:
+            tool_calls_buffer[tc_index] = {
+                "id": chunk.get("id", ""),
+                "index": tc_index,
+                "name": chunk.get("name", ""),
+                "arguments": chunk.get("arguments", ""),
+            }
+        else:
+            buf = tool_calls_buffer[tc_index]
+            if chunk.get("id"):
+                buf["id"] = chunk["id"]
+            if chunk.get("name"):
+                buf["name"] = chunk["name"]
+            buf["arguments"] += chunk.get("arguments", "")
+    elif chunk_type == "response.output_item.added":
+        item = chunk.get("item", {})
+        if item.get("type") == "function_call":
+            item_id = item.get("id", "")
+            if item_id:
+                tool_calls_buffer[item_id] = {
+                    "id": item_id,
+                    "call_id": item.get("call_id", ""),
+                    "name": item.get("name", ""),
+                    "arguments": "",
+                }
+    elif chunk_type == "response.function_call_arguments.delta":
+        item_id = chunk.get("item_id", "")
+        if item_id and item_id in tool_calls_buffer:
+            tool_calls_buffer[item_id]["arguments"] += chunk.get("delta", "")
+    elif chunk_type == "response.function_call_arguments.done":
+        item_id = chunk.get("item_id", "")
+        if item_id and item_id in tool_calls_buffer:
+            tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")
 
 
 def _accumulate_usage(
