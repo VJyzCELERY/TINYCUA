@@ -85,7 +85,10 @@ class BaseLoop:
                 break
 
             response = await agent._call_llm(working_messages, tools)
-            assert isinstance(response, dict)
+            if not isinstance(response, dict):
+                raise TypeError(
+                    f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
+                )
             content = response.get("content")
             tool_calls = response.get("tool_calls")
             if tool_calls:
@@ -182,6 +185,7 @@ class BaseLoop:
 
         tool_call_count = 0
         usage: dict[str, Any] | None = None
+        finish_reason = "completed"
 
         try:
             for _ in range(self.max_iterations):
@@ -190,6 +194,7 @@ class BaseLoop:
                     break
 
                 if tool_call_count >= agent.policy.max_tool_calls:
+                    finish_reason = "max_tool_calls"
                     break
 
                 (
@@ -263,7 +268,10 @@ class BaseLoop:
                 else:
                     working_messages.append(assistant_msg)
                     break
+            else:
+                finish_reason = "max_iterations"
         except Exception as e:
+            yield {"type": "error", "error": {"message": str(e)}}
             yield {
                 "type": "response.failed",
                 "error": {"message": str(e)},
@@ -273,7 +281,7 @@ class BaseLoop:
         if usage:
             yield {"type": "response.usage", "usage": usage}
         if not agent.is_cancelled:
-            yield {"type": "response.completed"}
+            yield {"type": "response.completed", "finish_reason": finish_reason}
 
     async def _stream_llm(
         self,
@@ -408,6 +416,30 @@ class BaseLoop:
                     "content": str(tool_result),
                 }
             )
+
+        tc_list_len = len(tool_calls_list)
+        processed_count = len(executed_tool_calls)
+        if processed_count < tc_list_len:
+            for dropped_tc in tool_calls_list[processed_count:]:
+                dropped_name = dropped_tc.get("name", "unknown")
+                if stream_mode in ("event", "all"):
+                    events.append({
+                        "type": "response.output_item.added",
+                        "item": {
+                            "type": "tool_call",
+                            "name": dropped_name,
+                            "arguments": {},
+                        },
+                    })
+                    events.append({
+                        "type": "response.output_item.done",
+                        "item": {
+                            "type": "tool_call",
+                            "name": dropped_name,
+                            "status": "skipped",
+                            "reason": "max_tool_calls_limit",
+                        },
+                    })
 
         return tool_call_count, executed_tool_calls, events, assistant_index
 
