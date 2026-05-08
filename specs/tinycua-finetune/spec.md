@@ -43,6 +43,18 @@ training entry-point against a local HF base model using QLoRA mode, receive a s
 adapter checkpoint, merge it into the base weights, and finally convert the merged checkpoint
 to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
 
+### Alternative: Notebook-based Workflow (Implemented)
+
+For rapid experimentation and prototyping, an alternative workflow using pre-built HuggingFace
+datasets is available. A developer runs the Jupyter notebook (`pipeline-finetune-qwen3-5-9B.ipynb`)
+which loads a tool-calling dataset (e.g., younissk/tool-calling-mix), fine-tunes a base model
+using QLoRA via Unsloth, optionally merges the adapter, and uploads to HuggingFace Hub.
+
+This approach is suitable for:
+- Quick prototyping and testing
+- Kaggle/Google Colab environments
+- Initial model development before production pipeline
+
 ### Acceptance Scenarios
 
 1. **Given** a base text LLM in HF format and a JSONL training file, **When** training is
@@ -60,6 +72,9 @@ to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
    **Then** training proceeds by paging model layers to CPU RAM without crashing.
 6. **Given** a tool manifest with no `dry_run_output` field, **When** the synthesizer runs,
    **Then** it raises a clear validation error naming the missing field.
+7. **Given** a HuggingFace dataset (e.g., younissk/tool-calling-mix) and a base model,
+   **When** the notebook pipeline is executed with QLoRA mode, **Then** a fine-tuned model
+   checkpoint is saved and optionally uploaded to HuggingFace Hub.
 
 ### Edge Cases
 
@@ -79,7 +94,8 @@ to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
 ### Functional Requirements
 
 - **FR-001**: System MUST accept a local Hugging Face format base model (text LLM or
-  vision-LMM) as input identified by a local directory path.
+   vision-LMM) as input identified by a local directory path, or a model name from HuggingFace
+   (e.g., "Unsloth/Qwen3.5-9B").
 - **FR-002**: System MUST support QLoRA fine-tuning mode (4-bit quantized base model +
   LoRA adapters via bitsandbytes).
 - **FR-003**: System MUST support standard LoRA fine-tuning mode (float16 base model +
@@ -87,7 +103,8 @@ to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
 - **FR-004**: System MUST support CPU-offload training mode via Accelerate to allow
   experimental 13B training on 16 GB VRAM + 32 GB system RAM.
 - **FR-005**: System MUST load training data from JSONL files where each record contains
-  at minimum: `id`, `instruction`, `tool_calls` (list), and `output`.
+   at minimum: `id`, `instruction`, `tool_calls` (list), and `output`. Alternative: System MUST
+   support loading training data directly from HuggingFace datasets (e.g., via `load_dataset`).
 - **FR-006**: System MUST include a dataset synthesizer that reads a tool manifest
   directory and generates JSONL training records covering each listed tool.
 - **FR-007**: System MUST save fine-tuned LoRA adapter weights in safetensors format.
@@ -182,6 +199,7 @@ to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
 | Adapter merge               | TODO        |                                            |
 | GGUF conversion wrapper     | TODO        |                                            |
 | Vision-LMM support          | TODO        | Phase 2                                    |
+| Notebook pipeline (QLoRA + HF dataset) | DONE | pipeline-finetune-qwen3-5-9B.ipynb using younissk/tool-calling-mix |
 
 ---
 
