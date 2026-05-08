@@ -17,7 +17,7 @@ class TestGS03AgentCalling:
     async def test_gs_01_run_returns_string(self, mock_llm_client):
         """Target 3.1: Agent.run returns a string with stream='off'."""
         agent = Agent(llm_model=LanguageModel())
-        response = await agent.run("What is the capital of France?", stream="off")
+        response = await agent.run("What is the capital of France?", stream=False)
         assert isinstance(response, str)
 
     @pytest.mark.asyncio
@@ -28,7 +28,7 @@ class TestGS03AgentCalling:
             {"role": "user", "content": "My name is Alice."},
             {"role": "assistant", "content": "Nice to meet you!"},
         ]
-        response = await agent.run("What is my name?", messages=history, stream="off")
+        response = await agent.run("What is my name?", messages=history, stream=False)
         assert isinstance(response, str)
 
     @pytest.mark.asyncio
@@ -41,7 +41,7 @@ class TestGS03AgentCalling:
         response = await agent.run(
             "Tell me a joke.",
             instructions="You are a pirate. Be funny and concise.",
-            stream="off",
+            stream=False,
         )
         assert isinstance(response, str)
 

@@ -118,7 +118,7 @@ class TestAgentRun:
         assert result == "Default loop works."
 
     @pytest.mark.asyncio
-    async def test_run_stream_token_yields_deltas(self):
+    async def test_run_stream_yields_raw_events(self):
         agent = Agent(llm_model=LanguageModel())
 
         async def fake_stream(messages, tools, stream=False):
@@ -133,9 +133,11 @@ class TestAgentRun:
 
         agent._call_llm = fake_stream
 
-        stream_iter = await agent.run("Query", stream="token")
+        stream_iter = await agent.run("Query", stream=True)
         events = [e async for e in stream_iter]
         assert any(e["type"] == "response.output_text.delta" for e in events)
+        assert any(e["type"] == "response.created" for e in events)
+        assert any(e["type"] == "response.completed" for e in events)
 
     @pytest.mark.asyncio
     async def test_run_stream_event_yields_events(self):
@@ -153,9 +155,9 @@ class TestAgentRun:
 
         agent._call_llm = fake_stream
 
-        stream_iter = await agent.run("Query", stream="event")
+        stream_iter = await agent.run("Query", stream=True)
         events = [e async for e in stream_iter]
-        assert not any(e["type"] == "response.output_text.delta" for e in events)
+        assert any(e["type"] == "response.output_text.delta" for e in events)
         assert any(e["type"] == "response.created" for e in events)
         assert any(e["type"] == "response.completed" for e in events)
 
@@ -175,7 +177,7 @@ class TestAgentRun:
 
         agent._call_llm = fake_stream
 
-        stream_iter = await agent.run("Query", stream="all")
+        stream_iter = await agent.run("Query", stream=True)
         events = [e async for e in stream_iter]
         assert any(e["type"] == "response.output_text.delta" for e in events)
         assert any(e["type"] == "response.created" for e in events)

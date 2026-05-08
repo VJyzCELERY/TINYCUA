@@ -1,33 +1,22 @@
 # Stage 5: Streaming — Description
 
 ## Purpose
-Implement all four streaming modes (`off`, `token`, `event`, `all`) so that `agent.run()` can return either a final string or an async iterator of events. This stage adds SSE-based token/event streaming to the LLM client and loop, with proper filtering by mode.
+Implement raw SSE passthrough streaming so that `agent.run()` can return either a final string (`stream=False`) or an async iterator of raw OpenAI SSE events (`stream=True`). This stage adds SSE-based streaming to the LLM client and loop, with no mode filtering — every LLM event passes through as-is.
 
 ## What You'll Find Here
-- **`spec.md`** — Requirements for all four modes, event shapes (token deltas and agent events), tool-call behavior during streams, and loop integration. Includes 6 success criteria covering each mode individually, tool call events in streams, and the integration test.
-- **`design.md`** — Async generator architecture: `_run_stream()` vs `_run_sync()`, `LLMClient.chat(stream=True)` SSE parsing, event filtering logic, and stream accumulation for partial tool calls.
+- **`spec.md`** — Requirements for `stream=False` and `stream=True` modes, event shapes, tool-call behavior during streams, and loop integration. Includes success criteria.
+- **`design.md`** — Async generator architecture: `_run_stream()` vs `_run_sync()`, `LLMClient.chat(stream=True)` SSE parsing, raw event passthrough, and cumulative usage.
 
 ## What This Stage Does NOT Do
-- It does not change non-streaming behavior — `stream="off"` is identical to Stage 3.
-- It does not implement custom loop streaming support beyond the default — that's covered by Stage 8's extensibility model.
-- It does not add new event types beyond OpenAI Responses API shapes.
+- It does not change non-streaming behavior — `stream=False` is identical to previous stages.
+- It does not emit synthetic events (`response.output_item.added`, `response.output_text.done`, etc.) — only raw LLM events and lifecycle bookends.
+- It does not implement custom loop streaming support beyond the default.
 
 ## How to Use These Files
-1. Read `spec.md` to understand the exact return types and event shapes for each mode.
-2. Implement using `design.md`, but write integration tests first with a mock SSE stream.
+1. Read `spec.md` to understand the return types and event shapes.
+2. Implement using `design.md`.
 3. Test tool-call streaming carefully — partial JSON across chunks is the hardest edge case.
-
-## Targets (Test Scenarios)
-This stage includes 4 atomic test scenarios in `targets/`:
-- **01_stream_off.py** — Verify stream='off' returns a plain string
-- **02_stream_token.py** — Verify stream='token' yields token delta events
-- **03_stream_event.py** — Verify stream='event' yields agent events without token deltas
-- **04_stream_all.py** — Verify stream='all' yields interleaved token deltas and agent events
-
-Each target has an accompanying `_expected-output.txt` file showing the expected output when the target passes. These targets can be directly converted into integration tests.
-
-> **Important:** These targets are **MUST-HAVE** requirements for this stage. However, you should write additional integration tests during development as needed. The targets represent the minimum coverage; you may add more tests to ensure robustness.
 
 ## Dependencies
 - Depends on: Stages 0–4 (execution loop must exist).
-- Feeds into: Stages 6-9 (serialization, security, custom loops, and final polish all build on streaming).
+- Feeds into: Stages 6-9.

@@ -1,6 +1,6 @@
 # Implementation: Stage 5 — Streaming
 
-Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execution loop and LLM client, so that `agent.run()` can return either a final string or an async iterator of events.
+Add raw SSE passthrough streaming (`stream: bool = False` → `str`, `stream=True` → raw `AsyncIterator[dict]`).
 
 ## Context
 
@@ -24,17 +24,20 @@ Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execu
 
 #### MODIFY `tinycua_sdk/agent/loop.py`
 
-- **[Add `stream` parameter to `BaseLoop.run()`]**: Accept `stream: str = "off"` and dispatch to `_run_sync` or `_run_stream`.
-- **[NEW `BaseLoop._run_sync()`]**: Extract the existing synchronous execution logic unchanged (identical to Stage 3 behaviour).
+- **[Add `stream` parameter to `BaseLoop.run()`]**: Accept `stream: bool = False` and dispatch to `_run_sync` or `_run_stream`.
+- **[NEW `BaseLoop._run_sync()`]**: Extract the existing synchronous execution logic unchanged.
 - **[NEW `BaseLoop._run_stream()`]**: Async generator that:
   - Yields `response.created` at start.
   - Calls `agent._call_llm(..., stream=True)` to get an async iter of chunks.
-  - Accumulates content parts and tool call parts from the chunk stream.
-  - Yields token delta events only in `token`/`all` modes.
-  - After full LLM response, emits `response.output_item.added` events for tool calls and tool outputs in `event`/`all` modes.
+  - Yields every chunk as-is (raw passthrough, no mode filtering).
+  - Accumulates content parts, tool call parts, and usage from the chunk stream.
+  - After LLM response, executes tools and appends results to messages (no synthetic events).
   - Loops back for next iteration when tool calls are present.
+  - Emits cumulative `response.usage` at termination.
   - Yields `response.completed` at termination.
 - **[Return type change]**: `run()` now returns `str | AsyncIterator[dict]` instead of `str`.
+- **[Remove `_build_tool_events`]**: No longer needed — no synthetic tool events.
+- **[Remove `stream_mode`]**: No mode filtering — all events passthrough.
 
 ### Agent Executor — Streaming Passthrough
 
@@ -52,14 +55,10 @@ Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execu
 
 ### Integration Test
 
-#### NEW `tests/integration/goals/test_gs_04_agent_streaming.py`
+#### MODIFY `tests/integration/goals/test_gs_04_agent_streaming.py`
 
-- Write integration tests that mock `httpx.AsyncClient.stream` and verify each streaming mode independently:
-  - `off`: returns `str`.
-  - `token`: yields only `response.output_text.delta` events.
-  - `event`: yields only lifecycle/tool events, no delta events.
-  - `all`: yields both delta and lifecycle events.
-  - Tool call streaming: verify tool_call and tool_output events appear and stream resumes.
+- Update to use `stream=True` / `stream=False` instead of mode strings.
+- Verify raw event passthrough (deltas, lifecycle events, usage).
 
 ## Architecture Changes
 
@@ -67,10 +66,9 @@ Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execu
 |-----------|-------------|-------------|
 | `OpenAICompatibleClient` | Modify | Add `stream` param, `_chat_stream()`, `_chat_sync()` |
 | `LLMClient` (ABC) | Modify | Add `stream` param to abstract `chat()` |
-| `BaseLoop` | Modify | Add `stream` param, `_run_stream()`, `_run_sync()` |
+| `BaseLoop` | Modify | Add `stream` param, `_run_stream()`, raw passthrough, cumulative usage |
 | `AgentExecutor._call_llm` | Modify | Add `stream` param passthrough |
-| `Agent.run()` | Modify | Wire streaming, remove NotImplementedError |
-| `test_gs_04_agent_streaming.py` | New | Integration tests for all 4 modes |
+| `Agent.run()` | Modify | Wire streaming, `stream: bool`, remove mode validation |
 
 ## API Changes
 
@@ -80,18 +78,18 @@ Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execu
 |--------|--------|
 | `LLMClient.chat()` | Added `stream: bool = False` parameter |
 | `OpenAICompatibleClient.chat()` | Added `stream` param, returns `dict` or `AsyncIterator[dict]` |
-| `BaseLoop.run()` | Added `stream: str = "off"` param, returns `str` or `AsyncIterator[dict]` |
+| `BaseLoop.run()` | Added `stream: bool = False` param, returns `str` or `AsyncIterator[dict]` |
 | `AgentExecutor._call_llm()` | Added `stream: bool = False` parameter |
-| `Agent.run()` | Removes `NotImplementedError` for streaming, returns `str` or `AsyncIterator[dict]` |
+| `Agent.run()` | `stream: bool = False`, removes mode validation |
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Unit tests: `LLMClient` SSE parsing (token deltas, tool call deltas, [DONE] sentinel)
-- [ ] Unit tests: `BaseLoop._run_stream()` with mocked LLM for each mode
-- [ ] Unit tests: `Agent.run()` streaming return types
-- [ ] Integration tests: `test_gs_04_agent_streaming.py` — all 6 success criteria from spec
+- [x] Unit tests: `LLMClient` SSE parsing (token deltas, tool call deltas, [DONE] sentinel)
+- [x] Unit tests: `BaseLoop._run_stream()` with mocked LLM for raw passthrough
+- [x] Unit tests: `Agent.run()` streaming return types
+- [x] Integration tests: `test_gs_04_agent_streaming.py` — stream=False and stream=True
 
 ### Manual Verification
 
@@ -115,4 +113,4 @@ Add all four streaming modes (`off`, `token`, `event`, `all`) to the agent execu
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-05-07*
+*Last updated: 2026-05-08*

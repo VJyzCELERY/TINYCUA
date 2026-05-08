@@ -1,12 +1,12 @@
 # Stage 5: Streaming — Specification
 
-**Status**: Draft | In Progress | Complete
+**Status**: Complete
 **Created**: 2026-05-02
-**Last Updated**: 2026-05-02
+**Last Updated**: 2026-05-08
 **Subproject(s) Affected**: tinycua-sdk
 
 ## Objective
-Implement all four streaming modes exactly as specified.
+Implement raw SSE passthrough streaming — `stream=False` returns `str`, `stream=True` returns `AsyncIterator[dict]` of raw OpenAI SSE events.
 
 ## Guiding Principles
 All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
@@ -16,84 +16,59 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ## Requirements
 
-### R-5.1: Streaming Modes
+### R-5.1: Streaming Mode
 
 | Mode | Return Type | Content |
 |------|-------------|---------|
-| `stream="off"` | `str` | Final response text (default). |
-| `stream="token"` | `AsyncIterator[dict]` | Raw LLM token deltas plus response.created/response.completed bookend events. |
-| `stream="event"` | `AsyncIterator[dict]` | Agent-level events only (no token deltas). |
-| `stream="all"` | `AsyncIterator[dict]` | Interleaved token deltas + agent events. |
+| `stream=False` | `str` | Final response text (default). |
+| `stream=True` | `AsyncIterator[dict]` | Raw OpenAI SSE events from the LLM, plus lifecycle bookends (response.created/response.completed). |
 
-### R-5.2: Event Shapes
+### R-5.2: Event Passthrough
 
-**Token delta:**
+When `stream=True`, the SDK acts as a thin passthrough — every SSE event yielded by the LLM client is forwarded to the consumer as-is. No filtering, no synthetic event injection.
+
+**Raw LLM events** (passthrough from provider):
 ```python
-{
-    "type": "response.output_text.delta",
-    "delta": "Hello",
-    "item_id": "msg_abc123",
-}
+{"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_abc123"}
+{"type": "response.tool_call.delta", "index": 0, "id": "call_1", "name": "get_time", "arguments": "{}"}
+{"type": "response.usage", "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
 ```
 
-**Agent events:**
+**Lifecycle events** (emitted by the loop):
 ```python
 {"type": "response.created"}
-{"type": "response.output_item.added", "item": {"type": "tool_call", "name": "calculator", "arguments": {"expression": "2+2"}}}
-{"type": "response.output_item.added", "item": {"type": "tool_output", "name": "calculator", "output": "4"}}
 {"type": "response.completed", "finish_reason": "completed"}
+{"type": "response.failed", "error": {"message": "..."}}
+{"type": "response.cancelled"}
+{"type": "error", "error": {"message": "..."}}
 ```
 
 ### R-5.2.0: OpenAI Responses API Event Type Reference
 
-All streaming events MUST follow the OpenAI Responses API SSE event format. Each event is a JSON dict with a `type` field identifying the event kind. The table below enumerates all standard OpenAI Responses API event types, annotated with implementation status for this stage.
+All streaming events follow the OpenAI Responses API SSE event format. Each event is a JSON dict with a `type` field identifying the event kind.
 
 | Event Type | Implemented | Stage | Description |
 |---|---|---|---|
 | `response.created` | ✅ | 5 | Emitted once when the response is created. |
 | `response.in_progress` | ❌ Deferred | 8 | Response is being processed. |
-| `response.output_text.delta` | ✅ | 5 | Text content delta chunk. |
-| `response.output_text.done` | ✅ | 5 | Text output item complete — contains full accumulated text. |
+| `response.output_text.delta` | ✅ | 5 | Text content delta chunk (passthrough from LLM). |
+| `response.output_text.done` | ❌ Removed | — | No longer emitted — consumers track completion via the end of delta stream or response.completed. |
 | `response.output_text.annotation.added` | ❌ Deferred | 9 | Citation/annotation on text output. |
-| `response.output_item.added` | ✅ | 5 | Output item (tool_call, tool_output) added. |
-| `response.output_item.done` | ✅ | 5 | Output item complete. |
+| `response.output_item.added` | ❌ Removed | — | No longer emitted — synthetic events removed in favor of raw passthrough. |
+| `response.output_item.done` | ❌ Removed | — | No longer emitted — synthetic events removed in favor of raw passthrough. |
 | `response.content_part.added` | ❌ Deferred | 9 | Content part added (multi-part responses). |
 | `response.content_part.done` | ❌ Deferred | 9 | Content part complete. |
-| `response.function_call_arguments.delta` | ❌ Deferred | 8 | Function call argument delta (standard event; `response.tool_call.delta` is used internally as equivalent). |
+| `response.function_call_arguments.delta` | ❌ Deferred | 8 | Function call argument delta. |
 | `response.function_call_arguments.done` | ❌ Deferred | 8 | Function call arguments complete. |
 | `response.completed` | ✅ | 5 | Response completed successfully. |
 | `response.failed` | ✅ | 5 | Response failed with error details. |
 | `error` | ✅ | 5 | Transient streaming error event. |
-| `response.usage` | ✅ | 5 | Token usage data emitted at end of stream. |
-| `response.cancelled` | ✅ | 5 | Emitted when the agent is cancelled during streaming (custom event). |
-
-Events marked ❌ Deferred are recognized OpenAI standard events that are out of scope for this stage. The "Stage" column indicates which future stage should implement each event. Deferred events MUST be emitted with the correct type string when implemented to maintain backward compatibility.
-
-### R-5.2.1: response.output_text.done Event
-
-Emitted when a text output item is complete (all delta chunks for that item have been received).
-
-```python
-{
-    "type": "response.output_text.done",
-    "item_id": "msg_abc123",
-    "content": "Hello world",
-}
-```
-
-### R-5.2.2: response.output_item.done Event
-
-Emitted when any output item (text, tool call, tool output) is complete.
-
-```python
-{"type": "response.output_item.done", "item": {"type": "text"}}
-{"type": "response.output_item.done", "item": {"type": "tool_call", "name": "calculator"}}
-{"type": "response.output_item.done", "item": {"type": "tool_output", "name": "calculator"}}
-```
+| `response.usage` | ✅ | 5 | Cumulative token usage emitted at end of stream (plus raw events forwarded during stream). |
+| `response.cancelled` | ✅ | 5 | Emitted when the agent is cancelled during streaming. |
 
 ### R-5.2.3: response.failed / error Events
 
-Emitted when the response fails due to an error (tool execution failure, stream error, etc.). `response.failed` is the standard OpenAI Responses API error event; `error` is a general-purpose error event for transient issues.
+Emitted when the response fails due to an error (tool execution failure, stream error, etc.).
 
 ```python
 {
@@ -105,14 +80,14 @@ Emitted when the response fails due to an error (tool execution failure, stream 
 
 ### R-5.3: Behavior with Tool Calls
 When the LLM returns tool calls during a stream:
-- The stream pauses while tools execute.
-- Tool call events are emitted.
-- Tool output events are emitted.
-- The stream resumes with the next LLM response's tokens.
+- Raw tool_call.delta events passthrough to the consumer.
+- The stream pauses while tools execute (no synthetic events are emitted for tool calls or results).
+- Tool results are appended to the message list for the next LLM iteration.
+- The stream resumes with the next LLM response's raw events.
 
 ### R-5.4: Loop Integration
-- `BaseLoop.run()` must support streaming by yielding events/tokens instead of returning a single string when `stream != "off"`.
-- The same tool-calling logic from Stage 3 runs, but events are yielded at each stage.
+- `BaseLoop.run()` must support streaming by yielding raw LLM events instead of returning a single string when `stream=True`.
+- The same tool-calling logic from Stage 3 runs, but events are yielded raw at each stage.
 
 ### R-5.5: LLMClient Streaming
 - `OpenAICompatibleClient.chat()` must accept `stream: bool = False`.
@@ -125,20 +100,11 @@ Each success criterion must be validated by running the specified target file(s)
 
 Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-- [ ] stream="off" Returns String - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
+- [ ] stream=False Returns String - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
   Description: Default mode returns `str`.
 
-- [ ] stream="token" Yields Token Deltas - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: tokens =', tokens)`
-  Description: Returns async iterator of token chunks.
-
-- [ ] stream="event" Yields Agent Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: events =', events)`
-  Description: Returns async iterator of events without token deltas.
-
-- [ ] stream="all" Yields Both - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
-  Description: Interleaved token deltas and events.
-
-- [ ] Streaming with Tool Calls - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS: tool_events =', len(tool_events))`
-  Description: Tool call events appear in event/all streams.
+- [ ] stream=True Yields Raw Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
+  Description: Returns async iterator with raw SSE events.
 
 - [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - 1 passed, 0 failed - pytest -v
 

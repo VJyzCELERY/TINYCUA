@@ -29,7 +29,7 @@ class TestInt04AgentWithSkills:
             skills=[coding_skill],
         )
 
-        response = await agent.run("Write a hello world function.", stream="off")
+        response = await agent.run("Write a hello world function.", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
@@ -50,7 +50,7 @@ class TestInt04AgentWithSkills:
             skills=[skill_a, skill_b],
         )
 
-        response = await agent.run("Hello.", stream="off")
+        response = await agent.run("Hello.", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
@@ -75,7 +75,7 @@ class TestInt04AgentWithSkills:
         )
         agent.add_skills(docs_skill)
 
-        response = await agent.run("Now document that function.", stream="off")
+        response = await agent.run("Now document that function.", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
@@ -102,7 +102,7 @@ class TestInt04AgentWithSkills:
         agent = Agent(llm_model=LanguageModel())
         agent.add_skills([coding, docs])
 
-        response = await agent.run("Hello.", stream="off")
+        response = await agent.run("Hello.", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
@@ -136,7 +136,7 @@ class TestInt04AgentWithSkills:
         agent = Agent(llm_model=LanguageModel(), skills=[original])
         agent.add_skills([other, duplicate])
 
-        response = await agent.run("Hello.", stream="off")
+        response = await agent.run("Hello.", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
