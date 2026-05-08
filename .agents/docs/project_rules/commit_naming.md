@@ -56,11 +56,8 @@ The following commit types must be used:
 - Use the **imperative mood** for the description (e.g., "Add support" not "Added support").
 - Include references to issues using `Fixes #<issue-number>` in the footer, if applicable.
 
-## Tools to Enforce Rules
-- **Optional**: Use tools like `commitlint` to validate commit messages.
-- Example pre-commit hook:
-  ```bash
-  npx commitlint --edit $1
-  ```
+## Enforcement
+
+Commit naming is enforced during code review. Reviewers should verify that commit messages follow the `type(scope): message` format.
 
 ---

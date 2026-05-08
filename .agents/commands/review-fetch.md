@@ -5,39 +5,61 @@ subtask: true
 
 Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
 
-**PR Number (Optional)**: $1 (if not provided, detect from current branch)
+> Load skill: review-fetch (for pulling PR comments into local review)
+
+**Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
 **Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
 
----
 
 ## Instructions
 
+## Pre-Flight
+
+Before fetching, load the relevant skills and run the PR pre-flight:
+
+> Load skill: preflight (for preflight scripts)
+> Load skill: gh-pr-management (for gh.py — fetching PR comments)
+
+```bash
+PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")
+```
+
+Also run the review pre-flight for scope context:
+
+```bash
+uv run python .agents/scripts/preflight-review.py --scope pr
+```
+
+---
+
 1. **Detect PR**: If `$1` is not provided, detect the PR number:
    ```bash
-   PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --state open --json number --jq '.[0].number')
+   PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-2. **Detect owner/repo**:
+2. **Fetch PR details** (including title, body, and spec references):
    ```bash
-   OWNER_REPO=$(gh repo view --json owner,name --jq '{owner: .owner.login, name: .name}' | jq -r '"\(.owner)/\(.name)"')
+   gh pr view "$PR_NUMBER" --json title,body --jq '"TITLE: \(.title)\n\nBODY:\n\(.body)"'
    ```
-3. **Fetch PR details**:
+3. **Fetch unresolved comments and reviews**:
    ```bash
-   gh pr view "$PR_NUMBER" --json number,headRefName,baseRefName,title,author,state,reviews,comments,files
+   uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
    ```
-4. **Fetch inline review comments** (unresolved):
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null)'
+4. **Check PR body/title compliance**: Before compiling findings, check if the PR body and title accurately describe the changes and reference any relevant specs. If the PR body or title need updating (e.g., stale description, missing spec references, misleading title), add a finding:
+   ```markdown
+   ### [FETCH-001] - [MEDIUM] - [PR body/title needs update]
+   
+   **Status**: OPEN
+   
+   **Severity**: MEDIUM
+   
+   [Explain what's wrong — e.g., PR title doesn't match changes, PR body lacks spec reference]
+   
+   **Location**: [PR #number]
+   
+   **Suggested Fix**:
+   [What the title or body should say]
    ```
-   Filter for unresolved threads (those without a resolution event).
-5. **Fetch review summaries** (top-level review comments requesting changes):
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | select(.state == "CHANGES_REQUESTED")'
-   ```
-6. **Fetch pending/OPEN review threads**:
-   ```bash
-   gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null) | {id: .id, path: .path, line: .line, body: .body, user: .user.login}'
-   ```
-7. **Compile findings**: For each unresolved comment, extract:
+5. **Compile findings**: For each unresolved comment, extract:
    - **Issue Code**: FETCH-001, FETCH-002, ...
    - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
    - **Location**: The file path and line number from the comment

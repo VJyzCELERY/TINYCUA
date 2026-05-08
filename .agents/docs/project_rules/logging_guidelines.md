@@ -33,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-logger = logging.getLogger("SubprojectLogger")
+logger = logging.getLogger(__name__)
 
 # Example usage
 if __name__ == "__main__":

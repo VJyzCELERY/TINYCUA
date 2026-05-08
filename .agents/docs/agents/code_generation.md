@@ -7,8 +7,8 @@ This document defines the rules and expectations for AI agents generating code f
 
 ## General Principles
 1. **Adopt Coding Standards**:
-   - Enforce coding standards as described in `docs/project_rules/coding_standards.md`.
-   - Incorporate logging practices as outlined in `docs/project_rules/logging_guidelines.md`.
+   - Enforce coding standards as described in `.agents/docs/project_rules/coding_standards.md`.
+   - Incorporate logging practices as outlined in `.agents/docs/project_rules/logging_guidelines.md`.
    - Use Ruff auto-fix capabilities to ensure immediate compliance.
    - Include detailed docstrings with descriptions, arguments, and examples for all generated functions and classes.
 
@@ -45,22 +45,23 @@ Ensure commit messages are meaningful, concise, and adhere to the [commit naming
 ---
 
 ## Docstring Requirements
-Ensure all AI-generated functions and classes follow this format:
 
-### Example Format
+All AI-generated functions and classes must use **Google-style docstrings** as defined in `.agents/docs/agents/style.md`. The standard format is:
+
 ```python
-"""
-This function/class serves as a [brief purpose summary]. It works by [short explanation].
+def function_name(arg1: type, arg2: type) -> ReturnType:
+    """Brief description of what the function does.
 
-Args:
-    arg1 (type): Description.
-    arg2 (type): Description.
-    **kwargs: Description of supported optional keyword arguments.
+    Args:
+        arg1: Description of arg1.
+        arg2: Description of arg2.
 
-Examples:
-    # Example usage:
-    result = generated_function(arg1, arg2, kwarg_key=value)
-"""
+    Returns:
+        Description of the return value.
+
+    Raises:
+        ExceptionType: When and why this exception occurs.
+    """
 ```
 
 ---

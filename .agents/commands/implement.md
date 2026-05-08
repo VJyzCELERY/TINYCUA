@@ -5,10 +5,11 @@ subtask: true
 
 Execute an implementation plan from implementation-plan.md and task.md.
 
-**Target Directory**: $1
+> Load skill: implement (for TDD implementation)
+
+**Query**: $1 (natural language query — specify the feature or directory to implement, e.g., "implement the auth feature from specs/user-auth/" or simply "specs/my-feature/")
 **Focus/Priority (Optional)**: $2 (e.g., "speed", "quality", specific feature to prioritize)
 
-## Instructions
 
 1. **Locate implementation files**: Find implementation-plan.md and task.md in `$1`
 2. **Read implementation-plan.md**: Understand the proposed changes and architecture

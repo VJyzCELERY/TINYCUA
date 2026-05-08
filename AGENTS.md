@@ -2,135 +2,92 @@
 
 This project uses the `.agents/` directory for all AI agent-related configuration, commands, templates, and documentation.
 
+**Baseline harness is opencode, but all instructions are harness-agnostic.** If your harness does not support a specific mechanism (skill loading, tool detection, etc.), fall back to reading files directly and executing commands via bash.
+
+---
+
+## Critical: Always Ask, Read, and Check First
+
+0. **Run start preflight** — At the start of every session, run `uv run python .agents/scripts/preflight-start.py`. This detects your OS and establishes the project boundary so you never operate outside it.
+1. **Never leave the project root** — Your attached root directory is your entire world. Do NOT read, write, or execute anything outside it. If you need temporary files, use `./tmp/` (already gitignored) and clean up after yourself. Never use system `/tmp/`.
+2. **Parent agents: instruct subagents to read AGENTS.md** — Whenever you delegate to a subagent, explicitly tell it to read this AGENTS.md file first. Subagents start with zero context and won't know these rules unless told.
+3. **Ask when uncertain** — If any instruction is ambiguous or incomplete, use the question/ask tool to clarify (priority). Only write questions inline if your harness has no such tool. Do NOT guess. Subagents report questions to the parent orchestrator, not the user.
+4. **Ask before committing** — Never commit or push without explicit user permission. Each batch needs a fresh ask unless the user grants unrestricted permission.
+5. **Read rules first** — Before starting any task, read relevant rules from `.agents/docs/` (both `agents/` and `project_rules/`). Each file defines conventions and constraints.
+6. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure.
+7. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
+8. **Use `uv run` for Python** — Never bare `python` or `pytest`. Always `cd <subproject-dir> && uv run`.
+9. **Use gh.py for PR operations** — All PR/review write operations must go through `.agents/scripts/gh.py`. Never use raw `gh pr edit`, `gh pr review`, or similar direct commands for PR writes. Check `uv run python .agents/scripts/gh.py --help` for available subcommands.
+
+---
+
+## How to Explore `.agents/`
+
+Everything you need is in `.agents/`. Explore it like a filesystem — only read what you need:
+
+```
+.agents/
+├── commands/        # Slash command definitions (load on demand)
+├── skills/          # How-to guides for each command/tool (load on demand)
+├── tools/           # Custom tool definitions (opencode format, invoke scripts/)
+├── scripts/         # Python scripts (gh.py, preflight-*.py)
+├── templates/       # Document templates (check before generating)
+├── docs/
+│   ├── agents/      # Agent behavior rules, workflow, style, testing
+│   └── project_rules/ # Naming, coding standards, commit style, testing
+└── reviews/         # Archived review reports
+```
+
+### When to load what
+
+| Trigger | Load this |
+|---------|-----------|
+| Slash command received | `.agents/commands/<name>.md` + matching skill from `.agents/skills/<name>/` |
+| Before any script | Run preflight first: `uv run python .agents/scripts/preflight-<name>.py` |
+| Need PR/review help | Load skill: `gh-pr-management` or read `.agents/skills/gh-pr-management/SKILL.md` |
+| Need git help | Load skill: `git-rebase` or read `.agents/skills/git-rebase/SKILL.md` |
+| Need to create a skill | Load skill: `self-learning` and use `.agents/templates/skill.md` |
+
+List available skills: `ls .agents/skills/` — each is a directory with a `SKILL.md` inside.
+
+List available tools: `ls .agents/tools/` or run `uv run python .agents/scripts/gh.py --help`.
+
+Read docs: `ls .agents/docs/agents/` and `ls .agents/docs/project_rules/`.
+
+### Skill loading (harness-dependent)
+
+```
+# Native mechanism:
+#   opencode: skill({ name: "<name>" })
+#   generic:  Read .agents/skills/<name>/SKILL.md
+```
+
+If unsure, always fall back to reading the file directly.
+
 ---
 
 ## Quick Reference
 
-### Available Commands
-
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
-| `/begin-workflow <dir>` | Automates complete specs implementation process |
-| `/plan <dir>` | Creates implementation plan from spec.md/design.md |
-| `/implement <dir>` | Executes implementation plan using TDD |
-| `/review-report <dir>` | Reviews project changes and generates a scoped report |
-| `/review-validate <file>` | Validates findings from a previous review |
-| `/review-implement <file>` | Implements fixes for review findings |
-| `/review-post <file>` | Posts a review report as a PR review with inline comments |
-| `/review-update <file>` | Updates an existing PR review with follow-up and resolutions |
-| `/review-fetch [pr]` | Fetches unresolved PR comments into a review report |
-| `/review-cleanup <file>` | Archives resolved reviews |
-| `/setup-project <dir>` | Sets up project with .agents structure |
+| `/begin-workflow` | Full pipeline: plan → implement → review → cleanup |
+| `/begin-worktree` | Creates a new worktree + branch for feature development |
+| `/plan` | Creates implementation plan + task list from spec & design |
+| `/implement` | Executes plan tasks using TDD |
+| `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
+| `/review-report` | Scoped code review of current branch changes |
+| `/review-validate` | Full pipeline: clarify vague findings → verify statuses |
+| `/review-clarify` | Improves review precision — rewrites vague findings |
+| `/review-verify` | Checks each finding: addressed, invalid, or still OPEN |
+| `/review-implement` | Applies fixes for review findings (does NOT update report) |
+| `/review-post` | Posts review as a PR review with inline comments (+ tracks URLs) |
+| `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
+| `/review-fetch` | Fetches unresolved PR comments into a review report |
+| `/review-cleanup` | Archives resolved reviews |
+| `/rebase` | Safely rebases current branch onto target |
+| `/commit-cleanup` | Cleans up commit history — squashes fixups, removes duplicates |
+| `/worktree-prune` | Removes inactive worktrees (checks PR status) |
+| `/worktree-cleanup` | Cleans up local artifacts in the current worktree |
+| `/setup-project` | Bootstraps `.agents/` structure in a new project |
 
-### Project Structure
-
-```
-.agents/
-├── commands/          # Opencode commands
-├── templates/         # Document templates
-├── skills/            # Reusable skill references
-│   ├── gh-pr-management/
-│   ├── git-rebase/
-│   └── gh-review/
-├── docs/
-│   ├── agents/       # Agent rules and guidelines
-│   └── project_rules/ # Project-specific rules
-├── reviews/          # Review outputs
-└── AGENTS.md         # [REMOVED]
-```
-
-### Key Files
-
-- [.agents/docs/agents/agent_rules.md](.agents/docs/agents/agent_rules.md) — Core agent principles
-- [.agents/docs/agents/workflow.md](.agents/docs/agents/workflow.md) — Development workflow
-- [.agents/docs/agents/style.md](.agents/docs/agents/style.md) — Code formatting and naming
-- [.agents/docs/agents/testing.md](.agents/docs/agents/testing.md) — Testing guidelines
-- [.agents/docs/agents/debugging.md](.agents/docs/agents/debugging.md) — Debugging guide
-- [.agents/docs/agents/security.md](.agents/docs/agents/security.md) — Security guidelines
-- [.agents/docs/agents/code_generation.md](.agents/docs/agents/code_generation.md) — AI code generation rules
-- [.agents/docs/agents/code_review.md](.agents/docs/agents/code_review.md) — Review standards
-- [.agents/docs/project_rules/naming_conventions.md](.agents/docs/project_rules/naming_conventions.md) — Naming rules
-- [.agents/docs/project_rules/project_structure.md](.agents/docs/project_rules/project_structure.md) — Project structure
-- [.agents/docs/project_rules/cognitive_complexity.md](.agents/docs/project_rules/cognitive_complexity.md) — Complexity rules
-- [.agents/docs/project_rules/commit_naming.md](.agents/docs/project_rules/commit_naming.md) — Commit naming rules
-- [.agents/docs/project_rules/testing_guidelines.md](.agents/docs/project_rules/testing_guidelines.md) — Full testing rules
-- [.agents/docs/project_rules/logging_guidelines.md](.agents/docs/project_rules/logging_guidelines.md) — Logging standards
-- [.agents/docs/project_rules/coding_standards.md](.agents/docs/project_rules/coding_standards.md) — Code standards
-- [.agents/docs/project_rules/deployment_and_versioning.md](.agents/docs/project_rules/deployment_and_versioning.md) — Deployment guidelines
-- [.agents/docs/project_rules/pull_request.md](.agents/docs/project_rules/pull_request.md) — PR guidelines (spec/design sync)
-
----
-
-## Skills
-
-Skills provide specialized instructions for common workflows. Read the relevant skill before performing the task.
-
-| Skill | Description |
-|-------|-------------|
-| [gh-pr-management](.agents/skills/gh-pr-management/SKILL.md) | Creating, updating, and managing PRs with `gh` |
-| [git-rebase](.agents/skills/git-rebase/SKILL.md) | Rebasing branches without dirtying commit history |
-| [gh-review](.agents/skills/gh-review/SKILL.md) | Fetching, posting, and updating PR reviews with `gh` |
-
----
-
-## Critical: Always Read Rules and Check Templates First
-
-**Before starting any task**, read the relevant rules from `.agents/docs/` first. This includes agent rules (`.agents/docs/agents/`) and project rules (`.agents/docs/project_rules/`). Each rule file defines conventions, constraints, and expectations that the agent must follow.
-
-**Before generating any document**, always check `.agents/templates/` first. Use Read to load the relevant template and follow its structure.
-
-**Before generating any document** (PR body, implementation plan, review report, task list, spec, or design), **always check `.agents/templates/` first**. Use Read to load the relevant template and follow its structure.
-
-Available templates:
-- `PR-body.md` — Pull request description
-- `implementation-plan.md` — Implementation plan
-- `task.md` — Task checklist
-- `REVIEW-template.md` — Review report
-- `spec.md` — Feature specification
-- `design.md` — Design document
-
-If no template exists for the document you need, create one following the conventions of existing templates.
-
----
-
-## Critical: Use `uv run` for All Python/Pytest Commands
-
-This project uses `uv` for Python environment management. **Never use bare `python` or `pytest`** — they may import from the wrong worktree.
-
-Always `cd` into the subproject directory first, then use `uv run`:
-
-```bash
-# ✅ Correct
-cd src/tinycua-sdk && uv run python script.py
-cd src/tinycua-sdk && uv run pytest tests/
-
-# ❌ Wrong
-python script.py
-pytest tests/
-```
-
-See [Workflow docs](.agents/docs/agents/workflow.md) for full details.
-
----
-
-## Review File Convention
-
-All review files live at `./reviews/REVIEW-{name}.md` (relative to repo root / workdir).
-This is a consistent, predictable location so agents always know where to find reviews.
-
-| Command | Output Location |
-|---------|----------------|
-| `/review-report <dir>` | Writes to `./reviews/REVIEW-{name}.md` |
-| `/review-validate <file>` | Updates `./reviews/REVIEW-{name}.md` |
-| `/review-implement <file>` | Updates statuses in `./reviews/REVIEW-{name}.md` |
-
----
-
-## Quick Start
-
-1. **Setup project**: Run `/setup-project <project-dir>` to initialize
-2. **Create plan**: Run `/plan <dir>` with spec.md and design.md
-3. **Implement**: Run `/implement <dir>` to execute the plan
-4. **Review**: Run `/review-report <dir>` to review code
-5. **Validate**: Run `/review-validate <review-file>` to validate findings
-6. **Fix**: Run `/review-implement <review-file>` to implement fixes
+All commands reference preflight scripts in `.agents/scripts/`. Run the preflight first. If it fails, read the script's `<EOF_DESC>` section to understand what to fix.

@@ -7,20 +7,26 @@ The `MAIN-PROJECT` is organized to facilitate modular subproject development and
 MAIN-PROJECT/
 ├── docs/                          # Main documentation
 ├── specs/                         # Project-level feature specs
-│   ├── spec-template.md           # Copy for new specs
-│   ├── design-template.md         # Copy for new designs
+│   ├── spec-template.md           # Symlink → .agents/templates/spec.md
+│   ├── design-template.md         # Symlink → .agents/templates/design.md
 │   └── <feature-name>/            # One folder per feature
 │       ├── spec.md
 │       └── design.md
 ├── src/                           # Subprojects
-│   └── my-subproject/             # lower-kebab-case subproject folder
-│       ├── my_subproject/         # lower_snake_case Python package
+│   └── <subproject>/              # lower-kebab-case subproject folder
+│       ├── <python_package>/      # lower_snake_case Python package
 │       │   ├── __init__.py
 │       │   └── <module>/          # domain/feature subpackage
 │       │       └── __init__.py
 │       ├── tests/
+│       │   ├── conftest.py
+│       │   ├── fixtures/
 │       │   ├── unit/
+│       │   │   ├── conftest.py
+│       │   │   └── test_*.py
 │       │   └── integration/
+│       │       ├── conftest.py
+│       │       └── test_*.py
 │       ├── specs/
 │       │   ├── README.md
 │       │   └── <feature-name>/
@@ -28,39 +34,42 @@ MAIN-PROJECT/
 │       │       └── design.md
 │       ├── docs/
 │       │   ├── agents/
+│       │   ├── development/
 │       │   └── examples/
 │       ├── AGENTS.md
 │       ├── Makefile
 │       ├── pyproject.toml         # subproject root — NOT inside the package
-│       └── README.md
+│       ├── README.md
+│       └── uv.lock
+├── .agents/                       # Agent configuration (commands, templates, docs, skills)
 ├── AGENTS.md
 ├── Makefile
 ├── PROJECT-GUIDELINES.md
 └── README.md
 ```
 
-Subprojects inherit coding standards and documentation rules from the MAIN-PROJECT but may define specific rules in their `docs/project_rules/` folder.
+Subprojects inherit coding standards and documentation rules from the MAIN-PROJECT but may define specific rules in their own `docs/` folder.
 
 ---
 
 ## Package Internal Layout
 
-The Python package (`my_subproject/`) sits at the same level as `pyproject.toml`, not inside it. Domain/feature areas are organised as subpackages (modules):
+The Python package sits at the same level as `pyproject.toml`, not inside it. Domain/feature areas are organised as subpackages (modules):
 
 ```
-my_subproject/
+<python_package>/
 ├── __init__.py
-├── clients/          # HTTP clients, streaming helpers
-│   └── __init__.py
-├── models/           # dataclasses, schemas, types
-│   └── __init__.py
-└── <other-modules>/  # additional domain subpackages as needed
-    └── __init__.py
+├── <module>/          # domain/feature subpackage
+│   ├── __init__.py
+│   └── ...
+└── <module>/          # additional domain subpackages as needed
+    ├── __init__.py
+    └── ...
 ```
 
 Rules:
 - `pyproject.toml` lives at the **subproject root** — never inside the package folder.
-- Each domain/feature area gets its own subpackage (e.g., `clients/`, `models/`, `tools/`).
+- Each domain/feature area gets its own subpackage.
 - Every subpackage must have an `__init__.py`.
 - Subpackage names use `lower_snake_case`.
 

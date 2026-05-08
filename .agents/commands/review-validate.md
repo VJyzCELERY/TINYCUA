@@ -1,91 +1,70 @@
 ---
-description: Validates findings from a previous review and MUST update the report
+description: Full review validation pipeline — clarifies vague findings, then verifies each one
 subtask: true
 ---
 
-Validate findings from a previous review and MUST update the report with validation results.
+Full review validation: first clarify vague findings, then verify each one's status.
 
-**Review File**: $1 (path to the REVIEW-{name}.md file — look in `./reviews/` first if not found)
+> Load skill: review-validate (for the full validation pipeline)
+
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, validate ALL OPEN findings.
 
+## Pre-Flight
+
+Before running, load the relevant skill and run the review pre-flight:
+
+> Load skill: preflight (for preflight scripts)
+
+```bash
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$1"
+```
+
+If it exits non-zero, read the script to recover:
+
+```bash
+head -20 .agents/scripts/preflight-review.py
+```
+
 ---
 
-## Scope Alignment (IMPORTANT)
+---
 
-Before validating, align with the current branch scope to ensure validation only runs on relevant code.
+## Role
 
-### Scope Check Steps
+`review-validate` runs the complete validation pipeline in two phases:
 
-1. **Check current branch**:
-   ```bash
-   git branch --show-current
-   ```
-   - If branch is `main`, no diff scoping needed
-   - If on a feature branch, proceed to check for PR
-
-2. **Check for an existing PR**:
-   ```bash
-   gh pr list --head "$(git branch --show-current)" --state open --json baseRefName,headRefName,number --jq '.[0]'
-   ```
-   - If PR exists, use the PR target branch as the diff base
-   - If no PR, use `git merge-base main HEAD` as the diff base
-
-3. **Get the current diff**:
-   ```bash
-   git diff <base>...HEAD --name-only
-   ```
-
-4. **Cross-reference findings with scope**:
-   - For each OPEN finding, check if its location exists in the current diff
-   - If a finding's file is NOT in the current diff, mark it as **INVALID** with note: "File unchanged in current diff — stale finding"
-   - If a finding's file IS in the current diff, proceed with normal validation
-   - Findings for files outside `$1` (the reviewed directory) are exempt from scope alignment
+1. **Clarify** (delegates to `/review-clarify`): improve the precision of each finding
+2. **Verify** (delegates to `/review-verify`): check if each finding is addressed, invalid, or still OPEN
 
 ---
 
 ## Instructions
 
-1. **Align scope**: Follow the Scope Alignment section above
-2. **Read the Review**: Load and analyze the review report
-3. **MUST Update**: This command MUST update the review file with validation results
-4. **Filter Findings**: If `$2` is provided, only validate those findings
-5. **Validate Each In-Scope Finding**: For each OPEN finding:
-   - Execute the "How to Test/Validate" command provided in the finding (use `uv run` for Python)
-   - Determine if the issue has been ADDRESSED, INVALID, or remains OPEN
-   - Document evidence from the validation command output
-6. **Update the Review Report**:
-   - Add or append to the "Validation Log" section
-   - Update each finding's status, validation date, and notes
-7. **Save Changes**: Use Write to update the original review file
+Run both phases inline by default. Only delegate to subagents if the user explicitly says to use subagents.
 
-## Python Validation
+### Phase 1: Clarify
 
-```bash
-# ✅ Correct
-cd <subproject-dir> && uv run python - <<'PY'
-...
-PY
-cd <subproject-dir> && uv run pytest tests/
+Run `/review-clarify` directly:
 
-# ❌ Wrong
-python ...
-pytest ...
-```
+> Run /review-clarify for $1
 
-## Status Definitions
+This improves finding descriptions, adds missing context, sharpens validation commands.
 
-- **ADDRESSED**: Issue has been fixed (validation command passes)
-- **INVALID**: Issue no longer exists or is no longer relevant — including stale findings outside current diff scope
-- **OPEN**: Issue still exists and is valid
+### Phase 2: Verify
+
+Run `/review-verify` directly:
+
+> Run /review-verify for $1
+
+This runs each finding's validation command and determines its status (ADDRESSED, INVALID, or OPEN).
+
+---
 
 ## Important
 
-- Run actual validation commands — don't just assume
-- Document evidence from command output
-- Be accurate in determining status
-- This command MUST write/update the review file — do not skip the write step
-- Stale findings (files outside current diff) should be marked INVALID automatically
-
-Begin by reading the review file, aligning scope, then validate each finding and update the report.
+- Always run clarify BEFORE verify — precise findings lead to accurate validation
+- Run steps inline unless the user explicitly requests subagent delegation
+- After verify returns, review the report to confirm all findings are properly statused

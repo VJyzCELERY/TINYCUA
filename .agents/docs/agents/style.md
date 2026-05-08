@@ -28,7 +28,7 @@
 | Private members | `_leading_underscore` | `_internal_helper` |
 | Async coroutines | suffix with `_async` | `fetch_data_async` |
 
-See `docs/project_rules/naming_conventions.md` for the full naming rules including subproject and source folder conventions.
+See `.agents/docs/project_rules/naming_conventions.md` for the full naming rules including subproject and source folder conventions.
 
 ---
 
@@ -99,7 +99,7 @@ make lint    # verify clean
 
 ## What to Avoid
 
-- `print()` statements in non-CLI code — use `logging` instead (see `docs/project_rules/logging_guidelines.md`)
+- `print()` statements in non-CLI code — use `logging` instead (see `.agents/docs/project_rules/logging_guidelines.md`)
 - Relative imports — always use absolute imports
 - Wildcard imports (`from module import *`)
 - Mutable default arguments (`def foo(items=[])`)
@@ -109,7 +109,7 @@ make lint    # verify clean
 
 ## References
 
-- `docs/project_rules/coding_standards.md` — full coding standards
-- `docs/project_rules/naming_conventions.md` — naming rules
-- `docs/project_rules/logging_guidelines.md` — logging rules
-- `docs/project_rules/cognitive_complexity.md` — complexity limits
+- `.agents/docs/project_rules/coding_standards.md` — full coding standards
+- `.agents/docs/project_rules/naming_conventions.md` — naming rules
+- `.agents/docs/project_rules/logging_guidelines.md` — logging rules
+- `.agents/docs/project_rules/cognitive_complexity.md` — complexity limits
