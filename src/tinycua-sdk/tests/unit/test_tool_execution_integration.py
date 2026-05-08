@@ -67,8 +67,8 @@ class TestToolExecution:
     def test_tool_schema_for_api(self):
         """Schema generation for API calls."""
         schema = search.to_config()
-        assert schema["function"]["name"] == "search"
-        assert "query" in schema["function"]["parameters"]["properties"]
+        assert schema["name"] == "search"
+        assert "query" in schema["parameters"]["properties"]
 
     @pytest.mark.asyncio
     async def test_tool_error_handling(self, mock_llm_with_failing_tool_call):

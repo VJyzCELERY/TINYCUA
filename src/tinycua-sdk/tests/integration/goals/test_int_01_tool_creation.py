@@ -28,11 +28,11 @@ class TestInt01ToolCreation:
         schema = get_weather.to_config()
 
         assert schema["type"] == "function"
-        assert schema["function"]["name"] == "get_weather"
-        assert schema["function"]["description"] == "Fetch weather for a city."
-        assert "city" in schema["function"]["parameters"]["properties"]
-        assert "unit" in schema["function"]["parameters"]["properties"]
-        assert schema["function"]["parameters"]["required"] == ["city"]
+        assert schema["name"] == "get_weather"
+        assert schema["description"] == "Fetch weather for a city."
+        assert "city" in schema["parameters"]["properties"]
+        assert "unit" in schema["parameters"]["properties"]
+        assert schema["parameters"]["required"] == ["city"]
 
     def test_int_02_tool_invoke_keyword_args(self):
         """Target 1.6: Verify @tool-decorated function can be invoked with keyword args."""
@@ -70,8 +70,8 @@ class TestInt01ToolCreation:
 
         schema = dynamic.to_config()
         assert schema["type"] == "function"
-        assert schema["function"]["name"] == "reverse_string"
-        assert schema["function"]["description"] == "Reverse a string."
+        assert schema["name"] == "reverse_string"
+        assert schema["description"] == "Reverse a string."
 
     def test_int_05_tool_invoke_no_callable_raises(self):
         """Verify invoke raises RuntimeError when _callable is None."""

@@ -211,11 +211,8 @@ class TestAgentRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "dummy_tool",
-                                "arguments": "{}",
-                            },
+                            "name": "dummy_tool",
+                            "arguments": "{}",
                         }
                     ],
                     "usage": None,
