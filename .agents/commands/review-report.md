@@ -189,7 +189,7 @@ Use format: `REVIEW-{name}.md`
 - **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
 - **PR body/title compliance** — if reviewing against a PR, always check that the PR body and title accurately reflect the changes and comply with spec references. Flag non-compliance as a finding
 - **Record the commit range** in the review header — this lets the user know if the review is stale (new commits since review)
-- MUST create the review file at `./reviews/REVIEW-{name}.md`
+- MUST create the review file at `./reviews/REVIEW-{name}.md` — it is gitignored, do NOT `git add` or commit it
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
 - Categorize findings by severity
