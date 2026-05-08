@@ -232,6 +232,9 @@ class OpenAICompatibleClient(LLMClient):
                         raise RuntimeError(f"Malformed SSE data line: {e}") from e
                     if data.get("usage"):
                         last_chunk_usage = data["usage"]
+                    if data.get("type"):
+                        yield data
+                        continue
                     choices = data.get("choices", [])
                     if not choices:
                         continue
