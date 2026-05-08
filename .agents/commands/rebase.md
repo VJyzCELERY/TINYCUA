@@ -12,7 +12,8 @@ Safely rebase the current branch onto a target branch (default: `main`) without 
 
 ## Instructions
 
-Read `.agents/skills/git-rebase/SKILL.md` before proceeding — it contains the full rebase workflow reference.
+> Load skill: preflight (for preflight-rebase.py)
+> Load skill: git-rebase (for rebase operations)
 
 ### 1. Run Pre-Flight
 

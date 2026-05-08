@@ -14,6 +14,8 @@ If no focus area is provided, verify ALL OPEN findings.
 
 ## Pre-Flight: Commit Range Check
 
+> Load skill: gh-pr-management (for gh.py — used for PR replies and resolution)
+
 Before running validation, compare the review's commit range against current HEAD:
 
 ```bash

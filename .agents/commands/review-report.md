@@ -11,7 +11,10 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 
 ## Pre-Flight
 
-Before running, always run the review pre-flight to determine scope and initialize the review file:
+Before running, load the relevant skills and run the review pre-flight:
+
+> Load skill: preflight (for preflight scripts)
+> Load skill: gh-pr-management (for gh.py — used in PR context)
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --init-review

@@ -13,7 +13,10 @@ Fetch unresolved comments and review requests from a GitHub PR and generate a st
 
 ## Pre-Flight
 
-Before fetching, run the PR pre-flight to detect the PR:
+Before fetching, load the relevant skills and run the PR pre-flight:
+
+> Load skill: preflight (for preflight scripts)
+> Load skill: gh-pr-management (for gh.py — fetching PR comments)
 
 ```bash
 PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")

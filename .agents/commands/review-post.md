@@ -18,6 +18,9 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 
 ## Instructions
 
+> Load skill: preflight (for preflight-pr.py)
+> Load skill: gh-pr-management (for gh.py — all posting operations)
+
 1. **Read the review report**: Load the REVIEW-{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash

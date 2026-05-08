@@ -11,6 +11,9 @@ Update an existing PR review with follow-up comments and resolve findings that h
 
 ## Overview
 
+> Load skill: preflight (for preflight-pr.py)
+> Load skill: gh-pr-management (for gh.py — all update operations)
+
 After fixes have been implemented and validated, this command updates the PR review to reflect the new state: resolved findings get a follow-up comment and are marked resolved; findings that remain open get a follow-up comment requesting further changes.
 
 ---

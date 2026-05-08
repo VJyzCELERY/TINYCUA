@@ -12,7 +12,9 @@ If no focus area is provided, validate ALL OPEN findings.
 
 ## Pre-Flight
 
-Before running, always run the review pre-flight:
+Before running, load the relevant skill and run the review pre-flight:
+
+> Load skill: preflight (for preflight scripts)
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$1"

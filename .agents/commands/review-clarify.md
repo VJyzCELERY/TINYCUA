@@ -14,6 +14,9 @@ If no focus area is provided, clarify ALL OPEN findings.
 
 ## Pre-Flight Checks
 
+> Load skill: preflight (for preflight scripts)
+> Load skill: gh-pr-management (for gh.py — used for PR follow-ups)
+
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
