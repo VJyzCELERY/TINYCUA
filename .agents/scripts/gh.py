@@ -349,6 +349,16 @@ def cmd_update_body(args):
     print(f"[OK] PR #{pr} body updated")
 
 
+def cmd_update_title(args):
+    pr = parse_pr_input(args.pr_or_url)
+    title = args.title
+    out, err, rc = api("PATCH", f"pulls/{pr}", {"title": title})
+    if rc != 0:
+        print(f"[FAIL] Title update failed: {err}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[OK] PR #{pr} title updated to: {title}")
+
+
 def detect_pr_base(head: str | None = None) -> str:
     if head:
         branch = head
@@ -622,6 +632,10 @@ def main():
     ub.add_argument("pr_or_url", help="PR number or URL")
     ub.add_argument("body_file", help="Path to markdown file with new body")
     ub.set_defaults(func=cmd_update_body)
+    ut = update_sub.add_parser("title", help="Update PR title")
+    ut.add_argument("pr_or_url", help="PR number or URL")
+    ut.add_argument("title", help="New PR title")
+    ut.set_defaults(func=cmd_update_title)
     
     # create pr
     p = sub.add_parser("create", help="Create a PR")

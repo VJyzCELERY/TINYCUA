@@ -76,7 +76,7 @@ export const gh_create = tool({
   },
 })
 
-export const gh_update = tool({
+export const gh_update_body = tool({
   description: "Update a PR body",
   args: {
     pr: tool.schema.string().describe("PR number"),
@@ -84,5 +84,16 @@ export const gh_update = tool({
   },
   async execute(args, context) {
     return runGh(["update", "body", args.pr, args.bodyFile], context.worktree)
+  },
+})
+
+export const gh_update_title = tool({
+  description: "Update a PR title",
+  args: {
+    pr: tool.schema.string().describe("PR number"),
+    title: tool.schema.string().describe("New PR title"),
+  },
+  async execute(args, context) {
+    return runGh(["update", "title", args.pr, args.title], context.worktree)
   },
 })

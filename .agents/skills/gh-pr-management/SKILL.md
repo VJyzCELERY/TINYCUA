@@ -44,6 +44,12 @@ EOF
 uv run python .agents/scripts/gh.py update body <pr> ./tmp/pr-body.md
 ```
 
+## Update PR Title
+
+```bash
+uv run python .agents/scripts/gh.py update title <pr> "type(scope): new title"
+```
+
 ## Add PR Comment
 
 ```bash
