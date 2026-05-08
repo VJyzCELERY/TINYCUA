@@ -652,7 +652,7 @@ class TestBaseLoopRunStream:
                 }
                 yield {
                     "type": "response.usage",
-                    "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+                    "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
                 }
 
             return _gen()
@@ -667,6 +667,8 @@ class TestBaseLoopRunStream:
         usage_events = [e for e in events if e["type"] == "response.usage"]
         assert len(usage_events) == 2  # raw event + cumulative summary
         assert usage_events[-1]["usage"]["total_tokens"] == 8
+        assert usage_events[-1]["usage"]["input_tokens"] == 5
+        assert usage_events[-1]["usage"]["output_tokens"] == 3
 
 
 class TestLoopExecution:

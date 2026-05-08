@@ -129,6 +129,10 @@ class Agent(AgentExecutor):
             Final response string when stream=False, or an async iterator
             of event dicts when streaming.
         """
+        if not isinstance(stream, bool):
+            raise TypeError(
+                f"stream must be a bool, got {type(stream).__name__}"
+            )
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
         try:
