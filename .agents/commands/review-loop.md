@@ -13,7 +13,7 @@ Run the review loop independently: review-report → review-validate → review-
 
 ## Initial Questions
 
-Before starting the loop, ask the user for any unclear details using the question/ask tool:
+**Use the question/ask tool to ask these (priority). Only write inline if your harness has no such tool.**
 
 1. **Scope tightening**: "Do you want to tighten the review scope as iterations progress (narrow to critical issues after 3-4 cycles), or keep every cycle as a full fresh review?" Default is tighten if not specified.
 2. **Any other clarifications**: If the query is ambiguous, ask for specifics.

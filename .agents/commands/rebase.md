@@ -71,7 +71,7 @@ If `git rebase <target>` fails with conflicts, do NOT resolve silently. Involve 
 
 #### 4a. Notify the User
 
-Use the question/ask tool to tell the user a conflict occurred. Do NOT try to auto-resolve without user input.
+Use the question/ask tool to tell the user a conflict occurred (priority). Only write inline if your harness has no such tool. Do NOT try to auto-resolve without user input.
 
 #### 4b. Analyze the Conflicts
 
@@ -155,7 +155,7 @@ fi
 - Always check for already-applied commits before rebasing
 - Never use `--reapply-cherry-picks` unless you explicitly want duplicates
 - After rebasing, force push is required (`git push --force origin <branch>`)
-- **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input using the question/ask tool. Never resolve conflicts silently.
+- **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input using the question/ask tool (priority; inline if tool unavailable). Never resolve conflicts silently.
 - Use the question/ask tool at every step that needs user input — don't proceed with assumptions
 
 Begin by reading the git-rebase skill, then check the current branch state and rebase onto the target.

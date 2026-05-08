@@ -25,7 +25,7 @@ Rebase current branch onto target (default: main) without duplicating already-ap
 2. Check for already-applied commits: `git log --oneline <target>..HEAD`
 3. If no unique commits, exit early
 4. Run: `git rebase <target>`
-5. If conflicts: analyze, present to user via question/ask tool, apply their decision
+5. If conflicts: analyze, present to user via question/ask tool (priority; inline if tool unavailable), apply their decision
 6. Verify: `git log --oneline --graph --all --decorate -10`
 7. Force push: `git push --force origin <branch>`
 

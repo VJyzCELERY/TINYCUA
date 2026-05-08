@@ -32,7 +32,7 @@ else
   echo "  Review was on: $REVIEW_HEAD"
   echo "  Current HEAD:  $CURRENT_HEAD"
   git log --oneline "$REVIEW_HEAD..$CURRENT_HEAD"
-  echo "Ask user via question/ask tool: continue with stale review or request fresh review?"
+  echo "Ask user via question/ask tool (priority; inline if tool unavailable): continue with stale review or request fresh review?"
 fi
 ```
 

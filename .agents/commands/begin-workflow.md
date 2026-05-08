@@ -13,7 +13,7 @@ Automate the complete specs implementation process: planning → implementation 
 
 ## Initial Questions
 
-Before starting, ask the user for any unclear details using the question/ask tool. The orchestrator must resolve these before delegating to any subagent:
+**Use the question/ask tool to ask these (priority). Only write inline if your harness has no such tool.**
 
 1. **Specs/Design**: "Do you have spec.md and design.md ready, or should I create them?" If not, use `.agents/templates/spec.md` and `.agents/templates/design.md`.
 2. **Branch/PR**: If no PR exists for the current branch: "Do you want me to create a PR after implementation, or skip PR creation?" If yes, the PR is created after Phase 2 (implement) completes, before entering the review loop.

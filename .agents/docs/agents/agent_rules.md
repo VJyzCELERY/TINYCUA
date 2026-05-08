@@ -63,7 +63,7 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
   - Exception: If the user explicitly grants unrestricted commit+push permissions (e.g., "always commit and push after our changes"), you may proceed without asking each time.
   - If unsure whether permission is ongoing, ask: "Do you want unrestricted commit+push permissions for this session?"
 - **Document AI Contributions**: Indicate AI-assisted code in commit messages (e.g., `feat(scope): description [ai]`) or via inline comments (`# AI-generated`).
-- **Ask When Uncertain**: If any instruction is ambiguous, incomplete, or conflicting, the agent MUST ask for clarification using a question/ask tool (agent-harness agnostic — use whatever mechanism the environment provides to prompt the user). Do NOT guess, assume, or proceed with partial information.
+- **Ask When Uncertain**: If any instruction is ambiguous, incomplete, or conflicting, the agent MUST ask for clarification. Priority: use the native question/ask tool. Fallback: write questions inline if your harness has no such tool. Do NOT guess, assume, or proceed with partial information.
 - **Subagent Exception**: Subagents MUST NOT ask the user directly. If a subagent has a question, it MUST report it to the parent orchestrator agent, which will decide whether to ask the user or resolve it internally.
 - **Task Scoping**: Define specific, bounded tasks for AI agents. Avoid open-ended instructions.
 - **Review All Output**: All AI-generated code must be reviewed by a human before merging.
