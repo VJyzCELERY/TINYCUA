@@ -175,15 +175,13 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 5: Streaming
 
-**Objective:** Implement all four streaming modes.
+**Objective:** Implement boolean `stream` API with raw SSE passthrough.
 
 **Reference:** [`goals/getting-started/04_agent_streaming.py`](../goals/getting-started/04_agent_streaming.py)
 
 **What to build (test first):**
-1. **`stream="off"`** → returns `str` (default).
-2. **`stream="token"`** → `AsyncIterator[dict]` of token deltas (OpenAI Responses API shape).
-3. **`stream="event"`** → `AsyncIterator[dict]` of agent events (no token deltas).
-4. **`stream="all"`** → interleaved token deltas + agent events.
+1. **`stream=False`** → returns `str` (default).
+2. **`stream=True`** → returns `AsyncIterator[dict]` of raw OpenAI SSE events (passthrough).
 
 **Tests targeted:** `test_gs_04`
 
