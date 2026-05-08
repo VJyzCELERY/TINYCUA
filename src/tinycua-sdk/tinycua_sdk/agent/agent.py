@@ -136,13 +136,18 @@ class Agent(AgentExecutor):
             )
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [{"role": "user", "content": query}]
-        result = await loop.run(self, msgs, self.tools, instructions, stream=stream)
+        try:
+            result = await loop.run(self, msgs, self.tools, instructions, stream=stream)
+        finally:
+            if stream == "off":
+                self._cancelled = False
+
         if stream == "off":
-            self._cancelled = False
             return result
         return self._wrap_stream(result)
 
     async def _wrap_stream(self, gen: AsyncIterator[dict]) -> AsyncGenerator[dict, None]:
+        """Pass through stream events and reset cancellation on completion."""
         try:
             async for event in gen:
                 yield event
