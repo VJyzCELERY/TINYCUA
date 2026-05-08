@@ -14,7 +14,7 @@
 > | 2.5 — Clear Backward Compat | ✅ Complete | Stage 2 constructor clean |
 > | 3 — Execution Core | ✅ Complete | `test_gs_03`, `test_int_03` |
 > | 4 — Skills & Composition | 📝 Draft | `test_int_04`, `test_int_05` |
-> | 5 — Streaming | 📝 Draft | `test_gs_04` |
+> | 5 — Streaming | ✅ Complete | `test_gs_04` |
 > | 6 — Serialization | 📝 Draft | `test_int_06–09` |
 > | 7 — Security | 📝 Draft | `test_adv_02`, `test_adv_03` |
 > | 8 — Custom Loops | 📝 Draft | `test_adv_01` |
