@@ -266,10 +266,16 @@ class BaseLoop:
         Returns:
             Tuple of (updated tool_call_count, executed_tool_calls list,
             assistant_index for message insertion).
+
+        Note:
+            Does NOT check ``agent.is_cancelled`` — cancellation is the
+            caller's responsibility in the main loop.
         """
         assistant_index = len(working_messages)
         executed_tool_calls: list[dict[str, Any]] = []
         for tc in tool_calls_list:
+            if agent.is_cancelled:
+                break
             if tool_call_count >= agent.policy.max_tool_calls:
                 break
 
@@ -295,7 +301,10 @@ class BaseLoop:
             if tool is None:
                 tool_result = {"error": f"Unknown tool: {tool_name}"}
             else:
-                tool_result = await ToolExecutor.execute(tool, arguments, agent)
+                try:
+                    tool_result = await ToolExecutor.execute(tool, arguments, agent)
+                except Exception as e:
+                    tool_result = {"error": f"Tool execution failed: {e}"}
             tool_call_count += 1
 
             working_messages.append(
@@ -334,12 +343,6 @@ class BaseLoop:
             usage = chunk.get("usage", {})
             if usage:
                 _accumulate_usage(cumulative_usage, usage)
-        elif chunk_type == "response.completed":
-            response_data = chunk.get("response", {})
-            if isinstance(response_data, dict):
-                usage = response_data.get("usage", {})
-                if usage:
-                    _accumulate_usage(cumulative_usage, usage)
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
