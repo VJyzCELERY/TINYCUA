@@ -53,14 +53,6 @@ class ResponseOutputTextDeltaEvent(TypedDict):
     item_id: str
 
 
-class ResponseOutputTextDoneEvent(TypedDict):
-    """Emitted when text content is fully accumulated."""
-
-    type: Literal["response.output_text.done"]
-    item_id: str
-    content: str
-
-
 class ResponseToolCallDeltaEvent(TypedDict):
     """Emitted for each tool call argument delta in streaming."""
 
@@ -71,20 +63,6 @@ class ResponseToolCallDeltaEvent(TypedDict):
     arguments: str
 
 
-class ResponseOutputItemAddedEvent(TypedDict):
-    """Emitted when a new output item (tool call / output) is added."""
-
-    type: Literal["response.output_item.added"]
-    item: dict[str, Any]
-
-
-class ResponseOutputItemDoneEvent(TypedDict):
-    """Emitted when an output item is fully processed."""
-
-    type: Literal["response.output_item.done"]
-    item: dict[str, Any]
-
-
 __all__ = [
     "ResponseCreatedEvent",
     "ResponseCancelledEvent",
@@ -93,8 +71,5 @@ __all__ = [
     "ResponseCompletedEvent",
     "ResponseUsageEvent",
     "ResponseOutputTextDeltaEvent",
-    "ResponseOutputTextDoneEvent",
     "ResponseToolCallDeltaEvent",
-    "ResponseOutputItemAddedEvent",
-    "ResponseOutputItemDoneEvent",
 ]

@@ -8,10 +8,7 @@ from tinycua_sdk.agent.events import (
     ResponseCompletedEvent,
     ResponseCreatedEvent,
     ResponseFailedEvent,
-    ResponseOutputItemAddedEvent,
-    ResponseOutputItemDoneEvent,
     ResponseOutputTextDeltaEvent,
-    ResponseOutputTextDoneEvent,
     ResponseToolCallDeltaEvent,
     ResponseUsageEvent,
 )
@@ -34,10 +31,7 @@ __all__ = [
     "ResponseCompletedEvent",
     "ResponseCreatedEvent",
     "ResponseFailedEvent",
-    "ResponseOutputItemAddedEvent",
-    "ResponseOutputItemDoneEvent",
     "ResponseOutputTextDeltaEvent",
-    "ResponseOutputTextDoneEvent",
     "ResponseToolCallDeltaEvent",
     "ResponseUsageEvent",
 ]
