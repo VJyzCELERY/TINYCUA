@@ -23,10 +23,10 @@ def pytest_collection_modifyitems(config, items):
     try:
         httpx.get(f"{base_url}/models", timeout=5).raise_for_status()
         resp = httpx.post(
-            f"{base_url}/chat/completions",
+            f"{base_url}/responses",
             json={
                 "model": model,
-                "messages": [{"role": "user", "content": "hi"}],
+                "input": [{"role": "user", "content": "hi"}],
                 "max_tokens": 1,
                 "stream": False,
             },

@@ -41,13 +41,15 @@ class TestStreamingOn:
         """stream=True yields raw events including deltas."""
         agent = Agent(llm_model=LanguageModel())
 
+        raw_delta_event = {
+            "type": "response.output_text.delta",
+            "delta": "Hello",
+            "item_id": "1",
+        }
+
         async def mock_stream(messages, tools, stream=False):
             async def _gen():
-                yield {
-                    "type": "response.output_text.delta",
-                    "delta": "Hello",
-                    "item_id": "1",
-                }
+                yield dict(raw_delta_event)
 
             return _gen()
 
@@ -56,10 +58,9 @@ class TestStreamingOn:
         stream_iter = await agent.run("Say hello", stream=True)
         events = [e async for e in stream_iter]
 
-        delta_events = [e for e in events if e["type"] == "response.output_text.delta"]
-        assert len(delta_events) > 0
-        assert any(e["type"] == "response.created" for e in events)
-        assert any(e["type"] == "response.completed" for e in events)
+        assert events[0]["type"] == "response.created"
+        assert events[1] == raw_delta_event
+        assert events[-1]["type"] == "response.completed"
 
 
 class TestStreamingWithToolCalls:
@@ -77,24 +78,27 @@ class TestStreamingWithToolCalls:
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
         call_count = 0
 
+        raw_tool_call_event = {
+            "type": "response.tool_call.delta",
+            "index": 0,
+            "id": "call_1",
+            "name": "get_time",
+            "arguments": "{}",
+        }
+        raw_text_event = {
+            "type": "response.output_text.delta",
+            "delta": "The time is 12:00.",
+            "item_id": "2",
+        }
+
         async def mock_stream(messages, tools, stream=False):
             async def _gen():
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
-                    yield {
-                        "type": "response.tool_call.delta",
-                        "index": 0,
-                        "id": "call_1",
-                        "name": "get_time",
-                        "arguments": "{}",
-                    }
+                    yield dict(raw_tool_call_event)
                 else:
-                    yield {
-                        "type": "response.output_text.delta",
-                        "delta": "The time is 12:00.",
-                        "item_id": "2",
-                    }
+                    yield dict(raw_text_event)
 
             return _gen()
 
@@ -103,9 +107,17 @@ class TestStreamingWithToolCalls:
         stream_iter = await agent.run("What time?", stream=True)
         events = [e async for e in stream_iter]
 
-        delta_events = [e for e in events if e["type"] == "response.output_text.delta"]
-        assert len(delta_events) > 0
-        assert any(e["type"] == "response.created" for e in events)
+        assert events[0]["type"] == "response.created"
+        assert events[1] == raw_tool_call_event
+        # Tool call events appear BEFORE tool execution resumes
+        tool_call_indices = [
+            i for i, e in enumerate(events) if e["type"] == "response.tool_call.delta"
+        ]
+        text_indices = [
+            i for i, e in enumerate(events) if e["type"] == "response.output_text.delta"
+        ]
+        if tool_call_indices and text_indices:
+            assert max(tool_call_indices) < min(text_indices)
         assert any(e["type"] == "response.completed" for e in events)
 
 

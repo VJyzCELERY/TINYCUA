@@ -33,17 +33,18 @@ def mock_llm_client():
         pytest.MonkeyPatch.context() as mp,
     ):
         fake_response_data = {
-            "choices": [
+            "output": [
                 {
-                    "message": {
-                        "content": "Mocked response",
-                        "role": "assistant",
-                    }
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "Mocked response", "annotations": []}
+                    ],
                 }
             ],
             "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
+                "input_tokens": 10,
+                "output_tokens": 5,
                 "total_tokens": 15,
             },
         }
@@ -73,44 +74,39 @@ def mock_llm_with_tool_calls():
     ):
         first_response = FakeLLMResponse(
             json_data={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "content": None,
-                            "role": "assistant",
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "search",
-                                        "arguments": '{"query": "quantum"}',
-                                    },
-                                }
-                            ],
-                        }
+                        "type": "function_call",
+                        "id": "call_1",
+                        "name": "search",
+                        "arguments": '{"query": "quantum"}',
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 10,
-                    "completion_tokens": 15,
+                    "input_tokens": 10,
+                    "output_tokens": 15,
                     "total_tokens": 25,
                 },
             }
         )
         second_response = FakeLLMResponse(
             json_data={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "content": "Quantum computing is fascinating.",
-                            "role": "assistant",
-                        }
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "Quantum computing is fascinating.",
+                                "annotations": [],
+                            }
+                        ],
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 30,
-                    "completion_tokens": 5,
+                    "input_tokens": 30,
+                    "output_tokens": 5,
                     "total_tokens": 35,
                 },
             }
@@ -125,12 +121,17 @@ def mock_llm_with_tool_calls():
                 return _responses.pop(0)
             return FakeLLMResponse(
                 json_data={
-                    "choices": [
+                    "output": [
                         {
-                            "message": {
-                                "content": "Fallback response.",
-                                "role": "assistant",
-                            }
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "Fallback response.",
+                                    "annotations": [],
+                                }
+                            ],
                         }
                     ],
                     "usage": None,
@@ -155,39 +156,34 @@ def mock_llm_with_failing_tool_call():
     ):
         first_response = FakeLLMResponse(
             json_data={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "content": None,
-                            "role": "assistant",
-                            "tool_calls": [
-                                {
-                                    "id": "call_fail_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "failing_tool",
-                                        "arguments": "{}",
-                                    },
-                                }
-                            ],
-                        }
+                        "type": "function_call",
+                        "id": "call_fail_1",
+                        "name": "failing_tool",
+                        "arguments": "{}",
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 10,
-                    "completion_tokens": 15,
+                    "input_tokens": 10,
+                    "output_tokens": 15,
                     "total_tokens": 25,
                 },
             }
         )
         second_response = FakeLLMResponse(
             json_data={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "content": "Recovered from error.",
-                            "role": "assistant",
-                        }
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "Recovered from error.",
+                                "annotations": [],
+                            }
+                        ],
                     }
                 ],
                 "usage": None,

@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.core.providers import normalize_base_url
 
 
 class LLMClient(ABC):
@@ -48,7 +49,7 @@ class OpenAICompatibleClient(LLMClient):
 
     def _client_key(self, model_config: LanguageModel) -> tuple[str, str]:
         api_key = model_config.api_key.get_secret_value()
-        base_url = model_config.base_url or "https://api.openai.com/v1"
+        base_url = normalize_base_url(model_config.base_url)
         return (base_url, api_key)
 
     def _get_client(self, model_config: LanguageModel) -> httpx.AsyncClient:
@@ -87,7 +88,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         payload: dict[str, Any] = {
             "model": model_config.model_name,
-            "messages": messages,
+            "input": messages,
         }
 
         for field in (
@@ -144,7 +145,7 @@ class OpenAICompatibleClient(LLMClient):
         tools: list[dict] | None,
         model_config: LanguageModel,
     ) -> dict[str, Any]:
-        """Non-streaming chat completion (original logic).
+        """Non-streaming Responses API call.
 
         Args:
             messages: List of message dicts.
@@ -159,7 +160,7 @@ class OpenAICompatibleClient(LLMClient):
         payload = self._build_payload(messages, tools, model_config)
 
         try:
-            response = await client.post("chat/completions", json=payload)
+            response = await client.post("/responses", json=payload)
         except httpx.RequestError as e:
             raise RuntimeError(
                 f"Failed to connect to LLM at {model_config.base_url}: {e}"
@@ -167,31 +168,32 @@ class OpenAICompatibleClient(LLMClient):
         response.raise_for_status()
         data = response.json()
 
-        if "choices" not in data or not data["choices"]:
-            raise RuntimeError(f"LLM response missing 'choices' field: {data}")
-        choice = data["choices"][0]
-        if "message" not in choice:
-            raise RuntimeError(f"LLM response choice missing 'message' field: {choice}")
-        message = choice["message"]
-
+        content = None
         tool_calls = None
-        if message.get("tool_calls"):
-            tool_calls = []
-            for tc in message["tool_calls"]:
-                func = tc.get("function", {})
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                text_parts = [
+                    p.get("text", "")
+                    for p in item.get("content", [])
+                    if p.get("type") == "output_text"
+                ]
+                content = "".join(text_parts) or None
+            elif item.get("type") == "function_call":
+                if tool_calls is None:
+                    tool_calls = []
                 tool_calls.append(
                     {
-                        "id": tc.get("id", ""),
-                        "type": tc.get("type", "function"),
+                        "id": item.get("id", ""),
+                        "type": "function",
                         "function": {
-                            "name": func.get("name", ""),
-                            "arguments": func.get("arguments", "{}"),
+                            "name": item.get("name", ""),
+                            "arguments": item.get("arguments", "{}"),
                         },
                     }
                 )
 
         return {
-            "content": message.get("content"),
+            "content": content,
             "tool_calls": tool_calls,
             "usage": data.get("usage"),
         }
@@ -202,7 +204,7 @@ class OpenAICompatibleClient(LLMClient):
         tools: list[dict] | None,
         model_config: LanguageModel,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Streaming chat completion via SSE.
+        """Streaming Responses API via SSE.
 
         Args:
             messages: List of message dicts.
@@ -210,7 +212,7 @@ class OpenAICompatibleClient(LLMClient):
             model_config: Language model configuration.
 
         Yields:
-            Normalised event dicts for content deltas and tool call deltas.
+            Raw SSE event dicts from the Responses API stream.
         """
         client = self._get_client(model_config)
 
@@ -218,9 +220,8 @@ class OpenAICompatibleClient(LLMClient):
         payload["stream"] = True
         payload["stream_options"] = {"include_usage": True}
 
-        async with client.stream("POST", "/chat/completions", json=payload) as response:
+        async with client.stream("POST", "/responses", json=payload) as response:
             response.raise_for_status()
-            last_chunk_usage = None
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line or line == "data: [DONE]":
@@ -230,34 +231,7 @@ class OpenAICompatibleClient(LLMClient):
                         data = json.loads(line[6:])
                     except json.JSONDecodeError as e:
                         raise RuntimeError(f"Malformed SSE data line: {e}") from e
-                    if data.get("usage"):
-                        last_chunk_usage = data["usage"]
-                    if data.get("type"):
-                        yield data
-                        continue
-                    choices = data.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    if delta.get("content"):
-                        yield {
-                            "type": "response.output_text.delta",
-                            "delta": delta["content"],
-                            "item_id": data.get("id", ""),
-                        }
-                    if delta.get("tool_calls"):
-                        for tc in delta["tool_calls"]:
-                            yield {
-                                "type": "response.tool_call.delta",
-                                "index": tc.get("index", 0),
-                                "id": tc.get("id", ""),
-                                "name": tc.get("function", {}).get("name", ""),
-                                "arguments": tc.get("function", {}).get(
-                                    "arguments", ""
-                                ),
-                            }
-            if last_chunk_usage:
-                yield {"type": "response.usage", "usage": last_chunk_usage}
+                    yield data
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]
