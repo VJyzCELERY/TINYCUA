@@ -184,6 +184,7 @@ class OpenAICompatibleClient(LLMClient):
                 tool_calls.append(
                     {
                         "id": item.get("id", ""),
+                        "call_id": item.get("call_id", ""),
                         "name": item.get("name", ""),
                         "arguments": item.get("arguments", "{}"),
                     }
