@@ -42,7 +42,7 @@ Skills teach you **how** to use the tools and scripts. Before running any tool, 
 | Run the full review workflow | `gh-review` — posting reviews, inline comments, replies |
 | Run any preflight script | `preflight` — session start, review, PR, rebase preflights |
 | Rebase branches safely | `git-rebase` — rebase workflow, conflict handling, worktrees |
-| Create or update a skill | `self-learning` — skill structure and guidelines |
+| Create or update a skill | `self-learning` — skill structure, frontmatter, and `.agents/templates/skill.md` |
 
 If your harness does not detect skills automatically, read them directly:
 
@@ -115,6 +115,7 @@ head -20 .agents/scripts/preflight-review.py
 | `/worktree-prune` | Removes inactive worktrees (checks PR status) |
 | `/worktree-cleanup` | Cleans up local artifacts in the current worktree |
 | `/setup-project` | Bootstraps `.agents/` structure in a new project |
+| Load skill template | `.agents/templates/skill.md` — frontmatter + structure for new skills |
 
 ---
 

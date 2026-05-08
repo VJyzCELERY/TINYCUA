@@ -34,24 +34,40 @@ Each skill lives in its own directory under `.agents/skills/<name>/SKILL.md`:
 │   └── SKILL.md
 ```
 
-The SKILL.md should follow this structure:
+Every SKILL.md must start with opencode-compatible YAML frontmatter:
+
+```yaml
+---
+name: <skill-name>
+description: <brief description of what this skill does>
+license: MIT
+compatibility: opencode
+metadata:
+  type: <command-skill | infrastructure | workflow>
+  source: <relevant source command or tool>
+---
+```
+
+Use `.agents/templates/skill.md` as the starting point — it has the correct frontmatter structure and section layout.
+
+After the frontmatter, the body follows this structure:
 
 ```markdown
-# Skill: [Skill Name]
+# Skill: <Human Readable Title>
 
 ## Purpose
-[What this skill helps with — 1-2 sentences]
+[What this skill helps with — 1-3 sentences]
 
 ## Prerequisites
 [Any tools, permissions, or context needed]
 
-## Instructions
-[Step-by-step guide with concrete examples]
+## Execution
+[Step-by-step guide with concrete commands and examples]
 
-### [Sub-task 1]
+### [Step 1]
 [Detailed instructions with commands]
 
-### [Sub-task 2]
+### [Step 2]
 ...
 
 ## Common Pitfalls
@@ -63,11 +79,12 @@ The SKILL.md should follow this structure:
 
 ## How to Create a Skill
 
-1. Identify the recurring pattern or workflow
-2. Create the directory: `mkdir -p .agents/skills/<name>/`
-3. Write the skill file following the structure above
-4. Document concrete commands and examples — not abstract principles
-5. Update `.agents/docs/guides.md` to list the new skill if helpful
+1. Read the template: `Read .agents/templates/skill.md`
+2. Identify the recurring pattern or workflow
+3. Create the directory: `mkdir -p .agents/skills/<name>/`
+4. Copy the template structure and fill in all fields — keep the frontmatter intact
+5. Document concrete commands and examples — not abstract principles
+6. Update `.agents/docs/guides.md` to list the new skill if helpful
 
 ## How to Update an Existing Skill
 
@@ -87,10 +104,11 @@ The SKILL.md should follow this structure:
 
 After creating or updating a skill, the orchestrator should:
 
-1. Verify the skill file follows the structure above
-2. Confirm all commands in the skill actually work
-3. Check that the skill doesn't duplicate existing skills or rule files
-4. Commit the new skill with a message like `feat(skills): add <name> skill`
+1. Verify the YAML frontmatter is present and correct (name, description, license, compatibility, metadata)
+2. Verify the skill file follows the template structure from `.agents/templates/skill.md`
+3. Confirm all commands in the skill actually work
+4. Check that the skill doesn't duplicate existing skills or rule files
+5. Commit the new skill with a message like `feat(skills): add <name> skill`
 
 ## Examples of Good Skill Candidates
 
