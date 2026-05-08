@@ -1,3 +1,13 @@
+---
+name: worktree-cleanup
+description: Remove local artifacts in current worktree — reviews, tmp, caches
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/worktree-cleanup.md
+---
+
 # Skill: worktree-cleanup — Clean Local Artifacts
 
 ## Purpose

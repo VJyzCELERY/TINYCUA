@@ -1,3 +1,13 @@
+---
+name: self-learning
+description: Guide for creating and updating project-specific agent skills
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/self-learning.md
+---
+
 # Skill: Self-Learning — Creating and Updating Project-Specific Skills
 
 ## Purpose

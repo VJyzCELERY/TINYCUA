@@ -1,3 +1,13 @@
+---
+name: review-post
+description: Post completed review reports as GitHub PR reviews with inline comments
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-post.md
+---
+
 # Skill: review-post — Post Review as PR Inline Comments
 
 ## Purpose

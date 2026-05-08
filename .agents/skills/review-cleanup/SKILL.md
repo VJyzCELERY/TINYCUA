@@ -1,3 +1,13 @@
+---
+name: review-cleanup
+description: Archive resolved review reports after all findings are addressed
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-cleanup.md
+---
+
 # Skill: review-cleanup — Archive Resolved Reviews
 
 ## Purpose

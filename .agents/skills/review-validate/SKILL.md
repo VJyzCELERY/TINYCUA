@@ -1,3 +1,13 @@
+---
+name: review-validate
+description: Run the complete validation pipeline — clarify then verify findings
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-validate.md
+---
+
 # Skill: review-validate — Full Validation Pipeline
 
 ## Purpose

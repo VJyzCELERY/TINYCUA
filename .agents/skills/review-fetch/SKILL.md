@@ -1,3 +1,13 @@
+---
+name: review-fetch
+description: Fetch unresolved PR review comments into a local structured report
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-fetch.md
+---
+
 # Skill: review-fetch — Pull PR Comments into Local Review
 
 ## Purpose

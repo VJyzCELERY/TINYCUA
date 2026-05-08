@@ -1,3 +1,13 @@
+---
+name: review-clarify
+description: Improve review finding precision — rewrite vague descriptions, add context
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-clarify.md
+---
+
 # Skill: review-clarify — Improve Finding Precision
 
 ## Purpose

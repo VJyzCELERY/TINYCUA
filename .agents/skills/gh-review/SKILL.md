@@ -1,3 +1,13 @@
+---
+name: gh-review
+description: Post, reply, resolve, and update PR reviews via gh.py and gh api
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/gh-review.md
+---
+
 # Skill: GitHub Review Workflow via `gh.py` (Primary) and `gh api` (Fallback)
 
 ## Golden Rule: Use `gh.py` First

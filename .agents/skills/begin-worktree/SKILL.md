@@ -1,3 +1,13 @@
+---
+name: begin-worktree
+description: Create isolated development worktrees with matching branches
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/begin-worktree.md
+---
+
 # Skill: begin-worktree — Create Isolated Development Worktree
 
 ## Purpose

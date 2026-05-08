@@ -1,3 +1,13 @@
+---
+name: review-report
+description: Conduct scoped code reviews of branch changes and generate structured reports
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-report.md
+---
+
 # Skill: review-report — Scoped Code Review with Report
 
 ## Purpose

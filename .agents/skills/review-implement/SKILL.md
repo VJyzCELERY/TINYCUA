@@ -1,3 +1,13 @@
+---
+name: review-implement
+description: Apply code fixes from review findings without updating the review report
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-implement.md
+---
+
 # Skill: review-implement — Apply Fixes from Review Findings
 
 ## Purpose

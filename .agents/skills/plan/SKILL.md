@@ -1,3 +1,13 @@
+---
+name: plan
+description: Create implementation plans and task lists from spec and design documents
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/plan.md
+---
+
 # Skill: plan — Create Implementation Plan from Spec
 
 ## Purpose

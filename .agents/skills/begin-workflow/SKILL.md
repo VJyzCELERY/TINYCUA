@@ -1,3 +1,13 @@
+---
+name: begin-workflow
+description: Automate the complete specs implementation process using subagents for each phase
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/begin-workflow.md
+---
+
 # Skill: begin-workflow — Full Spec-to-Cleanup Automation
 
 ## Purpose

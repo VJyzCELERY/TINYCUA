@@ -1,3 +1,13 @@
+---
+name: review-loop
+description: Orchestrate review-until-clean cycles with fresh subagents per step
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-loop.md
+---
+
 # Skill: review-loop — Orchestrate Review-Until-Clean Cycles
 
 ## Purpose

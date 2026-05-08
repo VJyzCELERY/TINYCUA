@@ -1,3 +1,13 @@
+---
+name: preflight
+description: Run preflight checks before session start, reviews, PRs, and rebases
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/preflight.md
+---
+
 # Skill: Preflight Scripts — Session Start, Review, PR, and Rebase Checks
 
 ## Purpose

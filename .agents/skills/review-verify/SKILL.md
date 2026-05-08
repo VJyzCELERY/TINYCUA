@@ -1,3 +1,13 @@
+---
+name: review-verify
+description: Execute validation commands to determine finding status — addressed, invalid, or open
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-verify.md
+---
+
 # Skill: review-verify — Check Each Finding's Status
 
 ## Purpose

@@ -1,3 +1,13 @@
+---
+name: gh-pr-management
+description: Create, update, and manage GitHub PRs via gh.py
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/gh-pr-management.md
+---
+
 # Skill: GitHub PR Management via `gh.py`
 
 ## Golden Rule: Use `.agents/scripts/gh.py`

@@ -1,3 +1,13 @@
+---
+name: commit-cleanup
+description: Clean up commit history after rebase — squash fixups, remove duplicates
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/commit-cleanup.md
+---
+
 # Skill: commit-cleanup — Squash Fixups, Remove Duplicates
 
 ## Purpose

@@ -1,3 +1,13 @@
+---
+name: implement
+description: Execute implementation plan tasks using strict TDD
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/implement.md
+---
+
 # Skill: implement — Execute Plan Tasks Using TDD
 
 ## Purpose

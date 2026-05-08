@@ -1,3 +1,13 @@
+---
+name: review-update
+description: Update PR reviews after fixes — resolve addressed, reply on remaining
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/review-update.md
+---
+
 # Skill: review-update — Update PR Review After Fixes
 
 ## Purpose

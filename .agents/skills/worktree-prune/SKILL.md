@@ -1,3 +1,13 @@
+---
+name: worktree-prune
+description: Remove inactive worktrees whose branches have been merged or abandoned
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/worktree-prune.md
+---
+
 # Skill: worktree-prune — Remove Stale Worktrees
 
 ## Purpose

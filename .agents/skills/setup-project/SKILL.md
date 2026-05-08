@@ -1,3 +1,13 @@
+---
+name: setup-project
+description: Bootstrap or update .agents/ structure from MAIN-PROJECT-TEMPLATE
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/setup-project.md
+---
+
 # Skill: setup-project — Bootstrap or Update .agents/ Structure
 
 ## Purpose

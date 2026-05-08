@@ -44,10 +44,29 @@ Skills teach you **how** to use the tools and scripts. Before running any tool, 
 | Rebase branches safely | `git-rebase` — rebase workflow, conflict handling, worktrees |
 | Create or update a skill | `self-learning` — skill structure and guidelines |
 
-Load a skill with:
-```
-[use the skill loading mechanism available in your environment]
-```
+If your harness does not detect skills automatically, read them directly:
+
+> Read skill: `.agents/skills/<name>/SKILL.md`
+
+### Layer 3: Tools (`.agents/tools/*.ts`)
+Tools are the executable functions agents can call directly (opencone custom tool format). The following tools are available:
+
+| Tool | What it does |
+|------|-------------|
+| `gh_fetch` | Fetch PR info, comments, or unresolved reviews |
+| `gh_post` | Post review, comment, reply, or inline comment on a PR |
+| `gh_resolve` | Resolve a PR review thread |
+| `gh_create` | Create a new GitHub PR |
+| `gh_update` | Update a PR body |
+| `preflight_start` | Detect OS and establish project boundary |
+| `preflight_review` | Check review scope, staleness, and unstaged changes |
+| `preflight_pr` | Detect PR number from current branch |
+| `preflight_rebase` | Check rebase safety and list commits |
+
+These tools invoke the Python scripts in `.agents/scripts/`. If your harness does not detect tools, use the scripts directly:
+
+> uv run python .agents/scripts/gh.py --help
+> uv run python .agents/scripts/preflight-review.py --help
 
 ### Layer 3: Docs (`.agents/docs/`)
 Docs define conventions and constraints. Read the relevant ones before generating code or documents:
@@ -136,6 +155,9 @@ head -20 .agents/scripts/preflight-review.py
 │   ├── preflight-review.py
 │   ├── preflight-pr.py
 │   └── preflight-rebase.py
+├── tools/             # Opencode custom tool definitions (calls scripts/)
+│   ├── gh.ts          # gh.py wrapped as opencode tools
+│   └── preflight.ts   # preflight scripts wrapped as opencode tools
 ├── docs/
 │   ├── agents/        # Agent rules and guidelines
 │   ├── project_rules/ # Project-specific rules

@@ -1,3 +1,13 @@
+---
+name: git-rebase
+description: Safely rebase branches without dirtying history
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/git-rebase.md
+---
+
 # Skill: Git Rebase Without Dirtying History
 
 ## Safe Rebase Workflow

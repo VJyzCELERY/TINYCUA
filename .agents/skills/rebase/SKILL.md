@@ -1,3 +1,13 @@
+---
+name: rebase
+description: Safely rebase current branch onto target without duplicating commits
+license: MIT
+compatibility: opencode
+metadata:
+  type: command-skill
+  source: .agents/commands/rebase.md
+---
+
 # Skill: rebase — Safely Rebase Branch onto Target
 
 ## Purpose
