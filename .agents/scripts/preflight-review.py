@@ -46,7 +46,7 @@ def check_stale(review_file: str) -> list[str]:
     try:
         with open(review_file) as f:
             content = f.read()
-        m = re.search(r'\*{0,2}Commit Range\*{0,2}:\s*([0-9a-f]+)\.\.\.([0-9a-f]+)', content)
+        m = re.search(r'\*{0,2}Commit Range\*{0,2}:\s*`?\s*([0-9a-f]+)\s*`?\s*\.\.\.\s*`?\s*([0-9a-f]+)\s*`?', content)
         if not m:
             warnings.append("[WARN] No Commit Range in review header.")
             return warnings
