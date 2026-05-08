@@ -71,6 +71,7 @@ Flag unnecessary complexity, premature optimization, and gold-plating.
 - **Documentation Alongside Code**: AI agents must produce or update documentation (docstrings, README, guides, API docs) with the same priority as code changes. A feature is not complete until its docs are updated.
 - **No Secrets in Output**: AI must never generate code that contains hardcoded secrets, credentials, or API keys.
 - **Spec-Driven Development**: Before implementing any feature, ensure a spec.md and design.md exist. If the user asks for new work without specs, prompt them to create specs first. Use `.agents/templates/spec.md` and `.agents/templates/design.md`.
+- **Use gh.py for PR Operations**: All PR/review write operations (posting reviews, comments, replies, resolving, updating PR body, creating PRs) must go through `.agents/scripts/gh.py`. Never use raw `gh pr edit`, `gh pr review`, or similar direct `gh` commands for PR write operations. Run `uv run python .agents/scripts/gh.py --help` to see available subcommands.
 - **Worktree Enforcement on Main**: If the current branch is `main` and the user requests new feature work, the agent MUST:
   1. Ask for a branch name before proceeding
   2. Offer to create a worktree via `/begin-worktree <branch-name>`
