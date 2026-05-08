@@ -217,8 +217,7 @@ class BaseLoop:
                 }
 
                 for chunk in content_delta_events:
-                    if stream_mode in ("token", "all"):
-                        yield chunk
+                    yield chunk
 
                 if content_parts:
                     if stream_mode in ("event", "all"):
@@ -271,11 +270,11 @@ class BaseLoop:
             else:
                 finish_reason = "max_iterations"
         except Exception as e:
-            yield {"type": "error", "error": {"message": str(e)}}
             yield {
                 "type": "response.failed",
                 "error": {"message": str(e)},
             }
+            yield {"type": "error", "error": {"message": str(e)}}
             return
 
         if usage:

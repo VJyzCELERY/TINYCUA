@@ -206,10 +206,55 @@ class TestStreamingWithToolCalls:
         assert len(tool_events) == 0
 
 
+class TestInvalidStreamMode:
+    """Test invalid stream mode raises ValueError."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_stream_mode_raises_value_error(self):
+        """Invalid stream mode raises ValueError with descriptive message."""
+        from tinycua_sdk import Agent, LanguageModel
+
+        agent = Agent(llm_model=LanguageModel())
+
+        with pytest.raises(ValueError, match="Invalid stream mode"):
+            await agent.run("Say hello", stream="blah")
+
+    @pytest.mark.asyncio
+    async def test_invalid_stream_mode_empty_string(self):
+        """Empty string stream mode raises ValueError."""
+        from tinycua_sdk import Agent, LanguageModel
+
+        agent = Agent(llm_model=LanguageModel())
+
+        with pytest.raises(ValueError, match="Invalid stream mode"):
+            await agent.run("Say hello", stream="")
+
+    @pytest.mark.asyncio
+    async def test_valid_stream_modes_do_not_raise(self):
+        """All valid stream modes ('off', 'token', 'event', 'all') do not raise ValueError."""
+        from tinycua_sdk import Agent, LanguageModel
+
+        agent = Agent(llm_model=LanguageModel())
+
+        async def mock_call(messages, tools, stream=False):
+            return {"content": "ok", "tool_calls": None, "usage": None}
+
+        agent._call_llm = mock_call
+
+        for mode in ("off", "token", "event", "all"):
+            result = await agent.run("test", stream=mode)
+            if mode == "off":
+                assert isinstance(result, str)
+            else:
+                events = [e async for e in result]
+                assert len(events) > 0
+
+
 __all__ = [
     "TestStreamingModeOff",
     "TestStreamingModeToken",
     "TestStreamingModeEvent",
     "TestStreamingModeAll",
     "TestStreamingWithToolCalls",
+    "TestInvalidStreamMode",
 ]

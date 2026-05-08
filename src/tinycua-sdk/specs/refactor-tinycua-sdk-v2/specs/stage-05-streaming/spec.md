@@ -21,7 +21,7 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 | Mode | Return Type | Content |
 |------|-------------|---------|
 | `stream="off"` | `str` | Final response text (default). |
-| `stream="token"` | `AsyncIterator[dict]` | Raw LLM token deltas only. |
+| `stream="token"` | `AsyncIterator[dict]` | Raw LLM token deltas plus response.created/response.completed bookend events. |
 | `stream="event"` | `AsyncIterator[dict]` | Agent-level events only (no token deltas). |
 | `stream="all"` | `AsyncIterator[dict]` | Interleaved token deltas + agent events. |
 
@@ -41,7 +41,7 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 {"type": "response.created"}
 {"type": "response.output_item.added", "item": {"type": "tool_call", "name": "calculator", "arguments": {"expression": "2+2"}}}
 {"type": "response.output_item.added", "item": {"type": "tool_output", "name": "calculator", "output": "4"}}
-{"type": "response.completed"}
+{"type": "response.completed", "finish_reason": "completed"}
 ```
 
 ### R-5.2.0: OpenAI Responses API Event Type Reference
