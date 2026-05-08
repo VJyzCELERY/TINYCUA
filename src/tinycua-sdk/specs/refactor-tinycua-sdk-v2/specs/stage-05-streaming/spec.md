@@ -25,7 +25,7 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ### R-5.2: Event Passthrough
 
-When `stream=True`, the SDK acts as a thin passthrough — every SSE event yielded by the LLM client is forwarded to the consumer as-is. No filtering, no synthetic event injection.
+When `stream=True`, provider SSE events are forwarded to the consumer as-is (no filtering). The loop may inject documented lifecycle bookends (`response.created`/`response.completed`/`response.failed`/`response.cancelled`/`error`) and a final cumulative `response.usage` event.
 
 **Raw LLM events** (passthrough from provider):
 ```python

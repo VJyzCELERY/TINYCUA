@@ -189,6 +189,9 @@ class BaseLoop:
                     )
 
                 async for chunk in llm_stream:
+                    if agent.is_cancelled:
+                        yield {"type": "response.cancelled"}
+                        return
                     yield chunk
                     self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
 
@@ -292,10 +295,7 @@ class BaseLoop:
             if tool is None:
                 tool_result = {"error": f"Unknown tool: {tool_name}"}
             else:
-                try:
-                    tool_result = await ToolExecutor.execute(tool, arguments, agent)
-                except Exception as e:
-                    tool_result = {"error": f"Tool execution failed: {e}"}
+                tool_result = await ToolExecutor.execute(tool, arguments, agent)
             tool_call_count += 1
 
             working_messages.append(
