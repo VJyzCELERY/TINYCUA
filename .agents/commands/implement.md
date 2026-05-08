@@ -5,6 +5,8 @@ subtask: true
 
 Execute an implementation plan from implementation-plan.md and task.md.
 
+> Load skill: implement (for TDD implementation)
+
 **Query**: $1 (natural language query — specify the feature or directory to implement, e.g., "implement the auth feature from specs/user-auth/" or simply "specs/my-feature/")
 **Focus/Priority (Optional)**: $2 (e.g., "speed", "quality", specific feature to prioritize)
 

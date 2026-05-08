@@ -6,6 +6,8 @@ subtask: true
 Initialize a new `.agents/` directory or update an existing one with improvements from MAIN-PROJECT-TEMPLATE.
 
 **Query**: $1 (natural language query — specify the target directory, e.g., "set up .agents in ./my-new-project" or simply "./my-new-project")
+> Load skill: setup-project (for bootstrapping .agents/)
+
 **Template Source (Optional)**: $2 (GitHub repo URL, defaults to MAIN-PROJECT-TEMPLATE)
 
 ---

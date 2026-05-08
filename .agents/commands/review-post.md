@@ -5,6 +5,8 @@ subtask: true
 
 Post a completed review report as a GitHub PR review with inline comments. After posting, update the local review report with the URLs of each posted comment.
 
+> Load skill: review-post (for posting reviews as PR inline comments)
+
 **Query**: $1 (natural language query or review file path, e.g., "post the review from reviews/REVIEW-foo.md to PR #42" or simply "reviews/REVIEW-foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 

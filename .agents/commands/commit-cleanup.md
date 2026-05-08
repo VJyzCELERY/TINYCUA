@@ -5,6 +5,8 @@ subtask: true
 
 Clean up commit history after a rebase: squash fixup commits, remove duplicates, and keep history linear and meaningful.
 
+> Load skill: commit-cleanup (for commit history cleanup)
+
 **Query**: $1 (natural language query — optional target branch, defaults to `main`)
 
 ---

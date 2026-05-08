@@ -5,6 +5,8 @@ subtask: true
 
 Check each finding in a review: determine if it has been properly addressed, is no longer relevant, or remains OPEN. If findings are linked to PR inline comments, automatically reply with the verdict and resolve if appropriate.
 
+> Load skill: review-verify (for checking finding statuses)
+
 **Query**: $1 (natural language query or review file path, e.g., "verify the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **Focus Area (Optional)**: $2 (verify only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 

@@ -5,6 +5,8 @@ subtask: true
 
 Improve the precision of a review: rewrite vague descriptions, add missing context, sharpen validation commands, and make every finding actionable. If findings are linked to PR inline comments, post a follow-up comment noting the clarification.
 
+> Load skill: review-clarify (for improving finding precision)
+
 **Query**: $1 (natural language query or review file path, e.g., "clarify the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **Focus Area (Optional)**: $2 (clarify only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 

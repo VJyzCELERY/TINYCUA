@@ -37,6 +37,7 @@ Skills teach you **how** to use the tools and scripts. Before running any tool, 
 
 | When you need to... | Load this skill |
 |---|---|
+| Run any slash command | `<command-name>` — each command has a matching skill (e.g., `review-report`, `begin-workflow`, `rebase`, `plan`) |
 | Create/update/post PR reviews and comments | `gh-pr-management` — all gh.py operations |
 | Run the full review workflow | `gh-review` — posting reviews, inline comments, replies |
 | Run any preflight script | `preflight` — session start, review, PR, rebase preflights |
@@ -105,11 +106,30 @@ head -20 .agents/scripts/preflight-review.py
 ├── commands/          # Opencode command definitions
 ├── templates/         # Document templates (check before generating)
 ├── skills/            # Specialized workflow instructions
+│   ├── begin-workflow/
+│   ├── begin-worktree/
+│   ├── commit-cleanup/
 │   ├── gh-pr-management/
-│   ├── git-rebase/
 │   ├── gh-review/
+│   ├── git-rebase/
+│   ├── implement/
+│   ├── plan/
 │   ├── preflight/
-│   └── self-learning/
+│   ├── rebase/
+│   ├── review-cleanup/
+│   ├── review-clarify/
+│   ├── review-fetch/
+│   ├── review-implement/
+│   ├── review-loop/
+│   ├── review-post/
+│   ├── review-report/
+│   ├── review-update/
+│   ├── review-validate/
+│   ├── review-verify/
+│   ├── self-learning/
+│   ├── setup-project/
+│   ├── worktree-cleanup/
+│   └── worktree-prune/
 ├── scripts/           # Reusable Python scripts (cross-platform)
 │   ├── gh.py          # All PR/review operations via REST API
 │   ├── preflight-start.py  # OS detection + project boundary (run at session start)

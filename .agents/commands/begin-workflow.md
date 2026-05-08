@@ -5,6 +5,8 @@ subtask: true
 
 Automate the complete specs implementation process: planning → implementation → review loop → cleanup.
 
+> Load skill: begin-workflow (for full pipeline orchestration)
+
 **Query**: $1 (natural language instruction describing what to build or which feature to implement — e.g., "implement user authentication for the SDK" or "build specs/my-feature/")
 **Additional Context (Optional)**: $2 (any additional context or priorities)
 

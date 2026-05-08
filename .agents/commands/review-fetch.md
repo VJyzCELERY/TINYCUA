@@ -5,6 +5,8 @@ subtask: true
 
 Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
 
+> Load skill: review-fetch (for pulling PR comments into local review)
+
 **Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
 **Output File (Optional)**: $2 (defaults to `./reviews/REVIEW-{name}-fetched.md`)
 

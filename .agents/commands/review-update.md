@@ -5,6 +5,8 @@ subtask: true
 
 Update an existing PR review with follow-up comments and resolve findings that have been addressed.
 
+> Load skill: review-update (for updating PR reviews after fixes)
+
 **Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 

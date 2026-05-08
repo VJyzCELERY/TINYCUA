@@ -121,6 +121,32 @@ This runs: review-report → review-validate → review-implement → ... → fr
 
 ## Skills
 
+Each command has a corresponding skill that teaches you how to run it properly. When you receive a slash command, load its skill first:
+
+| Command Skill | What it covers |
+|---------------|----------------|
+| `begin-workflow` | Full pipeline orchestration: plan → implement → review → cleanup |
+| `begin-worktree` | Worktree creation with matching branch |
+| `commit-cleanup` | Squash fixups, remove duplicate commits |
+| `implement` | TDD implementation following a plan |
+| `plan` | Create implementation plan from spec + design |
+| `rebase` | Safe rebasing onto target branch |
+| `review-cleanup` | Archive resolved review reports |
+| `review-clarify` | Improve finding precision and add context |
+| `review-fetch` | Pull PR comments into a local review file |
+| `review-implement` | Apply code fixes from review findings |
+| `review-loop` | Orchestrate review-until-clean cycles |
+| `review-post` | Post review as PR inline comments |
+| `review-report` | Scoped code review with structured report |
+| `review-update` | Update PR review after fixes land |
+| `review-validate` | Full validation pipeline: clarify → verify |
+| `review-verify` | Check each finding's status with commands |
+| `setup-project` | Bootstrap `.agents/` structure in a project |
+| `worktree-cleanup` | Clean local artifacts in worktree |
+| `worktree-prune` | Remove inactive worktrees |
+
+### Infrastructure Skills (loaded by commands automatically)
+
 | Skill | When to load it |
 |-------|----------------|
 | `gh-pr-management` | Before any gh.py operation — create PR, post review, reply, resolve |

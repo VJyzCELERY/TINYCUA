@@ -5,6 +5,8 @@ subtask: true
 
 Create an implementation plan from existing spec.md and design.md files.
 
+> Load skill: plan (for implementation planning)
+
 **Query**: $1 (natural language query — specify the feature or directory, e.g., "plan the auth feature in specs/user-auth/" or simply "specs/my-feature/")
 **Additional Context (Optional)**: $2 (any additional context or priorities to consider)
 

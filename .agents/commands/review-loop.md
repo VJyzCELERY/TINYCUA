@@ -5,6 +5,8 @@ subtask: true
 
 Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-cleanup.
 
+> Load skill: review-loop (for orchestrating review cycles)
+
 **Query**: $1 (natural language query — specify what to review, e.g., "review the changes in src/tinycua-sdk" or simply "src/my-subproject/")
 **Review Name**: $2 (optional — defaults to directory name from query)
 **Unscoped (Optional)**: $3 (set to "unscoped" to bypass branch diff scoping)

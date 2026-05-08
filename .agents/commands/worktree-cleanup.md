@@ -5,6 +5,8 @@ subtask: true
 
 Clean up local development artifacts in the current worktree: reviews, dev folders, tmp files, and other gitignored caches.
 
+> Load skill: worktree-cleanup (for cleaning worktree artifacts)
+
 **Query**: $1 (optional — specific area to clean, e.g. "reviews", "tmp", "caches")
 
 If no query is provided, clean ALL artifact areas.
