@@ -231,6 +231,7 @@ def main():
         print("[ERROR] --review-file and --init-review are mutually exclusive.", file=sys.stderr)
         print("[ERROR] Use --init-review for a NEW review (pre-generates header).", file=sys.stderr)
         print("[ERROR] Use --review-file to check an EXISTING review for staleness.", file=sys.stderr)
+        print("[ERROR] Retry with only one of these flags.", file=sys.stderr)
         sys.exit(1)
 
     warnings = []

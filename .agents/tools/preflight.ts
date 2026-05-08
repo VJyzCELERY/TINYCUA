@@ -40,7 +40,7 @@ export const preflight_review = tool({
   },
   async execute(args, context) {
     if (args.reviewFile && args.initReview) {
-      return "Error: --review-file and --init-review are mutually exclusive.\nUse --init-review for a NEW review (pre-generates header).\nUse --review-file to check an EXISTING review for staleness."
+      return "Error: --review-file and --init-review are mutually exclusive.\nUse --init-review for a NEW review (pre-generates header).\nUse --review-file to check an EXISTING review for staleness.\nPlease retry with only one of these flags."
     }
     if (args.initReview && !args.scope) {
       return "Error: --init-review requires --scope (pr or branch) to determine the commit range."
