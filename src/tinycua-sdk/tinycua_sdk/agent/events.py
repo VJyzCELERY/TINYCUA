@@ -63,6 +63,29 @@ class ResponseToolCallDeltaEvent(TypedDict):
     arguments: str
 
 
+class ResponseFunctionCallArgumentsDeltaEvent(TypedDict):
+    """Emitted for each function call argument delta in streaming."""
+
+    type: Literal["response.function_call_arguments.delta"]
+    item_id: str
+    delta: str
+
+
+class ResponseFunctionCallArgumentsDoneEvent(TypedDict):
+    """Emitted when function call arguments are complete."""
+
+    type: Literal["response.function_call_arguments.done"]
+    item_id: str
+    arguments: str
+
+
+class ResponseOutputItemAddedEvent(TypedDict):
+    """Emitted when a new output item is added during streaming."""
+
+    type: Literal["response.output_item.added"]
+    item: dict
+
+
 __all__ = [
     "ResponseCreatedEvent",
     "ResponseCancelledEvent",
@@ -72,4 +95,7 @@ __all__ = [
     "ResponseUsageEvent",
     "ResponseOutputTextDeltaEvent",
     "ResponseToolCallDeltaEvent",
+    "ResponseFunctionCallArgumentsDeltaEvent",
+    "ResponseFunctionCallArgumentsDoneEvent",
+    "ResponseOutputItemAddedEvent",
 ]

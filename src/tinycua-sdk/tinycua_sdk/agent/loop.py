@@ -242,8 +242,7 @@ class BaseLoop:
             yield {"type": "error", "error": {"message": str(e)}}
             return
 
-        if cumulative_usage["total_tokens"] > 0:
-            yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+        yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
