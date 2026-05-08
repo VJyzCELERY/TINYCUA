@@ -52,6 +52,6 @@ class TestInt05AgentWithToolsAndSkills:
 
         second_call_kwargs = mock_llm_with_tool_calls.call_args_list[1][1]
         second_messages = second_call_kwargs["json"]["input"]
-        tool_msgs = [m for m in second_messages if m["role"] == "tool"]
+        tool_msgs = [m for m in second_messages if m.get("type") == "function_call_output"]
         assert len(tool_msgs) >= 1
-        assert "[Search results for: quantum]" in tool_msgs[0]["content"]
+        assert "[Search results for: quantum]" in tool_msgs[0]["output"]
