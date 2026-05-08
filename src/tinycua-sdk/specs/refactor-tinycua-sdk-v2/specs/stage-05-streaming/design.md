@@ -79,8 +79,7 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
         else:
             break
 
-    if cumulative_usage["total_tokens"] > 0:
-        yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+    yield {"type": "response.usage", "usage": dict(cumulative_usage)}
     yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
