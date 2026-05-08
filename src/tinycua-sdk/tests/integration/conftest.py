@@ -15,15 +15,30 @@ def pytest_configure(config):
 
 def pytest_collection_modifyitems(config, items):
     """Skip integration tests when LLM server is unreachable."""
-    base_url = os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1")
+    base_url = os.environ.get(
+        "TINYCUA_BASE_URL",
+        os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+    )
+    model = os.environ.get("TINYCUA_MODEL", "qwen/qwen3.5-9b")
     try:
         httpx.get(f"{base_url}/models", timeout=5).raise_for_status()
+        resp = httpx.post(
+            f"{base_url}/chat/completions",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+                "stream": False,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
         reachable = True
     except Exception:
         reachable = False
 
     if not reachable:
-        skip_mark = pytest.mark.skip(reason="LLM server not reachable")
+        skip_mark = pytest.mark.skip(reason="LLM server not reachable/unusable")
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_mark)
