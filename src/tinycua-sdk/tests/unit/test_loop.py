@@ -822,7 +822,9 @@ class TestBaseLoopRunStream:
         assert len(failed_events) == 1
         assert "message" in failed_events[0]["error"]
         assert len(error_events) == 1
-        assert events[-1]["type"] == "response.failed"
+        failed_idx = next(i for i, e in enumerate(events) if e["type"] == "response.failed")
+        error_idx = next(i for i, e in enumerate(events) if e["type"] == "error")
+        assert failed_idx < error_idx
 
 
 class TestLoopExecution:

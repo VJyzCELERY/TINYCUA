@@ -87,6 +87,10 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
         if content_parts:
             if stream_mode in ("event", "all"):
                 yield {
+                    "type": "response.output_item.added",
+                    "item": {"type": "text", "item_id": content_item_id},
+                }
+                yield {
                     "type": "response.output_text.done",
                     "item_id": content_item_id,
                     "content": "".join(content_parts),
@@ -127,54 +131,9 @@ async def _run_stream(self, agent, messages, tools, override_instructions, strea
         else:
             break
 
-    yield {"type": "response.completed"}
+    yield {"type": "response.completed", "finish_reason": "completed"}
 ```
 
-### `LLMClient.chat()` with Streaming
-
-```python
-class OpenAICompatibleClient(LLMClient):
-    async def chat(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
-        stream: bool = False,
-    ) -> dict | AsyncIterator[dict]:
-        if not stream:
-            return await self._chat_sync(messages, tools, model_config)
-        return self._chat_stream(messages, tools, model_config)
-
-    async def _chat_stream(self, messages, tools, model_config):
-        client = self._get_client(model_config)
-        payload = self._build_payload(messages, tools, model_config)
-        payload["stream"] = True
-
-        async with client.stream("POST", "/chat/completions", json=payload) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if not line or line == "data: [DONE]":
-                    continue
-                if line.startswith("data: "):
-                    data = json.loads(line[6:])
-                    # Normalize to our event shape
-                    delta = data["choices"][0].get("delta", {})
-                    if delta.get("content"):
-                        yield {
-                            "type": "response.output_text.delta",
-                            "delta": delta["content"],
-                            "item_id": data["choices"][0].get("id", ""),
-                        }
-                    elif delta.get("tool_calls"):
-                        for tc in delta["tool_calls"]:
-                            yield {
-                                "type": "response.tool_call.delta",
-                                "id": tc["id"],
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"],
-                            }
-```
 
 ## Design Decisions
 
@@ -215,6 +174,7 @@ Stream Start
   │
   ├── [while iterating]
   │     ├── response.output_text.delta (0..N, token/all modes only)
+  │     ├── response.output_item.added (text item, event/all)
   │     ├── response.output_text.done  (if text present, event/all)
   │     ├── response.output_item.done  (text item, event/all)
   │     │
