@@ -180,7 +180,6 @@ class BaseLoop:
 
                 content_parts: list[str] = []
                 tool_calls_buffer: dict[int, dict[str, Any]] = {}
-                content_item_id: list[str] = [""]
 
                 llm_stream = await agent._call_llm(working_messages, tools, stream=True)
                 if not isinstance(llm_stream, AsyncIterator):
@@ -191,7 +190,7 @@ class BaseLoop:
 
                 async for chunk in llm_stream:
                     yield chunk
-                    self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, content_item_id, cumulative_usage)
+                    self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
 
                 combined_content = "".join(content_parts)
                 tool_calls_list = list(tool_calls_buffer.values())
@@ -251,6 +250,19 @@ class BaseLoop:
         tool_call_count: int,
         working_messages: list[dict],
     ) -> tuple[int, list[dict[str, Any]], int]:
+        """Execute tool calls and append results to working_messages.
+
+        Args:
+            agent: The agent to execute.
+            tools: List of available tools.
+            tool_calls_list: Accumulated tool call data from LLM stream.
+            tool_call_count: Current tool call count.
+            working_messages: Message list (mutated in place).
+
+        Returns:
+            Tuple of (updated tool_call_count, executed_tool_calls list,
+            assistant_index for message insertion).
+        """
         assistant_index = len(working_messages)
         executed_tool_calls: list[dict[str, Any]] = []
         for tc in tool_calls_list:
@@ -302,13 +314,18 @@ class BaseLoop:
         chunk: dict[str, Any],
         content_parts: list[str],
         tool_calls_buffer: dict[int, dict[str, Any]],
-        content_item_id: list[str],
         cumulative_usage: dict[str, int],
     ) -> None:
+        """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
+
+        Args:
+            chunk: Raw SSE event dict from the LLM stream.
+            content_parts: List of text delta strings (appended in place).
+            tool_calls_buffer: Dict of tool call index to accumulated data.
+            cumulative_usage: Dict of cumulative token counts (accumulated in place).
+        """
         chunk_type = chunk.get("type", "")
         if chunk_type == "response.output_text.delta":
-            if not content_item_id[0]:
-                content_item_id[0] = chunk.get("item_id", "")
             content_parts.append(chunk.get("delta", ""))
         elif chunk_type == "response.tool_call.delta":
             tc_index = chunk.get("index", len(tool_calls_buffer))
