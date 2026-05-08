@@ -581,6 +581,73 @@ class TestBaseLoopRunStream:
         assert text_deltas[0]["delta"] == "It is sunny."
 
     @pytest.mark.asyncio
+    async def test_run_stream_accumulates_flow2_tool_call_args(self):
+        """Flow 2: output_item.added + function_call_arguments.delta/done
+        are accumulated and tool is executed correctly."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        cities_called: list[str] = []
+
+        @tool
+        def get_weather(city: str) -> str:
+            cities_called.append(city)
+            return f"Weather in {city}: sunny"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.output_item.added",
+                        "item": {
+                            "type": "function_call",
+                            "id": "fc_1",
+                            "call_id": "call_1",
+                            "name": "get_weather",
+                        },
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.delta",
+                        "item_id": "fc_1",
+                        "delta": '{"cit',
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "fc_1",
+                        "arguments": '{"city": "Tokyo"}',
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "Sunny in Tokyo.",
+                        "item_id": "2",
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(
+            agent,
+            [{"role": "user", "content": "weather?"}],
+            [get_weather],
+        )
+        events = [e async for e in stream_iter]
+
+        assert events[0] == {"type": "response.created"}
+        assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
+        assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
+        assert cities_called == ["Tokyo"], f"Expected tool called with Tokyo, got {cities_called}"
+        text_deltas = [
+            e for e in events if e.get("type") == "response.output_text.delta"
+        ]
+        assert len(text_deltas) == 1, f"Expected 1 text delta, got {len(text_deltas)}"
+        assert text_deltas[0]["delta"] == "Sunny in Tokyo."
+
+    @pytest.mark.asyncio
     async def test_run_stream_max_iterations(self):
         """Stream stops after max_iterations."""
         loop = BaseLoop(max_iterations=1)
