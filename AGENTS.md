@@ -19,6 +19,59 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 ---
 
+## Using Skills and Docs — What to Load Before Each Task
+
+Agents have access to three layers of guidance. **Always load the relevant ones before starting a task:**
+
+### Layer 1: Commands (`.agents/commands/`)
+Commands are the entry point — they tell you what to do and which preflight to run. When you receive a slash command (e.g., `/review-report`), read the corresponding `.md` file first:
+```
+.agents/commands/review-report.md
+.agents/commands/begin-workflow.md
+.agents/commands/review-loop.md
+...
+```
+
+### Layer 2: Skills (`.agents/skills/<name>/SKILL.md`)
+Skills teach you **how** to use the tools and scripts. Before running any tool, load the relevant skill:
+
+| When you need to... | Load this skill |
+|---|---|
+| Create/update/post PR reviews and comments | `gh-pr-management` — all gh.py operations |
+| Run the full review workflow | `gh-review` — posting reviews, inline comments, replies |
+| Run any preflight script | `preflight` — session start, review, PR, rebase preflights |
+| Rebase branches safely | `git-rebase` — rebase workflow, conflict handling, worktrees |
+| Create or update a skill | `self-learning` — skill structure and guidelines |
+
+Load a skill with:
+```
+[use the skill loading mechanism available in your environment]
+```
+
+### Layer 3: Docs (`.agents/docs/`)
+Docs define conventions and constraints. Read the relevant ones before generating code or documents:
+
+- `.agents/docs/agents/` — agent behavior rules, workflow, style, testing, code review standards
+- `.agents/docs/project_rules/` — naming, project structure, commit style, coding standards, testing guidelines
+
+### Layer 4: Scripts (`.agents/scripts/`)
+Scripts are the executable tools. Check a script's own usage before running it:
+```
+uv run python .agents/scripts/gh.py --help
+uv run python .agents/scripts/preflight-review.py --help
+```
+
+Read the `<EOF_DESC>` section in any preflight script to understand what it checks:
+```
+head -20 .agents/scripts/preflight-review.py
+```
+
+---
+
+## Quick Reference
+
+---
+
 ## Quick Reference
 
 | Command | What it does |
@@ -55,6 +108,7 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 │   ├── gh-pr-management/
 │   ├── git-rebase/
 │   ├── gh-review/
+│   ├── preflight/
 │   └── self-learning/
 ├── scripts/           # Reusable Python scripts (cross-platform)
 │   ├── gh.py          # All PR/review operations via REST API

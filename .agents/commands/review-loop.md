@@ -134,6 +134,7 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Stay scoped to the target directory
 - Run actual commands and tests — don't assume results
 - Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise
+- Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
 - All review files live at `./reviews/REVIEW-{name}.md`

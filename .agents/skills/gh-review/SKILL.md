@@ -1,24 +1,24 @@
-# Skill: GitHub Review Workflow via `gh`
+# Skill: GitHub Review Workflow via `gh.py` (Primary) and `gh api` (Fallback)
 
-## Golden Rule: Use Temp Files + REST API
+## Golden Rule: Use `gh.py` First
 
-**Never pass review body content directly in bash.** `gh pr review --body` and `gh pr edit --body` use a deprecated GraphQL API that may fail silently.
+**Always prefer `.agents/scripts/gh.py` for PR write operations.** It uses the stable REST API and handles temp file cleanup automatically. Only use raw `gh api` if `gh.py` doesn't support the operation you need.
 
-Instead, use `gh api` REST endpoints with temp files:
-
-1. Write the content to a temporary file under `./tmp/`
-2. Pass it via `gh api ... -f body="$(cat <file>)"`
-3. Delete the temp files after the command succeeds
-
-### Detect Owner/Repo
+Load the companion skill for more detail on gh.py operations:
+> Load skill: gh-pr-management
 
 ```bash
-OWNER_REPO=$(gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"')
+# See all available subcommands
+uv run python .agents/scripts/gh.py --help
 ```
+
+Temp files go in `./tmp/` (gitignored) and are auto-deleted on success by gh.py.
 
 ---
 
 ## Fetch PR Information
+
+### Basic PR Details (via gh CLI — read-only is fine)
 
 ```bash
 # Get PR number from branch name
@@ -34,31 +34,31 @@ gh pr view "$PR_NUMBER" --json files --jq '.files[].path'
 gh pr diff "$PR_NUMBER"
 ```
 
-### Fetch Review Comments
+### Fetch via gh.py
 
 ```bash
-# All inline comments
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | {path, line, body, user: .user.login}'
+# Fetch PR info
+uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"
 
-# Review summaries (top-level)
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | {id, state, body, user: .user.login}'
+# Fetch unresolved review comments
+uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
 
-# Unresolved/CHANGES_REQUESTED reviews
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | select(.state == "CHANGES_REQUESTED") | {id, body, user: .user.login}'
+# Fetch all comments
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
 
-# Pending/OPEN review threads
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | select(.position != null) | {id, path, line, body}'
+# Fetch a URL resource (raw content)
+uv run python .agents/scripts/gh.py fetch url <url>
 ```
 
 ---
 
-## Post a Review (Using REST API)
+## Post a Review (Primary: gh.py)
 
 ### Submit a Full PR Review with Inline Comments
 
 ```bash
 # 1. Write the review body to a temp file
-cat > ./tmp/gh-review-body.md << 'EOF'
+cat > ./tmp/review-body.md << 'EOF'
 ## General Review Summary
 
 [Overall assessment, key findings, scope notes]
@@ -69,7 +69,7 @@ cat > ./tmp/gh-review-body.md << 'EOF'
 EOF
 
 # 2. Write inline comments to a temp JSON file
-cat > ./tmp/gh-review-comments.json << 'EOF'
+cat > ./tmp/review-comments.json << 'EOF'
 [
   {
     "path": "src/file.py",
@@ -80,15 +80,8 @@ cat > ./tmp/gh-review-comments.json << 'EOF'
 ]
 EOF
 
-# 3. Submit via REST API (stable, no GraphQL deprecation)
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
-  --method POST \
-  -f body="$(cat ./tmp/gh-review-body.md)" \
-  -f event="REQUEST_CHANGES" \
-  --input ./tmp/gh-review-comments.json
-
-# 4. Clean up
-rm ./tmp/gh-review-body.md ./tmp/gh-review-comments.json
+# 3. Submit via gh.py (auto-cleans temp files on success)
+uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event REQUEST_CHANGES
 ```
 
 ### Inline Comment Format
@@ -102,31 +95,21 @@ Each inline comment should include:
 ### Approval
 
 ```bash
-cat > ./tmp/gh-approve.md << 'EOF'
+cat > ./tmp/review-approve.md << 'EOF'
 LGTM. [brief positive note]
 EOF
 
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
-  --method POST \
-  -f body="$(cat ./tmp/gh-approve.md)" \
-  -f event="APPROVE"
-
-rm ./tmp/gh-approve.md
+uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-approve.md --event APPROVE
 ```
 
 ### Comment Only
 
 ```bash
-cat > ./tmp/gh-comment.md << 'EOF'
+cat > ./tmp/review-comment.md << 'EOF'
 [General feedback]
 EOF
 
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
-  --method POST \
-  -f body="$(cat ./tmp/gh-comment.md)" \
-  -f event="COMMENT"
-
-rm ./tmp/gh-comment.md
+uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-comment.md --event COMMENT
 ```
 
 ---
@@ -134,30 +117,72 @@ rm ./tmp/gh-comment.md
 ## Reply to Review Threads
 
 ```bash
-cat > ./tmp/gh-reply.md << 'EOF'
+cat > ./tmp/reply.md << 'EOF'
 Addressed in commit <sha>.
 EOF
 
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" \
-  --method POST \
-  --input ./tmp/gh-reply.md \
-  -f in_reply_to=<comment-id>
-
-rm ./tmp/gh-reply.md
+uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
 ```
 
 ## Resolve Review Threads
 
 ```bash
-cat > ./tmp/gh-resolve.md << 'EOF'
-Resolved in commit <sha>.
+uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
+```
+
+---
+
+## Post Single Inline Comment
+
+```bash
+cat > ./tmp/inline.md << 'EOF'
+**Issue**: ...
+**Suggestion**: ...
 EOF
 
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments/<comment-id>" \
-  --method PATCH \
-  --input ./tmp/gh-resolve.md
+uv run python .agents/scripts/gh.py post inline "$PR_NUMBER" ./tmp/inline.md --path src/file.py --line 42
+```
 
-rm ./tmp/gh-resolve.md
+---
+
+## Fallback: Raw `gh api` (when gh.py doesn't support the operation)
+
+If gh.py doesn't support a specific operation, use `gh api` directly:
+
+### Detect Owner/Repo
+
+```bash
+OWNER_REPO=$(gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"')
+```
+
+### Fetch Review Comments (raw)
+
+```bash
+# All inline comments
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/comments" --jq '.[] | {path, line, body, user: .user.login}'
+
+# Review summaries (top-level)
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" --jq '.[] | {id, state, body, user: .user.login}'
+```
+
+### Submit via raw REST API
+
+```bash
+cat > ./tmp/gh-review-body.md << 'EOF'
+[review content]
+EOF
+
+cat > ./tmp/gh-review-comments.json << 'EOF'
+[{"path": "file.py", "line": 10, "body": "**Issue**: ...", "side": "RIGHT"}]
+EOF
+
+gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
+  --method POST \
+  -f body="$(cat ./tmp/gh-review-body.md)" \
+  -f event="REQUEST_CHANGES" \
+  --input ./tmp/gh-review-comments.json
+
+rm ./tmp/gh-review-body.md ./tmp/gh-review-comments.json
 ```
 
 ---
@@ -174,17 +199,7 @@ gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews/<review-id>/dismissals" \
   --method PUT \
   --input ./tmp/gh-dismiss.md
 
-# Submit new review
-cat > ./tmp/gh-re-review.md << 'EOF'
-Re-review after fixes: [summary]
-EOF
-
-gh api "repos/$OWNER_REPO/pulls/$PR_NUMBER/reviews" \
-  --method POST \
-  -f body="$(cat ./tmp/gh-re-review.md)" \
-  -f event="COMMENT"
-
-rm ./tmp/gh-dismiss.md ./tmp/gh-re-review.md
+rm ./tmp/gh-dismiss.md
 ```
 
 ---
@@ -204,9 +219,10 @@ fi
 
 ## Common Pitfalls
 
-- **Always use `gh api` REST** for write operations — avoids GraphQL deprecation issues
+- **Always use gh.py first** — only fall back to raw `gh api` if gh.py doesn't have the subcommand
 - **`side: "RIGHT"`** is for the new version; `side: "LEFT"` for the old version
 - **Validate JSON** before posting — use `cat ./tmp/file.json | python -m json.tool`
 - **Detect `$OWNER_REPO`** dynamically — never hardcode it
-- **Clean up**: Always `rm ./tmp/gh-*.md ./tmp/gh-*.json` after each operation
+- **Clean up**: If using raw gh api, always `rm ./tmp/gh-*.md ./tmp/gh-*.json` after
+- gh.py auto-cleans temp files on success — no need to rm manually
 - Write temp files under `./tmp/` — it's gitignored

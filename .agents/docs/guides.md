@@ -116,3 +116,15 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `preflight-rebase.py` | Rebase safety check |
 | `gh.py` | GitHub PR/review helper (fetch, post, inline, reply, resolve, update, create) |
 | `preflight-start.py` | OS detection + project boundary (run at session start)
+
+---
+
+## Skills
+
+| Skill | When to load it |
+|-------|----------------|
+| `gh-pr-management` | Before any gh.py operation — create PR, post review, reply, resolve |
+| `gh-review` | Before running the full PR review workflow (post + inline comments) |
+| `preflight` | Before running any preflight script — session start, review, PR, rebase |
+| `git-rebase` | Before rebasing branches — conflict handling, worktrees, force push |
+| `self-learning` | When creating or updating a skill

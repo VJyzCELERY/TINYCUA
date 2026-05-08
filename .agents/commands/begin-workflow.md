@@ -208,6 +208,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Stay scoped to the spec — don't implement or review things outside the scope.
 - Run actual commands and tests — don't assume results.
 - Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise.
+- Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools.
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
