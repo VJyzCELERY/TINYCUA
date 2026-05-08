@@ -43,14 +43,12 @@ class Tool:
         self.dependencies = dependencies or []
 
     def to_config(self) -> dict[str, Any]:
-        """Return OpenAI function-calling schema format."""
+        """Return Responses API tool schema format."""
         return {
             "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
         }
 
     def invoke(self, **kwargs: Any) -> Any:

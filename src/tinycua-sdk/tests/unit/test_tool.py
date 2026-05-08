@@ -128,8 +128,8 @@ class TestToolConfig:
             return f"Results for {query}"
 
         config = search.to_config()
-        assert config["function"]["name"] == "search"
-        assert "parameters" in config["function"]
+        assert config["name"] == "search"
+        assert "parameters" in config
 
     def test_tool_from_dict(self):
         """Tool can be reconstructed from a dict."""

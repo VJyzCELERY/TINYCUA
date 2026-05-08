@@ -97,11 +97,8 @@ class TestBaseLoopRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "get_time",
-                                "arguments": "{}",
-                            },
+                            "name": "get_time",
+                            "arguments": "{}",
                         }
                     ],
                     "usage": None,
@@ -138,11 +135,8 @@ class TestBaseLoopRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "nonexistent_tool",
-                                "arguments": "{}",
-                            },
+                            "name": "nonexistent_tool",
+                            "arguments": "{}",
                         }
                     ],
                     "usage": None,
@@ -182,11 +176,8 @@ class TestBaseLoopRun:
                 "tool_calls": [
                     {
                         "id": f"call_{call_count}",
-                        "type": "function",
-                        "function": {
-                            "name": "dummy_tool",
-                            "arguments": "{}",
-                        },
+                        "name": "dummy_tool",
+                        "arguments": "{}",
                     }
                 ],
                 "usage": None,
@@ -239,11 +230,8 @@ class TestBaseLoopRun:
                 "tool_calls": [
                     {
                         "id": f"call_{call_count}",
-                        "type": "function",
-                        "function": {
-                            "name": "dummy",
-                            "arguments": "{}",
-                        },
+                        "name": "dummy",
+                        "arguments": "{}",
                     }
                 ],
                 "usage": None,
@@ -287,13 +275,13 @@ class TestBaseLoopRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {"name": "get_time", "arguments": "{}"},
+                            "name": "get_time",
+                            "arguments": "{}",
                         },
                         {
                             "id": "call_2",
-                            "type": "function",
-                            "function": {"name": "get_date", "arguments": "{}"},
+                            "name": "get_date",
+                            "arguments": "{}",
                         },
                     ],
                     "usage": None,
@@ -370,27 +358,18 @@ class TestBaseLoopRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "search",
-                                "arguments": '{"query": "a"}',
-                            },
+                            "name": "search",
+                            "arguments": '{"query": "a"}',
                         },
                         {
                             "id": "call_2",
-                            "type": "function",
-                            "function": {
-                                "name": "search",
-                                "arguments": '{"query": "b"}',
-                            },
+                            "name": "search",
+                            "arguments": '{"query": "b"}',
                         },
                         {
                             "id": "call_3",
-                            "type": "function",
-                            "function": {
-                                "name": "search",
-                                "arguments": '{"query": "c"}',
-                            },
+                            "name": "search",
+                            "arguments": '{"query": "c"}',
                         },
                     ],
                     "usage": None,
@@ -523,12 +502,15 @@ class TestBaseLoopRunStream:
 
     @pytest.mark.asyncio
     async def test_run_stream_accumulates_tool_call_args(self):
-        """Multi-chunk tool call arguments are accumulated correctly."""
+        """Multi-chunk tool call arguments are accumulated and tool is executed correctly."""
         loop = BaseLoop(max_iterations=5)
         agent = Agent(llm_model=LanguageModel())
 
+        cities_called: list[str] = []
+
         @tool
         def get_weather(city: str) -> str:
+            cities_called.append(city)
             return f"Weather in {city}: sunny"
 
         call_count = 0
@@ -571,6 +553,13 @@ class TestBaseLoopRunStream:
 
         assert events[0] == {"type": "response.created"}
         assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
+        assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
+        assert cities_called == ["Tokyo"], f"Expected tool called with Tokyo, got {cities_called}"
+        text_deltas = [
+            e for e in events if e.get("type") == "response.output_text.delta"
+        ]
+        assert len(text_deltas) == 1, f"Expected 1 text delta, got {len(text_deltas)}"
+        assert text_deltas[0]["delta"] == "It is sunny."
 
     @pytest.mark.asyncio
     async def test_run_stream_max_iterations(self):

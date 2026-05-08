@@ -92,11 +92,11 @@ class BaseLoop:
                         max_tool_calls_reached = True
                         break
 
-                    tool_name = tc["function"]["name"]
+                    tool_name = tc["name"]
                     executed_tool_calls.append(tc)
 
                     try:
-                        arguments = json.loads(tc["function"]["arguments"])
+                        arguments = json.loads(tc["arguments"])
                     except json.JSONDecodeError as e:
                         tool_call_count += 1
                         tool_result = {
@@ -188,12 +188,16 @@ class BaseLoop:
                         f"got {type(llm_stream).__name__}"
                     )
 
-                async for chunk in llm_stream:
-                    if agent.is_cancelled:
-                        yield {"type": "response.cancelled"}
-                        return
-                    yield chunk
-                    self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
+                try:
+                    async for chunk in llm_stream:
+                        if agent.is_cancelled:
+                            yield {"type": "response.cancelled"}
+                            return
+                        yield chunk
+                        self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
+                finally:
+                    if hasattr(llm_stream, "aclose"):
+                        await llm_stream.aclose()
 
                 combined_content = "".join(content_parts)
                 tool_calls_list = list(tool_calls_buffer.values())
@@ -218,11 +222,8 @@ class BaseLoop:
                         assistant_msg["tool_calls"] = [
                             {
                                 "id": tc["id"],
-                                "type": "function",
-                                "function": {
-                                    "name": tc["name"],
-                                    "arguments": tc["arguments"],
-                                },
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
                             }
                             for tc in executed_tool_calls
                         ]
@@ -348,11 +349,7 @@ class BaseLoop:
             if usage:
                 _accumulate_usage(cumulative_usage, usage)
         elif chunk_type == "response.completed":
-            resp = chunk.get("response")
-            if isinstance(resp, dict):
-                usage = resp.get("usage")
-                if usage:
-                    _accumulate_usage(cumulative_usage, usage)
+            pass
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
