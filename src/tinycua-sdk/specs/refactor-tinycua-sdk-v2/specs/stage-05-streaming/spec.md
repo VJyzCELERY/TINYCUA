@@ -64,6 +64,8 @@ All streaming events MUST follow the OpenAI Responses API SSE event format. Each
 | `response.completed` | ✅ | 5 | Response completed successfully. |
 | `response.failed` | ✅ | 5 | Response failed with error details. |
 | `error` | ✅ | 5 | Transient streaming error event. |
+| `response.usage` | ✅ | 5 | Token usage data emitted at end of stream. |
+| `response.cancelled` | ✅ | 5 | Emitted when the agent is cancelled during streaming (custom event). |
 
 Events marked ❌ Deferred are recognized OpenAI standard events that are out of scope for this stage. The "Stage" column indicates which future stage should implement each event. Deferred events MUST be emitted with the correct type string when implemented to maintain backward compatibility.
 

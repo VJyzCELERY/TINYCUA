@@ -97,7 +97,7 @@ async def test_gs_04_stream_all_yields_both(streaming_agent):
     deltas = [e for e in events if e["type"] == "response.output_text.delta"]
     assert len(deltas) > 0
     added_events = [e for e in events if e["type"] == "response.output_item.added"]
-    assert len(added_events) >= 0
+    assert len(added_events) > 0
 
 
 @pytest.mark.integration
