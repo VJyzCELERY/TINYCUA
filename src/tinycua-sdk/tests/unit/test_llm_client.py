@@ -347,7 +347,8 @@ class TestOpenAICompatibleClient:
         with (
             pytest.MonkeyPatch.context() as mp,
         ):
-            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
+            mock_stream = MagicMock(return_value=fake_response)
+            mp.setattr(httpx.AsyncClient, "stream", mock_stream)
             model = LanguageModel(
                 base_url="http://test.local/v1", model_name="gpt-4o-mini"
             )
@@ -359,6 +360,15 @@ class TestOpenAICompatibleClient:
             )
 
             chunks = [c async for c in result]
+
+        mock_stream.assert_called_once()
+        args, kwargs = mock_stream.call_args
+        assert args[0] == "POST"
+        assert args[1] == "/responses"
+        assert kwargs["json"]["stream"] is True
+        assert kwargs["json"]["model"] == "gpt-4o-mini"
+        assert "input" in kwargs["json"]
+        assert "stream_options" not in kwargs["json"]
 
         assert len(chunks) == 3
         assert chunks[0] == {

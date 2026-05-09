@@ -10,7 +10,7 @@ Implementation tasks for adding raw SSE passthrough streaming to the agent execu
 - [x] Implement `OpenAICompatibleClient._chat_stream()` — SSE-based async generator <!-- id: 1 -->
   - [x] Parse SSE `data:` lines, skip `[DONE]`
   - [x] Normalise content deltas to `response.output_text.delta` events
-  - [x] Normalise tool call deltas to `response.tool_call.delta` events
+  - [x] Normalise tool call deltas to `response.function_call_arguments.delta` events
   - [x] Extract existing non-streaming logic into `_chat_sync()`
 - [x] Update `BaseLoop.run()` — add `stream: bool = False` parameter <!-- id: 2 -->
   - [x] Dispatch to `_run_sync()` or `_run_stream()`
