@@ -238,10 +238,6 @@ class BaseLoop:
 
                 combined_content = "".join(content_parts)
                 tool_calls_list = list(tool_calls_buffer.values())
-                assistant_msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "content": combined_content,
-                }
 
                 if tool_calls_list:
                     (
@@ -255,10 +251,15 @@ class BaseLoop:
                         tool_call_count,
                         working_messages,
                     )
-                    if executed_tool_calls:
-                        working_messages.insert(assistant_index, assistant_msg)
+                    if executed_tool_calls and combined_content:
+                        working_messages.insert(
+                            assistant_index,
+                            {"role": "assistant", "content": combined_content},
+                        )
                 else:
-                    working_messages.append(assistant_msg)
+                    working_messages.append(
+                        {"role": "assistant", "content": combined_content},
+                    )
                     break
             else:
                 finish_reason = "max_iterations"

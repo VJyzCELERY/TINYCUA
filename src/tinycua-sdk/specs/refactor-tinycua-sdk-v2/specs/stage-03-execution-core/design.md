@@ -299,10 +299,10 @@ class Agent(AgentExecutor):
         query: str,
         messages: list[dict] | None = None,
         instructions: str | None = None,
-        stream: Literal["off", "event", "token", "all"] = "off",
-    ) -> str:
-        if stream != "off":
-            raise NotImplementedError("Streaming implemented in Stage 5")
+        stream: bool = False,
+    ) -> str | AsyncIterator[dict]:
+        if stream:
+            return self._run_stream(query, messages, instructions)
 
         loop = self.config.loop or BaseLoop()
 

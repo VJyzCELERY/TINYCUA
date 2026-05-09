@@ -15,7 +15,7 @@ def pytest_configure(config):
 
 def _build_auth_headers() -> dict[str, str]:
     """Build auth headers matching OpenAICompatibleClient logic."""
-    api_key = os.environ.get("TINYCUA_API_KEY", "")
+    api_key = os.environ.get("LLM_API_KEY", "")
     headers: dict[str, str] = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"

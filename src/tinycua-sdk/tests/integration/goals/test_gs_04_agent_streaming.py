@@ -25,7 +25,7 @@ def streaming_agent():
             provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
             model_name=os.environ.get("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
             base_url=os.environ.get("TINYCUA_BASE_URL", "http://localhost:1234/v1"),
-            api_key=os.environ.get("TINYCUA_API_KEY", "dummy"),
+            api_key=os.environ.get("LLM_API_KEY", "dummy"),
         ),
     )
 

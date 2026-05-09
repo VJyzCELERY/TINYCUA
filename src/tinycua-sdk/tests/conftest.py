@@ -61,7 +61,6 @@ os.environ.setdefault("LLM_API_KEY", "dummy")
 os.environ.setdefault("TINYCUA_PROVIDER", "openai-compatible")
 os.environ.setdefault("TINYCUA_MODEL", os.environ["LLM_MODEL"])
 os.environ.setdefault("TINYCUA_BASE_URL", os.environ["LLM_BASE_URL"])
-os.environ.setdefault("TINYCUA_API_KEY", os.environ["LLM_API_KEY"])
 
 
 # =============================================================================
