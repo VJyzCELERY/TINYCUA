@@ -17,8 +17,10 @@ Usage:
     uv run python .agents/scripts/gh.py update title <pr> <title>
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
     
-    If a command is not available, use raw `gh` CLI directly:
-    uv run python .agents/scripts/gh.py <command>  # will show if not implemented
+    uv run python .agents/scripts/gh.py cmd <gh-args>              # Run any gh command with auto-formatted output
+    
+    If a command is not available, use `cmd` to run it raw:
+    uv run python .agents/scripts/gh.py cmd pr list --head main
 
 <EOF_DESC>
 """
@@ -630,6 +632,63 @@ def cmd_fetch_url(args):
         cmd_fetch_pr(argparse.Namespace(pr_or_url=parsed["pr"]))
 
 
+def json_to_md(data, depth=0):
+    """Recursively convert JSON to markdown formatted output.
+    
+    - dict → # headers (depth-based)
+    - list → bullet points
+    - scalar → plain value
+    """
+    prefix = "#" * (depth + 1)
+    bullet = "  " * depth + "- "
+    lines = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            key_str = str(key).replace("_", " ").replace("-", " ").title()
+            if isinstance(value, (dict, list)):
+                lines.append(f"{prefix} {key_str}")
+                lines.append(json_to_md(value, depth + 1))
+            else:
+                lines.append(f"{prefix} {key_str}")
+                lines.append(str(value) if value is not None else "(null)")
+    elif isinstance(data, list):
+        if not data:
+            lines.append(f"{bullet}(empty)")
+        elif all(not isinstance(item, (dict, list)) for item in data):
+            for item in data:
+                lines.append(f"{bullet}{item}")
+        else:
+            for i, item in enumerate(data):
+                if i > 0:
+                    lines.append("---")
+                lines.append(json_to_md(item, depth))
+    else:
+        lines.append(str(data))
+
+    return "\n".join(lines)
+
+
+def cmd_cmd(args):
+    """Run any raw gh command and auto-format the output."""
+    gh_args = args.gh_args
+    cmd = ["gh"] + gh_args
+    out, err, rc = run(cmd)
+    if rc != 0:
+        print(f"[FAIL] gh {' '.join(gh_args)} failed: {err}", file=sys.stderr)
+        sys.exit(1)
+    if not out:
+        print(err or "(no output)")
+        return
+    # Try JSON parse and format
+    try:
+        data = json.loads(out)
+        print(json_to_md(data))
+    except (json.JSONDecodeError, ValueError):
+        # Not JSON — print raw
+        print(out)
+
+
 # ─── Argument Parser ─────────────────────────────────────────────
 
 def main():
@@ -714,6 +773,11 @@ def main():
     ut.add_argument("title", help="New PR title")
     ut.set_defaults(func=cmd_update_title)
     
+    # cmd — wildcard raw gh runner
+    p = sub.add_parser("cmd", help="Run any gh command with auto-formatted JSON output")
+    p.add_argument("gh_args", nargs=argparse.REMAINDER, help="Raw gh arguments (e.g., pr view 10)")
+    p.set_defaults(func=cmd_cmd)
+
     # create pr
     p = sub.add_parser("create", help="Create a PR")
     p.add_argument("title", help="PR title")
@@ -728,7 +792,7 @@ def main():
         sys.exit(0)
 
     # If the first arg after script isn't a known command, show fallback message
-    known = {"fetch", "post", "resolve", "update", "create"}
+    known = {"fetch", "post", "resolve", "update", "create", "cmd"}
     if sys.argv[1] not in known:
         print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
         print(f"       gh {' '.join(sys.argv[1:])}")

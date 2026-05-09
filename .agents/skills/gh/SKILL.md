@@ -60,6 +60,15 @@ uv run python .agents/scripts/gh.py update body "$PR_NUMBER" ./tmp/new-body.md
 uv run python .agents/scripts/gh.py create --title "Title" --body ./tmp/body.md
 ```
 
+### Run any gh command (wildcard)
+```bash
+# Auto-formats JSON output to markdown, raw output passthrough for non-JSON
+uv run python .agents/scripts/gh.py cmd pr view 10 --json number,title,state
+uv run python .agents/scripts/gh.py cmd pr diff 10
+uv run python .agents/scripts/gh.py cmd pr list --head my-branch
+uv run python .agents/scripts/gh.py cmd repo view --json name,description
+```
+
 ## Common Pitfalls
 - **Always use gh.py first** — even for read operations. Only fall back to raw `gh` CLI if gh.py doesn't have the subcommand
 - **Check gh.py --help** before using raw `gh` — the operation you need may already be covered
