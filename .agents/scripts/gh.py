@@ -212,8 +212,7 @@ def cmd_fetch_pr(args):
         # Only print body if it exists (and truncate for readability)
         body = data.get('body', '')
         if body:
-            body_preview = body[:500] + ("..." if len(body) > 500 else "")
-            print(f"\nBody Preview:\n{body_preview}")
+            print(f"\nBody:\n{body}")
         # Note about custom fields
         if not args.fields:
             print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
