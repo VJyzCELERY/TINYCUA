@@ -6,12 +6,14 @@ with Commit Range pre-filled so agents don't need to figure it out.
 
 Usage:
     uv run python .agents/scripts/preflight-review.py [--scope pr|branch|other] [--review-file <path>] [--init-review] [--review-name <name>]
+    uv run python .agents/scripts/preflight-review.py --implement [--review-file <path>]
 
 Options:
     --scope SCOPE      pr (PR context), branch (local branch), other (default)
     --review-file      Path to REVIEW_*.md file (for stale check)
     --init-review      Pre-generate review file header with Commit Range
     --review-name      Name for the review file (defaults to branch name)
+    --implement        Implement preflight: auto-detect all reviews, or check a specific file
 
 Exits 0 if all clear, non-zero with warnings.
 With --init-review, also prints the review file path so the agent knows where to write.
@@ -246,6 +248,158 @@ def init_review(review_name: str, review_dir: str = "./reviews") -> str | None:
     return str(rev_path)
 
 
+def parse_review_header(review_file: str) -> dict | None:
+    """Parse a review file header: extract branch and commit range.
+
+    Returns None if the file is not a valid review report.
+    """
+    result = {"branch": "", "commit_range": "", "base": "", "head": ""}
+    try:
+        with open(review_file) as f:
+            content = f.read()
+    except FileNotFoundError:
+        return None
+
+    # Validate it's a review report — must have Review header or Commit Range
+    if not re.search(r'^# Review Report:', content, re.MULTILINE) and not re.search(r'\*{0,2}Commit Range\*{0,2}:', content):
+        return None
+
+    # Extract branch
+    m = re.search(r'\*{0,2}Branch\*{0,2}:\s*(.+)', content)
+    if m:
+        result["branch"] = m.group(1).strip()
+
+    # Extract commit range
+    m = re.search(r'\*{0,2}Commit Range\*{0,2}:\s*`?\s*([0-9a-f]+)\s*`?\s*\.\.\.\s*`?\s*([0-9a-f]+)\s*`?', content)
+    if m:
+        result["commit_range"] = f"{m.group(1)}...{m.group(2)}"
+        result["base"] = m.group(1)
+        result["head"] = m.group(2)
+
+    return result
+
+
+def format_implement_output(reviews: list[dict], pr_reviews: list[dict]) -> str:
+    """Format implement preflight output for the agent."""
+    lines = ["[INFO] === Review Implement Preflight ==="]
+    lines.append("")
+    lines.append("Local Review Reports:")
+    if reviews:
+        for r in reviews:
+            lines.append(f"  {r['path']} - {r['status']}")
+            if r.get("branch") and r.get("current_branch") and r["branch"] != r["current_branch"]:
+                lines.append(f"       (branch mismatch: review on '{r['branch']}', current is '{r['current_branch']}')")
+    else:
+        lines.append("  (none found)")
+
+    lines.append("")
+    lines.append("PR Reviews:")
+    if pr_reviews:
+        for pr in pr_reviews:
+            lines.append(f"  {pr['url']}")
+            lines.append(f"  Fetch: `{pr['fetch_cmd']}`")
+    else:
+        lines.append("  (no open PR or no unresolved reviews)")
+
+    return "\n".join(lines)
+
+
+def implement_preflight_autodetect() -> int:
+    """Auto-detect reviews: scan ./reviews/ for REVIEW_*.md, check each."""
+    current_branch = run(["git", "branch", "--show-current"])
+    current_head = run(["git", "rev-parse", "HEAD"])
+    reviews_dir = Path("./reviews")
+    local_reviews = []
+    pr_reviews = []
+
+    # Scan for local review files
+    if reviews_dir.exists():
+        for f in sorted(reviews_dir.glob("REVIEW_*.md")):
+            header = parse_review_header(str(f))
+            if header is None:
+                continue  # Not a valid review report, skip
+            status = "Active"
+            if header["head"] and header["head"] != current_head:
+                status = "Stale"
+            elif header["branch"] and header["branch"] != current_branch:
+                status = "Stale (branch mismatch)"
+            local_reviews.append({
+                "path": str(f),
+                "status": status,
+                "branch": header.get("branch", ""),
+                "current_branch": current_branch,
+            })
+
+    # Check for open PR and fetch unresolved reviews
+    branch = run(["git", "branch", "--show-current"])
+    if branch:
+        pr_data = run(["gh", "pr", "list", "--head", branch, "--state", "open",
+                       "--json", "number", "--jq", ".[0].number"])
+        if pr_data:
+            pr = pr_data.strip()
+            # Get unresolved comments
+            unresolved_out = run(["uv", "run", "python", ".agents/scripts/gh.py",
+                                  "fetch", "unresolved", pr])
+            if unresolved_out:
+                pr_reviews.append({
+                    "url": f"https://github.com/{run(['gh','repo','view','--json','nameWithOwner','--jq','.nameWithOwner'])}/pull/{pr}",
+                    "fetch_cmd": f"uv run python .agents/scripts/gh.py fetch unresolved {pr}",
+                })
+
+    print(format_implement_output(local_reviews, pr_reviews))
+
+    # Warn if any reviews are stale
+    stale = [r for r in local_reviews if r["status"] != "Active"]
+    if stale:
+        print(f"\n[WARN] {len(stale)} review(s) are stale or have branch mismatch.")
+        print("[WARN] Ask the user if they want to proceed or re-review first.")
+        return 1
+    print("\n[OK] All local reviews are active and match current branch.")
+    return 0
+
+
+def implement_preflight_check_file(review_file: str) -> int:
+    """Check a specific review file for staleness and branch match."""
+    p = Path(review_file)
+    if not p.exists():
+        print(f"[ERROR] Review file not found: {review_file}", file=sys.stderr)
+        return 1
+
+    current_branch = run(["git", "branch", "--show-current"])
+    current_head = run(["git", "rev-parse", "HEAD"])
+    header = parse_review_header(str(p))
+    if header is None:
+        print(f"[ERROR] File is not a valid review report: {review_file}", file=sys.stderr)
+        return 1
+
+    print(f"[INFO] Checking review: {review_file}")
+    print(f"[INFO] Current branch: {current_branch}")
+    print(f"[INFO] Review branch: {header.get('branch', 'unknown')}")
+    print(f"[INFO] Review commit range: {header.get('commit_range', 'unknown')}")
+
+    warnings = []
+    if header["head"] and header["head"] != current_head:
+        warnings.append(f"[WARN] Review is stale — HEAD has moved.")
+        warnings.append(f"       Review was on: {header['head']}")
+        warnings.append(f"       Current HEAD:  {current_head}")
+        for line in run(["git", "log", "--oneline", f"{header['head']}..{current_head}"]).splitlines():
+            warnings.append(f"       + {line}")
+
+    if header["branch"] and header["branch"] != current_branch:
+        warnings.append(f"[WARN] Branch mismatch — review targets '{header['branch']}' but current branch is '{current_branch}'")
+
+    if warnings:
+        for w in warnings:
+            print(w)
+        print("\n[WARN] The review may not be applicable to the current state.")
+        print("[WARN] Ask the user: are you sure you want to implement this review?")
+        print("[WARN] Consider requesting a fresh review first.")
+        return 1
+
+    print("[OK] Review is up-to-date and matches current branch.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Pre-flight check for review commands")
     parser.add_argument("--scope", choices=["pr", "branch", "other"], default="other",
@@ -255,7 +409,16 @@ def main():
                         help="Pre-generate review file header with Commit Range")
     parser.add_argument("--review-name", type=str, default=None,
                         help="Review name (defaults to branch name)")
+    parser.add_argument("--implement", action="store_true",
+                        help="Implement preflight mode: auto-detect reviews or check a specific file")
+
     args = parser.parse_args()
+
+    if args.implement:
+        if args.review_file:
+            sys.exit(implement_preflight_check_file(args.review_file))
+        else:
+            sys.exit(implement_preflight_autodetect())
 
     if args.review_file and args.init_review:
         print("[ERROR] --review-file and --init-review are mutually exclusive.", file=sys.stderr)

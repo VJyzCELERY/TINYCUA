@@ -37,6 +37,10 @@ export const preflight_review = tool({
       .string()
       .optional()
       .describe("Name for the review file (defaults to branch name)"),
+    implement: tool.schema
+      .boolean()
+      .optional()
+      .describe("Implement preflight mode: auto-detect reviews or check a specific file"),
   },
   async execute(args, context) {
     if (args.reviewFile && args.initReview) {
@@ -50,6 +54,7 @@ export const preflight_review = tool({
     if (args.reviewFile) cmd.push("--review-file", args.reviewFile)
     if (args.initReview) cmd.push("--init-review")
     if (args.reviewName) cmd.push("--review-name", args.reviewName)
+    if (args.implement) cmd.push("--implement")
     return runScript("preflight-review.py", cmd, context.worktree)
   },
 })

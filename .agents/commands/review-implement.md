@@ -5,12 +5,34 @@ subtask: true
 
 Implement fixes based on review findings. This command ONLY modifies source code — it does NOT update the review report. Status updates are handled by `review-verify` and `review-validate`.
 
-> Load skill: review-core (for applying fixes from findings)
+> Load skill: review-implement (for applying fixes from findings)
 
 **Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, implement fixes for ALL OPEN findings.
+
+---
+
+## Pre-Flight: Implement Preflight
+
+> Load _common-preflight.md
+
+Run the implement preflight to detect available reviews and check staleness:
+
+```bash
+# Auto-detect all reviews for this branch:
+uv run python .agents/scripts/preflight-review.py --implement
+
+# Or check a specific review file:
+uv run python .agents/scripts/preflight-review.py --implement --review-file "$REVIEW_FILE"
+```
+
+The preflight will:
+- **Auto-detect mode**: Scan `./reviews/` for REVIEW_*.md files, check each for staleness and branch match. If there's an open PR, also list unresolved PR reviews with fetch commands.
+- **File mode**: Check if the specified review exists, verify commit range staleness and branch match.
+
+**If the preflight reports stale reviews or branch mismatches, ask the user before proceeding.** The review may not be applicable to the current code state.
 
 ---
 
