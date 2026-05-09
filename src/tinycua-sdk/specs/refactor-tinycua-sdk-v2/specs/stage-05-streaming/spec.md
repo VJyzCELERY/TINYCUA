@@ -12,7 +12,7 @@ Implement raw SSE passthrough streaming — `stream=False` returns `str`, `strea
 All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
 
 ## Reference
-- [`goals/getting-started/04_agent_streaming.py`](../goals/getting-started/04_agent_streaming.py)
+- [`goals/getting-started/04_agent_streaming.py`](../../goals/getting-started/04_agent_streaming.py)
 - [OpenAI Responses API Reference](https://developers.openai.com/api-reference/resources/responses) — HTTP endpoint, request/response shapes, SSE event types
 - [OpenAI Function Calling Guide](https://developers.openai.com/docs/guides/function-calling) — Tool/function call semantics and event flow
 
@@ -33,7 +33,7 @@ When `stream=True`, provider SSE events are forwarded to the consumer as-is (no 
 ```python
 {"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_abc123"}
 {"type": "response.output_item.added", "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"}}
-{"type": "response.usage", "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
+{"type": "response.usage", "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}
 ```
 
 **Lifecycle events** (emitted by the loop):
