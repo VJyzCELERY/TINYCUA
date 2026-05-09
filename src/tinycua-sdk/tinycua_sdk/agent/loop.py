@@ -200,6 +200,8 @@ class BaseLoop:
                             yield {"type": "response.cancelled"}
                             inner_cancelled = True
                             break
+                        if chunk.get("type") in ("response.created", "response.completed"):
+                            continue
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
