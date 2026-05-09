@@ -184,15 +184,39 @@ def cmd_fetch_repo(args):
 
 def cmd_fetch_pr(args):
     pr = parse_pr_input(args.pr_or_url)
-    out, err, rc = api("GET", f"pulls/{pr}", data={"json": json.dumps([
-        "number", "title", "state", "headRefName", "baseRefName", "body", "author", "mergeable", "createdAt", "updatedAt"
-    ])})
+    # Use curated default fields — only useful info, no API URLs or nested bloat
+    fields = args.fields or "number,title,state,headRefName,baseRefName,author,body,createdAt,updatedAt,mergedAt,closedAt,mergeable,isDraft,additions,deletions,changedFiles,labels,reviews"
+    out, err, rc = run(["gh", "pr", "view", pr, "--json", fields])
     if rc != 0:
         print(f"[FAIL] Could not fetch PR #{pr}: {err}", file=sys.stderr)
         sys.exit(1)
     try:
         data = json.loads(out)
-        print(json.dumps(data, indent=2))
+        # Print curated summary
+        print(f"#{data['number']} — {data['title']}")
+        print(f"State: {data['state'].upper()}")
+        if data.get('isDraft'):
+            print("Draft: Yes")
+        print(f"Head: {data.get('headRefName', '?')} → Base: {data.get('baseRefName', '?')}")
+        print(f"Author: {data.get('author', {}).get('login', '?')}")
+        print(f"Created: {data.get('createdAt', '?')}")
+        print(f"Updated: {data.get('updatedAt', '?')}")
+        if data.get('mergedAt'):
+            print(f"Merged: {data['mergedAt']}")
+        if data.get('closedAt'):
+            print(f"Closed: {data['closedAt']}")
+        print(f"Changes: +{data.get('additions', 0)} / -{data.get('deletions', 0)} ({data.get('changedFiles', 0)} files)")
+        labels = data.get('labels', [])
+        if labels:
+            print(f"Labels: {', '.join(l.get('name', '') for l in labels)}")
+        # Only print body if it exists (and truncate for readability)
+        body = data.get('body', '')
+        if body:
+            body_preview = body[:500] + ("..." if len(body) > 500 else "")
+            print(f"\nBody Preview:\n{body_preview}")
+        # Note about custom fields
+        if not args.fields:
+            print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
     except json.JSONDecodeError:
         print(out)
 
@@ -698,8 +722,10 @@ def main():
     # fetch pr
     p = sub.add_parser("fetch", help="Fetch PR info or URL resource")
     fetch_sub = p.add_subparsers(dest="fetch_type", required=True)
-    fp = fetch_sub.add_parser("pr", help="Fetch PR details")
+    fp = fetch_sub.add_parser("pr", help="Fetch PR details (curated output)")
     fp.add_argument("pr_or_url", help="PR number or URL")
+    fp.add_argument("--json", dest="fields", type=str, default=None,
+                    help="Custom JSON fields (default: curated useful fields)")
     fp.set_defaults(func=cmd_fetch_pr)
     
     fc = fetch_sub.add_parser("comments", help="Fetch PR comments and reviews")
