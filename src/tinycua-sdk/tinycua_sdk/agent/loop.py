@@ -388,14 +388,15 @@ class BaseLoop:
             response_data = chunk.get("response", {})
             resp_id = response_data.get("id", "")
             usage = response_data.get("usage", {})
-            if usage and resp_id not in usage_settled_ids and "__any__" not in usage_settled_ids:
+            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
                 _accumulate_usage(cumulative_usage, usage)
+                usage_settled_ids.add("__any__")
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
-            if usage:
+            resp_id = chunk.get("response", {}).get("id", "")
+            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
                 _accumulate_usage(cumulative_usage, usage)
-                resp_id = chunk.get("response", {}).get("id", "")
-                usage_settled_ids.add(resp_id or "__any__")
+                usage_settled_ids.add("__any__")
 
     @staticmethod
     async def _read_stream_chunk(
