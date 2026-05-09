@@ -17,7 +17,7 @@ Add raw SSE passthrough streaming (`stream: bool = False` → `str`, `stream=Tru
 
 - **[Add `stream` parameter to `LLMClient.chat()` ABC]**: Add `stream: bool = False` to the abstract method signature so all implementations opt in.
 - **[Add `stream` parameter to `OpenAICompatibleClient.chat()`]**: Accept `stream: bool = False` and dispatch to `_chat_sync` or `_chat_stream`.
-- **[NEW `OpenAICompatibleClient._chat_stream()`]**: Async generator that uses `httpx.AsyncClient.stream()` with `POST /responses` and `stream=True` in payload. Yields raw SSE events from the Responses API stream (all events include a `type` field: `response.output_text.delta`, `response.tool_call.delta`, `response.usage`, etc.).
+- **[NEW `OpenAICompatibleClient._chat_stream()`]**: Async generator that uses `httpx.AsyncClient.stream()` with `POST /responses` and `stream=True` in payload. Yields raw SSE events from the Responses API stream (all events include a `type` field: `response.output_text.delta`, `response.function_call_arguments.delta`, `response.function_call_arguments.done`, `response.usage`, etc.).
 - **[NEW `OpenAICompatibleClient._chat_sync()`]**: Extract existing non-streaming logic into a private method for clarity.
 
 ### Execution Loop — Streaming Support
