@@ -54,10 +54,10 @@ All streaming events follow the OpenAI Responses API SSE event format. Each even
 | `response.created` | ✅ | 5 | Emitted once when the response is created. |
 | `response.in_progress` | ❌ Deferred | 8 | Response is being processed. |
 | `response.output_text.delta` | ✅ | 5 | Text content delta chunk (passthrough from LLM). |
-| `response.output_text.done` | ❌ Removed | — | No longer emitted — consumers track completion via the end of delta stream or response.completed. |
+| `response.output_text.done` | ✅ Passthrough | 5 | Raw event from provider indicating text output is complete. |
 | `response.output_text.annotation.added` | ❌ Deferred | 9 | Citation/annotation on text output. |
 | `response.output_item.added` | ✅ Handled | 5 | Passthrough — handled for `function_call` items from provider. |
-| `response.output_item.done` | ❌ Removed | — | No longer emitted — synthetic events removed in favor of raw passthrough. |
+| `response.output_item.done` | ✅ Passthrough | 5 | Raw event from provider indicating an output item is complete. |
 | `response.content_part.added` | ❌ Deferred | 9 | Content part added (multi-part responses). |
 | `response.content_part.done` | ❌ Deferred | 9 | Content part complete. |
 | `response.function_call_arguments.delta` | ✅ Implemented | 5 | Tool call argument delta accumulation. |
