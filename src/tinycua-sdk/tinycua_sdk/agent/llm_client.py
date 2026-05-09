@@ -222,14 +222,16 @@ class OpenAICompatibleClient(LLMClient):
             response.raise_for_status()
             async for line in response.aiter_lines():
                 line = line.strip()
-                if not line or line == "data: [DONE]":
+                if not line.startswith("data:"):
                     continue
-                if line.startswith("data: "):
-                    try:
-                        data = json.loads(line[6:])
-                    except json.JSONDecodeError as e:
-                        raise RuntimeError(f"Malformed SSE data line: {e}") from e
-                    yield data
+                payload = line[5:].strip()
+                if not payload or payload == "[DONE]":
+                    continue
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError as e:
+                    raise RuntimeError(f"Malformed SSE data line: {e}") from e
+                yield data
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]

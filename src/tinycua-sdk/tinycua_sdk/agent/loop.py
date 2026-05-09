@@ -188,20 +188,11 @@ class BaseLoop:
 
                 try:
                     inner_cancelled = False
-                    while True:
-                        try:
-                            chunk = await asyncio.wait_for(
-                                llm_stream.__anext__(), timeout=0.2
-                            )
-                        except asyncio.TimeoutError:
-                            if agent.is_cancelled:
-                                yield {"type": "response.cancelled"}
-                                inner_cancelled = True
-                                break
-                            continue
-                        except StopAsyncIteration:
+                    async for chunk in llm_stream:
+                        if agent.is_cancelled:
+                            yield {"type": "response.cancelled"}
+                            inner_cancelled = True
                             break
-
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
