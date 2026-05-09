@@ -209,6 +209,7 @@ def init_review(review_name: str, review_dir: str = "./reviews") -> str | None:
 - **High Issues**: [N]
 - **Medium Issues**: [N]
 - **Low Issues**: [N]
+- **Overall Assessment**: [Approved | Approved With Recommendation | Change Requested | Blocked]
 
 ---
 

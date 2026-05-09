@@ -32,21 +32,29 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    ```bash
    gh pr diff "$PR_NUMBER"
    ```
-4. **Build review payload**: For each finding in the report:
+4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event.
+5. **Build review payload**: For each finding in the report:
    - Extract the file path and line number from the **Location** field
    - Build an inline comment with `path`, `line`, `side`, and `body`
    - Map the location to the current diff — if the line no longer exists, skip or adjust
-5. **Post the review**:
+6. **Post the review**:
    ```bash
+    REVIEW_FILE="$1"
+    REVIEW_EVENT="APPROVE"  # default
+    if grep -q "Change Requested\|Blocked" "$REVIEW_FILE"; then
+      REVIEW_EVENT="REQUEST_CHANGES"
+    elif grep -q "Approved With Recommendation" "$REVIEW_FILE"; then
+      REVIEW_EVENT="APPROVE"
+    fi
    cat > ./tmp/review-body.md << 'BODY'
    [review summary from report]
    BODY
    cat > ./tmp/review-comments.json << 'COMMENTS'
    [JSON array of inline comments]
    COMMENTS
-   uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event REQUEST_CHANGES
+   uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
    ```
-6. **Fetch posted comments to get URLs**: After posting, fetch the PR comments:
+7. **Fetch posted comments to get URLs**: After posting, fetch the PR comments:
    ```bash
    uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
    ```
@@ -74,14 +82,16 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 }
 ```
 
-## Severity to Review Event Mapping
+## Overall Assessment to Review Event Mapping
 
-| Report Severity | Review Event |
-|----------------|--------------|
-| CRITICAL | `--request-changes` |
-| HIGH | `--request-changes` |
-| MEDIUM | `--comment` |
-| LOW | `--comment` |
+| Overall Assessment | Review Event |
+|-------------------|--------------|
+| Approved | `APPROVE` |
+| Approved With Recommendation | `APPROVE` (with inline comment notes) |
+| Change Requested | `REQUEST_CHANGES` |
+| Blocked | `REQUEST_CHANGES` |
+
+The assessment is read from the `**Overall Assessment**` field in the review report header. This replaces the old severity-based event mapping — the overall assessment reflects the reviewer's holistic judgment.
 
 ## Important
 

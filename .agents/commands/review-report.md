@@ -169,6 +169,7 @@ Use format: `REVIEW_{name}.md`
 **Review Focus**: [focus or "full"]
 **Reviewer**: Code Reviewer
 **Commit Range**: [base_sha...head_sha]
+**Overall Assessment**: [Approved | Approved With Recommendation | Change Requested | Blocked]
 
 ---
 
@@ -211,6 +212,11 @@ Use format: `REVIEW_{name}.md`
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
 - Categorize findings by severity
+- **Set the Overall Assessment** based on findings:
+  - **Approved**: Zero findings, or only trivial/informational notes
+  - **Approved With Recommendation**: Minor issues (MEDIUM/LOW) that don't block merge
+  - **Change Requested**: Any HIGH or CRITICAL issues that must be fixed
+  - **Blocked**: Issues that violate spec, introduce regressions, or break tests
 - If scope is empty (no files changed), report that and exit
 
 Begin by checking the current branch and determining review scope, then analyze files and write the report.
