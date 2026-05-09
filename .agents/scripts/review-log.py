@@ -58,13 +58,23 @@ def parse_review_findings(review_path: str) -> list[dict]:
                     "status": "", "problem": "", "validation": "",
                     "resolution": "", "reasoning": ""}
 
-        id_match = re.match(r'(F-\d+)', block)
+        # Flexible ID matching — supports ISSUE-001, F-001, BUG-42, or any word-number pattern
+        id_match = re.match(r'([A-Za-z]+-\d+)', block)
         if id_match:
             finding["id"] = id_match.group(1)
 
-        title_match = re.match(r'F-\d+:\s*(.*?)$', block, re.MULTILINE)
-        if title_match:
-            finding["title"] = title_match.group(1).strip()
+        # Flexible title extraction: use the entire first line, stripping ID prefix and severity
+        first_line = block.split('\n')[0].strip()
+        # Try to extract a meaningful title by stripping {ID} or {ID - SEVERITY - } prefix
+        title = first_line
+        # Strip the ID prefix (e.g. "ISSUE-001", "F-001")
+        title = re.sub(r'^[A-Za-z]+-\d+\s*[-:]\s*', '', title)
+        # Strip severity prefix (e.g. "CRITICAL - ", "MEDIUM - ")
+        title = re.sub(r'^[A-Z]+\s*-\s*', '', title)
+        if title:
+            finding["title"] = title
+        elif id_match:
+            finding["title"] = id_match.group(1)
 
         status_match = re.search(r'\*\*Status\*\*:\s*(\w+)', block)
         if status_match:
@@ -82,18 +92,26 @@ def parse_review_findings(review_path: str) -> list[dict]:
         if cat_match:
             finding["category"] = cat_match.group(1).lower()
 
-        # Problem is the paragraph after Status/Severity, before Location
-        problem_match = re.search(r'\*\*(?:Why It Matters|Location)\*\*:\s*(.*?)(?:\n\n|\Z)', block, re.DOTALL)
+        # Use --- or end of block as section boundary (not \n\n which breaks on code blocks)
+        section_end = r'(?:\n---|\Z)'
+
+        # Problem is the paragraph after Status/Severity, before Location or Why It Matters
+        problem_match = re.search(r'\*\*Severity\*\*:\s*\w+\s*\n\n(.*?)(?=\n\*\*(?:Location|Why It Matters|Suggested Fix))', block, re.DOTALL)
         if problem_match:
             finding["problem"] = problem_match.group(1).strip()
+        else:
+            # Fallback: between Location and Suggested Fix
+            problem_match = re.search(r'\*\*Location\*\*:\s*(.*?)' + section_end, block, re.DOTALL)
+            if problem_match:
+                finding["problem"] = problem_match.group(1).strip()
 
-        # For addressed: Resolution = Suggested Fix content
-        res_match = re.search(r'\*\*Suggested Fix\*\*:\s*(.*?)(?:\n\n|\*\*How to Validate|\Z)', block, re.DOTALL)
+        # Resolution = Suggested Fix content (before How to Validate or ---)
+        res_match = re.search(r'\*\*Suggested Fix\*\*:\s*(.*?)(?=\n\*\*How to Validate|\n---|\Z)', block, re.DOTALL)
         if res_match:
             finding["resolution"] = res_match.group(1).strip()
 
         # Validation method
-        val_match = re.search(r'\*\*How to Validate\*\*:\s*(.*?)(?:\n\n|\Z)', block, re.DOTALL)
+        val_match = re.search(r'\*\*How to Validate\*\*:\s*(.*?)' + section_end, block, re.DOTALL)
         if val_match:
             finding["validation"] = val_match.group(1).strip()
 
