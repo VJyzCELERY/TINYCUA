@@ -338,6 +338,7 @@ class TestOpenAICompatibleClient:
         fake_sse_lines = [
             'data: {"type":"response.output_text.delta","delta":"Hello","item_id":"1"}\n',
             'data: {"type":"response.output_text.delta","delta":" world","item_id":"2"}\n',
+            'data: {"type":"response.completed","finish_reason":"completed"}\n',
             "data: [DONE]\n",
         ]
 
@@ -359,7 +360,7 @@ class TestOpenAICompatibleClient:
 
             chunks = [c async for c in result]
 
-        assert len(chunks) == 2
+        assert len(chunks) == 3
         assert chunks[0] == {
             "type": "response.output_text.delta",
             "delta": "Hello",
@@ -369,6 +370,10 @@ class TestOpenAICompatibleClient:
             "type": "response.output_text.delta",
             "delta": " world",
             "item_id": "2",
+        }
+        assert chunks[2] == {
+            "type": "response.completed",
+            "finish_reason": "completed",
         }
 
     @pytest.mark.asyncio

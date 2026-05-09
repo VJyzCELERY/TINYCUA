@@ -6,6 +6,7 @@ Covers 3 success criteria:
   3. stream=True with tool calls accumulates and resumes
 """
 
+import asyncio
 import os
 from typing import AsyncIterator
 
@@ -29,34 +30,40 @@ def streaming_agent():
 
 
 TOOL_EVENT_TYPES = frozenset({
-    "response.tool_call.delta",
     "response.function_call_arguments.delta",
     "response.function_call_arguments.done",
     "response.output_item.added",
 })
 
 
-async def _can_call_tools(agent: Agent) -> bool:
-    """Probe whether the LLM can call tools by making a test request."""
+async def _can_call_tools(agent: Agent, retries: int = 2) -> bool:
+    """Probe whether the LLM can call tools by making a test request.
+
+    Retries up to ``retries`` times on transient errors to avoid
+    false negatives from slow model responses or brief network issues.
+    """
     probe = Agent(
         name="probe",
         llm_model=agent.llm_model,
     )
     probe.add_tools(get_time)
-    try:
-        stream = await probe.run(
-            "What time is it? Use the get_time tool.", stream=True
-        )
-        events: list[dict] = [e async for e in stream]
-        for e in events:
-            if e.get("type") in TOOL_EVENT_TYPES:
-                if e["type"] == "response.output_item.added":
-                    item = e.get("item", {})
-                    if item.get("type") != "function_call":
-                        continue
-                return True
-    except Exception:
-        pass
+    for attempt in range(1 + retries):
+        try:
+            stream = await probe.run(
+                "What time is it? Use the get_time tool.", stream=True
+            )
+            events: list[dict] = [e async for e in stream]
+            for e in events:
+                if e.get("type") in TOOL_EVENT_TYPES:
+                    if e["type"] == "response.output_item.added":
+                        item = e.get("item", {})
+                        if item.get("type") != "function_call":
+                            continue
+                    return True
+        except Exception:
+            if attempt < retries:
+                await asyncio.sleep(0.5)
+                continue
     return False
 
 
@@ -115,7 +122,7 @@ async def test_gs_03_stream_with_tool_calls(streaming_agent):
         for e in events
         if e.get("type")
         in ("response.output_item.added", "response.function_call_arguments.delta",
-            "response.function_call_arguments.done", "response.tool_call.delta")
+            "response.function_call_arguments.done")
     ]
     assert len(tool_call_events) > 0, (
         "Expected tool call events in the stream; "
@@ -124,8 +131,7 @@ async def test_gs_03_stream_with_tool_calls(streaming_agent):
 
     tool_event_indices = {
         i for i, e in enumerate(events)
-        if e.get("type") in ("response.tool_call.delta",
-                             "response.function_call_arguments.delta",
+        if e.get("type") in ("response.function_call_arguments.delta",
                              "response.function_call_arguments.done",
                              "response.output_item.added")
     }

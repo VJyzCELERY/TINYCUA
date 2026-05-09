@@ -136,9 +136,16 @@ class BaseLoop:
                         "role": "assistant",
                         "content": content or "",
                     }
-                    if executed_tool_calls:
-                        assistant_msg["tool_calls"] = executed_tool_calls
                     working_messages.append(assistant_msg)
+                    for tc in executed_tool_calls:
+                        working_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": tc.get("call_id", tc["id"]),
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        )
                 working_messages.extend(tool_result_messages)
             else:
                 if content:
