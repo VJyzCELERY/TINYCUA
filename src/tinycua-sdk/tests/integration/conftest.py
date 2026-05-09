@@ -13,6 +13,15 @@ def pytest_configure(config):
     )
 
 
+def _build_auth_headers() -> dict[str, str]:
+    """Build auth headers matching OpenAICompatibleClient logic."""
+    api_key = os.environ.get("TINYCUA_API_KEY", "")
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
 def pytest_collection_modifyitems(config, items):
     """Skip integration tests when LLM server is unreachable."""
     base_url = os.environ.get(
@@ -20,10 +29,12 @@ def pytest_collection_modifyitems(config, items):
         os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
     )
     model = os.environ.get("TINYCUA_MODEL", "qwen/qwen3.5-9b")
+    headers = _build_auth_headers()
     try:
-        httpx.get(f"{base_url}/models", timeout=5).raise_for_status()
+        httpx.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
         resp = httpx.post(
             f"{base_url}/responses",
+            headers=headers,
             json={
                 "model": model,
                 "input": [{"role": "user", "content": "hi"}],

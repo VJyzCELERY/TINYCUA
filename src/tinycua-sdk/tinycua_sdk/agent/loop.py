@@ -195,11 +195,19 @@ class BaseLoop:
 
                 try:
                     inner_cancelled = False
-                    async for chunk in llm_stream:
-                        if agent.is_cancelled:
+                    while True:
+                        chunk, cancelled = await self._read_stream_chunk(
+                            llm_stream, agent._cancel_event
+                        )
+                        if cancelled:
                             yield {"type": "response.cancelled"}
                             inner_cancelled = True
                             break
+                        if chunk is None:
+                            break
+                        if chunk.get("type") in ("response.created", "response.completed"):
+                            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
+                            continue
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
@@ -246,6 +254,10 @@ class BaseLoop:
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
+            # SDK lifecycle bookends (response.created, response.completed,
+            # response.usage) are the canonical terminal markers. Provider life-
+            # cycle events are suppressed to avoid duplicates. Consumers should
+            # watch response.completed + response.usage for stream finalisation.
 
     async def _execute_tools_stream(
         self,
@@ -365,6 +377,32 @@ class BaseLoop:
             usage = chunk.get("usage", {})
             if usage:
                 _accumulate_usage(cumulative_usage, usage)
+
+    @staticmethod
+    async def _read_stream_chunk(
+        llm_stream: AsyncIterator[dict[str, Any]],
+        cancel_event: asyncio.Event,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Read one chunk from ``llm_stream``, raced against cancellation.
+
+        Returns ``(chunk, False)`` on success, ``(None, True)`` when
+        cancellation was requested, or ``(None, False)`` on stream
+        exhaustion (``StopAsyncIteration``).
+        """
+        next_task = asyncio.create_task(llm_stream.__anext__())
+        cancel_task = asyncio.create_task(cancel_event.wait())
+        done, pending = await asyncio.wait(
+            [next_task, cancel_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+        if cancel_event.is_set():
+            return None, True
+        try:
+            return next_task.result(), False
+        except StopAsyncIteration:
+            return None, False
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
