@@ -93,25 +93,18 @@ Emitted when the response transitions to the "in progress" state (after `respons
 {"type": "response.in_progress"}
 ```
 
-**R-8.4.2: response.function_call_arguments Events**
+**R-8.4.2: response.function_call_arguments Events (Implemented in Stage 5)**
 
-When the LLM emits tool calls during streaming, the standard OpenAI `response.function_call_arguments.delta` and `response.function_call_arguments.done` event types MUST be emitted alongside the internal `response.tool_call.delta` event.
+The `response.function_call_arguments.delta` and `response.function_call_arguments.done` events are already implemented in Stage 5 as raw passthrough from the provider. Custom loops inheriting from `BaseLoop._run_stream()` receive these events automatically and can accumulate them from the chunk stream as needed.
 
 ```python
-# Per chunk of tool call arguments:
-{
-    "type": "response.function_call_arguments.delta",
-    "item_id": "call_abc123",
-    "delta": '{"expr',
-}
-
-# When all arguments for a tool call are complete:
-{
-    "type": "response.function_call_arguments.done",
-    "item_id": "call_abc123",
-    "name": "calculator",
-    "arguments": '{"expression": "2+2"}',
-}
+# Example: accumulating tool call arguments in a custom loop
+for chunk in stream:
+    yield chunk
+    if chunk.get("type") == "response.function_call_arguments.delta":
+        tool_buffers[chunk["item_id"]]["arguments"] += chunk.get("delta", "")
+    elif chunk.get("type") == "response.function_call_arguments.done":
+        tool_buffers[chunk["item_id"]]["arguments"] = chunk.get("arguments", "")
 ```
 
 ### R-8.5: Loop Assignment

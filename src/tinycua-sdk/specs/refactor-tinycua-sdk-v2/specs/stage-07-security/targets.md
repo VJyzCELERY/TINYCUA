@@ -37,6 +37,7 @@ async def main():
         llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"),
         tools=[shell_execute],
         approval_workflow=DangerousToolGuardrail(),
+        tool_permissions={"shell_execute": "ask"},
     )
 
     response = await a.run("Run 'ls -la'", stream=False)
@@ -80,6 +81,7 @@ async def main():
         llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"),
         tools=[read_file],
         approval_workflow=LoggingGuardrail(),
+        tool_permissions={"read_file": "ask"},
     )
 
     response = await a.run("Read README.md", stream=False)
