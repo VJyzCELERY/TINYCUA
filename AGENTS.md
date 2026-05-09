@@ -75,7 +75,8 @@ If unsure, always fall back to reading the file directly.
 | `/begin-worktree` | Creates a new worktree + branch for feature development |
 | `/plan` | Creates implementation plan + task list from spec & design |
 | `/implement` | Executes plan tasks using TDD |
-| `/review-loop` | Review cycle: report → validate → fix → fresh → cleanup |
+| `/review-loop` | Review cycle: report → validate → fix → fresh → log → cleanup |
+| `/review-log` | Logs a completed review cycle to the permanent review log |
 | `/review-report` | Scoped code review of current branch changes |
 | `/review-validate` | Full pipeline: clarify vague findings → verify statuses |
 | `/review-clarify` | Improves review precision — rewrites vague findings |

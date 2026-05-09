@@ -14,6 +14,21 @@ If no focus area is provided, verify ALL OPEN findings.
 
 ---
 
+## Cross-Reference Review Log
+
+Before verifying, check if a review log exists for this branch:
+
+```bash
+LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
+if [ -f "$LOG_PATH" ]; then
+    echo "Review log exists: $LOG_PATH"
+fi
+```
+
+If the log exists, read it and note:
+- **Previously deferred items**: If they reappear as OPEN in this review, flag them in the verification — they should be re-checked
+- **Previously addressed items**: If they reappear, they may have regressed — flag for attention
+
 ## Pre-Flight: Commit Range Check
 
 > Load skill: gh-pr-management (for gh.py — used for PR replies and resolution)

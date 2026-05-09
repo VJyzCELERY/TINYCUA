@@ -103,11 +103,29 @@ This command **must** determine what files are in scope before reviewing. The re
 
 ---
 
+## Check Review Log
+
+Before reviewing, check if a review log exists for this branch:
+
+```bash
+LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
+if [ -f "$LOG_PATH" ]; then
+    echo "Review log exists: $LOG_PATH"
+fi
+```
+
+If the log exists, read it and note:
+- **Previously deferred items** — flag them for re-check in this review
+- **Previously resolved issues** — ensure they haven't regressed
+- **Prior cycle summary** — mention in the new review's summary section
+
+---
 ## Instructions
 
 1. **Read PR context** (if reviewing against a PR): Follow the PR Context section above — read PR body/title and adjust scope accordingly
 2. **Determine scope**: Follow the Scope Determination section above
-2. **Analyze scoped files**: Use Read to examine all in-scope files
+3. **Check review log**: Follow the Review Log section above — load prior context from `./reviews/log/REVIEW_{branch}.md` if it exists
+4. **Analyze scoped files**: Use Read to examine all in-scope files
 3. **Focus Review**: If `$2` is provided (and not "unscoped"), prioritize reviewing for that aspect:
    - "security" — focus on security vulnerabilities
    - "performance" — focus on performance issues

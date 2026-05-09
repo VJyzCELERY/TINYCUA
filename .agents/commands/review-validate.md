@@ -30,6 +30,22 @@ head -20 .agents/scripts/preflight-review.py
 
 ---
 
+## Cross-Reference Review Log
+
+Before validating, check if a review log exists for this branch:
+
+```bash
+LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
+if [ -f "$LOG_PATH" ]; then
+    echo "Review log exists: $LOG_PATH"
+fi
+```
+
+If the log exists, read it and cross-reference:
+- **Previously deferred items**: If any deferred items reappear in this review, flag them for re-validation
+- **Previously addressed items**: If any addressed items reappear, flag them — they may have regressed
+- Note prior cycle findings in the clarify output to give context
+
 ---
 
 ## Role

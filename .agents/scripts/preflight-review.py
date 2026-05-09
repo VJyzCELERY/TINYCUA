@@ -285,6 +285,16 @@ def main():
     default_review_path = resolve_review_path(args.review_file, args.review_name)
     print(f"[INFO] Default review path: {default_review_path}")
 
+    # Check for existing review log
+    branch = run(["git", "branch", "--show-current"]) or "unknown"
+    branch = branch.replace("/", "-")
+    log_path = Path("./reviews/log") / f"REVIEW_{branch}.md"
+    if log_path.exists():
+        print(f"[INFO] Review log exists: {log_path}")
+        print(f"[INFO] Use --browse to view: uv run python .agents/scripts/review-log.py --browse {log_path}")
+    else:
+        print(f"[INFO] No review log yet for this branch (first cycle).")
+
     # Init review if requested
     if args.init_review and _commit_base:
         name = resolve_review_name(args.review_name)

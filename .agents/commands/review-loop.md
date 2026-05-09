@@ -42,6 +42,7 @@ The agent that executes this command is the **workflow-orchestrator**. You deleg
 - `/review-report` → Subagent 1, 4, 7, ...
 - `/review-validate` → Subagent 2, 5, 8, ...
 - `/review-implement` → Subagent 3, 6, 9, ...
+- `/review-log` → Subagent N-1 (when cycle is clean)
 - `/review-cleanup` → Subagent N
 
 ---
@@ -89,7 +90,13 @@ This MUST be a fresh, independent review. No prior context:
 - If fresh review has ANY new issues → return to Step 2
 - If fresh review returns CLEAN (zero issues) → Exit Review Loop → proceed to Cleanup
 
-**Step 6: Review-cleanup (Subagent N)**
+**Step 6: Review-log (Subagent N) — Log the Clean Cycle**
+
+> Run /review-log for ./reviews/REVIEW_{name}.md
+
+Only run this step if the fresh review returned CLEAN (zero issues). This archives the cycle into `./reviews/log/REVIEW_{branch}.md`.
+
+**Step 7: Review-cleanup (Subagent N)**
 
 > Run /review-cleanup for ./reviews/
 
