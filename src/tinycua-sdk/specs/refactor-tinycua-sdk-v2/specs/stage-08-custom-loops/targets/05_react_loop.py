@@ -17,7 +17,7 @@ def weather(city: str) -> str:
 
 
 class ReActLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         response = await agent._call_llm(messages, tools)
         content = response.get("content", "")
 
@@ -47,7 +47,7 @@ async def main():
         loop=ReActLoop(),
     )
 
-    response = await a.run("What is the weather in Tokyo?", stream="off")
+    response = await a.run("What is the weather in Tokyo?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

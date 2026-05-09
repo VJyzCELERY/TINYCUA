@@ -21,7 +21,7 @@ async def main():
         {"role": "assistant", "content": "Nice to meet you!"},
     ]
 
-    response = await a.run("What is my name?", messages=history, stream="off")
+    response = await a.run("What is my name?", messages=history, stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

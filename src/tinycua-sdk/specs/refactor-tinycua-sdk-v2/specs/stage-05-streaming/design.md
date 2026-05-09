@@ -140,10 +140,10 @@ Stream Start
 | Event | Status | Rationale |
 |---|---|---|
 | `response.output_text.done` | Removed | No longer synthetic — consumers track completion via delta stream end |
-| `response.output_item.added` | Removed | No longer synthetic — raw passthrough only |
+| `response.output_item.added` | Accumulated | Used to initialise tool call buffers from raw events |
 | `response.output_item.done` | Removed | No longer synthetic — raw passthrough only |
 | `response.in_progress` | Deferred to Stage 8 | Lifecycle completeness |
-| `response.function_call_arguments.delta/.done` | Deferred to Stage 8 | Standard OpenAI naming |
+| `response.function_call_arguments.delta/.done` | Accumulated | Used to accumulate partial tool call arguments from raw events |
 | `response.content_part.added/.done` | Deferred to Stage 9 | Multi-part response support |
 | `response.output_text.annotation.added` | Deferred to Stage 9 | Citation/annotation support |
 

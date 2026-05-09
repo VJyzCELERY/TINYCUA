@@ -191,9 +191,7 @@ class BaseLoop:
                         if agent.is_cancelled:
                             yield {"type": "response.cancelled"}
                             break
-                        chunk_type = chunk.get("type", "")
-                        if chunk_type not in ("response.created", "response.completed"):
-                            yield chunk
+                        yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
                     if hasattr(llm_stream, "aclose"):
@@ -304,7 +302,7 @@ class BaseLoop:
                 try:
                     tool_result = await ToolExecutor.execute(tool, arguments, agent)
                 except Exception as e:
-                    tool_result = {"error": f"Tool execution failed: {e}"}
+                    raise RuntimeError(f"Tool execution failed: {e}") from e
             tool_call_count += 1
 
             working_messages.append(
@@ -339,6 +337,11 @@ class BaseLoop:
                             "response.function_call_arguments.delta",
                             "response.function_call_arguments.done"):
             _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
+        elif chunk_type == "response.completed":
+            response_data = chunk.get("response", {})
+            usage = response_data.get("usage", {})
+            if usage:
+                _accumulate_usage(cumulative_usage, usage)
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
             if usage:
