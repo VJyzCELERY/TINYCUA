@@ -18,6 +18,7 @@ Usage:
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
     
     uv run python .agents/scripts/gh.py cmd <gh-args>              # Run any gh command with auto-formatted output
+    uv run python .agents/scripts/gh.py fields [pr|prs|repo]       # List available JSON fields for --json
     
     If a command is not available, use `cmd` to run it raw:
     uv run python .agents/scripts/gh.py cmd pr list --head main
@@ -694,6 +695,61 @@ def json_to_md(data, depth=0):
     return "\n".join(lines)
 
 
+def cmd_fields(args):
+    """List available JSON fields for gh CLI commands."""
+    topic = args.topic or "pr"
+    if topic == "pr":
+        # Trigger an error to get the field list from gh itself
+        out, err, rc = run(["gh", "pr", "view", "0", "--json", "__invalid__"])
+        # Parse the "Available fields:" section from stderr
+        if "Available fields:" in err:
+            lines = err.splitlines()
+            in_fields = False
+            print("Available fields for `gh pr view --json`:")
+            for line in lines:
+                if "Available fields:" in line:
+                    in_fields = True
+                    continue
+                if in_fields and line.strip():
+                    print(f"  {line.strip()}")
+        else:
+            print("[FAIL] Could not fetch field list.", file=sys.stderr)
+            sys.exit(1)
+    elif topic == "repo":
+        out, err, rc = run(["gh", "repo", "view", ".", "--json", "__invalid__"])
+        if "Available fields:" in err:
+            lines = err.splitlines()
+            in_fields = False
+            print("Available fields for `gh repo view --json`:")
+            for line in lines:
+                if "Available fields:" in line:
+                    in_fields = True
+                    continue
+                if in_fields and line.strip():
+                    print(f"  {line.strip()}")
+        else:
+            print("[FAIL] Could not fetch field list.", file=sys.stderr)
+            sys.exit(1)
+    elif topic == "prs":
+        out, err, rc = run(["gh", "pr", "list", "--json", "__invalid__"])
+        if "Available fields:" in err:
+            lines = err.splitlines()
+            in_fields = False
+            print("Available fields for `gh pr list --json`:")
+            for line in lines:
+                if "Available fields:" in line:
+                    in_fields = True
+                    continue
+                if in_fields and line.strip():
+                    print(f"  {line.strip()}")
+        else:
+            print("[FAIL] Could not fetch field list.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"[FAIL] Unknown topic: {topic}. Use: pr, prs, repo", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_cmd(args):
     """Run any raw gh command and auto-format the output."""
     gh_args = args.gh_args
@@ -800,6 +856,12 @@ def main():
     ut.add_argument("title", help="New PR title")
     ut.set_defaults(func=cmd_update_title)
     
+    # fields — list available JSON fields
+    p = sub.add_parser("fields", help="List available JSON fields for gh commands")
+    p.add_argument("topic", nargs="?", default="pr", choices=["pr", "prs", "repo"],
+                   help="Topic: pr (default), prs, repo")
+    p.set_defaults(func=cmd_fields)
+
     # cmd — wildcard raw gh runner
     p = sub.add_parser("cmd", help="Run any gh command with auto-formatted JSON output")
     p.add_argument("gh_args", nargs=argparse.REMAINDER, help="Raw gh arguments (e.g., pr view 10)")
@@ -819,7 +881,7 @@ def main():
         sys.exit(0)
 
     # If the first arg after script isn't a known command, show fallback message
-    known = {"fetch", "post", "resolve", "update", "create", "cmd"}
+    known = {"fetch", "post", "resolve", "update", "create", "cmd", "fields"}
     if sys.argv[1] not in known:
         print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
         print(f"       gh {' '.join(sys.argv[1:])}")
