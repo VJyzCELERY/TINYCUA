@@ -23,7 +23,7 @@ async def main() -> None:
     )
 
     # -----------------------------------------------------------------------
-    # 1. Simple text query (stream="off" is the default)
+    # 1. Simple text query (stream=False is the default)
     # -----------------------------------------------------------------------
     response: str = await agent.run("What is the capital of France?")
     print("Response:", response)
@@ -33,7 +33,7 @@ async def main() -> None:
     # -----------------------------------------------------------------------
     response = await agent.run(
         "Explain quantum computing in one sentence.",
-        stream="off",
+        stream=False,
     )
     print("One-liner:", response)
 

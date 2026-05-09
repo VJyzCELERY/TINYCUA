@@ -21,7 +21,7 @@ Implementation tasks for Stage 3. Check off items as completed.
   - [x] `ApprovalWorkflow(ABC)` with `async def request_approval()`
   - [x] `DefaultApprovalWorkflow` returning `{"approved": True}`
 - [x] Add `Agent.run()` method to `tinycua_sdk/agent/agent.py` <!-- id: 5 -->
-  - [x] Handle `stream="off"`, raise `NotImplementedError` otherwise
+  - [x] Add `stream: bool = False` parameter
   - [x] Build message list with history and query
   - [x] Delegate to `BaseLoop.run()` with instruction override
 - [x] Update exports in `tinycua_sdk/agent/__init__.py` and `tinycua_sdk/security/__init__.py` <!-- id: 6 -->

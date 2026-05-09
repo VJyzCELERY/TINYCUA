@@ -9,7 +9,7 @@ The previous codebase had a hook system (`add_pre_hook()`, `add_post_hook()`) th
 **Customization path:**
 ```python
 class MyLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         # Full control over execution
         # Can call agent._call_llm() when needed
         # Can modify messages
@@ -38,22 +38,22 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
-        stream: str = "off",
+        stream: bool = False,
     ) -> str | AsyncIterator[dict]:
         """Default implementation.
 
-        When stream="off": returns str.
-        When stream!="off": returns AsyncIterator[dict].
+        When stream=False: returns str.
+        When stream=True: returns AsyncIterator[dict].
         """
-        if stream == "off":
+        if not stream:
             return await self._run_sync(agent, messages, tools, override_instructions)
-        return self._run_stream(agent, messages, tools, override_instructions, stream)
+        return self._run_stream(agent, messages, tools, override_instructions)
 
     async def _run_sync(self, agent, messages, tools, override_instructions):
         # Full implementation from Stage 3 + Stage 4 + Stage 5
         ...
 
-    async def _run_stream(self, agent, messages, tools, override_instructions, stream_mode):
+    async def _run_stream(self, agent, messages, tools, override_instructions):
         # Full implementation from Stage 5
         ...
 ```
@@ -96,8 +96,8 @@ class ReActLoop(BaseLoop):
         super().__init__(max_iterations=max_iterations)
         self.format_hint = format_hint
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
-        if stream != "off":
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
+        if stream:
             raise NotImplementedError("ReActLoop does not support streaming yet")
 
         # Inject ReAct formatting hint
@@ -155,8 +155,8 @@ class PlanThenExecuteLoop(BaseLoop):
         super().__init__(max_iterations=max_iterations)
         self.plan_temperature = plan_temperature
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
-        if stream != "off":
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
+        if stream:
             raise NotImplementedError("PlanThenExecuteLoop does not support streaming yet")
 
         # Phase 1: Planning
