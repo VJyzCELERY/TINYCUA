@@ -1,8 +1,20 @@
 # Stage 5: Streaming — Design
 
 **Spec**: `specs/refactor-tinycua-sdk-v2/specs/stage-05-streaming/spec.md`
+**Last Updated**: 2026-05-09
 
 ## Architecture
+
+### API Endpoint: OpenAI Responses API
+
+The SDK communicates with the LLM via the **OpenAI Responses API** (`POST /v1/responses`), not the Chat Completions API. This means:
+
+- Request payload uses `"input"` (not `"messages"`) for the conversation array.
+- Streaming SSE events are typed (`response.output_text.delta`, `response.function_call_arguments.delta`, etc.) rather than the Chat Completions `choices[].delta` format.
+- Tool call arguments arrive as `response.function_call_arguments.delta` / `.done` events correlated by `item_id`.
+- The stream ends with a `response.completed` event (not `data: [DONE]`).
+
+See the [spec](specs/refactor-tinycua-sdk-v2/specs/stage-05-streaming/spec.md#api-contract-openai-responses-api) for the full API contract comparison.
 
 ### Streaming Decision (simplified)
 
