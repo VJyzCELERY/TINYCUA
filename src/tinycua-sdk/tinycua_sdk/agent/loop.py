@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -417,6 +418,9 @@ class BaseLoop:
         )
         for t in pending:
             t.cancel()
+        for t in pending:
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
         if cancel_event.is_set():
             return None, True
         try:
