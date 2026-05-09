@@ -461,9 +461,12 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.tool_call.delta",
-                        "index": 0,
-                        "id": "call_1",
+                        "type": "response.output_item.added",
+                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1",
                         "name": "get_time",
                         "arguments": "{}",
                     }
@@ -540,18 +543,19 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.tool_call.delta",
-                        "index": 0,
-                        "id": "call_1",
-                        "name": "get_weather",
-                        "arguments": '{"cit',
+                        "type": "response.output_item.added",
+                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_weather"},
                     }
                     yield {
-                        "type": "response.tool_call.delta",
-                        "index": 0,
-                        "id": "call_1",
-                        "name": "",
-                        "arguments": 'y": "Tokyo"}',
+                        "type": "response.function_call_arguments.delta",
+                        "item_id": "call_1",
+                        "delta": '{"cit',
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1",
+                        "name": "get_weather",
+                        "arguments": '{"city": "Tokyo"}',
                     }
                 else:
                     yield {
@@ -656,9 +660,12 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.tool_call.delta",
-                    "index": 0,
-                    "id": "call_1",
+                    "type": "response.output_item.added",
+                    "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "dummy_tool"},
+                }
+                yield {
+                    "type": "response.function_call_arguments.done",
+                    "item_id": "call_1",
                     "name": "dummy_tool",
                     "arguments": "{}",
                 }

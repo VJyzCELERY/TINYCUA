@@ -219,7 +219,6 @@ class OpenAICompatibleClient(LLMClient):
 
         payload = self._build_payload(messages, tools, model_config)
         payload["stream"] = True
-        payload["stream_options"] = {"include_usage": True}
 
         async with client.stream("POST", "/responses", json=payload) as response:
             response.raise_for_status()

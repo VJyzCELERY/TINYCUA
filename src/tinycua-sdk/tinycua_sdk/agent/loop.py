@@ -157,7 +157,7 @@ class BaseLoop:
             return last_assistant or "[max tool calls reached]"
         return last_assistant or "[max iterations reached]"
 
-    async def _run_stream(
+    async def _run_stream(  # noqa: C901 — complexity reflects tool-call iteration branches
         self,
         agent: Agent,
         messages: list[dict],
@@ -167,8 +167,6 @@ class BaseLoop:
         system_msg = self._build_system_message(agent, override_instructions)
         working_messages = [system_msg] + messages
 
-        yield {"type": "response.created"}
-
         tool_call_count = 0
         cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
@@ -177,6 +175,7 @@ class BaseLoop:
         try:
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
+                    yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
                     break
 
@@ -195,26 +194,35 @@ class BaseLoop:
                         f"got {type(llm_stream).__name__}"
                     )
 
-                try:
-                    inner_cancelled = False
-                    while True:
-                        chunk, cancelled = await self._read_stream_chunk(
-                            llm_stream, agent._cancel_event
-                        )
-                        if cancelled:
-                            yield {"type": "response.cancelled"}
-                            inner_cancelled = True
-                            break
+                inner_cancelled = False
+                # Peek at first chunk to decide if SDK needs to inject response.created
+                first_chunk, first_cancelled = await self._read_stream_chunk(
+                    llm_stream, agent._cancel_event
+                )
+                if first_cancelled:
+                    yield {"type": "response.cancelled"}
+                    inner_cancelled = True
+                elif first_chunk is None:
+                    yield {"type": "response.created"}
+                elif first_chunk.get("type") == "response.created":
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                else:
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+
+                if not inner_cancelled:
+                    async for chunk, _ in self._iter_llm_events(
+                        llm_stream, agent._cancel_event
+                    ):
                         if chunk is None:
                             break
-                        if chunk.get("type") in ("response.created", "response.completed"):
-                            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                            continue
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                finally:
-                    if hasattr(llm_stream, "aclose"):
-                        await llm_stream.aclose()
+                    if agent.is_cancelled:
+                        yield {"type": "response.cancelled"}
+                        inner_cancelled = True
 
                 if inner_cancelled:
                     break
@@ -256,10 +264,6 @@ class BaseLoop:
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
-            # SDK lifecycle bookends (response.created, response.completed,
-            # response.usage) are the canonical terminal markers. Provider life-
-            # cycle events are suppressed to avoid duplicates. Consumers should
-            # watch response.completed + response.usage for stream finalisation.
 
     async def _execute_tools_stream(
         self,
@@ -410,6 +414,30 @@ class BaseLoop:
             return next_task.result(), False
         except StopAsyncIteration:
             return None, False
+
+    @staticmethod
+    async def _iter_llm_events(
+        llm_stream: AsyncIterator[dict[str, Any]],
+        cancel_event: asyncio.Event,
+    ) -> AsyncIterator[tuple[dict[str, Any] | None, bool]]:
+        """Yield ``(chunk, is_completed)`` from ``llm_stream``.
+
+        Yields ``(None, False)`` on stream exhaustion. Returns (stops
+        iteration) when cancellation is requested — caller checks
+        ``cancel_event.is_set()`` to detect cancellation.
+        """
+        try:
+            while True:
+                chunk, cancelled = await BaseLoop._read_stream_chunk(llm_stream, cancel_event)
+                if cancelled:
+                    return
+                if chunk is None:
+                    yield None, False
+                    return
+                yield chunk, chunk.get("type") == "response.completed"
+        finally:
+            if hasattr(llm_stream, "aclose"):
+                await llm_stream.aclose()
 
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
