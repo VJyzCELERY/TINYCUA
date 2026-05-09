@@ -6,13 +6,18 @@ Usage:
     uv run python .agents/scripts/gh.py fetch comments <pr-or-url>    # Get PR comments/reviews
     uv run python .agents/scripts/gh.py fetch unresolved <pr-or-url>  # Get unresolved threads
     uv run python .agents/scripts/gh.py fetch url <full-url>          # Fetch specific by URL
+    uv run python .agents/scripts/gh.py fetch repo                    # Get repo info (owner, language, etc.)
     uv run python .agents/scripts/gh.py post review <pr> <body.md> [comments.json]
     uv run python .agents/scripts/gh.py post comment <pr> <body.md>
     uv run python .agents/scripts/gh.py post inline <pr> <body.md> --path <file> --line <N>
     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> <body.md>
     uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
     uv run python .agents/scripts/gh.py update body <pr> <body.md>
-    uv run python .agents/scripts/gh.py create pr <title> <body.md> --head <branch> [--base <branch>]
+    uv run python .agents/scripts/gh.py update title <pr> <title>
+    uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
+    
+    If a command is not available, use raw `gh` CLI directly:
+    uv run python .agents/scripts/gh.py <command>  # will show if not implemented
 
 <EOF_DESC>
 """
@@ -109,6 +114,32 @@ def check_file(path: str) -> bool:
         print(f"[FAIL] File is empty: {path}", file=sys.stderr)
         return False
     return True
+
+
+def cmd_fetch_repo(args):
+    """Fetch and display repo information."""
+    owner_repo = get_owner_repo()
+    fields = ["name", "owner", "description", "url", "defaultBranchRef", "primaryLanguage",
+              "isPrivate", "createdAt", "updatedAt", "forkCount", "hasIssuesEnabled",
+              "hasWikiEnabled"]
+    out, err, rc = run(["gh", "repo", "view", owner_repo, "--json", ",".join(fields)])
+    if rc != 0:
+        print(f"[FAIL] Could not fetch repo info: {err}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        data = json.loads(out)
+        print(f"Repository: {data['owner']['login']}/{data['name']}")
+        print(f"URL: {data.get('url', 'N/A')}")
+        print(f"Description: {data.get('description', '') or '(none)'}")
+        print(f"Visibility: {'Private' if data.get('isPrivate') else 'Public'}")
+        print(f"Default Branch: {data.get('defaultBranchRef', {}).get('name', 'N/A')}")
+        print(f"Language: {data.get('primaryLanguage', {}).get('name', 'N/A')}")
+        print(f"Created: {data.get('createdAt', 'N/A')}")
+        print(f"Updated: {data.get('updatedAt', 'N/A')}")
+        print(f"Forks: {data.get('forkCount', 0)}")
+        print(f"Issues: {'Enabled' if data.get('hasIssuesEnabled') else 'Disabled'}")
+    except json.JSONDecodeError:
+        print(out)
 
 
 # ─── Fetch Commands ─────────────────────────────────────────────
@@ -584,6 +615,9 @@ def main():
     fu.add_argument("url", help="Full GitHub URL (e.g., https://github.com/.../pull/11#issue-4399302650)")
     fu.set_defaults(func=cmd_fetch_url)
     
+    frepo = fetch_sub.add_parser("repo", help="Fetch repository information")
+    frepo.set_defaults(func=cmd_fetch_repo)
+
     fun = fetch_sub.add_parser("unresolved", help="Fetch unresolved comments and reviews")
     fun.add_argument("pr_or_url", help="PR number or URL")
     fun.set_defaults(func=cmd_fetch_unresolved)
@@ -645,6 +679,18 @@ def main():
     p.add_argument("--base", type=str, default=None, help="Base branch (auto-detected if not specified)")
     p.add_argument("--draft", action="store_true", help="Create as draft")
     p.set_defaults(func=cmd_create_pr)
+
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        parser.print_help()
+        sys.exit(0)
+
+    # If the first arg after script isn't a known command, show fallback message
+    known = {"fetch", "post", "resolve", "update", "create"}
+    if sys.argv[1] not in known:
+        print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
+        print(f"       gh {' '.join(sys.argv[1:])}")
+        print(f"[INFO] Run `uv run python .agents/scripts/gh.py --help` to see available commands.")
+        sys.exit(0)
 
     args = parser.parse_args()
     args.func(args)

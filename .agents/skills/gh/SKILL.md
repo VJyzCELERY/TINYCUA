@@ -28,9 +28,10 @@ Temp files go in `./tmp/` (gitignored). gh.py auto-cleans on success.
 
 ### Fetch
 ```bash
-uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"
-uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
-uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
+uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"      # PR details
+uv run python .agents/scripts/gh.py fetch repo                  # Repo info (owner, language, visibility)
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" # Inline comments + reviews
+uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER" # Unresolved threads
 ```
 
 ### Post review
@@ -62,6 +63,7 @@ uv run python .agents/scripts/gh.py create --title "Title" --body ./tmp/body.md
 - **Always use gh.py first** — even for read operations. Only fall back to raw `gh` CLI if gh.py doesn't have the subcommand
 - **Check gh.py --help** before using raw `gh` — the operation you need may already be covered
 - **`gh pr diff` is OK** — gh.py doesn't have a diff subcommand yet
+- **Unknown commands** — if gh.py doesn't support an operation, it tells you to use raw `gh` CLI. Just run the command it shows.
 - **`side: "RIGHT"`** for new version, **`side: "LEFT"`** for old version
 - **Validate JSON** before posting: `cat ./tmp/file.json | python -m json.tool`
 - Write temp files under `./tmp/` — it's gitignored
