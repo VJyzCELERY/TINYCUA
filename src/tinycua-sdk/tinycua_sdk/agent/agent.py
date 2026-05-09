@@ -140,6 +140,7 @@ class Agent(AgentExecutor):
         finally:
             if not stream:
                 self._cancelled = False
+                self._cancel_event.clear()
 
         if not stream:
             return result
@@ -152,6 +153,7 @@ class Agent(AgentExecutor):
                 yield event
         finally:
             self._cancelled = False
+            self._cancel_event.clear()
             if hasattr(gen, "aclose"):
                 await gen.aclose()
 

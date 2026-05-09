@@ -1,8 +1,9 @@
 """Integration tests for agent streaming.
 
-Covers 2 success criteria:
+Covers 3 success criteria:
   1. stream=False Returns String
   2. stream=True Yields Raw SSE Events
+  3. stream=True with tool calls accumulates and resumes
 """
 
 import os
@@ -59,3 +60,28 @@ async def test_gs_02_stream_on_yields_events(streaming_agent):
     assert len(usage_events) > 0
     assert "usage" in usage_events[-1]
     assert isinstance(usage_events[-1]["usage"], dict)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_gs_03_stream_with_tool_calls(streaming_agent):
+    """stream=True with a registered tool triggers function call events."""
+    streaming_agent.add_tools(get_time)
+    stream: AsyncIterator[dict] = await streaming_agent.run(
+        "What time is it? Use the get_time tool.", stream=True
+    )
+    events = [e async for e in stream]
+
+    assert events[0]["type"] == "response.created"
+    assert events[-1]["type"] == "response.completed"
+    function_call_events = [
+        e
+        for e in events
+        if e.get("type")
+        in ("response.output_item.added", "response.function_call_arguments.delta",
+            "response.function_call_arguments.done", "response.tool_call.delta")
+    ]
+    assert len(function_call_events) > 0, (
+        "Expected tool call events in the stream; "
+        "the LLM may not support tool calling or did not call get_time"
+    )
