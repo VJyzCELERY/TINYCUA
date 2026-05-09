@@ -279,27 +279,36 @@ def parse_review_header(review_file: str) -> dict | None:
     return result
 
 
-def format_implement_output(reviews: list[dict], pr_reviews: list[dict]) -> str:
-    """Format implement preflight output for the agent."""
+def format_implement_output(local_reviews: list[dict], pr_reviews: list[dict],
+                             has_remote: bool, pr_number: str = "") -> str:
+    """Format implement preflight output.
+
+    Only shows sections that have content. If nothing found, returns None.
+    """
+    has_local = bool(local_reviews)
+    has_pr = bool(pr_reviews)
+
+    if not has_local and not has_pr:
+        return None
+
     lines = ["[INFO] === Review Implement Preflight ==="]
-    lines.append("")
-    lines.append("Local Review Reports:")
-    if reviews:
-        for r in reviews:
+
+    if has_local:
+        lines.append("")
+        lines.append("Local Review Reports:")
+        for r in local_reviews:
             lines.append(f"  {r['path']} - {r['status']}")
             if r.get("branch") and r.get("current_branch") and r["branch"] != r["current_branch"]:
                 lines.append(f"       (branch mismatch: review on '{r['branch']}', current is '{r['current_branch']}')")
-    else:
-        lines.append("  (none found)")
 
-    lines.append("")
-    lines.append("PR Reviews:")
-    if pr_reviews:
+    if has_pr:
+        lines.append("")
+        lines.append(f"PR #{pr_number} — Unresolved Reviews:")
         for pr in pr_reviews:
             lines.append(f"  {pr['url']}")
             lines.append(f"  Fetch: `{pr['fetch_cmd']}`")
-    else:
-        lines.append("  (no open PR or no unresolved reviews)")
+        lines.append("")
+        lines.append(f"  To fetch all unresolved: `uv run python .agents/scripts/gh.py fetch unresolved {pr_number}`")
 
     return "\n".join(lines)
 
@@ -311,6 +320,8 @@ def implement_preflight_autodetect() -> int:
     reviews_dir = Path("./reviews")
     local_reviews = []
     pr_reviews = []
+    owner_repo = ""
+    pr_number = ""
 
     # Scan for local review files
     if reviews_dir.exists():
@@ -330,31 +341,50 @@ def implement_preflight_autodetect() -> int:
                 "current_branch": current_branch,
             })
 
-    # Check for open PR and fetch unresolved reviews
+    # Check for open PR and fetch individual unresolved reviews
     branch = run(["git", "branch", "--show-current"])
     if branch:
         pr_data = run(["gh", "pr", "list", "--head", branch, "--state", "open",
                        "--json", "number", "--jq", ".[0].number"])
         if pr_data:
-            pr = pr_data.strip()
-            # Get unresolved comments
-            unresolved_out = run(["uv", "run", "python", ".agents/scripts/gh.py",
-                                  "fetch", "unresolved", pr])
-            if unresolved_out:
-                pr_reviews.append({
-                    "url": f"https://github.com/{run(['gh','repo','view','--json','nameWithOwner','--jq','.nameWithOwner'])}/pull/{pr}",
-                    "fetch_cmd": f"uv run python .agents/scripts/gh.py fetch unresolved {pr}",
-                })
+            pr_number = pr_data.strip()
+            owner_repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
+            # Get unresolved comments via gh api for individual URLs
+            import subprocess as _sp
+            cp = _sp.run(
+                ["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}/comments",
+                 "--jq", '.[] | select(.position != null and .in_reply_to_id == null) | {id, path, line, user: .user.login, body: .body}'],
+                capture_output=True, text=True)
+            out = cp.stdout.strip()
+            if out:
+                for line in out.splitlines():
+                    try:
+                        c = json.loads(line)
+                        cid = c.get("id", "")
+                        if cid:
+                            url = f"https://github.com/{owner_repo}/pull/{pr_number}#discussion_r{cid}"
+                            pr_reviews.append({
+                                "url": url,
+                                "fetch_cmd": f"uv run python .agents/scripts/gh.py fetch url {url}",
+                            })
+                    except json.JSONDecodeError:
+                        pass
 
-    print(format_implement_output(local_reviews, pr_reviews))
+    output = format_implement_output(local_reviews, pr_reviews, bool(pr_reviews), pr_number)
+    if output is None:
+        print("[INFO] NO REVIEW FOUND.")
+        return 1
 
-    # Warn if any reviews are stale
+    print(output)
+
+    # Warn if any local reviews are stale
     stale = [r for r in local_reviews if r["status"] != "Active"]
     if stale:
         print(f"\n[WARN] {len(stale)} review(s) are stale or have branch mismatch.")
         print("[WARN] Ask the user if they want to proceed or re-review first.")
         return 1
-    print("\n[OK] All local reviews are active and match current branch.")
+    if local_reviews:
+        print("\n[OK] All local reviews are active and match current branch.")
     return 0
 
 
