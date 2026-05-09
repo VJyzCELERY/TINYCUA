@@ -49,7 +49,7 @@ class OpenAICompatibleClient(LLMClient):
 
     def _client_key(self, model_config: LanguageModel) -> tuple[str, str]:
         api_key = model_config.api_key.get_secret_value()
-        base_url = normalize_base_url(model_config.base_url)
+        base_url = normalize_base_url(model_config.base_url, model_config.provider)
         return (base_url, api_key)
 
     def _get_client(self, model_config: LanguageModel) -> httpx.AsyncClient:
@@ -220,18 +220,28 @@ class OpenAICompatibleClient(LLMClient):
 
         async with client.stream("POST", "/responses", json=payload) as response:
             response.raise_for_status()
+            buffer: str = ""
             async for line in response.aiter_lines():
                 line = line.strip()
-                if not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if not payload or payload == "[DONE]":
-                    continue
-                try:
-                    data = json.loads(payload)
-                except json.JSONDecodeError as e:
-                    raise RuntimeError(f"Malformed SSE data line: {e}") from e
-                yield data
+                if line.startswith("data:"):
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        continue
+                    if buffer:
+                        buffer += "\n" + payload
+                    else:
+                        buffer = payload
+                    try:
+                        data = json.loads(buffer)
+                    except json.JSONDecodeError:
+                        continue
+                    yield data
+                    buffer = ""
+                elif not line and buffer:
+                    yield json.loads(buffer)
+                    buffer = ""
+            if buffer:
+                yield json.loads(buffer)
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]

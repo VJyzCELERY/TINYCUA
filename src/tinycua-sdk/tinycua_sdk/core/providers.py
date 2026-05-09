@@ -59,29 +59,30 @@ def resolve_provider(provider: str) -> str:
     return canonical
 
 
-def normalize_base_url(url: str | None) -> str:
+def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> str:
     """Normalize a base URL.
 
-    - If None/empty, returns DEFAULT_BASE_URL.
+    - If None/empty, returns provider-specific default.
     - Strips trailing slash to prevent double slashes.
     - Does NOT append /v1 (user must provide full URL).
 
     Args:
         url: Raw base URL.
+        provider: Provider name for provider-specific defaults.
 
     Returns:
         Normalized base URL.
 
     Example:
-        >>> normalize_base_url(None)
-        'http://localhost:1234/v1'
-        >>> normalize_base_url("http://localhost:1234/v1")
-        'http://localhost:1234/v1'
-        >>> normalize_base_url("http://localhost:1234/v1/")
+        >>> normalize_base_url(None, "openai")
+        'https://api.openai.com/v1'
+        >>> normalize_base_url(None, "openai-compatible")
         'http://localhost:1234/v1'
 
     """
     if not url:
+        if provider == "openai":
+            return "https://api.openai.com/v1"
         return DEFAULT_BASE_URL
     return url.rstrip("/")
 
