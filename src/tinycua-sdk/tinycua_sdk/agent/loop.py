@@ -171,6 +171,7 @@ class BaseLoop:
 
         tool_call_count = 0
         cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        usage_settled_ids: set[str] = set()
         finish_reason = "completed"
 
         try:
@@ -185,6 +186,7 @@ class BaseLoop:
 
                 content_parts: list[str] = []
                 tool_calls_buffer: dict[str, dict[str, Any]] = {}
+                usage_settled_ids.clear()
 
                 llm_stream = await agent._call_llm(working_messages, tools, stream=True)
                 if not isinstance(llm_stream, AsyncIterator):
@@ -205,11 +207,8 @@ class BaseLoop:
                             break
                         if chunk is None:
                             break
-                        if chunk.get("type") in ("response.created", "response.completed"):
-                            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
-                            continue
                         yield chunk
-                        self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
+                        self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                 finally:
                     if hasattr(llm_stream, "aclose"):
                         await llm_stream.aclose()
@@ -352,6 +351,7 @@ class BaseLoop:
         content_parts: list[str],
         tool_calls_buffer: dict[str, dict[str, Any]],
         cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
     ) -> None:
         """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
 
@@ -360,6 +360,7 @@ class BaseLoop:
             content_parts: List of text delta strings (appended in place).
             tool_calls_buffer: Dict of tool call index to accumulated data.
             cumulative_usage: Dict of cumulative token counts (accumulated in place).
+            usage_settled_ids: Set of response IDs whose usage has been counted.
         """
         chunk_type = chunk.get("type", "")
         if chunk_type == "response.output_text.delta":
@@ -370,13 +371,16 @@ class BaseLoop:
             _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
         elif chunk_type == "response.completed":
             response_data = chunk.get("response", {})
+            resp_id = response_data.get("id", "")
             usage = response_data.get("usage", {})
-            if usage:
+            if usage and resp_id not in usage_settled_ids and "__any__" not in usage_settled_ids:
                 _accumulate_usage(cumulative_usage, usage)
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
             if usage:
                 _accumulate_usage(cumulative_usage, usage)
+                resp_id = chunk.get("response", {}).get("id", "")
+                usage_settled_ids.add(resp_id or "__any__")
 
     @staticmethod
     async def _read_stream_chunk(
