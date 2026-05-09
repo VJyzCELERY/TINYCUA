@@ -79,9 +79,12 @@ class TestStreamingWithToolCalls:
         call_count = 0
 
         raw_tool_call_event = {
-            "type": "response.tool_call.delta",
-            "index": 0,
-            "id": "call_1",
+            "type": "response.output_item.added",
+            "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+        }
+        raw_arguments_event = {
+            "type": "response.function_call_arguments.done",
+            "item_id": "call_1",
             "name": "get_time",
             "arguments": "{}",
         }
@@ -97,6 +100,7 @@ class TestStreamingWithToolCalls:
                 call_count += 1
                 if call_count == 1:
                     yield dict(raw_tool_call_event)
+                    yield dict(raw_arguments_event)
                 else:
                     yield dict(raw_text_event)
 
@@ -107,17 +111,16 @@ class TestStreamingWithToolCalls:
         stream_iter = await agent.run("What time?", stream=True)
         events = [e async for e in stream_iter]
 
-        assert events[0]["type"] == "response.created"
-        assert events[1] == raw_tool_call_event
         # Tool call events appear BEFORE tool execution resumes
-        tool_call_indices = [
-            i for i, e in enumerate(events) if e["type"] == "response.tool_call.delta"
+        tool_event_types = {"response.output_item.added", "response.function_call_arguments.done"}
+        tool_indices = [
+            i for i, e in enumerate(events) if e["type"] in tool_event_types
         ]
         text_indices = [
             i for i, e in enumerate(events) if e["type"] == "response.output_text.delta"
         ]
-        if tool_call_indices and text_indices:
-            assert max(tool_call_indices) < min(text_indices)
+        if tool_indices and text_indices:
+            assert max(tool_indices) < min(text_indices)
         assert any(e["type"] == "response.completed" for e in events)
 
 

@@ -377,13 +377,13 @@ class TestOpenAICompatibleClient:
         }
 
     @pytest.mark.asyncio
-    async def test_chat_stream_parses_tool_call_deltas(self):
-        """SSE parsing yields tool_call.delta events."""
+    async def test_chat_stream_parses_function_call_arguments(self):
+        """SSE parsing yields function_call_arguments.delta/.done events."""
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
-            'data: {"type":"response.tool_call.delta","index":0,"id":"call_1","name":"get_weather","arguments":""}\n',
-            'data: {"type":"response.tool_call.delta","index":0,"id":"call_1","name":"","arguments":"{\\"city\\": \\"Tokyo\\"}"}\n',
+            'data: {"type":"response.function_call_arguments.delta","item_id":"call_1","delta":"{\\"city\\": \\"Tokyo\\"}"}\n',
+            'data: {"type":"response.function_call_arguments.done","item_id":"call_1","name":"get_weather","arguments":"{\\"city\\": \\"Tokyo\\"}"}\n',
             "data: [DONE]\n",
         ]
 
@@ -407,17 +407,14 @@ class TestOpenAICompatibleClient:
 
         assert len(chunks) == 2
         assert chunks[0] == {
-            "type": "response.tool_call.delta",
-            "index": 0,
-            "id": "call_1",
-            "name": "get_weather",
-            "arguments": "",
+            "type": "response.function_call_arguments.delta",
+            "item_id": "call_1",
+            "delta": '{"city": "Tokyo"}',
         }
         assert chunks[1] == {
-            "type": "response.tool_call.delta",
-            "index": 0,
-            "id": "call_1",
-            "name": "",
+            "type": "response.function_call_arguments.done",
+            "item_id": "call_1",
+            "name": "get_weather",
             "arguments": '{"city": "Tokyo"}',
         }
 
