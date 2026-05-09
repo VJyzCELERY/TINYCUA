@@ -30,7 +30,7 @@ When `stream=True`, provider SSE events are forwarded to the consumer as-is (no 
 **Raw LLM events** (passthrough from provider):
 ```python
 {"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_abc123"}
-{"type": "response.tool_call.delta", "index": 0, "id": "call_1", "name": "get_time", "arguments": "{}"}
+{"type": "response.output_item.added", "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"}}
 {"type": "response.usage", "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
 ```
 
@@ -80,7 +80,7 @@ Emitted when the response fails due to an error (tool execution failure, stream 
 
 ### R-5.3: Behavior with Tool Calls
 When the LLM returns tool calls during a stream:
-- Raw tool_call.delta events passthrough to the consumer.
+- Raw Responses API events for function calls passthrough to the consumer (`response.output_item.added` for function_call items, `response.function_call_arguments.delta`/`.done` for argument streaming).
 - The stream pauses while tools execute (no synthetic events are emitted for tool calls or results).
 - Tool results are appended to the message list for the next LLM iteration.
 - The stream resumes with the next LLM response's raw events.
@@ -106,7 +106,7 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] stream=True Yields Raw Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `print('PASS')`
   Description: Returns async iterator with raw SSE events.
 
-- [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - 1 passed, 0 failed - pytest -v
+- [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - pytest -v
 
 ## Integration Test File
 - `tests/integration/goals/test_gs_04_agent_streaming.py`

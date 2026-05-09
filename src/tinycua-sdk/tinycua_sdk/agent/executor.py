@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -43,6 +44,7 @@ class AgentExecutor:
     def __init__(self, config: AgentConfig) -> None:
         self.config = config
         self._cancelled = False
+        self._cancel_event = asyncio.Event()
         self._llm_client: LLMClient | None = None
 
     @property
@@ -53,6 +55,7 @@ class AgentExecutor:
     def cancel(self) -> None:
         """Cancel current execution."""
         self._cancelled = True
+        self._cancel_event.set()
 
     async def close(self) -> None:
         """Close the LLM client and release resources."""
