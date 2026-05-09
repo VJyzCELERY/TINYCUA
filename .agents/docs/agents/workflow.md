@@ -84,7 +84,7 @@ Keep PRs scoped: one logical change per PR. Large refactors and feature addition
 
 - Use the review standards in `.agents/docs/agents/code_review.md`
 - Always compare against the `main` branch
-- Review reports should be saved as `reviews/REVIEW-<branch>.md`
+- Review reports should be saved as `reviews/REVIEW_<branch>.md`
 - Reviews are read-only: analyze and report, do not modify code files during a review pass
 
 ---

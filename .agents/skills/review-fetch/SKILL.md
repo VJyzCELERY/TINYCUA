@@ -26,7 +26,7 @@ Fetch unresolved PR review comments and generate a structured local review repor
 3. Fetch unresolved comments: `uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"`
 4. Check PR body/title compliance against spec references
 5. Compile findings using `.agents/templates/REVIEW-template.md`
-6. Write report to `./reviews/REVIEW-{name}-fetched.md`
+6. Write report to `./reviews/REVIEW_{name}_fetched.md`
 
 ## Common Pitfalls
 

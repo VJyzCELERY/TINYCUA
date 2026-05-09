@@ -11,14 +11,14 @@ Clean up reviews that have been fully addressed (all findings resolved).
 **Archive Directory (Optional)**: $2 (where to move resolved reviews, defaults to "reviews/archived/")
 
 
-1. **Locate Reviews**: Use Glob to find all REVIEW-*.md files in `$1`
+1. **Locate Reviews**: Use Glob to find all REVIEW_*.md files in `$1`
 2. **Read Each Review**: For each review file:
    - Check if all findings have status "ADDRESSED" or "INVALID"
    - If all findings are ADDRESSED/INVALID, mark review as "RESOLVED"
 3. **Archive Resolved Reviews**: For reviews with all issues resolved:
    - Create archive directory if it doesn't exist
    - Move the review file to archive directory
-   - Rename to indicate it's resolved (e.g., REVIEW-name-RESOLVED.md)
+   - Rename to indicate it's resolved (e.g., REVIEW_name_RESOLVED.md)
 4. **Generate Summary**: Create a summary of cleaned up reviews
 
 ## Review Status Definitions
@@ -37,13 +37,13 @@ Clean up reviews that have been fully addressed (all findings resolved).
 
 | Review | Findings | Date Resolved |
 |--------|----------|---------------|
-| REVIEW-name.md | N issues | YYYY-MM-DD |
+| REVIEW_name.md | N issues | YYYY-MM-DD |
 
 ## Still Active Reviews
 
 | Review | Open Issues |
 |--------|-------------|
-| REVIEW-name.md | N issues |
+| REVIEW_name.md | N issues |
 ```
 
 ## Important

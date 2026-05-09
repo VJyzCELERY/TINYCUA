@@ -22,7 +22,7 @@ Before running, load the relevant skills and run the review pre-flight:
 uv run python .agents/scripts/preflight-review.py --scope pr --init-review
 ```
 
-This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW-{branch}.md` with the header and commit range already filled in.
+This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW_{branch}.md` with the header and commit range already filled in.
 
 If the pre-flight exits non-zero, read the script manually to understand what's wrong:
 
@@ -30,7 +30,7 @@ If the pre-flight exits non-zero, read the script manually to understand what's 
 head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC>
 ```
 
-After pre-flight succeeds, the review file is ready at `./reviews/REVIEW-{branch}.md`. Read it, then fill in the findings section.
+After pre-flight succeeds, the review file is ready at `./reviews/REVIEW_{branch}.md`. Read it, then fill in the findings section.
 
 Note: Do NOT pass `--review-file` here — the review report doesn't exist yet. The pre-flight only checks unstaged changes and prints scope info.
 
@@ -115,11 +115,11 @@ This command **must** determine what files are in scope before reviewing. The re
    - "code" — focus on code quality
    - "full" — comprehensive review (default if no focus)
 4. **Identify Findings**: Document issues with clear Issue Codes (e.g., ISSUE-001)
-5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW-{name}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
+5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW_{name}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
 
 ## Report Path Convention
 
-Review reports ALWAYS go to `./reviews/REVIEW-{name}.md` (relative to the repo root / workdir).
+Review reports ALWAYS go to `./reviews/REVIEW_{name}.md` (relative to the repo root / workdir).
 Do NOT write reviews inside the target directory. This keeps reviews findable at a consistent location.
 
 The `$1` argument is the target being reviewed, NOT the output location.
@@ -138,7 +138,7 @@ pytest ...
 
 ## Report Filename
 
-Use format: `REVIEW-{name}.md`
+Use format: `REVIEW_{name}.md`
 
 ## Review Report Format
 
@@ -189,7 +189,7 @@ Use format: `REVIEW-{name}.md`
 - **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
 - **PR body/title compliance** — if reviewing against a PR, always check that the PR body and title accurately reflect the changes and comply with spec references. Flag non-compliance as a finding
 - **Record the commit range** in the review header — this lets the user know if the review is stale (new commits since review)
-- MUST create the review file at `./reviews/REVIEW-{name}.md` — it is gitignored, do NOT `git add` or commit it
+- MUST create the review file at `./reviews/REVIEW_{name}.md` — it is gitignored, do NOT `git add` or commit it
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
 - Categorize findings by severity

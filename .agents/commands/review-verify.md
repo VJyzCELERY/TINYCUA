@@ -7,7 +7,7 @@ Check each finding in a review: determine if it has been properly addressed, is 
 
 > Load skill: review-verify (for checking finding statuses)
 
-**Query**: $1 (natural language query or review file path, e.g., "verify the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Query**: $1 (natural language query or review file path, e.g., "verify the findings in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **Focus Area (Optional)**: $2 (verify only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, verify ALL OPEN findings.

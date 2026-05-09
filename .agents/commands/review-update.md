@@ -7,7 +7,7 @@ Update an existing PR review with follow-up comments and resolve findings that h
 
 > Load skill: review-update (for updating PR reviews after fixes)
 
-**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 
 
@@ -22,7 +22,7 @@ After fixes have been implemented and validated, this command updates the PR rev
 
 ## Instructions
 
-1. **Read the updated review report**: Load the REVIEW-{name}.md file
+1. **Read the updated review report**: Load the REVIEW_{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)

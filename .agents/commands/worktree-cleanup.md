@@ -20,7 +20,7 @@ If no query is provided, clean ALL artifact areas.
 
    | Area | What to remove | Command |
    |------|---------------|---------|
-   | Review files | All `./reviews/*.md` except archived | `rm -f ./reviews/REVIEW-*.md` |
+   | Review files | All `./reviews/*.md` except archived | `rm -f ./reviews/REVIEW_*.md` |
    | Archived reviews | `./reviews/archived/*.md` | `rm -rf ./reviews/archived/` |
    | Temp files | `./tmp/` | `rm -rf ./tmp/ && mkdir ./tmp/` |
    | Dev artifacts | `./dev/` | `rm -rf ./dev/` |

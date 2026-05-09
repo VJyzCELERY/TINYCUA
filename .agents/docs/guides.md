@@ -35,14 +35,14 @@
 | Write code following a plan | `/implement specs/my-feature/` |
 | Run the full review loop (report → fix → fresh report) until clean | `/review-loop src/my-subproject/` |
 | Check if your branch code is clean before merging | `/review-report src/my-subproject/` |
-| Run full validation (clarify + verify) on a review | `/review-validate reviews/REVIEW-foo.md` |
-| Improve vague review findings to be more precise | `/review-clarify reviews/REVIEW-foo.md` |
-| Check if previously flagged issues are actually fixed | `/review-verify reviews/REVIEW-foo.md` |
-| Fix issues found by a review | `/review-implement reviews/REVIEW-foo.md` |
-| Publish review results on a GitHub PR | `/review-post reviews/REVIEW-foo.md` |
-| Update a PR review after fixes landed | `/review-update reviews/REVIEW-foo.md` |
+| Run full validation (clarify + verify) on a review | `/review-validate reviews/REVIEW_foo.md` |
+| Improve vague review findings to be more precise | `/review-clarify reviews/REVIEW_foo.md` |
+| Check if previously flagged issues are actually fixed | `/review-verify reviews/REVIEW_foo.md` |
+| Fix issues found by a review | `/review-implement reviews/REVIEW_foo.md` |
+| Publish review results on a GitHub PR | `/review-post reviews/REVIEW_foo.md` |
+| Update a PR review after fixes landed | `/review-update reviews/REVIEW_foo.md` |
 | Get PR review comments into a local file for tracking | `/review-fetch 42` |
-| Archive a review where all issues are resolved | `/review-cleanup reviews/REVIEW-foo.md` |
+| Archive a review where all issues are resolved | `/review-cleanup reviews/REVIEW_foo.md` |
 | Safely rebase current branch without duplicating commits | `/rebase` or `/rebase main` |
 | Create a new worktree + branch for feature development | `/begin-worktree feat/new-feature` |
 | Remove inactive/stale worktrees (checks PRs) | `/worktree-prune` |
@@ -73,12 +73,12 @@ This runs: review-report → review-validate → review-implement → ... → fr
 
 ```bash
 /review-report src/my-subproject/       # 1. Generate a scoped review of your branch
-/review-post reviews/REVIEW-foo.md      # 2. Post on the PR as inline comments
+/review-post reviews/REVIEW_foo.md      # 2. Post on the PR as inline comments
                                         #    (developer fixes the code)
-/review-validate reviews/REVIEW-foo.md  # 3. Re-check if fixes actually work
-/review-update reviews/REVIEW-foo.md    # 4. Update PR review: resolve fixed, flag remaining
+/review-validate reviews/REVIEW_foo.md  # 3. Re-check if fixes actually work
+/review-update reviews/REVIEW_foo.md    # 4. Update PR review: resolve fixed, flag remaining
                                         #    (repeat 3-4 until all clean)
-/review-cleanup reviews/REVIEW-foo.md   # 5. Archive the resolved review
+/review-cleanup reviews/REVIEW_foo.md   # 5. Archive the resolved review
 ```
 
 ### Reviewing Someone Else's PR
@@ -98,14 +98,14 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/plan` | `implementation-plan.md` + `task.md` in the target directory |
 | `/implement` | Code changes + updates `task.md` |
 | `/review-loop` | Runs report → validate → fix → cleanup cycle |
-| `/review-report` | `./reviews/REVIEW-{name}.md` |
-| `/review-validate` | Clarifies + verifies: updates `./reviews/REVIEW-{name}.md` |
-| `/review-clarify` | Rewrites vague findings in `./reviews/REVIEW-{name}.md` |
-| `/review-verify` | Updates statuses in `./reviews/REVIEW-{name}.md` |
-| `/review-implement` | Code changes + updates `./reviews/REVIEW-{name}.md` |
+| `/review-report` | `./reviews/REVIEW_{name}.md` |
+| `/review-validate` | Clarifies + verifies: updates `./reviews/REVIEW_{name}.md` |
+| `/review-clarify` | Rewrites vague findings in `./reviews/REVIEW_{name}.md` |
+| `/review-verify` | Updates statuses in `./reviews/REVIEW_{name}.md` |
+| `/review-implement` | Code changes + updates `./reviews/REVIEW_{name}.md` |
 | `/review-post` | Posts on GitHub PR |
 | `/review-update` | Comments/resolutions on GitHub PR |
-| `/review-fetch` | `./reviews/REVIEW-{name}-fetched.md` |
+| `/review-fetch` | `./reviews/REVIEW_{name}_fetched.md` |
 | `/review-cleanup` | Archives to `./reviews/archived/` |
 | `/rebase` | Rebases current branch onto target |
 | `/begin-worktree` | Creates `.worktrees/<branch>/` with matching branch |

@@ -9,7 +9,7 @@ Usage:
 
 Options:
     --scope SCOPE      pr (PR context), branch (local branch), other (default)
-    --review-file      Path to REVIEW-*.md file (for stale check)
+    --review-file      Path to REVIEW_*.md file (for stale check)
     --init-review      Pre-generate review file header with Commit Range
     --review-name      Name for the review file (defaults to branch name)
 
@@ -23,6 +23,35 @@ from pathlib import Path
 
 
 _commit_base = None
+
+
+def resolve_review_name(name: str | None = None) -> str:
+    """Normalize a review name.
+
+    - If None or empty, default to current branch name.
+    - If already starts with REVIEW_, keep as-is.
+    - Otherwise prepend REVIEW_.
+
+    Returns the normalized name only (no .md, no path).
+    """
+    if not name:
+        name = run(["git", "branch", "--show-current"]) or "review"
+    name = name.strip().replace("/", "-")
+    if not name.startswith("REVIEW_"):
+        name = f"REVIEW_{name}"
+    return name
+
+
+def resolve_review_path(review_file: str | None = None, review_name: str | None = None) -> str:
+    """Resolve a review file path.
+
+    - If review_file is given, use it as-is.
+    - Otherwise, derive from review_name or branch name: ./reviews/REVIEW_{branch}.md
+    """
+    if review_file:
+        return review_file
+    name = resolve_review_name(review_name)
+    return f"./reviews/{name}.md"
 
 
 def run(cmd):
@@ -156,7 +185,7 @@ def init_review(review_name: str, review_dir: str = "./reviews") -> str | None:
 
     rev_dir = Path(review_dir)
     rev_dir.mkdir(parents=True, exist_ok=True)
-    rev_path = rev_dir / f"REVIEW-{review_name}.md"
+    rev_path = rev_dir / f"{review_name}.md"
 
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
     branch = run(["git", "branch", "--show-current"])
@@ -252,10 +281,13 @@ def main():
     for line in info_lines:
         print(line)
 
+    # Always output the default review path so agents know where to write
+    default_review_path = resolve_review_path(args.review_file, args.review_name)
+    print(f"[INFO] Default review path: {default_review_path}")
+
     # Init review if requested
     if args.init_review and _commit_base:
-        name = args.review_name or run(["git", "branch", "--show-current"]) or "review"
-        name = name.replace("/", "-").replace("_", "-")
+        name = resolve_review_name(args.review_name)
         rev_path = init_review(name)
         if rev_path:
             print(f"[INFO] Review file initialized: {rev_path}")

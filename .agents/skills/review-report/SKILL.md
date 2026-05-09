@@ -25,7 +25,7 @@ Conduct a scoped code review of the current branch's changes and generate a stru
 2. If reviewing against a PR: read PR body/title via `gh pr view`, adjust scope, check compliance
 3. Determine scope: PR mode (diff against PR base), Branch mode (diff against merge-base), or Unscoped
 4. Analyze all in-scope files
-5. Write findings to `./reviews/REVIEW-{name}.md` using `.agents/templates/REVIEW-template.md`
+5. Write findings to `./reviews/REVIEW_{name}.md` using `.agents/templates/REVIEW-template.md`
 6. Each finding must have: precise file:line, severity, description, why it matters, suggested fix, validation command
 
 ## Common Pitfalls

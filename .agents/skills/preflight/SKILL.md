@@ -42,7 +42,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr --init-review --rev
 
 **Mode B — Existing review staleness check** (`--review-file`, no `--init-review`):
 ```bash
-uv run python .agents/scripts/preflight-review.py --scope pr --review-file ./reviews/REVIEW-foo.md
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file ./reviews/REVIEW_foo.md
 ```
 
 **Scope-only** (no init, no review file):

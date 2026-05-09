@@ -7,7 +7,7 @@ Full review validation: first clarify vague findings, then verify each one's sta
 
 > Load skill: review-validate (for the full validation pipeline)
 
-**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW-foo.md" or simply "reviews/REVIEW-foo.md")
+**Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, validate ALL OPEN findings.

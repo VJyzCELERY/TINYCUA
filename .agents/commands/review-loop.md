@@ -63,19 +63,19 @@ Delegate to a fresh subagent:
 
 > Run /review-report for $1 with focus on code quality and spec compliance — read the PR body and title first, adjust scope accordingly, and check PR body/title compliance against specs
 
-The review file is written to `./reviews/REVIEW-{name}.md`.
+The review file is written to `./reviews/REVIEW_{name}.md`.
 
 **Step 2: Review-validate (Subagent 2)**
 
 Delegate:
 
-> Run /review-validate for ./reviews/REVIEW-{name}.md
+> Run /review-validate for ./reviews/REVIEW_{name}.md
 
 **Step 3: If OPEN issues exist → Review-implement (Subagent 3)**
 
 Delegate:
 
-> Run /review-implement for ./reviews/REVIEW-{name}.md
+> Run /review-implement for ./reviews/REVIEW_{name}.md
 
 After fixing, return to Step 2 for re-validation (new subagent each time).
 
@@ -139,4 +139,4 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
-- All review files live at `./reviews/REVIEW-{name}.md` — they are gitignored and must NEVER be committed or pushed
+- All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed

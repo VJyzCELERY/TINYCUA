@@ -109,15 +109,15 @@ Delegate to a fresh subagent:
 
 **Step 2: Review-validate (Subagent 4)**
 
-Delegate — review file is always at `./reviews/REVIEW-{name}.md`:
+Delegate — review file is always at `./reviews/REVIEW_{name}.md`:
 
-> Run /review-validate for ./reviews/REVIEW-{name}.md
+> Run /review-validate for ./reviews/REVIEW_{name}.md
 
 **Step 3: If OPEN issues exist → Review-implement (Subagent 5)**
 
 Delegate:
 
-> Run /review-implement for ./reviews/REVIEW-{name}.md
+> Run /review-implement for ./reviews/REVIEW_{name}.md
 
 After fixing, return to Step 2 for re-validation (this uses a NEW subagent — Subagent 6, then 8, then 10, etc.).
 
@@ -214,6 +214,6 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
-- All review files live at `./reviews/REVIEW-{name}.md` — they are gitignored and must NEVER be committed or pushed.
+- All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed.
 
 Begin by starting Subagent 1 for the planning phase.
