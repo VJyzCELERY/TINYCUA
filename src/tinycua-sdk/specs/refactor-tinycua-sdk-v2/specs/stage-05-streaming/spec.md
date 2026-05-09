@@ -142,13 +142,13 @@ Each success criterion must be validated by running the specified target file(s)
 
 Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-- [ ] stream=False Returns String - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `pytest -v`
+- [ ] stream=False Returns String - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `uv run pytest tests/integration/goals/test_gs_04_agent_streaming.py -v`
   Description: Default mode returns `str`.
 
-- [ ] stream=True Yields Raw Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `pytest -v`
+- [ ] stream=True Yields Raw Events - tests/integration/goals/test_gs_04_agent_streaming.py - PASS - `uv run pytest tests/integration/goals/test_gs_04_agent_streaming.py -v`
   Description: Returns async iterator with raw SSE events.
 
-- [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - pytest -v
+- [ ] Integration Test Pass - tests/integration/goals/test_gs_04_agent_streaming.py - `uv run pytest tests/integration/goals/test_gs_04_agent_streaming.py -v`
 
 ## Integration Test File
 - `tests/integration/goals/test_gs_04_agent_streaming.py`
