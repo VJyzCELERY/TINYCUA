@@ -170,11 +170,11 @@ class BaseLoop:
         tool_call_count = 0
         cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
-        completed_by_provider = False
         finish_reason = "completed"
 
         try:
             for _ in range(self.max_iterations):
+                completed_by_provider = False
                 if agent.is_cancelled:
                     yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
