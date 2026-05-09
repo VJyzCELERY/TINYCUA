@@ -29,13 +29,13 @@ async def main():
 
     response = await a.run("Say hello.", stream=False)
     assert isinstance(response, str)
-    print(f"[off] Final: {response}")
+    print(f"[stream=False] Final: {response}")
 
 
 asyncio.run(main())
 ```
 
-**Expected Output:** `targets/01_stream_off_expected-output.txt` → `[off] Final: <any string>` (must not raise)
+**Expected Output:** `targets/01_stream_off_expected-output.txt` → `[stream=False] Final: <any string>` (must not raise)
 
 ---
 
