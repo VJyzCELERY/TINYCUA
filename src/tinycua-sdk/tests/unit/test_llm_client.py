@@ -204,7 +204,7 @@ class TestOpenAICompatibleClient:
         assert captured_url == "/responses"
         assert captured_payload["model"] == "gpt-4o-mini"
         assert captured_payload["temperature"] == 0.5
-        assert captured_payload["max_tokens"] == 100
+        assert captured_payload["max_output_tokens"] == 100
         assert captured_payload["top_p"] == 0.9
         assert captured_payload["user"] == "test-user"
 

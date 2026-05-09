@@ -207,6 +207,9 @@ class BaseLoop:
                             break
                         if chunk is None:
                             break
+                        if chunk.get("type") in ("response.created", "response.completed"):
+                            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                            continue
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                 finally:
