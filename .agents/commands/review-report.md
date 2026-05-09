@@ -103,9 +103,25 @@ This command **must** determine what files are in scope before reviewing. The re
 
 ---
 
-## Check Review Log
+---
+## Instructions
 
-Before reviewing, check if a review log exists for this branch:
+### Phase 1: Unbiased Review (No Log Context)
+
+1. **Read PR context** (if reviewing against a PR): Follow the PR Context section above — read PR body/title and adjust scope accordingly
+2. **Determine scope**: Follow the Scope Determination section above
+3. **Analyze scoped files**: Use Read to examine all in-scope files. Do NOT check the review log yet.
+4. **Focus Review**: If `$2` is provided (and not "unscoped"), prioritize reviewing for that aspect:
+   - "security" — focus on security vulnerabilities
+   - "performance" — focus on performance issues
+   - "docs" — focus on documentation quality
+   - "code" — focus on code quality
+   - "full" — comprehensive review (default if no focus)
+5. **Identify Findings**: Document issues with clear Issue Codes (e.g., ISSUE-001). Form your own assessment first — unbiased by prior reviews.
+
+### Phase 2: Cross-Reference Against Review Log
+
+Only after you have your preliminary findings, check the review log:
 
 ```bash
 LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
@@ -114,25 +130,17 @@ if [ -f "$LOG_PATH" ]; then
 fi
 ```
 
-If the log exists, read it and note:
-- **Previously deferred items** — flag them for re-check in this review
-- **Previously resolved issues** — ensure they haven't regressed
-- **Prior cycle summary** — mention in the new review's summary section
+If the log exists, read it. For each of your preliminary findings:
 
----
-## Instructions
+- **Check if the same issue was previously addressed**: Look for it in prior entries by matching file, line, and description.
+  - If found AND the resolution is **properly documented** (clear what was done and why) → mark your finding as INVALID with note: "Already addressed in cycle N — resolution documented."
+  - If found BUT the resolution is **not properly documented** (vague or missing reasoning) → keep your finding OPEN, and add a note: "Previously addressed in cycle N but documentation is insufficient — needs proper resolution documentation."
+  
+- **Check if the same issue was previously deferred**: If found in a prior entry with status "deferred" → note it in your finding: "Previously deferred in cycle N — re-checking."
 
-1. **Read PR context** (if reviewing against a PR): Follow the PR Context section above — read PR body/title and adjust scope accordingly
-2. **Determine scope**: Follow the Scope Determination section above
-3. **Check review log**: Follow the Review Log section above — load prior context from `./reviews/log/REVIEW_{branch}.md` if it exists
-4. **Analyze scoped files**: Use Read to examine all in-scope files
-3. **Focus Review**: If `$2` is provided (and not "unscoped"), prioritize reviewing for that aspect:
-   - "security" — focus on security vulnerabilities
-   - "performance" — focus on performance issues
-   - "docs" — focus on documentation quality
-   - "code" — focus on code quality
-   - "full" — comprehensive review (default if no focus)
-4. **Identify Findings**: Document issues with clear Issue Codes (e.g., ISSUE-001)
+- **If not found in log at all**: Keep as a new OPEN finding.
+
+### Phase 3: Write Report
 5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW_{name}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
 
 ## Report Path Convention
