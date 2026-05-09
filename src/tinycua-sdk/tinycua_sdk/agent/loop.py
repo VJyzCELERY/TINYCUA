@@ -170,6 +170,7 @@ class BaseLoop:
         tool_call_count = 0
         cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
+        completed_by_provider = False
         finish_reason = "completed"
 
         try:
@@ -212,10 +213,15 @@ class BaseLoop:
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
 
+                if first_chunk and first_chunk.get("type") == "response.completed":
+                    completed_by_provider = True
+
                 if not inner_cancelled:
-                    async for chunk, _ in self._iter_llm_events(
+                    async for chunk, is_completed in self._iter_llm_events(
                         llm_stream, agent._cancel_event
                     ):
+                        if is_completed:
+                            completed_by_provider = True
                         if chunk is None:
                             break
                         yield chunk
@@ -262,7 +268,7 @@ class BaseLoop:
             return
 
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-        if not agent.is_cancelled:
+        if not agent.is_cancelled and not completed_by_provider:
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
     async def _execute_tools_stream(

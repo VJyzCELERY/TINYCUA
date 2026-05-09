@@ -92,7 +92,7 @@ async def test_gs_02_stream_on_yields_events(streaming_agent):
     events = [e async for e in stream]
 
     assert events[0]["type"] == "response.created"
-    assert events[-1]["type"] == "response.completed"
+    assert any(e["type"] == "response.completed" for e in events)
     deltas = [e for e in events if e["type"] == "response.output_text.delta"]
     assert len(deltas) > 0
     usage_events = [e for e in events if e["type"] == "response.usage"]
@@ -115,7 +115,7 @@ async def test_gs_03_stream_with_tool_calls(streaming_agent):
     events = [e async for e in stream]
 
     assert events[0]["type"] == "response.created"
-    assert events[-1]["type"] == "response.completed"
+    assert any(e["type"] == "response.completed" for e in events)
 
     tool_call_events = [
         e
