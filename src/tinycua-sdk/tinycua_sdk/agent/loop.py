@@ -201,6 +201,8 @@ class BaseLoop:
                     llm_stream, agent._cancel_event
                 )
                 if first_cancelled:
+                    if hasattr(llm_stream, "aclose"):
+                        await llm_stream.aclose()
                     yield {"type": "response.cancelled"}
                     inner_cancelled = True
                 elif first_chunk is None:

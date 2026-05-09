@@ -14,7 +14,7 @@ The SDK communicates with the LLM via the **OpenAI Responses API** (`POST /v1/re
 - Tool call arguments arrive as `response.function_call_arguments.delta` / `.done` events correlated by `item_id`.
 - The stream ends with a `response.completed` event (not `data: [DONE]`).
 
-See the [spec](specs/refactor-tinycua-sdk-v2/specs/stage-05-streaming/spec.md#api-contract-openai-responses-api) for the full API contract comparison.
+See the [spec](spec.md#api-contract-openai-responses-api) for the full API contract comparison.
 
 ### Streaming Decision (simplified)
 
@@ -54,7 +54,7 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
 
     yield {"type": "response.created"}
 
-    cumulative_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
     for iteration in range(self.max_iterations):
         if agent.is_cancelled:

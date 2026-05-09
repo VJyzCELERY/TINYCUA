@@ -38,7 +38,7 @@ def pytest_collection_modifyitems(config, items):
             json={
                 "model": model,
                 "input": [{"role": "user", "content": "hi"}],
-                "max_tokens": 1,
+                "max_output_tokens": 1,
                 "stream": False,
             },
             timeout=15,
