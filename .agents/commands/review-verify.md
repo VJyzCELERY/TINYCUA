@@ -29,34 +29,33 @@ If the log exists, read it and note:
 - **Previously deferred items**: If they reappear as OPEN in this review, flag them in the verification — they should be re-checked
 - **Previously addressed items**: If they reappear, they may have regressed — flag for attention
 
-## Pre-Flight: Commit Range Check
+## Pre-Flight: Run Review Preflight
 
+> Load skill: preflight (for preflight scripts)
 > Load skill: gh-pr-management (for gh.py — used for PR replies and resolution)
 
-Before running validation, compare the review's commit range against current HEAD:
+Before running validation, run the review preflight to check if the review is stale:
 
 ```bash
-REVIEW_HEAD=$(grep 'Commit Range' "$REVIEW_FILE" | sed 's/.*\.\.\.//')
-CURRENT_HEAD=$(git rev-parse HEAD)
-if [ "$REVIEW_HEAD" == "$CURRENT_HEAD" ]; then
-  echo "Review commit range matches HEAD — verifying against local codebase."
-elif [ -n "$(git status --porcelain)" ]; then
-  echo "Review HEAD differs from HEAD but unstaged changes exist — verifying local working tree (may differ from PR)."
-else
-  echo "Review is stale — HEAD has moved since review."
-  echo "  Review was on: $REVIEW_HEAD"
-  echo "  Current HEAD:  $CURRENT_HEAD"
-  git log --oneline "$REVIEW_HEAD..$CURRENT_HEAD"
-  echo "Ask user via question/ask tool (priority; inline if tool unavailable): continue with stale review or request fresh review?"
-fi
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
+
+This checks:
+- **Staleness**: Whether HEAD has moved since the review was created
+- **Unstaged changes**: Whether there are local modifications
+- **Scope info**: PR number, files changed, commit range
+
+If the preflight exits non-zero, read its warnings:
+- If review is stale (HEAD moved): the findings should be re-verified against the current code. Ask user: continue with stale review or request a fresh review?
+- If unstaged changes exist: verification may differ from the PR state — note this in the output
+- If all clear: proceed with verification
 
 ---
 
 ## Instructions
 
 1. **Read the Review**: Load the review report
-2. **Run commit range check**: Compare review HEAD vs current HEAD
+2. **Run pre-flight checks**: Run the review preflight — if warnings appear, handle staleness or unstaged changes before proceeding
 3. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
 4. **Filter Findings**: If `$2` is provided, only verify those findings
 5. **Verify Each Finding**: For each OPEN finding:
