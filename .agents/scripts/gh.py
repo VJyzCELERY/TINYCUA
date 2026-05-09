@@ -192,7 +192,11 @@ def cmd_fetch_pr(args):
         sys.exit(1)
     try:
         data = json.loads(out)
-        # Print curated summary
+        if args.fields:
+            # Generic field-by-field output for custom requests
+            print(json_to_md(data))
+            return
+        # Curated summary for default fields
         print(f"#{data['number']} — {data['title']}")
         print(f"State: {data['state'].upper()}")
         if data.get('isDraft'):
@@ -213,9 +217,7 @@ def cmd_fetch_pr(args):
         body = data.get('body', '')
         if body:
             print(f"\nBody:\n{body}")
-        # Note about custom fields
-        if not args.fields:
-            print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
+        print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
     except json.JSONDecodeError:
         print(out)
 
