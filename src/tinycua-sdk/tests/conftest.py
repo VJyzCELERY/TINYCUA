@@ -37,6 +37,11 @@ class FakeLLMResponse:
 # Configuration
 # =============================================================================
 
+# Load subproject root .env first (local LLM server credentials, gitignored)
+env_root = Path(__file__).parents[1] / ".env"
+if env_root.exists():
+    load_dotenv(env_root)
+
 # Load environment from .env.test (user-specific, gitignored)
 # Falls back to .env.test.example (committed template)
 env_test = Path(__file__).parent / ".env.test"
