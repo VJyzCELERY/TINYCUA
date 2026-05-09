@@ -339,12 +339,10 @@ async def run(
 
 ### Updated `Agent.run()`:
 ```python
-async def run(self, query, messages=None, instructions=None, stream="off"):
-    if stream != "off":
-        raise NotImplementedError("Streaming in Stage 5")
+async def run(self, query, messages=None, instructions=None, stream: bool = False):
     loop = self.config.loop or BaseLoop()
     msgs = (messages or []) + [{"role": "user", "content": query}]
-    return await loop.run(self, msgs, self.tools, instructions)
+    return await loop.run(self, msgs, self.tools, instructions, stream=stream)
 ```
 
 ## Data Flow
