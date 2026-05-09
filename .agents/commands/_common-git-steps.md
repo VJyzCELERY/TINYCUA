@@ -8,7 +8,9 @@ git branch --show-current
 ### Commit range (diff base vs HEAD)
 ```bash
 # PR mode: diff against PR base
-MERGE_BASE=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
+# Use gh.py to fetch PR details (avoid raw gh CLI)
+PR_JSON=$(uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" 2>/dev/null)
+MERGE_BASE=$(echo "$PR_JSON" | python -c "import sys,json; print(json.load(sys.stdin).get('baseRefName','main'))" 2>/dev/null || echo "main")
 BASE_SHA=$(git merge-base "$MERGE_BASE" HEAD)
 echo "$BASE_SHA...HEAD"
 

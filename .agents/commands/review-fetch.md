@@ -38,7 +38,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr
    ```
 2. **Fetch PR details** (including title, body, and spec references):
    ```bash
-   gh pr view "$PR_NUMBER" --json title,body --jq '"TITLE: \(.title)\n\nBODY:\n\(.body)"'
+    uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" | python -c "import sys,json; d=json.load(sys.stdin); print(f'TITLE: {d[\"title\"]}\n\nBODY:\n{d[\"body\"]}')"
    ```
 3. **Fetch unresolved comments and reviews**:
    ```bash

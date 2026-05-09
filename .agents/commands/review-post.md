@@ -30,7 +30,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    ```
 3. **Get PR diff**: Download the PR diff to map line numbers:
    ```bash
-   gh pr diff "$PR_NUMBER"
+    gh pr diff "$PR_NUMBER"   # gh.py doesn't have diff command yet
    ```
 4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event.
 5. **Build review payload**: For each finding in the report:

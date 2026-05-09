@@ -5,7 +5,7 @@ subtask: true
 
 Scan all worktrees, check each for PR status, and remove stale ones.
 
-> Load skill: worktree-prune (for removing stale worktrees)
+> Load skill: worktree (for removing stale worktrees)
 
 **Query**: $1 (optional — if provided, only prune that specific worktree)
 

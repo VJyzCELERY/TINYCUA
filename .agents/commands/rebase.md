@@ -15,7 +15,7 @@ Safely rebase the current branch onto a target branch (default: `main`) without 
 ## Instructions
 
 > Load skill: preflight (for preflight-rebase.py)
-> Load skill: git-rebase (for rebase operations)
+> Load skill: git (for rebase operations)
 
 ### 1. Run Pre-Flight
 

@@ -22,7 +22,7 @@ Post completed reviews as GitHub PR inline comments, update existing reviews aft
 
 ### Post review
 1. Detect PR: `PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)`
-2. Get PR diff: `gh pr diff "$PR_NUMBER"` (map finding locations to diff lines)
+2. Get PR diff via `gh pr diff "$PR_NUMBER"` (gh.py doesn't have a diff command yet) — map finding locations to diff lines
 3. Read Overall Assessment from report header → determines review event
 4. Build inline comments JSON in `./tmp/`
 5. Post: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/body.md ./tmp/comments.json --event "$EVENT"`

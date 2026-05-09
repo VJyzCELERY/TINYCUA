@@ -22,7 +22,7 @@ Covers the full review lifecycle: scoped code review → clarify vague findings 
 
 ### Review report
 1. Run preflight: `uv run python .agents/scripts/preflight-review.py --scope pr --init-review`
-2. Read PR body/title via `gh pr view`, adjust scope, check compliance
+2. Read PR body/title via `gh.py fetch pr`, adjust scope, check compliance
 3. Determine scope: PR mode, Branch mode, or Unscoped
 4. Analyze in-scope files (Phase 1: unbiased — no log context)
 5. Cross-reference findings against review log (Phase 2)

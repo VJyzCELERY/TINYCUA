@@ -49,7 +49,7 @@ If reviewing against a PR (detected in scope check below), always read the PR bo
 
 ```bash
 PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
-gh pr view "$PR_NUMBER" --json title,body --jq '"TITLE: \(.title)\n\nBODY:\n\(.body)"'
+uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" | python -c "import sys,json; d=json.load(sys.stdin); print(f'TITLE: {d[\"title\"]}\n\nBODY:\n{d[\"body\"]}')"
 ```
 
 Use the PR title and body to **adjust your review scope** — the PR may be narrower or broader than the branch diff. If the PR body/title do not match the actual changes or do not comply with project standards (missing context, no spec references, etc.), flag this as a **finding** with severity MEDIUM. Include a suggestion for what the PR body/title should say.
@@ -71,7 +71,7 @@ This command **must** determine what files are in scope before reviewing. The re
 
 2. **Check for an existing PR**:
    ```bash
-   gh pr list --head "$(git branch --show-current)" --state open --json baseRefName,headRefName,number --jq '.[0]'
+    uv run python .agents/scripts/preflight-pr.py
    ```
    - If PR exists, record the base branch and PR number
    - The diff base is the PR's base branch (usually `main`)
