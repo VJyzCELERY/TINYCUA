@@ -2,7 +2,7 @@
 
 **Status**: Complete
 **Created**: 2026-05-02
-**Last Updated**: 2026-05-08
+**Last Updated**: 2026-05-09
 **Subproject(s) Affected**: tinycua-sdk
 
 ## Objective
@@ -13,6 +13,8 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ## Reference
 - [`goals/getting-started/04_agent_streaming.py`](../goals/getting-started/04_agent_streaming.py)
+- [OpenAI Responses API Reference](https://developers.openai.com/api-reference/resources/responses) — HTTP endpoint, request/response shapes, SSE event types
+- [OpenAI Function Calling Guide](https://developers.openai.com/docs/guides/function-calling) — Tool/function call semantics and event flow
 
 ## Requirements
 
@@ -65,6 +67,46 @@ All streaming events follow the OpenAI Responses API SSE event format. Each even
 | `error` | ✅ | 5 | Transient streaming error event. |
 | `response.usage` | ✅ | 5 | Cumulative token usage emitted at end of stream (plus raw events forwarded during stream). |
 | `response.cancelled` | ✅ | 5 | Emitted when the agent is cancelled during streaming. |
+
+### API Contract: OpenAI Responses API
+
+This SDK targets the **OpenAI Responses API** (`POST /v1/responses`), **not** the legacy Chat Completions API (`POST /v1/chat/completions`).
+
+| Aspect | Responses API (this SDK) | Chat Completions API (legacy) |
+|--------|--------------------------|-------------------------------|
+| Endpoint | `POST /v1/responses` | `POST /v1/chat/completions` |
+| Request body | `{ "input": [...], "model": "...", "tools": [...] }` | `{ "messages": [...], "model": "...", "tools": [...] }` |
+| SSE event format | Typed events via `type` field (`response.output_text.delta`, `response.function_call_arguments.delta`, etc.) | Undifferentiated `choices[].delta` with role/content/function_call |
+| Tool call streaming | `response.function_call_arguments.delta` / `.done` events with `item_id` correlation | `choices[].delta.tool_calls[i]` with incremental index |
+| Stream end sentinel | `response.completed` event | `data: [DONE]` line |
+| Usage reporting | `response.usage` event during the stream | Aggregated in final `choices[0]` chunk |
+
+**Why Responses API:**
+
+- Native SSE event types eliminate the need for synthetic event construction.
+- Tool call argument streaming uses a simple delta-per-event model with `item_id` correlation instead of the Chat Completions index-based `tool_calls[].delta` array.
+- The API is designed for agentic/assistant-style interactions with built-in tool orchestration.
+- OpenAI-compatible servers (e.g. local LLM backends) implement the Responses API format for SDK interoperability.
+
+**Event flow for a tool-calling stream:**
+
+```
+response.created
+response.in_progress               (deferred to Stage 8)
+  ├── response.output_item.added   (item.type="function_call", id="call_1", name="get_time")
+  ├── response.function_call_arguments.delta (item_id="call_1", delta="{")
+  ├── response.function_call_arguments.delta (item_id="call_1", delta="}")
+  └── response.function_call_arguments.done  (item_id="call_1", arguments="{}")
+response.completed
+
+[Tool executes silently — no synthetic events]
+
+response.created                    (next LLM iteration)
+  ├── response.output_text.delta   (delta="The current time is...")
+  └── ...
+response.completed
+response.usage
+```
 
 ### R-5.2.3: response.failed / error Events
 
