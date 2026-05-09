@@ -7,6 +7,7 @@ Usage:
     uv run python .agents/scripts/gh.py fetch unresolved <pr-or-url>  # Get unresolved threads
     uv run python .agents/scripts/gh.py fetch url <full-url>          # Fetch specific by URL
     uv run python .agents/scripts/gh.py fetch repo                    # Get repo info (owner, language, etc.)
+    uv run python .agents/scripts/gh.py fetch prs                     # List PRs (filters: --head, --state, --base, --limit)
     uv run python .agents/scripts/gh.py post review <pr> <body.md> [comments.json]
     uv run python .agents/scripts/gh.py post comment <pr> <body.md>
     uv run python .agents/scripts/gh.py post inline <pr> <body.md> --path <file> --line <N>
@@ -114,6 +115,41 @@ def check_file(path: str) -> bool:
         print(f"[FAIL] File is empty: {path}", file=sys.stderr)
         return False
     return True
+
+
+def cmd_fetch_prs(args):
+    """List PRs with optional filters."""
+    owner_repo = get_owner_repo()
+    cmd = ["gh", "pr", "list", "--json",
+           "number,title,state,headRefName,baseRefName,author,createdAt,updatedAt,mergeable,isDraft"]
+    if args.head:
+        cmd.extend(["--head", args.head])
+    if args.state:
+        cmd.extend(["--state", args.state])
+    if args.base:
+        cmd.extend(["--base", args.base])
+    if args.limit:
+        cmd.extend(["--limit", str(args.limit)])
+
+    out, err, rc = run(cmd)
+    if rc != 0:
+        print(f"[FAIL] Could not list PRs: {err}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        prs = json.loads(out)
+        if not prs:
+            print("No PRs found matching the given criteria.")
+            return
+        print(f"PRs matching: {len(prs)} result(s)")
+        print()
+        for pr in prs:
+            draft = " [DRAFT]" if pr.get("isDraft") else ""
+            state_tag = pr["state"].upper()
+            print(f"  #{pr['number']} ({state_tag}{draft}) — {pr['title']}")
+            print(f"       {pr['headRefName']} → {pr['baseRefName']}  |  by {pr['author']['login']}")
+            print(f"       Created: {pr['createdAt']}")
+    except json.JSONDecodeError:
+        print(out)
 
 
 def cmd_fetch_repo(args):
@@ -615,6 +651,13 @@ def main():
     fu.add_argument("url", help="Full GitHub URL (e.g., https://github.com/.../pull/11#issue-4399302650)")
     fu.set_defaults(func=cmd_fetch_url)
     
+    fprs = fetch_sub.add_parser("prs", help="List PRs with optional filters")
+    fprs.add_argument("--head", type=str, default=None, help="Filter by head branch")
+    fprs.add_argument("--state", type=str, default=None, choices=["open", "closed", "merged"], help="Filter by state (default: open)")
+    fprs.add_argument("--base", type=str, default=None, help="Filter by base branch")
+    fprs.add_argument("--limit", type=int, default=None, help="Max results (default: 30)")
+    fprs.set_defaults(func=cmd_fetch_prs)
+
     frepo = fetch_sub.add_parser("repo", help="Fetch repository information")
     frepo.set_defaults(func=cmd_fetch_repo)
 

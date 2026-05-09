@@ -29,6 +29,7 @@ Temp files go in `./tmp/` (gitignored). gh.py auto-cleans on success.
 ### Fetch
 ```bash
 uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"      # PR details
+uv run python .agents/scripts/gh.py fetch prs                   # List PRs (--head, --state, --base, --limit)
 uv run python .agents/scripts/gh.py fetch repo                  # Repo info (owner, language, visibility)
 uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" # Inline comments + reviews
 uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER" # Unresolved threads
