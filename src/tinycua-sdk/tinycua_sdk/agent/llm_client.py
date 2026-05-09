@@ -91,6 +91,9 @@ class OpenAICompatibleClient(LLMClient):
             "input": messages,
         }
 
+        _FIELD_MAP = {
+            "max_tokens": "max_output_tokens",
+        }
         for field in (
             "temperature",
             "max_tokens",
@@ -107,7 +110,7 @@ class OpenAICompatibleClient(LLMClient):
         ):
             value = getattr(model_config, field)
             if value is not None:
-                payload[field] = value
+                payload[_FIELD_MAP.get(field, field)] = value
 
         if tools:
             payload["tools"] = tools
