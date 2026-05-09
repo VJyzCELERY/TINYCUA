@@ -19,7 +19,7 @@ async def main():
     response = await a.run(
         "Tell me a joke.",
         instructions="You are a pirate. Be funny and concise.",
-        stream="off",
+        stream=False,
     )
     assert isinstance(response, str)
     print(f"Response: {response}")

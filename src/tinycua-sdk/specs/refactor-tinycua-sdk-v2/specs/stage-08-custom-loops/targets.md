@@ -17,7 +17,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class MyLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         return "custom result"
 
 
@@ -51,7 +51,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class LLMLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         response = await agent._call_llm(messages)
         return response.get("content", "") or "[no content]"
 
@@ -62,7 +62,7 @@ async def main():
         loop=LLMLoop(),
     )
 
-    response = await a.run("Say hi.", stream="off")
+    response = await a.run("Say hi.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -86,7 +86,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class SlowLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         for i in range(100):
             if agent.is_cancelled:
                 return "[cancelled]"
@@ -128,7 +128,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class CountingLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         count = 0
         for _ in range(self.max_iterations):
             count += 1
@@ -177,7 +177,7 @@ def weather(city: str) -> str:
 
 
 class ReActLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         response = await agent._call_llm(messages, tools)
         content = response.get("content", "")
 
@@ -207,7 +207,7 @@ async def main():
         loop=ReActLoop(),
     )
 
-    response = await a.run("What is the weather in Tokyo?", stream="off")
+    response = await a.run("What is the weather in Tokyo?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

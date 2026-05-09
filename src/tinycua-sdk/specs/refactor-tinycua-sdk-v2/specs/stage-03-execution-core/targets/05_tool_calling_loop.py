@@ -24,7 +24,7 @@ async def main():
         instructions="You have access to a calculator. Use it for math.",
     )
 
-    response = await a.run("What is 135 * 42?", stream="off")
+    response = await a.run("What is 135 * 42?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

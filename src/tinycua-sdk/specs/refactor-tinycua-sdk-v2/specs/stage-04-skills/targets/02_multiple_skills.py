@@ -20,7 +20,7 @@ async def main():
         skills=[skill_a, skill_b],
     )
 
-    response = await a.run("Hello.", stream="off")
+    response = await a.run("Hello.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

@@ -37,7 +37,7 @@ async def main():
         skills=[coding_skill],
     )
 
-    response = await a.run("Write a hello world function.", stream="off")
+    response = await a.run("Write a hello world function.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -75,7 +75,7 @@ async def main():
         skills=[skill_a, skill_b],
     )
 
-    response = await a.run("Hello.", stream="off")
+    response = await a.run("Hello.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -116,7 +116,7 @@ async def main():
     )
     a.add_skills(docs_skill)
 
-    response = await a.run("Now document that function.", stream="off")
+    response = await a.run("Now document that function.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -169,7 +169,7 @@ async def main():
         instructions="You are a research assistant.",
     )
 
-    response = await a.run("What is the latest version of FastAPI?", stream="off")
+    response = await a.run("What is the latest version of FastAPI?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

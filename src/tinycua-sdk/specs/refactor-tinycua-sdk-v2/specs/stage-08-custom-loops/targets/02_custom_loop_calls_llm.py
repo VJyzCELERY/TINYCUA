@@ -5,7 +5,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class LLMLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         response = await agent._call_llm(messages)
         return response.get("content", "") or "[no content]"
 
@@ -16,7 +16,7 @@ async def main():
         loop=LLMLoop(),
     )
 
-    response = await a.run("Say hi.", stream="off")
+    response = await a.run("Say hi.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

@@ -27,7 +27,7 @@ async def main():
         approval_workflow=DangerousToolGuardrail(),
     )
 
-    response = await a.run("Run 'ls -la'", stream="off")
+    response = await a.run("Run 'ls -la'", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

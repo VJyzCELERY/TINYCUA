@@ -23,7 +23,7 @@ async def main():
     )
     a.add_skills(docs_skill)
 
-    response = await a.run("Now document that function.", stream="off")
+    response = await a.run("Now document that function.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

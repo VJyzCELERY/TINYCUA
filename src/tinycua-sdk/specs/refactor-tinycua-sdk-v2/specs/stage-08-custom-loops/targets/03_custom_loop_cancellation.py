@@ -5,7 +5,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class SlowLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         for i in range(100):
             if agent.is_cancelled:
                 return "[cancelled]"

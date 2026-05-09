@@ -26,7 +26,7 @@ async def main():
         skills=[coding_skill],
     )
 
-    response = await a.run("Write a hello world function.", stream="off")
+    response = await a.run("Write a hello world function.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

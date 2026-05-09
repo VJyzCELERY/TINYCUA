@@ -35,7 +35,7 @@ async def main():
         instructions="You are a research assistant.",
     )
 
-    response = await a.run("What is the latest version of FastAPI?", stream="off")
+    response = await a.run("What is the latest version of FastAPI?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

@@ -19,7 +19,7 @@ async def main():
     # Set deny permission (no guardrail needed)
     a.tool_permissions["shell_execute"] = "deny"
 
-    response = await a.run("Run 'rm -rf /'", stream="off")
+    response = await a.run("Run 'rm -rf /'", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
