@@ -1,4 +1,4 @@
-"""Target 3.1: Verify agent.run() returns a string with stream='off'."""
+"""Target 3.1: Verify agent.run() returns a string with stream=False."""
 
 import asyncio
 from tinycua_sdk import Agent, LanguageModel
@@ -15,7 +15,7 @@ async def main():
             base_url=BASE_URL, api_key=API_KEY, model_name=MODEL_NAME,
         ),
     )
-    response = await a.run("Say hello.", stream="off")
+    response = await a.run("Say hello.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

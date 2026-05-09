@@ -27,7 +27,7 @@ async def main():
     # Add tool after creation
     a.add_tools(convert_currency)
 
-    response = await a.run("Convert 100 USD to EUR.", stream="off")
+    response = await a.run("Convert 100 USD to EUR.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

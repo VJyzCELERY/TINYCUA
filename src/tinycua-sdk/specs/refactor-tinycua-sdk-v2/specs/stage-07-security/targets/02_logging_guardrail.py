@@ -24,7 +24,7 @@ async def main():
         approval_workflow=LoggingGuardrail(),
     )
 
-    response = await a.run("Read README.md", stream="off")
+    response = await a.run("Read README.md", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
