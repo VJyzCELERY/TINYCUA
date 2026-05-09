@@ -5,7 +5,7 @@ subtask: true
 
 Update an existing PR review with follow-up comments and resolve findings that have been addressed.
 
-> Load skill: review-update (for updating PR reviews after fixes)
+> Load skill: review-pr (for updating PR reviews after fixes)
 
 **Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
@@ -13,8 +13,8 @@ Update an existing PR review with follow-up comments and resolve findings that h
 
 ## Overview
 
-> Load skill: preflight (for preflight-pr.py)
-> Load skill: gh-pr-management (for gh.py — all update operations)
+> Load _common-preflight.md
+> Load skill: gh (for gh.py — all update operations)
 
 After fixes have been implemented and validated, this command updates the PR review to reflect the new state: resolved findings get a follow-up comment and are marked resolved; findings that remain open get a follow-up comment requesting further changes.
 

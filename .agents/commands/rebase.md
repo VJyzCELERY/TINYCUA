@@ -5,7 +5,7 @@ subtask: true
 
 Safely rebase the current branch onto a target branch (default: `main`) without duplicating commits that are already in the target history.
 
-> Load skill: rebase (for safe rebasing)
+> Load skill: git (for safe rebasing)
 
 **Query**: $1 (natural language query — specify the target branch, e.g., "rebase onto main" or simply "main")
 **Target Branch**: (parsed from query, defaults to `main`)

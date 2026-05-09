@@ -5,7 +5,7 @@ subtask: true
 
 Conduct a scoped code review of the current branch's changes and generate a comprehensive report.
 
-> Load skill: review-report (for scoped code reviews)
+> Load skill: review-core (for scoped code reviews)
 
 **Query**: $1 (natural language query — specify what to review and optionally the focus, e.g., "review src/tinycua-sdk for security issues" or simply "src/my-subproject/")
 **Review Focus (Optional)**: $2 (e.g. "security", "performance", "docs", "unscoped" — parsed from query if not provided)
@@ -15,8 +15,8 @@ Conduct a scoped code review of the current branch's changes and generate a comp
 
 Before running, load the relevant skills and run the review pre-flight:
 
-> Load skill: preflight (for preflight scripts)
-> Load skill: gh-pr-management (for gh.py — used in PR context)
+> Load _common-preflight.md
+> Load skill: gh (for gh.py — used in PR context)
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --init-review

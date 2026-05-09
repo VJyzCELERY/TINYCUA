@@ -16,8 +16,7 @@
 | `/review-post` | Posts review as a GitHub PR review with inline comments |
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
 | `/review-fetch` | Pulls unresolved PR comments into a local review file |
-| `/review-log` | Logs a completed review cycle to the permanent review log |
-| `/review-cleanup` | Archives resolved review reports |
+| `/review-archive` | Logs completed cycle then archives the review report |
 | `/rebase` | Safely rebases branch onto target (avoids commit duplication) |
 | `/commit-cleanup` | Cleans up commit history — squashes fixups, removes duplicates |
 | `/begin-worktree` | Creates a new worktree + branch for feature development |
@@ -43,8 +42,7 @@
 | Publish review results on a GitHub PR | `/review-post reviews/REVIEW_foo.md` |
 | Update a PR review after fixes landed | `/review-update reviews/REVIEW_foo.md` |
 | Get PR review comments into a local file for tracking | `/review-fetch 42` |
-| Log a completed review cycle to permanent archive | `/review-log reviews/REVIEW_foo.md` |
-| Archive a review where all issues are resolved | `/review-cleanup reviews/REVIEW_foo.md` |
+| Log + archive a completed review cycle | `/review-archive reviews/REVIEW_foo.md` |
 | Safely rebase current branch without duplicating commits | `/rebase` or `/rebase main` |
 | Create a new worktree + branch for feature development | `/begin-worktree feat/new-feature` |
 | Remove inactive/stale worktrees (checks PRs) | `/worktree-prune` |
@@ -61,7 +59,7 @@
 /begin-workflow specs/my-feature/
 ```
 
-This runs the entire pipeline automatically: `plan` → `implement` → `review-loop` → `review-cleanup`.
+This runs the entire pipeline automatically: `plan` → `implement` → `review-loop` → `review-archive`.
 
 ### Review Loop (Standalone)
 
@@ -69,7 +67,7 @@ This runs the entire pipeline automatically: `plan` → `implement` → `review-
 /review-loop src/my-subproject/            # Run review cycle until clean
 ```
 
-This runs: review-report → review-validate → review-implement → ... → fresh review-report → ... → review-log → review-cleanup.
+This runs: review-report → review-validate → review-implement → ... → fresh review-report → ... → review-archive.
 
 ### Manual PR Review Cycle
 
@@ -80,8 +78,7 @@ This runs: review-report → review-validate → review-implement → ... → fr
 /review-validate reviews/REVIEW_foo.md  # 3. Re-check if fixes actually work
 /review-update reviews/REVIEW_foo.md    # 4. Update PR review: resolve fixed, flag remaining
                                         #    (repeat 3-4 until all clean)
-/review-log reviews/REVIEW_foo.md       # 5. Log the completed cycle to permanent archive
-/review-cleanup reviews/REVIEW_foo.md   # 6. Archive the resolved review
+/review-archive reviews/REVIEW_foo.md   # 5. Log + archive the completed cycle
 ```
 
 ### Reviewing Someone Else's PR
@@ -109,8 +106,7 @@ This runs: review-report → review-validate → review-implement → ... → fr
 | `/review-post` | Posts on GitHub PR |
 | `/review-update` | Comments/resolutions on GitHub PR |
 | `/review-fetch` | `./reviews/REVIEW_{name}_fetched.md` |
-| `/review-log` | `./reviews/log/REVIEW_{name}.md` (appends entry) |
-| `/review-cleanup` | Archives to `./reviews/archived/` |
+| `/review-archive` | Log entry + archive at `./reviews/archives/REVIEW_{name}_{ID}.md` |
 | `/rebase` | Rebases current branch onto target |
 | `/begin-worktree` | Creates `.worktrees/<branch>/` with matching branch |
 | `/worktree-prune` | Removes stale `.worktrees/` directories |
@@ -135,7 +131,7 @@ Each command has a corresponding skill that teaches you how to run it properly. 
 | `implement` | TDD implementation following a plan |
 | `plan` | Create implementation plan from spec + design |
 | `rebase` | Safe rebasing onto target branch |
-| `review-cleanup` | Archive resolved review reports |
+| `review-archive` | Log + archive completed review cycle |
 | `review-clarify` | Improve finding precision and add context |
 | `review-fetch` | Pull PR comments into a local review file |
 | `review-implement` | Apply code fixes from review findings |

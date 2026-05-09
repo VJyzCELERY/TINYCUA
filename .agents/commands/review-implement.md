@@ -5,7 +5,7 @@ subtask: true
 
 Implement fixes based on review findings. This command ONLY modifies source code — it does NOT update the review report. Status updates are handled by `review-verify` and `review-validate`.
 
-> Load skill: review-implement (for applying fixes from findings)
+> Load skill: review-core (for applying fixes from findings)
 
 **Query**: $1 (natural language query or review file path, e.g., "fix the issues in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **Focus Area (Optional)**: $2 (implement only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")

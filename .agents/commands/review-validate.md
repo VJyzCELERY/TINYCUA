@@ -5,7 +5,7 @@ subtask: true
 
 Full review validation: first clarify vague findings, then verify each one's status.
 
-> Load skill: review-validate (for the full validation pipeline)
+> Load skill: review-core (for the full validation pipeline)
 
 **Query**: $1 (natural language query or review file path, e.g., "validate the findings in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **Focus Area (Optional)**: $2 (validate only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
@@ -16,7 +16,7 @@ If no focus area is provided, validate ALL OPEN findings.
 
 Before running, load the relevant skill and run the review pre-flight:
 
-> Load skill: preflight (for preflight scripts)
+> Load _common-preflight.md
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$1"

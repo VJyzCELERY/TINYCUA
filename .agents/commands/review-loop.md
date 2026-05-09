@@ -5,7 +5,7 @@ subtask: true
 
 Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-cleanup.
 
-> Load skill: review-loop (for orchestrating review cycles)
+> Load skill: review-core (for orchestrating review cycles)
 
 **Query**: $1 (natural language query — specify what to review, e.g., "review the changes in src/tinycua-sdk" or simply "src/my-subproject/")
 **Review Name**: $2 (optional — defaults to directory name from query)
@@ -42,8 +42,7 @@ The agent that executes this command is the **workflow-orchestrator**. You deleg
 - `/review-report` → Subagent 1, 4, 7, ...
 - `/review-validate` → Subagent 2, 5, 8, ...
 - `/review-implement` → Subagent 3, 6, 9, ...
-- `/review-log` → Subagent N-1 (when cycle is clean)
-- `/review-cleanup` → Subagent N
+- `/review-archive` → Subagent N
 
 ---
 
@@ -98,7 +97,7 @@ Only run this step if the fresh review returned CLEAN (zero issues). This archiv
 
 **Step 7: Review-cleanup (Subagent N)**
 
-> Run /review-cleanup for ./reviews/
+> Run /review-archive for ./reviews/REVIEW_{name}.md
 
 ---
 

@@ -51,7 +51,6 @@
 # Example: npm test -- --testPathPattern=feature
 ```
 
-**Priority Rank**: [1-10]
 
 ---
 
@@ -81,7 +80,6 @@
 [Command]
 ```
 
-**Priority Rank**: [1-10]
 
 ---
 
@@ -111,7 +109,6 @@
 [Command]
 ```
 
-**Priority Rank**: [1-10]
 
 ---
 

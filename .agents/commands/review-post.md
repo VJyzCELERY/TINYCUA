@@ -5,7 +5,7 @@ subtask: true
 
 Post a completed review report as a GitHub PR review with inline comments. After posting, update the local review report with the URLs of each posted comment.
 
-> Load skill: review-post (for posting reviews as PR inline comments)
+> Load skill: review-pr (for posting reviews as PR inline comments)
 
 **Query**: $1 (natural language query or review file path, e.g., "post the review from reviews/REVIEW_foo.md to PR #42" or simply "reviews/REVIEW_foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
@@ -20,8 +20,8 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 
 ## Instructions
 
-> Load skill: preflight (for preflight-pr.py)
-> Load skill: gh-pr-management (for gh.py — all posting operations)
+> Load _common-preflight.md
+> Load skill: gh (for gh.py — all posting operations)
 
 1. **Read the review report**: Load the REVIEW_{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:

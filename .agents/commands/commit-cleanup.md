@@ -5,7 +5,7 @@ subtask: true
 
 Clean up commit history after a rebase: squash fixup commits, remove duplicates, and keep history linear and meaningful.
 
-> Load skill: commit-cleanup (for commit history cleanup)
+> Load skill: git (for commit history cleanup)
 
 **Query**: $1 (natural language query — optional target branch, defaults to `main`)
 
@@ -18,7 +18,7 @@ Clean up commit history after a rebase: squash fixup commits, remove duplicates,
 Before cleaning up commits, load the relevant skill and run the rebase pre-flight:
 
 > Load skill: preflight (for preflight scripts)
-> Load skill: git-rebase (for rebase operations)
+> Load skill: git (for rebase operations)
 
 ```bash
 uv run python .agents/scripts/preflight-rebase.py --target main --list-commits
@@ -32,7 +32,7 @@ head -20 .agents/scripts/preflight-rebase.py
 
 ---
 
-Read `.agents/skills/git-rebase/SKILL.md` before proceeding for the full rebase workflow reference.
+Read `.agents/skills/git/SKILL.md` before proceeding for the full rebase workflow reference.
 
 ### 1. Check Current State
 

@@ -5,7 +5,7 @@ subtask: true
 
 Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
 
-> Load skill: review-fetch (for pulling PR comments into local review)
+> Load skill: review-pr (for pulling PR comments into local review)
 
 **Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
 **Output File (Optional)**: $2 (defaults to `./reviews/REVIEW_{name}_fetched.md`)
@@ -17,8 +17,8 @@ Fetch unresolved comments and review requests from a GitHub PR and generate a st
 
 Before fetching, load the relevant skills and run the PR pre-flight:
 
-> Load skill: preflight (for preflight scripts)
-> Load skill: gh-pr-management (for gh.py — fetching PR comments)
+> Load _common-preflight.md
+> Load skill: gh (for gh.py — fetching PR comments)
 
 ```bash
 PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")

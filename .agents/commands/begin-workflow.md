@@ -37,7 +37,7 @@ The agent that executes this command is the **workflow-orchestrator**. You (the 
 - `/review-report` → Subagent 3, 6, 9, ...
 - `/review-validate` → Subagent 4, 7, 10, ...
 - `/review-implement` → Subagent 5, 8, 11, ...
-- `/review-cleanup` → Subagent N
+- `/review-archive` → Subagent N
 
 Each subagent is a clean, independent invocation. Do NOT pass prior findings, fix history, or any context between them. The workflow-orchestrator alone maintains the bookkeeping.
 
@@ -135,7 +135,7 @@ This MUST be a fresh, independent review. Do NOT give the subagent any context a
 
 Delegate to a fresh subagent:
 
-> Run /review-cleanup for ./reviews/
+> Run /review-archive for ./reviews/REVIEW_{name}.md
 
 ---
 
@@ -153,7 +153,7 @@ Subagent 6:  /review-validate                             (re-validate after fix
 Subagent N:  /review-report                               (fresh, independent review)
              if issues → back to Subagent N+1 (validate)
              if clean → proceed to cleanup
-Subagent N:  /review-cleanup                              (archive resolved reviews)
+Subagent N:  /review-archive                              (log + archive review)
 ```
 
 ---
@@ -210,7 +210,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Stay scoped to the spec — don't implement or review things outside the scope.
 - Run actual commands and tests — don't assume results.
 - Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise.
-- Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure.
+- Always instruct subagents to load the relevant skill (e.g., `gh`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure.
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
