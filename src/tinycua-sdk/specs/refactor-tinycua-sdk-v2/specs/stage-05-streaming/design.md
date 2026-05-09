@@ -63,7 +63,9 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
                 if not content_item_id:
                     content_item_id = chunk.get("item_id", "")
                 content_parts.append(chunk.get("delta", ""))
-            elif chunk_type == "response.tool_call.delta":
+            elif chunk_type in ("response.output_item.added",
+                                "response.function_call_arguments.delta",
+                                "response.function_call_arguments.done"):
                 # Accumulate tool call data
                 ...
             elif chunk_type == "response.usage":
@@ -122,7 +124,7 @@ Stream Start
   │
   ├── [while iterating]
   │     ├── Raw SSE events passthrough from LLM
-  │     │   (response.output_text.delta, response.tool_call.delta, response.usage, ...)
+  │     │   (response.output_text.delta, response.output_item.added, response.function_call_arguments.delta, response.function_call_arguments.done, response.usage, ...)
   │     │
   │     ├── [tool calls detected: execute tools silently]
   │     │   └── (no synthetic events emitted)

@@ -187,15 +187,29 @@ class BaseLoop:
                     )
 
                 try:
-                    async for chunk in llm_stream:
-                        if agent.is_cancelled:
-                            yield {"type": "response.cancelled"}
+                    inner_cancelled = False
+                    while True:
+                        try:
+                            chunk = await asyncio.wait_for(
+                                llm_stream.__anext__(), timeout=0.2
+                            )
+                        except asyncio.TimeoutError:
+                            if agent.is_cancelled:
+                                yield {"type": "response.cancelled"}
+                                inner_cancelled = True
+                                break
+                            continue
+                        except StopAsyncIteration:
                             break
+
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage)
                 finally:
                     if hasattr(llm_stream, "aclose"):
                         await llm_stream.aclose()
+
+                if inner_cancelled:
+                    break
 
                 combined_content = "".join(content_parts)
                 tool_calls_list = list(tool_calls_buffer.values())
@@ -217,15 +231,6 @@ class BaseLoop:
                         working_messages,
                     )
                     if executed_tool_calls:
-                        assistant_msg["tool_calls"] = [
-                            {
-                                "id": tc["id"],
-                                "call_id": tc.get("call_id", tc["id"]),
-                                "name": tc["name"],
-                                "arguments": tc["arguments"],
-                            }
-                            for tc in executed_tool_calls
-                        ]
                         working_messages.insert(assistant_index, assistant_msg)
                 else:
                     working_messages.append(assistant_msg)
@@ -288,6 +293,14 @@ class BaseLoop:
                 }
                 working_messages.append(
                     {
+                        "type": "function_call",
+                        "call_id": tc.get("call_id", tc["id"]),
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    }
+                )
+                working_messages.append(
+                    {
                         "type": "function_call_output",
                         "call_id": tc.get("call_id", tc["id"]),
                         "output": str(tool_result),
@@ -305,6 +318,14 @@ class BaseLoop:
                     raise RuntimeError(f"Tool execution failed: {e}") from e
             tool_call_count += 1
 
+            working_messages.append(
+                {
+                    "type": "function_call",
+                    "call_id": tc.get("call_id", tc["id"]),
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                }
+            )
             working_messages.append(
                 {
                     "type": "function_call_output",
