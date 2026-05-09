@@ -10,6 +10,7 @@ import asyncio
 import os
 from typing import AsyncIterator
 
+import httpx
 import pytest
 
 from tinycua_sdk import Agent, LanguageModel, tool
@@ -60,10 +61,11 @@ async def _can_call_tools(agent: Agent, retries: int = 2) -> bool:
                         if item.get("type") != "function_call":
                             continue
                     return True
-        except Exception:
+        except (httpx.ConnectError, httpx.TimeoutException, asyncio.TimeoutError):
             if attempt < retries:
                 await asyncio.sleep(0.5)
                 continue
+            raise
     return False
 
 
