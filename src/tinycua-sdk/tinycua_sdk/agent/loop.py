@@ -173,6 +173,8 @@ class BaseLoop:
         usage_settled_ids: set[str] = set()
         finish_reason = "completed"
 
+        completed_by_provider = False
+
         try:
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
@@ -221,6 +223,8 @@ class BaseLoop:
                     ):
                         if chunk is None:
                             break
+                        if chunk.get("type") == "response.completed":
+                            completed_by_provider = True
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                     if agent.is_cancelled:
@@ -266,7 +270,7 @@ class BaseLoop:
             return
 
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-        if not agent.is_cancelled:
+        if not agent.is_cancelled and not completed_by_provider:
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
     async def _execute_tools_stream(
