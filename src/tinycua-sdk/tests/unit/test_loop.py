@@ -454,6 +454,84 @@ class TestBaseLoopRunStream:
         )
 
     @pytest.mark.asyncio
+    async def test_run_stream_first_chunk_response_failed(self):
+        """First chunk is response.failed -> no synthetic response.completed."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.failed", "error": {"message": "boom"}}
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], []
+        )
+        events = [e async for e in stream_iter]
+        types = [e["type"] for e in events]
+
+        assert "response.failed" in types
+        failed_index = types.index("response.failed")
+        assert not any(t == "response.completed" for t in types[failed_index + 1:]), (
+            f"response.completed found after response.failed: {types}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_stream_first_chunk_error(self):
+        """First chunk is raw error -> no synthetic response.completed."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "error", "error": {"message": "oops"}}
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], []
+        )
+        events = [e async for e in stream_iter]
+        types = [e["type"] for e in events]
+
+        assert "error" in types
+        error_index = types.index("error")
+        assert not any(t == "response.completed" for t in types[error_index + 1:]), (
+            f"response.completed found after error: {types}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_stream_first_chunk_completed_dedup(self):
+        """First chunk is response.completed -> no synthetic duplicate."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.completed", "finish_reason": "completed"}
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "hi"}], []
+        )
+        events = [e async for e in stream_iter]
+        completed_count = sum(
+            1 for e in events if e.get("type") == "response.completed"
+        )
+        assert completed_count == 1, (
+            f"Expected 1 response.completed, got {completed_count}: "
+            f"{[e for e in events if e.get('type') == 'response.completed']}"
+        )
+
+    @pytest.mark.asyncio
     async def test_run_stream_empty_llm_response(self):
         """Empty LLM stream completes cleanly with no intermediate events."""
         loop = BaseLoop(max_iterations=5)
