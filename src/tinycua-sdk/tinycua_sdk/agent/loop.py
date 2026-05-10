@@ -174,6 +174,7 @@ class BaseLoop:
         finish_reason = "completed"
 
         completed_by_provider = False
+        provider_failed = False
 
         try:
             for _ in range(self.max_iterations):
@@ -225,13 +226,20 @@ class BaseLoop:
                             break
                         if chunk.get("type") == "response.completed":
                             completed_by_provider = True
+                        elif chunk.get("type") in ("response.failed", "error"):
+                            provider_failed = True
                         yield chunk
                         self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                        if provider_failed:
+                            break
                     if agent.is_cancelled:
                         yield {"type": "response.cancelled"}
                         inner_cancelled = True
 
                 if inner_cancelled:
+                    break
+
+                if provider_failed:
                     break
 
                 combined_content = "".join(content_parts)
@@ -270,7 +278,7 @@ class BaseLoop:
             return
 
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-        if not agent.is_cancelled and not completed_by_provider:
+        if not agent.is_cancelled and not completed_by_provider and not provider_failed:
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
     async def _execute_tools_stream(
