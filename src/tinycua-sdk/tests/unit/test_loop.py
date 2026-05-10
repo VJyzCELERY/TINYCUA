@@ -858,6 +858,140 @@ class TestBaseLoopRunStream:
         assert usage_events[-1]["usage"]["input_tokens"] == 5
         assert usage_events[-1]["usage"]["output_tokens"] == 3
 
+    @pytest.mark.asyncio
+    async def test_run_stream_multi_iteration_cumulative_usage(self):
+        """Cumulative usage sums across tool-call iterations."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.output_item.added",
+                        "item": {
+                            "type": "function_call",
+                            "id": "call_1",
+                            "call_id": "call_1",
+                            "name": "get_time",
+                        },
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "response.usage",
+                        "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "The time is 12:00.",
+                        "item_id": "2",
+                    }
+                    yield {
+                        "type": "response.usage",
+                        "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "time?"}], [get_time]
+        )
+        events = [e async for e in stream_iter]
+
+        raw_usage = [e for e in events if e["type"] == "response.usage"]
+        assert len(raw_usage) == 3  # iter1 raw + iter2 raw + cumulative summary
+
+        cumulative = raw_usage[-1]
+        assert cumulative["usage"]["input_tokens"] == 8
+        assert cumulative["usage"]["output_tokens"] == 5
+        assert cumulative["usage"]["total_tokens"] == 13
+
+    @pytest.mark.asyncio
+    async def test_run_stream_multi_iteration_usage_from_completed(self):
+        """Usage from response.completed.response.usage accumulates across iterations."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.output_item.added",
+                        "item": {
+                            "type": "function_call",
+                            "id": "call_1",
+                            "call_id": "call_1",
+                            "name": "get_time",
+                        },
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "response.completed",
+                        "response": {
+                            "id": "r1",
+                            "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+                        },
+                    }
+                else:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "The time is 12:00.",
+                        "item_id": "2",
+                    }
+                    yield {
+                        "type": "response.usage",
+                        "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                    }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = loop._run_stream(
+            agent, [{"role": "user", "content": "time?"}], [get_time]
+        )
+        events = [e async for e in stream_iter]
+
+        completed_events = [e for e in events if e["type"] == "response.completed"]
+        usage_events = [e for e in events if e["type"] == "response.usage"]
+
+        assert len(completed_events) == 2  # provider forwarded + SDK synthetic
+        assert len(usage_events) == 2  # iter2 raw + cumulative summary
+
+        cumulative = usage_events[-1]
+        assert cumulative["usage"]["input_tokens"] == 8
+        assert cumulative["usage"]["output_tokens"] == 5
+        assert cumulative["usage"]["total_tokens"] == 13
+
 
 class TestLoopExecution:
     """Tests for loop execution (mocked LLM)."""
