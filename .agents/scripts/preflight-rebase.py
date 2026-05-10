@@ -154,12 +154,28 @@ def get_current_branch() -> str:
     return run(["git", "branch", "--show-current"])
 
 
+def check_pr_base(branch: str) -> str | None:
+    """Check if branch has an open PR on GitHub and return its base branch.
+
+    Uses `gh pr list --head <branch> --json baseRefName` to find the PR base.
+    Returns the base branch name (e.g. 'main', 'base/refactor-tinycua-sdk-v2')
+    or None if no open PR exists for this branch.
+    """
+    out = run([
+        "gh", "pr", "list", "--head", branch, "--state", "open",
+        "--json", "baseRefName", "--jq", ".[0].baseRefName"
+    ])
+    return out if out else None
+
+
 def detect_base() -> str:
     """Detect the tightest parent branch (stacked base) for the current branch.
 
-    Finds the local branch that is the most recent common ancestor
-    (closest to HEAD) that is a proper ancestor of the current branch.
-    Excludes main/master/develop and the current branch itself.
+    Priority:
+    1. If branch has an open PR on GitHub, use the PR's target base.
+    2. Otherwise, find the local branch that is the most recent common
+       ancestor (closest to HEAD) that is a proper ancestor of HEAD.
+       Excludes main/master/develop and the current branch itself.
 
     Returns the branch name, or 'main' if none found.
     """
@@ -167,6 +183,12 @@ def detect_base() -> str:
     if not branch or branch in ("main", "master", "develop"):
         return "main"
 
+    # Priority 1: Check if branch has an open PR
+    pr_base = check_pr_base(branch)
+    if pr_base:
+        return pr_base
+
+    # Priority 2: Local ancestor detection (stacked branches)
     branches = run(["git", "branch", "--list", "--format", "%(refname:short)"])
     if not branches:
         return "main"
@@ -211,8 +233,17 @@ def main():
     args = parser.parse_args()
 
     if args.detect_base:
+        branch = get_current_branch()
         base = detect_base()
+        print(f"branch={branch}")
         print(f"base={base}")
+        pr_base = check_pr_base(branch) if branch else None
+        if pr_base:
+            print(f"source=pr (target of open PR for {branch})")
+        elif base not in ("main", "master", "develop", branch):
+            print(f"source=local (tightest ancestor branch)")
+        else:
+            print(f"source=default")
         if base not in ("main", "master", "develop"):
             unique = get_unique_commits(base)
             print(f"unique_commits={len(unique)}")

@@ -24,6 +24,8 @@ Safely rebase branches onto targets without duplicating commits, and clean up co
 **Default behavior is stacked rebase.** Before rebasing onto the requested target, detect whether this branch is built on top of another local branch:
 
 1. **Detect the true base**: `uv run python .agents/scripts/preflight-rebase.py --detect-base`
+   - First checks if branch has an open PR on GitHub — if so, uses the PR's target base (`source=pr`)
+   - If no PR exists, falls back to finding the tightest local ancestor branch (`source=local`)
    - If output says `base=<branch>` where `<branch>` is not `main`/`master`, the branch is **stacked**.
    - If it says `base=main`, the branch is a **single** (standalone) branch.
 2. **If stacked** (branch is built on another local branch):
