@@ -178,6 +178,8 @@ class BaseLoop:
 
         try:
             for _ in range(self.max_iterations):
+                completed_by_provider = False
+                provider_failed = False
                 if agent.is_cancelled:
                     yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
@@ -206,11 +208,22 @@ class BaseLoop:
                 if first_cancelled:
                     if hasattr(llm_stream, "aclose"):
                         await llm_stream.aclose()
+                    yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
                     inner_cancelled = True
                 elif first_chunk is None:
                     yield {"type": "response.created"}
                 elif first_chunk.get("type") == "response.created":
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") == "response.completed":
+                    completed_by_provider = True
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") in ("response.failed", "error"):
+                    provider_failed = True
+                    yield {"type": "response.created"}
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                 else:
