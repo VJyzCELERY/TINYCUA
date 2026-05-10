@@ -32,6 +32,36 @@ def get_unique_commits(target: str) -> list[str]:
     return [l for l in out.splitlines() if l.strip()] if out else []
 
 
+def check_upstream_sync() -> list[str]:
+    """Check if local branch is in sync with its remote tracking branch."""
+    msgs = []
+    upstream = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+    if not upstream or "@{upstream}" in upstream:
+        return ["[INFO] No upstream tracking branch configured — skipping remote sync check."]
+
+    local = run(["git", "rev-parse", "HEAD"])
+    remote = run(["git", "rev-parse", "@{upstream}"])
+    if not local or not remote:
+        return ["[WARN] Could not resolve local or remote HEAD — skipping remote sync check."]
+
+    if local == remote:
+        return []
+
+    behind_count = int(run(["git", "rev-list", "--count", f"HEAD..@{upstream}"]) or 0)
+    ahead_count = int(run(["git", "rev-list", "--count", f"@{upstream}..HEAD"]) or 0)
+
+    if behind_count > 0 and ahead_count > 0:
+        msgs.append(f"[FAIL] Branch has diverged: {ahead_count} ahead, {behind_count} behind @{upstream}")
+        msgs.append(f"       Run `git pull --rebase` first to reconcile.")
+    elif behind_count > 0:
+        msgs.append(f"[FAIL] Branch is {behind_count} commit(s) behind @{upstream}")
+        msgs.append(f"       Run `git pull --rebase` first to catch up before rebasing.")
+    elif ahead_count > 0:
+        msgs.append(f"[INFO] Branch is {ahead_count} commit(s) ahead of @{upstream} (will be pushed after rebase).")
+
+    return msgs
+
+
 def check_ahead_behind(target: str) -> list[str]:
     msgs = []
     ahead = int(run(["git", "rev-list", "--count", f"{target}..HEAD"]) or 0)
@@ -125,6 +155,7 @@ def main():
     args = parser.parse_args()
 
     all_warnings = []
+    all_warnings.extend(check_upstream_sync())
     all_warnings.extend(check_ahead_behind(args.target))
     all_warnings.extend(check_duplicates(args.target))
     all_warnings.extend(check_potential_conflicts(args.target))
