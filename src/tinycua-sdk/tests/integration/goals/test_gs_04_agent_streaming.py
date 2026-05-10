@@ -122,9 +122,10 @@ async def test_gs_03_stream_with_tool_calls(streaming_agent):
     tool_call_events = [
         e
         for e in events
-        if e.get("type")
-        in ("response.output_item.added", "response.function_call_arguments.delta",
-            "response.function_call_arguments.done")
+        if e.get("type") in ("response.function_call_arguments.delta",
+                             "response.function_call_arguments.done")
+        or (e.get("type") == "response.output_item.added"
+            and e.get("item", {}).get("type") == "function_call")
     ]
     assert len(tool_call_events) > 0, (
         "Expected tool call events in the stream; "
@@ -134,8 +135,9 @@ async def test_gs_03_stream_with_tool_calls(streaming_agent):
     tool_event_indices = {
         i for i, e in enumerate(events)
         if e.get("type") in ("response.function_call_arguments.delta",
-                             "response.function_call_arguments.done",
-                             "response.output_item.added")
+                             "response.function_call_arguments.done")
+        or (e.get("type") == "response.output_item.added"
+            and e.get("item", {}).get("type") == "function_call")
     }
     if tool_event_indices:
         last_tool_idx = max(tool_event_indices)
