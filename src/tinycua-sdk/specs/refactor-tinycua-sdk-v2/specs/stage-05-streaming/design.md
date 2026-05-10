@@ -12,7 +12,7 @@ The SDK communicates with the LLM via the **OpenAI Responses API** (`POST /v1/re
 - Request payload uses `"input"` (not `"messages"`) for the conversation array.
 - Streaming SSE events are typed (`response.output_text.delta`, `response.function_call_arguments.delta`, etc.) rather than the Chat Completions `choices[].delta` format.
 - Tool call arguments arrive as `response.function_call_arguments.delta` / `.done` events correlated by `item_id`.
-- The stream ends with a `response.completed` event (not `data: [DONE]`).
+- Provider `response.completed` is forwarded as-is; the async iterator itself is the stream terminator. SDK cumulative `response.usage` may arrive after provider completion (unlike `data: [DONE]`).
 
 See the [spec](spec.md#api-contract-openai-responses-api) for the full API contract comparison.
 
@@ -94,7 +94,8 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
             break
 
     yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-    yield {"type": "response.completed", "finish_reason": finish_reason}
+    if not agent.is_cancelled and not completed_by_provider and not provider_failed:
+        yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
 ## Design Decisions
@@ -117,6 +118,8 @@ The `_run_stream` generator wraps its main loop in a try/except block. On any ex
 ```python
 async def _run_stream(self, ...):
     yield {"type": "response.created"}
+    completed_by_provider = False
+    provider_failed = False
     try:
         for _ in range(self.max_iterations):
             ...
@@ -124,7 +127,9 @@ async def _run_stream(self, ...):
         yield {"type": "response.failed", "error": {"message": str(e)}}
         yield {"type": "error", "error": {"message": str(e)}}
         return
-    yield {"type": "response.completed", "finish_reason": finish_reason}
+    yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+    if not agent.is_cancelled and not completed_by_provider and not provider_failed:
+        yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
 ### Event Flow Summary
@@ -144,7 +149,7 @@ Stream Start
   │     └── [repeat if more tool calls]
   │
   ├── response.usage (cumulative, at end)
-  ├── response.completed  (on success)
+  ├── response.completed  (synthetic, omitted if provider already sent one)
   │
   └── response.failed + error (on failure)
 ```
