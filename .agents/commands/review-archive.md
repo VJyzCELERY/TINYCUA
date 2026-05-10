@@ -25,7 +25,9 @@ uv run python .agents/scripts/review-log.py --log-create "$REVIEW_FILE"
 
 This extracts all ADDRESSED, INVALID, and DEFERRED findings (skips OPEN) and appends a new entry to `./reviews/log/REVIEW_{branch}.md`. The output includes the entry ID (e.g., `REVIEW_3`).
 
-If the script reports zero non-OPEN findings, exit early — nothing to archive.
+If the review has 0 findings (approved), the script creates a clean-review approval entry in
+the log — containing "0 findings — Approved" metadata with proper entry ID and timestamps,
+so no review cycle is ever lost to traceability.
 
 ### Step 2: Determine Entry ID
 

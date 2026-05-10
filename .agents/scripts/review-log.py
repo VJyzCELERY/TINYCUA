@@ -144,7 +144,43 @@ def cmd_log_create(review_path: str) -> int:
 
     findings = parse_review_findings(review_path)
     if not findings:
-        print("[WARN] No addressed/invalid/deferred findings found in review. Nothing to log.")
+        # Approved review with 0 findings — log an approval entry
+        branch = get_branch()
+        log_dir = Path("./reviews/log")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = get_log_path(branch)
+        entry_id = get_next_entry_id(log_path)
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        review_content = Path(review_path).read_text()
+        scope_match = re.search(r'\*\*Scope\*\*:\s*(.+)', review_content)
+        scope = scope_match.group(1).strip() if scope_match else ""
+
+        entry = (
+            f"---\n\n"
+            f"[REVIEW_{entry_id}_START]\n"
+            f"---\n\n"
+            f"**Review Date**: {date_str}\n"
+            f"**Scope**: {scope}\n"
+            f"**Cycle**: {entry_id}\n"
+            f"**Total Findings**: 0 | **Resolved**: 0 | **Deferred**: 0 | **Invalid**: 0\n"
+            f"\n"
+            f"### Approval — 0 findings, clean review\n"
+            f"- **Status**: approved\n"
+            f"- **Assessment**: No issues found. Review passed clean.\n"
+            f"\n"
+            f"---\n\n"
+            f"[REVIEW_{entry_id}_END]\n"
+        )
+
+        if log_path.exists():
+            existing = log_path.read_text().rstrip()
+            log_path.write_text(existing + "\n" + entry)
+        else:
+            header = f"# Review Log: {branch}\n\n"
+            log_path.write_text(header + entry)
+
+        print(f"[OK] Approved review logged: {log_path} (entry REVIEW_{entry_id})")
         return 0
 
     branch = get_branch()

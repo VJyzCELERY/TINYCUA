@@ -17,6 +17,7 @@ Archive a completed review cycle: create a permanent log entry, then move the re
 
 - A completed review at `./reviews/REVIEW_{branch}.md`
 - All findings must be ADDRESSED, INVALID, or DEFERRED (no OPEN)
+- Zero-finding (approved) reviews also qualify — no findings to resolve
 
 ## Execution
 
@@ -30,4 +31,4 @@ Archive a completed review cycle: create a permanent log entry, then move the re
 - Do NOT archive reviews with OPEN findings
 - The log is append-only — never modify existing entries
 - Archive filename includes log ID for traceability
-- If zero non-OPEN findings, skip archiving entirely
+- Zero-findings (approved) reviews ARE archived — they get a clean-review approval log entry so no cycle is lost
