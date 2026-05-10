@@ -28,10 +28,10 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
    e. Load coding standards before writing any source code
    f. Only then implement
    This applies regardless of whether the user explicitly mentioned specs or not — it's the default workflow.
-7. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure.
+7. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure. For PR bodies specifically, you MUST always use `.agents/templates/PR-body.md` — never write a PR body without filling in the template.
 8. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
 9. **Use `uv run` for Python** — Never bare `python` or `pytest`. Always `cd <subproject-dir> && uv run`.
-10. **Use gh.py for ALL PR operations** — All PR operations (read and write) must go through `.agents/scripts/gh.py`. Only use raw `gh` CLI when gh.py doesn't have the subcommand you need. Check `uv run python .agents/scripts/gh.py --help` for available subcommands before falling back to raw `gh`.
+10. **Use gh.py for ALL PR operations** — All PR operations (read and write) MUST go through `.agents/scripts/gh.py`. This includes: creating PRs, fetching PR details/comments, posting reviews/comments, updating bodies/titles, resolving threads. Only use raw `gh` CLI when gh.py doesn't have the subcommand you need AND you've verified with `uv run python .agents/scripts/gh.py --help`. If gh.py fails with a syntax/transient error, retry once after a 2-second pause before falling back to raw `gh`.
 11. **Review files are local-only** — Files under `./reviews/` are gitignored and must NEVER be committed or pushed. They are local artifacts for tracking findings during the review cycle. Subagents: if you generate a review file, do NOT `git add` or commit it.
 
 ---

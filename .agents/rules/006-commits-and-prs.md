@@ -20,9 +20,16 @@ Examples:
 
 ## PR Guidelines
 - Title follows conventional commit format
-- Body includes: summary of changes, testing notes, related issues
+- **PR body MUST use `.agents/templates/PR-body.md` as the template** — populate all sections (Summary, How to Test, Related Issues)
+- Body must reference the spec if applicable (link to spec.md / design.md)
 - PR targets the appropriate base branch (usually `main`)
-- PR description must reference the spec if applicable
+
+## PR Creation Workflow
+1. **Always use `uv run python .agents/scripts/gh.py` for ALL PR operations** — create, update, fetch, post, resolve. Raw `gh` CLI is fallback only.
+2. **Build the PR body first**: Read the template at `.agents/templates/PR-body.md`, fill in sections based on the spec/design/changes, write to a temp file in `./tmp/pr-body.md`.
+3. **Create via gh.py**: `uv run python .agents/scripts/gh.py create "title" ./tmp/pr-body.md [--head <branch>] [--base <branch>]`
+4. **On failure**: If gh.py fails with a syntax/transient error, retry once after a 2-second pause. If it still fails, inspect the error output before falling back to raw `gh`.
+5. **Verify**: `uv run python .agents/scripts/gh.py fetch pr <pr-number>` to confirm body was set correctly.
 
 ## Versioning
 - Follow semantic versioning: MAJOR.MINOR.PATCH

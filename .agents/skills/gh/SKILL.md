@@ -56,9 +56,13 @@ uv run python .agents/scripts/gh.py update body "$PR_NUMBER" ./tmp/new-body.md
 ```
 
 ### Create PR
+1. Read `.agents/templates/PR-body.md` and fill in all sections based on the spec/design/changes
+2. Write the filled body to `./tmp/pr-body.md`
+3. Create:
 ```bash
-uv run python .agents/scripts/gh.py create --title "Title" --body ./tmp/body.md
+uv run python .agents/scripts/gh.py create "Title" ./tmp/pr-body.md [--head <branch>] [--base <branch>]
 ```
+4. Verify body was set: `uv run python .agents/scripts/gh.py fetch pr <pr-number>`
 
 ### Run any gh command (wildcard)
 ```bash
@@ -71,6 +75,7 @@ uv run python .agents/scripts/gh.py cmd repo view --json name,description
 
 ## Common Pitfalls
 - **Always use gh.py first** — even for read operations. Only fall back to raw `gh` CLI if gh.py doesn't have the subcommand
+- **Retry on transient/syntax errors** — if gh.py fails with a syntax/transient error, retry once after a 2-second pause before falling back to raw `gh`
 - **Check gh.py --help** before using raw `gh` — the operation you need may already be covered
 - **`gh pr diff` is OK** — gh.py doesn't have a diff subcommand yet
 - **Unknown commands** — if gh.py doesn't support an operation, it tells you to use raw `gh` CLI. Just run the command it shows.
