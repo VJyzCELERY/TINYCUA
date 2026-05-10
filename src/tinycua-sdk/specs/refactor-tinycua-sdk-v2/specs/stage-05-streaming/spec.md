@@ -78,7 +78,7 @@ This SDK targets the **OpenAI Responses API** (`POST /v1/responses`), **not** th
 | Request body | `{ "input": [...], "model": "...", "tools": [...] }` | `{ "messages": [...], "model": "...", "tools": [...] }` |
 | SSE event format | Typed events via `type` field (`response.output_text.delta`, `response.function_call_arguments.delta`, etc.) | Undifferentiated `choices[].delta` with role/content/function_call |
 | Tool call streaming | `response.function_call_arguments.delta` / `.done` events with `item_id` correlation | `choices[].delta.tool_calls[i]` with incremental index |
-| Stream end sentinel | `response.completed` event | `data: [DONE]` line |
+| Stream end sentinel | Provider `response.completed` forwarded as-is; async iterator exhaustion is the true stream terminator. SDK cumulative `response.usage` may arrive after provider completion. | `data: [DONE]` line |
 | Usage reporting | `response.usage` event during the stream | Aggregated in final `choices[0]` chunk |
 
 **Why Responses API:**
@@ -97,15 +97,15 @@ response.in_progress               (deferred to Stage 8)
   ├── response.function_call_arguments.delta (item_id="call_1", delta="{")
   ├── response.function_call_arguments.delta (item_id="call_1", delta="}")
   └── response.function_call_arguments.done  (item_id="call_1", arguments="{}")
-response.completed
+response.completed                    (forwarded from provider)
 
 [Tool executes silently — no synthetic events]
 
 response.created                    (next LLM iteration)
   ├── response.output_text.delta   (delta="The current time is...")
   └── ...
-response.completed
-response.usage
+response.usage                      (SDK cumulative event)
+response.completed                  (SDK, omitted if provider already sent one)
 ```
 
 ### R-5.2.3: response.failed / error Events
