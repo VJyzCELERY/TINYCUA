@@ -22,10 +22,10 @@ Scan all worktrees, check each for PR status, and remove stale ones.
 2. **For each worktree**, determine its fate:
 
    a. **Get the branch name**: Extract the branch from the worktree path
-   b. **Check for an open PR**:
-      ```bash
-       PR_DATA=$(uv run python .agents/scripts/gh.py cmd pr list --head "$BRANCH" --json number,state,title,baseRefName 2>/dev/null)
-      ```
+   b. **Check PR status (all states)**:
+       ```bash
+        PR_DATA=$(uv run python .agents/scripts/gh.py cmd pr list --head "$BRANCH" --state all --json number,state,title,baseRefName 2>/dev/null)
+       ```
    c. **Decision logic**:
 
    | Condition | Action |
