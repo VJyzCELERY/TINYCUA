@@ -124,8 +124,61 @@ class TestStreamingWithToolCalls:
         assert any(e["type"] == "response.completed" for e in events)
 
 
+class TestProviderFailure:
+    """Provider failure events must NOT be followed by synthetic response.completed."""
+
+    @pytest.mark.asyncio
+    async def test_response_failed_prevents_completed(self):
+        """response.failed event blocks subsequent response.completed."""
+        agent = Agent(llm_model=LanguageModel())
+
+        async def mock_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.created"}
+                yield {"type": "response.failed", "error": {"message": "provider failed"}}
+
+            return _gen()
+
+        agent._call_llm = mock_stream
+
+        stream_iter = await agent.run("hi", stream=True)
+        events = [e async for e in stream_iter]
+
+        types = [e["type"] for e in events]
+        assert "response.failed" in types
+        failed_index = types.index("response.failed")
+        assert not any(t == "response.completed" for t in types[failed_index + 1:]), (
+            f"response.completed found after response.failed: {types}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error_event_prevents_completed(self):
+        """raw error event blocks subsequent response.completed."""
+        agent = Agent(llm_model=LanguageModel())
+
+        async def mock_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.created"}
+                yield {"type": "error", "error": {"message": "something went wrong"}}
+
+            return _gen()
+
+        agent._call_llm = mock_stream
+
+        stream_iter = await agent.run("hi", stream=True)
+        events = [e async for e in stream_iter]
+
+        types = [e["type"] for e in events]
+        assert "error" in types
+        error_index = types.index("error")
+        assert not any(t == "response.completed" for t in types[error_index + 1:]), (
+            f"response.completed found after error: {types}"
+        )
+
+
 __all__ = [
     "TestStreamingOff",
     "TestStreamingOn",
     "TestStreamingWithToolCalls",
+    "TestProviderFailure",
 ]
