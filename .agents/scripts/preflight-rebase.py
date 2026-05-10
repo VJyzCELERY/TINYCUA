@@ -4,11 +4,13 @@ Checks: unique commits, already-applied duplicates, potential merge conflicts,
 and uncommitted changes. Call before running /rebase or /commit-cleanup.
 
 Usage:
-    uv run python .agents/scripts/preflight-rebase.py [--target <branch>] [--list-commits]
+    uv run python .agents/scripts/preflight-rebase.py [--target <branch>] [--list-commits] [--detect-base]
 
 Options:
     --target <branch>     Target branch to check against (default: main)
     --list-commits        Show the full list of unique commits on this branch
+    --detect-base         Detect the true parent base for stacked branches
+                          (defaults to stacked rebase: find tightest ancestor)
 
 Exits 0 if rebase is safe, non-zero with warnings otherwise.
 <EOF_DESC>
@@ -148,11 +150,76 @@ def list_unique_commits(target: str) -> list[str]:
     return result
 
 
+def get_current_branch() -> str:
+    return run(["git", "branch", "--show-current"])
+
+
+def detect_base() -> str:
+    """Detect the tightest parent branch (stacked base) for the current branch.
+
+    Finds the local branch that is the most recent common ancestor
+    (closest to HEAD) that is a proper ancestor of the current branch.
+    Excludes main/master/develop and the current branch itself.
+
+    Returns the branch name, or 'main' if none found.
+    """
+    branch = get_current_branch()
+    if not branch or branch in ("main", "master", "develop"):
+        return "main"
+
+    branches = run(["git", "branch", "--list", "--format", "%(refname:short)"])
+    if not branches:
+        return "main"
+
+    best_candidate = "main"
+    best_distance = 999999
+
+    for b in branches.splitlines():
+        b = b.strip().replace("* ", "")
+        if b in ("main", "master", "develop", branch):
+            continue
+        try:
+            subprocess.check_output(
+                ["git", "merge-base", "--is-ancestor", b, "HEAD"],
+                stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            continue  # b is not an ancestor of HEAD
+
+        # b is an ancestor — get the merge-base and count distance
+        mb = run(["git", "merge-base", b, "HEAD"])
+        if not mb:
+            continue
+        count_out = run(["git", "rev-list", "--count", f"{mb}..HEAD"])
+        count = int(count_out) if count_out else 999999
+        b_head = run(["git", "rev-parse", b])
+        b_count_out = run(["git", "rev-list", "--count", f"{mb}..{b_head}"])
+        b_count = int(b_count_out) if b_count_out else 999999
+        total = count + b_count
+
+        if total < best_distance:
+            best_distance = total
+            best_candidate = b
+
+    return best_candidate
+
+
 def main():
     parser = argparse.ArgumentParser(description="Pre-flight check for rebase")
     parser.add_argument("--target", type=str, default="main", help="Target branch (default: main)")
     parser.add_argument("--list-commits", action="store_true", help="Show unique commits on this branch")
+    parser.add_argument("--detect-base", action="store_true", help="Detect true parent base for stacked branches")
     args = parser.parse_args()
+
+    if args.detect_base:
+        base = detect_base()
+        print(f"base={base}")
+        if base not in ("main", "master", "develop"):
+            unique = get_unique_commits(base)
+            print(f"unique_commits={len(unique)}")
+            print(f"stacked=true")
+        else:
+            print(f"stacked=false")
+        sys.exit(0)
 
     all_warnings = []
     all_warnings.extend(check_upstream_sync())
