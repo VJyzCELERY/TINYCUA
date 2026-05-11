@@ -40,12 +40,17 @@ def main():
         print("[FAIL] No open PR for current branch", file=sys.stderr)
         sys.exit(1)
 
-    # Fetch full SHAs
+    # Fetch full SHAs — headRefOid is available directly, base SHA needs API
     head_sha = run(["gh", "pr", "view", pr_number, "--json", "headRefOid", "--jq", ".headRefOid"])
-    base_sha = run(["gh", "pr", "view", pr_number, "--json", "baseRefOid", "--jq", ".baseRefOid"])
+    owner_repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
+    if not owner_repo:
+        print("[FAIL] Could not detect repository", file=sys.stderr)
+        sys.exit(1)
+    base_sha = run(["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}", "--jq", ".base.sha"])
 
     if not head_sha or not base_sha:
         print(f"[FAIL] Could not fetch SHAs for PR #{pr_number}", file=sys.stderr)
+        print(f"       head={head_sha!r} base={base_sha!r}", file=sys.stderr)
         sys.exit(1)
 
     # Validate SHAs look correct (40 hex chars)
