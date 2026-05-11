@@ -18,28 +18,25 @@ Create a new worktree and branch for feature development. Use this when you want
    - If user provided a description (e.g., "I want to build a new UI"), ask: "What branch name would you like to use?"
    - Suggest conventional format: `type/description` (e.g., `feat/new-ui`, `fix/login-bug`)
 
-2. **Validate branch name**:
+2. **Create the worktree** using the creation script:
    ```bash
-   # Check if branch already exists
-   git show-ref --verify --quiet refs/heads/<branch-name> && echo "EXISTS"
+   uv run python .agents/scripts/create-worktree.py <branch-name>
    ```
-   If branch exists, ask user if they want to reuse it or choose a different name.
+   The script handles everything: main repo root detection, base branch detection, name sanitization, branch-exists check, and worktree creation. No need to check branch existence beforehand — the script warns and exits if the branch already exists.
 
-3. **Derive worktree directory**: Replace all `/` in branch name with `-`:
-   - Branch: `feat/new-ui` → Worktree dir: `.worktrees/feat-new-ui`
-   - Branch: `fix/login-bug` → Worktree dir: `.worktrees/fix-login-bug`
-
-4. **Create the worktree**:
-   ```bash
-   git worktree add .worktrees/<worktree-dir> <branch-name>
-   ```
-   If the branch doesn't exist yet, git will create it from HEAD.
-
-5. **Report**: Tell the user:
-   - Worktree path: `.worktrees/<worktree-dir>/`
-   - Branch name: `<branch-name>`
-   - How to navigate: `cd .worktrees/<worktree-dir>/`
+3. **Read the output** and report to the user:
+   - Worktree path: from `PATH=...`
+   - Branch name: from `BRANCH=...`
+   - Base branch: from `BASE=...`
+   - How to navigate: `cd <PATH>`
    - Next steps: Create specs with `/plan`, or run `/begin-workflow` to start
+
+## Error Handling
+
+If the script exits non-zero, it prints a `[FAIL]` message and an `[ACTION]` instruction telling you what to do next. Follow the `[ACTION]` instruction directly:
+- **Branch already exists** → ask the user for a different branch name
+- **Invalid name** → suggest the correct format
+- **Other errors** → follow the `[ACTION]` instruction printed by the script
 
 ## Required Context
 
@@ -54,7 +51,9 @@ Create a new worktree and branch for feature development. Use this when you want
 
 ## Important
 
-- Always create the worktree from the current branch (typically `main`)
-- The branch and worktree names must stay in sync — if you rename the branch, rename the worktree too
+- The worktree path is always relative to the main repo root (`$MAIN_REPO/.worktrees/`), even when invoked from inside another worktree
+- The new branch is based on the **current branch**, not `main`. This means:
+  - PRs will target the current branch automatically
+  - Rebasing is straightforward since the base is always the parent branch
 - After creating the worktree, you can run `/plan` or `/begin-workflow` inside it
 - Use `/implement` to start implementing after specs are ready

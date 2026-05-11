@@ -10,6 +10,8 @@
 
 One-paragraph synopsis: what this changes, which subprojects are affected, and the key architectural decision.
 
+> This design must be paired with a `spec.md` in the same directory. The spec defines WHAT and WHY; this design defines HOW. If you are creating this design, ensure the spec exists or is created alongside it.
+
 ---
 
 ## Architecture
