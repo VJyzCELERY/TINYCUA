@@ -23,13 +23,15 @@ Fetch active (non-minimized, non-resolved) comments and reviews from a GitHub PR
    ```
    Read `./tmp/fetched.md` — it contains every active review grouped by author with all inline comments, each with its URL.
 3. **Compile findings**: For each active inline comment, extract:
-   - **Issue Code**: From the comment body (FETCH-001, FETCH-002, ...) or auto-assign
-   - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
-   - **Location**: The file path and line number from the comment
-   - **Description**: The comment body
-   - **Suggested Fix**: Extract from the comment body if present
-   - **How to Validate**: Extract from the comment body if present
-4. **Generate report**: Write the review report to `$2` (or default path) using the REVIEW-template.md structure
+    - **Issue Code**: From the comment body (FETCH-001, FETCH-002, ...) or auto-assign
+    - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
+    - **Location**: The file path and line number from the comment
+    - **Description**: The comment body
+    - **Suggested Fix**: Extract from the comment body if present
+    - **How to Validate**: Extract from the comment body if present
+    - **PR Comment URL**: The `URL:` line from the fetch output for this comment — preserve it as `**PR Comment**: <url>`
+    - **PR Review URL**: The `URL:` line from the review header — preserve it as `**PR Review URL**: <url>`
+4. **Generate report**: Write the review report to `$2` (or default path) using the REVIEW-template.md structure. Include the PR Comment URL as a field in each finding.
 
 ---
 
