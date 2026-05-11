@@ -74,22 +74,22 @@ If the preflight exits non-zero, read its warnings:
      - Still fails → **OPEN**
    - Document evidence
 6. **Auto-reply to PR comments**: If a finding has a `**PR Comment**` URL:
-   - **If ADDRESSED or INVALID**: Post reply + resolve:
-     ```bash
-     cat > ./tmp/reply.md << 'EOF'
-     ✅ **Resolved**: [evidence note]
-     EOF
-     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/reply.md
-     uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
-     ```
-   - **If OPEN**: Post reply (no resolve):
-     ```bash
-     cat > ./tmp/reply.md << 'EOF'
-     ❌ **Still open**: [what's needed]
-     EOF
-     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/reply.md
-     ```
-   Extract `<pr>` and `<comment-id>` from: `https://github.com/owner/repo/pull/<pr>#discussion_r<comment-id>`
+    - **If ADDRESSED or INVALID**: Post reply + resolve:
+      ```bash
+      cat > ./tmp/reply.md << 'EOF'
+      ✅ **Resolved**: [evidence note]
+      EOF
+      uv run python .agents/scripts/gh.py interact reply "$PR_COMMENT_URL" ./tmp/reply.md
+      uv run python .agents/scripts/gh.py interact resolve "$PR_COMMENT_URL"
+      ```
+    - **If OPEN**: Post reply (no resolve):
+      ```bash
+      cat > ./tmp/reply.md << 'EOF'
+      ❌ **Still open**: [what's needed]
+      EOF
+      uv run python .agents/scripts/gh.py interact reply "$PR_COMMENT_URL" ./tmp/reply.md
+      ```
+    Use the `**PR Comment**` URL directly as `$PR_COMMENT_URL` — no manual ID extraction needed.
 7. **Update the Review Report**: Append to Validation Log, update statuses, add `**PR Reply**` URL if posted. Also update the report header with the commit range at verification time:
    - Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`
 8. **Save Changes**: Use Write to update the original review file

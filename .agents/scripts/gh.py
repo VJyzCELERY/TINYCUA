@@ -16,6 +16,10 @@ Usage:
     uv run python .agents/scripts/gh.py minimize <pr> <comment-id> [--classifier RESOLVED|OUTDATED|DUPLICATE]
     uv run python .agents/scripts/gh.py unminimize <pr> <comment-id>
     uv run python .agents/scripts/gh.py batch close <pr> <batch.json>
+    uv run python .agents/scripts/gh.py interact minimize <url> [--classifier OUTDATED]
+    uv run python .agents/scripts/gh.py interact resolve <url>
+    uv run python .agents/scripts/gh.py interact unminimize <url>
+    uv run python .agents/scripts/gh.py interact reply <url> <body.md>
     uv run python .agents/scripts/gh.py update body <pr> <body.md>
     uv run python .agents/scripts/gh.py update title <pr> <title>
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
@@ -625,7 +629,7 @@ def cmd_minimize_comment(args):
         mutation = f"""
         mutation {{
           minimizeComment(input: {{subjectId: "{node_id}", classifier: {classifier}}}) {{
-            minimizedComment {{ id }}
+            minimizedComment {{ __typename }}
           }}
         }}
         """
@@ -670,7 +674,7 @@ def cmd_unminimize_comment(args):
         mutation = f"""
         mutation {{
           unminimizeComment(input: {{subjectId: "{node_id}"}}) {{
-            unminimizedComment {{ id }}
+            unminimizedComment {{ __typename }}
           }}
         }}
         """
@@ -1137,7 +1141,131 @@ def cmd_create_pr(args):
         print(out)
 
 
-# ─── URL-specific: Handle full URLs like #issue-N or #pullrequestreview-N ─────────────
+# ─── URL-based handler ──────────────────────────────────────────
+
+def _parse_interact_url(url: str) -> tuple[str, str, str]:
+    """Parse a full interaction URL into (pr, comment_id, type). type is 'discussion_r' or 'pullrequestreview'."""
+    m = re.search(r'pulls/(\d+)|pull/(\d+)', url)
+    pr = m.group(1) or m.group(2) if m else None
+    if not pr:
+        print(f"[FAIL] Could not extract PR number from URL: {url}", file=sys.stderr)
+        sys.exit(1)
+    parsed = parse_comment_id_from_url(url)
+    if not parsed:
+        print(f"[FAIL] URL does not contain #discussion_r or #pullrequestreview: {url}", file=sys.stderr)
+        sys.exit(1)
+    return pr, parsed[0], parsed[1]
+
+
+def cmd_handle_minimize(args):
+    """Minimize a comment or review body by URL."""
+    pr, cid, ctype = _parse_interact_url(args.url)
+    classifier = args.classifier
+    owner_repo = get_owner_repo()
+    
+    if ctype == "discussion_r":
+        out, _, _ = api("GET", f"pulls/{pr}/comments")
+        comments_cache = json.loads(out) if out else []
+        if not minimize_single_comment(pr, cid, classifier, comments_cache):
+            sys.exit(1)
+    else:
+        out, _, _ = api("GET", f"pulls/{pr}/reviews")
+        node_id = None
+        if out:
+            for rv in json.loads(out):
+                if str(rv.get("id")) == cid:
+                    node_id = rv.get("node_id")
+                    break
+        if not node_id:
+            print(f"[FAIL] Review #{cid} not found", file=sys.stderr)
+            sys.exit(1)
+        if not minimize_single_review(node_id, classifier):
+            sys.exit(1)
+    print(f"[OK] {ctype} #{cid} minimized as {classifier}")
+
+
+def cmd_handle_resolve(args):
+    """Resolve an inline comment thread by URL."""
+    pr, cid, ctype = _parse_interact_url(args.url)
+    if ctype != "discussion_r":
+        print("[FAIL] Only inline comments can be resolved", file=sys.stderr)
+        sys.exit(1)
+    owner_repo = get_owner_repo()
+    thread_map = fetch_thread_map(owner_repo, pr)
+    if not resolve_single_comment(pr, cid, thread_map):
+        sys.exit(1)
+
+
+def cmd_handle_unminimize(args):
+    """Unminimize a comment or review body by URL."""
+    pr, cid, ctype = _parse_interact_url(args.url)
+    owner_repo = get_owner_repo()
+    
+    if ctype == "discussion_r":
+        out, _, _ = api("GET", f"pulls/{pr}/comments")
+        if not out:
+            print("[FAIL] Could not fetch comments", file=sys.stderr)
+            sys.exit(1)
+        comments_cache = json.loads(out)
+        target = None
+        for c in comments_cache:
+            if str(c.get("id")) == cid:
+                target = c
+                break
+        if not target:
+            print(f"[FAIL] Comment #{cid} not found", file=sys.stderr)
+            sys.exit(1)
+        node_id = target.get("node_id")
+    else:
+        out, _, _ = api("GET", f"pulls/{pr}/reviews")
+        if not out:
+            print("[FAIL] Could not fetch reviews", file=sys.stderr)
+            sys.exit(1)
+        node_id = None
+        for rv in json.loads(out):
+            if str(rv.get("id")) == cid:
+                node_id = rv.get("node_id")
+                break
+        if not node_id:
+            print(f"[FAIL] Review #{cid} not found", file=sys.stderr)
+            sys.exit(1)
+    
+    mutation = f"""
+    mutation {{
+      unminimizeComment(input: {{subjectId: "{node_id}"}}) {{
+        unminimizedComment {{ __typename }}
+      }}
+    }}
+    """
+    cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+    out2, err2, rc2 = run(cmd)
+    if rc2 != 0:
+        print(f"[FAIL] Unminimize failed: {err2}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[OK] {ctype} #{cid} unminimized")
+
+
+def cmd_handle_reply(args):
+    """Reply to an inline comment thread by URL."""
+    pr, cid, ctype = _parse_interact_url(args.url)
+    if ctype != "discussion_r":
+        print("[FAIL] Cannot reply to a review body (only inline comments)", file=sys.stderr)
+        sys.exit(1)
+    if not check_file(args.body_file):
+        sys.exit(1)
+    data = {"body": open(args.body_file).read(), "in_reply_to": int(cid)}
+    tf = TMP_DIR / f"gh-reply-{int(time.time())}.json"
+    with open(tf, "w") as f:
+        json.dump(data, f)
+    owner_repo = get_owner_repo()
+    cmd = ["gh", "api", f"repos/{owner_repo}/pulls/{pr}/comments",
+           "--method", "POST", "--input", str(tf)]
+    out2, err2, rc2 = run(cmd)
+    clean_temp(tf)
+    if rc2 != 0:
+        print(f"[FAIL] Reply failed: {err2}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[OK] Reply posted to thread #{cid} on PR #{pr}")
 
 def cmd_fetch_unresolved(args):
     """Fetch unresolved review comments and threads."""
@@ -1391,7 +1519,8 @@ def main():
     p = sub.add_parser("resolve", help="Resolve a review thread")
     p.add_argument("pr_or_url", help="PR number or URL")
     p.add_argument("comment_id", help="Comment ID or full URL to resolve (e.g. 12345 or ...#discussion_r12345)")
-
+    p.set_defaults(func=cmd_resolve_comment)
+    
     p = sub.add_parser("minimize", help="Minimize (hide) a PR comment or review body with a reason classifier")
     p.add_argument("pr_or_url", help="PR number or URL")
     p.add_argument("comment_id", help="Comment ID, review ID, or full URL (e.g. 12345, ...#discussion_r12345, ...#pullrequestreview-67890)")
@@ -1430,6 +1559,28 @@ def main():
                    help="Topic: pr (default), prs, repo")
     p.set_defaults(func=cmd_fields)
 
+    # interact — URL-based interaction
+    p = sub.add_parser("interact", help="Interact with a PR comment or review by URL")
+    interact_sub = p.add_subparsers(dest="interact_action", required=True)
+    
+    ia_min = interact_sub.add_parser("minimize", help="Minimize (hide) a comment or review body by URL")
+    ia_min.add_argument("url", help="Full GitHub URL (e.g. .../pull/26#discussion_r12345 or .../pull/26#pullrequestreview-67890)")
+    ia_min.add_argument("--classifier", choices=["RESOLVED", "OUTDATED", "DUPLICATE"], default="OUTDATED")
+    ia_min.set_defaults(func=cmd_handle_minimize)
+    
+    ia_res = interact_sub.add_parser("resolve", help="Resolve an inline comment thread by URL")
+    ia_res.add_argument("url", help="Full GitHub URL with #discussion_r")
+    ia_res.set_defaults(func=cmd_handle_resolve)
+    
+    ia_unmin = interact_sub.add_parser("unminimize", help="Restore a minimized comment or review by URL")
+    ia_unmin.add_argument("url", help="Full GitHub URL")
+    ia_unmin.set_defaults(func=cmd_handle_unminimize)
+    
+    ia_reply = interact_sub.add_parser("reply", help="Reply to an inline comment thread by URL")
+    ia_reply.add_argument("url", help="Full GitHub URL with #discussion_r")
+    ia_reply.add_argument("body_file", help="Path to markdown body file")
+    ia_reply.set_defaults(func=cmd_handle_reply)
+
     # cmd — wildcard raw gh runner
     p = sub.add_parser("cmd", help="Run any gh command with auto-formatted JSON output")
     p.add_argument("gh_args", nargs=argparse.REMAINDER, help="Raw gh arguments (e.g., pr view 10)")
@@ -1449,7 +1600,7 @@ def main():
         sys.exit(0)
 
     # If the first arg after script isn't a known command, show fallback message
-    known = {"fetch", "post", "resolve", "minimize", "unminimize", "batch", "update", "create", "cmd", "fields"}
+    known = {"fetch", "post", "resolve", "minimize", "unminimize", "batch", "interact", "update", "create", "cmd", "fields"}
     if sys.argv[1] not in known:
         print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
         print(f"       gh {' '.join(sys.argv[1:])}")

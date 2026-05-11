@@ -50,15 +50,14 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    | **Severity** | Appropriate? | Adjust: CRITICAL/HIGH/MEDIUM/LOW |
 
 6. **Update the Review Report**: Save the clarified version. Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`.
-7. **Post follow-up to PR if linked**: If a finding has a `**PR Comment**` URL, post a follow-up:
+7. **Post follow-up to PR if linked**: If a finding has a `**PR Comment**` URL, post a follow-up using the full URL:
    ```bash
    cat > ./tmp/followup.md << 'EOF'
    **Clarified**: The finding has been updated for clarity.
    [summary of changes — added file:line, sharpened description, etc.]
    EOF
-   uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/followup.md
+   uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/followup.md
    ```
-   Extract `<pr>` and `<comment-id>` from: `https://github.com/owner/repo/pull/<pr>#discussion_r<comment-id>`
 8. **Track the follow-up**: Add a `**PR Follow-up**` field with the reply URL
 9. **Save Changes**: Use Write to update the original review file
 
