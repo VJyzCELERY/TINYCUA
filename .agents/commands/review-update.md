@@ -68,10 +68,11 @@ Before updating, verify the review isn't stale by running the standard preflight
    ```
    > Inline comments are **always resolved** after replying — the old thread is closed because a fresh review will be posted next.
 
-6. **Minimize non-inline (PR body) findings**: Collect all non-inline URLs from the report — both `**PR Comment**` fields on findings AND the `**PR Review URL**` field in the report header. For each non-inline URL, minimize the review body as outdated:
+6. **Minimize the previous review body**: Find the `**PR Review URL**` in the report header — this is the previous review body. Minimize it as outdated:
    ```bash
-   uv run python .agents/scripts/gh.py interact minimize "$URL" --classifier OUTDATED
+   uv run python .agents/scripts/gh.py interact minimize "$PR_REVIEW_URL" --classifier OUTDATED
    ```
+   Also collect any non-inline `**PR Comment**` URLs from findings (those with `#pullrequestreview`) and minimize them the same way.
 
 7. **Determine what to post next**: Check the report's findings:
    - **If ALL findings are ADDRESSED or INVALID**: Post a single summary review:
@@ -86,10 +87,14 @@ Before updating, verify the review isn't stale by running the standard preflight
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/update-summary.md --event APPROVE
      ```
    
-   - **If some findings are still OPEN**: Post a full updated review following the **review-post** flow (steps 4-9). Include only the still-open findings. The review body should note which findings were resolved since the last review:
-     ```
-     **Review Update**: N of M findings resolved. N still open (see inline comments).
-     ```
+   - **If some findings are still OPEN**: Post a full updated review following the **review-post** flow (steps 4-9). This includes:
+     - Using `**[<issue-id>]** - **[<priority>]**` format for issue IDs
+     - Using the **Inline Comment Format** and **Overall Assessment mapping** from review-post
+     - Building inline comments JSON with proper markdown formatting
+     - The review body should note which findings were resolved since the last review:
+       ```
+       **Review Update**: N of M findings resolved. N still open (see inline comments).
+       ```
 
 8. **Re-link the local report**: After posting, fetch the new review's URLs:
    ```bash
