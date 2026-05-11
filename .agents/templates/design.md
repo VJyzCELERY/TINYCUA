@@ -117,5 +117,5 @@ Design-level questions not yet resolved:
 
 ## References
 
-- Spec: `<repo-root-relative-path>` — path from repository root to the spec file (not worktree-relative). Resolve via `git rev-parse --show-toplevel`. There may be intermediate subdirectories before `spec.md`. Example: `src/tinycua-sdk/specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/spec.md`
+- Spec: `<repo-root-relative-path>` — path from repository root to `spec.md` (not worktree-relative). Resolve via `git rev-parse --show-toplevel`. May have intermediate subdirectories at any depth — what matters is landing on the actual `spec.md`. Example: `specs/my-feature/spec.md` or `src/sdk/specs/my-feature/spec.md`
 - Related designs: [paths to related design docs if any]
