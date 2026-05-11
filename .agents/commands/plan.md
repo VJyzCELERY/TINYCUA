@@ -17,14 +17,16 @@ Create an implementation plan from existing spec.md and design.md files.
 4. **Apply Additional Context**: If $2 is provided, incorporate that into the plan
 5. **Create implementation-plan.md**: Generate a detailed implementation plan in the same directory as spec.md with:
    - Context (priority, effort, dependencies)
+   - **Success Criteria — Integration Tests (TDD first)**: Define the integration tests that prove the feature works. Include **code snippets** for each test scenario. Tests are written FIRST — implementation is only complete when they pass.
+   - Verification Plan
    - Proposed Changes (with NEW/MODIFY/DELETE actions)
    - Architecture Changes
-   - Verification Plan
    - Dependencies
    - Risks and Mitigations
 6. **Create task.md**: Generate a task checklist with these phases:
+   - TDD Phase (tests first — write integration tests, run RED)
    - Implementation Phase
-   - Testing Phase
+   - Testing Phase (run GREEN, unit tests, full suite)
    - Verification Phase
    - Documentation Phase
    - Review and Merge
