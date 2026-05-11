@@ -229,7 +229,7 @@ def cmd_fetch_repo(args):
 def cmd_fetch_pr(args):
     pr = parse_pr_input(args.pr_or_url)
     # Use curated default fields — only useful info, no API URLs or nested bloat
-    fields = args.fields or "number,title,state,headRefName,baseRefName,author,body,createdAt,updatedAt,mergedAt,closedAt,mergeable,isDraft,additions,deletions,changedFiles,labels,reviews"
+    fields = args.fields or "number,title,state,headRefName,baseRefName,author,body,createdAt,updatedAt,mergedAt,closedAt,mergeable,isDraft,additions,deletions,changedFiles,labels,reviews,headRefOid"
     out, err, rc = run(["gh", "pr", "view", pr, "--json", fields])
     if rc != 0:
         print(f"[FAIL] Could not fetch PR #{pr}: {err}", file=sys.stderr)
@@ -237,15 +237,29 @@ def cmd_fetch_pr(args):
     try:
         data = json.loads(out)
         if args.fields:
-            # Generic field-by-field output for custom requests
             print(json_to_md(data))
             return
-        # Curated summary for default fields
+        
+        # Get head SHA; for base SHA use API since baseRefOid isn't available in gh pr view
+        head_sha = data.get("headRefOid", "")
+        base_sha = ""
+        if head_sha:
+            owner_repo = get_owner_repo()
+            if owner_repo:
+                base_sha, _, _ = run(["gh", "api", f"repos/{owner_repo}/pulls/{pr}", "--jq", ".base.sha"], None, False)
+        
+        # HEADER section
         print(f"#{data['number']} — {data['title']}")
+        print("---")
         print(f"State: {data['state'].upper()}")
         if data.get('isDraft'):
             print("Draft: Yes")
-        print(f"Head: {data.get('headRefName', '?')} → Base: {data.get('baseRefName', '?')}")
+        print(f"Head: {data.get('headRefName', '?')}")
+        print(f"Base: {data.get('baseRefName', '?')}")
+        if base_sha and head_sha:
+            print(f"Commit Range: {base_sha}...{head_sha}")
+        elif head_sha:
+            print(f"Head SHA: {head_sha}")
         print(f"Author: {data.get('author', {}).get('login', '?')}")
         print(f"Created: {data.get('createdAt', '?')}")
         print(f"Updated: {data.get('updatedAt', '?')}")
@@ -257,10 +271,21 @@ def cmd_fetch_pr(args):
         labels = data.get('labels', [])
         if labels:
             print(f"Labels: {', '.join(l.get('name', '') for l in labels)}")
-        # Only print body if it exists (and truncate for readability)
+        
+        # Title section
+        print("---")
+        print(f"Title : **{data['title']}**")
+        
+        # Body section
         body = data.get('body', '')
+        print("---")
+        print("Body :")
         if body:
-            print(f"\nBody:\n{body}")
+            print(f"**{body}**")
+        else:
+            print("**(no body)**")
+        print("---")
+        
         print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
     except json.JSONDecodeError:
         print(out)
