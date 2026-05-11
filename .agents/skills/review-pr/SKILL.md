@@ -27,9 +27,9 @@ Manage the full review lifecycle: post reviews, update after fixes, consolidate 
 4. Read `.agents/templates/review-body-snippet.md` and `.agents/templates/inline-comment-format.json` for structure
 5. Read `.agents/templates/inline-comment-body-snippet.md` for inline comment body format
 6. Build inline comments JSON in `./tmp/` using the templates
-7. Post: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/body.md ./tmp/comments.json --event "$EVENT"`
-8. If non-inline findings exist, use `.agents/templates/review-noninline-body-snippet.md` for follow-up
-9. Fetch posted comments, update local report with PR Comment URLs
+7. Post a single review with all inline comments + body: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/body.md ./tmp/comments.json --event "$EVENT"`
+   - The review body (from `.agents/templates/review-body-snippet.md`) lists ALL findings — inline findings marked "Details inline", non-inline findings with full Why/Suggestion/How to Validate
+8. Fetch posted comments, update local report with PR Comment URLs
 
 ### Update a review (review-update)
 1. Preflight: check staleness — if stale, stop and tell user to validate
