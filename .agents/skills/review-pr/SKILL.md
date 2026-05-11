@@ -22,7 +22,7 @@ Manage the full review lifecycle: post reviews, update after fixes, consolidate 
 
 ### Post a review (review-post)
 1. Detect PR: `PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)`
-2. Get PR diff via `gh pr diff "$PR_NUMBER"`
+2. Get PR diff via `uv run python .agents/scripts/gh.py cmd pr diff "$PR_NUMBER"`
 3. Read Overall Assessment from report header → determines review event + emote
 4. Read `.agents/templates/review-body-snippet.md` and `.agents/templates/inline-comment-format.json` for structure
 5. Read `.agents/templates/inline-comment-body-snippet.md` for inline comment body format

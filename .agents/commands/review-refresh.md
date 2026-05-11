@@ -37,8 +37,8 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
 
 2. **Get current PR head** (for the commit range):
    ```bash
-   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
-   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+    HEAD_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+    BASE_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
    echo "Refreshing review at commit range: $BASE_SHA...$HEAD_SHA"
    ```
 
@@ -78,6 +78,17 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    - For each finding, add or update `**PR Comment**: <url>` with the new inline comment URL
 
 ---
+
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-pr, review-core, gh
+- Rules: none
+- Templates: REVIEW-template.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: yes
+- Requires user confirmation: no
 
 ## Important
 

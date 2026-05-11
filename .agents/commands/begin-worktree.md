@@ -41,6 +41,17 @@ Create a new worktree and branch for feature development. Use this when you want
    - How to navigate: `cd .worktrees/<worktree-dir>/`
    - Next steps: Create specs with `/plan`, or run `/begin-workflow` to start
 
+## Required Context
+
+- Preflight: none
+- Skills: worktree
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: yes
+- Mutates remote: no
+- Requires user confirmation: no
+
 ## Important
 
 - Always create the worktree from the current branch (typically `main`)

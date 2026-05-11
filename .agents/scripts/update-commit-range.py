@@ -13,6 +13,8 @@ import sys
 import subprocess
 from pathlib import Path
 
+import repo_guard
+
 
 def run(cmd):
     try:
@@ -27,7 +29,7 @@ def main():
         print("Usage: uv run python .agents/scripts/update-commit-range.py <review-file.md>", file=sys.stderr)
         sys.exit(1)
 
-    file_path = Path(sys.argv[1])
+    file_path = repo_guard.assert_inside_repo(sys.argv[1])
     if not file_path.exists():
         print(f"[FAIL] File not found: {file_path}", file=sys.stderr)
         sys.exit(1)

@@ -30,13 +30,13 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    ```
 3. **Get PR diff**: Download the PR diff to map line numbers:
    ```bash
-    gh pr diff "$PR_NUMBER"   # gh.py doesn't have diff command yet
+     uv run python .agents/scripts/gh.py cmd pr diff "$PR_NUMBER"
    ```
  4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event and the emote.
  5. **Get commit range**: Determine the commit range reviewed:
     ```bash
-    BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
-    HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+    BASE_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+    HEAD_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
     ```
  6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
     - **Inline-capable**: has a valid `file:line` that exists in the current diff → will be posted as an inline comment
@@ -118,9 +118,20 @@ Use `.agents/templates/inline-comment-format.json` for the JSON structure and `.
 
 The assessment is read from the `**Overall Assessment**` field in the review report header. Include the emote in the assessment line: `**Assessment**: ✅ **Approved**`
 
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-pr, gh
+- Rules: none
+- Templates: review-body-snippet.md, inline-comment-format.json, inline-comment-body-snippet.md, review-noninline-body-snippet.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: yes
+- Requires user confirmation: no
+
 ## Important
 
 - Read `.agents/scripts/gh.py` usage before posting — all PR writes go through it
 - Always verify line numbers against the current PR diff before posting
-- **After posting, MUST update the local review report** with PR comment URLs — this enables automatic reply/resolve in review-verify and review-clarify
+- **After posting, MUST update the local review report** with PR comment URLs — this enables automatic reply/resolve in review-update
 - Do NOT post reviews with empty inline comments — skip findings that can't be mapped to the diff

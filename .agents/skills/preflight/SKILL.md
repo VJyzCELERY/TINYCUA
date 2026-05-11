@@ -4,8 +4,7 @@ description: Run preflight checks before session start, reviews, PRs, and rebase
 license: MIT
 compatibility: opencode
 metadata:
-  type: command-skill
-  source: .agents/commands/preflight.md
+  type: infrastructure
 ---
 
 # Skill: Preflight Scripts — Session Start, Review, PR, and Rebase Checks

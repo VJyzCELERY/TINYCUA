@@ -21,13 +21,24 @@ If no query is provided, clean ALL artifact areas.
    | Area | What to remove | Command |
    |------|---------------|---------|
    | Review files | All `./reviews/*.md` except archived | `rm -f ./reviews/REVIEW_*.md` |
-   | Archived reviews | `./reviews/archived/*.md` | `rm -rf ./reviews/archived/` |
+    | Archived reviews | `./reviews/archives/*.md` | `rm -rf ./reviews/archives/` |
    | Temp files | `./tmp/` | `rm -rf ./tmp/ && mkdir ./tmp/` |
    | Dev artifacts | `./dev/` | `rm -rf ./dev/` |
    | Cache dirs | `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.coverage`, `htmlcov` | `rm -rf ./**/__pycache__ ./**/.pytest_cache ./**/.ruff_cache ./**/.coverage ./**/htmlcov` 2>/dev/null |
    | Logs | `logs/` | `rm -rf ./logs/` |
 
 3. **Report**: List what was cleaned and how much space was freed
+
+## Required Context
+
+- Preflight: none
+- Skills: worktree
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: yes (destructive — removes artifacts)
 
 ## Important
 

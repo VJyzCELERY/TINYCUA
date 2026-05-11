@@ -79,6 +79,17 @@ This runs each finding's validation command and determines its status (ADDRESSED
 
 ---
 
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-core
+- Rules: 004-review-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
+
 ## Important
 
 - Always run clarify BEFORE verify — precise findings lead to accurate validation

@@ -24,21 +24,15 @@ uv run python .agents/scripts/preflight-review.py --scope pr --init-review
 
 This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW_{branch}.md` with the header and commit range already filled in.
 
-If the pre-flight exits non-zero, read the script manually to understand what's wrong:
+If the pre-flight exits non-zero, read the script's `<EOF_DESC>` to understand what's wrong:
 
 ```bash
-head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC>
+head -20 .agents/scripts/preflight-review.py
 ```
 
 After pre-flight succeeds, the review file is ready at `./reviews/REVIEW_{branch}.md`. Read it, then fill in the findings section.
 
 Note: Do NOT pass `--review-file` here — the review report doesn't exist yet. The pre-flight only checks unstaged changes and prints scope info.
-
-If it exits non-zero, you may still proceed but should read the script manually to understand what's wrong:
-
-```bash
-head -20 .agents/scripts/preflight-review.py  # read description until <EOF_DESC>
-```
 
 ---
 
@@ -226,5 +220,16 @@ Use format: `REVIEW_{name}.md`
   - **Change Requested**: Any HIGH or CRITICAL issues that must be fixed
   - **Blocked**: Issues that violate spec, introduce regressions, or break tests
 - If scope is empty (no files changed), report that and exit
+
+## Required Context
+
+- Preflight: preflight-review.py (--init-review)
+- Skills: review-core, gh
+- Rules: 004-review-standards.md
+- Templates: REVIEW-template.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
 
 Begin by checking the current branch and determining review scope, then analyze files and write the report.

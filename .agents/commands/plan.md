@@ -30,6 +30,17 @@ Create an implementation plan from existing spec.md and design.md files.
    - Review and Merge
 7. **Use Task IDs**: Add `<!-- id: N -->` tags to each task for tracking
 
+## Required Context
+
+- Preflight: none
+- Skills: plan
+- Rules: 001-agent-behavior.md, 005-project-structure.md
+- Templates: implementation-plan.md, task.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
+
 ## Important
 - **Check templates first**: Read `.agents/templates/implementation-plan.md` and `.agents/templates/task.md` before generating — follow their structure
 - Do NOT make any code changes — only create planning documents

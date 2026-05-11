@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Created**: 2026-05-11
-**Last Updated**: 2026-05-11
+**Last Updated**: 2026-05-11 (policy decisions resolved)
 **Subproject(s) Affected**: root agent infrastructure (`AGENTS.md`, `.agents/`)
 
 ---
@@ -20,7 +20,7 @@
 - **Goals**: Provide a clear, enforceable, low-duplication agent instruction system so agents can follow project rules safely and consistently.
 - **Gaps**: `AGENTS.md`, `.agents/rules/`, `.agents/docs/`, command files, skills, scripts, tools, and templates have drifted. Some instructions are stale, repeated, contradictory, or not enforced by scripts/tools.
 - **Non-Goals**: This spec does not change TINYCUA product features, runtime behavior, application APIs, or model/agent implementation outside this repository's `.agents/` infrastructure.
-- **Constraints**: Existing slash-command workflows should remain recognizable unless explicitly deprecated. Repository-boundary rules, `uv run` Python usage, template usage, and explicit permission before commits/pushes must remain preserved or strengthened.
+- **Constraints**: Existing slash-command workflows should remain recognizable unless explicitly deprecated. Repository-boundary rules, `uv run` Python usage, template usage, and explicit permission before commits/pushes must remain preserved or strengthened. `setup-project` is constrained to the repo root; no permission-gated exceptions for external targets.
 
 ---
 
@@ -41,7 +41,7 @@ An agent starts work in the repository, reads `AGENTS.md`, loads only the releva
 ### Edge Cases
 
 - A command legitimately needs raw `gh` functionality not exposed by `gh.py`; the fallback must be explicit and safe.
-- A setup workflow may need to operate on another project; this must either be prohibited by the root-boundary rule or documented as a special permission-gated exception.
+- A setup workflow may need to operate on another project; this is prohibited by the root-boundary rule. No special permission-gated exception.
 - A review workflow may replace old GitHub review threads with a fresh review; OPEN thread resolution must be deliberate and documented rather than accidental.
 - Legacy docs may contain useful content; migration must preserve useful rules while removing normative ambiguity.
 
@@ -52,7 +52,7 @@ An agent starts work in the repository, reads `AGENTS.md`, loads only the releva
 ### Functional Requirements
 
 - **FR-001**: The project MUST define a single normative hierarchy for agent instructions.
-- **FR-002**: `.agents/rules/` MUST be the canonical dynamic rule location, or `.agents/docs/` MUST be explicitly marked as reference-only.
+- **FR-002**: `.agents/rules/` MUST be the canonical dynamic rule location. `.agents/docs/` MUST be removed after migrating normative content into `.agents/rules/`, except `guides.md` which is retained as a human reference.
 - **FR-003**: `AGENTS.md` MUST avoid repeating the same dynamic rule-loading table in multiple places.
 - **FR-004**: Command and skill docs MUST use current slash-command names and MUST NOT reference nonexistent commands such as `review-cleanup`, `review-log`, `preflight.md`, or `self-learning` unless those commands are restored.
 - **FR-005**: PR and GitHub instructions MUST route normal read/write operations through `.agents/scripts/gh.py`.
@@ -125,8 +125,8 @@ An agent starts work in the repository, reads `AGENTS.md`, loads only the releva
 1. **Should `.agents/docs/` be deleted, archived, or kept as reference-only?**
    - **Owner**: project maintainers
    - **Target**: before implementation cleanup begins
-   - **Status**: Discussion
-   - **Proposed Answer**: Keep only after adding a clear reference-only banner, then migrate useful normative content into `.agents/rules/`.
+   - **Status**: Decided
+   - **Answer**: Remove all `.agents/docs/` files after migrating normative content into `.agents/rules/`, except `guides.md` which is retained as a human reference.
 
 2. **Should internal scripts be allowed to call raw `gh`?**
    - **Owner**: project maintainers

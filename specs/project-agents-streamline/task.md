@@ -4,41 +4,41 @@ Implementation tasks for Project Agent Instructions Streamline. Check off items 
 
 ## Implementation Phase
 
-- [ ] Resolve spec/design policy decisions before implementation <!-- id: 0 -->
-  - [ ] Decide whether `setup-project` may target paths outside the current repo behind explicit permission
-  - [ ] Decide whether `.agents/docs/` remains reference-only or is removed after migration
-  - [ ] Update `spec.md` and `design.md` so Phase 1 aligns with MUST requirements such as PR body template validation
-- [ ] Add repo-boundary helper module <!-- id: 1 -->
-  - [ ] Write failing tests for in-repo path acceptance, outside-path rejection, and `./tmp/` path creation
-  - [ ] Implement `.agents/scripts/repo_guard.py`
-  - [ ] Apply the helper to scripts that mutate caller-provided paths
-- [ ] Remove implicit remote mutation from `gh.py create` <!-- id: 2 -->
-  - [ ] Write failing tests or script-level checks for PR creation without automatic push or force-push
-  - [ ] Remove automatic head/base branch pushes from PR creation
-  - [ ] Add clear failure messaging when a remote branch is missing
-- [ ] Add PR body template validation <!-- id: 3 -->
-  - [ ] Write failing tests for missing sections and unfilled placeholders
-  - [ ] Validate PR bodies against `.agents/templates/PR-body.md`
-  - [ ] Update PR creation docs to describe the validation behavior
-- [ ] Replace shell-string execution in tool wrappers <!-- id: 4 -->
-  - [ ] Write smoke tests or checks for arguments containing spaces and shell metacharacters
-  - [ ] Replace `execSync` shell strings with argv-based `execFileSync` or `spawnSync`
-  - [ ] Preserve existing tool schemas and output behavior
-- [ ] Consolidate top-level and dynamic instructions <!-- id: 5 -->
+- [x] Resolve spec/design policy decisions before implementation <!-- id: 0 -->
+  - [x] Decide whether `setup-project` may target paths outside the current repo behind explicit permission (decided: constrained to repo root)
+  - [x] Decide whether `.agents/docs/` remains reference-only or is removed after migration (decided: remove, retain only guides.md)
+  - [x] Update `spec.md` and `design.md` so Phase 1 aligns with MUST requirements such as PR body template validation (PR body validation moved to Phase 1)
+- [x] Add repo-boundary helper module <!-- id: 1 -->
+  - [x] Write failing tests for in-repo path acceptance, outside-path rejection, and `./tmp/` path creation
+  - [x] Implement `.agents/scripts/repo_guard.py`
+  - [x] Apply the helper to scripts that mutate caller-provided paths
+- [x] Remove implicit remote mutation from `gh.py create` <!-- id: 2 -->
+  - [x] Write failing tests or script-level checks for PR creation without automatic push or force-push
+  - [x] Remove automatic head/base branch pushes from PR creation
+  - [x] Add clear failure messaging when a remote branch is missing
+- [x] Add PR body template validation <!-- id: 3 -->
+  - [x] Write failing tests for missing sections and unfilled placeholders
+  - [x] Validate PR bodies against `.agents/templates/PR-body.md`
+  - [x] Update PR creation docs to describe the validation behavior
+- [x] Replace shell-string execution in tool wrappers <!-- id: 4 -->
+  - [x] Write smoke tests or checks for arguments containing spaces and shell metacharacters
+  - [x] Replace `execSync` shell strings with argv-based `execFileSync` or `spawnSync`
+  - [x] Preserve existing tool schemas and output behavior
+- [x] Consolidate top-level and dynamic instructions <!-- id: 5 -->
   - [ ] Update `AGENTS.md` with one normative hierarchy and one dynamic rule-loading reference
   - [ ] Update `.agents/rules/*.md` to reduce overlap and keep specialized rules focused
   - [ ] Migrate normative `.agents/docs/` content into `.agents/rules/`
   - [ ] Mark remaining `.agents/docs/` content reference-only or remove it after migration
-- [ ] Align commands and skills <!-- id: 6 -->
+- [x] Align commands and skills <!-- id: 6 -->
   - [ ] Add required-context blocks to command files
   - [ ] Remove stale command names and stale `metadata.source` references
   - [ ] Replace raw `gh` examples with `gh.py` or documented fallback guidance
   - [ ] Reconcile review lifecycle behavior for local verification and remote updates
-- [ ] Update templates and generated scaffolds <!-- id: 7 -->
+- [x] Update templates and generated scaffolds <!-- id: 7 -->
   - [ ] Reconcile review template drift between `.agents/templates/REVIEW-template.md` and `preflight-review.py`
   - [ ] Update subproject templates to use `uv run` commands
   - [ ] Ensure generated subproject `AGENTS.md` inherits root critical rules
-- [ ] Add agent consistency checker <!-- id: 8 -->
+- [x] Add agent consistency checker <!-- id: 8 -->
   - [ ] Write failing tests for missing command/skill/rule/template references
   - [ ] Write failing tests for raw `gh`, bare Python/Pytest, unsafe force-push guidance, and template drift
   - [ ] Implement `.agents/scripts/check-agents-consistency.py`

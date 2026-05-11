@@ -26,7 +26,7 @@ Orchestrate the complete feature workflow: planning → implementation → revie
 3. Delegate `/plan` → wait → verify plan files exist
 4. Delegate `/implement` → wait → verify tasks complete
 5. Optionally create PR via `gh.py create`
-6. Enter review loop: `/review-report` → `/review-validate` → `/review-implement` → repeat until clean → `/review-cleanup`
+6. Enter review loop: `/review-report` → `/review-validate` → `/review-implement` → repeat until clean → `/review-archive`
 7. Each loop iteration uses a fresh subagent with zero prior context
 
 ## Common Pitfalls

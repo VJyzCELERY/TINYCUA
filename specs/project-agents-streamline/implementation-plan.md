@@ -93,7 +93,7 @@ Consolidate the repository's agent-instruction system so agents can identify the
 |-----------|-------------|-------------|
 | `AGENTS.md` | Modify | Becomes the concise top-level operational contract and command index |
 | `.agents/rules/` | Modify | Becomes the canonical dynamic normative layer |
-| `.agents/docs/` | Modify/Delete | Becomes reference-only or is migrated away after preserving useful content |
+| `.agents/docs/` | Delete | Removed after migrating normative content into `.agents/rules/`; only `guides.md` retained |
 | `.agents/commands/` | Modify | Gains required-context blocks and reconciled workflow behavior |
 | `.agents/skills/` | Modify | Aligns tactical guidance with current rules and `gh.py` policy |
 | `.agents/templates/` | Modify | Becomes the canonical source for generated document structures |
@@ -177,8 +177,8 @@ ConsistencyFinding:
 
 ### Internal Dependencies
 
-- [ ] Depends on maintainers deciding the setup-project boundary exception policy.
-- [ ] Depends on maintainers deciding whether `.agents/docs/` should be retained as reference-only or removed after migration.
+- [ ] Depends on maintainers deciding the setup-project boundary exception policy. **Decided**: Constrained to repo root.
+- [ ] Depends on maintainers deciding whether `.agents/docs/` should be retained as reference-only or removed after migration. **Decided**: Remove, retain only `guides.md`.
 - [ ] Blocks implementation cleanup for agent workflow safety issues identified in `project-agents-analysis.md`.
 
 ## Risks and Mitigations

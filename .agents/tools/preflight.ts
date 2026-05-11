@@ -1,10 +1,10 @@
 import { tool } from "@opencode-ai/plugin"
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import path from "path"
 
 const runScript = (script: string, args: string[], worktree: string) => {
   const spath = path.join(worktree, `.agents/scripts/${script}`)
-  return execSync(`uv run python ${spath} ${args.join(" ")}`, {
+  return execFileSync("uv", ["run", "python", spath, ...args], {
     cwd: worktree,
     encoding: "utf-8",
   }).trim()
