@@ -1,9 +1,9 @@
 ---
-description: Updates an existing PR review with follow-up comments and resolves addressed findings
+description: Resolves or minimizes old review comments, then reposts the updated review fresh
 subtask: true
 ---
 
-Update an existing PR review with follow-up comments and resolve findings that have been addressed.
+Update a review by resolving/minimizing all previously linked comments, then reposting the entire review fresh. For each finding with a `**PR Comment**` URL, the old comment is resolved (if inline) or minimized (if non-inline). The updated review is then posted following the review-post flow, and the local report is re-linked to the new URLs.
 
 > Load skill: review-pr (for updating PR reviews after fixes)
 
@@ -14,62 +14,46 @@ Update an existing PR review with follow-up comments and resolve findings that h
 ## Overview
 
 > Load _common-preflight.md
-> Load skill: gh (for gh.py — all update operations)
+> Load skill: gh (for gh.py — all update/post operations)
 
-After fixes have been implemented and validated, this command updates the PR review to reflect the new state: resolved findings get a follow-up comment and are marked resolved; findings that remain open get a follow-up comment requesting further changes.
+After fixes have been implemented and validated, this command refreshes the PR review: old comments are cleared (resolved or minimized), and a fresh review is posted with updated findings. The local report is updated with the new URLs.
 
 ---
 
 ## Instructions
 
-1. **Read the updated review report**: Load the REVIEW_{name}.md file
+1. **Read the updated review report**: Load the REVIEW_{name}.md file — it contains each finding with a `**PR Comment**` URL from the previous posting.
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-3. **Fetch existing review comments**: Get all current inline comments on the PR:
-   ```bash
-   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
-   ```
-4. **Map findings to comments**: For each finding in the review report:
-   - Find the matching review comment by path/line or issue code
-   - Check the finding's **Status** (ADDRESSED, INVALID, or OPEN)
-    - **If ADDRESSED or INVALID**: Post a reply and resolve:
-      ```bash
-      cat > ./tmp/reply.md << 'EOF'
-      ✅ **Resolved**: [brief note on how it was fixed — use markdown, code blocks as needed]
-      EOF
-      uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
-      uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
-      ```
-    - **If still OPEN**: Post a reply noting it remains open:
-      ```bash
-      cat > ./tmp/reply.md << 'EOF'
-      ❌ **Still open**: [note on what's still needed — use markdown, code blocks as needed]
-      EOF
-     uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
+3. **Resolve or minimize every previously linked comment**: For each finding that has a `**PR Comment**` URL:
+
+   - **If the URL contains `#discussion_r`** (inline comment): resolve the thread:
+     ```bash
+     uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
      ```
-5. **Post a summary comment**: Add a top-level review comment summarizing the update:
+
+   - **If the URL contains `#pullrequestreview`** (non-inline follow-up review comment): minimize as outdated:
+     ```bash
+     uv run python .agents/scripts/gh.py minimize "$PR_NUMBER" <comment-id> --classifier OUTDATED
+     ```
+
+   Extract the comment ID from the URL (the trailing number after `#discussion_r` or `#pullrequestreview`).
+
+4. **Post the updated review fresh**: Follow the review-post flow (steps 4-9) to build and post a brand new review using the updated report. The new review body should mention:
+   - How many previous findings are now resolved
+   - How many remain open (if any)
+   - Example:
+     ```
+     **Review Update**: 2 of 3 findings resolved. 1 still open (see inline comments).
+     ```
+
+5. **Re-link the local report**: After posting, fetch the new review's URLs:
    ```bash
-   cat > ./tmp/summary.md << 'BODY'
-   ## Review Update
-
-   **N findings resolved**, **N still open**.
-
-   See inline replies for details on each finding.
-   BODY
-   uv run python .agents/scripts/gh.py post comment "$PR_NUMBER" ./tmp/summary.md
+   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/updated-fetch.md
    ```
-
----
-
-## Finding Status Mapping
-
-| Report Status | Action |
-|--------------|--------|
-| ADDRESSED | Reply with ✅ Resolved note |
-| INVALID | Reply with explanation of why invalid |
-| OPEN | Reply with ❌ Still open note + what's needed |
+   Read the output, extract the new review URL and each inline comment URL, and update every finding's `**PR Comment**` field in the local report to point to the new URLs.
 
 ---
 
@@ -77,8 +61,6 @@ After fixes have been implemented and validated, this command updates the PR rev
 
 - Read `.agents/scripts/gh.py` usage first — all PR operations go through it
 - Read `.agents/skills/gh-review/SKILL.md` before updating — it contains the full gh review workflow reference
-- Find the original comment ID before replying — use `uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"` to list
-- Only reply to threads that had inline comments in the original review
-- New findings (not present in the original review) should use `review-post` instead
-- After all findings are resolved, post an approval: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/approve.md --event APPROVE`
-- **Markdown**: All reply bodies and summary comments are markdown. Use proper formatting — code blocks for commands, bullet lists, bold as appropriate.
+- Every finding that had a `**PR Comment**` URL from the previous post must be resolved or minimized before reposting
+- After reposting, update ALL `**PR Comment**` fields in the local report to the new URLs from the fresh review
+- **Markdown**: All review bodies are markdown. Use proper formatting — code blocks for commands, bullet lists, bold as appropriate.

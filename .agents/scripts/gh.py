@@ -13,6 +13,7 @@ Usage:
     uv run python .agents/scripts/gh.py post inline <pr> <body.md> --path <file> --line <N>
     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> <body.md>
     uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
+    uv run python .agents/scripts/gh.py minimize <pr> <comment-id> [--classifier RESOLVED|OUTDATED|DUPLICATE]
     uv run python .agents/scripts/gh.py update body <pr> <body.md>
     uv run python .agents/scripts/gh.py update title <pr> <title>
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
@@ -502,6 +503,53 @@ def cmd_reply_comment(args):
     print(f"[OK] Reply posted to thread #{comment_id} on PR #{pr}")
 
 
+def cmd_minimize_comment(args):
+    """Minimize (hide) a PR comment with a reason classifier."""
+    pr = parse_pr_input(args.pr_or_url)
+    comment_id = args.comment_id
+    classifier = args.classifier
+
+    # Fetch the comment to get its node_id
+    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    if rc != 0:
+        print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        comments = json.loads(out)
+        target = None
+        for c in comments:
+            if str(c.get("id")) == comment_id:
+                target = c
+                break
+        if not target:
+            print(f"[FAIL] Comment #{comment_id} not found on PR #{pr}", file=sys.stderr)
+            sys.exit(1)
+
+        node_id = target.get("node_id")
+        if not node_id:
+            print(f"[FAIL] Comment #{comment_id} has no node_id", file=sys.stderr)
+            sys.exit(1)
+
+        mutation = f"""
+        mutation {{
+          minimizeComment(input: {{subjectId: "{node_id}", classifier: {classifier}}}) {{
+            minimizedComment {{ id }}
+          }}
+        }}
+        """
+        OWNER_REPO = get_owner_repo()
+        cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+        out2, err2, rc2 = run(cmd)
+        if rc2 != 0:
+            print(f"[FAIL] Minimize failed: {err2}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[OK] Comment #{comment_id} minimized as {classifier}")
+    except json.JSONDecodeError:
+        print(f"[FAIL] Could not parse comments: {out}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_resolve_comment(args):
     """Resolve a review thread."""
     pr = parse_pr_input(args.pr_or_url)
@@ -961,6 +1009,13 @@ def main():
     p.add_argument("pr_or_url", help="PR number or URL")
     p.add_argument("comment_id", help="Comment ID to resolve")
     p.set_defaults(func=cmd_resolve_comment)
+    
+    # minimize comment
+    p = sub.add_parser("minimize", help="Minimize (hide) a PR comment with a reason classifier")
+    p.add_argument("pr_or_url", help="PR number or URL")
+    p.add_argument("comment_id", help="Comment ID to minimize")
+    p.add_argument("--classifier", choices=["RESOLVED", "OUTDATED", "DUPLICATE"], default="OUTDATED", help="Reason for minimizing")
+    p.set_defaults(func=cmd_minimize_comment)
     
     # update body
     p = sub.add_parser("update", help="Update PR")
