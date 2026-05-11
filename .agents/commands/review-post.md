@@ -86,13 +86,9 @@ This command reads a review report from `$1`, extracts each finding, and posts t
     # Edit ./tmp/review-noninline-body.md to replace placeholders.
     uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
     ```
- 9. **Fetch posted comments to get URLs**: After posting all reviews, fetch the PR comments to verify posting and capture links:
-    ```bash
-    uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/fetched-review.md
-    ```
-    Read `./tmp/fetched-review.md` — it contains the full posted review with inline comments grouped under each review section, each with its `URL:` link. Match each inline comment to its finding by file path, line number, and issue code. Extract:
-    - The PR review URL from the overall review header
-    - Each inline comment's URL from its `URL:` line
+ 9. **Capture URLs from post review output**: The `gh.py post review` command now outputs the review URL and each inline comment URL directly. Capture them:
+    - The `Review URL:` line → add as `**PR Review URL**` in the report header
+    - The `Comment URL:` lines → add as `**PR Comment**: <url>` for each matching finding
 10. **Update the local review report**: For each finding that was posted, append a `**PR Comment**` field:
    ```
    **PR Comment**: https://github.com/owner/repo/pull/<number>#discussion_r<comment-id>

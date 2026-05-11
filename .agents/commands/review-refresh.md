@@ -73,11 +73,7 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    # review-post will handle the posting and URL fetching
    ```
 
-9. **Capture and re-link URLs**: After `review-post` completes, fetch the new review's URLs and update the consolidated report:
-   ```bash
-   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/refreshed-result.md
-   ```
-   Read `./tmp/refreshed-result.md` — it contains the new review URL and each inline comment URL. Update the consolidated report:
+9. **Capture URLs from review-post output**: `review-post` now outputs the review URL and inline comment URLs directly. Capture them from its output and update the consolidated report:
    - Add the new `**PR Review URL**` to the report header
    - For each finding, add or update `**PR Comment**: <url>` with the new inline comment URL
 

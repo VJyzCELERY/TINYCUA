@@ -69,7 +69,7 @@ Run the standard preflight:
    ```
    `review-post` will build and post the fresh review with the proper format.
 
-6. **Re-link the local report**: After `review-post` completes, update every `**PR Comment**` field in the local report to the new URLs. If `review-post` already handled this, verify the URLs are correct.
+6. **Re-link the local report**: `review-post` now outputs the review URL and inline comment URLs directly in its output. Capture them and update every `**PR Comment**` field in the local report to the new URLs.
 
 ---
 

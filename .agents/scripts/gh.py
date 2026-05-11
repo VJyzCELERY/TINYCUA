@@ -462,7 +462,26 @@ def cmd_post_review(args):
     clean_temp(body_file)
     if comments_file:
         clean_temp(comments_file)
+    
+    # Parse response to extract URLs
+    review_url = ""
+    comment_urls = []
+    if out:
+        try:
+            resp = json.loads(out)
+            review_url = resp.get("html_url", "")
+            for c in resp.get("comments", []):
+                cu = c.get("html_url", "")
+                if cu:
+                    comment_urls.append(cu)
+        except json.JSONDecodeError:
+            pass
+    
     print(f"[OK] Review posted to PR #{pr}")
+    if review_url:
+        print(f"  Review URL: {review_url}")
+    for cu in comment_urls:
+        print(f"  Comment URL: {cu}")
 
 
 def cmd_post_comment(args):
