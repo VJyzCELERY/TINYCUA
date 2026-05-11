@@ -215,9 +215,10 @@ Use format: `REVIEW_{name}.md`
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
 - Categorize findings by severity
 - **Set the Overall Assessment** based on findings:
-  - **Approved**: Zero findings, or only trivial/informational notes
-  - **Approved With Recommendation**: Minor issues (MEDIUM/LOW) that don't block merge
-  - **Change Requested**: Any HIGH or CRITICAL issues that must be fixed
+   - **Approved**: No issues found (approve directly)
+   - **Approved With Recommendation**: Minor issues (MEDIUM/LOW) that don't block merge
+   - **Addressed With Potential Follow-up**: All issues closed but may warrant a fresh review in the future when the PR changes scope
+   - **Change Requested**: Any HIGH or CRITICAL issues that must be fixed
   - **Blocked**: Issues that violate spec, introduce regressions, or break tests
 - If scope is empty (no files changed), report that and exit
 

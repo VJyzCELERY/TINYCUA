@@ -57,14 +57,14 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      fi
 
      # Map assessment to emote
-     ASSESSMENT=$(grep -oP '\*\*Overall Assessment\*\*:\s*\K.*' "$REVIEW_FILE" | head -1)
-     case "$ASSESSMENT" in
-       *Approved*) EMOTE="✅" ;;
-       *Approved With Recommendation*) EMOTE="✅" ;;
-       *Change Requested*) EMOTE="⚠️" ;;
-       *Blocked*) EMOTE="❌" ;;
-       *) EMOTE="" ;;
-     esac
+      ASSESSMENT=$(grep -oP '\*\*Overall Assessment\*\*:\s*\K.*' "$REVIEW_FILE" | head -1)
+      case "$ASSESSMENT" in
+        *Approved*) EMOTE="✅" ;;
+        *Addressed With Potential Follow-up*) EMOTE="✅" ;;
+        *Change Requested*) EMOTE="⚠️" ;;
+        *Blocked*) EMOTE="❌" ;;
+        *) EMOTE="" ;;
+      esac
 
      # --- Main review: inline comments + body ---
      # Copy the template, then edit placeholders in place.
@@ -107,6 +107,7 @@ Use `.agents/templates/inline-comment-format.json` for the JSON structure and `.
 |-------------------|-------|--------------|
 | Approved | ✅ | `APPROVE` |
 | Approved With Recommendation | ✅ | `APPROVE` (with inline comment notes) |
+| Addressed With Potential Follow-up | ✅ | `APPROVE` (all issues closed, may revisit) |
 | Change Requested | ⚠️ | `REQUEST_CHANGES` |
 | Blocked | ❌ | `REQUEST_CHANGES` |
 

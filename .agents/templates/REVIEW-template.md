@@ -19,7 +19,7 @@
 - **High Issues**: [N]
 - **Medium Issues**: [N]
 - **Low Issues**: [N]
-- **Overall Assessment**: [Approved | Approved With Recommendation | Change Requested | Blocked]
+- **Overall Assessment**: [Approved | Approved With Recommendation | Addressed With Potential Follow-up | Change Requested | Blocked]
 
 ---
 

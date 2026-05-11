@@ -48,6 +48,7 @@ Manage the full review lifecycle: post reviews, update after fixes, consolidate 
 | Assessment | Emote | Event |
 |-----------|-------|-------|
 | Approved / Approved With Recommendation | ✅ | APPROVE |
+| Addressed With Potential Follow-up | ✅ | APPROVE |
 | Change Requested / Blocked | ⚠️ / ❌ | REQUEST_CHANGES |
 
 ## Common Pitfalls
