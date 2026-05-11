@@ -67,12 +67,19 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
 
 7. **Write the consolidated local report**: Save the deduplicated findings as `./reviews/REVIEW_{branch}_refreshed.md` using the REVIEW-template.md structure. Do NOT create a new file if one already exists — overwrite the existing one.
 
-8. **Run review-post**: Now that old comments are closed and the local report is ready:
+8. **Run review-post**: Now that old comments are closed and the local report is ready, delegate to `review-post` to build and post the fresh review:
    ```bash
    # Run /review-post with the consolidated report
+   # review-post will handle the posting and URL fetching
    ```
 
-9. **Re-link**: After `review-post` completes, update the consolidated report's URLs.
+9. **Capture and re-link URLs**: After `review-post` completes, fetch the new review's URLs and update the consolidated report:
+   ```bash
+   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/refreshed-result.md
+   ```
+   Read `./tmp/refreshed-result.md` — it contains the new review URL and each inline comment URL. Update the consolidated report:
+   - Add the new `**PR Review URL**` to the report header
+   - For each finding, add or update `**PR Comment**: <url>` with the new inline comment URL
 
 ---
 
