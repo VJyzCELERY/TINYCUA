@@ -1,9 +1,9 @@
 ---
-description: Checks review findings — valid, invalid, addressed, or still OPEN
+description: Verifies each finding against latest HEAD and unstaged changes — addressed, invalid, or still OPEN
 subtask: true
 ---
 
-Check each finding in a review: determine if it has been properly addressed, is no longer relevant, or remains OPEN. If findings are linked to PR inline comments, automatically reply with the verdict and resolve if appropriate.
+Verify each finding against the current state: run the **How to Validate** command against the latest HEAD (and also check if any unstaged local changes have resolved it). This command does NOT check staleness — it always verifies against whatever HEAD currently is. Findings outside the current diff are marked INVALID.
 
 > Load skill: review-core (for checking finding statuses)
 
@@ -29,26 +29,22 @@ If the log exists, read it and note:
 - **Previously deferred items**: If they reappear as OPEN in this review, flag them in the verification — they should be re-checked
 - **Previously addressed items**: If they reappear, they may have regressed — flag for attention
 
-## Pre-Flight: Run Review Preflight
+## Pre-Flight: Capture current state
 
 > Load _common-preflight.md
 > Load skill: gh (for gh.py — used for PR replies and resolution)
 
-Before running validation, run the review preflight to check if the review is stale:
+Run the preflight to get scope info (PR number, files changed, commit range). Staleness warnings can be ignored — this command always verifies against whatever HEAD currently is:
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
 
-This checks:
-- **Staleness**: Whether HEAD has moved since the review was created
-- **Unstaged changes**: Whether there are local modifications
+This captures:
 - **Scope info**: PR number, files changed, commit range
+- **Unstaged changes**: If present, also run validation commands against unstaged content to check if local edits have resolved the finding
 
-If the preflight exits non-zero, read its warnings:
-- If review is stale (HEAD moved): the findings should be re-verified against the current code. Ask user: continue with stale review or request a fresh review?
-- If unstaged changes exist: verification may differ from the PR state — note this in the output
-- If all clear: proceed with verification
+Then proceed with verification — do NOT stop for staleness warnings.
 
 ---
 

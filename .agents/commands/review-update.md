@@ -87,11 +87,22 @@ Before updating, verify the review isn't stale by running the standard preflight
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/update-summary.md --event APPROVE
      ```
    
-   - **If some findings are still OPEN**: Post a full updated review following the **review-post** flow (steps 4-9). This includes:
-     - Using `**[<issue-id>]** - **[<priority>]**` format for issue IDs
-     - Using the **Inline Comment Format** and **Overall Assessment mapping** from review-post
-     - Building inline comments JSON with proper markdown formatting
-     - The review body should note which findings were resolved since the last review:
+   - **If some findings are still OPEN**: Post a full updated review. The review body and inline comments must follow this format:
+     - **Review body**: starts with `Reviewed commit range: <sha>...<sha>` followed by:
+       ```
+       **Assessment**: ⚠️ **Change Requested**
+       **Review Update**: N of M findings resolved. N still open (see inline comments).
+       ### Findings
+       **[<issue-id>]** - **[<priority>]** - <short description>
+       **Why**: <why it matters>
+       **Suggestion**: <suggested fix>
+       ```
+     - **Inline comments JSON**: each entry in the format:
+       ```json
+       {"path": "...", "line": N, "side": "RIGHT", "body": "**[<issue-id>]** - **[<priority>]** - <short description>\n\n**Why**: ...\n\n**Suggestion**: ...\n\n**How to Validate**: <markdown formatted>"}
+       ```
+     - Use the **Overall Assessment mapping** from review-post for the emote and event
+     - The review body should note how many findings were resolved since the last review:
        ```
        **Review Update**: N of M findings resolved. N still open (see inline comments).
        ```
