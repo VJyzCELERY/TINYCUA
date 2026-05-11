@@ -1,8 +1,8 @@
 ## Summary
 
 ### Spec / Design References
-- **Spec**: `specs/<feature-name>/spec.md`
-- **Design**: `specs/<feature-name>/design.md`
+- **Spec**: `<repo-root-relative-path>` — full path from the repository root (not worktree root, not CWD) to the spec file. Resolve against `git rev-parse --show-toplevel`, not `pwd`. There may be intermediate subdirectories before the final `spec.md`. Example: `src/tinycua-sdk/specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/spec.md`
+- **Design**: `<repo-root-relative-path>` — same rules as Spec above, pointing to the corresponding `design.md`. Example: `src/tinycua-sdk/specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/design.md`
 
 ### Problem
 [Describe the problem being solved. Reference the spec's problem statement. What was missing, broken, or unclear before this change?]
