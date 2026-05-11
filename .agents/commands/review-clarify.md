@@ -49,7 +49,10 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    | **How to Validate** | Missing or broken? | Add or fix (prefixed with `uv run`) |
    | **Severity** | Appropriate? | Adjust: CRITICAL/HIGH/MEDIUM/LOW |
 
-6. **Update the Review Report**: Save the clarified version. Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`.
+6. **Update the Review Report**: Save the clarified version. Run the commit range update script:
+   ```bash
+   uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"
+   ```
 7. **Save Changes**: Use Write to update the original review file
 
 ## Important

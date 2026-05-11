@@ -69,8 +69,8 @@ Then proceed with verification — do NOT stop for staleness warnings.
      - Stale/no longer relevant → **INVALID**
      - Still fails → **OPEN**
     - Document evidence
-7. **Update the Review Report**: Append to Validation Log, update statuses. Also update the report header with the commit range at verification time:
-   - Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`
+7. **Update the Review Report**: Append to Validation Log, update statuses. Also update the commit range:
+   - Run `uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"`
 8. **Save Changes**: Use Write to update the original review file
 
 ## Status Definitions
