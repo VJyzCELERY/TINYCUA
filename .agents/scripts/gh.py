@@ -14,7 +14,8 @@ Usage:
     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> <body.md>
     uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
     uv run python .agents/scripts/gh.py minimize <pr> <comment-id> [--classifier RESOLVED|OUTDATED|DUPLICATE]
-    uv run python .agents/scripts/gh.py batch minimize <pr> <batch.json>
+    uv run python .agents/scripts/gh.py unminimize <pr> <comment-id>
+    uv run python .agents/scripts/gh.py batch close <pr> <batch.json>
     uv run python .agents/scripts/gh.py update body <pr> <body.md>
     uv run python .agents/scripts/gh.py update title <pr> <title>
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
@@ -247,13 +248,17 @@ def cmd_fetch_comments(args):
     output_path = args.output or str(out_dir / f"REVIEW_{safe_branch}_fetched_{ts}.md")
     
     # Fetch all inline comments
-    all_comments = []
+    all_comments_raw = []
     out, err, rc = api("GET", f"pulls/{pr}/comments")
     if rc == 0:
         try:
-            all_comments = json.loads(out)
+            all_comments_raw = json.loads(out)
         except json.JSONDecodeError:
             pass
+    
+    # Filter out minimized comments by default, unless --all is given
+    include_minimized = getattr(args, "all", False)
+    all_comments = all_comments_raw if include_minimized else [c for c in all_comments_raw if not c.get("minimized")]
     
     # Fetch all reviews
     all_reviews = []
@@ -264,12 +269,10 @@ def cmd_fetch_comments(args):
         except json.JSONDecodeError:
             pass
     
-    # Group inline comments by pull_request_review_id, skipping minimized ones
+    # Group inline comments by pull_request_review_id
     comments_by_review: dict[int, list[dict]] = {}
     orphan_comments: list[dict] = []
     for c in all_comments:
-        if c.get("minimized"):
-            continue
         rid = c.get("pull_request_review_id")
         if rid:
             comments_by_review.setdefault(rid, []).append(c)
@@ -319,7 +322,8 @@ def cmd_fetch_comments(args):
     
     Path(output_path).write_text(report, encoding="utf-8")
     non_minimized = [c for c in all_comments if not c.get("minimized")]
-    print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {len(non_minimized)} active inline comment(s) → {output_path}")
+    label = f"{len(non_minimized)} active" if not include_minimized else f"{len(all_comments)} total ({len(all_comments) - len(non_minimized)} minimized)"
+    print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {label} inline comment(s) → {output_path}")
     
     # Print to stdout
     print(f"\n=== Reviews ({len(meaningful_reviews)}) ===")
@@ -554,6 +558,51 @@ def cmd_minimize_comment(args):
         sys.exit(1)
 
 
+def cmd_unminimize_comment(args):
+    """Unminimize (restore) a previously minimized PR comment."""
+    pr = parse_pr_input(args.pr_or_url)
+    comment_id = args.comment_id
+
+    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    if rc != 0:
+        print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        comments = json.loads(out)
+        target = None
+        for c in comments:
+            if str(c.get("id")) == comment_id:
+                target = c
+                break
+        if not target:
+            print(f"[FAIL] Comment #{comment_id} not found on PR #{pr}", file=sys.stderr)
+            sys.exit(1)
+
+        node_id = target.get("node_id")
+        if not node_id:
+            print(f"[FAIL] Comment #{comment_id} has no node_id", file=sys.stderr)
+            sys.exit(1)
+
+        mutation = f"""
+        mutation {{
+          unminimizeComment(input: {{subjectId: "{node_id}"}}) {{
+            unminimizedComment {{ id }}
+          }}
+        }}
+        """
+        OWNER_REPO = get_owner_repo()
+        cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+        out2, err2, rc2 = run(cmd)
+        if rc2 != 0:
+            print(f"[FAIL] Unminimize failed: {err2}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[OK] Comment #{comment_id} restored")
+    except json.JSONDecodeError:
+        print(f"[FAIL] Could not parse comments: {out}", file=sys.stderr)
+        sys.exit(1)
+
+
 def minimize_single_comment(pr: str, comment_id: str, classifier: str, comments_cache: list[dict]) -> bool:
     """Minimize a single comment using cached comments for node_id lookup. Returns True on success."""
     target = None
@@ -587,11 +636,36 @@ def minimize_single_comment(pr: str, comment_id: str, classifier: str, comments_
     return True
 
 
-def cmd_batch_minimize(args):
-    """Minimize multiple PR comments from a JSON file.
+def parse_comment_id_from_url(url: str) -> tuple[str, str] | None:
+    """Extract comment_id and type from a GitHub URL.
+    
+    Returns (comment_id, type) where type is 'discussion_r' or 'pullrequestreview'.
+    """
+    m = re.search(r'#(discussion_r|pullrequestreview)(\d+)', url)
+    if m:
+        return m.group(2), m.group(1)
+    return None
 
-    JSON format: [{"comment_id": 12345, "classifier": "OUTDATED"}, ...]
-    Valid classifiers: RESOLVED, OUTDATED, DUPLICATE
+
+def resolve_single_comment(pr: str, comment_id: str) -> bool:
+    """Resolve a single inline comment thread. Returns True on success."""
+    _, err, rc = api("PATCH", f"pulls/{pr}/comments/{comment_id}",
+                     {"body": ""})
+    if rc != 0:
+        print(f"[WARN] Resolve #{comment_id} failed: {err}", file=sys.stderr)
+        return False
+    print(f"[OK] Comment #{comment_id} resolved")
+    return True
+
+
+def cmd_batch_close(args):
+    """Close multiple PR comments from a JSON file — resolves inline comments, minimizes non-inline ones.
+
+    JSON format entries (one of):
+      {"url": "https://.../...#discussion_r<id>"}         — resolves the inline thread
+      {"url": "https://.../...#pullrequestreview<id>", "classifier": "OUTDATED"}  — minimizes as classifier
+
+    The command auto-detects the type from the URL fragment and performs the correct action.
     Performs validation before any API calls.
     """
     pr = parse_pr_input(args.pr_or_url)
@@ -607,36 +681,46 @@ def cmd_batch_minimize(args):
             print(f"[FAIL] Invalid JSON in {json_file}: {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Validate all entries before any API calls
     if not isinstance(items, list):
-        print("[FAIL] JSON must be an array of {comment_id, classifier} objects", file=sys.stderr)
+        print("[FAIL] JSON must be an array of {url} or {url, classifier} objects", file=sys.stderr)
         sys.exit(1)
 
+    # Validate all entries before any API calls
     errors = []
+    parsed_entries = []
     for i, item in enumerate(items):
         if not isinstance(item, dict):
             errors.append(f"  [{i}] not an object: {item}")
             continue
-        cid = item.get("comment_id")
-        if cid is None:
-            errors.append(f"  [{i}] missing 'comment_id'")
+        url = item.get("url", "")
+        if not url:
+            errors.append(f"  [{i}] missing 'url'")
             continue
-        try:
-            int(str(cid))
-        except (ValueError, TypeError):
-            errors.append(f"  [{i}] 'comment_id' must be a number, got: {cid}")
+        parsed = parse_comment_id_from_url(url)
+        if not parsed:
+            errors.append(f"  [{i}] URL does not contain #discussion_r or #pullrequestreview: {url}")
             continue
-        cls = item.get("classifier", "OUTDATED")
-        if cls not in ("RESOLVED", "OUTDATED", "DUPLICATE"):
-            errors.append(f"  [{i}] invalid 'classifier': {cls} (must be RESOLVED, OUTDATED, or DUPLICATE)")
+        cid, ctype = parsed
+        if ctype == "pullrequestreview":
+            cls = item.get("classifier", "OUTDATED")
+            if cls not in ("RESOLVED", "OUTDATED", "DUPLICATE"):
+                errors.append(f"  [{i}] invalid 'classifier': {cls}")
+                continue
+            parsed_entries.append(("minimize", cid, cls, url))
+        else:
+            parsed_entries.append(("resolve", cid, None, url))
 
     if errors:
-        print("[FAIL] Batch minimize JSON validation errors:", file=sys.stderr)
+        print("[FAIL] Batch close JSON validation errors:", file=sys.stderr)
         for e in errors:
             print(e, file=sys.stderr)
         sys.exit(1)
 
-    # Fetch all comments once for node_id lookups
+    if not parsed_entries:
+        print("[WARN] No valid entries to process", file=sys.stderr)
+        return
+
+    # Fetch all comments once for node_id lookups (needed for minimize)
     out, _, _ = api("GET", f"pulls/{pr}/comments")
     comments_cache = []
     if out:
@@ -647,15 +731,19 @@ def cmd_batch_minimize(args):
 
     ok = 0
     fail = 0
-    for item in items:
-        cid = str(item["comment_id"])
-        cls = item.get("classifier", "OUTDATED")
-        if minimize_single_comment(pr, cid, cls, comments_cache):
-            ok += 1
-        else:
-            fail += 1
+    for action, cid, cls, url in parsed_entries:
+        if action == "resolve":
+            if resolve_single_comment(pr, cid):
+                ok += 1
+            else:
+                fail += 1
+        else:  # minimize
+            if minimize_single_comment(pr, cid, cls, comments_cache):
+                ok += 1
+            else:
+                fail += 1
 
-    print(f"[OK] Batch minimize done: {ok} succeeded, {fail} failed")
+    print(f"[OK] Batch close done: {ok} succeeded, {fail} failed")
 
 
 def cmd_resolve_comment(args):
@@ -1061,6 +1149,7 @@ def main():
     fc = fetch_sub.add_parser("comments", help="Fetch PR comments and reviews")
     fc.add_argument("pr_or_url", help="PR number or URL")
     fc.add_argument("--output", type=str, default=None, help="Write formatted report to this file (default: reviews/remote/REVIEW_<branch>_fetched_<ts>.md)")
+    fc.add_argument("--all", action="store_true", help="Include minimized/resolved comments (default: skip them)")
     fc.set_defaults(func=cmd_fetch_comments)
     
     fu = fetch_sub.add_parser("url", help="Fetch a specific comment/review from its full URL")
@@ -1125,13 +1214,19 @@ def main():
     p.add_argument("--classifier", choices=["RESOLVED", "OUTDATED", "DUPLICATE"], default="OUTDATED", help="Reason for minimizing")
     p.set_defaults(func=cmd_minimize_comment)
     
-    # batch minimize
+    # unminimize comment
+    p = sub.add_parser("unminimize", help="Restore a previously minimized PR comment")
+    p.add_argument("pr_or_url", help="PR number or URL")
+    p.add_argument("comment_id", help="Comment ID to restore")
+    p.set_defaults(func=cmd_unminimize_comment)
+    
+    # batch close
     p = sub.add_parser("batch", help="Batch operations")
     batch_sub = p.add_subparsers(dest="batch_type", required=True)
-    bm = batch_sub.add_parser("minimize", help="Batch minimize multiple PR comments from a JSON file")
+    bm = batch_sub.add_parser("close", help="Batch close multiple PR comments from a JSON file (resolves inline, minimizes non-inline)")
     bm.add_argument("pr_or_url", help="PR number or URL")
-    bm.add_argument("json_file", help="Path to JSON file: [{\"comment_id\": 123, \"classifier\": \"OUTDATED\"}, ...]")
-    bm.set_defaults(func=cmd_batch_minimize)
+    bm.add_argument("json_file", help="Path to JSON: [{\"url\": \".../...#discussion_r<id>\"}, {\"url\": \".../...#pullrequestreview<id>\", \"classifier\": \"OUTDATED\"}]")
+    bm.set_defaults(func=cmd_batch_close)
     
     # update body
     p = sub.add_parser("update", help="Update PR")
@@ -1170,7 +1265,7 @@ def main():
         sys.exit(0)
 
     # If the first arg after script isn't a known command, show fallback message
-    known = {"fetch", "post", "resolve", "minimize", "batch", "update", "create", "cmd", "fields"}
+    known = {"fetch", "post", "resolve", "minimize", "unminimize", "batch", "update", "create", "cmd", "fields"}
     if sys.argv[1] not in known:
         print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
         print(f"       gh {' '.join(sys.argv[1:])}")

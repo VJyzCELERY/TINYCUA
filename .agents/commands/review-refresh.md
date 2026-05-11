@@ -54,20 +54,34 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
 
 6. **Build a consolidated review report**: Using the REVIEW-template.md structure, compile all kept findings into a single report saved as `./reviews/REVIEW_{branch}_refreshed.md`. Each finding keeps its original issue code, severity, and description. Add a note that this is a consolidated refresh.
 
-7. **Minimize outdated comments (skip active human discussions)**: For every review and inline comment that was fetched (except the one you're about to post), check if it's part of an active human discussion before minimizing:
-    - Look at each inline comment's thread: if there are replies from other users (especially the PR author or other humans) discussing the finding, **do not minimize** — it's an active conversation that shouldn't be hidden
-    - Only minimize comments that are pure review findings with no human follow-up discussion
-    - Build a batch JSON file with all comments to minimize:
+7. **Close outdated comments (skip active human discussions)**: For every review and inline comment that was fetched (except the one you're about to post), check if it's part of an active human discussion before closing:
+    - Look at each comment's thread: if there are replies from other users (especially the PR author or other humans) discussing the finding, **do not close** — it's an active conversation
+    - Only close comments that are pure review findings with no human follow-up discussion
+    - Differentiate by URL type:
+
+      **Inline comments** (`URL` contains `#discussion_r`) — resolve the conversation:
       ```bash
-      cat > ./tmp/batch-minimize.json << 'EOF'
+      uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
+      ```
+
+      **Non-inline follow-up reviews** (`URL` contains `#pullrequestreview`) — minimize as outdated:
+      ```bash
+      uv run python .agents/scripts/gh.py minimize "$PR_NUMBER" <comment-id> --classifier OUTDATED
+      ```
+
+      Or use `batch close` to do both at once from a JSON file of URLs:
+      ```bash
+      cat > ./tmp/batch-close.json << 'EOF'
       [
-        {"comment_id": 12345, "classifier": "OUTDATED"},
-        {"comment_id": 67890, "classifier": "OUTDATED"}
+        {"url": "https://github.com/.../pull/26#discussion_r<id>"},
+        {"url": "https://github.com/.../pull/26#discussion_r<id>"},
+        {"url": "https://github.com/.../pull/26#pullrequestreview<id>", "classifier": "OUTDATED"}
       ]
       EOF
-      uv run python .agents/scripts/gh.py batch minimize "$PR_NUMBER" ./tmp/batch-minimize.json
+      uv run python .agents/scripts/gh.py batch close "$PR_NUMBER" ./tmp/batch-close.json
       ```
-      Note: only inline comments (with `#discussion_r` ID) can be minimized. Review-level comments (overall review bodies with `#pullrequestreview`) are not individually minimizable.
+      
+      Extract comment IDs from the URLs (the trailing number after `#discussion_r` or `#pullrequestreview`).
 
 8. **Post the new consolidated review**: Use the review-post flow with the consolidated report:
    ```bash
