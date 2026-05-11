@@ -32,7 +32,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    ```bash
     gh pr diff "$PR_NUMBER"   # gh.py doesn't have diff command yet
    ```
- 4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event.
+ 4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event and the emote.
  5. **Get commit range**: Determine the commit range reviewed:
     ```bash
     BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
@@ -41,11 +41,11 @@ This command reads a review report from `$1`, extracts each finding, and posts t
  6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
     - **Inline-capable**: has a valid `file:line` that exists in the current diff → will be posted as an inline comment
     - **Non-inline**: targets PR metadata (title, body, etc.) or the line no longer exists in the diff → full details MUST be preserved in a review body
-  7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. Every `body` field and the entire review body is **markdown** — use fenced code blocks for commands, bullet lists, bold, etc. to keep it clean and readable. The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
+ 7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. Every `body` field and the entire review body is **markdown** — use fenced code blocks for commands, bullet lists, bold, etc. Issue IDs should follow `{TEXT}-{NUMBER}` format (e.g. `F-001`, `MED-001`, `ISSUE-001`) — keep them short and consistent within this review. The inline body MUST start with `**[<issue-id>]** - **[<priority>]** - <short description>` (e.g., `**F-001** - **HIGH** - Serialization Plan Reuses Non-Serializable Agent Config`).
  8. **Post the review(s)**:
     - Post main review with all inline comments and a body listing all findings
     - If there are non-inline findings, post a follow-up review with their full details as the body (no inline comments) using the same event
-    
+
     ```bash
      REVIEW_FILE="$1"
      REVIEW_EVENT="APPROVE"  # default
@@ -54,21 +54,36 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      elif grep -q "Approved With Recommendation" "$REVIEW_FILE"; then
        REVIEW_EVENT="APPROVE"
      fi
-     
+
+     # Map assessment to emote
+     ASSESSMENT=$(grep -oP '\*\*Overall Assessment\*\*:\s*\K.*' "$REVIEW_FILE" | head -1)
+     case "$ASSESSMENT" in
+       *Approved*) EMOTE="✅" ;;
+       *Approved With Recommendation*) EMOTE="✅" ;;
+       *Change Requested*) EMOTE="⚠️" ;;
+       *Blocked*) EMOTE="❌" ;;
+       *) EMOTE="" ;;
+     esac
+
      # --- Main review: inline comments + body ---
-      # IMPORTANT: The review body is markdown. Use proper markdown formatting (fenced code blocks, lists, bold, etc.)
-      cat > ./tmp/review-body.md << 'BODY'
+     # IMPORTANT: The review body is markdown. Use proper markdown formatting (fenced code blocks, lists, bold, etc.)
+     cat > ./tmp/review-body.md << 'BODY'
     Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
-    
-    **Assessment**: [APPROVED | CHANGE REQUESTED | COMMENT]
-    
+
+    **Assessment**: ${EMOTE} **${ASSESSMENT}**
+
     [Brief overall assessment summary — total findings, severity breakdown, key reasoning]
-    
+
     ### Findings
-    - <ISSUE-CODE-001> - <SEVERITY> - <short description> (inline)
-    - <ISSUE-CODE-002> - <SEVERITY> - <short description> (inline)
-    - <ISSUE-CODE-003> - <SEVERITY> - <short description> (non-inline — see follow-up review)
-    
+
+    **[<issue-id>]** - **[<priority>]** - <short description>
+    **Why**: <why it matters>
+    **Suggestion**: <suggested fix>
+
+    **[<issue-id>]** - **[<priority>]** - <short description>
+    **Why**: <why it matters>
+    **Suggestion**: <suggested fix>
+
     Detailed inline comments follow for findings that map to current diff lines.
     BODY
      cat > ./tmp/review-comments.json << 'COMMENTS'
@@ -77,29 +92,29 @@ This command reads a review report from `$1`, extracts each finding, and posts t
         "path": "src/file.py",
         "line": 42,
         "side": "RIGHT",
-        "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
+        "body": "**[<issue-id>]** - **[<priority>]** - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
       }
     ]
     COMMENTS
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
-     
+
       # --- Follow-up review: non-inline findings (if any) ---
       # If any findings could not be posted inline (e.g. they target PR metadata, not a diff line),
       # post them as a separate review with the same event so no information is lost.
-      # IMPORTANT: Format the body in markdown — use ```bash blocks for validation commands.
+      # IMPORTANT: Format the body in markdown.
       # gh.py will fall back to COMMENT if the event is rejected (e.g. own PR author).
       if [ "${#non_inline_findings[@]}" -gt 0 ]; then
         cat > ./tmp/review-noninline-body.md << 'BODY'
     Additional findings that could not be posted as inline comments:
-    
+
     ---
-    
-    ### <ISSUE-CODE-003> - <SEVERITY> - <short description>
-    
+
+    ### **[<issue-id>]** - **[<priority>]** - <short description>
+
      **Why**: <why it matters>
-     
+
      **Suggestion**: <suggested fix>
-     
+
      **How to Validate**: <how to validate>
        uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
      fi
@@ -130,22 +145,22 @@ This command reads a review report from `$1`, extracts each finding, and posts t
   "path": "src/file.py",
   "line": 42,
   "side": "RIGHT",
-  "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
+  "body": "**[<issue-id>]** - **[<priority>]** - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
 }
 ```
 
-> **Important**: The entire review body and all inline comment bodies are **markdown**. Use proper markdown formatting throughout — fenced code blocks for commands, bullet lists, bold/italic as appropriate.
+> **Important**: The entire review body and all inline comment bodies are **markdown**. Use proper markdown formatting throughout — fenced code blocks for commands, bullet lists, bold/italic as appropriate. Issue IDs use `{TEXT}-{NUMBER}` format (e.g. `F-001`, `MED-001`) and must be unique within the review.
 
 ## Overall Assessment to Review Event Mapping
 
-| Overall Assessment | Review Event |
-|-------------------|--------------|
-| Approved | `APPROVE` |
-| Approved With Recommendation | `APPROVE` (with inline comment notes) |
-| Change Requested | `REQUEST_CHANGES` |
-| Blocked | `REQUEST_CHANGES` |
+| Overall Assessment | Emote | Review Event |
+|-------------------|-------|--------------|
+| Approved | ✅ | `APPROVE` |
+| Approved With Recommendation | ✅ | `APPROVE` (with inline comment notes) |
+| Change Requested | ⚠️ | `REQUEST_CHANGES` |
+| Blocked | ❌ | `REQUEST_CHANGES` |
 
-The assessment is read from the `**Overall Assessment**` field in the review report header. This replaces the old severity-based event mapping — the overall assessment reflects the reviewer's holistic judgment.
+The assessment is read from the `**Overall Assessment**` field in the review report header. Include the emote in the assessment line: `**Assessment**: ✅ **Approved**`
 
 ## Important
 
