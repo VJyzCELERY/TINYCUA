@@ -42,19 +42,6 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    ```
    Read `./tmp/refreshed-fetched.md` — it contains every non-minimized review grouped by author with all inline comments. Each review has its URL, state, and body. Each inline comment has its URL, location, and body.
 
-3. **Batch close all outdated comments**: Build a batch JSON with every comment/review URL from the fetched output (except any that are part of an active human discussion). Inline comments get resolved; non-inline follow-up reviews get minimized.
-   ```bash
-   cat > ./tmp/batch-close.json << 'EOF'
-   [
-     {"url": "https://github.com/.../pull/26#discussion_r<id1>"},
-     {"url": "https://github.com/.../pull/26#discussion_r<id2>"},
-     {"url": "https://github.com/.../pull/26#pullrequestreview-<id3>", "classifier": "OUTDATED"}
-   ]
-   EOF
-   uv run python .agents/scripts/gh.py batch close "$PR_NUMBER" ./tmp/batch-close.json
-   ```
-   Skip any thread that has replies from the PR author or other humans — active discussions should not be closed.
-
 4. **Batch close all outdated comments**: Build a batch JSON with every comment/review URL from the fetched output (except any that are part of an active human discussion). Inline comments get resolved; non-inline follow-up reviews get minimized.
    ```bash
    cat > ./tmp/batch-close.json << 'EOF'
