@@ -97,14 +97,11 @@ This command reads a review report from `$1`, extracts each finding, and posts t
     ]
     COMMENTS
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
-
-      # --- Follow-up review: non-inline findings (if any) ---
-      # If any findings could not be posted inline (e.g. they target PR metadata, not a diff line),
-      # post them as a separate review with the same event so no information is lost.
-      # IMPORTANT: Format the body in markdown.
-      # gh.py will fall back to COMMENT if the event is rejected (e.g. own PR author).
-      if [ "${#non_inline_findings[@]}" -gt 0 ]; then
-        cat > ./tmp/review-noninline-body.md << 'BODY'
+     ```
+     
+    **If there are non-inline findings** (findings with no valid diff line, e.g. PR metadata), post a follow-up review with their full details:
+    ```bash
+    cat > ./tmp/review-noninline-body.md << 'BODY'
     Additional findings that could not be posted as inline comments:
 
     ---
@@ -115,9 +112,9 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 
      **Suggestion**: <suggested fix>
 
-     **How to Validate**: <how to validate>
-       uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
-     fi
+    **How to Validate**: <how to validate>
+    BODY
+    uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
     ```
  9. **Fetch posted comments to get URLs**: After posting all reviews, fetch the PR comments to verify posting and capture links:
     ```bash
