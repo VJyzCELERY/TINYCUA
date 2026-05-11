@@ -66,54 +66,29 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      esac
 
      # --- Main review: inline comments + body ---
+     # Use the template at .agents/templates/review-body-snippet.md for the body structure.
+     # Fill in commit range, assessment, emote, findings, etc.
      # IMPORTANT: The review body is markdown. Use proper markdown formatting (fenced code blocks, lists, bold, etc.)
      cat > ./tmp/review-body.md << 'BODY'
-    Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
-
-    **Assessment**: ${EMOTE} **${ASSESSMENT}**
-
-    [Brief overall assessment summary — total findings, severity breakdown, key reasoning]
-
-    ### Findings
-
-    **[<issue-id>]** - **[<priority>]** - <short description>
-    **Why**: <why it matters>
-    **Suggestion**: <suggested fix>
-
-    **[<issue-id>]** - **[<priority>]** - <short description>
-    **Why**: <why it matters>
-    **Suggestion**: <suggested fix>
-
-    Detailed inline comments follow for findings that map to current diff lines.
-    BODY
+     $(cat .agents/templates/review-body-snippet.md)
+     BODY
+     # Then edit ./tmp/review-body.md in place to replace placeholders with actual values.
+     
+     # Build inline comments JSON — follow .agents/templates/inline-comment-format.json structure
      cat > ./tmp/review-comments.json << 'COMMENTS'
-    [
-      {
-        "path": "src/file.py",
-        "line": 42,
-        "side": "RIGHT",
-        "body": "**[<issue-id>]** - **[<priority>]** - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
-      }
-    ]
-    COMMENTS
+     $(cat .agents/templates/inline-comment-format.json)
+     COMMENTS
+     # Then edit ./tmp/review-comments.json in place to replace placeholders.
+     
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
      ```
      
     **If there are non-inline findings** (findings with no valid diff line, e.g. PR metadata), post a follow-up review with their full details:
     ```bash
     cat > ./tmp/review-noninline-body.md << 'BODY'
-    Additional findings that could not be posted as inline comments:
-
-    ---
-
-    ### **[<issue-id>]** - **[<priority>]** - <short description>
-
-     **Why**: <why it matters>
-
-     **Suggestion**: <suggested fix>
-
-    **How to Validate**: <how to validate>
+    $(cat .agents/templates/review-noninline-body-snippet.md)
     BODY
+    # Edit ./tmp/review-noninline-body.md in place to replace placeholders.
     uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
     ```
  9. **Fetch posted comments to get URLs**: After posting all reviews, fetch the PR comments to verify posting and capture links:
@@ -137,14 +112,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
 
 ## Inline Comment Format
 
-```json
-{
-  "path": "src/file.py",
-  "line": 42,
-  "side": "RIGHT",
-  "body": "**[<issue-id>]** - **[<priority>]** - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
-}
-```
+Use `.agents/templates/inline-comment-format.json` for the JSON structure and `.agents/templates/inline-comment-body-snippet.md` for the body content. The `body` field must be escaped as a JSON string (replace `\n` with actual newlines, escape quotes).
 
 > **Important**: The entire review body and all inline comment bodies are **markdown**. Use proper markdown formatting throughout — fenced code blocks for commands, bullet lists, bold/italic as appropriate. Issue IDs use `{TEXT}-{NUMBER}` format (e.g. `F-001`, `MED-001`) and must be unique within the review.
 
