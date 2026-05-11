@@ -4,4 +4,8 @@
 
 **Suggestion**: <suggested fix>
 
-**How to Validate**: <formatted as clean readable markdown — use code blocks for commands, plain text for instructions>
+**How to Validate**:
+```bash
+<validation command>
+# Expected output (when addressed): <expected result>
+```

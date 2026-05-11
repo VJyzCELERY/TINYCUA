@@ -11,14 +11,22 @@ Reviewed commit range: <base-sha>...<head-sha>
 <if not inline>:
 **Why**: <why it matters>
 **Suggestion**: <suggested fix>
-**How to Validate**: <formatted as clean readable markdown>
+**How to Validate**:
+```bash
+<validation command>
+# Expected output (when addressed): <expected result>
+```
 
 **[<issue-id>]** - **[<priority>]** - <short description>
 <if inline>: Details inline
 <if not inline>:
 **Why**: <why it matters>
 **Suggestion**: <suggested fix>
-**How to Validate**: <formatted as clean readable markdown>
+**How to Validate**:
+```bash
+<validation command>
+# Expected output (when addressed): <expected result>
+```
 
 ---
 

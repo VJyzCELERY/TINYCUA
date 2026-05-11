@@ -130,3 +130,4 @@ The assessment is read from the `**Overall Assessment**` field in the review rep
 - **After posting, MUST update the local review report** with PR comment URLs — this enables automatic reply/resolve in review-update
 - Do NOT post reviews with empty inline comments — skip findings that can't be mapped to the diff
 - **Use markdown hyperlinks when referencing other reviews or comments** — never raw IDs like `PRR_abc123`. Format: `[Previous review](https://github.com/.../pull/N#pullrequestreview-XXX) has been superseded by this review.`
+- **Every How to Validate must include expected output** when the finding is addressed. Format: validation command in a code block, followed by `# Expected output (when addressed): <result>` so reviewers can confirm fixes at a glance.
