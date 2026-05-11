@@ -62,30 +62,32 @@ def main():
 
     new_range = f"{base_sha}...{head_sha}"
 
-    # Replace the Commit Range line — handle both short and full SHA formats
-    new_content = re.sub(
-        r'^\*\*Commit Range\*\*:\s*\S+',
-        f'**Commit Range**: {new_range}',
-        content,
+    # Remove all existing **Commit Range** lines (handles duplicates)
+    cleaned = re.sub(r'^\*\*Commit Range\*\*:\s*\S+\s*\n?', '', content, flags=re.MULTILINE)
+
+    # Find the right insertion point — after **Reviewer**, **Review Focus**, **Review Date**, or **Review Type**
+    inserted = re.sub(
+        r'^(\*\*Review(?:er|Focus| Date| Type).*\n)',
+        f'\\1**Commit Range**: {new_range}\n',
+        cleaned,
         count=1,
         flags=re.MULTILINE,
     )
 
-    if new_content == content:
-        print(f"[WARN] No '**Commit Range**' line found in {file_path}", file=sys.stderr)
-        # Add it after **Reviewer** or **Review Focus** line
-        new_content = re.sub(
-            r'^(\*\*Review(?:er|Focus| Date| Type).*\n)',
+    if inserted == cleaned:
+        # Fallback: insert at the top, after the title
+        inserted = re.sub(
+            r'^(# .*\n)',
             f'\\1**Commit Range**: {new_range}\n',
-            content,
+            cleaned,
             count=1,
-            flags=re.MULTILINE,
         )
-        if new_content == content:
-            print("[FAIL] Could not find a place to insert Commit Range", file=sys.stderr)
-            sys.exit(1)
 
-    file_path.write_text(new_content, encoding="utf-8")
+    if inserted == cleaned:
+        print("[FAIL] Could not find a place to insert Commit Range", file=sys.stderr)
+        sys.exit(1)
+
+    file_path.write_text(inserted, encoding="utf-8")
     print(f"[OK] Commit Range updated to {new_range} in {file_path}")
 
 

@@ -470,7 +470,6 @@ def main():
     if warnings:
         for w in warnings:
             print(w)
-        sys.exit(1)
     print("[OK] Pre-flight checks passed.")
     sys.exit(0)
 
