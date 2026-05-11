@@ -149,7 +149,7 @@ These aspects of the codebase are working well:
 
 When posting this review to a PR via `/review-post`, each finding becomes an inline comment formatted as:
 
-> **Issue**: [Issue Name]
+> **Issue**: <ISSUE-CODE> - <short description>
 > **Why**: [Why It Matters summary]
 > **Suggestion**: [Suggested Fix summary]
 > **How to Validate**: [Validation command]

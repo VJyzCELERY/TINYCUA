@@ -117,5 +117,5 @@ Design-level questions not yet resolved:
 
 ## References
 
-- Spec: `<repo-root-relative-path>` — path from repository root to `spec.md` (not worktree-relative). Resolve via `git rev-parse --show-toplevel`. May have intermediate subdirectories at any depth — what matters is landing on the actual `spec.md`. Example: `specs/my-feature/spec.md` or `src/sdk/specs/my-feature/spec.md`
+- Spec: `./spec.md` — relative path from this design.md to its spec.md (they live in the same directory)
 - Related designs: [paths to related design docs if any]

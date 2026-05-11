@@ -32,34 +32,58 @@ This command reads a review report from `$1`, extracts each finding, and posts t
    ```bash
     gh pr diff "$PR_NUMBER"   # gh.py doesn't have diff command yet
    ```
-4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event.
-5. **Build review payload**: For each finding in the report:
-   - Extract the file path and line number from the **Location** field
-   - Build an inline comment with `path`, `line`, `side`, and `body`
-   - Map the location to the current diff — if the line no longer exists, skip or adjust
-6. **Post the review**:
+ 4. **Read Overall Assessment**: Extract the `**Overall Assessment**` field from the review report header. This determines the PR review event.
+ 5. **Get commit range**: Determine the commit range reviewed:
+    ```bash
+    BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+    HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+    ```
+ 6. **Build review payload**: For each finding in the report:
+    - Extract the file path and line number from the **Location** field
+    - Build an inline comment with `path`, `line`, `side`, and `body`
+    - The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
+    - Map the location to the current diff — if the line no longer exists, skip or adjust
+ 7. **Post the review**:
+    ```bash
+     REVIEW_FILE="$1"
+     REVIEW_EVENT="APPROVE"  # default
+     if grep -q "Change Requested\|Blocked" "$REVIEW_FILE"; then
+       REVIEW_EVENT="REQUEST_CHANGES"
+     elif grep -q "Approved With Recommendation" "$REVIEW_FILE"; then
+       REVIEW_EVENT="APPROVE"
+     fi
+    cat > ./tmp/review-body.md << 'BODY'
+Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
+
+[Overall assessment summary from report — include the assessment, total findings count, severity breakdown, and brief reasoning]
+
+### Findings
+- <ISSUE-CODE-001> - <SEVERITY> - <issue short description>
+- <ISSUE-CODE-002> - <SEVERITY> - <issue short description>
+- <ISSUE-CODE-003> - <SEVERITY> - <issue short description>
+
+Detailed inline comments follow below.
+    BODY
+    cat > ./tmp/review-comments.json << 'COMMENTS'
+    [
+      {
+        "path": "src/file.py",
+        "line": 42,
+        "side": "RIGHT",
+        "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <impact>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <validation command>"
+      }
+    ]
+    COMMENTS
+    uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
+    ```
+8. **Fetch posted comments to get URLs**: After posting, fetch the PR comments to verify posting and capture links:
    ```bash
-    REVIEW_FILE="$1"
-    REVIEW_EVENT="APPROVE"  # default
-    if grep -q "Change Requested\|Blocked" "$REVIEW_FILE"; then
-      REVIEW_EVENT="REQUEST_CHANGES"
-    elif grep -q "Approved With Recommendation" "$REVIEW_FILE"; then
-      REVIEW_EVENT="APPROVE"
-    fi
-   cat > ./tmp/review-body.md << 'BODY'
-   [review summary from report]
-   BODY
-   cat > ./tmp/review-comments.json << 'COMMENTS'
-   [JSON array of inline comments]
-   COMMENTS
-   uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
+   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/fetched-review.md
    ```
-7. **Fetch posted comments to get URLs**: After posting, fetch the PR comments:
-   ```bash
-   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"
-   ```
-   Match each comment to its finding by file path and line number.
-7. **Update the local review report**: For each finding that was posted, append a `**PR Comment**` field:
+   Read `./tmp/fetched-review.md` — it contains the full posted review with inline comments grouped under each review section, each with its `URL:` link. Match each inline comment to its finding by file path, line number, and issue code. Extract:
+   - The PR review URL from the overall review header
+   - Each inline comment's URL from its `URL:` line
+9. **Update the local review report**: For each finding that was posted, append a `**PR Comment**` field:
    ```
    **PR Comment**: https://github.com/owner/repo/pull/<number>#discussion_r<comment-id>
    ```
@@ -78,7 +102,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
   "path": "src/file.py",
   "line": 42,
   "side": "RIGHT",
-  "body": "**Issue**: [description]\n\n**Why**: [impact]\n\n**Suggestion**: [fix]\n\n**How to Validate**: [command]"
+  "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <impact>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <validation command>"
 }
 ```
 

@@ -27,6 +27,7 @@ Usage:
 """
 
 import json, os, re, subprocess, sys, time, urllib.parse, argparse
+from datetime import datetime
 from pathlib import Path
 
 
@@ -226,25 +227,119 @@ def cmd_fetch_pr(args):
 def cmd_fetch_comments(args):
     pr = parse_pr_input(args.pr_or_url)
     
-    print("=== Inline Comments ===")
+    # Get PR info for branch name
+    pr_info = {}
+    out, err, rc = api("GET", f"pulls/{pr}")
+    if rc == 0:
+        try:
+            pr_info = json.loads(out)
+        except json.JSONDecodeError:
+            pass
+    branch = pr_info.get("head", {}).get("ref", f"PR-{pr}")
+    safe_branch = branch.replace("/", "-")
+    ts = int(time.time())
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    out_dir = Path("reviews") / "remote"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output_path = args.output or str(out_dir / f"REVIEW_{safe_branch}_fetched_{ts}.md")
+    
+    # Fetch all inline comments
+    all_comments = []
     out, err, rc = api("GET", f"pulls/{pr}/comments")
     if rc == 0:
         try:
-            for c in json.loads(out):
-                print(f"  {c.get('path','?')}:{c.get('line','?')} — {c.get('user',{}).get('login','?')}")
-                print(f"    {c.get('body','')[:200]}")
+            all_comments = json.loads(out)
         except json.JSONDecodeError:
-            print(out)
+            pass
     
-    print("\n=== Review Summaries ===")
+    # Fetch all reviews
+    all_reviews = []
     out, err, rc = api("GET", f"pulls/{pr}/reviews")
     if rc == 0:
         try:
-            for r in json.loads(out):
-                print(f"  [{r.get('state','?')}] by {r.get('user',{}).get('login','?')}")
-                print(f"    {r.get('body','')[:300]}")
+            all_reviews = json.loads(out)
         except json.JSONDecodeError:
-            print(out)
+            pass
+    
+    # Group inline comments by pull_request_review_id
+    comments_by_review: dict[int, list[dict]] = {}
+    orphan_comments: list[dict] = []
+    for c in all_comments:
+        rid = c.get("pull_request_review_id")
+        if rid:
+            comments_by_review.setdefault(rid, []).append(c)
+        else:
+            orphan_comments.append(c)
+    
+    # Separate reviews that have a body (meaningful review) vs empty ones
+    meaningful_reviews = [r for r in all_reviews if r.get("body", "").strip()]
+    
+    # Build the report — group reviews with their inline comments
+    sections = []
+    for r in meaningful_reviews:
+        rid = r.get("id")
+        author = r.get("user", {}).get("login", "?")
+        state = r.get("state", "?")
+        body = r.get("body", "")
+        review_url = r.get("html_url", "?")
+        submitted_at = r.get("submitted_at", "")
+        
+        section = f"[{state}] by {author} — {submitted_at}\nURL: {review_url}\n\n{body}"
+        
+        # Append inline comments that belong to this review
+        inline = comments_by_review.pop(rid, [])
+        for c in inline:
+            loc = f"{c.get('path','?')}:{c.get('line','?')}"
+            c_url = c.get("html_url", "?")
+            c_body = c.get("body", "")
+            section += f"\n\n---\n\n### Inline — {loc}\nURL: {c_url}\n\n{c_body}"
+        
+        sections.append(section)
+    
+    # Orphan comments (no parent review)
+    for c in orphan_comments + sum(comments_by_review.values(), []):
+        if c not in orphan_comments:
+            continue
+        loc = f"{c.get('path','?')}:{c.get('line','?')}"
+        c_url = c.get("html_url", "?")
+        c_author = c.get("user", {}).get("login", "?")
+        c_body = c.get("body", "")
+        section = f"[COMMENT] by {c_author}\nURL: {c_url}\n\n### Inline — {loc}\nURL: {c_url}\n\n{c_body}"
+        sections.append(section)
+    
+    # Write the report
+    separator = "\n\n---\n\n"
+    report = f"# Fetched Reviews: PR #{pr}\n**Fetched**: {now}\n**Branch**: {branch}\n---\n\n"
+    report += separator.join(sections) if sections else "No reviews found on this PR."
+    
+    Path(output_path).write_text(report, encoding="utf-8")
+    print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {len(all_comments)} inline comment(s) → {output_path}")
+    
+    # Print to stdout
+    print(f"\n=== Reviews ({len(meaningful_reviews)}) ===")
+    for r in meaningful_reviews:
+        author = r.get("user", {}).get("login", "?")
+        state = r.get("state", "?")
+        body = r.get("body", "")
+        review_url = r.get("html_url", "?")
+        submitted_at = r.get("submitted_at", "")
+        print(f"  [{state}] by {author} — {submitted_at}")
+        print(f"  URL: {review_url}")
+        for line in body.split("\n"):
+            print(f"    {line}")
+    
+    if all_comments:
+        print(f"\n=== Inline Comments ({len(all_comments)}) ===")
+        for c in all_comments:
+            loc = f"{c.get('path','?')}:{c.get('line','?')}"
+            c_author = c.get("user", {}).get("login", "?")
+            c_url = c.get("html_url", "?")
+            c_body = c.get("body", "")
+            print(f"  {loc} — {c_author}")
+            print(f"  URL: {c_url}")
+            for line in c_body.split("\n"):
+                print(f"    {line}")
 
 
 # ─── Post Commands ─────────────────────────────────────────────
@@ -809,6 +904,7 @@ def main():
     
     fc = fetch_sub.add_parser("comments", help="Fetch PR comments and reviews")
     fc.add_argument("pr_or_url", help="PR number or URL")
+    fc.add_argument("--output", type=str, default=None, help="Write formatted report to this file (default: reviews/remote/REVIEW_<branch>_fetched_<ts>.md)")
     fc.set_defaults(func=cmd_fetch_comments)
     
     fu = fetch_sub.add_parser("url", help="Fetch a specific comment/review from its full URL")
