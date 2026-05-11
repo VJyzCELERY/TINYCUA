@@ -50,7 +50,7 @@ Then proceed with verification — do NOT stop for staleness warnings.
 
 ## Instructions
 
-1. **Read the Review**: Load the review report
+1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set by the preflight above). If no file is found, check `./reviews/REVIEW_*.md` for the latest or run the preflight with `--review-file ""` to see the default path.
 2. **Run pre-flight checks**: Run the review preflight — if warnings appear, handle staleness or unstaged changes before proceeding
 3. **Capture current commit range**: Record the PR head at verification time:
    ```bash

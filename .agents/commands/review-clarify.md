@@ -27,7 +27,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
 
 ## Instructions
 
-1. **Read the Review**: Load the review report
+1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set by the preflight above). If no file is found, check `./reviews/REVIEW_*.md` for the latest or run the preflight with `--review-file ""` to see the default path.
 2. **Run pre-flight checks**
 3. **Capture current commit range**: Record the PR head at clarification time:
    ```bash
