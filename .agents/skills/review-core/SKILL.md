@@ -35,7 +35,8 @@ For each OPEN finding: improve location precision, replace vague language, add i
 1. Check commit range staleness against current HEAD
 2. For each OPEN finding: run validation command (use `uv run` for Python)
 3. Determine: passes → ADDRESSED, stale → INVALID, fails → OPEN
-4. If PR Comment URL: post reply + resolve if ADDRESSED/INVALID
+4. **MUST update Commit Range** after verification: `uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"`
+5. This is **local-only** — no PR replies or resolution. Use `review-update` to push status changes to the remote PR.
 
 ### Validate (full pipeline)
 Run clarify → verify in sequence. Always clarify before verify.
@@ -52,3 +53,5 @@ Run clarify → verify in sequence. Always clarify before verify.
 - Documentation is equal priority to code
 - Use `uv run` prefix on all Python validation commands
 - After validation returns clean, ALWAYS run one more fresh review
+- **Do NOT truncate `gh.py` output** when gathering PR info — never pipe through `head`, `tail`, or similar. You need the full output for all metadata, body, and commit range.
+- **MUST update Commit Range** after verify — run `update-commit-range.py` to update the review file's commit range so staleness detection works correctly

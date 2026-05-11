@@ -149,12 +149,23 @@ fi
 
 ---
 
+## Required Context
+
+- Preflight: preflight-rebase.py
+- Skills: git, preflight
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: yes
+- Mutates remote: yes (force push with lease)
+- Requires user confirmation: yes (conflict resolution, force push)
+
 ## Important
 
 - Read the git-rebase skill before executing
 - Always check for already-applied commits before rebasing
 - Never use `--reapply-cherry-picks` unless you explicitly want duplicates
-- After rebasing, force push is required (`git push --force origin <branch>`)
+- After rebasing, force push is required (`git push --force-with-lease origin <branch>`) — use `--force-with-lease` to avoid overwriting others' changes. Never force-push `main`/`master`.
 - **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input using the question/ask tool (priority; inline if tool unavailable). Never resolve conflicts silently.
 - Use the question/ask tool at every step that needs user input — don't proceed with assumptions
 

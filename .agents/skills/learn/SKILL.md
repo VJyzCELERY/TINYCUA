@@ -4,8 +4,7 @@ description: Guide for creating and updating project-specific agent skills
 license: MIT
 compatibility: opencode
 metadata:
-  type: command-skill
-  source: .agents/commands/self-learning.md
+  type: workflow
 ---
 
 # Skill: Self-Learning — Creating and Updating Project-Specific Skills
@@ -84,7 +83,7 @@ After the frontmatter, the body follows this structure:
 3. Create the directory: `mkdir -p .agents/skills/<name>/`
 4. Copy the template structure and fill in all fields — keep the frontmatter intact
 5. Document concrete commands and examples — not abstract principles
-6. Update `.agents/docs/guides.md` to list the new skill if helpful
+6. List the new skill in `.agents/skills/` directory structure
 
 ## How to Update an Existing Skill
 
@@ -117,8 +116,8 @@ When delegating to a subagent, tell it to load the relevant skill by name. If yo
 
 - The pattern is already fully covered by an existing skill
 - The pattern is a one-off operation unlikely to repeat
-- The information belongs in a project rule (`.agents/docs/project_rules/`) instead
-- The pattern is already documented in `.agents/docs/agents/` or `.agents/docs/project_rules/`
+- The information belongs in a project rule (`.agents/rules/`) instead
+- The pattern is already documented in `.agents/rules/`
 
 ## Review and Validation
 

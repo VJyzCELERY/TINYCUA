@@ -32,8 +32,8 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
 3. **Capture current commit range**: Record the PR head at clarification time:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
-   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
-   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+    HEAD_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+    BASE_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
    COMMIT_RANGE="$BASE_SHA...$HEAD_SHA"
    echo "Clarifying at: $COMMIT_RANGE"
    ```
@@ -54,6 +54,17 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"
    ```
 7. **Save Changes**: Use Write to update the original review file
+
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-core, gh
+- Rules: 004-review-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
 
 ## Important
 

@@ -54,6 +54,17 @@ The preflight will:
    - Run validation commands to confirm (use `uv run` for Python)
 6. **Report**: Tell the user which findings were fixed and that `review-validate` should be run next
 
+## Required Context
+
+- Preflight: preflight-review.py (--implement mode)
+- Skills: review-implement
+- Rules: 002-code-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: yes (if review is stale or scope mismatch)
+
 ## Important
 
 - ONLY modify source code — do NOT touch the review report

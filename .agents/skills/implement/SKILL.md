@@ -28,6 +28,6 @@ Implement code changes following an existing implementation plan and task list (
 ## Common Pitfalls
 
 - Do NOT implement more than the plan specifies
-- Read relevant rules from `.agents/docs/` first (agents/ + project_rules/)
+- Read relevant rules from `.agents/rules/` first
 - Only modify files in scope of the task
 - Run tests after each task before marking complete

@@ -53,10 +53,10 @@ Review Loop:
        ↓
   Review-validate (Subagent 4) → If OPEN: Review-implement (Subagent 5) → Review-validate (Subagent 6) → repeat
        ↓
-  If CLEAN → Fresh Review-report (Subagent 7) ← independent, zero prior context
-       ↓
-  If NEW ISSUES → Return to Validate
-  If CLEAN (zero issues) → Exit Loop → Review-cleanup (Subagent N)
+   If CLEAN → Fresh Review-report (Subagent 7) ← independent, zero prior context
+        ↓
+   If NEW ISSUES → Return to Validate
+   If CLEAN (zero issues) → Exit Loop → Review-archive (Subagent N)
 ```
 
 ---
@@ -131,7 +131,7 @@ This MUST be a fresh, independent review. Do NOT give the subagent any context a
 - If fresh review has ANY new issues → return to Step 2 (Validate → Implement → Validate → Fresh Review)
 - If fresh review returns CLEAN (zero issues) → Exit Review Loop and proceed to Cleanup
 
-### Phase 4: Review-cleanup (Subagent N)
+### Phase 4: Review-archive (Subagent N)
 
 Delegate to a fresh subagent:
 
@@ -212,8 +212,19 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise.
 - Always instruct subagents to load the relevant skill (e.g., `gh`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure.
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
-- Always instruct subagents to read the relevant rules from `.agents/docs/` first (both `agents/` and `project_rules/`), then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
+- Always instruct subagents to read the relevant rules from `.agents/rules/` first, then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
 - All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed.
+
+## Required Context
+
+- Preflight: preflight-start.py
+- Skills: begin-workflow
+- Rules: 001-agent-behavior.md, 002-code-standards.md, 003-testing.md, 005-project-structure.md
+- Templates: spec.md, design.md, implementation-plan.md, task.md, PR-body.md
+- Mutates files: yes
+- Mutates git history: yes
+- Mutates remote: yes
+- Requires user confirmation: yes (initial questions on scope, PR creation, tightening)
 
 Begin by starting Subagent 1 for the planning phase.

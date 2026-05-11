@@ -29,4 +29,4 @@ Read a spec and design document, then create an implementation plan and task lis
 
 - Tasks must be small enough to complete in one pass (each task is one TDD cycle)
 - Include test requirements in each task
-- Reference relevant rules from `.agents/docs/project_rules/`
+- Reference relevant rules from `.agents/rules/`

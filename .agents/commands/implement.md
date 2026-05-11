@@ -38,4 +38,15 @@ Execute an implementation plan from implementation-plan.md and task.md.
 - Use `/review-validate <review-file>` to validate review findings
 - Use `/review-implement <review-file>` to implement fixes
 
+## Required Context
+
+- Preflight: preflight-start.py
+- Skills: implement
+- Rules: 002-code-standards.md, 003-testing.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
+
 Begin by reading the implementation-plan.md and task.md, then start executing tasks in order.

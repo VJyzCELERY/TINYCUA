@@ -45,23 +45,19 @@ Run the standard preflight:
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
 
-3. **Reply and resolve all inline comment threads**: For each finding with a `#discussion_r` URL, post a reply documenting the current status, then resolve the thread. Use `gh.py interact`:
-   ```bash
-   # If ADDRESSED or INVALID
-   uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
-   uv run python .agents/scripts/gh.py interact resolve "$URL"
-   
-   # If still OPEN
-   uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
-   uv run python .agents/scripts/gh.py interact resolve "$URL"
-   ```
-   > Inline comments are ALWAYS resolved after replying — the old thread is closed because `review-post` will publish a fresh review.
+3. **Resolve ALL old inline comment threads**: For each finding with a `#discussion_r` URL, these are comments from the PREVIOUS review that is being replaced. Reply with a status update, then resolve the thread so they don't appear in future fetches:
+    ```bash
+    # Reply documenting that the review has been updated
+    uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
+    # Always resolve old threads — the new review supersedes them
+    uv run python .agents/scripts/gh.py interact resolve "$URL"
+    ```
+    Do NOT leave old threads unresolved. The new review will contain the updated findings.
 
 4. **Minimize the previous review body**: For the `**PR Review URL**` in the report header, and any non-inline `**PR Comment**` URLs (those with `#pullrequestreview`), minimize as outdated:
-   ```bash
-   uv run python .agents/scripts/gh.py interact minimize "$URL" --classifier OUTDATED
-   ```
-   If the finding is ADDRESSED or INVALID, use `--classifier RESOLVED` instead.
+    ```bash
+    uv run python .agents/scripts/gh.py interact minimize "$URL" --classifier OUTDATED
+    ```
 
 5. **Run review-post**: Now that old comments are closed, post the updated verdict:
    ```bash
@@ -72,6 +68,17 @@ Run the standard preflight:
 6. **Re-link the local report**: `review-post` now outputs the review URL and inline comment URLs directly in its output. Capture them and update every `**PR Comment**` field in the local report to the new URLs.
 
 ---
+
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-pr, gh
+- Rules: none
+- Templates: review-body-snippet.md, inline-comment-format.json
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: yes (replies, resolves, posts new review)
+- Requires user confirmation: no (but stops if stale)
 
 ## Important
 

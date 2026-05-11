@@ -1,10 +1,12 @@
-# Review Report: [Review Name]
+# Review Report: __REVIEW_NAME__
 
 **Directory Reviewed**: [absolute/path/to/directory]
-**Review Date**: [YYYY-MM-DD]
+**Review Date**: __REVIEW_DATE__
 **Review Type**: [docs|code|pr|full|security|performance]
 **Reviewer**: [agent-name or human-name]
-**Commit Range**: [sha]...[sha]
+**Branch**: __BRANCH_NAME__
+**Scope**: __SCOPE__
+**Commit Range**: __COMMIT_BASE__...__COMMIT_HEAD__
 
 ---
 
@@ -17,7 +19,7 @@
 - **High Issues**: [N]
 - **Medium Issues**: [N]
 - **Low Issues**: [N]
-- **Overall Assessment**: [Approved | Approved With Recommendation | Change Requested | Blocked]
+- **Overall Assessment**: [Approved | Approved With Recommendation | Addressed With Potential Follow-up | Change Requested | Blocked]
 
 ---
 

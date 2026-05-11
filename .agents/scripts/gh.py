@@ -37,6 +37,8 @@ import json, os, re, subprocess, sys, time, urllib.parse, argparse
 from datetime import datetime
 from pathlib import Path
 
+import repo_guard
+
 
 TMP_DIR = Path("./tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -115,12 +117,13 @@ def clean_temp(path: str | Path):
     """Delete temp file if it exists."""
     p = Path(path)
     if p.exists():
+        repo_guard.assert_inside_repo(p)
         p.unlink()
 
 
 def check_file(path: str) -> bool:
     """Validate file exists and has content."""
-    p = Path(path)
+    p = repo_guard.assert_inside_repo(path)
     if not p.exists():
         print(f"[FAIL] File not found: {path}", file=sys.stderr)
         return False
@@ -128,6 +131,36 @@ def check_file(path: str) -> bool:
         print(f"[FAIL] File is empty: {path}", file=sys.stderr)
         return False
     return True
+
+
+REQUIRED_PR_SECTIONS = ["## Summary", "## How to Test", "## Review Notes", "## Related Issues"]
+TEMPLATE_PLACEHOLDER_RE = re.compile(
+    r'\[(?:Describe|Item|Map to|What|Additional|File|List|Fill|Explain|Add|Document|Review|Example|Update|Note|Specify|Reason|Expected).*?\]',
+    re.IGNORECASE,
+)
+
+
+def validate_pr_body(body: str) -> list[str]:
+    """Validate a PR body against the project template.
+
+    Returns a list of error messages (empty list means valid).
+    """
+    errors: list[str] = []
+
+    if not body.strip():
+        errors.append("PR body is empty.")
+        return errors
+
+    for section in REQUIRED_PR_SECTIONS:
+        if section not in body:
+            errors.append(f"Missing required section: {section}")
+
+    placeholders = TEMPLATE_PLACEHOLDER_RE.findall(body)
+    if placeholders:
+        for ph in placeholders[:5]:
+            errors.append(f"Unfilled placeholder found: {ph}")
+
+    return errors
 
 
 def cmd_fetch_prs(args):
@@ -196,7 +229,7 @@ def cmd_fetch_repo(args):
 def cmd_fetch_pr(args):
     pr = parse_pr_input(args.pr_or_url)
     # Use curated default fields — only useful info, no API URLs or nested bloat
-    fields = args.fields or "number,title,state,headRefName,baseRefName,author,body,createdAt,updatedAt,mergedAt,closedAt,mergeable,isDraft,additions,deletions,changedFiles,labels,reviews"
+    fields = args.fields or "number,title,state,headRefName,baseRefName,author,body,createdAt,updatedAt,mergedAt,closedAt,mergeable,isDraft,additions,deletions,changedFiles,labels,reviews,headRefOid"
     out, err, rc = run(["gh", "pr", "view", pr, "--json", fields])
     if rc != 0:
         print(f"[FAIL] Could not fetch PR #{pr}: {err}", file=sys.stderr)
@@ -204,15 +237,29 @@ def cmd_fetch_pr(args):
     try:
         data = json.loads(out)
         if args.fields:
-            # Generic field-by-field output for custom requests
             print(json_to_md(data))
             return
-        # Curated summary for default fields
+        
+        # Get head SHA; for base SHA use API since baseRefOid isn't available in gh pr view
+        head_sha = data.get("headRefOid", "")
+        base_sha = ""
+        if head_sha:
+            owner_repo = get_owner_repo()
+            if owner_repo:
+                base_sha, _, _ = run(["gh", "api", f"repos/{owner_repo}/pulls/{pr}", "--jq", ".base.sha"], None, False)
+        
+        # HEADER section
         print(f"#{data['number']} — {data['title']}")
+        print("---")
         print(f"State: {data['state'].upper()}")
         if data.get('isDraft'):
             print("Draft: Yes")
-        print(f"Head: {data.get('headRefName', '?')} → Base: {data.get('baseRefName', '?')}")
+        print(f"Head: {data.get('headRefName', '?')}")
+        print(f"Base: {data.get('baseRefName', '?')}")
+        if base_sha and head_sha:
+            print(f"Commit Range: {base_sha}...{head_sha}")
+        elif head_sha:
+            print(f"Head SHA: {head_sha}")
         print(f"Author: {data.get('author', {}).get('login', '?')}")
         print(f"Created: {data.get('createdAt', '?')}")
         print(f"Updated: {data.get('updatedAt', '?')}")
@@ -224,10 +271,21 @@ def cmd_fetch_pr(args):
         labels = data.get('labels', [])
         if labels:
             print(f"Labels: {', '.join(l.get('name', '') for l in labels)}")
-        # Only print body if it exists (and truncate for readability)
+        
+        # Title section
+        print("---")
+        print(f"Title : **{data['title']}**")
+        
+        # Body section
         body = data.get('body', '')
+        print("---")
+        print("Body :")
         if body:
-            print(f"\nBody:\n{body}")
+            print(f"**{body}**")
+        else:
+            print("**(no body)**")
+        print("---")
+        
         print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
     except json.JSONDecodeError:
         print(out)
@@ -245,6 +303,8 @@ def cmd_fetch_comments(args):
         except json.JSONDecodeError:
             pass
     branch = pr_info.get("head", {}).get("ref", f"PR-{pr}")
+    base_sha = pr_info.get("base", {}).get("sha", "")
+    head_sha = pr_info.get("head", {}).get("sha", "")
     safe_branch = branch.replace("/", "-")
     ts = int(time.time())
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -356,14 +416,20 @@ def cmd_fetch_comments(args):
     
     # Write the report
     separator = "\n\n---\n\n"
-    report = f"# Fetched Reviews: PR #{pr}\n**Fetched**: {now}\n**Branch**: {branch}\n---\n\n"
+    report = f"# Fetched Reviews: PR #{pr}\n**Fetched**: {now}\n**Branch**: {branch}\n"
+    if base_sha and head_sha:
+        report += f"**Commit Range**: {base_sha}...{head_sha}\n"
+    report += "---\n\n"
     report += separator.join(sections) if sections else "No reviews found on this PR."
     
+    output_path = str(repo_guard.assert_inside_repo(output_path))
     Path(output_path).write_text(report, encoding="utf-8")
     label = f"{len(all_comments)} active" if not include_minimized else f"{len(all_comments)} total"
     print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {label} inline comment(s) → {output_path}")
     
     # Print to stdout
+    if base_sha and head_sha:
+        print(f"Commit Range: {base_sha}...{head_sha}")
     print(f"\n=== Reviews ({len(meaningful_reviews)}) ===")
     for r in meaningful_reviews:
         author = r.get("user", {}).get("login", "?")
@@ -1057,6 +1123,16 @@ def detect_pr_base(head: str | None = None) -> str:
             branch = ""
     if not branch:
         return "main"
+    
+    # Check worktree.base-branch git config (set by create-worktree.py)
+    try:
+        cfg = subprocess.check_output(
+            ["git", "config", "--local", "worktree.base-branch"],
+            text=True, stderr=subprocess.DEVNULL).strip()
+        if cfg:
+            return cfg
+    except Exception:
+        pass
     try:
         out = subprocess.check_output(
             ["gh", "pr", "list", "--head", branch, "--state", "open",
@@ -1122,20 +1198,13 @@ def detect_pr_base(head: str | None = None) -> str:
     return best_candidate if best_candidate else "main"
 
 
-def push_branch_if_needed(branch: str):
-    """Push a branch to remote if it doesn't have a remote tracking branch."""
+def check_branch_on_remote(branch: str) -> bool:
+    """Check if a branch exists on the remote origin."""
     try:
         r = subprocess.run(["git", "rev-parse", f"origin/{branch}"], text=True, capture_output=True, check=False)
-        if r.returncode == 0:
-            return
-        print(f"[INFO] Pushing '{branch}' to remote...")
-        r = subprocess.run(["git", "push", "--force", "origin", branch], text=True, capture_output=True, check=False)
-        if r.returncode != 0:
-            print(f"[WARN] Failed to push '{branch}': {r.stderr.strip()}")
-        else:
-            print(f"[OK] '{branch}' pushed to remote.")
-    except Exception as e:
-        print(f"[WARN] Could not push '{branch}': {e}")
+        return r.returncode == 0
+    except Exception:
+        return False
 
 
 def cmd_create_pr(args):
@@ -1153,12 +1222,27 @@ def cmd_create_pr(args):
     if not check_file(body_file):
         sys.exit(1)
     
-    # Ensure both branches are pushed to remote before creating PR
-    push_branch_if_needed(head)
-    if base != head:
-        push_branch_if_needed(base)
+    # Check both branches exist on remote before creating PR — no automatic push
+    if not check_branch_on_remote(head):
+        print(f"[FAIL] Head branch '{head}' is not on remote. Push it first with:", file=sys.stderr)
+        print(f"       git push origin {head}", file=sys.stderr)
+        sys.exit(1)
+    if base != head and not check_branch_on_remote(base):
+        print(f"[FAIL] Base branch '{base}' is not on remote. Push it first with:", file=sys.stderr)
+        print(f"       git push origin {base}", file=sys.stderr)
+        sys.exit(1)
     
-    data = {"title": title, "head": head, "base": base, "body": open(body_file).read()}
+    # Validate PR body against template
+    body = open(body_file).read()
+    body_errors = validate_pr_body(body)
+    if body_errors:
+        print("[FAIL] PR body has template validation errors:", file=sys.stderr)
+        for err in body_errors:
+            print(f"       - {err}", file=sys.stderr)
+        print("       Use `.agents/templates/PR-body.md` and fill in all sections.", file=sys.stderr)
+        sys.exit(1)
+    
+    data = {"title": title, "head": head, "base": base, "body": body}
     if args.draft:
         data["draft"] = True
     

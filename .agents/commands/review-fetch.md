@@ -35,6 +35,17 @@ Fetch active (non-minimized, non-resolved) comments and reviews from a GitHub PR
 
 ---
 
+## Required Context
+
+- Preflight: none
+- Skills: review-pr, gh
+- Rules: none
+- Templates: REVIEW-template.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no (read-only fetch)
+- Requires user confirmation: no
+
 ## Important
 
 - Only active (non-minimized, non-resolved) comments are fetched by default. Use `--all` to include everything.

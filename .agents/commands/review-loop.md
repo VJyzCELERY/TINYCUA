@@ -3,7 +3,7 @@ description: Runs the review loop independently: review → validate → fix →
 subtask: true
 ---
 
-Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-cleanup.
+Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-archive.
 
 > Load skill: review-core (for orchestrating review cycles)
 
@@ -89,13 +89,7 @@ This MUST be a fresh, independent review. No prior context:
 - If fresh review has ANY new issues → return to Step 2
 - If fresh review returns CLEAN (zero issues) → Exit Review Loop → proceed to Cleanup
 
-**Step 6: Review-log (Subagent N) — Log the Clean Cycle**
-
-> Run /review-log for ./reviews/REVIEW_{name}.md
-
-Only run this step if the fresh review returned CLEAN (zero issues). This archives the cycle into `./reviews/log/REVIEW_{branch}.md`.
-
-**Step 7: Review-cleanup (Subagent N)**
+**Step 6: Review-archive (Subagent N)**
 
 > Run /review-archive for ./reviews/REVIEW_{name}.md
 
@@ -132,6 +126,17 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 
 ---
 
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-core
+- Rules: 004-review-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: yes (initial questions on scope tightening)
+
 ## Important
 
 - Delegate each step to a fresh subagent
@@ -142,7 +147,7 @@ After each fresh review, before passing to validate-fix: filter through ledger, 
 - Stay scoped to the target directory
 - Run actual commands and tests — don't assume results
 - Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise
-- Always instruct subagents to load the relevant skill (e.g., `gh-pr-management`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure
+- Always instruct subagents to load the relevant skill (e.g., `gh`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
 - All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed

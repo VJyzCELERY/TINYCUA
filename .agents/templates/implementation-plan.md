@@ -9,6 +9,59 @@
 - **Priority**: [P0|P1|P2|P3]
 - **Estimated Effort**: [XS|S|M|L|XL]
 
+## Success Criteria — Integration Tests (TDD First)
+
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+```python
+# Test file: [path/to/test_file.py]
+"""Integration tests for [feature name]."""
+
+
+def test_[scenario_under_test]:
+    """[Describe what this test verifies]"""
+    # Arrange
+    [setup code]
+    # Act
+    [action code]
+    # Assert
+    [assertion code]
+
+
+def test_[another_scenario]:
+    """[Describe]"""
+    # Arrange
+    [setup]
+    # Act
+    [action]
+    # Assert
+    [expected outcome]
+```
+
+### Key Test Scenarios
+
+- [ ] **Scenario 1**: [description of what the test covers and why it's the primary success criterion]
+- [ ] **Scenario 2**: [description]
+- [ ] **Edge case**: [description]
+
+## Verification Plan
+
+### Automated Tests
+
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for [module/component] — test error handling, edge cases, fallbacks
+- [ ] Existing test suite — confirm no regressions: `uv run pytest`
+
+### Manual Verification
+
+- [ ] [Verification step 1]
+- [ ] [Verification step 2]
+
+### Performance Considerations
+
+- [ ] [Performance test or check]
+- [ ] [Load test if applicable]
+
 ## Proposed Changes
 
 ### [Module/Section Name]
@@ -25,12 +78,12 @@
 
 ### [Another Module/Section Name]
 
-#### [NEW] [new/file/path.ts]
+#### [NEW] [new/file/path.py]
 
 - **[Description]**: [What new component or module needs to be created]
 - **[Dependencies]**: [What other modules it depends on]
 
-#### [MODIFY] [existing/file.ts]
+#### [MODIFY] [existing/file.py]
 
 - **[Description of change]**
 - **[Breaking changes if any]**
@@ -45,12 +98,11 @@
 
 ## Data Model Changes
 
-```typescript
-// New types or modified interfaces
-interface [NewType] {
-  field1: string;
-  field2: number;
-}
+```python
+# New types or modified interfaces
+[NewType]:
+    field1: str
+    field2: int
 ```
 
 ## API Changes
@@ -67,30 +119,6 @@ interface [NewType] {
 | Method | Path | Change |
 |--------|------|--------|
 | GET | /api/v1/existing | Added new query parameter |
-
-## Verification Plan
-
-### Automated Tests
-
-- [ ] Unit tests for [module/component]
-- [ ] Integration tests for [feature]
-- [ ] E2E tests for [user flow]
-
-### Manual Verification
-
-- [ ] [Verification step 1]
-- [ ] [Verification step 2]
-
-### Performance Considerations
-
-- [ ] [Performance test or check]
-- [ ] [Load test if applicable]
-
-## Rollout Strategy
-
-1. **Phase 1** ([description]): [what happens in this phase]
-2. **Phase 2** ([description]): [what happens in this phase]
-3. **Phase 3** ([description]): [what happens in this phase]
 
 ## Dependencies
 

@@ -6,6 +6,19 @@ This project uses the `.agents/` directory for all AI agent-related configuratio
 
 ---
 
+## Normative Hierarchy
+
+When instructions conflict, apply this precedence:
+
+1. **`AGENTS.md`** — top-level operational contract (this file)
+2. **`.agents/commands/`** — command definitions and contracts
+3. **`.agents/skills/<name>/SKILL.md`** — tactical how-to guidance
+4. **`.agents/rules/<name>.md`** — context-specific rules loaded by intent
+5. **`.agents/templates/`** — document templates for generated output
+6. **`.agents/docs/`** — reference documentation (guides, legacy content)
+
+---
+
 ## Critical Rules
 
 0. **Run start preflight** — At the start of every session, run `uv run python .agents/scripts/preflight-start.py`. This detects your OS and establishes the project boundary so you never operate outside it.
@@ -59,9 +72,6 @@ Everything you need is in `.agents/`. Explore it like a filesystem — only read
 | Before any script | Run preflight first: `uv run python .agents/scripts/preflight-<name>.py` |
 | Need PR/review help | Load skill: `gh` or read `.agents/skills/gh/SKILL.md` |
 | Need git help | Load skill: `git` or read `.agents/skills/git/SKILL.md` |
-| About to write code | Load rule: `002-code-standards.md` |
-| About to write tests | Load rule: `003-testing.md` |
-| About to create a skill | Load skill: `learn` and use `.agents/templates/skill.md` |
 
 ### Dynamic rule loading
 
@@ -77,7 +87,7 @@ Rules live in `.agents/rules/` and are **loaded only when relevant** — not all
 
 List available skills: `ls .agents/skills/` — each is a directory with a `SKILL.md` inside.
 
-List available tools: `ls .agents/tools/` or run `uv run python .agents/scripts/gh.py --help`.
+List available tools: run `uv run python .agents/scripts/gh.py --help`.
 
 List available rules: `ls .agents/rules/`
 
@@ -111,6 +121,7 @@ Commands reference `_common-*.md` files for shared patterns. These are loaded on
 | `/review-post` | Posts review as a PR review with inline comments |
 | `/review-update` | Follows up on PR review (resolve threads, flag remaining) |
 | `/review-fetch` | Fetches unresolved PR comments into a review report |
+| `/review-refresh` | Refreshes PR review state — fetches latest comments and updates local tracking |
 | `/review-archive` | Logs completed cycle then archives the review report |
 | `/rebase` | Safely rebases current branch onto target |
 | `/commit-cleanup` | Cleans up commit history — squashes fixups, removes duplicates |

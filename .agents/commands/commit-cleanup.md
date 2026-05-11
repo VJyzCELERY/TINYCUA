@@ -94,9 +94,20 @@ Summarize what was cleaned:
 
 ---
 
+## Required Context
+
+- Preflight: preflight-rebase.py
+- Skills: git, preflight
+- Rules: 002-code-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: yes
+- Mutates remote: yes (force push if previously pushed)
+- Requires user confirmation: yes (force push requires confirmation)
+
 ## Important
 
 - Only clean up commits that are on the current branch (not merged to target)
 - Do NOT squash meaningful commits into each other — only fixup! and squash! markers
-- After cleanup, force push is required if the branch was previously pushed
+- After cleanup, force push is required if the branch was previously pushed — use `git push --force-with-lease origin <branch>`, never `--force`. Never force-push `main`/`master`.
 - If the branch has no unique commits after cleanup, report that it's ready to merge
