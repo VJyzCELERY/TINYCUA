@@ -442,6 +442,7 @@ def main():
 
     warnings.extend(check_unstaged())
 
+    has_warnings = bool(warnings)
     for line in info_lines:
         print(line)
 
@@ -467,9 +468,10 @@ def main():
             print(f"[INFO] Review file initialized: {rev_path}")
             print(f"[INFO] Fill in the findings section and update [fill in] placeholders.")
 
-    if warnings:
+    if has_warnings:
         for w in warnings:
             print(w)
+        sys.exit(1)
     print("[OK] Pre-flight checks passed.")
     sys.exit(0)
 

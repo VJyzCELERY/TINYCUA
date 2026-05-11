@@ -62,6 +62,12 @@ def main():
 
     new_range = f"{base_sha}...{head_sha}"
 
+    # Check if already up to date — extract current commit range from file
+    existing = re.search(r'^\*\*Commit Range\*\*:\s*(\S+)', content, re.MULTILINE)
+    if existing and existing.group(1) == new_range:
+        print(f"[OK] Commit Range already up to date: {new_range}")
+        sys.exit(0)
+
     # Remove all existing **Commit Range** lines (handles duplicates)
     cleaned = re.sub(r'^\*\*Commit Range\*\*:\s*\S+\s*\n?', '', content, flags=re.MULTILINE)
 
