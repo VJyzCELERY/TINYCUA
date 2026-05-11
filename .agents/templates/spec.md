@@ -67,13 +67,13 @@ _Example of marking unclear requirements:_
 
 ---
 
-## Success Criteria _(mandatory)_
+## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
 Objective, measurable checks that prove the problem is solved.
 
-- **User can [action]**: [specific verifiable capability]
-- **System handles [scenario]**: [specific measurable behavior]
-- **Performance**: [if applicable — e.g., "response time < 200ms for 99th percentile"]
+- [ ] **User can [action]**: [specific verifiable capability]
+- [ ] **System handles [scenario]**: [specific measurable behavior]
+- [ ] **Performance**: [if applicable — e.g., "response time < 200ms for 99th percentile"]
 
 ---
 
