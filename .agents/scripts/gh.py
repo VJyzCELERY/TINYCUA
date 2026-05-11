@@ -649,6 +649,22 @@ def minimize_single_comment(pr: str, comment_id: str, classifier: str, comments_
     return True
 
 
+def minimize_single_review(node_id: str, classifier: str) -> bool:
+    """Minimize a pull request review body by its GraphQL node_id. Returns True on success."""
+    mutation = f"""
+    mutation {{
+      minimizeComment(input: {{subjectId: "{node_id}", classifier: {classifier}}}) {{
+        minimizedComment {{ __typename }}
+      }}
+    }}
+    """
+    cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+    out2, err2, rc2 = run(cmd)
+    if rc2 != 0:
+        print(f"[WARN] Minimize review {node_id[:20]}... failed: {err2}", file=sys.stderr)
+        return False
+    print(f"[OK] Review {node_id[:20]}... minimized as {classifier}")
+    return True
 def parse_comment_id_from_url(url: str) -> tuple[str, str] | None:
     """Extract comment_id and type from a GitHub URL.
     
@@ -669,17 +685,21 @@ def fetch_thread_map(owner_repo: str, pr: str) -> dict:
     query {{
       repository(owner: "{owner_repo.split('/')[0]}", name: "{owner_repo.split('/')[1]}") {{
         pullRequest(number: {pr}) {{
-          reviewThreads(first: 50) {{
+          reviewThreads(first: 100) {{
             nodes {{
               id
               isResolved
-              comments(first: 10) {{
+              comments(first: 20) {{
                 nodes {{
                   id
                   fullDatabaseId
                   isMinimized
                 }}
               }}
+            }}
+            pageInfo {{
+              hasNextPage
+              endCursor
             }}
           }}
         }}
@@ -729,7 +749,7 @@ def resolve_single_comment(pr: str, comment_id: str, thread_map: dict | None = N
     tid = info["thread_id"]
     mutation = f"""
     mutation {{
-      resolveReviewThread(input: {{pullRequestReviewThreadId: "{tid}"}}) {{
+      resolveReviewThread(input: {{threadId: "{tid}"}}) {{
         thread {{ id }}
       }}
     }}
@@ -805,7 +825,7 @@ def cmd_batch_close(args):
         print("[WARN] No valid entries to process", file=sys.stderr)
         return
 
-    # Fetch all comments once for node_id lookups (needed for minimize)
+    # Fetch all comments (needed for finding review child comments)
     out, _, _ = api("GET", f"pulls/{pr}/comments")
     comments_cache = []
     if out:
@@ -814,7 +834,17 @@ def cmd_batch_close(args):
         except json.JSONDecodeError:
             pass
 
-    # Fetch thread map for resolve operations (needed for thread_id lookup)
+    # Fetch all reviews (needed for mapping review db id -> node_id for minimize)
+    reviews_out, _, _ = api("GET", f"pulls/{pr}/reviews")
+    reviews_by_id: dict[int, dict] = {}
+    if reviews_out:
+        try:
+            for rv in json.loads(reviews_out):
+                reviews_by_id[rv["id"]] = rv
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Fetch thread map for resolve operations
     owner_repo = get_owner_repo()
     thread_map = fetch_thread_map(owner_repo, pr)
 
@@ -826,11 +856,33 @@ def cmd_batch_close(args):
                 ok += 1
             else:
                 fail += 1
-        else:  # minimize
-            if minimize_single_comment(pr, cid, cls, comments_cache):
-                ok += 1
+        elif action == "minimize":
+            review_id_num = int(cid)
+            # Step 1: resolve all child inline comments
+            child_comments = [c for c in comments_cache if c.get("pull_request_review_id") == review_id_num]
+            child_ok = 0
+            child_fail = 0
+            for cc in child_comments:
+                if resolve_single_comment(pr, str(cc["id"]), thread_map):
+                    child_ok += 1
+                else:
+                    child_fail += 1
+            if child_comments:
+                print(f"[OK] Review #{review_id_num}: resolved {child_ok}/{len(child_comments)} inline comment(s)")
+
+            # Step 2: minimize the parent review body
+            review_node_id = reviews_by_id.get(review_id_num, {}).get("node_id")
+            if review_node_id:
+                if minimize_single_review(review_node_id, cls):
+                    ok += 1
+                else:
+                    fail += 1
             else:
-                fail += 1
+                print(f"[WARN] Review #{review_id_num} has no node_id, cannot minimize parent", file=sys.stderr)
+                if child_ok > 0:
+                    ok += 1
+                else:
+                    fail += 1
 
     print(f"[OK] Batch close done: {ok} succeeded, {fail} failed")
 
