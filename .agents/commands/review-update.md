@@ -34,19 +34,19 @@ After fixes have been implemented and validated, this command updates the PR rev
 4. **Map findings to comments**: For each finding in the review report:
    - Find the matching review comment by path/line or issue code
    - Check the finding's **Status** (ADDRESSED, INVALID, or OPEN)
-   - **If ADDRESSED or INVALID**: Post a reply and resolve:
-     ```bash
-     cat > ./tmp/reply.md << 'EOF'
-     ✅ **Resolved**: [brief note on how it was fixed]
-     EOF
-     uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
-     uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
-     ```
-   - **If still OPEN**: Post a reply noting it remains open:
-     ```bash
-     cat > ./tmp/reply.md << 'EOF'
-     ❌ **Still open**: [note on what's still needed]
-     EOF
+    - **If ADDRESSED or INVALID**: Post a reply and resolve:
+      ```bash
+      cat > ./tmp/reply.md << 'EOF'
+      ✅ **Resolved**: [brief note on how it was fixed — use markdown, code blocks as needed]
+      EOF
+      uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
+      uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
+      ```
+    - **If still OPEN**: Post a reply noting it remains open:
+      ```bash
+      cat > ./tmp/reply.md << 'EOF'
+      ❌ **Still open**: [note on what's still needed — use markdown, code blocks as needed]
+      EOF
      uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
      ```
 5. **Post a summary comment**: Add a top-level review comment summarizing the update:
@@ -81,3 +81,4 @@ After fixes have been implemented and validated, this command updates the PR rev
 - Only reply to threads that had inline comments in the original review
 - New findings (not present in the original review) should use `review-post` instead
 - After all findings are resolved, post an approval: `uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/approve.md --event APPROVE`
+- **Markdown**: All reply bodies and summary comments are markdown. Use proper formatting — code blocks for commands, bullet lists, bold as appropriate.

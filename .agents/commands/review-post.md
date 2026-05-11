@@ -41,7 +41,7 @@ This command reads a review report from `$1`, extracts each finding, and posts t
  6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
     - **Inline-capable**: has a valid `file:line` that exists in the current diff → will be posted as an inline comment
     - **Non-inline**: targets PR metadata (title, body, etc.) or the line no longer exists in the diff → full details MUST be preserved in a review body
- 7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
+  7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. Every `body` field and the entire review body is **markdown** — use fenced code blocks for commands, bullet lists, bold, etc. to keep it clean and readable. The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
  8. **Post the review(s)**:
     - Post main review with all inline comments and a body listing all findings
     - If there are non-inline findings, post a follow-up review with their full details as the body (no inline comments) using the same event
@@ -56,15 +56,18 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      fi
      
      # --- Main review: inline comments + body ---
-     cat > ./tmp/review-body.md << 'BODY'
+      # IMPORTANT: The review body is markdown. Use proper markdown formatting (fenced code blocks, lists, bold, etc.)
+      cat > ./tmp/review-body.md << 'BODY'
     Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
     
-    [Overall assessment summary — assessment, total findings count, severity breakdown, brief reasoning]
+    **Assessment**: [APPROVED | CHANGE REQUESTED | COMMENT]
+    
+    [Brief overall assessment summary — total findings, severity breakdown, key reasoning]
     
     ### Findings
     - <ISSUE-CODE-001> - <SEVERITY> - <short description> (inline)
     - <ISSUE-CODE-002> - <SEVERITY> - <short description> (inline)
-    - <ISSUE-CODE-003> - <SEVERITY> - <short description> (see below — non-inline)
+    - <ISSUE-CODE-003> - <SEVERITY> - <short description> (non-inline — see follow-up review)
     
     Detailed inline comments follow for findings that map to current diff lines.
     BODY
@@ -74,30 +77,30 @@ This command reads a review report from `$1`, extracts each finding, and posts t
         "path": "src/file.py",
         "line": 42,
         "side": "RIGHT",
-        "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <impact>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <validation command>"
+        "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
       }
     ]
     COMMENTS
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
      
-     # --- Follow-up review: non-inline findings (if any) ---
-     # If any findings could not be posted inline (e.g. they target PR metadata, not a diff line),
-     # post them as a separate review with the same event so no information is lost.
-     # gh.py will fall back to COMMENT if the event is rejected (e.g. own PR author).
-     if [ "${#non_inline_findings[@]}" -gt 0 ]; then
-       cat > ./tmp/review-noninline-body.md << 'BODY'
+      # --- Follow-up review: non-inline findings (if any) ---
+      # If any findings could not be posted inline (e.g. they target PR metadata, not a diff line),
+      # post them as a separate review with the same event so no information is lost.
+      # IMPORTANT: Format the body in markdown — use ```bash blocks for validation commands.
+      # gh.py will fall back to COMMENT if the event is rejected (e.g. own PR author).
+      if [ "${#non_inline_findings[@]}" -gt 0 ]; then
+        cat > ./tmp/review-noninline-body.md << 'BODY'
     Additional findings that could not be posted as inline comments:
     
     ---
     
-    <ISSUE-CODE-003> - <SEVERITY> - <short description>
+    ### <ISSUE-CODE-003> - <SEVERITY> - <short description>
     
-    **Why**: <why it matters>
-    
-    **Suggestion**: <suggested fix>
-    
-    **How to Validate**: <validation command>
-    BODY
+     **Why**: <why it matters>
+     
+     **Suggestion**: <suggested fix>
+     
+     **How to Validate**: <how to validate>
        uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
      fi
     ```
@@ -127,9 +130,11 @@ This command reads a review report from `$1`, extracts each finding, and posts t
   "path": "src/file.py",
   "line": 42,
   "side": "RIGHT",
-  "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <impact>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <validation command>"
+  "body": "**Issue**: <ISSUE-CODE> - <short description>\n\n**Why**: <why it matters>\n\n**Suggestion**: <suggested fix>\n\n**How to Validate**: <how to validate>"
 }
 ```
+
+> **Important**: The entire review body and all inline comment bodies are **markdown**. Use proper markdown formatting throughout — fenced code blocks for commands, bullet lists, bold/italic as appropriate.
 
 ## Overall Assessment to Review Event Mapping
 
