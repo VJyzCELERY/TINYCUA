@@ -38,12 +38,14 @@ This command reads a review report from `$1`, extracts each finding, and posts t
     BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
     HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
     ```
- 6. **Build review payload**: For each finding in the report:
-    - Extract the file path and line number from the **Location** field
-    - Build an inline comment with `path`, `line`, `side`, and `body`
-    - The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
-    - Map the location to the current diff — if the line no longer exists, skip or adjust
- 7. **Post the review**:
+ 6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
+    - **Inline-capable**: has a valid `file:line` that exists in the current diff → will be posted as an inline comment
+    - **Non-inline**: targets PR metadata (title, body, etc.) or the line no longer exists in the diff → full details MUST be preserved in a review body
+ 7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. The inline body MUST start with `**Issue**: <ISSUE-CODE> - <short description>` (e.g., `**Issue**: ISSUE-003 - Serialization Plan Reuses Non-Serializable Agent Config`)
+ 8. **Post the review(s)**:
+    - Post main review with all inline comments and a body listing all findings
+    - If there are non-inline findings, post a follow-up review with their full details as the body (no inline comments) using the same event
+    
     ```bash
      REVIEW_FILE="$1"
      REVIEW_EVENT="APPROVE"  # default
@@ -52,19 +54,21 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      elif grep -q "Approved With Recommendation" "$REVIEW_FILE"; then
        REVIEW_EVENT="APPROVE"
      fi
-    cat > ./tmp/review-body.md << 'BODY'
-Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
-
-[Overall assessment summary from report — include the assessment, total findings count, severity breakdown, and brief reasoning]
-
-### Findings
-- <ISSUE-CODE-001> - <SEVERITY> - <issue short description>
-- <ISSUE-CODE-002> - <SEVERITY> - <issue short description>
-- <ISSUE-CODE-003> - <SEVERITY> - <issue short description>
-
-Detailed inline comments follow below.
+     
+     # --- Main review: inline comments + body ---
+     cat > ./tmp/review-body.md << 'BODY'
+    Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
+    
+    [Overall assessment summary — assessment, total findings count, severity breakdown, brief reasoning]
+    
+    ### Findings
+    - <ISSUE-CODE-001> - <SEVERITY> - <short description> (inline)
+    - <ISSUE-CODE-002> - <SEVERITY> - <short description> (inline)
+    - <ISSUE-CODE-003> - <SEVERITY> - <short description> (see below — non-inline)
+    
+    Detailed inline comments follow for findings that map to current diff lines.
     BODY
-    cat > ./tmp/review-comments.json << 'COMMENTS'
+     cat > ./tmp/review-comments.json << 'COMMENTS'
     [
       {
         "path": "src/file.py",
@@ -74,16 +78,37 @@ Detailed inline comments follow below.
       }
     ]
     COMMENTS
-    uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
+     uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
+     
+     # --- Follow-up review: non-inline findings (if any) ---
+     # If any findings could not be posted inline (e.g. they target PR metadata, not a diff line),
+     # post them as a separate review with the same event so no information is lost.
+     # gh.py will fall back to COMMENT if the event is rejected (e.g. own PR author).
+     if [ "${#non_inline_findings[@]}" -gt 0 ]; then
+       cat > ./tmp/review-noninline-body.md << 'BODY'
+    Additional findings that could not be posted as inline comments:
+    
+    ---
+    
+    <ISSUE-CODE-003> - <SEVERITY> - <short description>
+    
+    **Why**: <why it matters>
+    
+    **Suggestion**: <suggested fix>
+    
+    **How to Validate**: <validation command>
+    BODY
+       uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
+     fi
     ```
-8. **Fetch posted comments to get URLs**: After posting, fetch the PR comments to verify posting and capture links:
-   ```bash
-   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/fetched-review.md
-   ```
-   Read `./tmp/fetched-review.md` — it contains the full posted review with inline comments grouped under each review section, each with its `URL:` link. Match each inline comment to its finding by file path, line number, and issue code. Extract:
-   - The PR review URL from the overall review header
-   - Each inline comment's URL from its `URL:` line
-9. **Update the local review report**: For each finding that was posted, append a `**PR Comment**` field:
+ 9. **Fetch posted comments to get URLs**: After posting all reviews, fetch the PR comments to verify posting and capture links:
+    ```bash
+    uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/fetched-review.md
+    ```
+    Read `./tmp/fetched-review.md` — it contains the full posted review with inline comments grouped under each review section, each with its `URL:` link. Match each inline comment to its finding by file path, line number, and issue code. Extract:
+    - The PR review URL from the overall review header
+    - Each inline comment's URL from its `URL:` line
+10. **Update the local review report**: For each finding that was posted, append a `**PR Comment**` field:
    ```
    **PR Comment**: https://github.com/owner/repo/pull/<number>#discussion_r<comment-id>
    ```
