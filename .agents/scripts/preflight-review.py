@@ -308,7 +308,7 @@ def format_implement_output(local_reviews: list[dict], pr_reviews: list[dict],
             lines.append(f"  {pr['url']}")
             lines.append(f"  Fetch: `{pr['fetch_cmd']}`")
         lines.append("")
-        lines.append(f"  To fetch all unresolved: `uv run python .agents/scripts/gh.py fetch unresolved {pr_number}`")
+        lines.append(f"  To fetch all active: `uv run python .agents/scripts/gh.py fetch comments {pr_number}`")
 
     return "\n".join(lines)
 

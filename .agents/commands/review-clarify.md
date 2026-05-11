@@ -34,7 +34,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
    BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
-   COMMIT_RANGE="$(git rev-parse --short "$BASE_SHA")...$(git rev-parse --short "$HEAD_SHA")"
+   COMMIT_RANGE="$BASE_SHA...$HEAD_SHA"
    echo "Clarifying at: $COMMIT_RANGE"
    ```
 4. **Filter Findings**: If `$2` is provided, only clarify those findings
@@ -50,16 +50,7 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    | **Severity** | Appropriate? | Adjust: CRITICAL/HIGH/MEDIUM/LOW |
 
 6. **Update the Review Report**: Save the clarified version. Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`.
-7. **Post follow-up to PR if linked**: If a finding has a `**PR Comment**` URL, post a follow-up using the full URL:
-   ```bash
-   cat > ./tmp/followup.md << 'EOF'
-   **Clarified**: The finding has been updated for clarity.
-   [summary of changes — added file:line, sharpened description, etc.]
-   EOF
-   uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/followup.md
-   ```
-8. **Track the follow-up**: Add a `**PR Follow-up**` field with the reply URL
-9. **Save Changes**: Use Write to update the original review file
+7. **Save Changes**: Use Write to update the original review file
 
 ## Important
 

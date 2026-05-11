@@ -3,7 +3,7 @@ description: Verifies each finding against latest HEAD and unstaged changes — 
 subtask: true
 ---
 
-Verify each finding against the current state: run the **How to Validate** command against the latest HEAD (and also check if any unstaged local changes have resolved it). This command does NOT check staleness — it always verifies against whatever HEAD currently is. Findings outside the current diff are marked INVALID.
+Verify each finding against the current state: run the **How to Validate** command against the latest HEAD. This command does NOT reply to PR comments or update the remote — it only updates the local report. Use `review-update` to push changes to the PR.
 
 > Load skill: review-core (for checking finding statuses)
 
@@ -57,7 +57,7 @@ Then proceed with verification — do NOT stop for staleness warnings.
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
    BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
-   COMMIT_RANGE="$(git rev-parse --short "$BASE_SHA")...$(git rev-parse --short "$HEAD_SHA")"
+   COMMIT_RANGE="$BASE_SHA...$HEAD_SHA"
    echo "Verifying at: $COMMIT_RANGE"
    ```
 4. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
@@ -68,25 +68,8 @@ Then proceed with verification — do NOT stop for staleness warnings.
      - Command succeeds → **ADDRESSED**
      - Stale/no longer relevant → **INVALID**
      - Still fails → **OPEN**
-   - Document evidence
-6. **Auto-reply to PR comments**: If a finding has a `**PR Comment**` URL:
-    - **If ADDRESSED or INVALID**: Post reply + resolve:
-      ```bash
-      cat > ./tmp/reply.md << 'EOF'
-      ✅ **Resolved**: [evidence note]
-      EOF
-      uv run python .agents/scripts/gh.py interact reply "$PR_COMMENT_URL" ./tmp/reply.md
-      uv run python .agents/scripts/gh.py interact resolve "$PR_COMMENT_URL"
-      ```
-    - **If OPEN**: Post reply (no resolve):
-      ```bash
-      cat > ./tmp/reply.md << 'EOF'
-      ❌ **Still open**: [what's needed]
-      EOF
-      uv run python .agents/scripts/gh.py interact reply "$PR_COMMENT_URL" ./tmp/reply.md
-      ```
-    Use the `**PR Comment**` URL directly as `$PR_COMMENT_URL` — no manual ID extraction needed.
-7. **Update the Review Report**: Append to Validation Log, update statuses, add `**PR Reply**` URL if posted. Also update the report header with the commit range at verification time:
+    - Document evidence
+7. **Update the Review Report**: Append to Validation Log, update statuses. Also update the report header with the commit range at verification time:
    - Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`
 8. **Save Changes**: Use Write to update the original review file
 

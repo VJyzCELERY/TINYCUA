@@ -1,9 +1,9 @@
 ---
-description: Updates the PR review from the local report — replies to inline comments, closes old threads, reposts a fresh review
+description: Closes old review links in the local report, then runs review-post to publish the updated verdict
 subtask: true
 ---
 
-Updates the PR review based on the local review report. For each linked finding, posts a reply to the inline comment documenting the current status, then resolves the thread. Non-inline (PR body) findings are minimized. Finally, a fresh review is posted reflecting the current local report — either a summary if all is resolved, or a full review with inline comments for still-open findings.
+Updates the PR review by first resolving/minimizing all previously linked comments in the local report, then running `review-post` to publish the updated verdict. This is a preprocessing step — the actual posting is handled by `review-post`.
 
 > Load skill: review-pr (for updating PR reviews after fixes)
 
@@ -14,14 +14,15 @@ Updates the PR review based on the local review report. For each linked finding,
 ## Overview
 
 > Load _common-preflight.md
-> Load skill: gh (for gh.py — all post/reply/close operations)
+> Load skill: gh (for gh.py — all interact operations)
 
-After fixes have been implemented and validated, this command:
-1. Checks that the local report is up to date with the remote PR head
-2. Replies to every linked inline comment with the current status (addressed or still open), then resolves the thread
-3. Minimizes non-inline (PR body) findings
-4. Posts a fresh review: a summary if all resolved, or a full review with inline comments for still-open findings
-5. Re-links the local report to the new review URLs
+After fixes have been validated (via `review-validate`), this command:
+1. Checks that the local report is up to date with the remote PR head (via preflight)
+2. Fetches all active review URLs from the local report (both `**PR Comment**` and `**PR Review URL**`)
+3. For inline comments: replies documenting the current status, then resolves the thread
+4. For non-inline review bodies: minimizes as outdated or resolved
+5. Runs `review-post` to publish the updated verdict
+6. Re-links the local report with the new URLs
 
 ---
 
@@ -29,89 +30,52 @@ After fixes have been implemented and validated, this command:
 
 ### Pre-flight: Check staleness
 
-Before updating, verify the review isn't stale by running the standard preflight:
+Run the standard preflight:
 
 > Load _common-preflight.md
 > Run `uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"`
-> If it exits non-zero or warns that HEAD has moved, tell the user to run `review-validate` first against the latest remote head before running `review-update`.
+> If it exits non-zero (stale HEAD or unstaged changes), the local report is stale. Print a warning and stop. Tell the user to run `review-validate` first.
 
 ### Instructions
 
-1. **Read the updated review report**: Load the REVIEW_{name}.md file — it contains each finding with `**PR Comment**` URLs and `**Status**` fields.
-2. **Detect PR** (if not already done above):
+1. **Read the updated review report**: Load the REVIEW_{name}.md file — note all `**PR Comment**` URLs and the `**PR Review URL**` in the header.
+
+2. **Detect PR**:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-3. **Check preflight** — if stale, warn and stop as described above.
-4. **Separate findings by URL type**: Scan the entire report for URLs — check **PR Comment** fields on individual findings AND the **PR Review URL** field in the report header:
-    - **Inline** (`#discussion_r` in URL): will be replied to and resolved
-    - **Non-inline body** (`#pullrequestreview` in URL): will be minimized as outdated
 
-5. **Reply and resolve all inline comments**: For each inline finding, post a reply documenting the current status, then resolve the thread. Always use `gh.py interact` — it accepts full URLs so no manual ID extraction needed.
-   
-   Use the `**PR Comment**` URL directly:
-   ```bash
+3. **Reply and resolve all inline comment threads**: For each finding with a `#discussion_r` URL, post a reply documenting the current status, then resolve the thread. Use `gh.py interact`:
    ```bash
    # If ADDRESSED or INVALID
-   cat > ./tmp/reply.md << 'EOF'
-   ✅ **Resolved**: [brief validation result note — use markdown]
-   EOF
    uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
    uv run python .agents/scripts/gh.py interact resolve "$URL"
    
    # If still OPEN
-   cat > ./tmp/reply.md << 'EOF'
-   ❌ **Still open — will be re-reviewed**: [note on what's still needed]
-   EOF
    uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
    uv run python .agents/scripts/gh.py interact resolve "$URL"
    ```
-   > Inline comments are **always resolved** after replying — the old thread is closed because a fresh review will be posted next.
+   > Inline comments are ALWAYS resolved after replying — the old thread is closed because `review-post` will publish a fresh review.
 
-6. **Minimize the previous review body**: Find the `**PR Review URL**` in the report header — this is the previous review body. Minimize it as outdated:
+4. **Minimize the previous review body**: For the `**PR Review URL**` in the report header, and any non-inline `**PR Comment**` URLs (those with `#pullrequestreview`), minimize as outdated:
    ```bash
-   uv run python .agents/scripts/gh.py interact minimize "$PR_REVIEW_URL" --classifier OUTDATED
+   uv run python .agents/scripts/gh.py interact minimize "$URL" --classifier OUTDATED
    ```
-   Also collect any non-inline `**PR Comment**` URLs from findings (those with `#pullrequestreview`) and minimize them the same way.
+   If the finding is ADDRESSED or INVALID, use `--classifier RESOLVED` instead.
 
-7. **Determine what to post next**: Check the report's findings:
-   - **If ALL findings are ADDRESSED or INVALID**: Post a single summary review:
-     ```bash
-     cat > ./tmp/update-summary.md << 'BODY'
-    Reviewed commit range: ${BASE_SHA:7}...${HEAD_SHA:7}
-
-    **Assessment**: ✅ **Approved**
-
-    All findings from the previous review have been addressed. No remaining open issues.
-     BODY
-     uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/update-summary.md --event APPROVE
-     ```
-   
-   - **If some findings are still OPEN**: Post a full updated review. Load the templates from `.agents/templates/` and fill in placeholders:
-     - `review-body-snippet.md` — review body structure (commit range, assessment, findings, Why, Suggestion)
-     - `inline-comment-body-snippet.md` — individual inline comment body structure
-     - `inline-comment-format.json` — JSON wrapper for inline comments
-     - `review-noninline-body-snippet.md` — follow-up body for non-inline findings
-     Use the **Overall Assessment mapping** from the template and review-post for the emote and event.
-     The review body should note how many findings were resolved since the last review:
-       ```
-       **Review Update**: N of M findings resolved. N still open (see inline comments).
-       ```
-
-8. **Re-link the local report**: After posting, fetch the new review's URLs:
+5. **Run review-post**: Now that old comments are closed, post the updated verdict:
    ```bash
-   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/updated-fetch.md
+   # Run /review-post with the same REVIEW file
    ```
-   Read the output, extract the new review URL and each inline comment URL, and update every finding's `**PR Comment**` field in the local report to point to the new URLs.
+   `review-post` will build and post the fresh review with the proper format.
+
+6. **Re-link the local report**: After `review-post` completes, update every `**PR Comment**` field in the local report to the new URLs. If `review-post` already handled this, verify the URLs are correct.
 
 ---
 
 ## Important
 
-- This command works only with findings that have `**PR Comment**` URLs in the local report. Findings without a URL were never posted — use `review-post` instead.
-- The commit range preflight prevents posting stale reviews. Always run `review-validate` first if the remote head has moved.
-- Inline comments are **always resolved** after replying, even if still open. The fresh review replaces the old threads.
-- Non-inline findings (PR body follow-ups) are minimized as outdated — they are replaced by the new review.
-- **Always use `gh.py interact`** for all reply/resolve/minimize operations — it accepts full URLs and auto-detects the type. Do NOT use raw `gh api`.
-- **Avoid reply doubling**: `gh.py interact reply` posts to the latest comment in the thread automatically.
-- **Markdown**: All reply bodies and review bodies are markdown. Use proper formatting.
+- This command ONLY closes old comments and re-links. The actual posting is done by `review-post`.
+- Always run the preflight first. If stale, stop and tell user to run `review-validate`.
+- Always use `gh.py interact` for all reply/resolve/minimize operations.
+- After running, the local report should have updated `**PR Comment**` URLs pointing to the fresh review.

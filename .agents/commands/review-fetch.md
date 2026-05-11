@@ -1,106 +1,41 @@
 ---
-description: Fetches unresolved PR review comments and generates a review report
+description: Fetches all active PR comments into a local review report file
 subtask: true
 ---
 
-Fetch unresolved comments and review requests from a GitHub PR and generate a structured review report.
+Fetch active (non-minimized, non-resolved) comments and reviews from a GitHub PR and generate a structured review report.
 
 > Load skill: review-pr (for pulling PR comments into local review)
 
 **Query**: $1 (natural language query — specify the PR, e.g., "fetch reviews from PR #42" or simply "42")
-**Output File (Optional)**: $2 (defaults to `./reviews/REVIEW_{name}_fetched.md`)
+**Output File (Optional)**: $2 (defaults to `./reviews/remote/REVIEW_{branch}_fetched_{ts}.md`)
 
 
 ## Instructions
-
-## Pre-Flight
-
-Before fetching, load the relevant skills and run the PR pre-flight:
-
-> Load _common-preflight.md
-> Load skill: gh (for gh.py — fetching PR comments)
-
-```bash
-PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py "$1")
-```
-
-Also run the review pre-flight for scope context:
-
-```bash
-uv run python .agents/scripts/preflight-review.py --scope pr
-```
-
----
 
 1. **Detect PR**: If `$1` is not provided, detect the PR number:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
-2. **Fetch PR details** (including title, body, and spec references):
+2. **Fetch all active comments and reviews**:
    ```bash
-    uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" | python -c "import sys,json; d=json.load(sys.stdin); print(f'TITLE: {d[\"title\"]}\n\nBODY:\n{d[\"body\"]}')"
+   uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/fetched.md
    ```
-3. **Fetch unresolved comments and reviews**:
-   ```bash
-   uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER"
-   ```
-4. **Check PR body/title compliance**: Before compiling findings, check if the PR body and title accurately describe the changes and reference any relevant specs. If the PR body or title need updating (e.g., stale description, missing spec references, misleading title), add a finding:
-   ```markdown
-   ### [FETCH-001] - [MEDIUM] - [PR body/title needs update]
-   
-   **Status**: OPEN
-   
-   **Severity**: MEDIUM
-   
-   [Explain what's wrong — e.g., PR title doesn't match changes, PR body lacks spec reference]
-   
-   **Location**: [PR #number]
-   
-   **Suggested Fix**:
-   [What the title or body should say]
-   ```
-5. **Compile findings**: For each unresolved comment, extract:
-   - **Issue Code**: FETCH-001, FETCH-002, ...
+   Read `./tmp/fetched.md` — it contains every active review grouped by author with all inline comments, each with its URL.
+3. **Compile findings**: For each active inline comment, extract:
+   - **Issue Code**: From the comment body (FETCH-001, FETCH-002, ...) or auto-assign
    - **Severity**: Infer from review state (CHANGES_REQUESTED → HIGH, COMMENT → MEDIUM)
    - **Location**: The file path and line number from the comment
    - **Description**: The comment body
    - **Suggested Fix**: Extract from the comment body if present
    - **How to Validate**: Extract from the comment body if present
-8. **Generate report**: Write the review report to `$2` (or default path) using the REVIEW-template.md structure
-
----
-
-## Report Format
-
-Use `.agents/templates/REVIEW-template.md` as the base structure. Each fetched comment becomes a finding:
-
-```markdown
-### [FETCH-001] - [HIGH] - [Issue summary]
-
-**Status**: OPEN
-
-**Severity**: HIGH
-
-[Comment body — what the reviewer said]
-
-**Location**: [file:line]
-
-**Suggested Fix**:
-[If the comment includes a suggestion, include it here]
-
-**How to Validate**:
-```bash
-[If the comment includes validation steps, include them here]
-```
-```
+4. **Generate report**: Write the review report to `$2` (or default path) using the REVIEW-template.md structure
 
 ---
 
 ## Important
 
-- Read `.agents/skills/gh-review/SKILL.md` before fetching — it contains the full gh review workflow reference
-- Only fetch unresolved comments (skip threads marked RESOLVED or OUTDATED)
-- Distinguish between inline comments (file-specific) and top-level review summaries (general)
-- Respect review state: CHANGES_REQUESTED reviews have actionable findings; COMMENTED reviews are informational
-- If the PR has no unresolved comments, report that and exit cleanly
-- Check `.agents/templates/REVIEW-template.md` for the expected output format
+- Only active (non-minimized, non-resolved) comments are fetched by default. Use `--all` to include everything.
+- Distinguish between inline comments (file-specific) and top-level review summaries (general).
+- Respect review state: CHANGES_REQUESTED reviews have actionable findings; COMMENTED reviews are informational.
+- If the PR has no active comments, report that and exit cleanly.

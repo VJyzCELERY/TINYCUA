@@ -27,12 +27,16 @@ Temp files go in `./tmp/` (gitignored). gh.py auto-cleans on success.
 ## Common Operations
 
 ### Fetch
+
+`fetch comments` returns only active (non-minimized, non-resolved) comments and reviews by default. Use `--all` to include everything:
+
 ```bash
-uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"      # PR details
-uv run python .agents/scripts/gh.py fetch prs                   # List PRs (--head, --state, --base, --limit)
-uv run python .agents/scripts/gh.py fetch repo                  # Repo info (owner, language, visibility)
-uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" # Inline comments + reviews
-uv run python .agents/scripts/gh.py fetch unresolved "$PR_NUMBER" # Unresolved threads
+uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER"                 # PR details (JSON)
+uv run python .agents/scripts/gh.py fetch prs                              # List PRs (--head, --state, --base, --limit)
+uv run python .agents/scripts/gh.py fetch repo                             # Repo info (owner, language, visibility)
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"            # Only active (default)
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --all      # Everything including minimized
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/file.md  # Write to file
 ```
 
 ### Post review
@@ -59,8 +63,8 @@ uv run python .agents/scripts/gh.py post inline "$PR_NUMBER" ./tmp/inline.md --p
 
 ### Update
 ```bash
-uv run python .agents/scripts/gh.py update title "$PR_NUMBER" "New Title"
-uv run python .agents/scripts/gh.py update body "$PR_NUMBER" ./tmp/new-body.md
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER"         # Active comments/reviews
+uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --all   # All including minimized
 ```
 
 ### Create PR

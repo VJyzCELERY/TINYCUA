@@ -4,7 +4,7 @@
 Usage:
     uv run python .agents/scripts/gh.py fetch pr <pr-or-url>          # Get PR details
     uv run python .agents/scripts/gh.py fetch comments <pr-or-url>    # Get PR comments/reviews
-    uv run python .agents/scripts/gh.py fetch unresolved <pr-or-url>  # Get unresolved threads
+    uv run python .agents/scripts/gh.py fetch comments <pr-or-url> [--all]  # Get active inline comments/reviews (use --all for everything)
     uv run python .agents/scripts/gh.py fetch url <full-url>          # Fetch specific by URL
     uv run python .agents/scripts/gh.py fetch repo                    # Get repo info (owner, language, etc.)
     uv run python .agents/scripts/gh.py fetch prs                     # List PRs (filters: --head, --state, --base, --limit)
@@ -1269,32 +1269,6 @@ def cmd_handle_reply(args):
         sys.exit(1)
     print(f"[OK] Reply posted to thread #{cid} on PR #{pr}")
 
-def cmd_fetch_unresolved(args):
-    """Fetch unresolved review comments and threads."""
-    pr = parse_pr_input(args.pr_or_url)
-    
-    print("=== Unresolved Inline Comments ===")
-    out, err, rc = api("GET", f"pulls/{pr}/comments", paginate=True)
-    if rc == 0:
-        try:
-            for c in json.loads(out):
-                # Skip resolved comments (those without position are outdated/resolved)
-                if c.get("position") is not None and c.get("in_reply_to_id") is None:
-                    print(f"  #{c['id']} — {c.get('path','?')}:{c.get('line','?')}")
-                    print(f"    by {c.get('user',{}).get('login','?')}: {c.get('body','')[:200]}")
-        except json.JSONDecodeError:
-            print(out)
-    
-    print("\n=== Reviews Requesting Changes ===")
-    out, err, rc = api("GET", f"pulls/{pr}/reviews", paginate=True)
-    if rc == 0:
-        try:
-            for r in json.loads(out):
-                if r.get("state") == "CHANGES_REQUESTED":
-                    print(f"  Review by {r.get('user',{}).get('login','?')}:")
-                    print(f"    {r.get('body','')[:300]}")
-        except json.JSONDecodeError:
-            print(out)
 
 
 def cmd_fetch_url(args):
@@ -1482,9 +1456,6 @@ def main():
     frepo = fetch_sub.add_parser("repo", help="Fetch repository information")
     frepo.set_defaults(func=cmd_fetch_repo)
 
-    fun = fetch_sub.add_parser("unresolved", help="Fetch unresolved comments and reviews")
-    fun.add_argument("pr_or_url", help="PR number or URL")
-    fun.set_defaults(func=cmd_fetch_unresolved)
 
     # post review
     p = sub.add_parser("post", help="Post review or comment")
