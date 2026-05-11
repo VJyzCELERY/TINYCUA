@@ -2,327 +2,133 @@
 
 **Spec**: [specs/tinycua-finetune/spec.md](spec.md)
 **Status**: In Progress
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-05-11
+**Focus**: Kaggle GPU + Unsloth QLoRA Notebook Pipeline
 
 ---
 
 ## Overview
 
-This document describes the technical design of `tinycua-finetune`, a new subproject that
-provides a supervised fine-tuning pipeline for open-weight text LLMs and vision-LMMs to
-produce models capable of structured tool-use and agentic behavior. The pipeline covers
-dataset synthesis from local tool manifests, QLoRA/LoRA training with optional CPU offload,
-LoRA adapter merging, and GGUF conversion. It targets single-GPU consumer hardware (16 GB
-VRAM for 7B models; experimental CPU-offload path for 13B). The key architectural decision
-is to use PEFT LoRA adapters on top of a quantized (bitsandbytes 4-bit) base model so the
-pipeline remains runnable on a single consumer GPU while the final artifact is a standalone
-GGUF file loadable by llama.cpp.
+This document describes the technical design of `tinycua-finetune`, with focus on the
+Kaggle GPU + Unsloth notebook-based pipeline for rapid fine-tuning of open-weight LLMs.
+
+The primary approach uses Jupyter notebooks running on Kaggle GPU environments with
+Unsloth optimization for efficient QLoRA training on Qwen3-4B and Qwen3-5-9B models.
 
 ---
 
 ## Architecture
 
-### Component Overview
+### Notebook Pipeline (Primary Approach - Implemented)
 
 ```
-[Tool Manifest Directory]
+[HuggingFace Dataset] (younissk/tool-calling-mix)
          |
          v
-[Dataset Synthesizer]  ──────────────────────>  [JSONL Training Dataset]
-(synthesize_dataset.py)                                    |
-                                                           v
-                                              [Data Preprocessor]
-                                              (preprocess.py)
-                                                           |
-                                           tokenized HF Dataset
-                                                           |
-                    [Base Model (HF format, local dir)]    |
-                                    |                      |
-                                    v                      v
-                          [Training Engine] <─────────────'
-                          (train.py)
-                          modes: qlora | lora | offload
-                                    |
-                                    v
-                       [LoRA Adapter Checkpoint]
-                       (safetensors, output_dir/)
-                                    |
-                                    v
-                       [Adapter Merge Step]
-                       (convert_to_gguf.py, phase 1 of 2)
-                                    |
-                                    v
-                   [Merged HF Checkpoint (safetensors)]
-                                    |
-                                    v
-                   [GGUF Conversion Wrapper]
-                   (convert_to_gguf.py, phase 2 of 2)
-                   (wraps community llama.cpp converter)
-                                    |
-                                    v
-                        [.gguf artifact (output_dir/)]
+[Data Processing] (convert to conversations, filter valid)
+         |
+         v
+[QLoRA Training via Unsloth] (NF4 + double quantization)
+         |
+         v
+[Adapter Merge (optional)]
+         |
+         v
+[Model Save] (local or push to HuggingFace Hub)
 ```
 
-### Affected Components
+### Key Notebook Files
 
-| Component                    | Change Type | Notes                                              |
-|------------------------------|-------------|----------------------------------------------------|
-| `tinycua_finetune/preprocess.py`           | New         | JSONL loading, prompt formatting, tokenization     |
-| `tinycua_finetune/synthesize_dataset.py`   | New         | Tool manifest discovery, JSONL generation          |
-| `tinycua_finetune/train.py`                | New         | Training entry-point, QLoRA/LoRA/offload modes     |
-| `tinycua_finetune/convert_to_gguf.py`      | New         | Adapter merge + GGUF conversion wrapper            |
-| `data/examples/`                           | New         | Example tool manifests and JSONL training datasets |
-| `src/tinycua-finetune/Makefile`            | New         | Build targets for this subproject                  |
-| Root `Makefile`                            | Modified    | Add tinycua-finetune to all top-level targets      |
+| File | Description |
+|------|-------------|
+| `kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb` | Primary notebook for Qwen3-4B training |
+| `kaggle-gpu-pipeline-finetune-qwen3-5-9B.ipynb` | Extended notebook for Qwen3-5-9B training |
 
----
-
-## Data Model
-
-### Tool Manifest Schema
-
-Each tool directory must contain a `manifest.json` with the following shape:
-
-```python
-# Conceptual data shape
-ToolManifest:
-    tools: list[ToolDescriptor]
-
-ToolDescriptor:
-    name: str                      # snake_case unique identifier
-    description: str               # human-readable description of what the tool does
-    args_schema: dict[str, str]    # mapping of arg name -> type string (e.g. "string", "int")
-    example_call: dict[str, Any]   # example argument values
-    dry_run_output: str            # example output string used by the synthesizer
-```
-
-### JSONL Dataset Record Schema
-
-Each line in a training JSONL file must be a valid JSON object:
-
-```python
-# Conceptual data shape
-DatasetRecord:
-    id: str                        # unique identifier for this record
-    instruction: str               # natural-language task description
-    input: str                     # optional additional context (empty string if unused)
-    tool_calls: list[ToolCall]     # ordered list of tool invocations (may be empty)
-    output: str                    # expected final answer from the model
-
-ToolCall:
-    name: str                      # tool name matching a manifest descriptor
-    args: str                      # serialized arguments (JSON string)
-    result: str                    # tool execution result (from dry_run_output)
-```
-
-### Training Prompt Format
-
-The preprocessor formats each record into a single string used as both the model input
-and the training target (causal LM — all tokens are trained):
+### Component Flow
 
 ```
-### Instruction:
-{instruction}
-
-### Input:
-{input}
-
-### Response:
-<tool><tool_name>{name}</tool_name><tool_args>{args}</tool_args></tool>
-<tool_result>{result}</tool_result>
-{output}
+[HuggingFace Dataset]
+         |
+         v
+[Data Processing Cell]
+  - Load dataset from HF
+  - Convert to conversation format
+  - Filter valid examples (valid=True, n_calls>0)
+  - Apply chat template
+         |
+         v
+[Model Loading Cell]
+  - Load base model via Unsloth
+  - Configure tokenizer with chat template
+         |
+         v
+[Training Cell]
+  - Configure LoRA parameters (r=16, lora_alpha=32)
+  - Set training arguments (lr=1e-4, batch_size=2)
+  - Run trainer with W&B integration
+         |
+         v
+[Save/Export Cell]
+  - Optionally merge adapter
+  - Save locally or push to HF Hub
 ```
-
-If `tool_calls` is empty the `<tool>...</tool_result>` block is omitted.
-
-### Special Tokens
-
-The following tokens are added to the tokenizer vocabulary before training and the model
-embedding matrix is resized to accommodate them:
-
-```
-<tool>        </tool>
-<tool_name>   </tool_name>
-<tool_args>   </tool_args>
-<tool_result> </tool_result>
-```
-
----
-
-## API / Interface Contracts
-
-### `preprocess.py`
-
-```python
-def load_dataset_from_jsonl(path: str) -> list[dict]:
-    """
-    Load and validate training records from a JSONL file.
-
-    Args:
-        path (str): Path to the JSONL file.
-
-    Returns:
-        list[dict]: List of validated record dicts.
-
-    Raises:
-        ValueError: If the file is empty or a record is missing required fields.
-        FileNotFoundError: If the path does not exist.
-    """
-
-def format_prompt(record: dict) -> str:
-    """
-    Format a single training record into the prompt string.
-
-    Args:
-        record (dict): A validated DatasetRecord dict.
-
-    Returns:
-        str: Formatted prompt string ready for tokenization.
-    """
-```
-
-### `synthesize_dataset.py`
-
-```python
-def discover_manifests(tools_dir: str) -> list[dict]:
-    """
-    Recursively discover manifest.json files under tools_dir.
-
-    Args:
-        tools_dir (str): Root directory containing tool subdirectories.
-
-    Returns:
-        list[dict]: List of parsed ToolManifest dicts.
-
-    Raises:
-        FileNotFoundError: If tools_dir does not exist.
-    """
-
-def synthesize(tools_dir: str, output_path: str) -> None:
-    """
-    Generate a JSONL training dataset from discovered tool manifests.
-
-    Args:
-        tools_dir (str): Root directory containing tool subdirectories.
-        output_path (str): Destination JSONL file path.
-
-    Raises:
-        ValueError: If a manifest is missing required fields.
-    """
-```
-
-### `train.py` (CLI)
-
-```
-python -m tinycua_finetune.train \
-  --model <local_hf_model_dir> \
-  --data  <train.jsonl> \
-  --output-dir <output_dir> \
-  --mode  {qlora,lora,offload}  [default: qlora] \
-  --lora-r        <int>         [default: 16] \
-  --lora-alpha    <int>         [default: 32] \
-  --lora-dropout  <float>       [default: 0.05] \
-  --batch-size    <int>         [default: 1] \
-  --grad-accum    <int>         [default: 8] \
-  --lr            <float>       [default: 1e-4] \
-  --epochs        <int>         [default: 1] \
-  --max-seq-len   <int>         [default: 512] \
-  --offload-dir   <path>        [only for offload mode]
-```
-
-### `convert_to_gguf.py` (CLI)
-
-```
-python -m tinycua_finetune.convert_to_gguf \
-  --base-model  <local_hf_model_dir> \
-  --adapter-dir <lora_adapter_dir> \
-  --output-dir  <output_dir> \
-  [--skip-merge]        # if base + adapter are already merged
-  [--converter-path <path_to_convert_hf_to_gguf_script>]
-```
-
-### Error Handling
-
-| Error Case                        | Exception / Exit                          | Notes                                    |
-|-----------------------------------|-------------------------------------------|------------------------------------------|
-| Empty JSONL file                  | `ValueError("Dataset is empty: <path>")` |                                          |
-| Missing required record field     | `ValueError("Missing field '<f>' in record <id>")` |                               |
-| Model directory not found         | `FileNotFoundError`                       | From `from_pretrained`                   |
-| GGUF converter not found          | `RuntimeError` with install instructions  | Must name expected script + version      |
-| Invalid manifest field type       | `logging.warning` + skip                  | Non-fatal; logged and tool is skipped    |
-| GPU OOM without offload           | Propagated as-is (`torch.cuda.OOMError`)  | No silent fallback                       |
-
----
-
-## Implementation Phases
-
-### Phase 1 — MVP _(required for initial release)_
-
-- [ ] `tinycua_finetune/preprocess.py` — JSONL loader, prompt formatter, tokenizer helper
-- [ ] `tinycua_finetune/synthesize_dataset.py` — manifest discovery + JSONL generator
-- [ ] `tinycua_finetune/train.py` — training entry-point (qlora, lora, offload modes)
-- [ ] `tinycua_finetune/convert_to_gguf.py` — adapter merge + GGUF conversion wrapper
-- [ ] `data/examples/manifest.json` — example tool manifest
-- [ ] `data/examples/train.jsonl` — example training dataset (10 records)
-- [ ] `tests/unit/test_preprocess.py` — unit tests for preprocessor
-- [ ] `tests/unit/test_synthesize_dataset.py` — unit tests for synthesizer
-- [ ] `tests/integration/test_smoke_train.py` — smoke integration test (1-step CPU run)
-- [ ] `Makefile` — `install`, `lint`, `test`, `coverage`, `complexity`, `clean`,
-      `train-qlora`, `train-offload`, `convert`
-
-### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
-
-- [ ] Vision-LMM support: freeze image encoder, LoRA on LLM side only (`--mode vlm`)
-- [ ] Multimodal JSONL schema with `image` field
-- [ ] GPTQ quantization step before GGUF conversion
-- [ ] DeepSpeed ZeRO stage 3 config for extreme memory constraints (`--mode deepspeed`)
-- [ ] CI GPU runner integration test
-
-> **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
 ---
 
 ## Technical Decisions
 
-1. **QLoRA as the default training mode**
-   - **Reason**: 4-bit quantization + LoRA adapters enables 7B model fine-tuning within
-     16 GB VRAM. This matches the primary target hardware (RTX 5080 laptop, 16 GB).
-   - **Alternatives Considered**: Full fine-tune — rejected (exceeds VRAM for 7B+); LoRA
-     only (float16) — available as `--mode lora` but not the default due to higher memory.
+1. **Unsloth for QLoRA optimization**
+   - **Reason**: 30% less VRAM usage, 2x faster training compared to standard PEFT.
+     NF4 quantization with double quantization for additional memory savings.
+   - **Alternatives Considered**: Standard PEFT + bitsandbytes — less optimized.
 
-2. **Accelerate CPU offload for the 13B experimental path**
-   - **Reason**: Simpler configuration than DeepSpeed for a single-node setup. Leverages
-     the available 32 GB system RAM without requiring a multi-process launcher.
-   - **Alternatives Considered**: DeepSpeed ZeRO stage 3 — retained as a Phase 2 option
-     for users who need maximum memory reduction; rejected for Phase 1 due to setup
-     complexity.
+2. **Kaggle GPU as primary environment**
+   - **Reason**: Provides reliable P100/V100 GPU access with 16+ GB VRAM.
+     No local GPU required, accessible for quick experimentation.
+   - **Alternatives Considered**: Google Colab — similar but Kaggle offers better
+     persistent storage and competition integration.
 
-3. **safetensors for all checkpoint output**
-   - **Reason**: Safer serialization (no arbitrary code execution), broadly compatible
-     with the HF ecosystem and GGUF converters.
-   - **Alternatives Considered**: pickle-based `.bin` — rejected for security reasons.
+3. **Qwen3 model family**
+   - **Reason**: Strong open-weight models compatible with Unsloth.
+     Qwen3-4B fits comfortably in 16GB VRAM; Qwen3-5-9B for higher capacity.
+   - **Alternatives Considered**: Llama-3, Mistral — supported by Unsloth but
+     Qwen3 provides good tool-calling capabilities.
 
-4. **JSONL for the training dataset format**
-   - **Reason**: Simple, line-by-line streamable, easy to generate and inspect. No
-     dependency on a database or binary format.
-   - **Alternatives Considered**: Parquet / Arrow — rejected as overkill for the dataset
-     sizes expected at this stage.
+4. **HuggingFace datasets as data source**
+   - **Reason**: Pre-built tool-calling datasets (younissk/tool-calling-mix)
+     provide high-quality training data without manual dataset creation.
+   - **Alternatives Considered**: Custom JSONL datasets — supported in future CLI phase.
 
-5. **Special tokens for tool-call structure**
-   - **Reason**: Deterministic parsing of tool invocations from model output. Avoids
-     fragile regex over free-form text.
-   - **Alternatives Considered**: JSON-in-output — possible but adds parsing complexity
-     and is harder to teach reliably with small datasets.
+5. **W&B for experiment tracking**
+   - **Reason**: Integrates well with HuggingFace ecosystem, provides useful
+     metrics visualization and comparison.
+   - **Alternatives Considered**: MLflow — less integrated with HF/Unsloth.
 
-6. **Phase 1 text-only, Phase 2 vision**
-   - **Reason**: Text LLM tool-use is the core MVP. Vision-LMM adds significant
-     preprocessing and model-family complexity that should not block Phase 1 delivery.
+---
 
-7. **GGUF conversion via external community tools (wrapper approach)**
-   - **Reason**: GGUF converter scripts are maintained by the llama.cpp community and
-     change frequently. Wrapping them (rather than embedding) keeps our code minimal and
-     easy to update. The wrapper must fail loudly with actionable instructions if the
-     expected converter script is missing.
+## Configuration Parameters
+
+### LoRA Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| r | 16 | LoRA rank |
+| lora_alpha | 32 | LoRA alpha |
+| lora_dropout | 0.05 | Dropout probability |
+| target_modules | q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj | Modules to apply LoRA |
+
+### Training Arguments
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| learning_rate | 1e-4 | Initial learning rate |
+| per_device_train_batch_size | 2 | Batch size per device |
+| gradient_accumulation_steps | 4 | Gradient accumulation steps |
+| num_train_epochs | 3 | Number of training epochs |
+| max_seq_length | 512 | Maximum sequence length |
+| warmup_steps | 10 | Warmup steps |
+| logging_steps | 10 | Logging frequency |
+| save_steps | 100 | Checkpoint save frequency |
 
 ---
 
@@ -330,22 +136,17 @@ python -m tinycua_finetune.convert_to_gguf \
 
 | Risk                                      | Likelihood | Impact | Mitigation                                                     |
 |-------------------------------------------|------------|--------|----------------------------------------------------------------|
-| GGUF converter script API changes         | High       | Medium | Wrapper fails loudly; document pinned converter version        |
-| 13B OOM on 16 GB + 32 GB RAM in offload   | Medium     | Low    | Document as "experimental"; tested config included in docs     |
-| Base model license incompatibility        | Medium     | High   | Spec and README document known-compatible model families       |
-| bitsandbytes version incompatibility      | Medium     | Medium | Pin tested version in requirements.txt; document CUDA version  |
-| Slow training throughput with CPU offload | High       | Low    | Document expected throughput; offload mode is "experimental"   |
+| Kaggle GPU timeout                        | Medium     | Medium | Document expected training time; use gradient checkpointing   |
+| Dataset unavailable                       | Low        | High   | Document fallback datasets; handle errors gracefully         |
+| Unsloth version incompatibility           | Low        | Medium | Pin tested version in requirements; document in notebook     |
+| W&B API key missing                       | Low        | Low    | Make W&B optional; continue training without logging        |
 
 ---
 
-## Open Questions
+## Status
 
-1. Should the tool manifest schema be defined centrally in `tinycua-sdk` and referenced
-   here, or defined locally in `tinycua-finetune`? Local for Phase 1; migrate to SDK in
-   Phase 2 if the manifest format stabilises.
-
-2. Which specific llama.cpp conversion script version should be pinned for Phase 1?
-   Resolve before implementation starts.
+The Kaggle + Unsloth notebook pipeline is implemented and ready for use.
+See `kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb` for the primary notebook.
 
 ---
 
@@ -355,3 +156,6 @@ python -m tinycua_finetune.convert_to_gguf \
 - Agent Instructions: `AGENTS.md`
 - Coding Standards: `.agents/rules/002-code-standards.md`
 - Testing Guidelines: `.agents/rules/003-testing.md`
+- Unsloth Documentation: https://github.com/unslothai/unsloth
+- Qwen3 Models: https://huggingface.co/collections/Qwen
+- Tool-calling dataset: younissk/tool-calling-mix
