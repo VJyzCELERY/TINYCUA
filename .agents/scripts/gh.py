@@ -303,6 +303,8 @@ def cmd_fetch_comments(args):
         except json.JSONDecodeError:
             pass
     branch = pr_info.get("head", {}).get("ref", f"PR-{pr}")
+    base_sha = pr_info.get("base", {}).get("sha", "")
+    head_sha = pr_info.get("head", {}).get("sha", "")
     safe_branch = branch.replace("/", "-")
     ts = int(time.time())
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -426,8 +428,6 @@ def cmd_fetch_comments(args):
     print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {label} inline comment(s) → {output_path}")
     
     # Print to stdout
-    base_sha = pr_info.get("base", {}).get("sha", "")
-    head_sha = pr_info.get("head", {}).get("sha", "")
     if base_sha and head_sha:
         print(f"Commit Range: {base_sha}...{head_sha}")
     print(f"\n=== Reviews ({len(meaningful_reviews)}) ===")
