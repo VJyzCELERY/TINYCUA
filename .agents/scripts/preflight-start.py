@@ -20,7 +20,7 @@ from pathlib import Path
 
 def run(cmd: list[str]) -> str:
     try:
-        return subprocess.check_output(cmd, text=True).strip()
+        return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL).strip()
     except Exception:
         return ""
 
