@@ -93,11 +93,13 @@ def parse_url_input(url: str) -> dict:
     return result
 
 
-def api(method: str, endpoint: str, data: dict | None = None, input_file: str | None = None) -> tuple[str, str, int]:
-    """Call gh api with proper error handling."""
+def api(method: str, endpoint: str, data: dict | None = None, input_file: str | None = None, paginate: bool = False) -> tuple[str, str, int]:
     OWNER_REPO = get_owner_repo()
     url = f"repos/{OWNER_REPO}/{endpoint.lstrip('/')}"
     cmd = ["gh", "api", url, "--method", method]
+    
+    if paginate:
+        cmd.append("--paginate")
     
     if input_file:
         cmd.extend(["--input", input_file])
@@ -253,7 +255,7 @@ def cmd_fetch_comments(args):
     
     # Fetch all inline comments
     all_comments_raw = []
-    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    out, err, rc = api("GET", f"pulls/{pr}/comments", paginate=True)
     if rc == 0:
         try:
             all_comments_raw = json.loads(out)
@@ -279,7 +281,7 @@ def cmd_fetch_comments(args):
     
     # Fetch all reviews
     all_reviews = []
-    out, err, rc = api("GET", f"pulls/{pr}/reviews")
+    out, err, rc = api("GET", f"pulls/{pr}/reviews", paginate=True)
     if rc == 0:
         try:
             all_reviews = json.loads(out)
