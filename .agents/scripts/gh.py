@@ -641,7 +641,7 @@ def parse_comment_id_from_url(url: str) -> tuple[str, str] | None:
     
     Returns (comment_id, type) where type is 'discussion_r' or 'pullrequestreview'.
     """
-    m = re.search(r'#(discussion_r|pullrequestreview)(\d+)', url)
+    m = re.search(r'#(discussion_r|pullrequestreview)-?(\d+)', url)
     if m:
         return m.group(2), m.group(1)
     return None

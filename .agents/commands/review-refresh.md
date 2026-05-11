@@ -41,7 +41,7 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    [
      {"url": "https://github.com/.../pull/26#discussion_r<id1>"},
      {"url": "https://github.com/.../pull/26#discussion_r<id2>"},
-     {"url": "https://github.com/.../pull/26#pullrequestreview<id3>", "classifier": "OUTDATED"}
+     {"url": "https://github.com/.../pull/26#pullrequestreview-<id3>", "classifier": "OUTDATED"}
    ]
    EOF
    uv run python .agents/scripts/gh.py batch close "$PR_NUMBER" ./tmp/batch-close.json
