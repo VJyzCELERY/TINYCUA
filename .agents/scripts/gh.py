@@ -555,33 +555,73 @@ def cmd_reply_comment(args):
 
 
 def cmd_minimize_comment(args):
-    """Minimize (hide) a PR comment with a reason classifier."""
+    """Minimize (hide) a PR comment or review body with a reason classifier.
+    
+    Accepts either a numeric comment/review ID or a full GitHub URL."""
     pr = parse_pr_input(args.pr_or_url)
-    comment_id = args.comment_id
+    input_id = args.comment_id
     classifier = args.classifier
-
-    # Fetch the comment to get its node_id
+    
+    # Try parsing as URL first
+    parsed = parse_comment_id_from_url(input_id)
+    if parsed:
+        cid, ctype = parsed
+        if ctype == "pullrequestreview":
+            # Review body — find its node_id via REST API
+            out, _, _ = api("GET", f"pulls/{pr}/reviews")
+            node_id = None
+            if out:
+                try:
+                    for rv in json.loads(out):
+                        if str(rv.get("id")) == cid:
+                            node_id = rv.get("node_id")
+                            break
+                except json.JSONDecodeError:
+                    pass
+            if not node_id:
+                print(f"[FAIL] Review #{cid} not found on PR #{pr}", file=sys.stderr)
+                sys.exit(1)
+            mutation = f"""
+            mutation {{
+              minimizeComment(input: {{subjectId: "{node_id}", classifier: {classifier}}}) {{
+                minimizedComment {{ __typename }}
+              }}
+            }}
+            """
+            cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+            out2, err2, rc2 = run(cmd)
+            if rc2 != 0:
+                print(f"[FAIL] Minimize review #{cid} failed: {err2}", file=sys.stderr)
+                sys.exit(1)
+            print(f"[OK] Review #{cid} minimized as {classifier}")
+            return
+        else:
+            discussion_id = cid
+    
+    # Fallback: treat input as a numeric comment ID
+    if not parsed:
+        discussion_id = input_id
+    
+    # Minimize an inline comment — fetch to get node_id
     out, err, rc = api("GET", f"pulls/{pr}/comments")
     if rc != 0:
         print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
         sys.exit(1)
-
+    
     try:
         comments = json.loads(out)
         target = None
         for c in comments:
-            if str(c.get("id")) == comment_id:
+            if str(c.get("id")) == discussion_id:
                 target = c
                 break
         if not target:
-            print(f"[FAIL] Comment #{comment_id} not found on PR #{pr}", file=sys.stderr)
+            print(f"[FAIL] Comment #{discussion_id} not found on PR #{pr}", file=sys.stderr)
             sys.exit(1)
-
         node_id = target.get("node_id")
         if not node_id:
-            print(f"[FAIL] Comment #{comment_id} has no node_id", file=sys.stderr)
+            print(f"[FAIL] Comment #{discussion_id} has no node_id", file=sys.stderr)
             sys.exit(1)
-
         mutation = f"""
         mutation {{
           minimizeComment(input: {{subjectId: "{node_id}", classifier: {classifier}}}) {{
@@ -595,7 +635,7 @@ def cmd_minimize_comment(args):
         if rc2 != 0:
             print(f"[FAIL] Minimize failed: {err2}", file=sys.stderr)
             sys.exit(1)
-        print(f"[OK] Comment #{comment_id} minimized as {classifier}")
+        print(f"[OK] Comment #{discussion_id} minimized as {classifier}")
     except json.JSONDecodeError:
         print(f"[FAIL] Could not parse comments: {out}", file=sys.stderr)
         sys.exit(1)
@@ -918,45 +958,20 @@ def cmd_batch_close(args):
 
 
 def cmd_resolve_comment(args):
-    """Resolve a review thread."""
+    """Resolve a review thread via GraphQL. Accepts a comment ID or full URL."""
     pr = parse_pr_input(args.pr_or_url)
-    comment_id = args.comment_id
+    input_id = args.comment_id
     
-    # Get the PR comment to find the thread ID and node_id
-    out, err, rc = api("GET", f"pulls/{pr}/comments")
-    if rc != 0:
-        print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
-        sys.exit(1)
+    # Try parsing as URL first
+    parsed = parse_comment_id_from_url(input_id)
+    comment_id = parsed[0] if parsed else input_id
     
-    try:
-        comments = json.loads(out)
-        target = None
-        for c in comments:
-            if str(c.get("id")) == comment_id:
-                target = c
-                break
-        if not target:
-            print(f"[FAIL] Comment #{comment_id} not found on PR #{pr}", file=sys.stderr)
-            sys.exit(1)
-        
-        # Resolve via the pull request review comments endpoint
-        pull_request_review_id = target.get("pull_request_review_id")
-        if pull_request_review_id:
-            # Submit a new review that resolves the thread
-            # Or use the GraphQL API to resolve
-            # Simple approach: use gh api with the issue comment endpoint
-            print("[INFO] Resolving via PATCH...")
-            out2, err2, rc2 = api("PATCH", f"pulls/{pr}/comments/{comment_id}", 
-                                   {"body": target["body"]})
-            if rc2 != 0:
-                print(f"[FAIL] Could not resolve: {err2}", file=sys.stderr)
-                sys.exit(1)
-            print(f"[OK] Comment #{comment_id} resolved")
-        else:
-            print(f"[FAIL] Comment #{comment_id} is not a review comment", file=sys.stderr)
-            sys.exit(1)
-    except json.JSONDecodeError:
-        print(f"[FAIL] Could not parse comments: {out}", file=sys.stderr)
+    # Use the thread_map-based resolver (same as batch close)
+    owner_repo = get_owner_repo()
+    thread_map = fetch_thread_map(owner_repo, pr)
+    if resolve_single_comment(pr, comment_id, thread_map):
+        print(f"[OK] Comment #{comment_id} resolved")
+    else:
         sys.exit(1)
 
 
@@ -1375,20 +1390,18 @@ def main():
     # resolve comment
     p = sub.add_parser("resolve", help="Resolve a review thread")
     p.add_argument("pr_or_url", help="PR number or URL")
-    p.add_argument("comment_id", help="Comment ID to resolve")
-    p.set_defaults(func=cmd_resolve_comment)
-    
-    # minimize comment
-    p = sub.add_parser("minimize", help="Minimize (hide) a PR comment with a reason classifier")
+    p.add_argument("comment_id", help="Comment ID or full URL to resolve (e.g. 12345 or ...#discussion_r12345)")
+
+    p = sub.add_parser("minimize", help="Minimize (hide) a PR comment or review body with a reason classifier")
     p.add_argument("pr_or_url", help="PR number or URL")
-    p.add_argument("comment_id", help="Comment ID to minimize")
+    p.add_argument("comment_id", help="Comment ID, review ID, or full URL (e.g. 12345, ...#discussion_r12345, ...#pullrequestreview-67890)")
     p.add_argument("--classifier", choices=["RESOLVED", "OUTDATED", "DUPLICATE"], default="OUTDATED", help="Reason for minimizing")
     p.set_defaults(func=cmd_minimize_comment)
     
     # unminimize comment
     p = sub.add_parser("unminimize", help="Restore a previously minimized PR comment")
     p.add_argument("pr_or_url", help="PR number or URL")
-    p.add_argument("comment_id", help="Comment ID to restore")
+    p.add_argument("comment_id", help="Comment ID or full URL to restore")
     p.set_defaults(func=cmd_unminimize_comment)
     
     # batch close
