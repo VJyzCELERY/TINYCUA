@@ -574,7 +574,7 @@ def cmd_minimize_comment(args):
         cid, ctype = parsed
         if ctype == "pullrequestreview":
             # Review body — find its node_id via REST API
-            out, _, _ = api("GET", f"pulls/{pr}/reviews")
+            out, _, _ = api("GET", f"pulls/{pr}/reviews", paginate=True)
             node_id = None
             if out:
                 try:
@@ -609,7 +609,7 @@ def cmd_minimize_comment(args):
         discussion_id = input_id
     
     # Minimize an inline comment — fetch to get node_id
-    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    out, err, rc = api("GET", f"pulls/{pr}/comments", paginate=True)
     if rc != 0:
         print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
         sys.exit(1)
@@ -652,7 +652,7 @@ def cmd_unminimize_comment(args):
     pr = parse_pr_input(args.pr_or_url)
     comment_id = args.comment_id
 
-    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    out, err, rc = api("GET", f"pulls/{pr}/comments", paginate=True)
     if rc != 0:
         print(f"[FAIL] Could not fetch comments: {err}", file=sys.stderr)
         sys.exit(1)
@@ -902,7 +902,7 @@ def cmd_batch_close(args):
         return
 
     # Fetch all comments (needed for finding review child comments)
-    out, _, _ = api("GET", f"pulls/{pr}/comments")
+    out, _, _ = api("GET", f"pulls/{pr}/comments", paginate=True)
     comments_cache = []
     if out:
         try:
@@ -911,7 +911,7 @@ def cmd_batch_close(args):
             pass
 
     # Fetch all reviews (needed for mapping review db id -> node_id for minimize)
-    reviews_out, _, _ = api("GET", f"pulls/{pr}/reviews")
+    reviews_out, _, _ = api("GET", f"pulls/{pr}/reviews", paginate=True)
     reviews_by_id: dict[int, dict] = {}
     if reviews_out:
         try:
@@ -1166,12 +1166,12 @@ def cmd_handle_minimize(args):
     owner_repo = get_owner_repo()
     
     if ctype == "discussion_r":
-        out, _, _ = api("GET", f"pulls/{pr}/comments")
+        out, _, _ = api("GET", f"pulls/{pr}/comments", paginate=True)
         comments_cache = json.loads(out) if out else []
         if not minimize_single_comment(pr, cid, classifier, comments_cache):
             sys.exit(1)
     else:
-        out, _, _ = api("GET", f"pulls/{pr}/reviews")
+        out, _, _ = api("GET", f"pulls/{pr}/reviews", paginate=True)
         node_id = None
         if out:
             for rv in json.loads(out):
@@ -1204,7 +1204,7 @@ def cmd_handle_unminimize(args):
     owner_repo = get_owner_repo()
     
     if ctype == "discussion_r":
-        out, _, _ = api("GET", f"pulls/{pr}/comments")
+        out, _, _ = api("GET", f"pulls/{pr}/comments", paginate=True)
         if not out:
             print("[FAIL] Could not fetch comments", file=sys.stderr)
             sys.exit(1)
@@ -1219,7 +1219,7 @@ def cmd_handle_unminimize(args):
             sys.exit(1)
         node_id = target.get("node_id")
     else:
-        out, _, _ = api("GET", f"pulls/{pr}/reviews")
+        out, _, _ = api("GET", f"pulls/{pr}/reviews", paginate=True)
         if not out:
             print("[FAIL] Could not fetch reviews", file=sys.stderr)
             sys.exit(1)
@@ -1274,7 +1274,7 @@ def cmd_fetch_unresolved(args):
     pr = parse_pr_input(args.pr_or_url)
     
     print("=== Unresolved Inline Comments ===")
-    out, err, rc = api("GET", f"pulls/{pr}/comments")
+    out, err, rc = api("GET", f"pulls/{pr}/comments", paginate=True)
     if rc == 0:
         try:
             for c in json.loads(out):
@@ -1286,7 +1286,7 @@ def cmd_fetch_unresolved(args):
             print(out)
     
     print("\n=== Reviews Requesting Changes ===")
-    out, err, rc = api("GET", f"pulls/{pr}/reviews")
+    out, err, rc = api("GET", f"pulls/{pr}/reviews", paginate=True)
     if rc == 0:
         try:
             for r in json.loads(out):
@@ -1306,7 +1306,7 @@ def cmd_fetch_url(args):
     
     if parsed["type"] == "issue":
         # Fetch a specific issue/PR comment
-        out, err, rc = api("GET", f"pulls/{parsed['pr']}/comments")
+        out, err, rc = api("GET", f"pulls/{parsed['pr']}/comments", paginate=True)
         if rc == 0:
             try:
                 for c in json.loads(out):
@@ -1319,7 +1319,7 @@ def cmd_fetch_url(args):
                 print(out)
     elif parsed["type"] == "pullrequestreview":
         # Fetch a specific review
-        out, err, rc = api("GET", f"pulls/{parsed['pr']}/reviews")
+        out, err, rc = api("GET", f"pulls/{parsed['pr']}/reviews", paginate=True)
         if rc == 0:
             try:
                 for r in json.loads(out):

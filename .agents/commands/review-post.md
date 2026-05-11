@@ -66,29 +66,24 @@ This command reads a review report from `$1`, extracts each finding, and posts t
      esac
 
      # --- Main review: inline comments + body ---
-     # Use the template at .agents/templates/review-body-snippet.md for the body structure.
-     # Fill in commit range, assessment, emote, findings, etc.
+     # Copy the template, then edit placeholders in place.
      # IMPORTANT: The review body is markdown. Use proper markdown formatting (fenced code blocks, lists, bold, etc.)
-     cat > ./tmp/review-body.md << 'BODY'
-     $(cat .agents/templates/review-body-snippet.md)
-     BODY
-     # Then edit ./tmp/review-body.md in place to replace placeholders with actual values.
+     cp .agents/templates/review-body-snippet.md ./tmp/review-body.md
+     # Then edit ./tmp/review-body.md to replace placeholders with actual values.
      
-     # Build inline comments JSON — follow .agents/templates/inline-comment-format.json structure
-     cat > ./tmp/review-comments.json << 'COMMENTS'
-     $(cat .agents/templates/inline-comment-format.json)
-     COMMENTS
-     # Then edit ./tmp/review-comments.json in place to replace placeholders.
+     # Build inline comments JSON — copy template, then replace placeholders
+     cp .agents/templates/inline-comment-format.json ./tmp/review-comments.json
+     # Then edit ./tmp/review-comments.json to replace placeholders.
+     # For the body field, use the content from .agents/templates/inline-comment-body-snippet.md
+     # and escape it as a JSON string (replace \n with \\n, escape quotes).
      
      uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-body.md ./tmp/review-comments.json --event "$REVIEW_EVENT"
      ```
      
     **If there are non-inline findings** (findings with no valid diff line, e.g. PR metadata), post a follow-up review with their full details:
     ```bash
-    cat > ./tmp/review-noninline-body.md << 'BODY'
-    $(cat .agents/templates/review-noninline-body-snippet.md)
-    BODY
-    # Edit ./tmp/review-noninline-body.md in place to replace placeholders.
+    cp .agents/templates/review-noninline-body-snippet.md ./tmp/review-noninline-body.md
+    # Edit ./tmp/review-noninline-body.md to replace placeholders.
     uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/review-noninline-body.md --event "$REVIEW_EVENT"
     ```
  9. **Fetch posted comments to get URLs**: After posting all reviews, fetch the PR comments to verify posting and capture links:

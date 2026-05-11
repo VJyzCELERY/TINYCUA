@@ -42,10 +42,18 @@ uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/body.md --eve
 uv run python .agents/scripts/gh.py post review "$PR_NUMBER" ./tmp/body.md --event COMMENT
 ```
 
-### Reply and resolve
+### Reply, resolve, minimize, unminimize (by URL)
+
 ```bash
-uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" <comment-id> ./tmp/reply.md
-uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" <comment-id>
+# All of these accept a full GitHub URL and auto-detect the type (inline vs review body)
+uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
+uv run python .agents/scripts/gh.py interact resolve "$URL"
+uv run python .agents/scripts/gh.py interact minimize "$URL" --classifier OUTDATED
+uv run python .agents/scripts/gh.py interact unminimize "$URL"
+```
+
+### Post inline comment
+```bash
 uv run python .agents/scripts/gh.py post inline "$PR_NUMBER" ./tmp/inline.md --path src/file.py --line 42
 ```
 
