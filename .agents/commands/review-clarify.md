@@ -29,8 +29,16 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
 
 1. **Read the Review**: Load the review report
 2. **Run pre-flight checks**
-3. **Filter Findings**: If `$2` is provided, only clarify those findings
-4. **Clarify Each Finding**: For each finding, check and improve:
+3. **Capture current commit range**: Record the PR head at clarification time:
+   ```bash
+   PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
+   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+   COMMIT_RANGE="$(git rev-parse --short "$BASE_SHA")...$(git rev-parse --short "$HEAD_SHA")"
+   echo "Clarifying at: $COMMIT_RANGE"
+   ```
+4. **Filter Findings**: If `$2` is provided, only clarify those findings
+5. **Clarify Each Finding**: For each finding, check and improve:
 
    | Aspect | Check | Fix |
    |--------|-------|-----|
@@ -41,8 +49,8 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    | **How to Validate** | Missing or broken? | Add or fix (prefixed with `uv run`) |
    | **Severity** | Appropriate? | Adjust: CRITICAL/HIGH/MEDIUM/LOW |
 
-5. **Update the Review Report**: Save the clarified version
-6. **Post follow-up to PR if linked**: If a finding has a `**PR Comment**` URL, post a follow-up:
+6. **Update the Review Report**: Save the clarified version. Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`.
+7. **Post follow-up to PR if linked**: If a finding has a `**PR Comment**` URL, post a follow-up:
    ```bash
    cat > ./tmp/followup.md << 'EOF'
    **Clarified**: The finding has been updated for clarity.
@@ -51,8 +59,8 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
    uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/followup.md
    ```
    Extract `<pr>` and `<comment-id>` from: `https://github.com/owner/repo/pull/<pr>#discussion_r<comment-id>`
-7. **Track the follow-up**: Add a `**PR Follow-up**` field with the reply URL
-8. **Save Changes**: Use Write to update the original review file
+8. **Track the follow-up**: Add a `**PR Follow-up**` field with the reply URL
+9. **Save Changes**: Use Write to update the original review file
 
 ## Important
 

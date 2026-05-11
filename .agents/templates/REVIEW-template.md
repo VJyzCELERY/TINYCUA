@@ -4,6 +4,7 @@
 **Review Date**: [YYYY-MM-DD]
 **Review Type**: [docs|code|pr|full|security|performance]
 **Reviewer**: [agent-name or human-name]
+**Commit Range**: [sha]...[sha]
 
 ---
 

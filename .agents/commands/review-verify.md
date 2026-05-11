@@ -56,9 +56,17 @@ If the preflight exits non-zero, read its warnings:
 
 1. **Read the Review**: Load the review report
 2. **Run pre-flight checks**: Run the review preflight — if warnings appear, handle staleness or unstaged changes before proceeding
-3. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
-4. **Filter Findings**: If `$2` is provided, only verify those findings
-5. **Verify Each Finding**: For each OPEN finding:
+3. **Capture current commit range**: Record the PR head at verification time:
+   ```bash
+   PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
+   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+   COMMIT_RANGE="$(git rev-parse --short "$BASE_SHA")...$(git rev-parse --short "$HEAD_SHA")"
+   echo "Verifying at: $COMMIT_RANGE"
+   ```
+4. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
+5. **Filter Findings**: If `$2` is provided, only verify those findings
+6. **Verify Each Finding**: For each OPEN finding:
    - Execute the "How to Test/Validate" command (use `uv run` for Python)
    - Determine status:
      - Command succeeds → **ADDRESSED**
@@ -82,7 +90,8 @@ If the preflight exits non-zero, read its warnings:
      uv run python .agents/scripts/gh.py post reply <pr> <comment-id> ./tmp/reply.md
      ```
    Extract `<pr>` and `<comment-id>` from: `https://github.com/owner/repo/pull/<pr>#discussion_r<comment-id>`
-7. **Update the Review Report**: Append to Validation Log, update statuses, add `**PR Reply**` URL if posted
+7. **Update the Review Report**: Append to Validation Log, update statuses, add `**PR Reply**` URL if posted. Also update the report header with the commit range at verification time:
+   - Replace the `**Commit Range**` line in the report header with `**Commit Range**: ${COMMIT_RANGE}`
 8. **Save Changes**: Use Write to update the original review file
 
 ## Status Definitions
