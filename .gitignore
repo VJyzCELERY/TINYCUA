@@ -49,6 +49,9 @@ tmp/
 *.lock
 
 # tinycua-finetune subproject
+src/tinycua-finetune/docs/
 src/tinycua-finetune/.venv-mps/
 src/tinycua-finetune/tinycua_finetune/*.py
 src/tinycua-finetune/tinycua_finetune/pipeline-finetune-qwen3-5-9B-mps.ipynb
+src/tinycua-finetune/pyproject.toml
+

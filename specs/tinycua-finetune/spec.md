@@ -97,6 +97,10 @@ This approach is suitable for:
 - **LoRA Adapter**: Fine-tuned adapter weights via Unsloth/PEFT
 - **Merged Checkpoint**: Full HF-format model after adapter merge
 - **Fine-tuned Model**: Saved locally or pushed to HuggingFace Hub
+- **Notebook Scripts**: Modular Python scripts derived from notebook cells for reviewability
+  - Location: `kaggle-unsloth-finetune-pipeline/scripts/`
+  - 17 scripts (01_wandb_login through 17_push_gguf_to_hf)
+- **Manager Script**: finetune.py - orchestrates script execution via CLI
 
 ---
 
@@ -130,6 +134,7 @@ This approach is suitable for:
 | Design                      | In Progress | See design.md                              |
 | Kaggle notebook (4B)        | DONE        | kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb |
 | Kaggle notebook (9B)        | TODO        | kaggle-gpu-pipeline-finetune-qwen3-5-9B.ipynb |
+| Script-based pipeline       | DONE        | 17 scripts + finetune.py manager          |
 | W&B integration             | DONE        | Integrated in notebooks                   |
 | HF Hub push                 | DONE        | Optional feature in notebooks              |
 | Adapter merge               | DONE        | Implemented in notebooks                   |
@@ -139,6 +144,8 @@ This approach is suitable for:
 ## References
 
 - Notebook: `src/tinycua-finetune/tinycua_finetune/kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb`
+- Pipeline scripts: `src/tinycua-finetune/kaggle-unsloth-finetune-pipeline/`
+- Manager: `finetune.py` (run via `python finetune.py run all`)
 - Unsloth: https://github.com/unslothai/unsloth
 - Dataset: younissk/tool-calling-mix
 

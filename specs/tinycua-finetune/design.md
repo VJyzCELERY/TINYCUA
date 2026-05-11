@@ -44,6 +44,52 @@ Unsloth optimization for efficient QLoRA training on Qwen3-4B and Qwen3-5-9B mod
 | `kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb` | Primary notebook for Qwen3-4B training |
 | `kaggle-gpu-pipeline-finetune-qwen3-5-9B.ipynb` | Extended notebook for Qwen3-5-9B training |
 
+### Script-Based Pipeline (Review-Optimized)
+
+The notebook has been split into separate Python scripts for easier code review. Each script corresponds to a notebook cell, enabling standard diff-based code review instead of JSON comparison.
+
+**Directory Structure:**
+```
+kaggle-unsloth-finetune-pipeline/
+├── finetune.py          # Manager script
+└── scripts/
+    ├── 01_wandb_login.py
+    ├── 02_install_unsloth.py
+    ├── 03_pip_install_alt.py
+    ├── 04_gpu_detection.py
+    ├── 05_load_model.py
+    ├── 06_lora_config.py
+    ├── 07_load_dataset.py
+    ├── 08_preprocess_dataset.py
+    ├── 09_apply_chat_template.py
+    ├── 10_training_config.py
+    ├── 11_train_on_responses.py
+    ├── 12_run_training.py
+    ├── 13_push_lora_to_hf.py
+    ├── 14_save_merged_model.py
+    ├── 15_export_gguf_direct.py
+    ├── 16_export_gguf_llama_cpp.py
+    └── 17_push_gguf_to_hf.py
+```
+
+**Manager Interface (follows .agents/ pattern):**
+```bash
+python finetune.py run all      # Run all 17 steps
+python finetune.py run 7        # Run step 7 only
+python finetune.py run 5-12     # Run steps 5 through 12
+```
+
+**Rationale:**
+- ipynb files are stored as JSON, making diff review difficult
+- Splitting into .py files allows standard code review
+- Each script has clear purpose matching cell headers
+
+**Notebook Reconstruction:**
+If needed, scripts can be combined back via:
+```bash
+jupyter nbconvert --to notebook *.py
+```
+
 ### Component Flow
 
 ```
@@ -145,8 +191,7 @@ Unsloth optimization for efficient QLoRA training on Qwen3-4B and Qwen3-5-9B mod
 
 ## Status
 
-The Kaggle + Unsloth notebook pipeline is implemented and ready for use.
-See `kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb` for the primary notebook.
+The script-based pipeline is implemented and ready for review. Each script corresponds to a notebook cell for improved reviewability. See `kaggle-unsloth-finetune-pipeline/finetune.py` for orchestration.
 
 ---
 
