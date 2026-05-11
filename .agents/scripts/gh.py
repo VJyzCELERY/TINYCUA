@@ -463,25 +463,46 @@ def cmd_post_review(args):
     if comments_file:
         clean_temp(comments_file)
     
-    # Parse response to extract URLs
+    # Parse response to extract review URL and ID
     review_url = ""
-    comment_urls = []
+    review_id = ""
     if out:
         try:
             resp = json.loads(out)
             review_url = resp.get("html_url", "")
-            for c in resp.get("comments", []):
-                cu = c.get("html_url", "")
-                if cu:
-                    comment_urls.append(cu)
+            review_id = resp.get("id", "")
         except json.JSONDecodeError:
             pass
     
+    # Fetch inline comments for this review (API doesn't return them in the create response)
+    comment_entries = []
+    if review_id:
+        cout, _, _ = api("GET", f"pulls/{pr}/comments", paginate=True)
+        if cout:
+            try:
+                for c in json.loads(cout):
+                    if c.get("pull_request_review_id") == review_id:
+                        entry = {
+                            "url": c.get("html_url", ""),
+                            "path": c.get("path", "?"),
+                            "line": c.get("line", "?"),
+                            "body": c.get("body", ""),
+                        }
+                        comment_entries.append(entry)
+            except json.JSONDecodeError:
+                pass
+    
     print(f"[OK] Review posted to PR #{pr}")
-    if review_url:
-        print(f"  Review URL: {review_url}")
-    for cu in comment_urls:
-        print(f"  Comment URL: {cu}")
+    print(f"")
+    print(f"**PR Review URL**: {review_url}")
+    print(f"")
+    for e in comment_entries:
+        loc = f"{e['path']}:{e['line']}"
+        print(f"**PR Comment**: {e['url']}")
+        print(f"**Location**: {loc}")
+        for line in e['body'].split("\n"):
+            print(f"  {line}")
+        print(f"")
 
 
 def cmd_post_comment(args):
