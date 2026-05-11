@@ -256,9 +256,22 @@ def cmd_fetch_comments(args):
         except json.JSONDecodeError:
             pass
     
-    # Filter out minimized comments by default, unless --all is given
+    # Filter out minimized/resolved comments by default, unless --all is given
     include_minimized = getattr(args, "all", False)
-    all_comments = all_comments_raw if include_minimized else [c for c in all_comments_raw if not c.get("minimized")]
+    if include_minimized:
+        all_comments = all_comments_raw
+    else:
+        # Use GraphQL to get minimized/resolved state (REST API doesn't expose these)
+        owner_repo = get_owner_repo()
+        thread_map = fetch_thread_map(owner_repo, pr)
+        all_comments = []
+        for c in all_comments_raw:
+            cid = str(c.get("id", ""))
+            info = thread_map.get(cid)
+            # Skip if comment is minimized or its thread is resolved
+            if info and (info["is_minimized"] or info["is_resolved"]):
+                continue
+            all_comments.append(c)
     
     # Fetch all reviews
     all_reviews = []
@@ -321,8 +334,7 @@ def cmd_fetch_comments(args):
     report += separator.join(sections) if sections else "No reviews found on this PR."
     
     Path(output_path).write_text(report, encoding="utf-8")
-    non_minimized = [c for c in all_comments if not c.get("minimized")]
-    label = f"{len(non_minimized)} active" if not include_minimized else f"{len(all_comments)} total ({len(all_comments) - len(non_minimized)} minimized)"
+    label = f"{len(all_comments)} active" if not include_minimized else f"{len(all_comments)} total"
     print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {label} inline comment(s) → {output_path}")
     
     # Print to stdout
@@ -338,9 +350,10 @@ def cmd_fetch_comments(args):
         for line in body.split("\n"):
             print(f"    {line}")
     
-    if non_minimized:
-        print(f"\n=== Inline Comments ({len(non_minimized)} active, {len(all_comments) - len(non_minimized)} minimized) ===")
-        for c in non_minimized:
+    if all_comments:
+        label = "active" if not include_minimized else "total"
+        print(f"\n=== Inline Comments ({len(all_comments)} {label}) ===")
+        for c in all_comments:
             loc = f"{c.get('path','?')}:{c.get('line','?')}"
             c_author = c.get("user", {}).get("login", "?")
             c_url = c.get("html_url", "?")
@@ -647,12 +660,84 @@ def parse_comment_id_from_url(url: str) -> tuple[str, str] | None:
     return None
 
 
-def resolve_single_comment(pr: str, comment_id: str) -> bool:
-    """Resolve a single inline comment thread. Returns True on success."""
-    _, err, rc = api("PATCH", f"pulls/{pr}/comments/{comment_id}",
-                     {"body": ""})
-    if rc != 0:
-        print(f"[WARN] Resolve #{comment_id} failed: {err}", file=sys.stderr)
+def fetch_thread_map(owner_repo: str, pr: str) -> dict:
+    """Fetch all review threads for a PR and return a dict mapping comment_id -> thread info.
+
+    Returns: {comment_id_str: {"thread_id": str, "is_resolved": bool, "is_minimized": bool}}
+    """
+    query = f"""
+    query {{
+      repository(owner: "{owner_repo.split('/')[0]}", name: "{owner_repo.split('/')[1]}") {{
+        pullRequest(number: {pr}) {{
+          reviewThreads(first: 50) {{
+            nodes {{
+              id
+              isResolved
+              comments(first: 10) {{
+                nodes {{
+                  id
+                  fullDatabaseId
+                  isMinimized
+                }}
+              }}
+            }}
+          }}
+        }}
+      }}
+    }}
+    """
+    cmd = ["gh", "api", "graphql", "-f", f"query={query}"]
+    out, err, rc = run(cmd)
+    if rc != 0 or not out:
+        return {}
+    try:
+        data = json.loads(out)
+        nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    except (KeyError, json.JSONDecodeError):
+        return {}
+
+    thread_map = {}
+    for t in nodes:
+        tid = t["id"]
+        is_resolved = t["isResolved"]
+        for c in t["comments"]["nodes"]:
+            cid = str(c.get("fullDatabaseId", ""))
+            if cid:
+                thread_map[cid] = {
+                    "thread_id": tid,
+                    "is_resolved": is_resolved,
+                    "is_minimized": c.get("isMinimized", False),
+                }
+    return thread_map
+
+
+def resolve_single_comment(pr: str, comment_id: str, thread_map: dict | None = None) -> bool:
+    """Resolve a single inline comment thread via GraphQL. Returns True on success."""
+    owner_repo = get_owner_repo()
+    if thread_map is None:
+        thread_map = fetch_thread_map(owner_repo, pr)
+
+    info = thread_map.get(comment_id)
+    if not info:
+        print(f"[WARN] Comment #{comment_id} thread not found, skipping", file=sys.stderr)
+        return False
+
+    if info["is_resolved"]:
+        print(f"[OK] Comment #{comment_id} already resolved")
+        return True
+
+    tid = info["thread_id"]
+    mutation = f"""
+    mutation {{
+      resolveReviewThread(input: {{pullRequestReviewThreadId: "{tid}"}}) {{
+        thread {{ id }}
+      }}
+    }}
+    """
+    cmd = ["gh", "api", "graphql", "-f", f"query={mutation}"]
+    out2, err2, rc2 = run(cmd)
+    if rc2 != 0:
+        print(f"[WARN] Resolve #{comment_id} failed: {err2}", file=sys.stderr)
         return False
     print(f"[OK] Comment #{comment_id} resolved")
     return True
@@ -729,11 +814,15 @@ def cmd_batch_close(args):
         except json.JSONDecodeError:
             pass
 
+    # Fetch thread map for resolve operations (needed for thread_id lookup)
+    owner_repo = get_owner_repo()
+    thread_map = fetch_thread_map(owner_repo, pr)
+
     ok = 0
     fail = 0
     for action, cid, cls, url in parsed_entries:
         if action == "resolve":
-            if resolve_single_comment(pr, cid):
+            if resolve_single_comment(pr, cid, thread_map):
                 ok += 1
             else:
                 fail += 1
