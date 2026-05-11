@@ -62,6 +62,23 @@ def main():
         print("[BOUNDARY] WARNING: Not inside a git repository — boundary unknown.")
         print("[BOUNDARY] Proceed with caution and stay within the working directory.")
 
+    # ── Git Branch Info ──
+    branch = run(["git", "branch", "--show-current"])
+    if branch:
+        print(f"[GIT] Branch: {branch}")
+        base = run(["git", "config", "--local", "worktree.base-branch"])
+        if not base:
+            base = run(["git", "rev-parse", "--abbrev-ref", "@{upstream}"])
+            if base and "/" in base:
+                base = base.split("/", 1)[1]
+        if base:
+            print(f"[GIT] Base branch: {base}")
+        pr = run(["gh", "pr", "view", "--json", "number", "--jq", ".number"])
+        if pr:
+            print(f"[GIT] PR: #{pr}")
+        else:
+            print(f"[GIT] PR: none")
+
     # Ensure ./tmp/ exists
     if root:
         tmp_dir = Path(root) / "tmp"

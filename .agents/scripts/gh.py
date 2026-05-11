@@ -1091,6 +1091,16 @@ def detect_pr_base(head: str | None = None) -> str:
             branch = ""
     if not branch:
         return "main"
+    
+    # Check worktree.base-branch git config (set by create-worktree.py)
+    try:
+        cfg = subprocess.check_output(
+            ["git", "config", "--local", "worktree.base-branch"],
+            text=True, stderr=subprocess.DEVNULL).strip()
+        if cfg:
+            return cfg
+    except Exception:
+        pass
     try:
         out = subprocess.check_output(
             ["gh", "pr", "list", "--head", branch, "--state", "open",

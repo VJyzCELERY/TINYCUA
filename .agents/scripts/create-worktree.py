@@ -128,6 +128,13 @@ def main():
             "Run 'git worktree list' to see current worktrees.",
         )
 
+    # Store base branch in git config so agents can discover it later
+    subprocess.run(
+        ["git", "config", "--local", "worktree.base-branch", BASE_BRANCH],
+        capture_output=True, text=True, check=False,
+        cwd=str(worktree_path),
+    )
+
     print(f"BRANCH={branch}")
     print(f"PATH={worktree_path.resolve()}")
     print(f"BASE={BASE_BRANCH}")
