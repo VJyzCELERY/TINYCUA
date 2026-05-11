@@ -42,11 +42,12 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    echo "Refreshing review at commit range: $BASE_SHA...$HEAD_SHA"
    ```
 
-3. **Fetch ALL active reviews from remote**:
+3. **Fetch active reviews from remote** (only non-minimized, non-resolved):
    ```bash
    uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/remote-reviews.md
    ```
    Read `./tmp/remote-reviews.md` — it contains every non-minimized review with inline comments, each with URLs.
+   **IMPORTANT**: Do NOT use `--all` flag. `--all` includes minimized/resolved comments which we don't need for consolidation.
 
 4. **Read the local review report** (if it exists under `./reviews/`):
    ```bash
