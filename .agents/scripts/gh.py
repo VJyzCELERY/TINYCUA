@@ -253,30 +253,24 @@ def cmd_post_review(args):
     pr = parse_pr_input(args.pr_or_url)
     body_file = args.body_file
     comments_file = args.comments_file
+    event = args.event or "COMMENT"
     
     if not check_file(body_file):
         sys.exit(1)
     with open(body_file) as f:
         body = f.read()
     
-    data = {"body": body, "event": args.event or "COMMENT"}
+    rc = 1
+    err = ""
     
-    if comments_file and args.comments_file:
-        if check_file(comments_file):
-            data["input"] = comments_file
-    
-    out, err, rc = api("POST", f"pulls/{pr}/reviews", data)
-    
-    # If comments_file is separate, we need to handle it differently
-    # The REST API for reviews with inline comments uses --input for the JSON body
+    # Build and send the review payload
+    # Inline comments require --input with a combined JSON payload
     if comments_file and check_file(comments_file):
-        import tempfile
-        # Build combined payload
         with open(comments_file) as cf:
             comments = json.load(cf)
         payload = {
             "body": body,
-            "event": args.event or "COMMENT",
+            "event": event,
             "comments": comments
         }
         tf = TMP_DIR / f"gh-review-payload-{int(time.time())}.json"
@@ -288,6 +282,34 @@ def cmd_post_review(args):
                "--method", "POST", "--input", str(tf)]
         out, err, rc = run(cmd)
         clean_temp(tf)
+    else:
+        data = {"body": body, "event": event}
+        out, err, rc = api("POST", f"pulls/{pr}/reviews", data)
+    
+    # Graceful fallback: if post failed due to author restrictions (e.g.
+    # PR author cannot APPROVE or REQUEST_CHANGES their own PR), retry as COMMENT.
+    if rc != 0 and event != "COMMENT":
+        print(f"[WARN] Review post with event '{event}' failed: {err[:120]}", file=sys.stderr)
+        print(f"[WARN] Retrying as 'COMMENT' event (author cannot {event} own PR).", file=sys.stderr)
+        if comments_file and check_file(comments_file):
+            with open(comments_file) as cf:
+                comments = json.load(cf)
+            payload = {
+                "body": body,
+                "event": "COMMENT",
+                "comments": comments
+            }
+            tf = TMP_DIR / f"gh-review-payload-{int(time.time())}.json"
+            with open(tf, "w") as f:
+                json.dump(payload, f)
+            OWNER_REPO = get_owner_repo()
+            cmd = ["gh", "api", f"repos/{OWNER_REPO}/pulls/{pr}/reviews",
+                   "--method", "POST", "--input", str(tf)]
+            out, err, rc = run(cmd)
+            clean_temp(tf)
+        else:
+            data = {"body": body, "event": "COMMENT"}
+            out, err, rc = api("POST", f"pulls/{pr}/reviews", data)
     
     if rc != 0:
         print(f"[FAIL] Review post failed: {err}", file=sys.stderr)
