@@ -530,12 +530,22 @@ def cmd_reply_comment(args):
     if not check_file(body_file):
         sys.exit(1)
     
+    # Use JSON temp file to send in_reply_to as a proper number (the API rejects string IDs)
+    import tempfile
     data = {
         "body": open(body_file).read(),
-        "in_reply_to": comment_id
+        "in_reply_to": int(comment_id)
     }
+    tf = TMP_DIR / f"gh-reply-{int(time.time())}.json"
+    with open(tf, "w") as f:
+        json.dump(data, f)
     
-    out, err, rc = api("POST", f"pulls/{pr}/comments", data)
+    OWNER_REPO = get_owner_repo()
+    cmd = ["gh", "api", f"repos/{OWNER_REPO}/pulls/{pr}/comments",
+           "--method", "POST", "--input", str(tf)]
+    out, err, rc = run(cmd)
+    clean_temp(tf)
+    
     if rc != 0:
         print(f"[FAIL] Reply failed: {err}", file=sys.stderr)
         sys.exit(1)
