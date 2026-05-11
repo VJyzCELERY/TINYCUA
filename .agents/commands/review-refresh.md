@@ -61,9 +61,14 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    - The result is a single set of findings
 
 6. **Close all existing active comments**: Use `gh.py interact` on every URL from the remote fetch:
-   - Inline comments (`#discussion_r`) → resolve
-   - Review bodies (`#pullrequestreview`) → minimize as OUTDATED
-   - Skip any thread that has replies from humans (active discussion)
+    - Inline comments (`#discussion_r`) → reply documenting the consolidation, then resolve the thread
+    - Review bodies (`#pullrequestreview`) → minimize as OUTDATED
+    - Skip any thread that has replies from humans (active discussion)
+    ```bash
+    # Reply first, then resolve (same pattern as review-update)
+    uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
+    uv run python .agents/scripts/gh.py interact resolve "$URL"
+    ```
 
 7. **Write the consolidated local report**: Save the deduplicated findings as `./reviews/REVIEW_{branch}_refreshed.md` using the REVIEW-template.md structure. Do NOT create a new file if one already exists — overwrite the existing one.
 

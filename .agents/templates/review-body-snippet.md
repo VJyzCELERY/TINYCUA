@@ -24,6 +24,8 @@ Reviewed commit range: <base-sha>...<head-sha>
 
 <Any additional information — questions to author, previous review threads status, etc.>
 
+> When referencing previous reviews or comments, use markdown hyperlinks `[text](url)` — never raw IDs. Example: Previous [review](https://github.com/.../pull/N#pullrequestreview-XXX) is now superseded by this review.
+
 ---
 
 Detailed inline comments follow for findings that map to current diff lines.

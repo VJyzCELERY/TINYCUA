@@ -129,3 +129,4 @@ The assessment is read from the `**Overall Assessment**` field in the review rep
 - Always verify line numbers against the current PR diff before posting
 - **After posting, MUST update the local review report** with PR comment URLs — this enables automatic reply/resolve in review-update
 - Do NOT post reviews with empty inline comments — skip findings that can't be mapped to the diff
+- **Use markdown hyperlinks** when referencing previous reviews or comments in the review body — never raw IDs. Example: Previous [review](https://github.com/.../pull/N#pullrequestreview-XXX) has been superseded by this review.

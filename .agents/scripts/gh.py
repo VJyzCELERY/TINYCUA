@@ -414,7 +414,10 @@ def cmd_fetch_comments(args):
     
     # Write the report
     separator = "\n\n---\n\n"
-    report = f"# Fetched Reviews: PR #{pr}\n**Fetched**: {now}\n**Branch**: {branch}\n---\n\n"
+    report = f"# Fetched Reviews: PR #{pr}\n**Fetched**: {now}\n**Branch**: {branch}\n"
+    if base_sha and head_sha:
+        report += f"**Commit Range**: {base_sha}...{head_sha}\n"
+    report += "---\n\n"
     report += separator.join(sections) if sections else "No reviews found on this PR."
     
     output_path = str(repo_guard.assert_inside_repo(output_path))
@@ -423,6 +426,10 @@ def cmd_fetch_comments(args):
     print(f"[OK] Fetched {len(meaningful_reviews)} review(s) with {label} inline comment(s) → {output_path}")
     
     # Print to stdout
+    base_sha = pr_info.get("base", {}).get("sha", "")
+    head_sha = pr_info.get("head", {}).get("sha", "")
+    if base_sha and head_sha:
+        print(f"Commit Range: {base_sha}...{head_sha}")
     print(f"\n=== Reviews ({len(meaningful_reviews)}) ===")
     for r in meaningful_reviews:
         author = r.get("user", {}).get("login", "?")

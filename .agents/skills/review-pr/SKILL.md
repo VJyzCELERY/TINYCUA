@@ -55,3 +55,4 @@ Manage the full review lifecycle: post reviews, update after fixes, consolidate 
 - Always update local report with PR URLs after posting
 - Use `gh.py interact` for reply/resolve/minimize — it accepts full URLs
 - Use `.agents/templates/` for consistent formatting across all review commands
+- **Use markdown hyperlinks** when referencing previous reviews or comments — `[text](url)`, never raw IDs like `PRR_abc123`
