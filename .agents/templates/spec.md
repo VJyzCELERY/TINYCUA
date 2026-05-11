@@ -5,6 +5,8 @@
 **Last Updated**: YYYY-MM-DD
 **Subproject(s) Affected**: [e.g., my-subproject-backend, my-subproject-sdk]
 
+> **Spec and design are a pair**: You MUST also create `design.md` (using `.agents/templates/design.md`) in the same directory as this spec. A spec without a design is incomplete.
+
 ---
 
 ## Quick Guidelines
@@ -15,7 +17,6 @@
 - Every requirement must be independently testable
 - Highlight anything that could violate KISS, YAGNI, or DRY for architecture review
 - When done, requirements with `[NEEDS CLARIFICATION]` markers must be resolved before implementation begins
-- **Spec and design are a pair**: always create the corresponding `design.md` using `.agents/templates/design.md` alongside this spec. The design covers architecture, technical decisions, and implementation phases. A spec without a design is incomplete.
 
 ---
 
