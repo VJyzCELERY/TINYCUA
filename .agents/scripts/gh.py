@@ -294,6 +294,26 @@ def cmd_fetch_comments(args):
     
     # Separate reviews that have a body (meaningful review) vs empty ones
     meaningful_reviews = [r for r in all_reviews if r.get("body", "").strip()]
+
+    # Filter out minimized reviews (REST API doesn't reflect GraphQL minimization)
+    if not include_minimized and meaningful_reviews:
+        # Batch query GraphQL to check which reviews are minimized
+        review_nodes = " ".join(f'_{i}: node(id: "{r["node_id"]}") {{ ... on PullRequestReview {{ isMinimized }} }}' for i, r in enumerate(meaningful_reviews[:50]))
+        gql_query = f"query {{ {review_nodes} }}"
+        cmd = ["gh", "api", "graphql", "-f", f"query={gql_query}"]
+        gout, _, grc = run(cmd)
+        if grc == 0 and gout:
+            try:
+                gdata = json.loads(gout)["data"]
+                filtered = []
+                for i, r in enumerate(meaningful_reviews):
+                    key = f"_{i}"
+                    is_minimized = gdata.get(key, {}).get("isMinimized", False)
+                    if not is_minimized:
+                        filtered.append(r)
+                meaningful_reviews = filtered
+            except (KeyError, json.JSONDecodeError):
+                pass
     
     # Build the report — group reviews with their inline comments
     sections = []
