@@ -87,7 +87,7 @@ Rules live in `.agents/rules/` and are **loaded only when relevant** — not all
 
 List available skills: `ls .agents/skills/` — each is a directory with a `SKILL.md` inside.
 
-List available tools: `ls .agents/tools/` or run `uv run python .agents/scripts/gh.py --help`.
+List available tools: run `uv run python .agents/scripts/gh.py --help`.
 
 List available rules: `ls .agents/rules/`
 
