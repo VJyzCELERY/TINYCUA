@@ -48,31 +48,43 @@ If `$LOCAL_HEAD` differs from `$REMOTE_HEAD` (or no commit range is found), the 
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
    ```
 3. **Check commit range freshness** (as described above). If stale, warn and stop.
-4. **Separate findings by URL type**: For each finding with a `**PR Comment**` URL:
-   - **Inline** (`#discussion_r` in URL): will be replied to and resolved
-   - **Non-inline body** (`#pullrequestreview` in URL): will be minimized
+4. **Separate findings by URL type**: Scan the entire report for URLs — check **PR Comment** fields on individual findings AND the **PR Review URL** field in the report header:
+    - **Inline** (`#discussion_r` in URL): will be replied to and resolved
+    - **Non-inline body** (`#pullrequestreview` in URL): will be minimized as outdated
 
-5. **Reply and resolve all inline comments**: For each inline finding, post a reply documenting the current status, then resolve the thread:
+5. **Reply and resolve all inline comments**: For each inline finding, post a reply documenting the current status, then resolve the thread. Always use `gh.py` — do NOT fall back to raw `gh api`.
+   
+   First, find the latest comment in the thread to reply to (the original comment ID from `**PR Comment**` may have existing replies — reply to the most recent one to avoid doubling):
    ```bash
    COMMENT_ID=$(echo "$URL" | grep -oP '#discussion_r\K\d+')
+   # Fetch the thread to find the latest comment ID
+   LATEST_ID=$(uv run python -c "
+   import json, subprocess
+   r = subprocess.run(['gh','api',f'pulls/$PR_NUMBER/comments'], capture_output=True, text=True)
+   comments = [c for c in json.loads(r.stdout) if c.get('in_reply_to_id') == $COMMENT_ID or c.get('id') == $COMMENT_ID]
+   print(max(c['id'] for c in comments) if comments else $COMMENT_ID)
+   ")
+   ```
    
+   Then reply using `gh.py`:
+   ```bash
    # If ADDRESSED or INVALID
    cat > ./tmp/reply.md << 'EOF'
    ✅ **Resolved**: [brief validation result note — use markdown]
    EOF
-   uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" "$COMMENT_ID" ./tmp/reply.md
+   uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" "$LATEST_ID" ./tmp/reply.md
    uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" "$COMMENT_ID"
    
    # If still OPEN
    cat > ./tmp/reply.md << 'EOF'
    ❌ **Still open — will be re-reviewed**: [note on what's still needed]
    EOF
-   uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" "$COMMENT_ID" ./tmp/reply.md
+   uv run python .agents/scripts/gh.py post reply "$PR_NUMBER" "$LATEST_ID" ./tmp/reply.md
    uv run python .agents/scripts/gh.py resolve "$PR_NUMBER" "$COMMENT_ID"
    ```
    > Inline comments are **always resolved** after replying — the old thread is closed because a fresh review will be posted next.
 
-6. **Minimize non-inline (PR body) findings**: For each non-inline finding, minimize the review body as outdated:
+6. **Minimize non-inline (PR body) findings**: Collect all non-inline URLs from the report — both `**PR Comment**` fields on findings AND the `**PR Review URL**` field in the report header. For each non-inline URL, minimize the review body as outdated:
    ```bash
    REVIEW_ID=$(echo "$URL" | grep -oP '#pullrequestreview-\K\d+')
    uv run python .agents/scripts/gh.py minimize "$PR_NUMBER" "$REVIEW_ID" --classifier OUTDATED
@@ -110,4 +122,6 @@ If `$LOCAL_HEAD` differs from `$REMOTE_HEAD` (or no commit range is found), the 
 - The commit range preflight prevents posting stale reviews. Always run `review-validate` first if the remote head has moved.
 - Inline comments are **always resolved** after replying, even if still open. The fresh review replaces the old threads.
 - Non-inline findings (PR body follow-ups) are minimized as outdated — they are replaced by the new review.
+- **Always use `gh.py`** for all operations (reply, resolve, minimize, post). Do NOT use raw `gh api` — gh.py handles error fallbacks and logging.
+- **Avoid reply doubling**: Reply to the LATEST comment in the thread, not the root comment. Use the `$LATEST_ID` logic in step 5 to find the most recent reply target.
 - **Markdown**: All reply bodies and review bodies are markdown. Use proper formatting.
