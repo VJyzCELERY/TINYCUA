@@ -348,16 +348,6 @@ def cmd_fetch_comments(args):
         except json.JSONDecodeError:
             pass
     
-    # Group inline comments by pull_request_review_id
-    comments_by_review: dict[int, list[dict]] = {}
-    orphan_comments: list[dict] = []
-    for c in all_comments:
-        rid = c.get("pull_request_review_id")
-        if rid:
-            comments_by_review.setdefault(rid, []).append(c)
-        else:
-            orphan_comments.append(c)
-    
     # Separate reviews that have a body (meaningful review) vs empty ones
     meaningful_reviews = [r for r in all_reviews if r.get("body", "").strip()]
 
@@ -381,6 +371,29 @@ def cmd_fetch_comments(args):
             except (KeyError, json.JSONDecodeError):
                 pass
     
+    # --urls-only: output JSON lines of filtered review + comment URLs and exit
+    urls_only = getattr(args, "urls_only", False)
+    if urls_only:
+        for r in meaningful_reviews:
+            r_url = r.get("html_url", "")
+            if r_url:
+                print(json.dumps({"url": r_url}))
+        for c in all_comments:
+            c_url = c.get("html_url", "")
+            if c_url:
+                print(json.dumps({"url": c_url}))
+        return
+
+    # Group inline comments by pull_request_review_id
+    comments_by_review: dict[int, list[dict]] = {}
+    orphan_comments: list[dict] = []
+    for c in all_comments:
+        rid = c.get("pull_request_review_id")
+        if rid:
+            comments_by_review.setdefault(rid, []).append(c)
+        else:
+            orphan_comments.append(c)
+
     # Build the report — group reviews with their inline comments
     sections = []
     for r in meaningful_reviews:
@@ -1564,6 +1577,7 @@ def main():
     fc.add_argument("pr_or_url", help="PR number or URL")
     fc.add_argument("--output", type=str, default=None, help="Write formatted report to this file (default: reviews/remote/REVIEW_<branch>_fetched_<ts>.md)")
     fc.add_argument("--all", action="store_true", help="Include minimized/resolved comments (default: skip them)")
+    fc.add_argument("--urls-only", action="store_true", help="Output JSON lines of filtered comment URLs only (for preflight consumption)")
     fc.set_defaults(func=cmd_fetch_comments)
     
     fu = fetch_sub.add_parser("url", help="Fetch a specific comment/review from its full URL")
