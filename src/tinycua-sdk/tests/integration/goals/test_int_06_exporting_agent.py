@@ -6,7 +6,6 @@ from pathlib import Path
 import yaml
 
 from tinycua_sdk import Agent, Skill
-from tinycua_sdk.agent.config import AgentConfig
 from tinycua_sdk.agent.llm_model import LanguageModel
 
 

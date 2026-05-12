@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import re
 import sys
+import types
 from pathlib import Path
 from typing import Any, Callable
 
@@ -118,10 +119,18 @@ class Tool:
         for subdir in sorted(Path(path).iterdir()):
             if not subdir.is_dir():
                 continue
+            global _load_counter
+            _load_counter += 1
+            uid = str(_load_counter)
+            package_name = f"__tinycua_tools_{uid}"
+            pkg = types.ModuleType(package_name)
+            pkg.__path__ = [str(subdir)]
+            pkg.__package__ = package_name
+            sys.modules[package_name] = pkg
             for py_file in sorted(subdir.glob("*.py")):
                 if py_file.name.startswith("_"):
                     continue
-                module = _load_module_from_path(py_file)
+                module = _load_module_from_path(py_file, package_name=package_name)
                 for _name, obj in inspect.getmembers(module):
                     if isinstance(obj, Tool):
                         tools.append(obj)
@@ -257,11 +266,16 @@ def tool(
 __all__ = ["Tool", "tool"]
 
 
-def _load_module_from_path(path: Path) -> object:
-    """Load a Python module from a file path.
+_load_counter: int = 0
+
+
+def _load_module_from_path(path: Path, package_name: str | None = None) -> object:
+    """Load a Python module from a file path with optional package context.
 
     Args:
         path: Path to the Python file to load.
+        package_name: If provided, the module is loaded as a child of this
+            package, enabling relative imports.
 
     Returns:
         The loaded module.
@@ -269,11 +283,14 @@ def _load_module_from_path(path: Path) -> object:
     Raises:
         ImportError: If the module cannot be loaded.
     """
-    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module_name = f"{package_name}.{path.stem}" if package_name else path.stem
+    spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         msg = f"Cannot load module from {path}"
         raise ImportError(msg)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
+    if package_name:
+        module.__package__ = package_name
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
