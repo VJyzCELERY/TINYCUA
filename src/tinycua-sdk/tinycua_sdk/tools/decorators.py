@@ -124,10 +124,10 @@ class Tool:
         py_files = sorted(path.glob("*.py"))
         non_private = [f for f in py_files if not f.name.startswith("_")]
 
+        targets: list[Path] = []
         if non_private:
-            targets = [path]
-        else:
-            targets = sorted(p for p in path.iterdir() if p.is_dir())
+            targets.append(path)
+        targets.extend(p for p in sorted(path.iterdir()) if p.is_dir())
 
         for target in targets:
             global _load_counter

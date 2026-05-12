@@ -148,9 +148,10 @@ class Agent(AgentExecutor):
 
         if not stream:
             return result
+        assert isinstance(result, AsyncIterator), "stream mode must return AsyncIterator"
         return self._wrap_stream(result)
 
-    async def _wrap_stream(self, gen: AsyncIterator[dict]) -> AsyncGenerator[dict, None]:
+    async def _wrap_stream(self, gen: AsyncIterator[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
         """Pass through stream events and reset cancellation on completion."""
         try:
             async for event in gen:

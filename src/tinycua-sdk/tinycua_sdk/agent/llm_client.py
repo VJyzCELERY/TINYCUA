@@ -217,22 +217,22 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client(model_config)
 
-        payload = self._build_payload(messages, tools, model_config)
-        payload["stream"] = True
+        req_payload = self._build_payload(messages, tools, model_config)
+        req_payload["stream"] = True
 
-        async with client.stream("POST", "/responses", json=payload) as response:
+        async with client.stream("POST", "/responses", json=req_payload) as response:
             response.raise_for_status()
             buffer: str = ""
             async for line in response.aiter_lines():
                 line = line.strip()
                 if line.startswith("data:"):
-                    payload = line[5:].strip()
-                    if payload == "[DONE]":
+                    data_chunk = line[5:].strip()
+                    if data_chunk == "[DONE]":
                         continue
                     if buffer:
-                        buffer += "\n" + payload
+                        buffer += "\n" + data_chunk
                     else:
-                        buffer = payload
+                        buffer = data_chunk
                     try:
                         data = json.loads(buffer)
                     except json.JSONDecodeError:

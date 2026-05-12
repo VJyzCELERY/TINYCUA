@@ -430,7 +430,9 @@ class BaseLoop:
         cancellation was requested, or ``(None, False)`` on stream
         exhaustion (``StopAsyncIteration``).
         """
-        next_task = asyncio.create_task(llm_stream.__anext__())
+        next_task: asyncio.Task[dict[str, Any] | None] = asyncio.ensure_future(
+            llm_stream.__anext__()
+        )
         cancel_task = asyncio.create_task(cancel_event.wait())
         done, pending = await asyncio.wait(
             [next_task, cancel_task],
