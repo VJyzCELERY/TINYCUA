@@ -109,6 +109,10 @@ class Tool:
         prefixed with _), loads them via importlib, and collects all Tool
         instances.
 
+        If *path* itself contains loadable ``.py`` files (i.e. is a single
+        tool package), it is scanned directly. Otherwise each immediate
+        subdirectory is treated as a package.
+
         Args:
             path: Path to the directory containing tool subdirectories.
 
@@ -116,18 +120,25 @@ class Tool:
             List of Tool instances found.
         """
         tools: list[Tool] = []
-        for subdir in sorted(Path(path).iterdir()):
-            if not subdir.is_dir():
-                continue
+        path = Path(path)
+        py_files = sorted(path.glob("*.py"))
+        non_private = [f for f in py_files if not f.name.startswith("_")]
+
+        if non_private:
+            targets = [path]
+        else:
+            targets = sorted(p for p in path.iterdir() if p.is_dir())
+
+        for target in targets:
             global _load_counter
             _load_counter += 1
             uid = str(_load_counter)
             package_name = f"__tinycua_tools_{uid}"
             pkg = types.ModuleType(package_name)
-            pkg.__path__ = [str(subdir)]
+            pkg.__path__ = [str(target)]
             pkg.__package__ = package_name
             sys.modules[package_name] = pkg
-            for py_file in sorted(subdir.glob("*.py")):
+            for py_file in sorted(target.glob("*.py")):
                 if py_file.name.startswith("_"):
                     continue
                 module = _load_module_from_path(py_file, package_name=package_name)

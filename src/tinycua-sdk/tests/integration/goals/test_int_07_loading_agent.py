@@ -31,12 +31,15 @@ class TestInt07LoadingAgent:
             llm_model=LanguageModel(api_key="sk-file-load"),
         )
         yaml_path = tmp_path / "agent.yaml"
-        yaml_path.write_text(agent.to_yaml())
+        yaml_path.write_text(agent.to_yaml(redact_sensitive=False))
 
         restored = Agent.from_yaml_file(yaml_path)
         assert restored.name == "yaml-file-load"
         assert restored.instructions == "Loaded from YAML file."
-        assert restored.to_config()["llm_model"]["api_key"] != "***"
+        assert (
+            restored.to_config()["llm_model"]["api_key"].get_secret_value()
+            == "sk-file-load"
+        )
 
     def test_int_03_yaml_redacted_export(self):
         """to_yaml with redact_sensitive=True default masks api_key."""
