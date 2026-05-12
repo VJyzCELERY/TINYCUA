@@ -7,8 +7,9 @@ Reviewed commit range: <base-sha>...<head-sha>
 ### Findings
 
 **[<issue-id>]** - **[<priority>]** - <short description>
-<if inline>: Details inline
-<if not inline>:
+<if addressed>: **Status**: ✅ Addressed / **Resolution**: <what was done>
+<if inline and not addressed>: Details inline
+<if not inline and not addressed>:
 **Why**: <why it matters>
 **Suggestion**: <suggested fix>
 **How to Validate**:
@@ -18,8 +19,9 @@ Reviewed commit range: <base-sha>...<head-sha>
 ```
 
 **[<issue-id>]** - **[<priority>]** - <short description>
-<if inline>: Details inline
-<if not inline>:
+<if addressed>: **Status**: ✅ Addressed / **Resolution**: <what was done>
+<if inline and not addressed>: Details inline
+<if not inline and not addressed>:
 **Why**: <why it matters>
 **Suggestion**: <suggested fix>
 **How to Validate**:
