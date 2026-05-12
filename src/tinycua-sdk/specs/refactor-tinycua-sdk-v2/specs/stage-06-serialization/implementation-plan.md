@@ -4,10 +4,106 @@ Add agent-level JSON/YAML serialization (with sensitive field redaction), skill 
 
 ## Context
 
-- **Spec Reference**: `specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/spec.md`
-- **Design Reference**: `specs/refactor-tinycua-sdk-v2/specs/stage-06-serialization/design.md`
+- **Spec Reference**: `spec.md`
+- **Design Reference**: `design.md`
 - **Priority**: P1
 - **Estimated Effort**: M
+
+## Success Criteria — Integration Tests (TDD First)
+
+Integration tests that prove the feature works. These are written FIRST — before any implementation code. Implementation is only complete when these tests pass.
+
+```python
+# Test file: tests/integration/goals/test_int_06_exporting_agent.py
+"""Integration tests for agent JSON/YAML export and redaction."""
+
+
+def test_agent_json_export_round_trip():
+    """Agent to_config → from_dict round-trip preserves equality."""
+    # Arrange
+    agent = Agent(config=AgentConfig(...))
+    # Act
+    config = agent.to_config()
+    restored = Agent.from_dict(config)
+    # Assert
+    assert restored.to_config() == config
+
+
+def test_agent_json_redaction():
+    """Redacted JSON masks api_key; non-redacted shows full value."""
+    # Arrange
+    agent = Agent(config=AgentConfig(llm_model=LanguageModel(api_key="sk-secret")))
+    # Act
+    redacted = json.loads(agent.to_json(redact_sensitive=True))
+    exposed = json.loads(agent.to_json(redact_sensitive=False))
+    # Assert
+    assert redacted["llm_model"]["api_key"] == "***"
+    assert exposed["llm_model"]["api_key"] == "sk-secret"
+
+
+def test_agent_yaml_round_trip():
+    """YAML export/import round-trip preserves agent config."""
+    # Arrange
+    agent = Agent(config=AgentConfig(...))
+    # Act
+    yaml_str = agent.to_yaml()
+    restored = Agent.from_yaml_file(io.StringIO(yaml_str))
+    # Assert
+    assert restored.to_config() == agent.to_config()
+```
+
+```python
+# Test file: tests/integration/goals/test_int_08_loading_skills_from_directory.py
+"""Integration tests for skill directory loading."""
+
+
+def test_skill_directory_discovery():
+    """Load_directory finds all skill subdirectories with SKILL.md."""
+    # Arrange
+    tmpdir = tmp_path / "skills"
+    (tmpdir / "skill_a" / "SKILL.md").write_text("---\nname: Skill A\ndescription: Does X\n---\nDo X")
+    (tmpdir / "skill_b" / "SKILL.md").write_text("---\nname: Skill B\ndescription: Does Y\n---\nDo Y")
+    # Act
+    skills = Skill.load_directory(tmpdir)
+    # Assert
+    assert len(skills) == 2
+    assert {s.name for s in skills} == {"Skill A", "Skill B"}
+
+
+def test_skill_directory_empty():
+    """load_directory returns empty list for empty directory."""
+    assert Skill.load_directory(tmp_path / "empty") == []
+```
+
+```python
+# Test file: tests/integration/goals/test_int_09_loading_tools_from_directory.py
+"""Integration tests for tool directory loading."""
+
+
+def test_tool_directory_discovery():
+    """load_directory finds @tool functions in subdirectory modules."""
+    # Arrange
+    tmpdir = tmp_path / "tools"
+    mod_dir = tmpdir / "my_tools"
+    mod_dir.mkdir(parents=True)
+    (mod_dir / "__init__.py").write_text("")
+    (mod_dir / "math_tools.py").write_text(
+        "from tinycua_sdk.tools import tool\n\n@tool\ndef add(a: int, b: int) -> int:\n    return a + b\n"
+    )
+    # Act
+    tools = Tool.load_directory(tmpdir)
+    # Assert
+    assert len(tools) == 1
+    assert tools[0].name == "add"
+```
+
+### Key Test Scenarios
+
+- [ ] **Round-trip**: Agent config can be serialized and restored without loss
+- [ ] **Redaction**: api_key is masked by default, exposed when opted out
+- [ ] **Skill discovery**: Directory with multiple SKILL.md files loads correctly
+- [ ] **Tool discovery**: Python modules with @tool decorators load correctly
+- [ ] **Edge case**: Empty directory returns empty list
 
 ## Proposed Changes
 
