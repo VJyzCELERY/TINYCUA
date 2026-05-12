@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal
+
+import yaml
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
@@ -144,9 +148,10 @@ class Agent(AgentExecutor):
 
         if not stream:
             return result
+        assert isinstance(result, AsyncIterator), "stream mode must return AsyncIterator"
         return self._wrap_stream(result)
 
-    async def _wrap_stream(self, gen: AsyncIterator[dict]) -> AsyncGenerator[dict, None]:
+    async def _wrap_stream(self, gen: AsyncIterator[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
         """Pass through stream events and reset cancellation on completion."""
         try:
             async for event in gen:
@@ -188,6 +193,88 @@ class Agent(AgentExecutor):
             tool_permissions=agent_config.tool_permissions,
             approval_workflow=agent_config.approval_workflow,
         )
+
+    def to_json(self, indent: int = 2, redact_sensitive: bool = True) -> str:
+        """Serialize agent to a JSON string.
+
+        Args:
+            indent: Number of spaces for indentation.
+            redact_sensitive: If True, mask api_key as "***".
+
+        Returns:
+            JSON string representation of the agent.
+        """
+        config = self.to_config()
+        self._apply_redaction(config, redact_sensitive)
+        return json.dumps(config, indent=indent)
+
+    def to_yaml(self, redact_sensitive: bool = True) -> str:
+        """Serialize agent to a YAML string.
+
+        Args:
+            redact_sensitive: If True, mask api_key as "***".
+
+        Returns:
+            YAML string representation of the agent.
+        """
+        config = self.to_config()
+        self._apply_redaction(config, redact_sensitive)
+        return yaml.dump(config, default_flow_style=False)
+
+    def _apply_redaction(self, config: dict[str, Any], redact: bool) -> None:
+        """Apply or expose api_key in the config dict in-place.
+
+        Args:
+            config: The configuration dict to modify.
+            redact: If True, set api_key to "***"; if False, expose the actual value.
+        """
+        llm_dict = config.get("llm_model", {})
+        if redact:
+            llm_dict["api_key"] = "***"
+        else:
+            llm_dict["api_key"] = self.config.llm_model.api_key.get_secret_value()
+
+    @classmethod
+    def from_dict(cls, config: dict[str, Any]) -> "Agent":
+        """Create an agent from a configuration dict.
+
+        Args:
+            config: A configuration dictionary.
+
+        Returns:
+            A new Agent instance.
+        """
+        return cls.from_config(config)
+
+    @classmethod
+    def from_json_file(cls, path: str | Path) -> "Agent":
+        """Create an agent from a JSON file.
+
+        Args:
+            path: Path to the JSON file.
+
+        Returns:
+            A new Agent instance.
+        """
+        if isinstance(path, str):
+            path = Path(path)
+        data = json.loads(path.read_text())
+        return cls.from_dict(data)
+
+    @classmethod
+    def from_yaml_file(cls, path: str | Path) -> "Agent":
+        """Create an agent from a YAML file.
+
+        Args:
+            path: Path to the YAML file.
+
+        Returns:
+            A new Agent instance.
+        """
+        if isinstance(path, str):
+            path = Path(path)
+        data = yaml.safe_load(path.read_text())
+        return cls.from_dict(data)
 
 
 __all__ = ["Agent"]

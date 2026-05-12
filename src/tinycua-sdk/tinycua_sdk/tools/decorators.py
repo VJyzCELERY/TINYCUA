@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import re
+import sys
+import types
+from pathlib import Path
 from typing import Any, Callable
 
 from tinycua_sdk.tools.schema import type_to_json_schema
@@ -82,6 +86,66 @@ class Tool:
             description=description,
             parameters=parameters,
         )
+
+    @classmethod
+    def from_config(cls, data: dict[str, Any]) -> "Tool":
+        """Create a Tool from a configuration dict (public alias for from_dict).
+
+        Args:
+            data: A dict with tool configuration, supports both bare
+                (name/description/parameters) and OpenAI-style
+                (function/name/description/parameters) formats.
+
+        Returns:
+            A Tool instance.
+        """
+        return cls.from_dict(data)
+
+    @classmethod
+    def load_directory(cls, path: Path) -> list["Tool"]:
+        """Load all tools from a directory of tool subdirectories.
+
+        Scans each immediate subdirectory for Python modules (skipping files
+        prefixed with _), loads them via importlib, and collects all Tool
+        instances.
+
+        If *path* itself contains loadable ``.py`` files (i.e. is a single
+        tool package), it is scanned directly. Otherwise each immediate
+        subdirectory is treated as a package.
+
+        Args:
+            path: Path to the directory containing tool subdirectories.
+
+        Returns:
+            List of Tool instances found.
+        """
+        tools: list[Tool] = []
+        path = Path(path)
+        py_files = sorted(path.glob("*.py"))
+        non_private = [f for f in py_files if not f.name.startswith("_")]
+
+        targets: list[Path] = []
+        if non_private:
+            targets.append(path)
+        targets.extend(p for p in sorted(path.iterdir()) if p.is_dir())
+
+        for target in targets:
+            global _load_counter
+            _load_counter += 1
+            uid = str(_load_counter)
+            package_name = f"__tinycua_tools_{uid}"
+            pkg = types.ModuleType(package_name)
+            pkg.__path__ = [str(target)]
+            pkg.__package__ = package_name
+            sys.modules[package_name] = pkg
+            for py_file in sorted(target.glob("*.py")):
+                if py_file.name.startswith("_"):
+                    continue
+                module = _load_module_from_path(py_file, package_name=package_name)
+                for _name, obj in inspect.getmembers(module):
+                    if isinstance(obj, Tool):
+                        tools.append(obj)
+        return tools
 
     @classmethod
     def from_callable(
@@ -211,3 +275,33 @@ def tool(
 
 
 __all__ = ["Tool", "tool"]
+
+
+_load_counter: int = 0
+
+
+def _load_module_from_path(path: Path, package_name: str | None = None) -> object:
+    """Load a Python module from a file path with optional package context.
+
+    Args:
+        path: Path to the Python file to load.
+        package_name: If provided, the module is loaded as a child of this
+            package, enabling relative imports.
+
+    Returns:
+        The loaded module.
+
+    Raises:
+        ImportError: If the module cannot be loaded.
+    """
+    module_name = f"{package_name}.{path.stem}" if package_name else path.stem
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        msg = f"Cannot load module from {path}"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    if package_name:
+        module.__package__ = package_name
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module

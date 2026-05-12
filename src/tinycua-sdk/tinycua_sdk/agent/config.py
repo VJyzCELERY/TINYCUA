@@ -58,8 +58,6 @@ class AgentConfig(BaseModel):
             "policy": self.policy.model_dump(),
             "metadata": self.metadata,
             "tool_permissions": self.tool_permissions,
-            "loop": self.loop,
-            "approval_workflow": self.approval_workflow,
         }
         return config
 
