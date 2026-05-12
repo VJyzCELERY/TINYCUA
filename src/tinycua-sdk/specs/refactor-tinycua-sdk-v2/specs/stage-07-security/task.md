@@ -7,6 +7,8 @@ Implementation tasks for Stage 7 Security. Check off items as completed.
 - [ ] Write integration tests for guardrail behavior in `tests/integration/goals/test_adv_02_guardrail_system.py` <!-- id: 0 -->
 - [ ] Write integration tests for permission behavior in `tests/integration/goals/test_adv_03_permission_system.py` <!-- id: 1 -->
 - [ ] Run integration tests - expect RED before implementation: `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py tests/integration/goals/test_adv_03_permission_system.py -v` <!-- id: 2 -->
+- [ ] Write unit tests for `ToolExecutor.execute()` permission and approval branches - single workflow, workflow list, first-denial short-circuit, all-approved, deny-before-workflow, and `"ask"` without workflow <!-- id: 9a -->
+- [ ] Run unit tests - expect RED before implementation: `cd src/tinycua-sdk && uv run pytest tests/unit/test_tool_executor.py tests/unit/test_approval.py -v` <!-- id: 9b -->
 
 ## Implementation Phase
 

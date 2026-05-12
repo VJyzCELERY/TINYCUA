@@ -31,7 +31,7 @@ Adds declarative tool permissions and approval guardrails to the tinycua-sdk too
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.11+
+- [x] **Runtime**: Python 3.12+
 - [x] **Package manager**: uv
 - [x] **Additional CLI tools**: pytest via project dependencies
 
@@ -40,6 +40,8 @@ Adds declarative tool permissions and approval guardrails to the tinycua-sdk too
 ## Success Criteria - Integration Tests (TDD First)
 
 The integration tests below are written before implementation changes. They prove that consumer-defined guardrails and mutable permission maps work through the public SDK surface.
+
+**Note**: The first two code blocks validate `ToolExecutor.execute()` directly — focused executor coverage that proves permission and guardrail logic returns the correct dicts. The third code block drives the full `Agent.run()` loop to prove that a denied result propagates as a `tool`-role message in agent message history (the end-to-end security UX requirement).
 
 ```python
 # Test file: tests/integration/goals/test_adv_02_guardrail_system.py
@@ -136,6 +138,47 @@ async def test_multiple_guardrails_first_denial_wins():
 ```
 
 ```python
+# Test file: tests/integration/goals/test_adv_02_guardrail_system.py (continued)
+"""Agent-loop level test: denied result propagates as tool message."""
+
+
+class MockReturningLanguageModel(LanguageModel):
+    async def generate(self, messages, tools=None):
+        return {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {"id": "call_denied", "function": {"name": "delete_file", "arguments": '{"path": "secret.txt"}'}}
+            ],
+        }
+
+
+async def test_agent_loop_propagates_denied_tool_as_message():
+    """Denied tool result propagates through Agent.run() as a tool-role message."""
+    invoked = False
+
+    @tool(name="delete_file")
+    def delete_file(path: str) -> str:
+        nonlocal invoked
+        invoked = True
+        return f"deleted {path}"
+
+    agent = Agent(
+        llm_model=MockReturningLanguageModel(),
+        tool_permissions={"delete_file": "ask"},
+        approval_workflow=DangerousToolGuardrail(),
+        tools=[delete_file],
+    )
+
+    messages = await Agent.run(agent, "Delete secret.txt")
+    tool_messages = [m for m in messages if m.get("role") == "tool"]
+
+    assert len(tool_messages) >= 1
+    assert any("Dangerous tool blocked." in str(m.get("content", "")) for m in tool_messages)
+    assert invoked is False
+```
+
+```python
 # Test file: tests/integration/goals/test_adv_03_permission_system.py
 """Integration tests for tool permission maps."""
 
@@ -224,6 +267,7 @@ async def test_runtime_permission_mutation_applies_immediately():
 - [ ] **Permission Map Deny**: `tool_permissions[tool_name] = "deny"` blocks before any approval workflow runs.
 - [ ] **Permission Map Ask**: `tool_permissions[tool_name] = "ask"` calls the approval workflow before invoking the tool.
 - [ ] **Runtime Permission Mutation**: mutating `agent.tool_permissions` affects subsequent tool executions immediately.
+- [ ] **Agent Loop Denial Propagation**: a denied tool result is propagated through `Agent.run()` as a `tool`-role message in the conversation history.
 
 ## Verification Plan
 
@@ -235,7 +279,6 @@ async def test_runtime_permission_mutation_applies_immediately():
 
 ### Manual Verification
 
-- [ ] Confirm a denied tool result is returned as a dict and can be stringified into the agent loop tool message history.
 - [ ] Confirm `Agent.tool_permissions` defaults to `{}` and missing tool names default to `"allow"`.
 - [ ] Confirm public imports still expose `Agent`, `tool`, and approval workflow classes needed by consumer code.
 
