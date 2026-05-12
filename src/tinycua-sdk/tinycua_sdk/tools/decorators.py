@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import re
+import sys
+from pathlib import Path
 from typing import Any, Callable
 
 from tinycua_sdk.tools.schema import type_to_json_schema
@@ -82,6 +85,47 @@ class Tool:
             description=description,
             parameters=parameters,
         )
+
+    @classmethod
+    def from_config(cls, data: dict[str, Any]) -> "Tool":
+        """Create a Tool from a configuration dict (public alias for from_dict).
+
+        Args:
+            data: A dict with tool configuration, supports both bare
+                (name/description/parameters) and OpenAI-style
+                (function/name/description/parameters) formats.
+
+        Returns:
+            A Tool instance.
+        """
+        return cls.from_dict(data)
+
+    @classmethod
+    def load_directory(cls, path: Path) -> list["Tool"]:
+        """Load all tools from a directory of tool subdirectories.
+
+        Scans each immediate subdirectory for Python modules (skipping files
+        prefixed with _), loads them via importlib, and collects all Tool
+        instances.
+
+        Args:
+            path: Path to the directory containing tool subdirectories.
+
+        Returns:
+            List of Tool instances found.
+        """
+        tools: list[Tool] = []
+        for subdir in sorted(Path(path).iterdir()):
+            if not subdir.is_dir():
+                continue
+            for py_file in sorted(subdir.glob("*.py")):
+                if py_file.name.startswith("_"):
+                    continue
+                module = _load_module_from_path(py_file)
+                for _name, obj in inspect.getmembers(module):
+                    if isinstance(obj, Tool):
+                        tools.append(obj)
+        return tools
 
     @classmethod
     def from_callable(
@@ -211,3 +255,25 @@ def tool(
 
 
 __all__ = ["Tool", "tool"]
+
+
+def _load_module_from_path(path: Path) -> object:
+    """Load a Python module from a file path.
+
+    Args:
+        path: Path to the Python file to load.
+
+    Returns:
+        The loaded module.
+
+    Raises:
+        ImportError: If the module cannot be loaded.
+    """
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    if spec is None or spec.loader is None:
+        msg = f"Cannot load module from {path}"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
