@@ -9,6 +9,56 @@
 - **Priority**: [P0|P1|P2|P3]
 - **Estimated Effort**: [XS|S|M|L|XL]
 
+## Environment Pre-requisites
+
+List everything that must be set up before the implementation and tests can run. This ensures the developer (agent or human) has a working environment from the start.
+
+> If no special environment setup is needed, mark this section as **N/A** and remove the checklist items below. Do not leave empty checkboxes.
+
+### Configuration
+
+- [ ] **.env file** — required variables:
+  ```
+  # [Service/API Name]
+  API_KEY=xxx
+  API_URL=http://localhost:8000
+  DATABASE_URL=postgresql://user:pass@localhost:5432/db
+  ```
+- [ ] **Environment variables** documented in [path/to/.env.example or docs]
+- [ ] **Secrets/credentials** needed (API tokens, service accounts)
+- [ ] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+| Service | Required | How to Start | Health Check |
+|---------|----------|--------------|--------------|
+| [e.g., PostgreSQL] | Yes / No | `docker compose up -d db` | `pg_isready` |
+| [e.g., Redis] | Yes / No | `docker compose up -d redis` | `redis-cli ping` |
+| [e.g., API server] | Yes / No | `uv run uvicorn app.main:app` | `curl localhost:8000/health` |
+|- [ ] **None** — no external services needed
+
+### Data / Fixtures
+
+- [ ] **Test database migrations**: `uv run alembic upgrade head`
+- [ ] **Seed data** loaded: `uv run python scripts/seed.py`
+- [ ] **Mock external services** if applicable (e.g., WireMock, localstack)
+- [ ] **None** — no data or fixtures needed
+
+### Access / Permissions
+
+- [ ] [User account / API key / OAuth token needed]
+- [ ] [Firewall rules / VPN / Tailscale access]
+- [ ] **None** — no special access required
+
+### Developer Tooling
+
+- [ ] **Runtime**: Python [version], Node [version], Docker [version]
+- [ ] **Package manager**: uv / pip / npm
+- [ ] **Additional CLI tools**: [e.g., jq, aws-cli, httpie]
+- [ ] **None** — no special tooling required
+
+---
+
 ## Success Criteria — Integration Tests (TDD First)
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
