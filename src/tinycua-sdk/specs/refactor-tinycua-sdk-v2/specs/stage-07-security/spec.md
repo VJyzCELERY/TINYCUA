@@ -12,14 +12,14 @@ Declarative and custom guardrails control tool execution. Consumers can define p
 All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../docs/ROADMAP.md#principles).
 
 ## References
-- [`goals/advanced/02_guardrail_system.py`](../goals/advanced/02_guardrail_system.py)
-- [`goals/advanced/03_permission_system.py`](../goals/advanced/03_permission_system.py)
+- [`goals/advanced/02_guardrail_system.py`](../../goals/advanced/02_guardrail_system.py)
+- [`goals/advanced/03_permission_system.py`](../../goals/advanced/03_permission_system.py)
 
 ## Requirements
 
 ### R-7.1: ApprovalWorkflow Integration
 
-- `ToolExecutor` calls `approval_workflow.request_approval(tool_name, arguments)` before executing any tool.
+- `ToolExecutor` evaluates `agent.tool_permissions[tool_name]` first: when the effective permission is "ask", it calls `approval_workflow.request_approval(tool_name, arguments)`; "allow" executes immediately; "deny" blocks before any workflow.
 - Must return a dict with at least `{"approved": bool}`.
 - If `approved: False`, the tool is skipped and the agent receives the denial reason in the message history.
 - Multiple guardrails can be chained (as a list). Checked in order; first denial wins.
@@ -28,7 +28,7 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 - `Agent.tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = {}`
 - `"allow"` → execute immediately.
-- `"deny"` → block immediately, return `{"error": "Tool 'X' is denied."}` to agent.
+- `"deny"` → block immediately, return `{"error": "Tool 'X' is denied by permission map."}` to agent.
 - `"ask"` → route through `ApprovalWorkflow`.
 - Default is `"allow"` when tool name is not in the map.
 - Can be mutated at runtime: `agent.tool_permissions["shell_execute"] = "deny"`.
@@ -84,7 +84,13 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] Runtime Permission Mutation - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
   Description: Changing `tool_permissions` at runtime works immediately.
 
-- [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 2 passed, 0 failed - pytest -v
+- [ ] Chained guardrails First Denial Wins - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+  Description: Multiple chained guardrails stop at the first denial; later guardrails and tool invocation are skipped.
+
+- [ ] Agent Loop Denial Propagation - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+  Description: A denied tool result propagates through `Agent.run()` as a `tool`-role message in message history.
+
+- [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 4 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_adv_02_guardrail_system.py`
