@@ -41,7 +41,7 @@ Adds declarative tool permissions and approval guardrails to the tinycua-sdk too
 
 The integration tests below are written before implementation changes. They prove that consumer-defined guardrails and mutable permission maps work through the public SDK surface.
 
-**Note**: The first two code blocks validate `ToolExecutor.execute()` directly — focused executor coverage that proves permission and guardrail logic returns the correct dicts. The third code block drives the full `Agent.run()` loop to prove that a denied result propagates as a `tool`-role message in agent message history (the end-to-end security UX requirement).
+**Note**: The first two code blocks validate `ToolExecutor.execute()` directly — focused executor coverage that proves permission and guardrail logic returns the correct dicts. The third code block drives the full `Agent.run()` loop to prove that a denied result propagates the denial reason through `Agent.run()` (the end-to-end security UX requirement).
 
 ```python
 # Test file: tests/integration/goals/test_adv_02_guardrail_system.py
@@ -139,22 +139,11 @@ async def test_multiple_guardrails_first_denial_wins():
 
 ```python
 # Test file: tests/integration/goals/test_adv_02_guardrail_system.py (continued)
-"""Agent-loop level test: denied result propagates as tool message."""
-
-
-class MockReturningLanguageModel(LanguageModel):
-    async def generate(self, messages, tools=None):
-        return {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {"id": "call_denied", "function": {"name": "delete_file", "arguments": '{"path": "secret.txt"}'}}
-            ],
-        }
+"""Agent-loop level test: denied result propagates through Agent.run()."""
 
 
 async def test_agent_loop_propagates_denied_tool_as_message():
-    """Denied tool result propagates through Agent.run() as a tool-role message."""
+    """Denied tool result propagates through Agent.run() as a denied response."""
     invoked = False
 
     @tool(name="delete_file")
@@ -163,19 +152,40 @@ async def test_agent_loop_propagates_denied_tool_as_message():
         invoked = True
         return f"deleted {path}"
 
+    call_count = 0
+    second_call_messages = None
+
+    async def fake_call_llm(messages, tools=None):
+        nonlocal call_count, second_call_messages
+        call_count += 1
+        if call_count == 1:
+            return {
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_denied", "name": "delete_file", "arguments": '{"path": "secret.txt"}'}
+                ],
+            }
+        second_call_messages = messages
+        return {"content": "The tool delete_file was denied because it requires manual approval."}
+
     agent = Agent(
-        llm_model=MockReturningLanguageModel(),
+        llm_model=LanguageModel(),
         tool_permissions={"delete_file": "ask"},
         approval_workflow=DangerousToolGuardrail(),
         tools=[delete_file],
     )
+    agent._call_llm = fake_call_llm
 
-    messages = await Agent.run(agent, "Delete secret.txt")
-    tool_messages = [m for m in messages if m.get("role") == "tool"]
+    result = await Agent.run(agent, "Delete secret.txt")
 
-    assert len(tool_messages) >= 1
-    assert any("Dangerous tool blocked." in str(m.get("content", "")) for m in tool_messages)
     assert invoked is False
+    assert call_count == 2
+    assert any(
+        isinstance(m, dict) and m.get("type") == "function_call_output"
+        and "Dangerous tool blocked" in m.get("output", "")
+        for m in (second_call_messages or [])
+    )
+    assert "denied" in result.lower() or "blocked" in result.lower()
 ```
 
 ```python

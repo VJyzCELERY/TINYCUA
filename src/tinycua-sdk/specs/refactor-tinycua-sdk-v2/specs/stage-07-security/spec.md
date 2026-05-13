@@ -90,7 +90,7 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] Agent Loop Denial Propagation - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
   Description: A denied tool result propagates through `Agent.run()` as a `tool`-role message in message history.
 
-- [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 4 passed, 0 failed - pytest -v
+- [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 7 passed, 0 failed - pytest -v
 
 ## Integration Test Files
 - `tests/integration/goals/test_adv_02_guardrail_system.py`
