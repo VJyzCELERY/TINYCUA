@@ -69,26 +69,26 @@ Each success criterion must be validated by running the specified target file(s)
 
 Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
 
-- [ ] DangerousToolGuardrail Blocks - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+- [ ] DangerousToolGuardrail Blocks - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py::test_dangerous_tool_guardrail_blocks -v`
   Description: Dangerous tools are blocked by guardrail.
 
-- [ ] LoggingGuardrail Logs Without Blocking - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+- [ ] LoggingGuardrail Logs Without Blocking - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py::test_logging_guardrail_logs_without_blocking -v`
   Description: Logging guardrail records but does not block.
 
-- [ ] Permission Map Deny - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+- [ ] Permission Map Deny - tests/integration/goals/test_adv_03_permission_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_03_permission_system.py::test_permission_map_deny_blocks_without_guardrail -v`
   Description: `"deny"` in `tool_permissions` blocks without guardrail.
 
-- [ ] Permission Map Ask - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+- [ ] Permission Map Ask - tests/integration/goals/test_adv_03_permission_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_03_permission_system.py::test_permission_map_ask_triggers_guardrail -v`
   Description: `"ask"` triggers guardrail.
 
-- [ ] Runtime Permission Mutation - tests/integration/goals/test_adv_03_permission_system.py - PASS - `print('PASS')`
+- [ ] Runtime Permission Mutation - tests/integration/goals/test_adv_03_permission_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_03_permission_system.py::test_runtime_permission_mutation_applies_immediately -v`
   Description: Changing `tool_permissions` at runtime works immediately.
 
-- [ ] Chained guardrails First Denial Wins - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
+- [ ] Chained guardrails First Denial Wins - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py::test_multiple_guardrails_first_denial_wins -v`
   Description: Multiple chained guardrails stop at the first denial; later guardrails and tool invocation are skipped.
 
-- [ ] Agent Loop Denial Propagation - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `print('PASS')`
-  Description: A denied tool result propagates through `Agent.run()` as a `tool`-role message in message history.
+- [ ] Agent Loop Denial Propagation - tests/integration/goals/test_adv_02_guardrail_system.py - PASS - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py::test_agent_loop_propagates_denied_tool_as_message -v`
+  Description: A denied tool result propagates through `Agent.run()` as a `function_call_output` item in the conversation history, matching the SDK's existing response contract (`src/tinycua-sdk/tinycua_sdk/agent/loop.py:127-132`).
 
 - [ ] Integration Tests Pass - tests/integration/goals/test_adv_02_guardrail_system.py, tests/integration/goals/test_adv_03_permission_system.py - 7 passed, 0 failed - pytest -v
 

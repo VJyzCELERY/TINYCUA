@@ -4,7 +4,7 @@
 
 ## Implementation
 
-No new files. This enhances `ToolExecutor.execute()` from Stage 3.
+No new files. This enhances `ToolExecutor.execute()` from Stage 3 and expands `Agent` / `AgentConfig` to carry permission and workflow policy.
 
 ### `ToolExecutor.execute()` (updated)
 
@@ -37,6 +37,40 @@ class ToolExecutor:
         return tool.invoke(**arguments)
 ```
 
+### `Agent` & `AgentConfig` API Changes
+
+The `Agent` constructor accepts optional permission and workflow parameters:
+
+```python
+from tinycua_sdk.security.approval import ApprovalWorkflow
+from typing import Literal
+
+ToolPermission = Literal["allow", "ask", "deny"]
+
+
+class AgentConfig:
+    tool_permissions: dict[str, ToolPermission] = {}
+    approval_workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None = None
+
+
+class Agent:
+    def __init__(
+        self,
+        ...,
+        tool_permissions: dict[str, ToolPermission] | None = None,
+        approval_workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None = None,
+    ):
+        self._config.tool_permissions = tool_permissions or {}
+        self._config.approval_workflow = approval_workflow
+```
+
+`Agent.tool_permissions` is a mutable property backed by `AgentConfig.tool_permissions`, allowing runtime mutation:
+
+```python
+agent.tool_permissions["shell_execute"] = "deny"   # blocks immediately
+agent.tool_permissions["read_file"] = "ask"          # routes through guardrails
+```
+
 ## Design Decisions
 
 ### Permission Check Order
@@ -61,14 +95,15 @@ agent = Agent(
 ```
 
 ### Tool Result on Denial
-When a tool is denied, the result is a dict. It gets stringified and appended to the message history as a `tool` role message:
+When a tool is denied, the result is a dict. It gets stringified and appended to the conversation history as a `function_call_output` item, matching the SDK's existing loop contract in `Agent.run()` (`src/tinycua-sdk/tinycua_sdk/agent/loop.py:127-132`):
 ```python
-messages.append({
-    "role": "tool",
-    "tool_call_id": tc["id"],
-    "name": tool_name,
-    "content": str(denial_result),  # e.g., '{"approved": false, "reason": "Blocked"}'
-})
+from tinycua_sdk.models.response import FunctionCallOutput
+
+# Inside Agent.run(), after execute returns a denial dict:
+item = FunctionCallOutput(
+    call_id=tc["id"],
+    output=str(denial_result),  # e.g., '{"approved": false, "reason": "Blocked"}'
+)
 ```
 
 This lets the LLM see why the tool was blocked and respond accordingly.
@@ -113,6 +148,8 @@ ToolExecutor.execute(write_file, {...}, agent)
 | File | Change |
 |------|--------|
 | `agent/executor.py` | Update `ToolExecutor.execute()` with permission + approval logic |
+| `agent/agent.py` | Accept `tool_permissions` and `approval_workflow` in constructor; expose mutable `tool_permissions` property |
+| `agent/config.py` | Add `tool_permissions: dict[str, ToolPermission]` and `approval_workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None` |
 | `security/approval.py` | Already has ABC from Stage 3; ensure it supports all patterns |
 
 ## Testing Strategy
