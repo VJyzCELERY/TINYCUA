@@ -274,16 +274,16 @@ def cmd_fetch_pr(args):
         
         # Title section
         print("---")
-        print(f"Title : **{data['title']}**")
+        print(f"Title : {data['title']}")
         
         # Body section
         body = data.get('body', '')
         print("---")
         print("Body :")
         if body:
-            print(f"**{body}**")
+            print(f"{body}")
         else:
-            print("**(no body)**")
+            print("(no body)")
         print("---")
         
         print(f"\n[INFO] Use --json to specify custom fields: gh.py fetch pr {pr} --json number,title,state")
