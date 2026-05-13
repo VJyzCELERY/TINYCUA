@@ -6,29 +6,29 @@ Configures LoRA parameters for QLoRA fine-tuning:
 - RSLoRA enabled for better convergence
 """
 
-from unsloth import FastLanguageModel
 
-from state import model, RANDOM_SEED, LORA_RANK
+def run(state):
+    from unsloth import FastLanguageModel
 
-print("Configuring LoRA adapter...")
-print(f"  - Random seed: {RANDOM_SEED}")
-print(f"  - LoRA rank: {LORA_RANK}")
-print(f"  - Target modules: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj")
+    print("Configuring LoRA adapter...")
+    print(f"  - Random seed: {state.RANDOM_SEED}")
+    print(f"  - LoRA rank: {state.LORA_RANK}")
+    print(f"  - Target modules: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj")
 
-model = FastLanguageModel.get_peft_model(
-    model,
-    r=LORA_RANK,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                    "gate_proj", "up_proj", "down_proj"],
-    lora_alpha=LORA_RANK,
-    lora_dropout=0,
-    bias="none",
-    use_gradient_checkpointing="unsloth",
-    random_state=RANDOM_SEED,
-    use_rslora=True,
-)
+    state.model = FastLanguageModel.get_peft_model(
+        state.model,
+        r=state.LORA_RANK,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                        "gate_proj", "up_proj", "down_proj"],
+        lora_alpha=state.LORA_RANK,
+        lora_dropout=0,
+        bias="none",
+        use_gradient_checkpointing="unsloth",
+        random_state=state.RANDOM_SEED,
+        use_rslora=True,
+    )
 
-print("LoRA adapter configured with QLoRA optimization (RSLoRA enabled)")
+    print("LoRA adapter configured with QLoRA optimization (RSLoRA enabled)")
 
 
 def main():

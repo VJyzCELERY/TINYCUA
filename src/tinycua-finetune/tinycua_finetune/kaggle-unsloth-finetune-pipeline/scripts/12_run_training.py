@@ -4,17 +4,17 @@ Executes the QLoRA fine-tuning training loop.
 Trains for 20 steps (test run) as configured in step 10.
 """
 
-from state import trainer
 
-print("=" * 50)
-print("Starting training...")
-print("=" * 50)
+def run(state):
+    print("=" * 50)
+    print("Starting training...")
+    print("=" * 50)
 
-trainer.train()
+    state.trainer.train()
 
-print("=" * 50)
-print("Training complete!")
-print("=" * 50)
+    print("=" * 50)
+    print("Training complete!")
+    print("=" * 50)
 
 
 def main():

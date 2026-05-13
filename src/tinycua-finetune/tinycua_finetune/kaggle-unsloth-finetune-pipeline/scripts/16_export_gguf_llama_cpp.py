@@ -4,25 +4,24 @@ If direct GGUF export failed, clones llama.cpp and converts the merged model to 
 This is a fallback method when Unsloth's direct export fails.
 """
 
-import os
 
-from state import GGUF_SUCCESS, output_directory
+def run(state):
+    if not state.GGUF_SUCCESS:
+        print("Cloning llama.cpp...")
 
-if not GGUF_SUCCESS:
-    print("Cloning llama.cpp...")
+        import os
+        os.system("git clone --depth 1 https://github.com/ggerganov/llama.cpp.git")
 
-    os.system("git clone --depth 1 https://github.com/ggerganov/llama.cpp.git")
+        print("Converting to GGUF Q4_K_M...")
+        os.system(
+            f"python llama.cpp/convert_hf_to_gguf.py {state.output_directory}qwen_tool_calling_merged "
+            f"--outfile {state.output_directory}qwen_tool_calling_q4km.gguf --outtype q4_k_m "
+            f"--split-max-size 2G"
+        )
 
-    print("Converting to GGUF Q4_K_M...")
-    os.system(
-        f"python llama.cpp/convert_hf_to_gguf.py {output_directory}qwen_tool_calling_merged "
-        f"--outfile {output_directory}qwen_tool_calling_q4km.gguf --outtype q4_k_m "
-        f"--split-max-size 2G"
-    )
-
-    print(f"GGUF Q4_K_M saved via llama.cpp")
-else:
-    print("Skipping llama.cpp - direct export succeeded")
+        print(f"GGUF Q4_K_M saved via llama.cpp")
+    else:
+        print("Skipping llama.cpp - direct export succeeded")
 
 
 def main():

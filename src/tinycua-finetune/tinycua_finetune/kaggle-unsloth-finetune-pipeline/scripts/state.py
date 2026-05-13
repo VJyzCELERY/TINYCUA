@@ -8,6 +8,7 @@ model = None
 tokenizer = None
 dataset = None
 dataset_final = None
+processed = None
 trainer = None
 
 wandb_key = None
