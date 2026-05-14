@@ -146,11 +146,12 @@ def main():
 
     print(f"{'DRY-RUN: ' if dry_run else ''}Plan: {len(steps)} step(s): {steps}")
 
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
     if dry_run:
         print("\n--- Prerequisites Check ---")
         check_prerequisites(steps)
 
-        sys.path.insert(0, str(SCRIPTS_DIR))
     import state as _state
     run_steps(steps, _state, dry_run=dry_run)
 

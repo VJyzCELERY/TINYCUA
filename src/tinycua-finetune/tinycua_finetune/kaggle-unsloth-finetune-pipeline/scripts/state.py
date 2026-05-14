@@ -11,6 +11,7 @@ dataset_final = None
 processed = None
 trainer = None
 
+model_name = "unsloth/Qwen3-4B-Base"
 wandb_key = None
 hf_token = None
 output_directory = "/kaggle/working/"

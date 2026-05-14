@@ -17,8 +17,9 @@ def run(state):
         bnb_4bit_quant_type="nf4",
     )
 
+    model_name = getattr(state, "model_name", "unsloth/Qwen3-4B-Base")
     state.model, state.tokenizer = FastLanguageModel.from_pretrained(
-        model_name="unsloth/Qwen3-4B-Base",
+        model_name=model_name,
         max_seq_length=2048,
         load_in_4bit=True,
         load_in_8bit=False,

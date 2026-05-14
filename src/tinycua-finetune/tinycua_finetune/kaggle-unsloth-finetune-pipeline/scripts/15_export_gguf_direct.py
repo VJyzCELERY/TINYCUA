@@ -24,7 +24,7 @@ def run(state):
 
 
 def main():
-    print(f"Step 15 complete: GGUF export {'succeeded' if False else 'failed - will use llama.cpp fallback'}")
+    print("Step 15 complete: GGUF export status unknown (run via pipeline for actual result)")
 
 
 if __name__ == "__main__":
