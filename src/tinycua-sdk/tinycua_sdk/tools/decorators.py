@@ -149,12 +149,13 @@ class Tool:
 
     @classmethod
     def from_callable(
-        cls, fn: Callable, dependencies: list[str] | None = None
+        cls, fn: Callable, name: str | None = None, dependencies: list[str] | None = None
     ) -> "Tool":
         """Create a Tool from a function by inspecting its signature and docstring.
 
         Args:
             fn: The function to convert into a Tool.
+            name: Optional override for the tool name (defaults to function name).
             dependencies: Optional list of external dependency names.
 
         Returns:
@@ -189,7 +190,7 @@ class Tool:
         first_line = docstring.strip().split("\n")[0] if docstring.strip() else ""
 
         return cls(
-            name=fn.__name__,
+            name=name or fn.__name__,
             description=first_line,
             parameters={
                 "type": "object",
@@ -243,6 +244,7 @@ def _parse_param_descriptions(docstring: str) -> dict[str, str]:
 def tool(
     fn: Callable | None = None,
     *,
+    name: str | None = None,
     dependencies: list[str] | None = None,
 ) -> Tool | Callable[[Callable], Tool]:
     """Decorator to convert a function into a Tool.
@@ -254,11 +256,15 @@ def tool(
         @tool()
         def func(): ...
 
+        @tool(name="custom_name")
+        def func(): ...
+
         @tool(dependencies=["requests"])
         def func(): ...
 
     Args:
         fn: The function to convert. If None, returns a decorator.
+        name: Optional override for the tool name (defaults to function name).
         dependencies: Optional list of external dependency package names.
 
     Returns:
@@ -267,11 +273,11 @@ def tool(
     if fn is None:
 
         def decorator(f: Callable) -> Tool:
-            return Tool.from_callable(f, dependencies or [])
+            return Tool.from_callable(f, name=name, dependencies=dependencies or [])
 
         return decorator
 
-    return Tool.from_callable(fn, dependencies or [])
+    return Tool.from_callable(fn, name=name, dependencies=dependencies or [])
 
 
 __all__ = ["Tool", "tool"]

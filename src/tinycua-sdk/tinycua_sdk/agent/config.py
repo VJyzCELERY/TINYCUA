@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,7 +38,7 @@ class AgentConfig(BaseModel):
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
         default_factory=dict
     )
-    approval_workflow: ApprovalWorkflow | None = None
+    approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict.

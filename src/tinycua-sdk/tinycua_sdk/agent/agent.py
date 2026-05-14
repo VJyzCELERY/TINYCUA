@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal, Union
 
 import yaml
 
@@ -49,7 +49,7 @@ class Agent(AgentExecutor):
         metadata: dict | None = None,
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
-        approval_workflow: ApprovalWorkflow | None = None,
+        approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None,
     ):
         config = AgentConfig(
             name=name,
