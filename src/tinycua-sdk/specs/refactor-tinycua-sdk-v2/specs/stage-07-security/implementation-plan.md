@@ -277,6 +277,7 @@ async def test_runtime_permission_mutation_applies_immediately():
 - [ ] **Permission Map Deny**: `tool_permissions[tool_name] = "deny"` blocks before any approval workflow runs.
 - [ ] **Permission Map Ask**: `tool_permissions[tool_name] = "ask"` calls the approval workflow before invoking the tool.
 - [ ] **Runtime Permission Mutation**: mutating `agent.tool_permissions` affects subsequent tool executions immediately.
+- [ ] **Invalid Permission Denied**: an unexpected permission value (e.g., `"denny"`) is treated as deny and never reaches invocation.
 - [ ] **Agent Loop Denial Propagation**: a denied tool result is propagated through `Agent.run()` as a `function_call_output` item in the conversation history (matching `loop.py:127-132`).
 
 ## Verification Plan

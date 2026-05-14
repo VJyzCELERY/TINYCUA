@@ -13,6 +13,7 @@ Implementation tasks for Stage 7 Security. Check off items as completed.
 ## Implementation Phase
 
 - [ ] Add or confirm `AgentConfig.tool_permissions` and `AgentConfig.approval_workflow` fields support the stage-07 API <!-- id: 3 -->
+- [ ] Add invalid-permission fail-closed branch in `ToolExecutor.execute()` after the deny check and before the ask/approval block <!-- id: 3a -->
 - [ ] Add or confirm `Agent.tool_permissions` is mutable and backed by config state <!-- id: 4 -->
 - [ ] Update `ToolExecutor.execute()` permission handling <!-- id: 5 -->
   - [ ] Default missing permission entries to `"allow"`

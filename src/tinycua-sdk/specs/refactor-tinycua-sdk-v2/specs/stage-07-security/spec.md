@@ -26,10 +26,12 @@ All stages adhere to the principles defined in [`ROADMAP.md#principles`](../../d
 
 ### R-7.2: tool_permissions on Agent
 
-- `Agent.tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = {}`
+- `Agent.tool_permissions: dict[str, Literal["allow", "ask", "deny"]]`
+  (defaults to empty per-agent dict; use `Field(default_factory=dict)` for Pydantic models)
 - `"allow"` → execute immediately.
 - `"deny"` → block immediately, return `{"error": "Tool 'X' is denied by permission map."}` to agent.
 - `"ask"` → route through `ApprovalWorkflow`.
+- Any other value (invalid permission) → deny immediately with `{"error": "Tool 'X' has invalid permission 'Y'. Denying execution."}`.
 - Default is `"allow"` when tool name is not in the map.
 - Can be mutated at runtime: `agent.tool_permissions["shell_execute"] = "deny"`.
 

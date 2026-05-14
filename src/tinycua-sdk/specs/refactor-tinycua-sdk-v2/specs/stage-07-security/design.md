@@ -17,7 +17,11 @@ class ToolExecutor:
         if permission == "deny":
             return {"error": f"Tool '{tool.name}' is denied by permission map."}
 
-        # 2. Approval check
+        # 2. Fail closed for invalid permission values
+        if permission not in ("allow", "ask"):
+            return {"error": f"Tool '{tool.name}' has invalid permission '{permission}'. Denying execution."}
+
+        # 3. Approval check
         if permission == "ask":
             workflows = agent.approval_workflow
             if workflows is None:
@@ -33,7 +37,7 @@ class ToolExecutor:
                 if not approval.get("approved"):
                     return approval  # Return first denial
 
-        # 3. Execute
+        # 4. Execute
         return tool.invoke(**arguments)
 ```
 
@@ -49,7 +53,7 @@ ToolPermission = Literal["allow", "ask", "deny"]
 
 
 class AgentConfig:
-    tool_permissions: dict[str, ToolPermission] = {}
+    tool_permissions: dict[str, ToolPermission]  # per-agent default in __init__; use default_factory=dict
     approval_workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None = None
 
 
@@ -81,6 +85,9 @@ agent.tool_permissions["read_file"] = "ask"          # routes through guardrails
 
 ### Why "ask" without workflow is an error
 If a consumer marks a tool as `"ask"` but forgets to attach a workflow, we fail safely by denying. This prevents accidental unrestricted execution.
+
+### Invalid permissions fail closed
+Any value in `tool_permissions` that is not `"allow"`, `"ask"`, or `"deny"` is treated as deny. This prevents a typo (e.g., `"denny"` or `"Allow"`) from silently allowing execution. The check runs after the explicit deny branch and before the approval/execution path, so every mutation of the permission map is validated at enforcement time.
 
 ### Chaining Workflows
 `agent.approval_workflow` can be:
