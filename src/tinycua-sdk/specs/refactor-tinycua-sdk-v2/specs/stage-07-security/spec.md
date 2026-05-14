@@ -1,8 +1,8 @@
 # Stage 7: Security — Guardrails & Permissions — Specification
 
-**Status**: Draft | In Progress | Complete
+**Status**: In Progress
 **Created**: 2026-05-02
-**Last Updated**: 2026-05-02
+**Last Updated**: 2026-05-15
 **Subproject(s) Affected**: tinycua-sdk
 
 ## Objective
