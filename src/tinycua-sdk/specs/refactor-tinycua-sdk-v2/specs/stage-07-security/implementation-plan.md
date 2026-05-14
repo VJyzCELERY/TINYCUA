@@ -176,7 +176,7 @@ async def test_agent_loop_propagates_denied_tool_as_message():
     )
     agent._call_llm = fake_call_llm
 
-    result = await Agent.run(agent, "Delete secret.txt")
+    result = await agent.run("Delete secret.txt")
 
     assert invoked is False
     assert call_count == 2

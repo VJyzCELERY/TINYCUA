@@ -32,6 +32,10 @@ class ToolExecutor:
             if not isinstance(workflows, list):
                 workflows = [workflows]
 
+            # Fail closed for empty list — no workflow means no approval possible
+            if not workflows:
+                return {"error": f"Tool '{tool.name}' requires approval but no workflow is configured."}
+
             for workflow in workflows:
                 approval = await workflow.request_approval(tool.name, arguments)
                 if not approval.get("approved"):
