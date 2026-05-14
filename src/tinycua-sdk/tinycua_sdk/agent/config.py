@@ -46,6 +46,11 @@ class AgentConfig(BaseModel):
         Note: The returned dict may contain non-JSON-serializable values
         (e.g., SecretStr from LanguageModel.api_key). Full JSON serialization
         support is planned for a later stage.
+
+        Known serialization gaps — these fields are NOT included in the
+        output because they contain runtime objects that cannot be reliably
+        serialized: ``approval_workflow``, ``loop``. After deserialization
+        they must be re-attached manually.
         """
         config: dict[str, Any] = {
             "name": self.name,
