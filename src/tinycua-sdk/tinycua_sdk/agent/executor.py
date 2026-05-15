@@ -11,6 +11,7 @@ from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
+    from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
 
 
@@ -21,21 +22,37 @@ class ToolExecutor:
     async def execute(tool: Tool, arguments: dict, agent: Agent) -> Any:
         """Execute a tool with permission and approval checks."""
         permission = agent.tool_permissions.get(tool.name, "allow")
+
         if permission == "deny":
             return {"error": f"Tool '{tool.name}' is denied by permission map."}
 
+        if permission not in ("allow", "ask"):
+            return {
+                "error": f"Tool '{tool.name}' has invalid permission '{permission}'. Denying execution."
+            }
+
         if permission == "ask":
-            if agent.approval_workflow is None:
+            workflows = ToolExecutor._normalize_workflows(agent.approval_workflow)
+            if not workflows:
                 return {
                     "error": f"Tool '{tool.name}' requires approval but no approval_workflow is configured."
                 }
-            approval = await agent.approval_workflow.request_approval(
-                tool.name, arguments
-            )
-            if not approval.get("approved"):
-                return approval
+            for workflow in workflows:
+                approval = await workflow.request_approval(tool.name, arguments)
+                if not approval.get("approved"):
+                    return approval
 
         return tool.invoke(**arguments)
+
+    @staticmethod
+    def _normalize_workflows(
+        workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None,
+    ) -> list[ApprovalWorkflow]:
+        if workflow is None:
+            return []
+        if isinstance(workflow, list):
+            return workflow
+        return [workflow]
 
 
 class AgentExecutor:

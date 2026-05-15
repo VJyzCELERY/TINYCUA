@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,7 +38,7 @@ class AgentConfig(BaseModel):
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
         default_factory=dict
     )
-    approval_workflow: ApprovalWorkflow | None = None
+    approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict.
@@ -46,6 +46,11 @@ class AgentConfig(BaseModel):
         Note: The returned dict may contain non-JSON-serializable values
         (e.g., SecretStr from LanguageModel.api_key). Full JSON serialization
         support is planned for a later stage.
+
+        Known serialization gaps — these fields are NOT included in the
+        output because they contain runtime objects that cannot be reliably
+        serialized: ``approval_workflow``, ``loop``. After deserialization
+        they must be re-attached manually.
         """
         config: dict[str, Any] = {
             "name": self.name,
