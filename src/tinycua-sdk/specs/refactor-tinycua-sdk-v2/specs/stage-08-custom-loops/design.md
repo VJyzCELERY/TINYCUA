@@ -154,6 +154,7 @@ class ReActLoop(BaseLoop):
 ## Custom Loop Example: PlanThenExecuteLoop
 
 ```python
+import json
 from tinycua_sdk import BaseLoop
 from tinycua_sdk.agent.executor import ToolExecutor
 

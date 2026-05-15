@@ -4,8 +4,10 @@ Demonstrates: Extending BaseLoop to implement the ReAct pattern.
 """
 
 import asyncio
+import json
 
-from tinycua_sdk import Agent, LLMModel, BaseLoop, tool
+from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
+from tinycua_sdk.agent.executor import ToolExecutor
 
 
 class ReActLoop(BaseLoop):
@@ -15,7 +17,10 @@ class ReActLoop(BaseLoop):
     The SDK only provides BaseLoop; this is built on top.
     """
 
-    async def run(self, agent, messages, tools):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
+        if stream:
+            raise NotImplementedError("ReActLoop does not support streaming yet")
+
         for i in range(self.max_iterations):
             # 1. Reasoning step
             reasoning_msgs = messages + [
@@ -23,34 +28,24 @@ class ReActLoop(BaseLoop):
             ]
 
             # 2. Action step: call LLM with tools
-            tool_schemas = [t.to_config() for t in tools] if tools else None
-            response = await agent._call_llm(reasoning_msgs, tools=tool_schemas)
+            response = await agent._call_llm(reasoning_msgs, tools=tools)
 
             # 3. Check if done
-            tool_calls = self._extract_tool_calls(response)
+            tool_calls = response.get("tool_calls", [])
             if not tool_calls:
-                return response
+                return response.get("content", "")
 
             # Execute tools and append results
-            for call in tool_calls:
-                result = self._execute_tool_call(call, tools)
-                messages.append({"role": "tool", "content": str(result)})
+            for tc in tool_calls:
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
+                for t in tools:
+                    if t.name == tool_name:
+                        result = await ToolExecutor.execute(t, arguments, agent)
+                        messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        break
 
-        return response
-
-    def _extract_tool_calls(self, response):
-        """Extract tool calls from LLM response.
-
-        Simplified: production code parses structured response format.
-        """
-        return []
-
-    def _execute_tool_call(self, call, tools):
-        """Execute a single tool call.
-
-        Simplified: production code looks up tool by name and invokes with args.
-        """
-        return "Tool result"
+        return "[max iterations reached]"
 
 
 @tool
@@ -61,7 +56,11 @@ def search(query: str) -> str:
 
 async def main():
     agent = Agent(
-        llm_model=LLMModel(),
+        llm_model=LanguageModel(
+            provider="openai-compatible",
+            base_url="http://127.0.0.1:1234/v1",
+            model_name="qwen/qwen3.5-9b",
+        ),
         instructions="Use search to find information.",
         loop=ReActLoop(max_iterations=3),
     )
