@@ -155,7 +155,7 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] Streaming Events Compliance - targets/06_streaming_events.py and tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - must not raise
   Description: Custom loop can collect streaming events (response.created, response.in_progress, response.usage, response.completed).
 
-- [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - 1 passed, 0 failed - pytest -v
+- [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - all tests passed - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v`
 
 ## Integration Test File
 - `tests/integration/goals/test_adv_01_custom_agent_loop.py`
