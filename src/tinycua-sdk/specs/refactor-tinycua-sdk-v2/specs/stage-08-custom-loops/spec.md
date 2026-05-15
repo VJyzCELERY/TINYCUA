@@ -149,6 +149,9 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] ReActLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: The ReActLoop example from goals runs.
 
+- [ ] PlanThenExecuteLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
+  Description: PlanThenExecuteLoop runs plan phase (with `plan_temperature` override), execution phase with tool calls, and `llm_model` override contract.
+
 - [ ] Streaming Events Compliance - targets/06_streaming_events.py and tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - must not raise
   Description: Custom loop can collect streaming events (response.created, response.in_progress, response.usage, response.completed).
 

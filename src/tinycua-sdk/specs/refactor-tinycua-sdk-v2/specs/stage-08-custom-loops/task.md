@@ -18,7 +18,8 @@ Implementation tasks for Stage 8 Custom Loops. Check off items as completed.
 - [ ] Add `ResponseInProgressEvent` to `tinycua_sdk/agent/events.py` and include it in `__all__`. <!-- id: 8 -->
 - [ ] Re-export `ResponseInProgressEvent` from `tinycua_sdk/agent/__init__.py` if event exports remain package-level. <!-- id: 9 -->
 - [ ] Verify `tinycua_sdk/agent/agent.py` still delegates custom loops exactly once per `Agent.run()` call and passes the `stream` argument through. <!-- id: 10 -->
-- [ ] Verify `tinycua_sdk/agent/executor.py` still exposes `_call_llm()` to custom loops through `Agent` inheritance. <!-- id: 11 -->
+- [ ] Modify `tinycua_sdk/agent/executor.py` to extend `_call_llm()` with `llm_model: LanguageModel | None = None` parameter and use `llm_model or self.config.llm_model` when calling `client.chat()`. <!-- id: 11 -->
+- [ ] Add a unit test verifying a PlanThenExecute-style loop can pass a copied `LanguageModel` via `llm_model` into `_call_llm()`. <!-- id: 11b -->
 
 ## Testing Phase
 
@@ -32,7 +33,7 @@ Implementation tasks for Stage 8 Custom Loops. Check off items as completed.
 
 - [ ] Confirm `from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool` works in tests or import sanity coverage. <!-- id: 17 -->
 - [ ] Confirm a custom loop returning a string bypasses the default loop and does not call `_call_llm()` unless the custom loop does so. <!-- id: 18 -->
-- [ ] Confirm a custom loop can call `agent._call_llm(messages, tools)` and receive the normalized response dict. <!-- id: 19 -->
+- [ ] Confirm a custom loop can call `agent._call_llm(messages, tools, llm_model=copied_model)` and receive the normalized response dict with the overridden model. <!-- id: 19 -->
 - [ ] Confirm streaming event order is `response.created`, `response.in_progress`, provider deltas, `response.usage`, then `response.completed` for SDK-synthesized streams. <!-- id: 20 -->
 - [ ] Optionally run target scripts in `specs/refactor-tinycua-sdk-v2/specs/stage-08-custom-loops/targets/` against a local OpenAI-compatible server if one is available. <!-- id: 21 -->
 

@@ -327,9 +327,9 @@ async def test_default_streaming_loop_emits_in_progress_event():
 - **Description**: Verify `Agent.run()` continues to pass `(agent, messages, tools, instructions, stream=stream)` into the configured loop and falls back to `BaseLoop()` when `loop` is unset.
 - **Rationale**: This is the core assignment mechanism from R-8.5 and appears already wired.
 
-#### [VERIFY] `tinycua_sdk/agent/executor.py`
+#### [MODIFY] `tinycua_sdk/agent/executor.py`
 
-- **Description**: Verify `_call_llm()` remains available to `Agent` through inheritance and accepts `stream` and `llm_model` parameters for default loop streaming and model overrides.
+- **Description**: Extend `_call_llm()` with `llm_model: LanguageModel | None = None` parameter. When provided, use `llm_model` instead of `self.config.llm_model` when calling `client.chat()`, so custom loops can pass a `model_copy()` override for model overrides without calling the LLM client directly.
 - **Rationale**: The protected helper is the supported transport reuse point for advanced custom loops; the `llm_model` parameter ensures custom loops never need to import or call the LLM client directly.
 
 ### Unit Coverage
@@ -350,7 +350,7 @@ async def test_default_streaming_loop_emits_in_progress_event():
 |-----------|-------------|-------------|
 | `BaseLoop` | Modify | Keeps subclass-driven customization and completes default stream lifecycle event emission. |
 | `Agent` | Verify | Continues to delegate all execution to configured loop instances. |
-| `AgentExecutor` | Verify | Continues to provide `_call_llm()` to custom loops through `Agent`. |
+| `AgentExecutor` | Modify | Extends `_call_llm()` with `llm_model` parameter for model overrides in custom loops. |
 | Event type definitions | Modify | Adds a typed representation for `response.in_progress` if event TypedDicts remain exhaustive. |
 | Integration tests | New | Adds deterministic Stage 8 success coverage. |
 
