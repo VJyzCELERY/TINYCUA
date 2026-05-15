@@ -1,1 +1,1 @@
-Streaming event types OK: ['response.created', 'response.in_progress', ...]
+Streaming lifecycle events correctly ordered: ['response.created', 'response.in_progress', 'response.output_text.delta', 'response.usage', 'response.completed']

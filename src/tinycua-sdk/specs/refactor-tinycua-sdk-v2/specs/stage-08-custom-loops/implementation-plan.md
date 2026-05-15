@@ -48,6 +48,7 @@ Write the integration test first at `tests/integration/goals/test_adv_01_custom_
 """Integration tests for Stage 8 custom agent loops."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 
 import pytest
@@ -142,7 +143,8 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
             if response.get("tool_calls"):
                 tc = response["tool_calls"][0]
                 tool_obj = next(t for t in tools if t.name == tc["name"])
-                result = await ToolExecutor.execute(tool_obj, {"city": "Tokyo"}, agent)
+                arguments = json.loads(tc["arguments"])
+                result = await ToolExecutor.execute(tool_obj, arguments, agent)
                 messages.append({"role": "tool", "content": str(result), "name": tc["name"]})
                 final = await agent._call_llm(messages)
                 return final.get("content", "")
@@ -163,6 +165,80 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
     agent._call_llm = fake_call_llm
 
     assert await agent.run("What is the weather in Tokyo?") == "It is sunny in Tokyo."
+
+
+@pytest.mark.asyncio
+async def test_plan_then_execute_loop_works():
+    """A PlanThenExecuteLoop can produce a plan and execute steps."""
+
+    @tool
+    def search(query: str) -> str:
+        """Search for information."""
+        return f"Results for {query}."
+
+    class PlanThenExecuteLoop(BaseLoop):
+        def __init__(self, max_iterations=5, plan_temperature=0.3):
+            super().__init__(max_iterations=max_iterations)
+            self.plan_temperature = plan_temperature
+
+        async def run(self, agent, messages, tools, override_instructions=None, stream=False):
+            # Phase 1: Planning
+            plan_messages = messages + [{
+                "role": "system",
+                "content": "First, outline a step-by-step plan. Do not execute yet.",
+            }]
+            plan_response = await agent._call_llm(plan_messages)
+            plan = plan_response.get("content", "")
+
+            # Phase 2: Execution
+            exec_messages = messages + [
+                {"role": "assistant", "content": plan},
+                {"role": "system", "content": "Now execute the plan above step by step."},
+            ]
+
+            for _ in range(self.max_iterations):
+                if agent.is_cancelled:
+                    return "[cancelled]"
+
+                response = await agent._call_llm(exec_messages, tools)
+                content = response.get("content", "")
+                exec_messages.append({"role": "assistant", "content": content})
+
+                if not response.get("tool_calls"):
+                    return content
+
+                for tc in response["tool_calls"]:
+                    tool_name = tc["name"]
+                    arguments = json.loads(tc["arguments"])
+                    for t in tools:
+                        if t.name == tool_name:
+                            result = await ToolExecutor.execute(t, arguments, agent)
+                            exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                            break
+
+            return "[max iterations reached]"
+
+    agent = Agent(llm_model=LanguageModel(), tools=[search], loop=PlanThenExecuteLoop(max_iterations=3))
+    calls = []
+
+    async def fake_call_llm(messages, tools=None, stream=False):
+        calls.append((messages, tools))
+        if len(calls) == 1:
+            # Phase 1: return a plan
+            return {"content": "Plan: 1. Search for Tokyo weather.", "tool_calls": None}
+        if len(calls) == 2:
+            # Phase 2: execute tool
+            return {
+                "content": "",
+                "tool_calls": [{"id": "call_1", "name": "search", "arguments": '{"query": "Tokyo weather"}'}],
+            }
+        # Phase 2 follow-up: final answer
+        return {"content": "Tokyo has sunny weather.", "tool_calls": None}
+
+    agent._call_llm = fake_call_llm
+
+    result = await agent.run("What is the weather in Tokyo?")
+    assert result == "Tokyo has sunny weather."
 
 
 @pytest.mark.asyncio
@@ -197,6 +273,7 @@ async def test_default_streaming_loop_emits_in_progress_event():
 - [ ] **Cancellation contract**: custom loops can observe `agent.is_cancelled` and return cooperatively.
 - [ ] **Iteration contract**: custom loops inherit and can enforce `self.max_iterations`.
 - [ ] **ReAct-style loop**: a custom loop can execute a tool through SDK primitives and continue the interaction.
+- [ ] **PlanThenExecute-style loop**: a custom loop can implement a two-phase plan-then-execute flow with tool execution.
 - [ ] **Streaming event completeness**: the default streaming loop emits `response.created`, `response.in_progress`, deltas, `response.usage`, and `response.completed` in order.
 
 ## Verification Plan
@@ -223,7 +300,7 @@ async def test_default_streaming_loop_emits_in_progress_event():
 
 #### [NEW] `tests/integration/goals/test_adv_01_custom_agent_loop.py`
 
-- **Description**: Add Stage 8 integration tests for minimal custom loop override, `_call_llm()` access, cooperative cancellation, `max_iterations`, ReAct-style tool execution, and streaming lifecycle event completeness.
+- **Description**: Add Stage 8 integration tests for minimal custom loop override, `_call_llm()` access, cooperative cancellation, `max_iterations`, ReAct-style tool execution, PlanThenExecute two-phase loop with tool execution, and streaming lifecycle event completeness.
 - **Rationale**: The spec names this file as the Stage 8 success target, and the target scripts can be converted into deterministic pytest cases by mocking `_call_llm()`.
 
 ### Agent Loop Runtime
@@ -252,8 +329,8 @@ async def test_default_streaming_loop_emits_in_progress_event():
 
 #### [VERIFY] `tinycua_sdk/agent/executor.py`
 
-- **Description**: Verify `_call_llm()` remains available to `Agent` through inheritance and accepts `stream` for default loop streaming.
-- **Rationale**: The protected helper is the supported transport reuse point for advanced custom loops.
+- **Description**: Verify `_call_llm()` remains available to `Agent` through inheritance and accepts `stream` and `llm_model` parameters for default loop streaming and model overrides.
+- **Rationale**: The protected helper is the supported transport reuse point for advanced custom loops; the `llm_model` parameter ensures custom loops never need to import or call the LLM client directly.
 
 ### Unit Coverage
 
@@ -304,7 +381,7 @@ N/A - this SDK stage does not modify HTTP endpoints.
 |--------|--------|
 | `BaseLoop.run()` | Stable subclass extension point with existing signature. |
 | `Agent(loop=...)` | Existing loop injection path validated by integration tests. |
-| `agent._call_llm()` | Existing protected helper validated for custom loop use. |
+| `agent._call_llm()` | Existing protected helper extended with `llm_model` parameter for model overrides; validated for custom loop use. |
 | Stream events | Adds/validates `response.in_progress` in default stream output. |
 
 ## Dependencies

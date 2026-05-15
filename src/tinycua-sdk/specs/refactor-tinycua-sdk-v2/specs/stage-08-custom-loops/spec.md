@@ -46,9 +46,18 @@ class BaseLoop:
 
 ```python
 # On Agent class:
-async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
-    """Call LLM with agent's configuration. Available to custom loops."""
+async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False, llm_model: LanguageModel | None = None) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+    """Call LLM with agent's configuration. Available to custom loops.
+
+    When llm_model is provided it overrides the agent's default model,
+    allowing custom loops to temporarily change model parameters
+    (e.g., temperature) without modifying the agent's configuration.
+    """
 ```
+
+**Key design:**
+- `llm_model` is optional; when omitted, the agent's default model is used.
+- Custom loops like `PlanThenExecuteLoop` can pass a copied model with modified parameters via this parameter instead of calling the LLM client directly.
 
 Custom loops call this instead of reimplementing HTTP transport.
 

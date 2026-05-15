@@ -4,7 +4,7 @@ Implementation tasks for Stage 8 Custom Loops. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write `tests/integration/goals/test_adv_01_custom_agent_loop.py` covering custom override, `_call_llm()` access, cancellation, `max_iterations`, ReAct-style tool execution, and streaming `response.in_progress` lifecycle ordering. <!-- id: 0 -->
+- [ ] Write `tests/integration/goals/test_adv_01_custom_agent_loop.py` covering custom override, `_call_llm()` access, cancellation, `max_iterations`, ReAct-style tool execution, PlanThenExecute two-phase loop with tool execution, and streaming `response.in_progress` lifecycle ordering. <!-- id: 0 -->
 - [ ] Run the new integration test and confirm RED for any missing Stage 8 behavior: `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v`. <!-- id: 1 -->
 - [ ] Add focused unit tests in `tests/unit/test_loop.py` for `response.in_progress` insertion and non-duplication across SDK-created, provider-created, provider-completed, and provider-failed stream paths. <!-- id: 2 -->
 - [ ] Update `tests/unit/test_agent_run.py` or `tests/unit/test_agent_streaming.py` expectations so `Agent.run(stream=True)` requires `response.in_progress`. <!-- id: 3 -->
