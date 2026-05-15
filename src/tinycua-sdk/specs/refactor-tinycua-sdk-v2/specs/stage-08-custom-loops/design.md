@@ -87,7 +87,7 @@ async def _call_llm(
 
 ```python
 import json
-from tinycua_sdk import BaseLoop
+from tinycua_sdk import BaseLoop, ToolExecutor
 
 class ReActLoop(BaseLoop):
     """ReAct-style loop: forces reasoning before acting."""
@@ -129,7 +129,7 @@ class ReActLoop(BaseLoop):
                     # Find and execute tool
                     for t in tools:
                         if t.name == tool_name:
-                            result = t.invoke(**arguments)
+                            result = await ToolExecutor.execute(t, arguments, agent)
                             messages.append({"role": "assistant", "content": content})
                             messages.append({"role": "tool", "content": str(result), "name": tool_name})
                             break
@@ -146,7 +146,7 @@ class ReActLoop(BaseLoop):
 ## Custom Loop Example: PlanThenExecuteLoop
 
 ```python
-from tinycua_sdk import BaseLoop
+from tinycua_sdk import BaseLoop, ToolExecutor
 
 class PlanThenExecuteLoop(BaseLoop):
     """Two-phase loop: plan first, then execute."""
@@ -197,7 +197,7 @@ class PlanThenExecuteLoop(BaseLoop):
                 arguments = json.loads(tc["function"]["arguments"])
                 for t in tools:
                     if t.name == tool_name:
-                        result = t.invoke(**arguments)
+                        result = await ToolExecutor.execute(t, arguments, agent)
                         exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
                         break
 
@@ -209,8 +209,6 @@ class PlanThenExecuteLoop(BaseLoop):
 Since `LanguageModel` is frozen, custom loops that need to temporarily change model parameters (like temperature) must create a copy:
 
 ```python
-from pydantic import model_copy
-
 # Inside custom loop:
 plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
 # Use plan_model for the planning call

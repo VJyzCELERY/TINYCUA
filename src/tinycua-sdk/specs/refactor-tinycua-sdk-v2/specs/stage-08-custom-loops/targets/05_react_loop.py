@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
+from tinycua_sdk import Agent, LanguageModel, BaseLoop, ToolExecutor, tool
 
 
 BASE_URL = "http://localhost:1234/v1"
@@ -28,7 +28,7 @@ class ReActLoop(BaseLoop):
                 arguments = json.loads(tc["function"]["arguments"])
                 for t in tools:
                     if t.name == tool_name:
-                        result = t.invoke(**arguments)
+                        result = await ToolExecutor.execute(t, arguments, agent)
                         messages.append({"role": "assistant", "content": content})
                         messages.append({"role": "tool", "content": str(result), "name": tool_name})
                         break
