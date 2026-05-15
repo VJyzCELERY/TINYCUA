@@ -76,7 +76,7 @@ async def _call_llm(
     """
     client = self._get_llm_client()
     tool_schemas = [t.to_config() for t in tools] if tools else None
-    return await client.chat(messages, tool_schemas, self.llm_model)
+    return await client.chat(messages, tool_schemas, self.llm_model, stream=stream)
 ```
 
 **Why protected?**
@@ -194,8 +194,8 @@ class PlanThenExecuteLoop(BaseLoop):
 
             # Handle tool calls (simplified)
             for tc in response["tool_calls"]:
-                tool_name = tc["function"]["name"]
-                arguments = json.loads(tc["function"]["arguments"])
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
                 for t in tools:
                     if t.name == tool_name:
                         result = await ToolExecutor.execute(t, arguments, agent)

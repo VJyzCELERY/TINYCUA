@@ -46,7 +46,7 @@ class BaseLoop:
 
 ```python
 # On Agent class:
-async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False) -> dict:
+async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
     """Call LLM with agent's configuration. Available to custom loops."""
 ```
 

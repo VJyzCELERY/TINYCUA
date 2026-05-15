@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from tinycua_sdk import Agent, LanguageModel, BaseLoop, ToolExecutor, tool
+from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
+from tinycua_sdk.agent.executor import ToolExecutor
 
 
 BASE_URL = "http://localhost:1234/v1"
