@@ -28,7 +28,7 @@ Implementation tasks for Stage 7 Security. Check off items as completed.
 
 ## Testing Phase
 
-- [ ] Run integration tests - expect GREEN: `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py tests/integration/goals/test_adv_03_permission_system.py -v` <!-- id: 8 --> (skipped - LLM server unavailable; tests are correct per unit test coverage)
+- [x] Run integration tests - expect GREEN: `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_02_guardrail_system.py tests/integration/goals/test_adv_03_permission_system.py -v` <!-- id: 8 --> (7 passed)
 - [x] Add or update unit tests for `ToolExecutor.execute()` permission and approval branches <!-- id: 9 -->
 - [x] Run unit tests: `cd src/tinycua-sdk && uv run pytest tests/unit/test_tool_executor.py tests/unit/test_approval.py -v` <!-- id: 10 -->
 - [x] Run full SDK suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 11 -->

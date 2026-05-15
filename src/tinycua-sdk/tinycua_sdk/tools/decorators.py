@@ -149,14 +149,18 @@ class Tool:
 
     @classmethod
     def from_callable(
-        cls, fn: Callable, name: str | None = None, dependencies: list[str] | None = None
+        cls,
+        fn: Callable,
+        dependencies: list[str] | None = None,
+        *,
+        name: str | None = None,
     ) -> "Tool":
         """Create a Tool from a function by inspecting its signature and docstring.
 
         Args:
             fn: The function to convert into a Tool.
-            name: Optional override for the tool name (defaults to function name).
             dependencies: Optional list of external dependency names.
+            name: Optional override for the tool name (defaults to function name).
 
         Returns:
             A Tool instance with generated schema.
