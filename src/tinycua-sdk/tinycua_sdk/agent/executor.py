@@ -11,6 +11,7 @@ from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
+    from tinycua_sdk.agent.llm_model import LanguageModel
     from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
 
@@ -98,6 +99,7 @@ class AgentExecutor:
         messages: list[dict],
         tools: list[Tool] | None = None,
         stream: bool = False,
+        llm_model: LanguageModel | None = None,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """Call the LLM with messages and optional tools.
 
@@ -105,14 +107,18 @@ class AgentExecutor:
             messages: List of message dicts.
             tools: Optional list of Tool instances.
             stream: When True, return an async iterator of SSE chunk events.
+            llm_model: Optional LanguageModel override. When provided, use this
+                instead of ``self.config.llm_model`` so custom loops can pass a
+                ``model_copy()`` override without calling the LLM client directly.
 
         Returns:
             Normalized response dict or async iterator of event dicts.
         """
         client = self._get_llm_client()
         tool_schemas = [t.to_config() for t in tools] if tools else None
+        model = llm_model or self.config.llm_model
         return await client.chat(
-            messages, tool_schemas, self.config.llm_model, stream=stream
+            messages, tool_schemas, model, stream=stream
         )
 
 
