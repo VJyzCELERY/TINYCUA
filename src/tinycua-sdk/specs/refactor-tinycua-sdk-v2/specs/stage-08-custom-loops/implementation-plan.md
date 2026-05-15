@@ -187,7 +187,8 @@ async def test_plan_then_execute_loop_works():
                 "role": "system",
                 "content": "First, outline a step-by-step plan. Do not execute yet.",
             }]
-            plan_response = await agent._call_llm(plan_messages)
+            plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
+            plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
             plan = plan_response.get("content", "")
 
             # Phase 2: Execution
@@ -221,10 +222,12 @@ async def test_plan_then_execute_loop_works():
     agent = Agent(llm_model=LanguageModel(), tools=[search], loop=PlanThenExecuteLoop(max_iterations=3))
     calls = []
 
-    async def fake_call_llm(messages, tools=None, stream=False):
+    async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
         calls.append((messages, tools))
         if len(calls) == 1:
-            # Phase 1: return a plan
+            # Phase 1: return a plan with model override assertion
+            assert llm_model is not None
+            assert llm_model.temperature == 0.3
             return {"content": "Plan: 1. Search for Tokyo weather.", "tool_calls": None}
         if len(calls) == 2:
             # Phase 2: execute tool

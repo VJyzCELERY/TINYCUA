@@ -94,7 +94,8 @@ async def _call_llm(
 
 ```python
 import json
-from tinycua_sdk import BaseLoop, ToolExecutor
+from tinycua_sdk import BaseLoop
+from tinycua_sdk.agent.executor import ToolExecutor
 
 class ReActLoop(BaseLoop):
     """ReAct-style loop: forces reasoning before acting."""
@@ -153,7 +154,8 @@ class ReActLoop(BaseLoop):
 ## Custom Loop Example: PlanThenExecuteLoop
 
 ```python
-from tinycua_sdk import BaseLoop, ToolExecutor
+from tinycua_sdk import BaseLoop
+from tinycua_sdk.agent.executor import ToolExecutor
 
 class PlanThenExecuteLoop(BaseLoop):
     """Two-phase loop: plan first, then execute."""
