@@ -1,0 +1,1 @@
+Streaming event types OK: ['response.created', 'response.in_progress', ...]

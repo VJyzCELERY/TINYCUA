@@ -67,11 +67,12 @@ async def _call_llm(
     self,
     messages: list[dict],
     tools: list[Tool] | None = None,
-) -> dict[str, Any]:
+    stream: bool = False,
+) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
     """Protected helper for custom loops.
 
     Calls the LLM with the agent's configuration and returns
-    a normalized response dict.
+    a normalized response dict (sync) or an async iterator (stream).
     """
     client = self._get_llm_client()
     tool_schemas = [t.to_config() for t in tools] if tools else None

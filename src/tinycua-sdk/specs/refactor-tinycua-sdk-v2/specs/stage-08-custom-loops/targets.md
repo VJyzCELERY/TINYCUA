@@ -184,8 +184,8 @@ class ReActLoop(BaseLoop):
         # If the model produces a tool call in its response, execute it
         if response.get("tool_calls"):
             for tc in response["tool_calls"]:
-                tool_name = tc["function"]["name"]
-                arguments = json.loads(tc["function"]["arguments"])
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
                 for t in tools:
                     if t.name == tool_name:
                         result = t.invoke(**arguments)

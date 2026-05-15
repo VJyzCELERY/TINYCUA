@@ -46,7 +46,7 @@ class BaseLoop:
 
 ```python
 # On Agent class:
-async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None) -> dict:
+async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False) -> dict:
     """Call LLM with agent's configuration. Available to custom loops."""
 ```
 
@@ -139,6 +139,9 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 
 - [ ] ReActLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: The ReActLoop example from goals runs.
+
+- [ ] Streaming Events Compliance - targets/06_streaming_events.py and tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - must not raise
+  Description: Custom loop can collect streaming events (response.created, response.in_progress, response.usage, response.completed).
 
 - [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - 1 passed, 0 failed - pytest -v
 
