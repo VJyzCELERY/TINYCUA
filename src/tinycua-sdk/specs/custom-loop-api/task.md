@@ -36,9 +36,10 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
   - [ ] No `_IterStreamState` dependency — use local variables
 - [ ] Create `async process_stream_tool_calls()` method <!-- id: 9 -->
   - [ ] Cleaned-up version of `_execute_tools_stream()`
-  - [ ] Signature: `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count) -> tuple[int, bool]`
+  - [ ] Signature: `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count, combined_content="") -> tuple[int, bool]`
+  - [ ] Accepts `combined_content` (accumulated stream text) and appends assistant message to `working_messages` before function-call messages, preserving correct ordering
   - [ ] Returns `(tool_call_count, max_tool_calls_reached)` — simpler than current triple return
-  - [ ] Appends `function_call` and `function_call_output` messages to `working_messages`
+  - [ ] Appends assistant content (if any), then `function_call` and `function_call_output` messages to `working_messages` in correct order
 - [ ] Remove `_IterStreamState` dataclass <!-- id: 10 -->
 - [ ] Remove `_yield_first_chunk_events()` method <!-- id: 11 -->
 - [ ] Remove `_yield_stream_body_events()` method <!-- id: 12 -->

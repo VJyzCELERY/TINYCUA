@@ -148,6 +148,7 @@ async def test_custom_loop_uses_public_helpers():
     # Prove the custom loop path was taken (not the default BaseLoop)
     assert loop.called_build_system_message, "build_system_message was not called"
     assert loop.called_process_tool_calls, "process_tool_calls was not called"
+    assert loop.called_last_assistant_content, "last_assistant_content was not called"
 
     # Prove at least one function_call_output message was produced
     helper_call_msgs = [
@@ -226,10 +227,9 @@ async def test_custom_streaming_loop_uses_public_helpers():
                         has_tool_calls = True
                         tool_call_count, max_reached = await self.process_stream_tool_calls(
                             agent, tools, tool_calls_list, working, tool_call_count,
+                            combined_content=combined,
                         )
                         self.called_process_stream_tool_calls = True
-                        if combined:
-                            working.append({"role": "assistant", "content": combined})
                         if max_reached:
                             finish_reason = "max_tool_calls"
                             break
@@ -239,9 +239,11 @@ async def test_custom_streaming_loop_uses_public_helpers():
                 else:
                     finish_reason = "max_iterations"
             except Exception as e:
+                self.last_working_messages = list(working)
                 yield {"type": "response.failed", "error": {"message": str(e)}}
                 return
 
+            self.last_working_messages = list(working)
             yield {"type": "response.usage", "usage": dict(cumulative_usage)}
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
@@ -262,6 +264,18 @@ async def test_custom_streaming_loop_uses_public_helpers():
     assert loop.called_build_system_message, "build_system_message was not called"
     assert loop.called_process_stream_iteration, (
         "process_stream_iteration was not called"
+    )
+    assert loop.called_process_stream_tool_calls, (
+        "process_stream_tool_calls was not called"
+    )
+
+    # Prove at least one function_call_output message was produced
+    helper_call_msgs = [
+        m for m in loop.last_working_messages
+        if isinstance(m, dict) and m.get("role") == "function_call_output"
+    ]
+    assert len(helper_call_msgs) > 0, (
+        "No function_call_output messages found — streaming helpers did not execute tool calls"
     )
 ```
 
@@ -364,7 +378,8 @@ class BaseLoop:
     
     async def process_stream_tool_calls(self, agent, tools,
                                          tool_calls_list, working_messages,
-                                         tool_call_count) -> tuple[int, bool]: ...
+                                         tool_call_count,
+                                         combined_content="") -> tuple[int, bool]: ...
     
     @staticmethod
     def last_assistant_content(messages) -> str: ...

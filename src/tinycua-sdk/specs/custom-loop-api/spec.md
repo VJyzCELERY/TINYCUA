@@ -39,7 +39,7 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 
 ### Constraints
 
-- All existing tests must pass without modification
+- All existing tests must pass; intentional test updates are allowed only for renamed/public helper APIs and new helper coverage
 - The subclassing contract stays unchanged — `class MyLoop(BaseLoop): async def run(self, ...)`
 - Agent public API stays unchanged
 

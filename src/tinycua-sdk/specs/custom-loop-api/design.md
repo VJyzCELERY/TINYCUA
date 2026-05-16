@@ -97,9 +97,11 @@ class MyStreamingLoop(BaseLoop):
             yield event
 ```
 
-### `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count)`
+### `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count, combined_content="")`
 
 Cleaned-up version of the current `_execute_tools_stream()`. Handles the same logic but returns cleaner state. Public so custom streaming loops can call it after `process_stream_iteration` detects tool calls.
+
+Accepts `combined_content` (accumulated text content from the stream iteration) and appends it as an assistant message to `working_messages` *before* appending function-call and function-call-output messages, preserving correct message ordering.
 
 Returns `tuple[int, bool]` — `(updated_tool_call_count, max_tool_calls_reached)`. Custom callers must check the second element to decide whether to break out of the iteration loop (`max_tool_calls_reached=True`) or continue with the next LLM call.
 
@@ -138,10 +140,10 @@ Renamed from `_last_assistant_content`. Static method, pure function.
    d. Delegate to self.process_stream_iteration()  ← public helper
       (yields events, tracks cancelled/provider_failed/completed booleans)
    e. If cancelled/failed: break
-   f. If tool_calls_list:
-      - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(...)  ← public helper
-      - If max_tool_calls_reached: break
-   g. Else: append content and break
+    f. If tool_calls_list:
+       - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(..., combined_content="".join(content_parts))  ← public helper (handles assistant message ordering internally)
+       - If max_tool_calls_reached: break
+    g. Else: append content and break
 5. Yield usage + completion events
 6. except: yield failed events
 ```
@@ -209,7 +211,7 @@ This test uses the same LLM client infrastructure as existing integration tests 
 
 - [ ] All unit tests pass
 - [ ] All integration tests pass
-- [ ] All existing tests pass with zero modifications
+- [ ] All existing behavioral coverage continues to pass; intentional test updates are allowed only for renamed/public helper APIs and new helper coverage
 - [ ] No changes to `Agent` class API
 
 ---
