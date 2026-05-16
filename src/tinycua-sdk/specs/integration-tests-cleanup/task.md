@@ -56,9 +56,9 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
 
 - [x] Delete `tests/integration/goals/` directory <!-- id: 12 -->
 - [x] Delete `tests/integration/test_skills_example.py` (now merged into `test_skills.py`) <!-- id: 13 -->
-- [x] Run integration tests: `uv run pytest tests/integration/` — **82 passed** <!-- id: 14 -->
+- [x] Run integration tests: `uv run pytest tests/integration/` — **81 passed** <!-- id: 14 -->
 - [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **308 passed** (307 baseline + 3 new e2e - 1 removed obsolete_params - 1 duplicate YAML redaction) <!-- id: 15 -->
-- [x] Run Makefile target: `make test-integration` — **82 passed** <!-- id: 16 -->
+- [x] Run Makefile target: `make test-integration` — **81 passed** <!-- id: 16 -->
 
 ---
 
