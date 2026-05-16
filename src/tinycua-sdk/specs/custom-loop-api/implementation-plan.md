@@ -125,7 +125,8 @@ async def test_custom_loop_uses_public_helpers():
                     if content:
                         working.append({"role": "assistant", "content": content})
                     self.last_working_messages = list(working)
-                    return content or ""
+                    self.called_last_assistant_content = True
+                    return self.last_assistant_content(working) or ""
 
             self.last_working_messages = list(working)
             self.called_last_assistant_content = True
@@ -206,11 +207,14 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
                     cancelled = False
                     provider_failed = False
+                    completed_by_provider = False
                     async for event in self.process_stream_iteration(
                         llm_stream, agent, content_parts, tool_calls_buffer,
                         cumulative_usage, usage_settled_ids,
                     ):
                         self.called_process_stream_iteration = True
+                        if event["type"] == "response.completed":
+                            completed_by_provider = True
                         if event["type"] == "response.cancelled":
                             cancelled = True
                         elif event["type"] in ("response.failed", "error"):
@@ -245,7 +249,8 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
             self.last_working_messages = list(working)
             yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-            yield {"type": "response.completed", "finish_reason": finish_reason}
+            if not completed_by_provider and not provider_failed and not cancelled:
+                yield {"type": "response.completed", "finish_reason": finish_reason}
 
     llm_model = _build_language_model(
         tool_choice={"type": "function", "function": {"name": "get_weather"}},
@@ -272,7 +277,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
     # Prove at least one function_call_output message was produced
     helper_call_msgs = [
         m for m in loop.last_working_messages
-        if isinstance(m, dict) and m.get("role") == "function_call_output"
+        if isinstance(m, dict) and m.get("type") == "function_call_output"
     ]
     assert len(helper_call_msgs) > 0, (
         "No function_call_output messages found — streaming helpers did not execute tool calls"

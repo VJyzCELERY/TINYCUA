@@ -144,7 +144,7 @@ Renamed from `_last_assistant_content`. Static method, pure function.
        - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(..., combined_content="".join(content_parts))  ← public helper (handles assistant message ordering internally)
        - If max_tool_calls_reached: break
     g. Else: append content and break
-5. Yield usage + completion events
+5. Yield usage events and (if not already completed by provider) completion event
 6. except: yield failed events
 ```
 
