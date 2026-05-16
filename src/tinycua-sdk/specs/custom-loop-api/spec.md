@@ -68,8 +68,8 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 
 **Backward compatibility:**
 
-- **FR-009**: All existing tests MUST pass without modification.
-- **FR-010**: Custom loops written against the current `BaseLoop` subclassing contract MUST continue to work.
+- **FR-009**: All existing tests MUST pass after migrating private-helper references to the new public `BaseLoop` helper API.
+- **FR-010**: Custom loops that only rely on the supported `BaseLoop.run(...)` subclassing contract MUST continue to work; private `_` helper access is not preserved because the SDK has not been publicly released.
 
 ---
 

@@ -46,7 +46,7 @@ class MyLoop(BaseLoop):
         ...
 ```
 
-### `process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count)`
+### `async process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count)`
 
 Extracted from the inline tool call loop in `_run_sync()`. Handles:
 - Iterating over tool calls
@@ -68,7 +68,7 @@ class MyLoop(BaseLoop):
             response = await agent._call_llm(messages, tools)
             if response.get("tool_calls"):
                 log_tool_calls(response["tool_calls"])  # custom pre
-                tool_call_count, _ = self.process_tool_calls(
+                tool_call_count, _ = await self.process_tool_calls(
                     agent, tools, response["tool_calls"],
                     working_messages, tool_call_count,
                 )
@@ -97,7 +97,7 @@ class MyStreamingLoop(BaseLoop):
             yield event
 ```
 
-### `process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count)`
+### `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count)`
 
 Cleaned-up version of the current `_execute_tools_stream()`. Handles the same logic but returns cleaner state. Public so custom streaming loops can call it after `process_stream_iteration` detects tool calls.
 
@@ -136,7 +136,7 @@ Renamed from `_last_assistant_content`. Static method, pure function.
    d. Delegate to self.process_stream_iteration()  ← public helper
       (yields events, tracks cancelled/provider_failed/completed booleans)
    e. If cancelled/failed: break
-   f. If tool_calls_list: self.process_stream_tool_calls()  ← public helper
+   f. If tool_calls_list: await self.process_stream_tool_calls()  ← public helper
    g. Else: append content and break
 5. Yield usage + completion events
 6. except: yield failed events
@@ -152,8 +152,16 @@ A new test in `tests/integration/test_custom_agent_loop.py` (or a dedicated test
 
 1. Creates a custom `BaseLoop` subclass that overrides `run()` and calls the public helpers (`build_system_message()`, `process_tool_calls()`, etc.)
 2. Creates an `Agent` with tools and this custom loop
-3. Calls `agent.run("some query that triggers tool calling")`
-4. Asserts the response is correct and tool calls were executed
+3. Calls `agent.run()` with a query designed to trigger tool calling
+4. Asserts that the custom loop called the helper methods and that at least one `function_call_output` was produced
+
+**Deterministic forcing strategy**: To avoid flaky results across providers/models, the test MUST use one of these approaches (in order of preference):
+
+- **Option A (provider-supported)**: Use the provider's `tool_choice` parameter (e.g., `tool_choice="required"` or `tool_choice={"type": "function", "function": {"name": "..."}}`) to force the named tool. This guarantees the LLM calls the tool regardless of the query.
+- **Option B (fixture-based)**: Use an integration fixture that returns a real transport-compatible tool-call response while still exercising `Agent.run()` and the public helper code path end-to-end.
+- **Option C (split strategy)**: Split into (1) deterministic unit/contract tests that verify exact tool execution via mocked LLM responses, plus (2) a real-LLM smoke test that does not serve as the acceptance gate for tool execution. Only the smoke test requires a real API key.
+
+The test MUST assert that the custom loop called the new helper and produced at least one `function_call_output` message, not just that the LLM returned content.
 
 This test uses the same LLM client infrastructure as existing integration tests (e.g., `tests/integration/conftest.py`).
 
@@ -163,8 +171,8 @@ This test uses the same LLM client infrastructure as existing integration tests 
 
 ### Phase 1 — Promote existing private methods to public
 
-- [ ] Rename `_build_system_message` → `build_system_message` (update internal callers)
-- [ ] Rename `_last_assistant_content` → `last_assistant_content`
+- [ ] Rename `_build_system_message` → `build_system_message` and migrate all internal/test references.
+- [ ] Rename `_last_assistant_content` → `last_assistant_content` and migrate all internal/test references.
 
 ### Phase 2 — Extract and expose sync tool processing
 
@@ -206,7 +214,7 @@ This test uses the same LLM client infrastructure as existing integration tests 
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Renaming `_build_system_message` to `build_system_message` breaks external code that calls the private method | Low | Medium | The `_` prefix signals private — no documented support. Keep a thin `_build_system_message` delegate if needed. |
+| Renaming `_build_system_message` to `build_system_message` breaks external code that calls the private method | Low | Medium | This is an intentional pre-release breaking change — no compatibility alias is required because the SDK has not been publicly released. |
 | `process_stream_iteration()` changes event ordering vs current two-phase approach | Low | High | Existing stream tests validate exact ordering; they must pass. |
 | Integration test requires a real LLM key | Medium | Low | Use the same mock/skip infrastructure as existing integration tests. |
 
