@@ -14,10 +14,10 @@ from tinycua_sdk import LanguageModel
 os.environ["OPENAI_API_KEY"] = "test-key-from-env"
 
 
-class TestGS01LanguageModelDefinition:
+class TestLanguageModel:
     """Test suite for LanguageModel creation patterns and serialization."""
 
-    def test_gs_01_minimal_creation(self):
+    def test_minimal_creation(self):
         """Target 1.1: Create a minimal LanguageModel with defaults."""
         m = LanguageModel(model_name="qwen/qwen3.5-9b")
 
@@ -26,7 +26,7 @@ class TestGS01LanguageModelDefinition:
         assert m.temperature == 1.0
         assert m.max_tokens is None
 
-    def test_gs_02_full_configuration(self):
+    def test_full_configuration(self):
         """Target 1.2: Create a LanguageModel with all OpenAI-compatible params."""
         m = LanguageModel(
             provider="openai",
@@ -50,7 +50,7 @@ class TestGS01LanguageModelDefinition:
         assert m.presence_penalty == 0.1
         assert m.response_format == {"type": "json_object"}
 
-    def test_gs_03_serialization_roundtrip(self):
+    def test_serialization_roundtrip(self):
         """Target 1.3: Verify to_dict/from_dict round-trip preserves all data."""
         original = LanguageModel(
             model_name="test-model",
@@ -72,7 +72,7 @@ class TestGS01LanguageModelDefinition:
         assert restored.presence_penalty == original.presence_penalty
         assert restored.response_format == original.response_format
 
-    def test_gs_04_json_export_import(self):
+    def test_json_export_import(self):
         """Target 1.4: Verify to_json/from_json round-trip."""
         original = LanguageModel(
             model_name="json-test",
@@ -87,13 +87,13 @@ class TestGS01LanguageModelDefinition:
         assert restored.temperature == original.temperature
         assert restored.max_tokens == original.max_tokens
 
-    def test_gs_05_frozen_immutable(self):
+    def test_frozen_immutable(self):
         """Verify LanguageModel is frozen (mutation raises error)."""
         m = LanguageModel(model_name="frozen-test")
         with pytest.raises(Exception):
             m.temperature = 0.5
 
-    def test_gs_06_env_var_substitution(self):
+    def test_env_var_substitution(self):
         """Verify env-var substitution resolves ${VAR_NAME} in api_key."""
         m = LanguageModel(
             model_name="env-test",
@@ -101,7 +101,7 @@ class TestGS01LanguageModelDefinition:
         )
         assert m.api_key.get_secret_value() == "test-key-from-env"
 
-    def test_gs_07_to_dict_excludes_none(self):
+    def test_to_dict_excludes_none(self):
         """Verify to_dict excludes None values."""
         m = LanguageModel(model_name="exclude-test")
         d = m.to_dict()
@@ -109,7 +109,7 @@ class TestGS01LanguageModelDefinition:
         assert "stop" not in d
         assert "seed" not in d
 
-    def test_gs_08_provider_normalization(self):
+    def test_provider_normalization(self):
         """Verify provider normalization via resolve_provider."""
         m = LanguageModel(model_name="test", provider="lmstudio")
         assert m.provider == "openai-compatible"

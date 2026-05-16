@@ -5,10 +5,10 @@ from pathlib import Path
 from tinycua_sdk import Tool
 
 
-class TestInt09LoadingToolsFromDirectory:
+class TestToolLoading:
     """Test suite for Tool.load_directory and from_config."""
 
-    def test_int_01_tool_directory_discovery(self, tmp_path: Path):
+    def test_tool_directory_discovery(self, tmp_path: Path):
         """load_directory finds @tool functions in subdirectory modules."""
         tools_dir = tmp_path / "my_tools"
         mod_dir = tools_dir / "math_tools"
@@ -25,13 +25,13 @@ class TestInt09LoadingToolsFromDirectory:
         assert len(tools) == 1
         assert tools[0].name == "add"
 
-    def test_int_02_tool_directory_empty(self, tmp_path: Path):
+    def test_tool_directory_empty(self, tmp_path: Path):
         """load_directory returns empty list for empty directory."""
         empty_dir = tmp_path / "empty_tools"
         empty_dir.mkdir(parents=True)
         assert Tool.load_directory(empty_dir) == []
 
-    def test_int_03_tool_directory_no_tools(self, tmp_path: Path):
+    def test_tool_directory_no_tools(self, tmp_path: Path):
         """Directory with modules but no @tool functions returns empty list."""
         tools_dir = tmp_path / "no_tools"
         mod_dir = tools_dir / "utils"
@@ -44,7 +44,7 @@ class TestInt09LoadingToolsFromDirectory:
         tools = Tool.load_directory(tools_dir)
         assert tools == []
 
-    def test_int_04_tool_directory_skips_prefix_underscore(self, tmp_path: Path):
+    def test_tool_directory_skips_prefix_underscore(self, tmp_path: Path):
         """Files starting with _ are skipped."""
         tools_dir = tmp_path / "filtered_tools"
         mod_dir = tools_dir / "filtered"
@@ -68,7 +68,7 @@ class TestInt09LoadingToolsFromDirectory:
         assert "visible" in names
         assert "hidden" not in names
 
-    def test_int_05_tool_from_config_openai_format(self):
+    def test_tool_from_config_openai_format(self):
         """Tool.from_config handles OpenAI-style function config dict."""
         config = {
             "type": "function",
@@ -87,7 +87,7 @@ class TestInt09LoadingToolsFromDirectory:
         assert tool.description == "Greet someone."
         assert "name" in tool.parameters["properties"]
 
-    def test_int_06_tool_directory_multiple_tools(self, tmp_path: Path):
+    def test_tool_directory_multiple_tools(self, tmp_path: Path):
         """load_directory finds multiple @tool functions across modules."""
         tools_dir = tmp_path / "multi_tools"
         mod_dir = tools_dir / "string_tools"

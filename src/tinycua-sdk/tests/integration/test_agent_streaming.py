@@ -77,7 +77,7 @@ def get_time() -> str:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_gs_01_stream_off_returns_string(streaming_agent):
+async def test_stream_off_returns_string(streaming_agent):
     """stream=False returns a plain string."""
     response = await streaming_agent.run("Say hello.", stream=False)
     assert isinstance(response, str)
@@ -86,7 +86,7 @@ async def test_gs_01_stream_off_returns_string(streaming_agent):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_gs_02_stream_on_yields_events(streaming_agent):
+async def test_stream_on_yields_events(streaming_agent):
     """stream=True yields raw SSE events."""
     stream: AsyncIterator[dict] = await streaming_agent.run(
         "Count to 3.", stream=True
@@ -105,7 +105,7 @@ async def test_gs_02_stream_on_yields_events(streaming_agent):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_gs_03_stream_with_tool_calls(streaming_agent):
+async def test_stream_with_tool_calls(streaming_agent):
     """stream=True with a registered tool triggers function call events."""
     if not await _can_call_tools(streaming_agent):
         pytest.skip("LLM does not support tool calling")

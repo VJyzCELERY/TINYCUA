@@ -9,10 +9,10 @@ import pytest
 from tinycua_sdk import Tool, tool
 
 
-class TestInt01ToolCreation:
+class TestToolCreation:
     """Test suite for Tool and @tool decorator functionality."""
 
-    def test_int_01_tool_schema_generation(self):
+    def test_tool_schema_generation(self):
         """Target 1.5: Verify @tool generates correct OpenAI function schema."""
 
         @tool
@@ -34,7 +34,7 @@ class TestInt01ToolCreation:
         assert "unit" in schema["parameters"]["properties"]
         assert schema["parameters"]["required"] == ["city"]
 
-    def test_int_02_tool_invoke_keyword_args(self):
+    def test_tool_invoke_keyword_args(self):
         """Target 1.6: Verify @tool-decorated function can be invoked with keyword args."""
 
         @tool
@@ -45,7 +45,7 @@ class TestInt01ToolCreation:
         result = add.invoke(a=2, b=3)
         assert result == 5
 
-    def test_int_03_tool_invoke_positional_args(self):
+    def test_tool_invoke_positional_args(self):
         """Target 1.6: Verify @tool-decorated function rejects positional args (kwargs-only per spec)."""
 
         @tool
@@ -56,7 +56,7 @@ class TestInt01ToolCreation:
         with pytest.raises(TypeError):
             multiply.invoke(10, 20)
 
-    def test_int_04_manual_tool_construction(self):
+    def test_manual_tool_construction(self):
         """Target 1.7: Verify manual Tool construction works."""
         dynamic = Tool(
             name="reverse_string",
@@ -73,7 +73,7 @@ class TestInt01ToolCreation:
         assert schema["name"] == "reverse_string"
         assert schema["description"] == "Reverse a string."
 
-    def test_int_05_tool_invoke_no_callable_raises(self):
+    def test_tool_invoke_no_callable_raises(self):
         """Verify invoke raises RuntimeError when _callable is None."""
         dynamic = Tool(
             name="no_callable_tool",
@@ -84,7 +84,7 @@ class TestInt01ToolCreation:
         with pytest.raises(RuntimeError, match="has no function to invoke"):
             dynamic.invoke()
 
-    def test_int_06_tool_decorator_no_args(self):
+    def test_tool_decorator_no_args(self):
         """Verify @tool works without arguments."""
 
         @tool
@@ -96,7 +96,7 @@ class TestInt01ToolCreation:
         assert simple_func.description == "A simple function."
         assert simple_func._callable is not None
 
-    def test_int_07_tool_decorator_with_dependencies(self):
+    def test_tool_decorator_with_dependencies(self):
         """Verify @tool works with dependencies argument."""
 
         @tool(dependencies=["requests"])
@@ -107,7 +107,7 @@ class TestInt01ToolCreation:
         assert fetch_data.dependencies == ["requests"]
         assert fetch_data._callable is not None
 
-    def test_int_08_tool_from_callable_classmethod(self):
+    def test_tool_from_callable_classmethod(self):
         """Verify Tool.from_callable creates Tool from function."""
         from tinycua_sdk import Tool
 
@@ -129,7 +129,7 @@ class TestInt01ToolCreation:
         assert tool_instance.parameters["required"] == ["name"]
         assert tool_instance._callable is not None
 
-    def test_int_09_tool_dependencies_field(self):
+    def test_tool_dependencies_field(self):
         """Verify Tool has dependencies field."""
         t = Tool(
             name="dep_test",
