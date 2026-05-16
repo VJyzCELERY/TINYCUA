@@ -143,7 +143,7 @@ async def test_custom_loop_uses_public_helpers():
     # One-shot tool_choice: force first LLM call only, clear for follow-ups
     llm_model = _build_language_model()  # default model without tool_choice
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "function": {"name": "get_weather"}}},
+        update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
     loop = CustomToolLoop(initial_llm_model=llm_model_with_tc)
     agent = Agent(
@@ -279,7 +279,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
     # One-shot tool_choice: force first LLM call only, clear for follow-ups
     llm_model = _build_language_model()  # default model without tool_choice
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "function": {"name": "get_weather"}}},
+        update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
     loop = CustomStreamingLoop(initial_llm_model=llm_model_with_tc)
     agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
@@ -294,7 +294,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
     # Verify the final finish_reason is not a fallback
     completed_events = [e for e in events if e["type"] == "response.completed"]
     if completed_events:
-        assert completed_events[0].get("finish_reason") not in ("max_tool_calls", "max_iterations"), (
+        assert completed_events[-1].get("finish_reason") not in ("max_tool_calls", "max_iterations"), (
             "Stream exited via max limit fallback instead of completing naturally"
         )
 

@@ -167,7 +167,7 @@ A new test in `tests/integration/test_custom_agent_loop.py` (or a dedicated test
 
 **Deterministic forcing strategy**: To avoid flaky results across providers/models, the test MUST use one of these approaches (in order of preference):
 
-- **Option A (provider-supported)**: Use the provider's `tool_choice` parameter (e.g., `tool_choice="required"` or `tool_choice={"type": "function", "function": {"name": "..."}}`) to force the named tool. This guarantees the LLM calls the tool regardless of the query.
+- **Option A (provider-supported)**: Use the provider's `tool_choice` parameter (e.g., `tool_choice="required"` or `tool_choice={"type": "function", "name": "..."}`) to force the named tool. This guarantees the LLM calls the tool regardless of the query.
 - **Option B (fixture-based)**: Use an integration fixture that returns a real transport-compatible tool-call response while still exercising `Agent.run()` and the public helper code path end-to-end.
 - **Option C (split strategy)**: Split into (1) deterministic unit/contract tests that verify exact tool execution via mocked LLM responses, plus (2) a real-LLM smoke test that does not serve as the acceptance gate for tool execution. Only the smoke test requires a real API key.
 
