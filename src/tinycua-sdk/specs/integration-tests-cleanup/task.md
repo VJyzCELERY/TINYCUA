@@ -60,6 +60,26 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
 - [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **308 passed** (307 baseline + 3 new e2e - 1 removed obsolete_params - 1 duplicate YAML redaction) <!-- id: 15 -->
 - [x] Run Makefile target: `make test-integration` — **81 passed** <!-- id: 16 -->
 
+## Phase 5 — Targeted Suppression Cleanup (Planned, Not Implemented Yet)
+
+- [ ] Run characterization checks before cleanup: `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py` <!-- id: 17 -->
+- [ ] Remove `# noqa: C901` from `tinycua_sdk/agent/loop.py` <!-- id: 18 -->
+  - [ ] Add focused loop tests first if any `_run_stream` branch is not already covered
+  - [ ] Refactor `_run_stream` into behavior-preserving helpers until Ruff no longer reports C901
+  - [ ] Preserve stream lifecycle events, tool-call iteration, max iteration/tool-call handling, usage aggregation, provider failure handling, and cancellation behavior
+- [ ] Remove `# type: ignore[type-arg]` from `tinycua_sdk/agent/config.py` <!-- id: 19 -->
+  - [ ] Adjust the `skills` field annotation/import pattern without changing default list behavior
+  - [ ] Verify Agent config serialization and skill-related behavior remain unchanged
+- [ ] Remove `# pragma: no cover` from `tests/unit/test_loop.py` <!-- id: 20 -->
+  - [ ] Replace the unreachable-yield async-generator stub with a coverage-friendly empty async stream helper
+  - [ ] Preserve the empty provider stream response lifecycle assertions
+- [ ] Run suppression cleanup validation commands <!-- id: 21 -->
+  - [ ] `cd src/tinycua-sdk && uv run ruff check .`
+  - [ ] `cd src/tinycua-sdk && uv run mypy tinycua_sdk/`
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py`
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/integration/`
+  - [ ] `cd src/tinycua-sdk && uv run pytest`
+
 ---
 
 *Task IDs enable tracking and cross-referencing*

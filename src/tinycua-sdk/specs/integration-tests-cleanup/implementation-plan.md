@@ -1,6 +1,6 @@
 # Implementation: Integration Tests Cleanup
 
-Reorganize the tinycua-sdk integration tests by relocating files from `tests/integration/goals/` into `tests/integration/`, renaming to `test_<topic>.py` convention, merging overlapping test files, adding end-to-end tests, and removing the `goals/` directory. No SDK source code changes.
+Reorganize the tinycua-sdk integration tests by relocating files from `tests/integration/goals/` into `tests/integration/`, renaming to `test_<topic>.py` convention, merging overlapping test files, adding end-to-end tests, removing the `goals/` directory, and cleaning up targeted inline suppression comments in SDK source/tests. SDK source changes are limited to the planned suppression cleanup in `loop.py` and `config.py`.
 
 ## Context
 
@@ -11,7 +11,7 @@ Reorganize the tinycua-sdk integration tests by relocating files from `tests/int
 
 ## Environment Pre-requisites
 
-> N/A — This feature only reorganizes test files. No special environment setup is needed. The existing `uv run pytest` and `make test-integration` commands continue to work as-is.
+> N/A — This feature uses the existing SDK development environment. No external services are required beyond the optional live LLM endpoint that existing integration tests already skip when unavailable. The existing `uv run pytest`, `make test-integration`, lint, and type-check commands continue to work as-is.
 
 ## Success Criteria — Integration Tests (TDD First)
 
@@ -31,6 +31,7 @@ cd src/tinycua-sdk && uv run pytest
 - [ ] **After Phase 2**: Merged test files cover all unique original scenarios/assertions (audit by name); duplicate methods intentionally removed per merge analysis.
 - [ ] **After Phase 3**: New `test_end_to_end.py` is discovered and runs.
 - [ ] **After Phase 4**: `make test-integration` and `uv run pytest tests/integration/` both pass.
+- [ ] **After Phase 5**: Targeted inline suppressions are removed from `loop.py`, `config.py`, and `test_loop.py`, and lint/type-check/test validation passes without adding new ignore rules.
 
 ## Verification Plan
 
@@ -39,6 +40,9 @@ cd src/tinycua-sdk && uv run pytest
 - [ ] **Phase gate after each step**: `cd src/tinycua-sdk && uv run pytest` — full test suite must pass.
 - [ ] **Integration-only run**: `uv run pytest tests/integration/` — all integration tests discovered.
 - [ ] **Makefile target**: `make test-integration` — must work without errors.
+- [ ] **Lint**: `uv run ruff check .` — targeted suppression comments are no longer needed.
+- [ ] **Type check**: `uv run mypy tinycua_sdk/` — `config.py` cleanup does not require `type: ignore`.
+- [ ] **Unit tests**: `uv run pytest tests/unit/test_loop.py` — empty-stream behavior remains covered after removing `pragma: no cover`.
 
 ### Manual Verification
 
@@ -338,6 +342,34 @@ class TestEndToEnd:
 
 Remove the entire `tests/integration/goals/` directory and all its contents after Phases 1-3 are complete and verified.
 
+### Phase 5 — Targeted Suppression Cleanup (FR-010, FR-011, FR-012, FR-013)
+
+This phase is intentionally separate from the integration-test relocation work. Do not broaden lint/type-check/coverage ignore configuration; remove the local suppressions by improving the local code/test shape.
+
+#### [MODIFY] `tinycua_sdk/agent/loop.py`
+
+- **Remove `# noqa: C901` from `_run_stream`**: Split behavior-preserving helper logic out of `_run_stream` until Ruff no longer reports C901 for the function.
+- **Preserve stream behavior**: Existing response lifecycle events, tool-call iteration, max iteration/tool-call handling, usage aggregation, provider failure handling, and cancellation behavior must remain unchanged.
+- **Test-first guardrail**: Before refactoring, run existing loop tests and add focused tests only if a behavior branch is not currently characterized.
+
+#### [MODIFY] `tinycua_sdk/agent/config.py`
+
+- **Remove `# type: ignore[type-arg]` from the `skills` field**: Adjust the field typing/import/annotation pattern so the type checker accepts `skills: list[Skill] = Field(default_factory=list)` or an equivalent behavior-preserving declaration.
+- **Preserve Agent config behavior**: Default empty skills list, explicit skills list, serialization, and validation must behave the same as before.
+
+#### [MODIFY] `tests/unit/test_loop.py`
+
+- **Remove `# pragma: no cover` from the empty async-generator stub**: Replace the unreachable-yield pattern with a coverage-friendly helper that still returns an empty async stream for the test.
+- **Preserve test intent**: The empty provider stream scenario should still verify response lifecycle completion behavior.
+
+#### Verification for Phase 5
+
+- `cd src/tinycua-sdk && uv run ruff check .`
+- `cd src/tinycua-sdk && uv run mypy tinycua_sdk/`
+- `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py`
+- `cd src/tinycua-sdk && uv run pytest tests/integration/`
+- `cd src/tinycua-sdk && uv run pytest`
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -354,6 +386,9 @@ Remove the entire `tests/integration/goals/` directory and all its contents afte
 | `tests/integration/test_agent_export.py` | NEW | Merge of `test_int_06` + `test_int_07` |
 | `tests/integration/test_skills.py` | NEW | Merge of `test_int_02` + `test_int_08` + `test_skills_example.py` |
 | `tests/integration/test_end_to_end.py` | NEW | End-to-end integration tests |
+| `tinycua_sdk/agent/loop.py` | MODIFY | Remove `# noqa: C901` via behavior-preserving `_run_stream` refactor |
+| `tinycua_sdk/agent/config.py` | MODIFY | Remove `# type: ignore[type-arg]` from `skills` field typing |
+| `tests/unit/test_loop.py` | MODIFY | Remove `# pragma: no cover` from empty async-generator test helper |
 
 ## Dependencies
 
@@ -367,6 +402,7 @@ No new dependencies. All imports already exist in the codebase.
 - [ ] Phase 2 builds on Phase 1 (merged files created alongside renamed files)
 - [ ] Phase 3 is independent of Phases 1-2
 - [ ] Phase 4 must wait until Phases 1-3 are verified
+- [ ] Phase 5 can start after current test-suite state is green; it is logically independent of the integration file moves but must preserve all Phase 1-4 validation results
 
 ## Risks and Mitigations
 
@@ -376,6 +412,9 @@ No new dependencies. All imports already exist in the codebase.
 | Typo in renamed method causes test to not run | High | Run full suite after each phase — pytest will fail to find tests if method names don't start with `test_` |
 | Import error in relocated file | High | Run `uv run pytest tests/integration/` after each file move — import errors surface immediately |
 | `_load_skills_from_directory` helper duplicated after merge | Medium | Consolidate into a single module-level function in `test_skills.py` |
+| `_run_stream` refactor changes event ordering or tool-call termination behavior | High | Run loop unit tests before and after; add missing characterization tests before changing the branch logic |
+| Removing the `skills` type ignore changes Pydantic default/serialization behavior | High | Verify Agent config tests and skill integration tests after the annotation change |
+| Replacing the empty async-generator stub invalidates the empty-stream test | Medium | Keep the same observable test assertions and run `tests/unit/test_loop.py` directly |
 
 ---
 

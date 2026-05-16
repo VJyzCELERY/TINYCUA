@@ -8,7 +8,7 @@
 
 ## Overview
 
-Reorganize the tinycua-sdk integration tests from the informal `tests/integration/goals/` structure into a flat `tests/integration/` layout with consistent naming. Covers file relocation, renaming, deduplication via merging, and addition of new end-to-end integration tests. No source code changes — only test files are modified, created, or deleted.
+Reorganize the tinycua-sdk integration tests from the informal `tests/integration/goals/` structure into a flat `tests/integration/` layout with consistent naming. Covers file relocation, renaming, deduplication via merging, addition of new end-to-end integration tests, and a targeted cleanup of inline suppression comments discovered during SDK review. Source changes are limited to the suppression cleanup in `loop.py` and `config.py`; test changes are limited to integration cleanup plus the `test_loop.py` coverage-suppression cleanup.
 
 ---
 
@@ -55,6 +55,9 @@ tests/integration/                     tests/integration/
 | `test_tool_creation.py` | Created | Renamed from `test_int_01` |
 | `test_tool_loading.py` | Created | Renamed from `test_int_09` |
 | `test_end_to_end.py` | Created | New end-to-end integration tests |
+| `tinycua_sdk/agent/loop.py` | Modified | Refactor `_run_stream` enough to remove `# noqa: C901` without changing streaming/tool-call behavior |
+| `tinycua_sdk/agent/config.py` | Modified | Remove `# type: ignore[type-arg]` from the `skills` field while preserving Agent config behavior |
+| `tests/unit/test_loop.py` | Modified | Replace unreachable async-generator stub pattern so `# pragma: no cover` is no longer needed |
 
 ---
 
@@ -142,6 +145,13 @@ Internal test method names will also be renamed from numbered prefixes to descri
 - Run `make test-integration` to verify all tests are discovered and pass (or skip gracefully).
 - Run `uv run pytest` to verify full test suite.
 
+### Phase 5 — Targeted Suppression Cleanup
+
+- Refactor `tinycua_sdk/agent/loop.py` so `_run_stream` no longer needs `# noqa: C901` while preserving the stream event lifecycle, tool-call iteration, max-iteration/max-tool-call handling, usage accounting, and cancellation behavior.
+- Update `tinycua_sdk/agent/config.py` so the `skills` field type-checks without `# type: ignore[type-arg]` while preserving Pydantic field defaults and serialization behavior.
+- Update `tests/unit/test_loop.py` so the empty async-generator test helper remains valid without an unreachable `yield  # pragma: no cover` line.
+- Verify with lint, type checking, unit tests, integration tests, and the full SDK test suite.
+
 ---
 
 ## Technical Decisions
@@ -154,6 +164,10 @@ Internal test method names will also be renamed from numbered prefixes to descri
 
 4. **Merge agent export and loading** into one file. Export and loading are two sides of the same serialization concern. Keeping them separate led to duplication (both tested YAML redaction independently).
 
+5. **Remove suppression comments instead of broadening ignore configuration**. The cleanup should improve local code shape and test helpers directly; it should not add new Ruff, mypy, or coverage ignore rules.
+
+6. **Keep suppression cleanup behavior-preserving**. The `loop.py` refactor is allowed only if existing stream/tool behavior remains unchanged and tests continue to pass.
+
 ---
 
 ## Risks and Mitigations
@@ -163,6 +177,9 @@ Internal test method names will also be renamed from numbered prefixes to descri
 | Test method name changes break external references | Low | Medium | No known external references to internal test method names |
 | Missed test scenario during merge | Low | High | Audit each merged file to ensure every original test method is present |
 | Import errors after file moves | Low | High | Run full test suite after changes |
+| Loop refactor changes stream/tool event ordering | Medium | High | Treat existing loop tests as characterization tests; add focused tests before refactor if gaps are found |
+| Type-ignore cleanup changes Agent `skills` defaults or validation | Low | High | Verify `Agent()` creation, `Agent.to_config()`, and skill-related tests after the annotation change |
+| Coverage-suppression cleanup makes async-generator test stop exercising the empty-stream path | Low | Medium | Keep the test's observable behavior unchanged: empty provider stream still yields response lifecycle completion events |
 
 ---
 

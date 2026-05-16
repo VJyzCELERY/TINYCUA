@@ -9,15 +9,19 @@
 
 ## Problem Statement
 
-- **Goals**: Reorganize the tinycua-sdk integration tests to follow project conventions, remove the informal `goals/` subdirectory, deduplicate overlapping test files, and add end-to-end integration tests to increase coverage of real SDK workflows.
+- **Goals**: Reorganize the tinycua-sdk integration tests to follow project conventions, remove the informal `goals/` subdirectory, deduplicate overlapping test files, add end-to-end integration tests to increase coverage of real SDK workflows, and clean up targeted inline suppression comments discovered during SDK review.
 - **Gaps**:
   - Integration tests are split between `tests/integration/goals/` (12 files) and `tests/integration/` (2 files), creating confusion about where tests should live.
   - Goal tests use numbered prefixes (`test_gs_*`, `test_int_*`, `test_adv_*`) that do not match the project `test_<topic>.py` convention.
   - Some test files overlap in coverage (e.g., `test_agent_creation.py` vs `test_gs_02_agent_creation.py`, `test_int_06_exporting_agent.py` vs `test_int_07_loading_agent.py`), creating maintenance burden and potential for test drift.
   - No end-to-end integration tests exist that exercise the full SDK workflow (config, agent creation, tool registration, run, result).
+  - A small number of inline suppression comments remain in SDK source/tests and should either be removed by simplifying code or replaced with coverage/type-checker-friendly patterns:
+    - `tinycua_sdk/agent/loop.py` suppresses `C901` complexity on `_run_stream` with `# noqa: C901`.
+    - `tinycua_sdk/agent/config.py` suppresses a type argument warning on the `skills` field with `# type: ignore[type-arg]`.
+    - `tests/unit/test_loop.py` suppresses unreachable async-generator stub coverage with `# pragma: no cover`.
 - **Non-Goals**:
-  - No changes to unit tests.
-  - No changes to the SDK source code (only test files are modified).
+  - No broad changes to unit tests beyond the targeted `test_loop.py` coverage-suppression cleanup.
+  - No broad SDK source code changes beyond the targeted suppression cleanup in `loop.py` and `config.py`.
   - No removal of test coverage — all existing test scenarios must be preserved.
   - No changes to CI/CD or test runner configuration beyond what is needed for reorganization.
 - **Constraints**:
@@ -71,6 +75,10 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 - **FR-007**: The `make test-integration` target MUST continue to discover and run all integration tests.
 - **FR-008**: The `run_integration_tests.py` script MUST continue to work without modification.
 - **FR-009**: Integration tests that require a live LLM server MUST continue to be skipped gracefully when the server is unavailable (via existing conftest.py logic).
+- **FR-010**: The SDK MUST remove the inline `# noqa: C901` suppression from `tinycua_sdk/agent/loop.py` by reducing `_run_stream` complexity while preserving streaming and tool-call behavior.
+- **FR-011**: The SDK MUST remove the inline `# type: ignore[type-arg]` suppression from `tinycua_sdk/agent/config.py` while preserving the `skills` field behavior and validation contract.
+- **FR-012**: The SDK test suite MUST remove the inline `# pragma: no cover` suppression from `tests/unit/test_loop.py` while preserving the async-generator test scenario.
+- **FR-013**: The targeted suppression cleanup MUST pass lint, type-checking where configured, unit tests, integration tests, and the full SDK test suite.
 
 ### Test File Mapping
 
@@ -108,6 +116,7 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 - [ ] Overlapping tests merged: duplicate test files are consolidated (agent creation, agent export/loading).
 - [ ] New end-to-end tests added: at least one end-to-end integration test covering a full agent workflow.
 - [ ] Naming consistent: all integration test files follow `test_<topic>.py` convention.
+- [ ] Inline suppressions cleaned up: targeted `# noqa: C901`, `# type: ignore[type-arg]`, and `# pragma: no cover` comments are removed without behavior regression.
 
 ---
 
@@ -115,7 +124,9 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 
 ### Unit Tests
 
-No new unit tests needed — this spec addresses reorganization of integration tests only.
+- Existing unit tests will be preserved for the integration-test reorganization work.
+- The targeted `test_loop.py` cleanup will keep the async-generator behavior under unit test without relying on `# pragma: no cover`.
+- Existing loop/config unit tests will be used as characterization coverage before refactoring `loop.py` and `config.py`.
 
 ### Integration Tests
 
@@ -127,6 +138,7 @@ No new unit tests needed — this spec addresses reorganization of integration t
 
 - Run the full test suite (`uv run pytest`) to confirm no regressions.
 - Run `make test-integration` to verify the Makefile target works.
+- Run lint/type-check commands for the suppression cleanup scope to confirm the removed comments are no longer needed.
 
 ---
 
