@@ -45,7 +45,11 @@ Runtime services are handled differently per test layer:
 
 ## Success Criteria - Integration Tests (TDD First)
 
-Write the integration test first at `tests/integration/goals/test_adv_01_custom_agent_loop.py`. The tests should mock `_call_llm()` where possible so Stage 8 does not require a local model server in CI.
+Tests are structured in three layers:
+
+1. **Unit/contract tests** (`tests/unit/test_loop_custom.py`): Deterministic fake-LLM assertions for fast control-flow coverage. No server required.
+2. **Integration contract tests** (same file, no marker): Tests that don't call `_call_llm()` (override, cancellation, max_iterations). No server required.
+3. **Real integration tests** (same file, `@pytest.mark.integration`): Use the SDK's actual `LanguageModel` transport without monkeypatching. Require a local OpenAI-compatible server, skipped when unavailable.
 
 ```python
 # Test file: tests/integration/goals/test_adv_01_custom_agent_loop.py

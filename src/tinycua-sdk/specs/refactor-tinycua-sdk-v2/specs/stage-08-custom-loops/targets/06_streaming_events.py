@@ -4,7 +4,10 @@ Validates R-8.4: the default loop MUST emit response.created, response.in_progre
 response.usage, and response.completed even when the raw provider stream only
 emits content deltas.
 
-Uses a deterministic fake stream to avoid needing a live LLM server.
+This is a standalone deterministic verification target that injects a synthetic
+stream. The same contract is verified against a real LLM endpoint by
+test_integration_streaming_lifecycle_real_llm (in
+tests/integration/goals/test_adv_01_custom_agent_loop.py, @pytest.mark.integration).
 """
 
 import asyncio
@@ -13,7 +16,7 @@ from collections.abc import AsyncIterator
 from tinycua_sdk import Agent, LanguageModel
 
 
-async def fake_call_llm(messages, tools=None, stream: bool = False):
+async def deterministic_call_llm(messages, tools=None, stream: bool = False):
     """Return a stream that emits only content deltas (no lifecycle events).
 
     This lets us verify the default BaseLoop._run_stream() injects the
@@ -29,7 +32,7 @@ async def fake_call_llm(messages, tools=None, stream: bool = False):
 
 async def main():
     a = Agent(llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"))
-    a._call_llm = fake_call_llm  # type: ignore[method-assign]
+    a._call_llm = deterministic_call_llm  # type: ignore[method-assign]
 
     stream = await a.run("Hello", stream=True)
     events = [event async for event in stream]

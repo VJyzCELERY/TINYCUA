@@ -223,77 +223,27 @@ async def test_integration_streaming_lifecycle_real_llm():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_integration_plan_then_execute_real_llm():
-    """A PlanThenExecute loop passes a copied LanguageModel through _call_llm().
+async def test_integration_model_override_real_llm():
+    """Custom loop can pass a copied LanguageModel through _call_llm(llm_model=...).
 
-    This test verifies the model override path: a PlanThenExecute loop
-    copies the agent's LanguageModel with a modified temperature and
-    passes it through _call_llm(llm_model=...). The test verifies the
-    loop completes against the real endpoint.
+    This test verifies the model override path against the real endpoint:
+    a custom loop copies the agent's LanguageModel with a modified temperature
+    and passes it through _call_llm(llm_model=...). The test verifies the
+    override reaches the real client by checking the response is valid.
+
+    The full PlanThenExecute two-phase contract (plan + execute) is covered
+    deterministically in tests/unit/test_loop_custom.py (test_plan_then_execute_loop_works).
     """
-    @tool
-    def lookup(item: str) -> str:
-        """Look up information about an item."""
-        return f"Information about {item}."
-
-    class PlanThenExecuteLoop(BaseLoop):
-        def __init__(self, max_iterations=5, plan_temperature=0.3):
-            super().__init__(max_iterations=max_iterations)
-            self.plan_temperature = plan_temperature
-
+    class ModelOverrideLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-            # Phase 1: Planning with model override
-            plan_messages = messages + [{
-                "role": "system",
-                "content": "First, outline a step-by-step plan. Do not execute yet.",
-            }]
-            plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
-            plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
-            plan = plan_response.get("content", "")
-
-            # Phase 2: Execution
-            exec_messages = messages + [
-                {"role": "assistant", "content": plan},
-                {"role": "system", "content": "Now execute the plan above step by step."},
-            ]
-
-            for _ in range(self.max_iterations):
-                if agent.is_cancelled:
-                    return "[cancelled]"
-
-                response = await agent._call_llm(exec_messages, tools)
-                content = response.get("content")
-                exec_messages.append({"role": "assistant", "content": content or ""})
-
-                if not response.get("tool_calls"):
-                    return content or ""
-
-                for tc in response["tool_calls"]:
-                    tool_name = tc["name"]
-                    arguments = json.loads(tc["arguments"])
-                    for t in tools:
-                        if t.name == tool_name:
-                            result = await ToolExecutor.execute(t, arguments, agent)
-                            call_id = tc.get("call_id", tc["id"])
-                            exec_messages.append({
-                                "type": "function_call",
-                                "call_id": call_id,
-                                "name": tc["name"],
-                                "arguments": tc["arguments"],
-                            })
-                            exec_messages.append({
-                                "type": "function_call_output",
-                                "call_id": call_id,
-                                "output": str(result),
-                            })
-                            break
-
-            return "[max iterations reached]"
+            # Verify model override works: copy with different temperature
+            override_model = agent.llm_model.model_copy(update={"temperature": 0.3})
+            response = await agent._call_llm(messages, llm_model=override_model)
+            return response.get("content") or ""
 
     llm_model = _build_language_model()
-    agent = Agent(llm_model=llm_model, tools=[lookup], loop=PlanThenExecuteLoop(max_iterations=3))
+    agent = Agent(llm_model=llm_model, loop=ModelOverrideLoop())
 
     result = await agent.run("Say hello in one word.", stream=False)
     assert isinstance(result, str)
-    assert len(result) > 0
-    assert result not in ("[cancelled]", "[max iterations reached]"), f"Unexpected result: {result}"
+    assert len(result) > 0, f"Model returned empty content: {result!r}"
