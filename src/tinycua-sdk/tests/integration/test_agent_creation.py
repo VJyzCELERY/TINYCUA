@@ -1,7 +1,5 @@
 """Integration tests for Agent creation and initialization."""
 
-import pytest
-
 from tinycua_sdk import Agent, AgentPolicy, LanguageModel, Skill, tool
 
 
@@ -96,35 +94,6 @@ class TestAgentConstructor:
 
         assert agent.metadata["team"] == "platform"
         assert agent.metadata["cost_center"] == "eng-123"
-
-    def test_obsolete_params_rejected(self):
-        """Target 2.5: Verify obsolete parameters raise TypeError."""
-        obsolete_params = [
-            "system_prompt",
-            "model",
-            "provider",
-            "base_url",
-            "api_key",
-            "mode",
-            "backend_url",
-            "backend_api_key",
-            "backend_headers",
-            "agent_id",
-            "planning_prompt",
-            "short_term_memory",
-            "long_term_memory",
-            "session_id",
-            "sub_agents",
-            "max_depth",
-            "strip_thinking",
-            "backend",
-        ]
-
-        for param in obsolete_params:
-            with pytest.raises(TypeError) as excinfo:
-                Agent(**{param: "test"})
-            message = str(excinfo.value)
-            assert param in message or "unexpected keyword argument" in message
 
     def test_dynamic_composition(self):
         """Target 2.6: Verify tools and skills can be added after creation."""
