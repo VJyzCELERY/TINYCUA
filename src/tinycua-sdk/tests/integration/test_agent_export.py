@@ -1,4 +1,4 @@
-"""Integration tests for agent JSON/YAML export and redaction."""
+"""Integration tests for agent JSON/YAML export, loading, and redaction."""
 
 import json
 from pathlib import Path
@@ -9,10 +9,10 @@ from tinycua_sdk import Agent, Skill
 from tinycua_sdk.agent.llm_model import LanguageModel
 
 
-class TestInt06ExportingAgent:
+class TestAgentExport:
     """Test suite for Agent serialization and redaction."""
 
-    def test_int_01_agent_dict_round_trip(self):
+    def test_agent_dict_round_trip(self):
         """Agent to_config -> from_dict round-trip preserves equality."""
         agent = Agent(
             name="test-agent",
@@ -31,7 +31,7 @@ class TestInt06ExportingAgent:
         restored = Agent.from_dict(config)
         assert restored.to_config() == config
 
-    def test_int_02_agent_json_redaction(self):
+    def test_agent_json_redaction(self):
         """Redacted JSON masks api_key; non-redacted shows full value."""
         agent = Agent(
             name="test-agent",
@@ -43,7 +43,7 @@ class TestInt06ExportingAgent:
         assert redacted["llm_model"]["api_key"] == "***"
         assert exposed["llm_model"]["api_key"] == "sk-secret-456"
 
-    def test_int_03_agent_yaml_redaction(self):
+    def test_agent_yaml_redaction(self):
         """Redacted YAML masks api_key; non-redacted shows full value."""
         agent = Agent(
             name="test-agent",
@@ -55,7 +55,7 @@ class TestInt06ExportingAgent:
         assert redacted["llm_model"]["api_key"] == "***"
         assert exposed["llm_model"]["api_key"] == "sk-secret-789"
 
-    def test_int_04_agent_json_file_round_trip(self, tmp_path: Path):
+    def test_agent_json_file_round_trip(self, tmp_path: Path):
         """Write JSON file (unredacted) -> load back -> assert equivalence."""
         agent = Agent(
             name="file-agent",
@@ -68,7 +68,7 @@ class TestInt06ExportingAgent:
         restored = Agent.from_json_file(json_path)
         assert restored.to_config() == agent.to_config()
 
-    def test_int_05_agent_yaml_file_round_trip(self, tmp_path: Path):
+    def test_agent_yaml_file_round_trip(self, tmp_path: Path):
         """Write YAML file (unredacted) -> load back -> assert equivalence."""
         agent = Agent(
             name="yaml-agent",
@@ -80,3 +80,47 @@ class TestInt06ExportingAgent:
 
         restored = Agent.from_yaml_file(yaml_path)
         assert restored.to_config() == agent.to_config()
+
+
+class TestAgentLoading:
+    """Test suite for Agent YAML round-trip and file loading."""
+
+    def test_yaml_export_import_round_trip(self):
+        """YAML export -> parse -> from_dict preserves config."""
+        agent = Agent(
+            name="yaml-roundtrip",
+            instructions="Round-trip test.",
+            llm_model=LanguageModel(api_key="sk-roundtrip"),
+        )
+        yaml_str = agent.to_yaml(redact_sensitive=False)
+        parsed = yaml.safe_load(yaml_str)
+        restored = Agent.from_dict(parsed)
+        assert restored.to_config() == agent.to_config()
+
+    def test_yaml_file_load(self, tmp_path: Path):
+        """Write YAML file -> from_yaml_file restores agent."""
+        agent = Agent(
+            name="yaml-file-load",
+            instructions="Loaded from YAML file.",
+            llm_model=LanguageModel(api_key="sk-file-load"),
+        )
+        yaml_path = tmp_path / "agent.yaml"
+        yaml_path.write_text(agent.to_yaml(redact_sensitive=False))
+
+        restored = Agent.from_yaml_file(yaml_path)
+        assert restored.name == "yaml-file-load"
+        assert restored.instructions == "Loaded from YAML file."
+        assert (
+            restored.to_config()["llm_model"]["api_key"].get_secret_value()
+            == "sk-file-load"
+        )
+
+    def test_yaml_exposed_export(self):
+        """to_yaml with redact_sensitive=False exposes api_key."""
+        agent = Agent(
+            name="exposed-yaml",
+            llm_model=LanguageModel(api_key="sk-secret-exposed"),
+        )
+        yaml_str = agent.to_yaml(redact_sensitive=False)
+        parsed = yaml.safe_load(yaml_str)
+        assert parsed["llm_model"]["api_key"] == "sk-secret-exposed"
