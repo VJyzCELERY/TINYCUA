@@ -39,7 +39,7 @@ Implementation tasks for Stage 8 Custom Loops. Check off items as completed.
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua-sdk/docs/examples/07_custom_loop.py` to replace `LLMModel` with `LanguageModel`, use the current `BaseLoop.run()` signature, pass `tools` directly to `_call_llm()`, and use `ToolExecutor.execute()` for tool execution. <!-- id: 22 -->
+- [x] Update `src/tinycua-sdk/docs/examples/07_custom_loop.py` to replace `LLMModel` with `LanguageModel`, use the current `BaseLoop.run()` signature, pass `tools` directly to `_call_llm()`, and use `ToolExecutor.execute()` for tool execution. <!-- id: 22 -->
 - [ ] Update `src/tinycua-sdk/README.md` only if it documents loop extension points or stream event contracts. <!-- id: 23 -->
 - [ ] Update Stage 8 `spec.md` or `targets.md` only if implementation reveals a contradiction between the spec and executable target scenarios. <!-- id: 24 -->
 
