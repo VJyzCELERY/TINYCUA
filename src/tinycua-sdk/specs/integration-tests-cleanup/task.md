@@ -79,8 +79,8 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
   - [x] `cd src/tinycua-sdk && uv run ruff check .` — **All checks passed!**
   - [x] `cd src/tinycua-sdk && uv run mypy tinycua_sdk/` — **Success: no issues found**
   - [x] `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py` — **41 passed**
-  - [x] `cd src/tinycua-sdk && uv run pytest tests/integration/` — **79 passed (1 pre-existing flaky LLM-dependent)**
-  - [x] `cd src/tinycua-sdk && uv run pytest` — **305 passed (1 deselected flaky, 1 pre-existing flaky LLM-dependent)**
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/integration/` — **80 passed**
+  - [x] `cd src/tinycua-sdk && uv run pytest` — **307 passed**
 
 ---
 

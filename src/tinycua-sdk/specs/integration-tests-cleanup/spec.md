@@ -110,7 +110,7 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 
 ## Success Criteria
 
-- [x] `make test-integration` passes: all integration tests succeed or skip gracefully for LLM-dependent tests (81 discovered, 79 pass, 2 pre-existing flaky LLM-dependent).
+- [x] `make test-integration` passes: all integration tests succeed or skip gracefully for LLM-dependent tests (80 discovered, 80 passed).
 - [x] `goals/` directory removed: no tests remain under `tests/integration/goals/`.
 - [x] All test scenarios preserved: every unique test scenario from original files exists in the new structure; duplicate methods removed per merge traceability.
 - [x] Overlapping tests merged: duplicate test files are consolidated (agent creation, agent export/loading, skills).
