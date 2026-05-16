@@ -8,9 +8,16 @@
 
 ## Overview
 
-Refactor `tinycua_sdk/agent/loop.py` to decompose both `_run_sync()` and `_run_stream()` into atomic, standalone, public helper functions. The loop execution model becomes a straightforward while loop where each step — calling the LLM, checking permissions, requesting approval, executing a tool, building messages — is a replaceable primitive. `BaseLoop` becomes a thin orchestration layer that delegates entirely to these primitives.
+Refactor `tinycua_sdk/agent/loop.py` to decompose both `_run_sync()` and `_run_stream()` into atomic, standalone, public helper functions that accept **raw data types** (dicts, lists, Tools, asyncio.Event) rather than Agent or BaseLoop instances. The goal is to create a toolkit of generic primitives usable in any loop context, not just inside BaseLoop.
 
-Custom loop authors import only the primitives they need and compose them however they like, without subclassing `BaseLoop` or touching private internals.
+`BaseLoop` becomes a thin orchestration layer that delegates to these primitives. Custom loop authors import only the primitives they need and compose them however they like.
+
+### Design Principles
+
+1. **Atomicity**: Each primitive does exactly one thing. `invoke_tool()` only invokes a tool. `check_tool_permission()` only checks a permissions dict. No hidden steps.
+2. **Raw data interfaces**: Primitives accept plain Python types (dict, list, Tool, asyncio.Event) rather than framework objects (Agent, BaseLoop). The only exception is `call_llm()` / `call_llm_stream()` which naturally need the Agent for LLM client access.
+3. **Composability**: `execute_tool_call()` is a convenience composition of the atomic primitives. Users who want different behavior use the atomic pieces directly.
+4. **Backward compatibility**: `ToolExecutor.execute()` and all existing tests work without changes.
 
 ---
 
@@ -26,106 +33,111 @@ while iter < max_iterations:
 
     if has_tool_calls(response):
         for tc in get_tool_calls(response):
-            permission = check_tool_permission(tc["name"], agent)
-
-            if permission == "deny":
-                append_tool_error(messages, tc, "denied")
-                continue
-
-            if permission == "ask":
-                approval = await request_tool_approval(tc, agent)
-                if not approval["approved"]:
-                    append_tool_error(messages, tc, approval)
-                    continue
-
-            # permission == "allow" (or approved)
-            result = await execute_tool(tc, tools, agent)
-            append_tool_result(messages, tc, result)
+            atomic steps                   ← each is replaceable independently
+            ├── parse_tool_arguments(tc)
+            ├── lookup_tool(tc["name"], tools)
+            ├── check_tool_permission(tc["name"], agent.tool_permissions)  ← takes dict
+            ├── request_tool_approval(tc, agent.approval_workflow)         ← takes list
+            └── invoke_tool(tool, parsed_args)                             ← pure execution
+            then
+            └── append_tool_result(messages, tc, result)
     else:
-        content = get_content(response)
-        append_assistant_message(messages, content)
-        return content
+        return get_content(response)
 ```
-
-Every function in this flow is a standalone public primitive. The user can replace any single function without touching the rest.
 
 ### Component Diagram
 
 ```
   loop.py (public API)
-  ─────────────────────────────────────────────────────────────
+  ─────────────────────────────────────────────────────────────────────
   
-  LLM Primitives                 Permission/Approval
-  ├── call_llm()                 ├── check_tool_permission()
-  ├── call_llm_stream()          ├── request_tool_approval()
-  └── build_system_message()     └── execute_tool_call()
+  LLM Primitives (take Agent — natural abstraction for model access)
+  ├── call_llm(agent, messages, tools)
+  ├── call_llm_stream(agent, messages, tools)
+  └── build_system_message(instructions, skills)    ← pure, takes raw strings
   
-  Message Building               Response Inspection
-  ├── build_function_call_message()    ├── has_tool_calls()
-  ├── build_function_call_output_message()  ├── get_tool_calls()
-  └── append_tool_result()             ├── get_content()
-                                       └── last_assistant_content()
+  Atomic Tool Primitives (take raw data — no Agent dependency)
+  ├── parse_tool_arguments(tc)                    → (dict|None, str|None)
+  ├── lookup_tool(tool_name, tools)               → Tool | None
+  ├── check_tool_permission(name, permissions)    → "allow"|"ask"|"deny"
+  ├── request_tool_approval(name, args, workflows) → dict (approval result)
+  └── invoke_tool(tool, arguments)                 → Any (raw result)
   
-  Stream Processing              Tool Utilities
-  └── iterate_stream_events()    └── parse_tool_arguments()
-                                  └── lookup_tool()
+  Convenience Composition
+  └── execute_tool_call(tc, tools, permissions, workflows)
+      → composes parse → lookup → check → approve → invoke
   
-  BaseLoop (thin orchestration)
+  Message Primitives (pure, take raw data)
+  ├── build_function_call_message(tc)
+  ├── build_function_call_output_message(tc, output)
+  └── append_tool_result(messages, tc, result)
+  
+  Stream Primitives (take asyncio.Event — not Agent)
+  ├── read_stream_chunk(llm_stream, cancel_event)
+  ├── iter_llm_events(llm_stream, cancel_event)
+  ├── iterate_stream_events(llm_stream, cancel_event, ...)
+  ├── accumulate_chunk(chunk, ...)
+  ├── accumulate_tool_chunk(chunk, ...)
+  └── accumulate_usage(cumulative, usage)
+  
+  Inspection Primitives (pure functions)
+  ├── has_tool_calls(response)
+  ├── get_tool_calls(response)
+  ├── get_content(response)
+  └── last_assistant_content(messages)
+  
+  BaseLoop (thin orchestration — uses only the above)
   ├── run()               ← unchanged dispatcher
-  ├── _run_sync()         ← now delegates to primitives (~35 lines)
-  └── _run_stream()       ← now delegates to primitives (~50 lines)
+  ├── _run_sync()         ← ~35 lines, delegates to primitives
+  └── _run_stream()       ← ~50 lines, delegates to primitives
 ```
 
 ### Affected Components
 
-| Component | Change Type | Notes |
-|-----------|-------------|-------|
-| `loop.py` — module-level | New public functions | ~15 new standalone primitives |
-| `loop.py` — `_accumulate_tool_chunk` | Renamed → `accumulate_tool_chunk` (public) | |
-| `loop.py` — `_accumulate_usage` | Renamed → `accumulate_usage` (public) | |
-| `loop.py` — `BaseLoop` | Modified | Both `_run_sync()` and `_run_stream()` refactored to delegate to primitives |
-| `loop.py` — `_IterStreamState` | Deleted | No longer needed |
+| Component | Change | Notes |
+|-----------|--------|-------|
+| `loop.py` — module-level | ~20 new public functions | All primitives listed above |
+| `loop.py` — `_accumulate_tool_chunk` | Renamed → `accumulate_tool_chunk` | Made public |
+| `loop.py` — `_accumulate_usage` | Renamed → `accumulate_usage` | Made public |
+| `loop.py` — `BaseLoop` | Refactored | Both loop paths delegate to primitives |
+| `loop.py` — `_IterStreamState` | Deleted | Replace inline boolean tracking |
 | `loop.py` — `_yield_first_chunk_events` | Deleted | Replaced by `iterate_stream_events()` |
 | `loop.py` — `_yield_stream_body_events` | Deleted | Replaced by `iterate_stream_events()` |
-| `loop.py` — `_execute_tools_stream` | Deleted | Replaced by `execute_tool_call()` and `append_tool_result()` |
-| `loop.py` — `__all__` | Expanded | Export all new public functions |
-| `ToolExecutor.execute()` | Unchanged | Still works; `execute_tool_call()` delegates to it internally |
-| `test_loop.py` | Unchanged | Must pass without modification |
-| `test_loop_custom.py` | Unchanged | Must pass without modification |
-| `test_agent_run.py` | Unchanged | Must pass without modification |
-| `test_agent_streaming.py` | Unchanged | Must pass without modification |
+| `loop.py` — `_execute_tools_stream` | Deleted | Replaced by `invoke_tool()` + `append_tool_result()` |
+| `executor.py` — `ToolExecutor.execute()` | Refactored | Delegates to the new primitives (backward compat) |
+| `__all__` in `loop.py` | Expanded | Export all public primitives |
 
 ---
 
 ## API / Interface Contracts
 
-All functions live in `tinycua_sdk/agent/loop.py`. They are stateless unless otherwise noted.
+All functions live in `tinycua_sdk/agent/loop.py`. They are designed to accept the most generic types possible.
 
 ---
 
 ### LLM Primitives
 
-#### `build_system_message(agent, override_instructions=None)`
+These take `Agent` because accessing the LLM requires the agent's client and model config. This is a natural boundary — the Agent is the right abstraction for "thing that can talk to an LLM."
+
+#### `build_system_message(instructions, skills)`
 
 ```python
 def build_system_message(
-    agent: Agent,
-    override_instructions: str | None = None,
+    instructions: str,
+    skills: list[Skill],
 ) -> dict[str, str]:
-    """Build a system message from agent instructions and skill definitions.
+    """Build a system message from instructions and skill definitions.
 
     Args:
-        agent: The agent whose instructions/skills to use.
-        override_instructions: When provided, replaces agent.instructions.
+        instructions: The agent's instructions string.
+        skills: List of Skill instances.
 
     Returns:
         A dict with ``role="system"`` and joined ``content``.
     """
 ```
 
-Pure function — no exceptions. Empty instructions produce `{"role": "system", "content": ""}`.
-
----
+Pure function. Takes raw strings and lists — no Agent dependency. Empty instructions produce `{"role": "system", "content": ""}`.
 
 #### `call_llm(agent, messages, tools)`
 
@@ -140,7 +152,7 @@ async def call_llm(
     Delegates to ``agent._call_llm()`` with ``stream=False``.
 
     Args:
-        agent: The agent (provides LLM client, model config).
+        agent: The agent (provides LLM client and model config).
         messages: Working message list.
         tools: List of available tools.
 
@@ -149,9 +161,7 @@ async def call_llm(
     """
 ```
 
-Raises: `TypeError` if the LLM returns a non-dict response (same as current behavior).
-
----
+Raises `TypeError` if the LLM returns a non-dict response.
 
 #### `call_llm_stream(agent, messages, tools)`
 
@@ -166,7 +176,7 @@ async def call_llm_stream(
     Delegates to ``agent._call_llm()`` with ``stream=True``.
 
     Args:
-        agent: The agent.
+        agent: The agent (provides LLM client and model config).
         messages: Working message list.
         tools: List of available tools.
 
@@ -175,138 +185,13 @@ async def call_llm_stream(
     """
 ```
 
-Raises: `TypeError` if the LLM returns a non-AsyncIterator response.
+Raises `TypeError` if the LLM returns a non-AsyncIterator response.
 
 ---
 
-### Response Inspection Primitives
+### Atomic Tool Primitives
 
-#### `has_tool_calls(response)`
-
-```python
-def has_tool_calls(response: dict[str, Any]) -> bool:
-    """Check if an LLM response contains tool calls."""
-```
-
-#### `get_tool_calls(response)`
-
-```python
-def get_tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract tool calls from an LLM response.
-
-    Returns an empty list if no tool calls are present.
-    """
-```
-
-#### `get_content(response)`
-
-```python
-def get_content(response: dict[str, Any]) -> str:
-    """Extract text content from an LLM response.
-
-    Returns ``""`` if no content is present.
-    """
-```
-
-#### `last_assistant_content(messages)`
-
-```python
-def last_assistant_content(messages: list[dict]) -> str:
-    """Find the content of the last assistant message, or empty string."""
-```
-
----
-
-### Permission & Approval Primitives
-
-#### `check_tool_permission(tool_name, agent)`
-
-```python
-def check_tool_permission(
-    tool_name: str,
-    agent: Agent,
-) -> Literal["allow", "ask", "deny"]:
-    """Check the permission level for a tool name.
-
-    Looks up the tool in ``agent.tool_permissions``.
-    Returns ``"allow"`` by default if the tool is not in the map.
-
-    Args:
-        tool_name: Name of the tool to check.
-        agent: The agent whose permission map to query.
-
-    Returns:
-        One of ``"allow"``, ``"ask"``, or ``"deny"``.
-    """
-```
-
-Pure function. Returns `"allow"` for tools not in the permission map. Returns `"deny"` for invalid permission values.
-
----
-
-#### `request_tool_approval(tool_call_data, agent)`
-
-```python
-async def request_tool_approval(
-    tool_call_data: dict[str, Any],
-    agent: Agent,
-) -> dict[str, Any]:
-    """Request approval for a tool call via the agent's ApprovalWorkflow.
-
-    Args:
-        tool_call_data: Dict with ``name``, ``arguments``, and ``call_id``.
-        agent: The agent whose ``approval_workflow`` to use.
-
-    Returns:
-        Approval result dict (e.g., ``{"approved": True}`` or
-        ``{"approved": False, "reason": "..."}``).
-    """
-```
-
-**Error handling**:
-- If no `approval_workflow` is configured: returns `{"approved": False, "error": "No approval workflow configured"}`.
-- If a workflow rejects: returns the rejection dict as-is from the workflow.
-
----
-
-#### `execute_tool_call(tc, tools, agent)`
-
-```python
-async def execute_tool_call(
-    tc: dict[str, Any],
-    tools: list[Tool],
-    agent: Agent,
-) -> dict[str, Any]:
-    """Execute a single tool call with permission check and optional approval.
-
-    Orchestrates the full lifecycle for one tool call in order:
-    1. Parse JSON arguments from ``tc["arguments"]``
-    2. Look up the tool by name in ``tools``
-    3. Check permission via ``check_tool_permission()``
-    4. If ``"ask"``, request approval via ``request_tool_approval()``
-    5. Execute via ``ToolExecutor.execute()``
-
-    Args:
-        tc: Tool call dict with keys ``name``, ``arguments``, ``id``/``call_id``.
-        tools: List of available tools.
-        agent: The agent (provides permissions, approval workflow).
-
-    Returns:
-        Result dict. On success: ``{"output": <tool result>}``.
-        On error: ``{"error": <error message>}``.
-    """
-```
-
-**Error handling**:
-- JSON parse error: returns `{"error": "Failed to parse arguments: ..."}`
-- Unknown tool: returns `{"error": "Unknown tool: ..."}`
-- Permission denied: returns `{"error": "Tool ... is denied by permission map."}`
-- Approval denied: returns the approval rejection dict
-- Tool execution failure: returns `{"error": "Tool execution failed: ..."}` (caught exception)
-
-This function does NOT append anything to the message list — it only returns the result. The caller decides what to do with it.
-
----
+Each of these does exactly one thing. None takes an `Agent`. None has hidden side effects beyond what's documented.
 
 #### `parse_tool_arguments(tc)`
 
@@ -317,15 +202,15 @@ def parse_tool_arguments(
     """Parse JSON arguments from a tool call dict.
 
     Args:
-        tc: Tool call dict with an ``arguments`` key.
+        tc: Tool call dict with an ``arguments`` key containing a JSON string.
 
     Returns:
-        ``(parsed_args, None)`` on success,
-        ``(None, error_message)`` on parse failure.
+        ``(parsed_dict, None)`` on success.
+        ``(None, error_message)`` on JSON decode failure.
     """
 ```
 
----
+Pure function. No side effects.
 
 #### `lookup_tool(tool_name, tools)`
 
@@ -334,11 +219,129 @@ def lookup_tool(
     tool_name: str,
     tools: list[Tool],
 ) -> Tool | None:
-    """Find a tool by name in the tools list.
+    """Find a tool by name in a list of tools.
 
-    Returns the ``Tool`` instance or ``None`` if not found.
+    Args:
+        tool_name: The name of the tool to find.
+        tools: List of Tool instances.
+
+    Returns:
+        The matching ``Tool`` or ``None`` if not found.
     """
 ```
+
+Pure function. Linear scan of the tools list.
+
+#### `check_tool_permission(tool_name, permissions)`
+
+```python
+def check_tool_permission(
+    tool_name: str,
+    permissions: dict[str, Literal["allow", "ask", "deny"]],
+) -> Literal["allow", "ask", "deny"]:
+    """Check the permission level for a tool name.
+
+    Looks up the tool in the permissions dict. Returns ``"allow"``
+    by default if the tool is not in the map.
+
+    Args:
+        tool_name: Name of the tool to check.
+        permissions: A dict mapping tool names to permission levels.
+
+    Returns:
+        One of ``"allow"``, ``"ask"``, or ``"deny"``.
+    """
+```
+
+Pure function. Accepts a plain dict — no Agent dependency. Returns `"allow"` for missing tools. Returns `"deny"` for invalid permission values.
+
+#### `request_tool_approval(tool_name, arguments, workflows)`
+
+```python
+async def request_tool_approval(
+    tool_name: str,
+    arguments: dict[str, Any],
+    workflows: list[ApprovalWorkflow] | ApprovalWorkflow | None,
+) -> dict[str, Any]:
+    """Request approval for a tool call via approval workflows.
+
+    Runs each workflow in order. If any workflow rejects, returns
+    its rejection dict immediately.
+
+    Args:
+        tool_name: Name of the tool to approve.
+        arguments: Parsed tool arguments dict.
+        workflows: One or more ApprovalWorkflow instances, or None.
+
+    Returns:
+        ``{"approved": True}`` if all workflows approve.
+        ``{"approved": False, ...}`` if any workflow rejects, or
+        ``{"approved": False, "error": "No approval workflow configured"}``
+        if workflows is None or empty.
+    """
+```
+
+Accepts raw workflow data — no Agent dependency. Handles None, single workflow, and multiple workflows.
+
+#### `invoke_tool(tool, arguments)`
+
+```python
+async def invoke_tool(
+    tool: Tool,
+    arguments: dict[str, Any],
+) -> Any:
+    """Execute a tool with the given arguments.
+
+    This is the pure execution step with no permission checks,
+    no approval workflows, and no message building.
+
+    Args:
+        tool: The Tool instance to invoke.
+        arguments: Parsed argument dict.
+
+    Returns:
+        The raw result from ``tool.invoke(**arguments)``.
+    """
+```
+
+For synchronous tools, this is a thin wrapper around `tool.invoke(**arguments)`. For future async tool support, the async signature is forward-compatible.
+
+---
+
+### Convenience Composition
+
+#### `execute_tool_call(tc, tools, permissions, workflows)`
+
+```python
+async def execute_tool_call(
+    tc: dict[str, Any],
+    tools: list[Tool],
+    permissions: dict[str, Literal["allow", "ask", "deny"]],
+    workflows: list[ApprovalWorkflow] | ApprovalWorkflow | None,
+) -> dict[str, Any]:
+    """Execute a single tool call end-to-end.
+
+    Composes the atomic primitives in order:
+    1. ``parse_tool_arguments()`` — parse JSON arguments
+    2. ``lookup_tool()`` — find the tool by name
+    3. ``check_tool_permission()`` — check the permissions dict
+    4. ``request_tool_approval()`` — run approval workflows if needed
+    5. ``invoke_tool()`` — execute the tool
+
+    Args:
+        tc: Tool call dict with keys ``name``, ``arguments``, ``id``/``call_id``.
+        tools: List of available Tool instances.
+        permissions: Dict mapping tool names to permission levels.
+        workflows: ApprovalWorkflow instances or None.
+
+    Returns:
+        On success: ``{"output": <raw result from invoke_tool>}``.
+        On error: ``{"error": <error message string>}``.
+        On approval rejection: the rejection dict from the workflow.
+    """
+```
+
+This is a convenience function. Users who want different behavior at any step use the atomic primitives directly. It takes raw data (dicts, lists) — no Agent dependency.
 
 ---
 
@@ -389,26 +392,74 @@ def append_tool_result(
 ) -> None:
     """Append function_call and function_call_output messages for a tool result.
 
-    Mutates ``messages`` in place by appending two entries:
-    the function_call message and the function_call_output message.
+    Mutates ``messages`` in place by appending:
+    - A ``function_call`` message (from ``tc``)
+    - A ``function_call_output`` message (from ``result``)
 
     Args:
         messages: Working message list (mutated in place).
         tc: Tool call dict.
-        result: The result dict from ``execute_tool_call()``.
+        result: Result dict from ``execute_tool_call()`` or ``invoke_tool()``.
+            Expected to have ``"output"`` or ``"error"`` key.
     """
 ```
 
 ---
 
-### Stream Processing Primitive
+### Stream Primitives
 
-#### `iterate_stream_events(llm_stream, agent, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`
+All stream primitives accept `asyncio.Event` for cancellation (not Agent). They are pure stream processors with no knowledge of the loop context.
+
+#### `read_stream_chunk(llm_stream, cancel_event)`
+
+```python
+async def read_stream_chunk(
+    llm_stream: AsyncIterator[dict[str, Any]],
+    cancel_event: asyncio.Event,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Read one chunk from an LLM stream, raced against cancellation.
+
+    Args:
+        llm_stream: The LLM response async iterator.
+        cancel_event: An asyncio.Event that is set when cancellation is requested.
+
+    Returns:
+        ``(chunk, False)`` on a successful read,
+        ``(None, True)`` when cancellation was requested,
+        ``(None, False)`` when the stream is exhausted.
+    """
+```
+
+#### `iter_llm_events(llm_stream, cancel_event)`
+
+```python
+async def iter_llm_events(
+    llm_stream: AsyncIterator[dict[str, Any]],
+    cancel_event: asyncio.Event,
+) -> AsyncIterator[tuple[dict[str, Any] | None, bool]]:
+    """Yield ``(chunk, is_completed)`` from an LLM stream.
+
+    Yields ``(None, False)`` on exhaustion. Stops iteration on cancellation.
+
+    Args:
+        llm_stream: The LLM response async iterator.
+        cancel_event: An asyncio.Event set on cancellation.
+
+    Yields:
+        ``(chunk, False)`` for normal chunks,
+        ``(None, False)`` when the stream ends,
+        ``(chunk, True)`` when the chunk type is ``response.completed``.
+    """
+```
+
+Closes the stream via `aclose()` in a `finally` block.
+
+#### `iterate_stream_events(llm_stream, cancel_event, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`
 
 ```python
 async def iterate_stream_events(
     llm_stream: AsyncIterator[dict[str, Any]],
-    agent: Agent,
+    cancel_event: asyncio.Event,
     content_parts: list[str],
     tool_calls_buffer: dict[str, dict[str, Any]],
     cumulative_usage: dict[str, int],
@@ -421,7 +472,8 @@ async def iterate_stream_events(
     forwarding, and accumulation of content, tool calls, and usage into
     the mutable containers.
 
-    When cancellation is detected, yields ``response.cancelled`` and stops.
+    Accepts ``cancel_event`` instead of Agent — usable in any async
+    context with any cancellation mechanism.
 
     Yields:
         Raw SSE event dicts plus synthetic lifecycle events.
@@ -430,8 +482,67 @@ async def iterate_stream_events(
 
 **Error handling**:
 - Empty stream: yields `response.created`, `response.in_progress`, then stops.
-- First chunk is terminal (`response.completed`, `response.failed`, `error`): passes through with appropriate lifecycle.
+- First chunk is terminal: passes through with appropriate lifecycle.
 - Cancellation: yields `response.cancelled`, stops.
+
+#### `accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`
+
+```python
+def accumulate_chunk(
+    chunk: dict[str, Any],
+    content_parts: list[str],
+    tool_calls_buffer: dict[str, dict[str, Any]],
+    cumulative_usage: dict[str, int],
+    usage_settled_ids: set[str],
+) -> None:
+    """Accumulate a stream chunk into content parts, tool calls, and usage.
+
+    All mutable containers are updated in place. Unknown chunk types
+    are silently ignored.
+    """
+```
+
+#### `accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)`
+
+```python
+def accumulate_tool_chunk(
+    chunk: dict[str, Any],
+    chunk_type: str,
+    tool_calls_buffer: dict[str, dict[str, Any]],
+) -> None:
+    """Accumulate tool call data from a stream chunk.
+
+    Handles: ``response.tool_call.delta``, ``response.output_item.added``,
+    ``response.function_call_arguments.delta``, ``response.function_call_arguments.done``.
+    """
+```
+
+#### `accumulate_usage(cumulative, usage)`
+
+```python
+def accumulate_usage(
+    cumulative: dict[str, int],
+    usage: dict[str, Any],
+) -> None:
+    """Accumulate usage into cumulative counters.
+
+    Normalises both Responses API keys and Chat Completions keys
+    into the SDK's canonical ``input_tokens``/``output_tokens``/``total_tokens``.
+    """
+```
+
+---
+
+### Response Inspection Primitives
+
+```python
+def has_tool_calls(response: dict[str, Any]) -> bool
+def get_tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]
+def get_content(response: dict[str, Any]) -> str
+def last_assistant_content(messages: list[dict]) -> str
+```
+
+All pure functions. `get_tool_calls` returns `[]` for responses with no tool calls. `get_content` returns `""` for responses with no content. `last_assistant_content` returns `""` if no assistant message exists.
 
 ---
 
@@ -441,7 +552,9 @@ async def iterate_stream_events(
 
 ```python
 async def _run_sync(self, agent, messages, tools, override_instructions=None):
-    system_msg = build_system_message(agent, override_instructions)
+    system_msg = build_system_message(
+        override_instructions or agent.instructions, agent.skills
+    )
     working_messages = [system_msg] + messages
     tool_call_count = 0
 
@@ -460,37 +573,36 @@ async def _run_sync(self, agent, messages, tools, override_instructions=None):
                 working_messages.append({"role": "assistant", "content": content})
             return content
 
-        # Build assistant message with tool calls
-        tool_calls = get_tool_calls(response)
+        # Assistant message with function_call entries (grouped before outputs)
         assistant_msg = {"role": "assistant", "content": get_content(response) or ""}
         working_messages.append(assistant_msg)
-        # Append function_call entries (before outputs)
-        for tc in tool_calls:
+        for tc in get_tool_calls(response):
             working_messages.append(build_function_call_message(tc))
 
-        for tc in tool_calls:
+        for tc in get_tool_calls(response):
             if agent.is_cancelled:
                 raise asyncio.CancelledError()
             if tool_call_count >= agent.policy.max_tool_calls:
                 return last_assistant_content(working_messages) or "[max tool calls reached]"
 
-            result = await execute_tool_call(tc, tools, agent)
-            # Only the output message, function_call was already appended above
-            working_messages.append(
-                build_function_call_output_message(tc, str(result))
+            result = await execute_tool_call(
+                tc, tools, agent.tool_permissions, agent.approval_workflow
             )
+            working_messages.append(build_function_call_output_message(tc, str(result)))
             tool_call_count += 1
 
     return last_assistant_content(working_messages) or "[max iterations reached]"
 ```
 
-(Note: This inlines the message structure more explicitly compared to the current code — the function_call entries are grouped before outputs, matching the current `_run_sync` behavior. The `append_tool_result` helper uses the interleaved format for stream mode.)
+Note: `execute_tool_call` receives raw data (`agent.tool_permissions`, `agent.approval_workflow`) — not the agent itself.
 
 ### `_run_stream()` (~50 lines)
 
 ```python
 async def _run_stream(self, agent, messages, tools, override_instructions=None):
-    system_msg = build_system_message(agent, override_instructions)
+    system_msg = build_system_message(
+        override_instructions or agent.instructions, agent.skills
+    )
     working_messages = [system_msg] + messages
     tool_call_count = 0
     cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -518,7 +630,8 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
             provider_failed = False
             completed_by_provider = False
             async for event in iterate_stream_events(
-                llm_stream, agent, content_parts, tool_calls_buffer,
+                llm_stream, agent._cancel_event,
+                content_parts, tool_calls_buffer,
                 cumulative_usage, usage_settled_ids,
             ):
                 if event.get("type") == "response.cancelled":
@@ -536,13 +649,14 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
             tool_calls_list = list(tool_calls_buffer.values())
 
             if tool_calls_list:
-                assistant_index = len(working_messages)
                 if combined_content:
                     working_messages.append(
                         {"role": "assistant", "content": combined_content}
                     )
                 for tc in tool_calls_list:
-                    result = await execute_tool_call(tc, tools, agent)
+                    result = await execute_tool_call(
+                        tc, tools, agent.tool_permissions, agent.approval_workflow
+                    )
                     append_tool_result(working_messages, tc, result)
                     tool_call_count += 1
             else:
@@ -562,9 +676,11 @@ async def _run_stream(self, agent, messages, tools, override_instructions=None):
         yield {"type": "response.completed", "finish_reason": finish_reason}
 ```
 
+Note: `iterate_stream_events()` receives `agent._cancel_event` (an `asyncio.Event`) — not the agent itself.
+
 ### Private Method Delegates
 
-For backward compatibility, BaseLoop keeps thin delegates for any private methods that external custom loops might reference:
+For backward compatibility, BaseLoop keeps thin delegates for private methods that external custom loops might reference:
 
 ```python
 class BaseLoop:
@@ -575,50 +691,81 @@ class BaseLoop:
     @staticmethod
     async def _iter_llm_events(llm_stream, cancel_event):
         return iter_llm_events(llm_stream, cancel_event)
+    # ... same for _build_system_message, _accumulate_chunk, _last_assistant_content
 ```
 
-The following are **removed** from BaseLoop (private, no longer used internally, and not part of the documented extension contract):
+The following are **removed** from BaseLoop:
 - `_IterStreamState` (dataclass)
 - `_yield_first_chunk_events()`
 - `_yield_stream_body_events()`
 - `_execute_tools_stream()`
 
-The following **delegate** to standalone primitives:
-- `_build_system_message()` → `build_system_message()`
-- `_accumulate_chunk()` → `accumulate_chunk()`
-- `_last_assistant_content()` → `last_assistant_content()`
+### `ToolExecutor.execute()` Refactoring
+
+```python
+class ToolExecutor:
+    @staticmethod
+    async def execute(tool: Tool, arguments: dict, agent: Agent) -> Any:
+        """Execute a tool with permission and approval checks.
+
+        Refactored to delegate to the new standalone primitives
+        while maintaining the same outward behavior.
+        """
+        # This is the old permission check logic extracted
+        permission = check_tool_permission(tool.name, agent.tool_permissions)
+
+        if permission == "deny":
+            return {"error": f"Tool '{tool.name}' is denied by permission map."}
+
+        if permission not in ("allow", "ask"):
+            return {"error": f"Tool '{tool.name}' has invalid permission '{permission}'. Denying execution."}
+
+        if permission == "ask":
+            approval = await request_tool_approval(
+                tool.name, arguments, agent.approval_workflow
+            )
+            if not approval.get("approved"):
+                return approval
+
+        return await invoke_tool(tool, arguments)
+```
+
+This preserves the exact existing behavior while delegating to the public primitives.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Permission & Approval Primitives
+### Phase 1 — Atomic Tool Primitives
 
-- [ ] **PH1-1**: Extract `check_tool_permission()` from `ToolExecutor.execute()` as standalone function
-- [ ] **PH1-2**: Extract `request_tool_approval()` from `ToolExecutor.execute()` as standalone async function
-- [ ] **PH1-3**: Create `execute_tool_call()` combining permission check + approval + tool execution
-- [ ] **PH1-4**: Existing `ToolExecutor.execute()` refactored to delegate to the new primitives (backward compat)
+- [ ] **PH1-1**: Create `parse_tool_arguments()` — pure JSON parser with error handling
+- [ ] **PH1-2**: Create `lookup_tool()` — linear scan by name
+- [ ] **PH1-3**: Create `check_tool_permission()` — extract from `ToolExecutor.execute()`, accept plain dict
+- [ ] **PH1-4**: Create `request_tool_approval()` — extract from `ToolExecutor.execute()`, accept workflow list
+- [ ] **PH1-5**: Create `invoke_tool()` — thin wrapper around `tool.invoke()`
+- [ ] **PH1-6**: Create `execute_tool_call()` — convenience composition of the above five
+- [ ] **PH1-7**: Refactor `ToolExecutor.execute()` to delegate to the new primitives
 
-### Phase 2 — Message Building Primitives
+### Phase 2 — Message Building & Inspection Primitives
 
 - [ ] **PH2-1**: Create `build_function_call_message()` and `build_function_call_output_message()`
-- [ ] **PH2-2**: Create `append_tool_result()` (interleaved format, for stream path)
+- [ ] **PH2-2**: Create `append_tool_result()` — convenience for interleaved format
 - [ ] **PH2-3**: Create `has_tool_calls()`, `get_tool_calls()`, `get_content()`, `last_assistant_content()`
-- [ ] **PH2-4**: Create `parse_tool_arguments()` and `lookup_tool()`
 
 ### Phase 3 — LLM Primitives
 
-- [ ] **PH3-1**: Create `build_system_message()` standalone (extract from BaseLoop)
-- [ ] **PH3-2**: Create `call_llm()` standalone (extract from existing inline logic)
-- [ ] **PH3-3**: Create `call_llm_stream()` standalone (extract from existing inline logic)
+- [ ] **PH3-1**: Create `build_system_message()` — standalone, takes raw strings and skills
+- [ ] **PH3-2**: Create `call_llm()` — standalone, wraps `agent._call_llm(stream=False)`
+- [ ] **PH3-3**: Create `call_llm_stream()` — standalone, wraps `agent._call_llm(stream=True)`
 
-### Phase 4 — Stream Processing
+### Phase 4 — Stream Primitives
 
 - [ ] **PH4-1**: Rename `_accumulate_tool_chunk` → `accumulate_tool_chunk` (public)
 - [ ] **PH4-2**: Rename `_accumulate_usage` → `accumulate_usage` (public)
-- [ ] **PH4-3**: Create `iterate_stream_events()` (replaces the two split methods)
-- [ ] **PH4-4**: Create `accumulate_chunk()` standalone (extract from BaseLoop)
-- [ ] **PH4-5**: Create `read_stream_chunk()` and `iter_llm_events()` standalone (extract from BaseLoop)
+- [ ] **PH4-3**: Extract `read_stream_chunk()` — standalone, accept `asyncio.Event`
+- [ ] **PH4-4**: Extract `iter_llm_events()` — standalone, accept `asyncio.Event`
+- [ ] **PH4-5**: Extract `accumulate_chunk()` — standalone
+- [ ] **PH4-6**: Create `iterate_stream_events()` — combined async generator, accept `asyncio.Event`
 
 ### Phase 5 — Refactor BaseLoop
 
@@ -630,11 +777,11 @@ The following **delegate** to standalone primitives:
 
 ### Phase 6 — New Tests
 
-- [ ] **PH6-1**: Unit tests for all permission/approval primitives
+- [ ] **PH6-1**: Unit tests for all atomic tool primitives (6 functions, 3+ scenarios each)
 - [ ] **PH6-2**: Unit tests for all message building primitives
 - [ ] **PH6-3**: Unit tests for all LLM primitives
-- [ ] **PH6-4**: Unit tests for all stream processing primitives
-- [ ] **PH6-5**: Unit tests for all response inspection utilities
+- [ ] **PH6-4**: Unit tests for all stream primitives (5 functions, 3+ scenarios each)
+- [ ] **PH6-5**: Unit tests for response inspection primitives
 - [ ] **PH6-6**: Verify existing test suites pass with zero modifications
 
 ### Phase 7 — Documentation
@@ -647,22 +794,23 @@ The following **delegate** to standalone primitives:
 
 ## Technical Decisions
 
-1. **`execute_tool_call()` returns a result dict rather than appending to messages.**
-   - Message building is separated from tool execution so custom loop authors can format messages differently (e.g., adding metadata, logging). The caller decides how to integrate the result.
-   - Alternative considered: `execute_tool_call()` appends to messages directly — rejected because it couples execution with formatting.
+1. **`invoke_tool()` is async even though current tools are synchronous.**
+   - The async signature is forward-compatible with future async tool support. Synchronous tools are called via `await asyncio.to_thread(tool.invoke, **args)` or directly if already synchronous. This avoids a breaking change when async tools are added.
 
-2. **Permission checking is exposed as a standalone primitive extracted from `ToolExecutor`.**
-   - `ToolExecutor.execute()` currently bundles permission check, approval, and execution into one method. By extracting the first two steps, custom loop authors can replace just the permission/approval logic without touching execution.
-   - `ToolExecutor.execute()` itself is refactored to call these primitives, maintaining full backward compatibility.
+2. **`execute_tool_call()` is a convenience wrapper, not the only path.**
+   - Users who need custom behavior at any step (e.g., different permission logic, logging, metrics) use the atomic primitives directly. This decision follows from the principle that every step should be independently replaceable.
 
-3. **`_run_sync()` groups function_call entries before outputs (current behavior preserved), while `append_tool_result()` uses interleaved format for stream.**
-   - The sync and stream paths produce messages in slightly different orders (grouped vs. interleaved). Rather than forcing one format, the design provides both `build_function_call_message()` / `build_function_call_output_message()` (for explicit ordering) and `append_tool_result()` (for convenience). The loop implementations use whichever matches their context.
+3. **Stream primitives use `asyncio.Event` for cancellation instead of accepting Agent.**
+   - `asyncio.Event` is a universal async synchronization primitive. By accepting it directly, the stream primitives are usable in any async context — test code, standalone scripts, or custom frameworks — not just inside BaseLoop.
 
-4. **BaseLoop remains as the default loop class, not removed.**
-   - Removing BaseLoop would be a breaking change for any existing `isinstance()` checks or subclass references. Refactoring it internally achieves the goal without disruption.
+4. **`build_system_message()` takes raw strings instead of agent.**
+   - The function only needs instructions and skills — two simple data structures. Taking them directly makes the function pure, testable, and usable without an Agent instance.
 
-5. **`call_llm()` and `call_llm_stream()` are thin wrappers around `agent._call_llm()`.**
-   - They exist as public entry points so custom loops don't need to access the private `agent._call_llm()` method. They also provide a natural place for future middleware (logging, retries, metrics).
+5. **`check_tool_permission()` accepts a plain dict instead of agent.**
+   - The function only needs the permission map. Taking a dict makes it a pure function that can be tested with `{"my_tool": "deny"}` — no mock agent needed.
+
+6. **`ToolExecutor.execute()` is refactored to delegate to primitives, preserving backward compatibility.**
+   - Custom loops that use `ToolExecutor.execute()` directly continue to work. The refactoring is internal — the outward behavior is identical.
 
 ---
 
@@ -670,10 +818,10 @@ The following **delegate** to standalone primitives:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Extracting permission logic from `ToolExecutor` changes its behavior | Low | High | `ToolExecutor.execute()` is refactored to call the extracted primitives, with the same logic. Existing tests cover this. |
-| `_run_sync()` message ordering changes subtly | Low | Medium | Existing tests cover exact message formats in `test_loop.py`. These must pass. |
-| Custom loops referencing removed private methods break | Low | Medium | Thin delegates kept in Phase 5. A deprecation warning could precede their eventual removal. |
-| Circular imports from standalone functions referencing `Agent` / `Tool` | Low | Low | Use `TYPE_CHECKING` guards for type hints (existing pattern in the codebase). |
+| Extracting permission logic from `ToolExecutor` changes its behavior | Low | High | `ToolExecutor.execute()` is refactored to call the extracted primitives. Each primitive has unit tests matching the old behavior. |
+| New `build_system_message()` signature (raw strings) breaks callers expecting agent-based signature | Low | Medium | `BaseLoop._build_system_message()` delegates with backward-compatible signature. Only new code uses the raw-string version. |
+| `execute_tool_call()` convenience function encourages skipping permission checks | Low | Low | The convenience function includes permission checks by design. Users must explicitly use the atomic primitives to skip them. |
+| Loop authors are confused by having both `invoke_tool` and `execute_tool_call` | Low | Low | Clear docstrings differentiate them: "pure execution" vs. "full pipeline with permission + approval". The design principle of atomicity requires both. |
 
 ---
 
@@ -682,5 +830,4 @@ The following **delegate** to standalone primitives:
 - Spec: `./spec.md`
 - Current implementation: `src/tinycua-sdk/tinycua_sdk/agent/loop.py`
 - Current `ToolExecutor`: `src/tinycua-sdk/tinycua_sdk/agent/executor.py`
-- Existing tests: `tests/unit/test_loop.py`, `tests/unit/test_loop_custom.py`, `tests/unit/test_agent_run.py`
-- Permission/approval tests: `tests/unit/test_approval.py`
+- Permission tests: `tests/unit/test_approval.py`
