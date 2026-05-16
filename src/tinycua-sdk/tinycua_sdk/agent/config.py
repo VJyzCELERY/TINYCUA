@@ -31,7 +31,7 @@ class AgentConfig(BaseModel):
     instructions: str = ""
     llm_model: LanguageModel
     tools: list[Tool] = Field(default_factory=list)
-    skills: list[Skill] = Field(default_factory=list)  # type: ignore[type-arg]
+    skills: list[Skill] = Field(default_factory=list)
     policy: AgentPolicy = Field(default_factory=AgentPolicy)
     metadata: dict[str, Any] = Field(default_factory=dict)
     loop: BaseLoop | None = None
