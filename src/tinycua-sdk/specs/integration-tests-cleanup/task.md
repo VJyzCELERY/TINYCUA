@@ -48,17 +48,16 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
 ## Phase 3 — New End-to-End Tests
 
 - [x] Create `tests/integration/test_end_to_end.py` <!-- id: 11 -->
-  - [x] Add `test_agent_create_export_reload_roundtrip`
-  - [x] Add `test_agent_run_simple` (skips if LLM unavailable)
-  - [x] Add `test_tool_invocation_via_executor`
+  - [x] Add `test_agent_run_with_tool_calling` — agent.run() dispatches tool calls through the default BaseLoop
+  - [x] Add `test_agent_run_with_skills_and_tools` — agent.run() with a skill + lookup tool through the default BaseLoop
 
 ## Phase 4 — Cleanup and Verification
 
 - [x] Delete `tests/integration/goals/` directory <!-- id: 12 -->
 - [x] Delete `tests/integration/test_skills_example.py` (now merged into `test_skills.py`) <!-- id: 13 -->
-- [x] Run integration tests: `uv run pytest tests/integration/` — **81 passed** <!-- id: 14 -->
-- [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **308 passed** (307 baseline + 3 new e2e - 1 removed obsolete_params - 1 duplicate YAML redaction) <!-- id: 15 -->
-- [x] Run Makefile target: `make test-integration` — **81 passed** <!-- id: 16 -->
+- [x] Run integration tests: `uv run pytest tests/integration/` — **80 passed** <!-- id: 14 -->
+- [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **307 passed** (307 baseline + 2 new e2e - 1 removed obsolete_params - 1 duplicate YAML redaction) <!-- id: 15 -->
+- [x] Run Makefile target: `make test-integration` — **80 passed** <!-- id: 16 -->
 
 ## Phase 5 — Targeted Suppression Cleanup ✅
 
