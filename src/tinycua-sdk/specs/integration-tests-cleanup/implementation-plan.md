@@ -26,9 +26,9 @@ cd src/tinycua-sdk && uv run pytest
 
 ### Key Test Scenarios
 
-- [x] **Baseline**: All existing tests pass before we start.
+- [ ] **Baseline**: All existing tests pass before we start.
 - [ ] **After Phase 1**: `uv run pytest tests/integration/` still discovers all relocated tests.
-- [ ] **After Phase 2**: Merged test files contain all original test methods (audit by name).
+- [ ] **After Phase 2**: Merged test files cover all unique original scenarios/assertions (audit by name); duplicate methods intentionally removed per merge analysis.
 - [ ] **After Phase 3**: New `test_end_to_end.py` is discovered and runs.
 - [ ] **After Phase 4**: `make test-integration` and `uv run pytest tests/integration/` both pass.
 
@@ -44,7 +44,7 @@ cd src/tinycua-sdk && uv run pytest
 
 - [ ] **File count**: `tests/integration/` has exactly the expected files (11 test files + conftest + __init__).
 - [ ] **No goals/**: `tests/integration/goals/` directory no longer exists.
-- [ ] **No test loss**: Every original test method exists in the new structure (documented in merge analysis below).
+- [ ] **No scenario loss**: All unique original scenarios/assertions are covered (documented in merge analysis below); duplicate methods intentionally removed are traced to their retained counterpart.
 
 ## Proposed Changes
 
@@ -289,9 +289,10 @@ class TestEndToEnd:
         assert restored.name == agent.name
         assert restored.instructions == agent.instructions
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_agent_run_simple(self):
-        """Run agent with simple prompt (skips if LLM unavailable)."""
+        """Run agent with simple prompt (skips if LLM unavailable via conftest)."""
         import os
         agent = Agent(
             name="hello-agent",
@@ -303,14 +304,12 @@ class TestEndToEnd:
                 api_key=os.environ.get("LLM_API_KEY", "dummy"),
             ),
         )
-        try:
-            response = await agent.run("Say 'hello' in one word.")
-            assert isinstance(response, str)
-            assert len(response) > 0
-        except Exception:
-            pytest.skip("LLM endpoint not available")
+        response = await agent.run("Say 'hello' in one word.")
+        assert isinstance(response, str)
+        assert len(response) > 0
 
-    def test_tool_invocation_via_executor(self):
+    @pytest.mark.asyncio
+    async def test_tool_invocation_via_executor(self):
         """Tool can be invoked directly through ToolExecutor."""
         from tinycua_sdk.agent.executor import ToolExecutor
 
@@ -319,7 +318,7 @@ class TestEndToEnd:
             return f"Hello, {name}!"
 
         agent = Agent(llm_model=LanguageModel())
-        result = ToolExecutor.execute(greet, {"name": "World"}, agent)
+        result = await ToolExecutor.execute(greet, {"name": "World"}, agent)
         assert result == "Hello, World!"
 ```
 
@@ -363,7 +362,7 @@ No new dependencies. All imports already exist in the codebase.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Missed test scenario during merge | High | Audit each merged file against original after creation — every original test method must be present by name |
+| Missed test scenario during merge | High | Audit each merged file against original after creation — every unique original scenario/assertion must be covered by name; duplicate removals traced in merge analysis |
 | Typo in renamed method causes test to not run | High | Run full suite after each phase — pytest will fail to find tests if method names don't start with `test_` |
 | Import error in relocated file | High | Run `uv run pytest tests/integration/` after each file move — import errors surface immediately |
 | `_load_skills_from_directory` helper duplicated after merge | Medium | Consolidate into a single module-level function in `test_skills.py` |
