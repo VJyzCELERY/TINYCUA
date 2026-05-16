@@ -178,6 +178,10 @@ class BaseLoop:
             if tool_call_count >= agent.policy.max_tool_calls:
                 return self.last_assistant_content(working) or "[max tool calls reached]"
             response = await agent._call_llm(working, tools)
+            if not isinstance(response, dict):
+                raise TypeError(
+                    f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
+                )
             if response.get("tool_calls"):
                 tool_call_count, max_reached = await self.process_tool_calls(
                     agent, tools, response["tool_calls"], working, tool_call_count,
@@ -213,6 +217,11 @@ class BaseLoop:
                 usage_settled_ids.clear()
                 skip_complete = should_abort = False
                 llm_stream = await agent._call_llm(working, tools, stream=True)
+                if not isinstance(llm_stream, AsyncIterator):
+                    raise TypeError(
+                        f"Expected AsyncIterator from _call_llm(stream=True), got "
+                        f"{type(llm_stream).__name__}"
+                    )
                 async for event in self.process_stream_iteration(
                     llm_stream, agent, content_parts, tool_calls_buffer,
                     cumulative_usage, usage_settled_ids,
