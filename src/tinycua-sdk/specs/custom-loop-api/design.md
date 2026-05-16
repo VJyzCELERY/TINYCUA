@@ -8,127 +8,197 @@
 
 ## Overview
 
-Restructure the existing `BaseLoop` internals to make both `_run_sync()` and `_run_stream()` readable at a glance. The approach is to extract a few private helper methods that isolate the complex parts (tool execution iteration, stream event processing) into named, documented blocks. No new public API unless a genuinely universal helper emerges naturally.
+Restructure `BaseLoop` so that both `_run_sync()` and `_run_stream()` are thin orchestrators (~40–55 lines) that delegate to **public helper methods**. These helpers — `build_system_message()`, `process_tool_calls()`, `process_stream_iteration()`, and a few others — are callable by custom loop subclasses without reaching into private `_` API.
 
-The Agent's public API (`agent.tool_permissions`, `agent.tools`, `agent.skills`, `agent.run()`, etc.) stays completely unchanged — users configure their agent the same way they always have.
+The goal is: when a developer writes `class MyLoop(BaseLoop)` and overrides `run()`, the public helpers they need are right there, documented and importable, not hidden behind underscores.
 
 ---
 
-## Affected Components
+## Architecture
 
-| Component | Change | Notes |
-|-----------|--------|-------|
-| `BaseLoop._run_sync()` | Refactored | Tool execution extracted into private `_process_tool_calls_sync()`. Body ~40 lines. |
-| `BaseLoop._run_stream()` | Refactored | Two-phase event processing combined. `_IterStreamState` removed. Body ~55 lines. |
-| `BaseLoop._yield_first_chunk_events()` | Removed | Logic merged into a single stream pass |
-| `BaseLoop._yield_stream_body_events()` | Removed | Logic merged into a single stream pass |
-| `BaseLoop._IterStreamState` | Deleted | Replaced by local boolean variables |
-| `BaseLoop._execute_tools_stream()` | Refactored | Simplified, may be kept or inlined |
-| `BaseLoop._build_function_call_entry()` | **New private** | Extracts repeated dict construction |
+### Current vs. Proposed Method Visibility
+
+| Current (private) | Proposed (public) | Used by |
+|-------------------|-------------------|---------|
+| `_build_system_message()` | `build_system_message()` | All loops |
+| *(inline in `_run_sync`)* | `process_tool_calls()` | Sync custom loops |
+| `_execute_tools_stream()` | `process_stream_tool_calls()` | Stream custom loops |
+| *(two-phase helpers)* | `process_stream_iteration()` | Stream custom loops |
+| `_accumulate_chunk()` | *(kept static private)* | Internal only |
+| `_last_assistant_content()` | `last_assistant_content()` | All loops |
+| `_read_stream_chunk()` | *(kept static private)* | Internal only |
+| `_iter_llm_events()` | *(kept static private)* | Internal only |
+
+Only truly internal plumbing stays private. Everything a custom loop might need is public.
+
+---
+
+## Public Helpers on `BaseLoop`
+
+### `build_system_message(agent, override_instructions=None)`
+
+Renamed from `_build_system_message`. No signature change. Custom loops call it in their `run()` override to build the system message without duplicating the logic:
+
+```python
+class MyLoop(BaseLoop):
+    async def run(self, agent, messages, tools, ...):
+        system_msg = self.build_system_message(agent)
+        ...
+```
+
+### `process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count)`
+
+Extracted from the inline tool call loop in `_run_sync()`. Handles:
+- Iterating over tool calls
+- Parsing JSON arguments
+- Looking up tools
+- Calling `ToolExecutor.execute()`
+- Checking cancellation and `max_tool_calls`
+- Appending `function_call` and `function_call_output` messages to `working_messages`
+
+Returns `(updated_tool_call_count, max_tool_calls_reached)`.
+
+Custom sync loops that want different pre/post processing can call this and add their own logic around it:
+
+```python
+class MyLoop(BaseLoop):
+    async def run(self, agent, messages, tools, ...):
+        ...
+        for _ in range(self.max_iterations):
+            response = await agent._call_llm(messages, tools)
+            if response.get("tool_calls"):
+                log_tool_calls(response["tool_calls"])  # custom pre
+                tool_call_count, _ = self.process_tool_calls(
+                    agent, tools, response["tool_calls"],
+                    working_messages, tool_call_count,
+                )
+                log_results(working_messages)  # custom post
+                continue
+            return response.get("content", "")
+```
+
+### `process_stream_iteration(llm_stream, agent, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`
+
+An async generator that processes a full LLM stream iteration. Combines the current two-phase logic (`_yield_first_chunk_events` + `_yield_stream_body_events`) into a single public method. Yields raw SSE events plus synthetic lifecycle events (`response.created`, `response.in_progress`, `response.cancelled`). Returns cancellation/provider status via yielded events rather than a shared state object.
+
+Custom streaming loops use this instead of reimplementing lifecycle handling:
+
+```python
+class MyStreamingLoop(BaseLoop):
+    async def run(self, agent, messages, tools, ...):
+        ...
+        llm_stream = await agent._call_llm(messages, tools, stream=True)
+        async for event in self.process_stream_iteration(
+            llm_stream, agent, content_parts, tool_calls_buffer,
+            cumulative_usage, usage_settled_ids,
+        ):
+            if event["type"] == "response.output_text.delta":
+                await self.on_token(event["delta"])  # custom callback
+            yield event
+```
+
+### `process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count)`
+
+Cleaned-up version of the current `_execute_tools_stream()`. Handles the same logic but returns cleaner state. Public so custom streaming loops can call it after `process_stream_iteration` detects tool calls.
+
+### `last_assistant_content(messages)`
+
+Renamed from `_last_assistant_content`. Static method, pure function.
 
 ---
 
 ## Refactored `_run_sync()` (~40 lines)
 
-The current `_run_sync()` has ~90 lines with tool call logic inline. The refactored version:
-
 ```
-1. Build system message, init working_messages (3 lines)
+1. Build system message: self.build_system_message(agent)  ← public helper
 2. For each iteration:
-   a. Guard: is_cancelled, max_tool_calls (4 lines)
-   b. Call LLM via agent._call_llm() (1 line)
-   c. If no tool_calls: append content and return (4 lines)
-   d. Append assistant message + function_call entries (5 lines)
-   e. Delegate to process_tool_calls_sync() (3 lines)
-   f. If max_tool_calls reached: return fallback (2 lines)
-3. Return fallback message (2 lines)
+   a. Guard: is_cancelled, max_tool_calls
+   b. Call agent._call_llm()
+   c. If no tool_calls: append content and return
+   d. Append assistant message
+   e. Delegate to self.process_tool_calls()  ← public helper
+   f. If max_tool_calls reached: return fallback
+3. Return max-iterations fallback
 ```
-
-**New private helper: `_process_tool_calls_sync()`**
-
-Extracts the inline tool call loop (~40 lines) into a named private method. Responsible for:
-- Checking cancellation and max_tool_calls per tool call
-- JSON argument parsing with error handling
-- Tool lookup
-- ToolExecutor.execute() call
-- Appending function_call_output messages
-- Returning `(updated_tool_call_count, max_tool_calls_reached)`
-
-**New private helper: `_build_function_call_entry(tc)`**
-
-Static method that builds the function_call message dict from a tool call dict. Used in both sync and stream paths to avoid repeated inline construction.
 
 ---
 
 ## Refactored `_run_stream()` (~55 lines)
 
-The current `_run_stream()` has ~130 lines plus ~120 lines of helpers. The key simplification is merging the two-phase event processing (`_yield_first_chunk_events` + `_yield_stream_body_events`) into a single pass over the LLM stream, eliminating `_IterStreamState`.
-
 ```
-1. Build system message, init state variables (5 lines)
-2. try/except wrapper (2 lines)
-3. For each iteration:
-   a. Guard: is_cancelled, max_tool_calls (6 lines)
-   b. Reset per-iteration containers (3 lines)
-   c. Call LLM stream (1 line)
-   d. Process ALL stream events in one pass:
-      - Iterate iter_llm_events()
-      - Handle lifecycle: created, completed, failed, error
-      - Accumulate content, tool calls, usage
-      - Track booleans: cancelled, provider_failed, completed_by_provider
-      - Yield each event (15 lines)
-   e. If cancelled or failed: break (3 lines)
-   f. If tool_calls_list: execute and continue (8 lines)
-   g. Else: append content and break (3 lines)
-4. Yield usage + completion events (4 lines)
-5. except: yield failed events (4 lines)
+1. Build system message: self.build_system_message(agent)  ← public helper
+2. Init state variables
+3. try/except wrapper
+4. For each iteration:
+   a. Guard: is_cancelled, max_tool_calls
+   b. Reset per-iteration containers
+   c. Call agent._call_llm(stream=True)
+   d. Delegate to self.process_stream_iteration()  ← public helper
+      (yields events, tracks cancelled/provider_failed/completed booleans)
+   e. If cancelled/failed: break
+   f. If tool_calls_list: self.process_stream_tool_calls()  ← public helper
+   g. Else: append content and break
+5. Yield usage + completion events
+6. except: yield failed events
 ```
 
-The `_IterStreamState` dataclass is replaced by three local boolean variables (`cancelled`, `provider_failed`, `completed_by_provider`) tracked directly from yielded event types.
+`_IterStreamState` is removed. The three booleans (`cancelled`, `provider_failed`, `completed_by_provider`) are tracked as local variables in `_run_stream()` by inspecting yielded event types from `process_stream_iteration()`.
 
 ---
 
-## Potential Public Addition (only if genuinely useful)
+## Integration Test
 
-During refactoring, one candidate may emerge as a public helper:
+A new test in `tests/integration/test_custom_agent_loop.py` (or a dedicated test) that:
 
-**`iterate_stream_events(llm_stream, cancel_event, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`**
+1. Creates a custom `BaseLoop` subclass that overrides `run()` and calls the public helpers (`build_system_message()`, `process_tool_calls()`, etc.)
+2. Creates an `Agent` with tools and this custom loop
+3. Calls `agent.run("some query that triggers tool calling")`
+4. Asserts the response is correct and tool calls were executed
 
-This would be the extracted stream processing loop — a standalone async generator that processes a full LLM stream iteration, yielding lifecycle events and accumulating into mutable containers. It would be useful for custom loop authors who want streaming with their own tool execution logic.
-
-**Decision rule**: Only promote to public if:
-1. It's a pure function of its inputs (no `self` references)
-2. It's independently testable
-3. At least one realistic custom loop use case would benefit from it
-
-If promoted, it becomes `tinycua_sdk.agent.loop.iterate_stream_events()` with its own unit tests. If not, it stays as a private `BaseLoop._process_stream_iteration()` method.
+This test uses the same LLM client infrastructure as existing integration tests (e.g., `tests/integration/conftest.py`).
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Refactor `_run_sync()`
+### Phase 1 — Promote existing private methods to public
 
-- [ ] Extract `_build_function_call_entry()` static method
-- [ ] Extract `_process_tool_calls_sync()` private method
-- [ ] Restructure `_run_sync()` to ~40 lines
-- [ ] Run existing `test_loop.py` sync tests — all pass
+- [ ] Rename `_build_system_message` → `build_system_message` (update internal callers)
+- [ ] Rename `_last_assistant_content` → `last_assistant_content`
 
-### Phase 2 — Refactor `_run_stream()`
+### Phase 2 — Extract and expose sync tool processing
 
-- [ ] Combine first-chunk + body event processing into single stream pass
-- [ ] Remove `_IterStreamState` dataclass, replace with local booleans
-- [ ] Simplify `_execute_tools_stream()` or inline it
+- [ ] Extract `process_tool_calls()` from the inline loop in `_run_sync()`
+- [ ] Restructure `_run_sync()` to ~40 lines using `build_system_message()` + `process_tool_calls()`
+- [ ] Run sync tests — all pass
+
+### Phase 3 — Extract and expose stream processing
+
+- [ ] Create `process_stream_iteration()` combining two-phase event logic
+- [ ] Create `process_stream_tool_calls()` (cleaned up from `_execute_tools_stream()`)
+- [ ] Remove `_IterStreamState` dataclass
+- [ ] Remove `_yield_first_chunk_events`, `_yield_stream_body_events`
 - [ ] Restructure `_run_stream()` to ~55 lines
-- [ ] Decide: extract as public `iterate_stream_events()` or keep as private `_process_stream_iteration()`
-- [ ] Run existing `test_loop.py` stream tests — all pass
+- [ ] Run stream tests — all pass
 
-### Phase 3 — Verification
+### Phase 4 — New unit tests
 
-- [ ] Run all existing tests: `test_loop.py`, `test_loop_custom.py`, `test_agent_streaming.py`, integration tests
-- [ ] Verify zero modifications to test files
-- [ ] Verify no changes to Agent class API
-- [ ] Clean up any stale imports or dead code
+- [ ] Unit tests for `build_system_message()` called from a subclass
+- [ ] Unit tests for `process_tool_calls()` called from a subclass
+- [ ] Unit tests for `process_stream_iteration()` called from a subclass
+- [ ] Unit tests for `process_stream_tool_calls()` called from a subclass
+
+### Phase 5 — Integration test
+
+- [ ] Write integration test: custom loop subclass → agent.run() → real LLM call → verify tool execution
+- [ ] Test runs as part of the integration test suite (`uv run pytest tests/integration/`)
+
+### Phase 6 — Final verification
+
+- [ ] All unit tests pass
+- [ ] All integration tests pass
+- [ ] All existing tests pass with zero modifications
+- [ ] No changes to `Agent` class API
 
 ---
 
@@ -136,9 +206,9 @@ If promoted, it becomes `tinycua_sdk.agent.loop.iterate_stream_events()` with it
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Merging two-phase stream events changes event ordering | Low | High | Existing stream tests validate exact ordering (created < in_progress < delta); they must pass |
-| Removing `_IterStreamState` breaks subclass that references it | Very Low | Low | `_IterStreamState` is private and not exported in `__all__`; no external code should reference it |
-| `_execute_tools_stream()` removal breaks external use | Low | Low | If it's used externally, keep as a delegate; otherwise remove |
+| Renaming `_build_system_message` to `build_system_message` breaks external code that calls the private method | Low | Medium | The `_` prefix signals private — no documented support. Keep a thin `_build_system_message` delegate if needed. |
+| `process_stream_iteration()` changes event ordering vs current two-phase approach | Low | High | Existing stream tests validate exact ordering; they must pass. |
+| Integration test requires a real LLM key | Medium | Low | Use the same mock/skip infrastructure as existing integration tests. |
 
 ---
 
@@ -147,3 +217,4 @@ If promoted, it becomes `tinycua_sdk.agent.loop.iterate_stream_events()` with it
 - Spec: `./spec.md`
 - Current code: `src/tinycua-sdk/tinycua_sdk/agent/loop.py`
 - Current tests: `tests/unit/test_loop.py`, `tests/unit/test_loop_custom.py`
+- Integration tests: `tests/integration/test_custom_agent_loop.py`
