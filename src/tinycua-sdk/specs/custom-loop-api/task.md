@@ -46,7 +46,7 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
   - [ ] Signature: `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count, combined_content="") -> tuple[int, bool]`
   - [ ] Accepts `combined_content` (accumulated stream text) and appends assistant message to `working_messages` before function-call messages, preserving correct ordering
   - [ ] Returns `(tool_call_count, max_tool_calls_reached)` — simpler than current triple return
-  - [ ] Appends assistant content (if any), then `function_call` and `function_call_output` messages to `working_messages` in correct order
+  - [ ] Appends an assistant message using `combined_content` before `function_call` and `function_call_output` messages whenever stream tool calls are executed; the message is still appended when `combined_content` is empty, preserving current ordering.
 - [ ] Remove `_IterStreamState` dataclass <!-- id: 10 -->
 - [ ] Remove `_yield_first_chunk_events()` method <!-- id: 11 -->
 - [ ] Remove `_yield_stream_body_events()` method <!-- id: 12 -->
