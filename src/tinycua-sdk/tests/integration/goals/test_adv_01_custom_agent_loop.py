@@ -23,8 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from collections.abc import AsyncIterator
-
 import pytest
 
 from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
@@ -38,7 +36,15 @@ from tinycua_sdk.agent.executor import ToolExecutor
 
 @pytest.mark.asyncio
 async def test_custom_loop_overrides_default_execution():
-    """Passing a BaseLoop subclass to Agent uses that loop for run()."""
+    """Passing a BaseLoop subclass to Agent uses that loop for run().
+
+    Note: This is an intentional Stage 8 acceptance smoke test at the
+    integration-goals layer. The same basic custom-loop behavior is also
+    covered at the unit level in tests/unit/test_loop.py::test_custom_loop.
+    The overlap is deliberate: this test validates the user-facing contract
+    (Agent accepts a loop= argument), while the unit test validates the
+    internal dispatch.
+    """
     class MyLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
             return "custom result"

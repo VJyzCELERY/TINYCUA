@@ -197,7 +197,15 @@ class TestCustomLoopContract:
 
     @pytest.mark.asyncio
     async def test_default_streaming_loop_emits_in_progress_event(self):
-        """BaseLoop stream output includes the deferred response.in_progress event."""
+        """BaseLoop stream output includes the deferred response.in_progress event.
+
+        Note: This test intentionally overlaps with
+        tests/unit/test_loop.py::test_in_progress_emitted_before_delta and
+        tests/unit/test_agent_streaming.py. The overlap is deliberate:
+        this test validates the in-progress ordering contract for the custom
+        BaseLoop subclassing path specifically, while the other tests cover
+        the default loop path and agent-level streaming.
+        """
         async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
             assert stream is True
 

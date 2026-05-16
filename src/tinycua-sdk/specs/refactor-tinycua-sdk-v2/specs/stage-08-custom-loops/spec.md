@@ -175,8 +175,8 @@ These tests use the SDK's actual `LanguageModel` transport without monkeypatchin
 - [ ] Streaming Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_streaming_lifecycle_real_llm) - lifecycle events - same command
   Description: Streaming run verifies provider/SDK lifecycle events through real transport.
 
-- [ ] PlanThenExecuteLoop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_plan_then_execute_real_llm) - string response - same command
-  Description: PlanThenExecute loop passes a copied LanguageModel through `_call_llm(llm_model=...)`.
+- [ ] Model Override Real LLM (was PlanThenExecuteLoop) - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_model_override_real_llm) - string response - same command
+  Description: Custom loop passes a copied LanguageModel (with modified temperature) through `_call_llm(llm_model=...)` to verify the model override path. The full PlanThenExecute two-phase contract is covered deterministically in unit tests.
 
 ## Test Files
 
