@@ -216,12 +216,7 @@ class BaseLoop:
                 tool_calls_buffer: dict[str, Any] = {}
                 usage_settled_ids.clear()
                 skip_complete = should_abort = False
-                llm_stream = await agent._call_llm(working, tools, stream=True)
-                if not isinstance(llm_stream, AsyncIterator):
-                    raise TypeError(
-                        f"Expected AsyncIterator from _call_llm(stream=True), got "
-                        f"{type(llm_stream).__name__}"
-                    )
+                llm_stream = await self._get_llm_stream(agent, working, tools)
                 async for event in self.process_stream_iteration(
                     llm_stream, agent, content_parts, tool_calls_buffer,
                     cumulative_usage, usage_settled_ids,
@@ -258,6 +253,33 @@ class BaseLoop:
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not skip_complete and not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
+
+    @staticmethod
+    async def _get_llm_stream(
+        agent: Agent,
+        working: list[dict],
+        tools: list[Tool],
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Call the LLM in streaming mode and validate the response type.
+
+        Args:
+            agent: The agent executing the loop.
+            working: The working message list.
+            tools: List of available tools.
+
+        Returns:
+            An async iterator of raw SSE event dicts.
+
+        Raises:
+            TypeError: If the LLM does not return an async iterator.
+        """
+        llm_stream = await agent._call_llm(working, tools, stream=True)
+        if not isinstance(llm_stream, AsyncIterator):
+            raise TypeError(
+                f"Expected AsyncIterator from _call_llm(stream=True), got "
+                f"{type(llm_stream).__name__}"
+            )
+        return llm_stream
 
     async def process_stream_iteration(  # noqa: C901
         self,
