@@ -120,10 +120,9 @@ async def test_custom_loop_uses_public_helpers():
                 tool_calls = response.get("tool_calls")
 
                 if tool_calls:
-                    if content:
-                        working.append({"role": "assistant", "content": content or ""})
                     tool_call_count, max_reached = await self.process_tool_calls(
                         agent, tools, tool_calls, working, tool_call_count,
+                        assistant_content=content or "",
                     )
                     self.called_process_tool_calls = True
                     if max_reached:
@@ -229,18 +228,22 @@ async def test_custom_streaming_loop_uses_public_helpers():
                         llm_stream = await agent._call_llm(working, tools, stream=True)  # supported extension point
                     llm_calls += 1
 
+                    iteration_completed = False
                     async for event in self.process_stream_iteration(
                         llm_stream, agent, content_parts, tool_calls_buffer,
                         cumulative_usage, usage_settled_ids,
                     ):
                         self.called_process_stream_iteration = True
                         if event["type"] == "response.completed":
-                            completed_by_provider = True
+                            iteration_completed = True
                         if event["type"] == "response.cancelled":
                             cancelled = True
                         elif event["type"] in ("response.failed", "error"):
                             provider_failed = True
                         yield event
+                    # Sync per-iteration completion to outer state so it only
+                    # reflects the LAST stream iteration, not a prior tool-call one.
+                    completed_by_provider = iteration_completed
 
                     if cancelled or provider_failed:
                         break
@@ -347,7 +350,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
 - **[Rename to public]**: `_build_system_message` → `build_system_message` — no signature change, all internal references updated
 - **[Rename to public]**: `_last_assistant_content` → `last_assistant_content` — static method, pure function
-- **[NEW]**: `async process_tool_calls()` — extracted from inline loop in `_run_sync()`, handles tool call iteration, JSON parsing, tool lookup, `ToolExecutor.execute()`, cancellation checks, and message appending. Returns `(updated_tool_call_count, max_tool_calls_reached)`
+- **[NEW]**: `async process_tool_calls(assistant_content="")` — extracted from inline loop in `_run_sync()`, handles tool call iteration, JSON parsing, tool lookup, `ToolExecutor.execute()`, cancellation checks, and message appending. Accepts `assistant_content` to prepend an assistant message before `function_call` / `function_call_output` messages, ensuring correct message ordering. Returns `(updated_tool_call_count, max_tool_calls_reached)`
 - **[NEW]**: `process_stream_iteration()` — async generator combining `_yield_first_chunk_events` + `_yield_stream_body_events` into a single public method. Yields raw SSE events plus synthetic lifecycle events. Returns cancellation/provider status via yielded events
 - **[NEW]**: `async process_stream_tool_calls()` — cleaned-up version of `_execute_tools_stream()`, returns `(tool_call_count, max_tool_calls_reached)` instead of tuple with internal state
 - **[DELETE]**: `_IterStreamState` dataclass — no longer needed
@@ -358,7 +361,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 - **[KEEP private]**: `_read_stream_chunk()` — internal only
 - **[KEEP private]**: `_iter_llm_events()` — internal only
 - **[RESTRUCTURE]**: `_run_sync()` — ~40 lines, delegates to `build_system_message()` and `process_tool_calls()`
-- **[RESTRUCTURE]**: `_run_stream()` — ~55 lines, delegates to `build_system_message()`, `process_stream_iteration()`, and `process_stream_tool_calls()`. Tracks `cancelled`, `provider_failed`, `completed_by_provider` as local variables instead of `_IterStreamState`
+- **[RESTRUCTURE]**: `_run_stream()` — ~55 lines, delegates to `build_system_message()`, `process_stream_iteration()`, and `process_stream_tool_calls()`. Tracks `cancelled`, `provider_failed`, `completed_by_provider` as local variables instead of `_IterStreamState`. The `completed_by_provider` flag is reset per iteration so it only reflects the last stream iteration's provider-completion state.
 
 ### Test Files
 
@@ -405,7 +408,8 @@ class BaseLoop:
     def build_system_message(self, agent, override_instructions=None) -> dict: ...
     
     async def process_tool_calls(self, agent, tools, tool_calls,
-                                  working_messages, tool_call_count) -> tuple[int, bool]: ...
+                                  working_messages, tool_call_count,
+                                  assistant_content="") -> tuple[int, bool]: ...
     
     async def process_stream_iteration(self, llm_stream, agent,
                                         content_parts, tool_calls_buffer,

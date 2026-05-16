@@ -46,7 +46,7 @@ class MyLoop(BaseLoop):
         ...
 ```
 
-### `async process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count)`
+### `async process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count, assistant_content="")`
 
 Extracted from the inline tool call loop in `_run_sync()`. Handles:
 - Iterating over tool calls
@@ -54,7 +54,10 @@ Extracted from the inline tool call loop in `_run_sync()`. Handles:
 - Looking up tools
 - Calling `ToolExecutor.execute()`
 - Checking cancellation and `max_tool_calls`
+- Appending an assistant message (using `assistant_content`) **before** `function_call` messages
 - Appending `function_call` and `function_call_output` messages to `working_messages`
+
+The `assistant_content` parameter ensures correct message ordering: the assistant message is always prepended before any tool-call-related messages, matching the current `BaseLoop._run_sync()` behavior even when content is empty. This prevents malformed message sequences that some providers may reject.
 
 Returns `(updated_tool_call_count, max_tool_calls_reached)`.
 
@@ -71,6 +74,7 @@ class MyLoop(BaseLoop):
                 tool_call_count, _ = await self.process_tool_calls(
                     agent, tools, response["tool_calls"],
                     working_messages, tool_call_count,
+                    assistant_content=response.get("content", ""),
                 )
                 log_results(working_messages)  # custom post
                 continue
@@ -119,9 +123,8 @@ Renamed from `_last_assistant_content`. Static method, pure function.
    a. Guard: is_cancelled, max_tool_calls
    b. Call agent._call_llm()
    c. If no tool_calls: append content and return
-   d. Append assistant message
-   e. Delegate to self.process_tool_calls()  ← public helper
-   f. If max_tool_calls reached: return fallback
+   d. Delegate to self.process_tool_calls(assistant_content=...)  ← public helper (handles assistant message ordering internally)
+   e. If max_tool_calls reached: return fallback
 3. Return max-iterations fallback
 ```
 
@@ -135,20 +138,21 @@ Renamed from `_last_assistant_content`. Static method, pure function.
 3. try/except wrapper
 4. For each iteration:
    a. Guard: is_cancelled, max_tool_calls
-   b. Reset per-iteration containers
+   b. Reset per-iteration containers (including completed_by_provider)
    c. Call agent._call_llm(stream=True)
    d. Delegate to self.process_stream_iteration()  ← public helper
-      (yields events, tracks cancelled/provider_failed/completed booleans)
-   e. If cancelled/failed: break
-    f. If tool_calls_list:
-       - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(..., combined_content="".join(content_parts))  ← public helper (handles assistant message ordering internally)
-       - If max_tool_calls_reached: break
-    g. Else: append content and break
+      (yields events, tracks cancelled/provider_failed/completed booleans on a per-iteration basis)
+   e. Sync per-iteration completed state to outer completed_by_provider
+   f. If cancelled/failed: break
+   g. If tool_calls_list:
+      - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(..., combined_content="".join(content_parts))  ← public helper (handles assistant message ordering internally)
+      - If max_tool_calls_reached: break
+   h. Else: append content and break
 5. Yield usage events and (if not already completed by provider) completion event
 6. except: yield failed events
 ```
 
-`_IterStreamState` is removed. The three booleans (`cancelled`, `provider_failed`, `completed_by_provider`) are tracked as local variables in `_run_stream()` by inspecting yielded event types from `process_stream_iteration()`.
+`_IterStreamState` is removed. Three booleans (`cancelled`, `provider_failed`, `completed_by_provider`) are tracked as local variables in `_run_stream()` by inspecting yielded event types from `process_stream_iteration()`. The `completed_by_provider` flag is **scoped per iteration** — it is reset before each `process_stream_iteration()` call so that only the last stream iteration's provider-completion state is used to decide whether a synthetic `response.completed` event is needed. This prevents a prior tool-call iteration's `response.completed` from suppressing the final content iteration's completion event.
 
 ---
 
