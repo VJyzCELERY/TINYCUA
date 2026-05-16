@@ -1,9 +1,13 @@
 """Conftest for integration tests."""
 
+import os
+from pathlib import Path
+
 import pytest
 import asyncio
-import os
 import logging
+
+from dotenv import load_dotenv
 
 
 class FakeLLMResponse:
@@ -20,6 +24,7 @@ class FakeLLMResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             import httpx
+
             raise httpx.HTTPStatusError(
                 f"{self.status_code} error", request=None, response=self
             )
@@ -32,16 +37,36 @@ class FakeLLMResponse:
 # Configuration
 # =============================================================================
 
-# Set environment variables for tests
-os.environ["TINYCUA_PROVIDER"] = "openai-compatible"
-os.environ["TINYCUA_MODEL"] = "qwen/qwen3.5-9b"
-os.environ["TINYCUA_BASE_URL"] = "http://localhost:1234/v1"
-os.environ["TINYCUA_API_KEY"] = "dummy"
+# Load subproject root .env first (local LLM server credentials, gitignored)
+env_root = Path(__file__).parents[1] / ".env"
+if env_root.exists():
+    load_dotenv(env_root)
+
+# Load environment from .env.test (user-specific, gitignored)
+# Falls back to .env.test.example (committed template)
+env_test = Path(__file__).parent / ".env.test"
+if env_test.exists():
+    load_dotenv(env_test)
+else:
+    env_test_example = Path(__file__).parent / ".env.test.example"
+    if env_test_example.exists():
+        load_dotenv(env_test_example)
+
+# Set environment variables for tests with defaults
+os.environ.setdefault("LLM_BASE_URL", "http://localhost:1234/v1")
+os.environ.setdefault("LLM_MODEL", "qwen/qwen3.5-9b")
+os.environ.setdefault("LLM_API_KEY", "dummy")
+
+# Backward compatibility: map LLM_* vars to TINYCUA_* names
+os.environ.setdefault("TINYCUA_PROVIDER", "openai-compatible")
+os.environ.setdefault("TINYCUA_MODEL", os.environ["LLM_MODEL"])
+os.environ.setdefault("TINYCUA_BASE_URL", os.environ["LLM_BASE_URL"])
 
 
 # =============================================================================
 # Logging Configuration
 # =============================================================================
+
 
 def pytest_configure(config):
     """Configure logging for tests."""
@@ -55,6 +80,7 @@ def pytest_configure(config):
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture(scope="session")
 def event_loop():

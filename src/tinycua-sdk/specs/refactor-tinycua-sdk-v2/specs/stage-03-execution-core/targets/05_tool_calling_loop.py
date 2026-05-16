@@ -6,7 +6,7 @@ from tinycua_sdk import Agent, LanguageModel, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -24,7 +24,7 @@ async def main():
         instructions="You have access to a calculator. Use it for math.",
     )
 
-    response = await a.run("What is 135 * 42?", stream="off")
+    response = await a.run("What is 135 * 42?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

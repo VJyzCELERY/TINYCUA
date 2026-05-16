@@ -1,8 +1,24 @@
 # TINYCUA SDK v2 Refactor Roadmap
 
-> **Status:** Draft  
+> **Status:** In Progress  
 > **Scope:** Complete project reset of `tinycua-sdk` targeting the API defined in [`../goals/`](../goals/). This is a clean-slate build — not a migration from v1.  
 > **End Goal:** All 16 goal-derived integration tests pass.
+>
+> ### Progress Summary
+>
+> | Stage | Status | Tests Targeted |
+> |-------|--------|----------------|
+> | 0 — Cleanup | ✅ Complete | Sanity imports |
+> | 1 — Value Objects | ✅ Complete | `test_gs_01`, `test_int_01`, `test_int_02` |
+> | 2 — Agent Config | ✅ Complete | `test_gs_02` |
+> | 2.5 — Clear Backward Compat | ✅ Complete | Stage 2 constructor clean |
+> | 3 — Execution Core | ✅ Complete | `test_gs_03`, `test_int_03` |
+> | 4 — Skills & Composition | 📝 Draft | `test_int_04`, `test_int_05` |
+> | 5 — Streaming | ✅ Complete | `test_gs_04` |
+> | 6 — Serialization | 📝 Draft | `test_int_06–09` |
+> | 7 — Security | 📝 Draft | `test_adv_02`, `test_adv_03` |
+> | 8 — Custom Loops | 📝 Draft | `test_adv_01` |
+> | 9 — Final Integration | 📝 Draft | All 16 pass |
 
 ---
 
@@ -55,7 +71,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ## Stages
 
-### Stage 0: Cleanup
+### Stage 0: Cleanup — ✅ Complete
 
 **Objective:** Remove every dead module, stub, and obsolete concept so subsequent stages build on a clean foundation.
 
@@ -75,7 +91,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 1: Core Value Objects
+### Stage 1: Core Value Objects — ✅ Complete
 
 **Objective:** Implement the three pure value objects that have no I/O dependencies.
 
@@ -93,7 +109,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 2: Agent Configuration & Creation
+### Stage 2: Agent Configuration & Creation — ✅ Complete
 
 **Objective:** An `Agent` can be instantiated and configured, but cannot yet execute.
 
@@ -107,7 +123,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 2.5: Clear Backward Compatibility
+### Stage 2.5: Clear Backward Compatibility — ✅ Complete
 
 **Objective:** Strip all backward-compatibility artifacts from the project. This is a spec-and-test cleanup stage with no runtime code changes.
 
@@ -123,7 +139,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ---
 
-### Stage 3: LLM Client & Basic Execution Loop
+### Stage 3: LLM Client & Basic Execution Loop — ✅ Complete
 
 **Objective:** The agent can call an LLM and return a response. Non-streaming only.
 
@@ -159,15 +175,13 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 5: Streaming
 
-**Objective:** Implement all four streaming modes.
+**Objective:** Implement boolean `stream` API with raw SSE passthrough.
 
 **Reference:** [`goals/getting-started/04_agent_streaming.py`](../goals/getting-started/04_agent_streaming.py)
 
 **What to build (test first):**
-1. **`stream="off"`** → returns `str` (default).
-2. **`stream="token"`** → `AsyncIterator[dict]` of token deltas (OpenAI Responses API shape).
-3. **`stream="event"`** → `AsyncIterator[dict]` of agent events (no token deltas).
-4. **`stream="all"`** → interleaved token deltas + agent events.
+1. **`stream=False`** → returns `str` (default).
+2. **`stream=True`** → returns `AsyncIterator[dict]` of raw OpenAI SSE events (passthrough).
 
 **Tests targeted:** `test_gs_04`
 
@@ -210,13 +224,15 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 8: Extensibility — Custom Loops
 
-**Objective:** `BaseLoop` is a clean extension point for consumers.
+**Objective:** `BaseLoop` is a clean extension point for consumers. Also completes deferred OpenAI SSE streaming events from Stage 5.
 
 **Reference:** [`goals/advanced/01_custom_agent_loop.py`](../goals/advanced/01_custom_agent_loop.py)
 
 **What to build (test first):**
 1. **`BaseLoop`** — `__init__(max_iterations=5)`, `async run(agent, messages, tools)`. Default implementation is the standard tool-calling loop. No hook system — customization via subclassing.
 2. **Protected helper** — `agent._call_llm(messages, tools)` so custom loops can call the LLM without reimplementing transport.
+3. **`response.in_progress` event** — emit standard lifecycle event after `response.created` (deferred from Stage 5).
+4. **`response.function_call_arguments.delta` / `response.function_call_arguments.done`** — emit standard OpenAI event names for tool call streaming alongside internal `response.tool_call.delta` (deferred from Stage 5).
 
 **Tests targeted:** `test_adv_01`
 
@@ -224,7 +240,7 @@ Each goal script maps to one integration test file under `tests/integration/goal
 
 ### Stage 9: Final Integration & Polish
 
-**Objective:** All 16 integration tests pass. SDK is coherent and documented.
+**Objective:** All 16 integration tests pass. SDK is coherent and documented. Completes remaining deferred streaming events.
 
 **What to do:**
 1. Run full suite: `pytest tests/integration/goals/ -v`
@@ -233,6 +249,8 @@ Each goal script maps to one integration test file under `tests/integration/goal
 4. Update `__init__.py` exports to the v2 public API.
 5. Update `AGENTS.md` if it references deleted APIs.
 6. Delete old unit tests for removed modules.
+7. **`response.content_part.added/done`** — emit multi-part content lifecycle events (deferred from Stage 5).
+8. **`response.output_text.annotation.added`** — emit citation/annotation events (deferred from Stage 5).
 
 **Acceptance criteria:**
 - `pytest tests/integration/goals/` → 16 passed, 0 failed.

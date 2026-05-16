@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
@@ -9,6 +11,8 @@ from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
+    from tinycua_sdk.agent.llm_model import LanguageModel
+    from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
 
 
@@ -19,21 +23,37 @@ class ToolExecutor:
     async def execute(tool: Tool, arguments: dict, agent: Agent) -> Any:
         """Execute a tool with permission and approval checks."""
         permission = agent.tool_permissions.get(tool.name, "allow")
+
         if permission == "deny":
             return {"error": f"Tool '{tool.name}' is denied by permission map."}
 
+        if permission not in ("allow", "ask"):
+            return {
+                "error": f"Tool '{tool.name}' has invalid permission '{permission}'. Denying execution."
+            }
+
         if permission == "ask":
-            if agent.approval_workflow is None:
+            workflows = ToolExecutor._normalize_workflows(agent.approval_workflow)
+            if not workflows:
                 return {
                     "error": f"Tool '{tool.name}' requires approval but no approval_workflow is configured."
                 }
-            approval = await agent.approval_workflow.request_approval(
-                tool.name, arguments
-            )
-            if not approval.get("approved"):
-                return approval
+            for workflow in workflows:
+                approval = await workflow.request_approval(tool.name, arguments)
+                if not approval.get("approved"):
+                    return approval
 
         return tool.invoke(**arguments)
+
+    @staticmethod
+    def _normalize_workflows(
+        workflow: ApprovalWorkflow | list[ApprovalWorkflow] | None,
+    ) -> list[ApprovalWorkflow]:
+        if workflow is None:
+            return []
+        if isinstance(workflow, list):
+            return workflow
+        return [workflow]
 
 
 class AgentExecutor:
@@ -42,6 +62,7 @@ class AgentExecutor:
     def __init__(self, config: AgentConfig) -> None:
         self.config = config
         self._cancelled = False
+        self._cancel_event = asyncio.Event()
         self._llm_client: LLMClient | None = None
 
     @property
@@ -52,6 +73,7 @@ class AgentExecutor:
     def cancel(self) -> None:
         """Cancel current execution."""
         self._cancelled = True
+        self._cancel_event.set()
 
     async def close(self) -> None:
         """Close the LLM client and release resources."""
@@ -76,11 +98,28 @@ class AgentExecutor:
         self,
         messages: list[dict],
         tools: list[Tool] | None = None,
-    ) -> dict[str, Any]:
-        """Call the LLM with messages and optional tools."""
+        stream: bool = False,
+        llm_model: LanguageModel | None = None,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+        """Call the LLM with messages and optional tools.
+
+        Args:
+            messages: List of message dicts.
+            tools: Optional list of Tool instances.
+            stream: When True, return an async iterator of SSE chunk events.
+            llm_model: Optional LanguageModel override. When provided, use this
+                instead of ``self.config.llm_model`` so custom loops can pass a
+                ``model_copy()`` override without calling the LLM client directly.
+
+        Returns:
+            Normalized response dict or async iterator of event dicts.
+        """
         client = self._get_llm_client()
         tool_schemas = [t.to_config() for t in tools] if tools else None
-        return await client.chat(messages, tool_schemas, self.config.llm_model)
+        model = llm_model or self.config.llm_model
+        return await client.chat(
+            messages, tool_schemas, model, stream=stream
+        )
 
 
 __all__ = ["ToolExecutor", "AgentExecutor"]

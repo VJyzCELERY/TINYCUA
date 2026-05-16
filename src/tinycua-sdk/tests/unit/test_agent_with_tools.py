@@ -14,6 +14,7 @@ class TestInt03AgentWithTools:
     @pytest.mark.asyncio
     async def test_int_01_tool_calling_loop(self, mock_llm_with_tool_calls):
         """Target 3.5: Agent with tools correctly invokes them."""
+
         @tool
         def search(query: str) -> str:
             return f"Results for: {query}"
@@ -24,13 +25,14 @@ class TestInt03AgentWithTools:
             instructions="You have access to a search tool. Use it for lookups.",
         )
 
-        response = await agent.run("Search for quantum", stream="off")
+        response = await agent.run("Search for quantum", stream=False)
         assert isinstance(response, str)
         assert len(response) > 0
 
     @pytest.mark.asyncio
     async def test_int_02_dynamic_add_tools(self, mock_llm_client):
         """Target 3.6: Tools added after creation work on next run."""
+
         @tool
         def convert_currency(amount: float, from_c: str, to_c: str) -> str:
             rates = {"USD": 1.0, "EUR": 0.92}
@@ -41,5 +43,5 @@ class TestInt03AgentWithTools:
 
         agent.add_tools(convert_currency)
 
-        response = await agent.run("Convert 100 USD to EUR.", stream="off")
+        response = await agent.run("Convert 100 USD to EUR.", stream=False)
         assert isinstance(response, str)

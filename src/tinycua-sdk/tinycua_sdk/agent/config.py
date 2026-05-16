@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,6 +11,7 @@ from tinycua_sdk.agent.loop import BaseLoop
 from tinycua_sdk.security.approval import ApprovalWorkflow
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.tools.decorators import Tool
+
 
 class AgentPolicy(BaseModel):
     """Policy for agent behavior."""
@@ -37,7 +38,7 @@ class AgentConfig(BaseModel):
     tool_permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
         default_factory=dict
     )
-    approval_workflow: ApprovalWorkflow | None = None
+    approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict.
@@ -45,6 +46,11 @@ class AgentConfig(BaseModel):
         Note: The returned dict may contain non-JSON-serializable values
         (e.g., SecretStr from LanguageModel.api_key). Full JSON serialization
         support is planned for a later stage.
+
+        Known serialization gaps — these fields are NOT included in the
+        output because they contain runtime objects that cannot be reliably
+        serialized: ``approval_workflow``, ``loop``. After deserialization
+        they must be re-attached manually.
         """
         config: dict[str, Any] = {
             "name": self.name,
@@ -79,7 +85,11 @@ class AgentConfig(BaseModel):
         )
 
         llm_data = data.get("llm_model", {})
-        llm_model = LanguageModel.from_dict(llm_data) if isinstance(llm_data, dict) else LanguageModel()
+        llm_model = (
+            LanguageModel.from_dict(llm_data)
+            if isinstance(llm_data, dict)
+            else LanguageModel()
+        )
 
         tools_data = data.get("tools", [])
         tools = []
@@ -98,6 +108,7 @@ class AgentConfig(BaseModel):
                 skills.append(s)
             elif isinstance(s, dict):
                 from tinycua_sdk.skills.models import Skill
+
                 skills.append(Skill.from_dict(s))
             else:
                 skills.append(s)

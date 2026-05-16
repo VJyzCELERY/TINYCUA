@@ -6,7 +6,7 @@ from tinycua_sdk import Agent, LanguageModel, Skill, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -35,7 +35,7 @@ async def main():
         instructions="You are a research assistant.",
     )
 
-    response = await a.run("What is the latest version of FastAPI?", stream="off")
+    response = await a.run("What is the latest version of FastAPI?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

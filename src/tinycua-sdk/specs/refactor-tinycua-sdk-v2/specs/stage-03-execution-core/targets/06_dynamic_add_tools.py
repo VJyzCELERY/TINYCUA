@@ -6,7 +6,7 @@ from tinycua_sdk import Agent, LanguageModel, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -27,7 +27,7 @@ async def main():
     # Add tool after creation
     a.add_tools(convert_currency)
 
-    response = await a.run("Convert 100 USD to EUR.", stream="off")
+    response = await a.run("Convert 100 USD to EUR.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

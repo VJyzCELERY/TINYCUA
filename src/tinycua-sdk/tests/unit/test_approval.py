@@ -21,9 +21,7 @@ class TestDefaultApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_request_approval_returns_approved(self):
         workflow = DefaultApprovalWorkflow()
-        result = await workflow.request_approval(
-            "any_tool", {"param": "value"}
-        )
+        result = await workflow.request_approval("any_tool", {"param": "value"})
         assert result == {"approved": True}
 
     @pytest.mark.asyncio

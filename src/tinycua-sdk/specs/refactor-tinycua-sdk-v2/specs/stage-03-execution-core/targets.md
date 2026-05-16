@@ -10,14 +10,14 @@ Verify the agent can call an LLM, handle tool calls, and support cancellation. U
 **File:** `targets/01_run_returns_string.py`
 
 ```python
-"""Target 3.1: Verify agent.run() returns a string with stream='off'."""
+"""Target 3.1: Verify agent.run() returns a string when stream=False."""
 
 import asyncio
 from tinycua_sdk import Agent, LanguageModel
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -26,7 +26,7 @@ async def main():
             base_url=BASE_URL, api_key=API_KEY, model_name=MODEL_NAME,
         ),
     )
-    response = await a.run("Say hello.", stream="off")
+    response = await a.run("Say hello.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -50,7 +50,7 @@ from tinycua_sdk import Agent, LanguageModel
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -65,7 +65,7 @@ async def main():
         {"role": "assistant", "content": "Nice to meet you!"},
     ]
 
-    response = await a.run("What is my name?", messages=history, stream="off")
+    response = await a.run("What is my name?", messages=history, stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -89,7 +89,7 @@ from tinycua_sdk import Agent, LanguageModel
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -102,7 +102,7 @@ async def main():
     response = await a.run(
         "Tell me a joke.",
         instructions="You are a pirate. Be funny and concise.",
-        stream="off",
+        stream=False,
     )
     assert isinstance(response, str)
     print(f"Response: {response}")
@@ -127,7 +127,7 @@ from tinycua_sdk import Agent, LanguageModel
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -167,7 +167,7 @@ from tinycua_sdk import Agent, LanguageModel, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -185,7 +185,7 @@ async def main():
         instructions="You have access to a calculator. Use it for math.",
     )
 
-    response = await a.run("What is 135 * 42?", stream="off")
+    response = await a.run("What is 135 * 42?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -209,7 +209,7 @@ from tinycua_sdk import Agent, LanguageModel, tool
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -230,7 +230,7 @@ async def main():
     # Add tool after creation
     a.add_tools(convert_currency)
 
-    response = await a.run("Convert 100 USD to EUR.", stream="off")
+    response = await a.run("Convert 100 USD to EUR.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import ToolExecutor
@@ -36,8 +38,32 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
+        stream: bool = False,
+    ) -> str | AsyncIterator[dict[str, Any]]:
+        """Execute the agent loop with optional streaming.
+
+        Args:
+            agent: The agent to execute.
+            messages: List of message dicts.
+            tools: List of available tools.
+            override_instructions: Optional instructions override.
+            stream: When True, returns an async iterator of raw SSE events.
+
+        Returns:
+            Final response string when stream=False, or an async iterator
+            of event dicts when streaming.
+        """
+        if not stream:
+            return await self._run_sync(agent, messages, tools, override_instructions)
+        return self._run_stream(agent, messages, tools, override_instructions)
+
+    async def _run_sync(
+        self,
+        agent: Agent,
+        messages: list[dict],
+        tools: list[Tool],
+        override_instructions: str | None = None,
     ) -> str:
-        """Execute the agent loop with tool calling and cancellation support."""
         system_msg = self._build_system_message(agent, override_instructions)
         working_messages = [system_msg] + messages
 
@@ -53,38 +79,40 @@ class BaseLoop:
                 break
 
             response = await agent._call_llm(working_messages, tools)
-
+            if not isinstance(response, dict):
+                raise TypeError(
+                    f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
+                )
             content = response.get("content")
             tool_calls = response.get("tool_calls")
-            if content or tool_calls:
-                assistant_msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
-                if tool_calls:
-                    assistant_msg["tool_calls"] = tool_calls
-                working_messages.append(assistant_msg)
-
             if tool_calls:
+                executed_tool_calls: list[dict[str, Any]] = []
+                tool_result_messages: list[dict[str, Any]] = []
                 for tc in tool_calls:
                     if tool_call_count >= agent.policy.max_tool_calls:
+                        max_tool_calls_reached = True
                         break
 
-                    tool_name = tc["function"]["name"]
+                    tool_name = tc["name"]
+                    executed_tool_calls.append(tc)
 
                     try:
-                        arguments = json.loads(tc["function"]["arguments"])
+                        arguments = json.loads(tc["arguments"])
                     except json.JSONDecodeError as e:
                         tool_call_count += 1
-                        tool_result = {"error": f"Failed to parse arguments for tool '{tool_name}': {e}"}
-                        working_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "name": tool_name,
-                            "content": str(tool_result),
-                        })
+                        tool_result = {
+                            "error": f"Failed to parse arguments for tool '{tool_name}': {e}"
+                        }
+                        tool_result_messages.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": tc.get("call_id", tc["id"]),
+                                "output": str(tool_result),
+                            }
+                        )
                         continue
 
-                    tool = next(
-                        (t for t in tools if t.name == tool_name), None
-                    )
+                    tool = next((t for t in tools if t.name == tool_name), None)
                     if tool is None:
                         tool_result = {"error": f"Unknown tool: {tool_name}"}
                     else:
@@ -96,13 +124,33 @@ class BaseLoop:
                             tool_result = {"error": f"Tool execution failed: {e}"}
                     tool_call_count += 1
 
-                    working_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "name": tool_name,
-                        "content": str(tool_result),
-                    })
+                    tool_result_messages.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": tc.get("call_id", tc["id"]),
+                            "output": str(tool_result),
+                        }
+                    )
+
+                if content or executed_tool_calls:
+                    assistant_msg: dict[str, Any] = {
+                        "role": "assistant",
+                        "content": content or "",
+                    }
+                    working_messages.append(assistant_msg)
+                    for tc in executed_tool_calls:
+                        working_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": tc.get("call_id", tc["id"]),
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        )
+                working_messages.extend(tool_result_messages)
             else:
+                if content:
+                    working_messages.append({"role": "assistant", "content": content})
                 return content or ""
 
         last_assistant = self._last_assistant_content(working_messages)
@@ -110,12 +158,425 @@ class BaseLoop:
             return last_assistant or "[max tool calls reached]"
         return last_assistant or "[max iterations reached]"
 
+    async def _run_stream(  # noqa: C901 — complexity reflects tool-call iteration branches
+        self,
+        agent: Agent,
+        messages: list[dict],
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        system_msg = self._build_system_message(agent, override_instructions)
+        working_messages = [system_msg] + messages
+
+        tool_call_count = 0
+        cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        usage_settled_ids: set[str] = set()
+        finish_reason = "completed"
+
+        completed_by_provider = False
+        provider_failed = False
+        in_progress_emitted = False
+
+        try:
+            for _ in range(self.max_iterations):
+                completed_by_provider = False
+                provider_failed = False
+                in_progress_emitted = False
+                if agent.is_cancelled:
+                    yield {"type": "response.created"}
+                    yield {"type": "response.cancelled"}
+                    break
+
+                if tool_call_count >= agent.policy.max_tool_calls:
+                    finish_reason = "max_tool_calls"
+                    break
+
+                content_parts: list[str] = []
+                tool_calls_buffer: dict[str, dict[str, Any]] = {}
+                usage_settled_ids.clear()
+
+                llm_stream = await agent._call_llm(working_messages, tools, stream=True)
+                if not isinstance(llm_stream, AsyncIterator):
+                    raise TypeError(
+                        f"Expected AsyncIterator from _call_llm(stream=True), "
+                        f"got {type(llm_stream).__name__}"
+                    )
+
+                inner_cancelled = False
+                # Peek at first chunk to decide if SDK needs to inject response.created
+                first_chunk, first_cancelled = await self._read_stream_chunk(
+                    llm_stream, agent._cancel_event
+                )
+                if first_cancelled:
+                    if hasattr(llm_stream, "aclose"):
+                        await llm_stream.aclose()
+                    yield {"type": "response.created"}
+                    yield {"type": "response.cancelled"}
+                    inner_cancelled = True
+                elif first_chunk is None:
+                    yield {"type": "response.created"}
+                    yield {"type": "response.in_progress"}
+                    in_progress_emitted = True
+                elif first_chunk.get("type") == "response.created":
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") == "response.completed":
+                    completed_by_provider = True
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") in ("response.failed", "error"):
+                    provider_failed = True
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") == "response.in_progress":
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    in_progress_emitted = True
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                else:
+                    yield {"type": "response.created"}
+                    yield {"type": "response.in_progress"}
+                    in_progress_emitted = True
+                    yield first_chunk
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+
+                if not inner_cancelled:
+                    async for chunk, _ in self._iter_llm_events(
+                        llm_stream, agent._cancel_event
+                    ):
+                        if chunk is None:
+                            break
+                        # Track or inject response.in_progress
+                        if chunk.get("type") == "response.in_progress":
+                            in_progress_emitted = True
+                        elif chunk.get("type") in (
+                            "response.completed", "response.failed", "error"
+                        ):
+                            # Terminal events - do NOT inject response.in_progress
+                            pass
+                        elif not in_progress_emitted:
+                            # First non-terminal content chunk without
+                            # provider response.in_progress - inject it
+                            yield {"type": "response.in_progress"}
+                            in_progress_emitted = True
+
+                        if chunk.get("type") == "response.completed":
+                            completed_by_provider = True
+                        elif chunk.get("type") in ("response.failed", "error"):
+                            provider_failed = True
+                        yield chunk
+                        self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                        if provider_failed:
+                            break
+                    if agent.is_cancelled:
+                        yield {"type": "response.cancelled"}
+                        inner_cancelled = True
+
+                if inner_cancelled:
+                    break
+
+                if provider_failed:
+                    break
+
+                combined_content = "".join(content_parts)
+                tool_calls_list = list(tool_calls_buffer.values())
+
+                if tool_calls_list:
+                    (
+                        tool_call_count,
+                        executed_tool_calls,
+                        assistant_index,
+                    ) = await self._execute_tools_stream(
+                        agent,
+                        tools,
+                        tool_calls_list,
+                        tool_call_count,
+                        working_messages,
+                    )
+                    if executed_tool_calls and combined_content:
+                        working_messages.insert(
+                            assistant_index,
+                            {"role": "assistant", "content": combined_content},
+                        )
+                else:
+                    working_messages.append(
+                        {"role": "assistant", "content": combined_content},
+                    )
+                    break
+            else:
+                finish_reason = "max_iterations"
+        except Exception as e:
+            yield {
+                "type": "response.failed",
+                "error": {"message": str(e)},
+            }
+            yield {"type": "error", "error": {"message": str(e)}}
+            return
+
+        yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+        if not agent.is_cancelled and not completed_by_provider and not provider_failed:
+            yield {"type": "response.completed", "finish_reason": finish_reason}
+
+    async def _execute_tools_stream(
+        self,
+        agent: Agent,
+        tools: list[Tool],
+        tool_calls_list: list[dict[str, Any]],
+        tool_call_count: int,
+        working_messages: list[dict],
+    ) -> tuple[int, list[dict[str, Any]], int]:
+        """Execute tool calls and append results to working_messages.
+
+        Args:
+            agent: The agent to execute.
+            tools: List of available tools.
+            tool_calls_list: Accumulated tool call data from LLM stream.
+            tool_call_count: Current tool call count.
+            working_messages: Message list (mutated in place).
+
+        Returns:
+            Tuple of (updated tool_call_count, executed_tool_calls list,
+            assistant_index for message insertion).
+
+        Note:
+            Does NOT check ``agent.is_cancelled`` — cancellation is the
+            caller's responsibility in the main loop.
+        """
+        assistant_index = len(working_messages)
+        executed_tool_calls: list[dict[str, Any]] = []
+        for tc in tool_calls_list:
+            if agent.is_cancelled:
+                break
+            if tool_call_count >= agent.policy.max_tool_calls:
+                break
+
+            tool_name = tc["name"]
+            executed_tool_calls.append(tc)
+            try:
+                arguments = json.loads(tc["arguments"])
+            except json.JSONDecodeError as e:
+                tool_call_count += 1
+                tool_result = {
+                    "error": f"Failed to parse arguments for tool '{tool_name}': {e}"
+                }
+                working_messages.append(
+                    {
+                        "type": "function_call",
+                        "call_id": tc.get("call_id", tc["id"]),
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    }
+                )
+                working_messages.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": tc.get("call_id", tc["id"]),
+                        "output": str(tool_result),
+                    }
+                )
+                continue
+
+            tool = next((t for t in tools if t.name == tool_name), None)
+            if tool is None:
+                tool_result = {"error": f"Unknown tool: {tool_name}"}
+            else:
+                try:
+                    tool_result = await ToolExecutor.execute(tool, arguments, agent)
+                except Exception as e:
+                    raise RuntimeError(f"Tool execution failed: {e}") from e
+            tool_call_count += 1
+
+            working_messages.append(
+                {
+                    "type": "function_call",
+                    "call_id": tc.get("call_id", tc["id"]),
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                }
+            )
+            working_messages.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": tc.get("call_id", tc["id"]),
+                    "output": str(tool_result),
+                }
+            )
+
+        return tool_call_count, executed_tool_calls, assistant_index
+
+    @staticmethod
+    def _accumulate_chunk(
+        chunk: dict[str, Any],
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
+    ) -> None:
+        """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
+
+        Args:
+            chunk: Raw SSE event dict from the LLM stream.
+            content_parts: List of text delta strings (appended in place).
+            tool_calls_buffer: Dict of tool call index to accumulated data.
+            cumulative_usage: Dict of cumulative token counts (accumulated in place).
+            usage_settled_ids: Set of response IDs whose usage has been counted.
+        """
+        chunk_type = chunk.get("type", "")
+        if chunk_type == "response.output_text.delta":
+            content_parts.append(chunk.get("delta", ""))
+        elif chunk_type in ("response.tool_call.delta", "response.output_item.added",
+                            "response.function_call_arguments.delta",
+                            "response.function_call_arguments.done"):
+            _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
+        elif chunk_type == "response.completed":
+            response_data = chunk.get("response", {})
+            resp_id = response_data.get("id", "")
+            usage = response_data.get("usage", {})
+            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
+                _accumulate_usage(cumulative_usage, usage)
+                usage_settled_ids.add("__any__")
+        elif chunk_type == "response.usage":
+            usage = chunk.get("usage", {})
+            resp_id = chunk.get("response", {}).get("id", "")
+            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
+                _accumulate_usage(cumulative_usage, usage)
+                usage_settled_ids.add("__any__")
+
+    @staticmethod
+    async def _read_stream_chunk(
+        llm_stream: AsyncIterator[dict[str, Any]],
+        cancel_event: asyncio.Event,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Read one chunk from ``llm_stream``, raced against cancellation.
+
+        Returns ``(chunk, False)`` on success, ``(None, True)`` when
+        cancellation was requested, or ``(None, False)`` on stream
+        exhaustion (``StopAsyncIteration``).
+        """
+        next_task: asyncio.Task[dict[str, Any] | None] = asyncio.ensure_future(
+            llm_stream.__anext__()
+        )
+        cancel_task = asyncio.create_task(cancel_event.wait())
+        done, pending = await asyncio.wait(
+            [next_task, cancel_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+        for t in pending:
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
+        if cancel_event.is_set():
+            return None, True
+        try:
+            return next_task.result(), False
+        except StopAsyncIteration:
+            return None, False
+
+    @staticmethod
+    async def _iter_llm_events(
+        llm_stream: AsyncIterator[dict[str, Any]],
+        cancel_event: asyncio.Event,
+    ) -> AsyncIterator[tuple[dict[str, Any] | None, bool]]:
+        """Yield ``(chunk, is_completed)`` from ``llm_stream``.
+
+        Yields ``(None, False)`` on stream exhaustion. Returns (stops
+        iteration) when cancellation is requested — caller checks
+        ``cancel_event.is_set()`` to detect cancellation.
+        """
+        try:
+            while True:
+                chunk, cancelled = await BaseLoop._read_stream_chunk(llm_stream, cancel_event)
+                if cancelled:
+                    return
+                if chunk is None:
+                    yield None, False
+                    return
+                yield chunk, chunk.get("type") == "response.completed"
+        finally:
+            if hasattr(llm_stream, "aclose"):
+                await llm_stream.aclose()
+
     @staticmethod
     def _last_assistant_content(messages: list[dict]) -> str:
         for msg in reversed(messages):
             if msg.get("role") == "assistant":
                 return msg.get("content") or ""
         return ""
+
+
+def _accumulate_tool_chunk(
+    chunk: dict[str, Any],
+    chunk_type: str,
+    tool_calls_buffer: dict[str, dict[str, Any]],
+) -> None:
+    """Accumulate tool call data from a stream chunk into the buffer.
+
+    Args:
+        chunk: Raw SSE event dict from the LLM stream.
+        chunk_type: The type of the chunk event.
+        tool_calls_buffer: Dict of tool call key to accumulated data (mutated in place).
+    """
+    if chunk_type == "response.tool_call.delta":
+        tc_index = str(chunk.get("index", len(tool_calls_buffer)))
+        if tc_index not in tool_calls_buffer:
+            tool_calls_buffer[tc_index] = {
+                "id": chunk.get("id", ""),
+                "index": tc_index,
+                "name": chunk.get("name", ""),
+                "arguments": chunk.get("arguments", ""),
+            }
+        else:
+            buf = tool_calls_buffer[tc_index]
+            if chunk.get("id"):
+                buf["id"] = chunk["id"]
+            if chunk.get("name"):
+                buf["name"] = chunk["name"]
+            buf["arguments"] += chunk.get("arguments", "")
+    elif chunk_type == "response.output_item.added":
+        item = chunk.get("item", {})
+        if item.get("type") == "function_call":
+            item_id = item.get("id", "")
+            if item_id:
+                tool_calls_buffer[item_id] = {
+                    "id": item_id,
+                    "call_id": item.get("call_id", ""),
+                    "name": item.get("name", ""),
+                    "arguments": "",
+                }
+    elif chunk_type == "response.function_call_arguments.delta":
+        item_id = chunk.get("item_id", "")
+        if item_id and item_id in tool_calls_buffer:
+            tool_calls_buffer[item_id]["arguments"] += chunk.get("delta", "")
+    elif chunk_type == "response.function_call_arguments.done":
+        item_id = chunk.get("item_id", "")
+        if item_id and item_id in tool_calls_buffer:
+            tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")
+
+
+def _accumulate_usage(
+    cumulative: dict[str, int],
+    usage: dict[str, Any],
+) -> None:
+    """Accumulate usage dict into cumulative counters with key normalization.
+
+    Normalises both Responses API keys (``input_tokens``, ``output_tokens``)
+    and Chat Completions keys (``prompt_tokens``, ``completion_tokens``) into
+    the SDK's canonical ``input_tokens`` / ``output_tokens`` / ``total_tokens``.
+
+    Args:
+        cumulative: Dict of cumulative token counts (mutated in place).
+        usage: Usage dict from the provider response.
+    """
+    cumulative["input_tokens"] += usage.get(
+        "input_tokens", usage.get("prompt_tokens", 0)
+    )
+    cumulative["output_tokens"] += usage.get(
+        "output_tokens", usage.get("completion_tokens", 0)
+    )
+    cumulative["total_tokens"] += usage.get("total_tokens", 0)
 
 
 __all__ = ["BaseLoop"]

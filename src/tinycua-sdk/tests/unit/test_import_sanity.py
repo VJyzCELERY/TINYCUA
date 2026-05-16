@@ -16,7 +16,8 @@ class TestNoDeprecationWarnings:
             _ = tinycua_sdk
 
             deprecation_warnings = [
-                warning for warning in w
+                warning
+                for warning in w
                 if issubclass(warning.category, DeprecationWarning)
                 and "tinycua_sdk" in str(warning.message)
             ]

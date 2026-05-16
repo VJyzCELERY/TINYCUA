@@ -110,3 +110,5 @@ class LanguageModel(BaseModel):
             parsed["api_key"] = SecretStr(parsed["api_key"])
         return cls(**parsed)
 
+
+__all__ = ["LanguageModel"]

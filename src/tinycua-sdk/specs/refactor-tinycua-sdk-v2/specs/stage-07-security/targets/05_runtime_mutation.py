@@ -18,13 +18,13 @@ async def main():
 
     # First run: deny
     a.tool_permissions["shell_execute"] = "deny"
-    r1 = await a.run("Run 'echo hello'", stream="off")
+    r1 = await a.run("Run 'echo hello'", stream=False)
     assert isinstance(r1, str)
     print(f"[denied] Response: {r1}")
 
     # Second run: allow (runtime mutation)
     a.tool_permissions["shell_execute"] = "allow"
-    r2 = await a.run("Run 'echo hello'", stream="off")
+    r2 = await a.run("Run 'echo hello'", stream=False)
     assert isinstance(r2, str)
     print(f"[allowed] Response: {r2}")
 

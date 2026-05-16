@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import re
+import sys
+import types
+from pathlib import Path
 from typing import Any, Callable
 
 from tinycua_sdk.tools.schema import type_to_json_schema
+
 
 class Tool:
     """A tool that can be invoked by the agent."""
@@ -42,14 +47,12 @@ class Tool:
         self.dependencies = dependencies or []
 
     def to_config(self) -> dict[str, Any]:
-        """Return OpenAI function-calling schema format."""
+        """Return Responses API tool schema format."""
         return {
             "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
         }
 
     def invoke(self, **kwargs: Any) -> Any:
@@ -85,14 +88,79 @@ class Tool:
         )
 
     @classmethod
+    def from_config(cls, data: dict[str, Any]) -> "Tool":
+        """Create a Tool from a configuration dict (public alias for from_dict).
+
+        Args:
+            data: A dict with tool configuration, supports both bare
+                (name/description/parameters) and OpenAI-style
+                (function/name/description/parameters) formats.
+
+        Returns:
+            A Tool instance.
+        """
+        return cls.from_dict(data)
+
+    @classmethod
+    def load_directory(cls, path: Path) -> list["Tool"]:
+        """Load all tools from a directory of tool subdirectories.
+
+        Scans each immediate subdirectory for Python modules (skipping files
+        prefixed with _), loads them via importlib, and collects all Tool
+        instances.
+
+        If *path* itself contains loadable ``.py`` files (i.e. is a single
+        tool package), it is scanned directly. Otherwise each immediate
+        subdirectory is treated as a package.
+
+        Args:
+            path: Path to the directory containing tool subdirectories.
+
+        Returns:
+            List of Tool instances found.
+        """
+        tools: list[Tool] = []
+        path = Path(path)
+        py_files = sorted(path.glob("*.py"))
+        non_private = [f for f in py_files if not f.name.startswith("_")]
+
+        targets: list[Path] = []
+        if non_private:
+            targets.append(path)
+        targets.extend(p for p in sorted(path.iterdir()) if p.is_dir())
+
+        for target in targets:
+            global _load_counter
+            _load_counter += 1
+            uid = str(_load_counter)
+            package_name = f"__tinycua_tools_{uid}"
+            pkg = types.ModuleType(package_name)
+            pkg.__path__ = [str(target)]
+            pkg.__package__ = package_name
+            sys.modules[package_name] = pkg
+            for py_file in sorted(target.glob("*.py")):
+                if py_file.name.startswith("_"):
+                    continue
+                module = _load_module_from_path(py_file, package_name=package_name)
+                for _name, obj in inspect.getmembers(module):
+                    if isinstance(obj, Tool):
+                        tools.append(obj)
+        return tools
+
+    @classmethod
     def from_callable(
-        cls, fn: Callable, dependencies: list[str] | None = None
+        cls,
+        fn: Callable,
+        dependencies: list[str] | None = None,
+        *,
+        name: str | None = None,
     ) -> "Tool":
         """Create a Tool from a function by inspecting its signature and docstring.
 
         Args:
             fn: The function to convert into a Tool.
             dependencies: Optional list of external dependency names.
+            name: Optional override for the tool name (defaults to function name).
 
         Returns:
             A Tool instance with generated schema.
@@ -126,7 +194,7 @@ class Tool:
         first_line = docstring.strip().split("\n")[0] if docstring.strip() else ""
 
         return cls(
-            name=fn.__name__,
+            name=name or fn.__name__,
             description=first_line,
             parameters={
                 "type": "object",
@@ -150,31 +218,37 @@ def _parse_param_descriptions(docstring: str) -> dict[str, str]:
     """
     descriptions: dict[str, str] = {}
     in_args = False
+    current_param: str | None = None
     for line in docstring.split("\n"):
         stripped = line.strip()
         if stripped.lower().startswith("args:"):
             in_args = True
             continue
         if in_args:
-            if stripped and not stripped.startswith("#"):
-                clean_line = stripped
-                if clean_line.startswith(("-", "*")):
-                    clean_line = clean_line[1:].strip()
-                match = re.match(r"^(\w+):\s*(.+)$", clean_line)
-                if match:
-                    param_name = match.group(1)
-                    desc = match.group(2).strip()
-                    descriptions[param_name] = desc
-                elif not stripped:
-                    in_args = False
+            if not stripped or stripped.startswith("#"):
+                in_args = False
+                current_param = None
+                continue
+            clean_line = stripped
+            if clean_line.startswith(("-", "*")):
+                clean_line = clean_line[1:].strip()
+            match = re.match(r"^(\w+)(?:\s*\([^)]*\))?:\s*(.*)$", clean_line)
+            if match:
+                current_param = match.group(1)
+                desc = match.group(2).strip()
+                descriptions[current_param] = desc
+            elif line.startswith((" ", "\t")) and current_param is not None:
+                descriptions[current_param] += " " + clean_line
             else:
                 in_args = False
+                current_param = None
     return descriptions
 
 
 def tool(
     fn: Callable | None = None,
     *,
+    name: str | None = None,
     dependencies: list[str] | None = None,
 ) -> Tool | Callable[[Callable], Tool]:
     """Decorator to convert a function into a Tool.
@@ -186,22 +260,58 @@ def tool(
         @tool()
         def func(): ...
 
+        @tool(name="custom_name")
+        def func(): ...
+
         @tool(dependencies=["requests"])
         def func(): ...
 
     Args:
         fn: The function to convert. If None, returns a decorator.
+        name: Optional override for the tool name (defaults to function name).
         dependencies: Optional list of external dependency package names.
 
     Returns:
         A Tool instance, or a decorator function if fn is None.
     """
     if fn is None:
+
         def decorator(f: Callable) -> Tool:
-            return Tool.from_callable(f, dependencies or [])
+            return Tool.from_callable(f, name=name, dependencies=dependencies or [])
+
         return decorator
 
-    return Tool.from_callable(fn, dependencies or [])
+    return Tool.from_callable(fn, name=name, dependencies=dependencies or [])
 
 
 __all__ = ["Tool", "tool"]
+
+
+_load_counter: int = 0
+
+
+def _load_module_from_path(path: Path, package_name: str | None = None) -> object:
+    """Load a Python module from a file path with optional package context.
+
+    Args:
+        path: Path to the Python file to load.
+        package_name: If provided, the module is loaded as a child of this
+            package, enabling relative imports.
+
+    Returns:
+        The loaded module.
+
+    Raises:
+        ImportError: If the module cannot be loaded.
+    """
+    module_name = f"{package_name}.{path.stem}" if package_name else path.stem
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        msg = f"Cannot load module from {path}"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    if package_name:
+        module.__package__ = package_name
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module

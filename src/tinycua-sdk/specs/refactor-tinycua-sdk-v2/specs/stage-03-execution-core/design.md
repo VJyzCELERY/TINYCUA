@@ -56,6 +56,35 @@ class OpenAICompatibleClient(LLMClient):
             )
         return self._client
 
+    def _build_payload(
+        messages: list[dict],
+        tools: list[dict] | None,
+        model_config: LanguageModel,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": model_config.model_name,
+            "input": messages,
+        }
+
+        _FIELD_MAP = {
+            "max_tokens": "max_output_tokens",
+        }
+        for field in (
+            "temperature", "max_tokens", "top_p", "frequency_penalty",
+            "presence_penalty", "stop", "seed", "response_format",
+            "tool_choice", "logprobs", "top_logprobs", "user",
+        ):
+            value = getattr(model_config, field)
+            if value is not None:
+                payload[_FIELD_MAP.get(field, field)] = value
+
+        if tools:
+            payload["tools"] = tools
+            if "tool_choice" not in payload:
+                payload["tool_choice"] = "auto"
+
+        return payload
+
     async def chat(
         self,
         messages: list[dict],
@@ -64,49 +93,34 @@ class OpenAICompatibleClient(LLMClient):
     ) -> dict[str, Any]:
         client = self._get_client(model_config)
 
-        payload: dict[str, Any] = {
-            "model": model_config.model_name,
-            "messages": messages,
-        }
+        payload = self._build_payload(messages, tools, model_config)
 
-        # Forward optional params
-        for field in (
-            "temperature", "max_tokens", "top_p", "frequency_penalty",
-            "presence_penalty", "stop", "seed", "response_format",
-            "tool_choice", "logprobs", "top_logprobs", "user",
-        ):
-            value = getattr(model_config, field)
-            if value is not None:
-                payload[field] = value
-
-        if tools:
-            payload["tools"] = tools
-            if "tool_choice" not in payload:
-                payload["tool_choice"] = "auto"
-
-        response = await client.post("/chat/completions", json=payload)
+        response = await client.post("/responses", json=payload)
         response.raise_for_status()
         data = response.json()
 
-        choice = data["choices"][0]
-        message = choice["message"]
-
+        content = None
         tool_calls = None
-        if message.get("tool_calls"):
-            tool_calls = [
-                {
-                    "id": tc["id"],
-                    "type": tc["type"],
-                    "function": {
-                        "name": tc["function"]["name"],
-                        "arguments": tc["function"]["arguments"],
-                    },
-                }
-                for tc in message["tool_calls"]
-            ]
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                text_parts = [
+                    p.get("text", "")
+                    for p in item.get("content", [])
+                    if p.get("type") == "output_text"
+                ]
+                content = "".join(text_parts) or None
+            elif item.get("type") == "function_call":
+                if tool_calls is None:
+                    tool_calls = []
+                tool_calls.append({
+                    "id": item.get("id", ""),
+                    "call_id": item.get("call_id", ""),
+                    "name": item.get("name", ""),
+                    "arguments": item.get("arguments", "{}"),
+                })
 
         return {
-            "content": message.get("content"),
+            "content": content,
             "tool_calls": tool_calls,
             "usage": data.get("usage"),
         }
@@ -299,10 +313,10 @@ class Agent(AgentExecutor):
         query: str,
         messages: list[dict] | None = None,
         instructions: str | None = None,
-        stream: Literal["off", "event", "token", "all"] = "off",
-    ) -> str:
-        if stream != "off":
-            raise NotImplementedError("Streaming implemented in Stage 5")
+        stream: bool = False,
+    ) -> str | AsyncIterator[dict]:
+        if stream:
+            return self._run_stream(query, messages, instructions)
 
         loop = self.config.loop or BaseLoop()
 
@@ -339,12 +353,10 @@ async def run(
 
 ### Updated `Agent.run()`:
 ```python
-async def run(self, query, messages=None, instructions=None, stream="off"):
-    if stream != "off":
-        raise NotImplementedError("Streaming in Stage 5")
+async def run(self, query, messages=None, instructions=None, stream: bool = False):
     loop = self.config.loop or BaseLoop()
     msgs = (messages or []) + [{"role": "user", "content": query}]
-    return await loop.run(self, msgs, self.tools, instructions)
+    return await loop.run(self, msgs, self.tools, instructions, stream=stream)
 ```
 
 ## Data Flow
@@ -360,10 +372,10 @@ BaseLoop.run(agent, messages, tools)
     ├──► agent._call_llm(messages, tools)
     │       │
     │       ├──► OpenAICompatibleClient.chat()
-    │       │       ├──► httpx POST /chat/completions
+    │       │       ├──► httpx POST /responses
     │       │       └──► normalized response dict
     │       │
-    │       └──► {content, tool_calls, usage}
+    │       └──► {output: [...items], usage}
     │
     ├──► If tool_calls:
     │       ├──► Parse JSON arguments

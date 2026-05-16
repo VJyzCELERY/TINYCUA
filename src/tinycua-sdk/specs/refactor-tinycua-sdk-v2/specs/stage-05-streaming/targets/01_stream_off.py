@@ -1,4 +1,4 @@
-"""Target 5.1: Verify stream='off' returns a plain string."""
+"""Target 5.1: Verify stream=False returns a plain string."""
 
 import asyncio
 from tinycua_sdk import Agent, LanguageModel
@@ -6,7 +6,7 @@ from tinycua_sdk import Agent, LanguageModel
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -16,9 +16,9 @@ async def main():
         ),
     )
 
-    response = await a.run("Say hello.", stream="off")
+    response = await a.run("Say hello.", stream=False)
     assert isinstance(response, str)
-    print(f"[off] Final: {response}")
+    print(f"[stream=False] Final: {response}")
 
 
 asyncio.run(main())

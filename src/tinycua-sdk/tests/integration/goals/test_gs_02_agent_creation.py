@@ -158,7 +158,7 @@ class TestGS02AgentCreation:
         assert config["llm_model"]["model_name"] == "test-model"
         assert config["llm_model"]["temperature"] == 0.2
         assert len(config["tools"]) == 1
-        assert config["tools"][0]["function"]["name"] == "calc"
+        assert config["tools"][0]["name"] == "calc"
         assert len(config["skills"]) == 1
         assert config["skills"][0]["name"] == "math"
         assert config["metadata"]["team"] == "platform"

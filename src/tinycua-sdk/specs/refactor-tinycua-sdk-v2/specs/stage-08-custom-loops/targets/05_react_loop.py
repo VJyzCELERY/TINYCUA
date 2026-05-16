@@ -3,11 +3,12 @@
 import asyncio
 import json
 from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
+from tinycua_sdk.agent.executor import ToolExecutor
 
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 @tool
@@ -17,20 +18,31 @@ def weather(city: str) -> str:
 
 
 class ReActLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         response = await agent._call_llm(messages, tools)
         content = response.get("content", "")
 
         # If the model produces a tool call in its response, execute it
         if response.get("tool_calls"):
             for tc in response["tool_calls"]:
-                tool_name = tc["function"]["name"]
-                arguments = json.loads(tc["function"]["arguments"])
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
                 for t in tools:
                     if t.name == tool_name:
-                        result = t.invoke(**arguments)
+                        result = await ToolExecutor.execute(t, arguments, agent)
+                        call_id = tc.get("call_id", tc["id"])
                         messages.append({"role": "assistant", "content": content})
-                        messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        messages.append({
+                            "type": "function_call",
+                            "call_id": call_id,
+                            "name": tc["name"],
+                            "arguments": tc["arguments"],
+                        })
+                        messages.append({
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": str(result),
+                        })
                         break
 
             # One more LLM call with the tool result
@@ -47,7 +59,7 @@ async def main():
         loop=ReActLoop(),
     )
 
-    response = await a.run("What is the weather in Tokyo?", stream="off")
+    response = await a.run("What is the weather in Tokyo?", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

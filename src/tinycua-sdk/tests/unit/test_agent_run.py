@@ -29,7 +29,9 @@ class TestAgentRun:
         captured = {}
 
         class CapturingLoop(BaseLoop):
-            async def run(self, agent, messages, tools, override_instructions=None):
+            async def run(
+                self, agent, messages, tools, override_instructions=None, **kwargs
+            ):
                 captured["messages"] = messages
                 captured["tools"] = tools
                 captured["override"] = override_instructions
@@ -51,7 +53,9 @@ class TestAgentRun:
         captured = {}
 
         class CapturingLoop(BaseLoop):
-            async def run(self, agent, messages, tools, override_instructions=None):
+            async def run(
+                self, agent, messages, tools, override_instructions=None, **kwargs
+            ):
                 captured["messages"] = messages
                 return "ok"
 
@@ -83,7 +87,9 @@ class TestAgentRun:
         captured = {}
 
         class CapturingLoop(BaseLoop):
-            async def run(self, agent, messages, tools, override_instructions=None):
+            async def run(
+                self, agent, messages, tools, override_instructions=None, **kwargs
+            ):
                 captured["override"] = override_instructions
                 return "ok"
 
@@ -112,10 +118,26 @@ class TestAgentRun:
         assert result == "Default loop works."
 
     @pytest.mark.asyncio
-    async def test_run_rejects_streaming(self):
+    async def test_run_stream_yields_lifecycle_events(self):
         agent = Agent(llm_model=LanguageModel())
-        with pytest.raises(NotImplementedError, match="Streaming"):
-            await agent.run("Query", stream="event")
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": "Hello",
+                    "item_id": "",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        stream_iter = await agent.run("Query", stream=True)
+        events = [e async for e in stream_iter]
+        assert any(e["type"] == "response.output_text.delta" for e in events)
+        assert any(e["type"] == "response.created" for e in events)
+        assert any(e["type"] == "response.completed" for e in events)
 
     @pytest.mark.asyncio
     async def test_cancellation_before_run(self):
@@ -145,11 +167,8 @@ class TestAgentRun:
                     "tool_calls": [
                         {
                             "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "dummy_tool",
-                                "arguments": "{}",
-                            },
+                            "name": "dummy_tool",
+                            "arguments": "{}",
                         }
                     ],
                     "usage": None,
