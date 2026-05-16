@@ -42,7 +42,18 @@ class ReActLoop(BaseLoop):
                 for t in tools:
                     if t.name == tool_name:
                         result = await ToolExecutor.execute(t, arguments, agent)
-                        messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        call_id = tc.get("call_id", tc["id"])
+                        messages.append({
+                            "type": "function_call",
+                            "call_id": call_id,
+                            "name": tc["name"],
+                            "arguments": tc["arguments"],
+                        })
+                        messages.append({
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": str(result),
+                        })
                         break
 
         return "[max iterations reached]"

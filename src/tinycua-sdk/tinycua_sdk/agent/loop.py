@@ -230,6 +230,11 @@ class BaseLoop:
                     yield {"type": "response.created"}
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") == "response.in_progress":
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    in_progress_emitted = True
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                 else:
                     yield {"type": "response.created"}
                     yield {"type": "response.in_progress"}

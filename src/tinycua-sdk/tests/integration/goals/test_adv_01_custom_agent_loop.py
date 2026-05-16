@@ -110,7 +110,18 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
                 tool_obj = next(t for t in tools if t.name == tc["name"])
                 arguments = json.loads(tc["arguments"])
                 result = await ToolExecutor.execute(tool_obj, arguments, agent)
-                messages.append({"role": "tool", "content": str(result), "name": tc["name"]})
+                call_id = tc.get("call_id", tc["id"])
+                messages.append({
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                })
+                messages.append({
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": str(result),
+                })
                 final = await agent._call_llm(messages)
                 return final.get("content", "")
             return response.get("content", "")
@@ -130,6 +141,11 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
     agent._call_llm = fake_call_llm
 
     assert await agent.run("What is the weather in Tokyo?") == "It is sunny in Tokyo."
+    second_messages = calls[1][0]
+    assert any(
+        msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+        for msg in second_messages
+    ), "Expected function_call_output with call_id='call_1' in the follow-up call"
 
 
 @pytest.mark.asyncio
@@ -179,7 +195,18 @@ async def test_plan_then_execute_loop_works():
                     for t in tools:
                         if t.name == tool_name:
                             result = await ToolExecutor.execute(t, arguments, agent)
-                            exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                            call_id = tc.get("call_id", tc["id"])
+                            exec_messages.append({
+                                "type": "function_call",
+                                "call_id": call_id,
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            })
+                            exec_messages.append({
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": str(result),
+                            })
                             break
 
             return "[max iterations reached]"
@@ -201,6 +228,10 @@ async def test_plan_then_execute_loop_works():
                 "tool_calls": [{"id": "call_1", "name": "search", "arguments": '{"query": "Tokyo weather"}'}],
             }
         # Phase 2 follow-up: final answer
+        assert any(
+            msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+            for msg in messages
+        ), "Expected function_call_output with call_id='call_1' in PlanThenExecute follow-up"
         return {"content": "Tokyo has sunny weather.", "tool_calls": None}
 
     agent._call_llm = fake_call_llm
