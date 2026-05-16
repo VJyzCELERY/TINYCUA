@@ -163,31 +163,32 @@ class BaseLoop:
 
     async def _run_sync(self, agent, messages, tools, override_instructions=None):
         working = [self.build_system_message(agent, override_instructions)] + messages
-        tc = 0
+        tool_call_count = 0
         for _ in range(self.max_iterations):
             if agent.is_cancelled:
                 raise asyncio.CancelledError()
-            if tc >= agent.policy.max_tool_calls:
+            if tool_call_count >= agent.policy.max_tool_calls:
                 return self.last_assistant_content(working) or "[max tool calls reached]"
-            r = await agent._call_llm(working, tools)
-            if r.get("tool_calls"):
-                tc, maxed = await self.process_tool_calls(
-                    agent, tools, r["tool_calls"], working, tc, r.get("content") or "",
+            response = await agent._call_llm(working, tools)
+            if response.get("tool_calls"):
+                tool_call_count, max_reached = await self.process_tool_calls(
+                    agent, tools, response["tool_calls"], working, tool_call_count,
+                    response.get("content") or "",
                 )
-                if maxed:
+                if max_reached:
                     return self.last_assistant_content(working) or "[max tool calls reached]"
             else:
-                c = r.get("content")
-                if c:
-                    working.append({"role": "assistant", "content": c})
-                return c or ""
+                content = response.get("content")
+                if content:
+                    working.append({"role": "assistant", "content": content})
+                return content or ""
         return self.last_assistant_content(working) or "[max iterations reached]"
 
     async def _run_stream(self, agent, messages, tools, override_instructions=None):
         working = [self.build_system_message(agent, override_instructions)] + messages
-        tc = 0
-        cu = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        settled: set[str] = set()
+        tool_call_count = 0
+        cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        usage_settled_ids: set[str] = set()
         finish_reason = "completed"
         skip_complete = False
         try:
@@ -196,27 +197,32 @@ class BaseLoop:
                     yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
                     break
-                if tc >= agent.policy.max_tool_calls:
+                if tool_call_count >= agent.policy.max_tool_calls:
                     finish_reason = "max_tool_calls"
                     break
-                parts: list[str] = []
-                tcb: dict[str, Any] = {}
-                settled.clear()
-                skip_complete = stopped = False
-                llm = await agent._call_llm(working, tools, stream=True)
-                async for event in self.process_stream_iteration(llm, agent, parts, tcb, cu, settled):
+                content_parts: list[str] = []
+                tool_calls_buffer: dict[str, Any] = {}
+                usage_settled_ids.clear()
+                skip_complete = should_abort = False
+                llm_stream = await agent._call_llm(working, tools, stream=True)
+                async for event in self.process_stream_iteration(
+                    llm_stream, agent, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids,
+                ):
                     if event["type"] == "response.completed":
                         skip_complete = True
                     elif event["type"] in ("response.failed", "error", "response.cancelled"):
-                        skip_complete = stopped = True
+                        skip_complete = should_abort = True
                     yield event
-                if stopped:
+                if should_abort:
                     break
-                combined = "".join(parts)
-                tcl = list(tcb.values())
-                if tcl:
-                    tc, mr = await self.process_stream_tool_calls(agent, tools, tcl, working, tc, combined)
-                    if mr:
+                combined = "".join(content_parts)
+                tool_calls_list = list(tool_calls_buffer.values())
+                if tool_calls_list:
+                    tool_call_count, max_reached = await self.process_stream_tool_calls(
+                        agent, tools, tool_calls_list, working, tool_call_count, combined,
+                    )
+                    if max_reached:
                         finish_reason = "max_tool_calls"
                         break
                 else:
@@ -228,7 +234,7 @@ class BaseLoop:
             yield {"type": "response.failed", "error": {"message": str(e)}}
             yield {"type": "error", "error": {"message": str(e)}}
             return
-        yield {"type": "response.usage", "usage": dict(cu)}
+        yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not skip_complete and not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
