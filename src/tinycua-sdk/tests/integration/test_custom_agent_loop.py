@@ -256,6 +256,7 @@ async def test_integration_model_override_real_llm():
 
 
 @pytest.mark.integration
+@pytest.mark.integration_tool_choice
 @pytest.mark.asyncio
 async def test_custom_loop_uses_public_helpers():
     """Custom loop using public helpers produces correct tool-calling result.
@@ -350,6 +351,7 @@ async def test_custom_loop_uses_public_helpers():
 
 
 @pytest.mark.integration
+@pytest.mark.integration_tool_choice
 @pytest.mark.asyncio
 async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
     """Custom streaming loop using public helpers works end-to-end.
