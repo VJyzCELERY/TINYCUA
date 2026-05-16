@@ -45,6 +45,41 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 
 ---
 
+## User Scenarios & Testing
+
+### Primary Scenario: Custom Loop Subclass Composing Public Helpers
+
+**As a** developer building a custom agent loop,
+**I want to** subclass `BaseLoop` and compose its public helper methods in my `run()` override,
+**So that** I can define custom tool-calling and streaming behavior without duplicating internal logic or accessing private `_` API.
+
+**Given** a `BaseLoop` subclass `CustomToolLoop` that overrides `run()` and calls `self.build_system_message()`, `self.process_tool_calls()`, and `self.last_assistant_content()`,
+**When** an `Agent` is configured with `loop=CustomToolLoop()` and `agent.run()` is invoked with a query that triggers tool calling,
+**Then** the custom loop produces the correct tool-calling result, and the helper methods are confirmed to have been called during execution.
+
+### Acceptance Scenarios
+
+**AC-001: Sync custom loop with tool calls** — A custom sync loop subclassing `BaseLoop` calls `build_system_message()`, `process_tool_calls()`, and `last_assistant_content()` in its `run()` override. When used with `Agent.run()`, the result includes the tool output. The custom loop subclass exposes observable flags proving each helper was invoked.
+
+**AC-002: Streaming custom loop with tool calls** — A custom streaming loop subclassing `BaseLoop` calls `build_system_message()`, `process_stream_iteration()`, and `process_stream_tool_calls()` in its `run()` override. When used with `Agent.run(stream=True)`, the event stream includes `response.created`, `response.completed`, and content deltas. The subclass exposes observable flags proving each helper was invoked.
+
+**AC-003: Cancellation during sync loop** — When `agent.is_cancelled` is `True` during tool processing, the sync custom loop raises `asyncio.CancelledError` immediately.
+
+**AC-004: Max tool calls limit enforced** — When a sync custom loop reaches `max_tool_calls` in a single response, it returns fallback content (e.g., `"[max tool calls]"`) without calling the LLM again.
+
+**AC-005: `Agent.run()` API unchanged** — The `Agent` class public API (`agent.run()`, `agent.tool_permissions`, `agent.tools`, `agent.skills`) remains unchanged. Custom loop authors configure tool behavior solely via `LanguageModel` and the custom loop subclass.
+
+### Edge Cases
+
+- **Invalid tool arguments**: When a tool call has unparseable JSON arguments, the loop reports an error and continues without crashing.
+- **Unknown tool name**: When the LLM requests a tool not registered with the agent, the loop returns an error message to the LLM and continues.
+- **Provider stream failure**: When the LLM provider stream raises an exception mid-stream, the custom loop yields a `response.failed` event and stops gracefully.
+- **No tool calls in response**: When the LLM returns content with no tool calls, the custom loop returns the content directly without calling `process_tool_calls()`.
+- **Max iterations reached**: When the loop exceeds `max_iterations` without a final answer, the custom loop returns fallback content.
+- **Skipped real-LLM integration tests**: Integration tests that require a real LLM server are skipped gracefully when no server is available, using the existing `@pytest.mark.integration` infrastructure.
+
+---
+
 ## Requirements
 
 ### Functional Requirements

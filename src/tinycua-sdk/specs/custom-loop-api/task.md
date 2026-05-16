@@ -52,33 +52,34 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
 
 - [ ] Write unit test: custom loop subclass calls `build_system_message()` directly <!-- id: 16 -->
 - [ ] Write unit test: custom loop subclass calls `process_tool_calls()` with fake LLM response <!-- id: 17 -->
-- [ ] Write unit test: custom loop subclass calls `process_stream_tool_calls()` with fake tool calls <!-- id: 18 -->
-- [ ] Write unit test: custom loop subclass calls `last_assistant_content()` directly <!-- id: 19 -->
+- [ ] Write unit test: custom loop subclass calls `process_stream_iteration()` with fake async LLM stream, covering lifecycle event ordering, content accumulation, tool-call buffering, cancellation, provider failure, and usage settlement behavior <!-- id: 18 -->
+- [ ] Write unit test: custom loop subclass calls `process_stream_tool_calls()` with fake tool calls <!-- id: 19 -->
+- [ ] Write unit test: custom loop subclass calls `last_assistant_content()` directly <!-- id: 20 -->
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass with real LLM) or SKIP (no LLM server) <!-- id: 20 -->
-- [ ] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 21 -->
-- [ ] Verify line count: `_run_sync()` ≤ 45 lines <!-- id: 22 -->
-- [ ] Verify line count: `_run_stream()` ≤ 60 lines <!-- id: 23 -->
-- [ ] Verify no private `_` helpers called from tests (except truly internal `_accumulate_chunk`, `_read_stream_chunk`, `_iter_llm_events`, `_call_llm`) <!-- id: 24 -->
+- [ ] Run integration tests — expect GREEN (all pass with real LLM) or SKIP (no LLM server) <!-- id: 21 -->
+- [ ] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 22 -->
+- [ ] Verify line count: `_run_sync()` ≤ 45 lines <!-- id: 23 -->
+- [ ] Verify line count: `_run_stream()` ≤ 60 lines <!-- id: 24 -->
+- [ ] Verify no private `_` helpers called from tests (except truly internal `_accumulate_chunk`, `_read_stream_chunk`, `_iter_llm_events`, `_call_llm`) <!-- id: 25 -->
 
 ## Verification Phase
 
-- [ ] Confirm all existing tests in `test_loop.py`, `test_loop_custom.py` pass without modifications (only intentional renames) <!-- id: 25 -->
-- [ ] Confirm `Agent` class API unchanged — no new public methods on `Agent` <!-- id: 26 -->
-- [ ] Confirm `BaseLoop.run()` signature unchanged — backward compatible <!-- id: 27 -->
-- [ ] Run ruff linting: `cd src/tinycua-sdk && uv run ruff check tinycua_sdk/ tests/` <!-- id: 28 -->
+- [ ] Confirm all existing tests in `test_loop.py`, `test_loop_custom.py` pass without modifications (only intentional renames) <!-- id: 26 -->
+- [ ] Confirm `Agent` class API unchanged — no new public methods on `Agent` <!-- id: 27 -->
+- [ ] Confirm `BaseLoop.run()` signature unchanged — backward compatible <!-- id: 28 -->
+- [ ] Run ruff linting: `cd src/tinycua-sdk && uv run ruff check tinycua_sdk/ tests/` <!-- id: 29 -->
 
 ## Documentation Phase
 
-- [ ] Update docstrings on new public helper methods with Args/Returns sections <!-- id: 29 -->
-- [ ] Ensure `__all__` in `loop.py` is updated if needed <!-- id: 30 -->
+- [ ] Update docstrings on new public helper methods with Args/Returns sections <!-- id: 30 -->
+- [ ] Ensure `__all__` in `loop.py` is updated if needed <!-- id: 31 -->
 
 ## Review and Merge
 
-- [ ] Create pull request with summary of changes <!-- id: 31 -->
-- [ ] Address review feedback <!-- id: 32 -->
+- [ ] Create pull request with summary of changes <!-- id: 32 -->
+- [ ] Address review feedback <!-- id: 33 -->
 
 ---
 

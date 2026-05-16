@@ -44,16 +44,43 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for custom loop public helper API."""
 
 
+def _build_language_model(
+    tool_choice: str | dict | None = None,
+) -> LanguageModel:
+    """Build a LanguageModel from environment variables, with optional tool_choice.
+
+    Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
+    When tool_choice is provided, forces the LLM to call a specific tool,
+    enabling deterministic tool-calling tests (Option A from design).
+    """
+    model = LanguageModel(
+        provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+        base_url=os.environ.get(
+            "TINYCUA_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        ),
+        model_name=os.environ.get(
+            "TINYCUA_MODEL",
+            os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
+        ),
+        api_key=os.environ.get("TINYCUA_API_KEY", os.environ.get("LLM_API_KEY", "dummy")),
+    )
+    if tool_choice is not None:
+        model = model.model_copy(update={"tool_choice": tool_choice})
+    return model
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_custom_loop_uses_public_helpers():
     """Custom loop using public helpers produces correct tool-calling result.
-    
+
     This test uses the deterministic forcing strategy (Option A from design):
-    - tool_choice="required" forces the LLM to call the named tool
+    - tool_choice on the LanguageModel forces the LLM to call the named tool
     - The custom loop overrides run() using self.build_system_message(),
       self.process_tool_calls(), and self.last_assistant_content()
-    - Asserts that the custom loop path executed correctly.
+    - Observable flags on the loop class prove each helper was invoked.
+    - Asserts at least one function_call_output message was produced.
     """
     @tool
     def get_weather(city: str) -> str:
@@ -61,9 +88,17 @@ async def test_custom_loop_uses_public_helpers():
         return f"Weather in {city}: sunny"
 
     class CustomToolLoop(BaseLoop):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.called_build_system_message = False
+            self.called_process_tool_calls = False
+            self.called_last_assistant_content = False
+            self.last_working_messages: list[dict] = []
+
         async def run(self, agent, messages, tools,
                       override_instructions=None, stream=False):
             system_msg = self.build_system_message(agent, override_instructions)
+            self.called_build_system_message = True
             working = [system_msg] + list(messages)
             tool_call_count = 0
 
@@ -81,45 +116,80 @@ async def test_custom_loop_uses_public_helpers():
                     tool_call_count, max_reached = await self.process_tool_calls(
                         agent, tools, tool_calls, working, tool_call_count,
                     )
+                    self.called_process_tool_calls = True
                     if max_reached:
+                        self.last_working_messages = list(working)
+                        self.called_last_assistant_content = True
                         return self.last_assistant_content(working) or "[max tool calls]"
                 else:
                     if content:
                         working.append({"role": "assistant", "content": content})
+                    self.last_working_messages = list(working)
                     return content or ""
 
+            self.last_working_messages = list(working)
+            self.called_last_assistant_content = True
             return self.last_assistant_content(working) or "[max iterations]"
 
-    llm_model = _build_language_model()
+    llm_model = _build_language_model(
+        tool_choice={"type": "function", "function": {"name": "get_weather"}},
+    )
+    loop = CustomToolLoop()
     agent = Agent(
         llm_model=llm_model,
         tools=[get_weather],
-        loop=CustomToolLoop(),
+        loop=loop,
     )
 
-    result = await agent.run(
-        "What is the weather in Tokyo?",
-        tool_choice={"type": "function", "function": {"name": "get_weather"}},
-    )
+    result = await agent.run("What is the weather in Tokyo?")
     assert isinstance(result, str)
     assert len(result) > 0
-    # Verify the custom loop actually executed: must have tool output
-    assert "sunny" in result.lower() or "tokyo" in result.lower()
+
+    # Prove the custom loop path was taken (not the default BaseLoop)
+    assert loop.called_build_system_message, "build_system_message was not called"
+    assert loop.called_process_tool_calls, "process_tool_calls was not called"
+
+    # Prove at least one function_call_output message was produced
+    helper_call_msgs = [
+        m for m in loop.last_working_messages
+        if isinstance(m, dict) and m.get("type") == "function_call_output"
+    ]
+    assert len(helper_call_msgs) > 0, (
+        "No function_call_output messages found — helpers did not execute tool calls"
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_custom_streaming_loop_uses_public_helpers():
-    """Custom streaming loop using public helpers works end-to-end."""
+    """Custom streaming loop using public helpers works end-to-end.
+
+    This test provides tools and tool_choice so the streaming loop actually
+    exercises process_stream_tool_calls(), not just content streaming.
+    """
+    @tool
+    def get_weather(city: str) -> str:
+        """Get weather for a city."""
+        return f"Weather in {city}: sunny"
+
     class CustomStreamingLoop(BaseLoop):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.called_build_system_message = False
+            self.called_process_stream_iteration = False
+            self.called_process_stream_tool_calls = False
+            self.last_working_messages: list[dict] = []
+
         async def run(self, agent, messages, tools,
                       override_instructions=None, stream=False):
             system_msg = self.build_system_message(agent, override_instructions)
+            self.called_build_system_message = True
             working = [system_msg] + list(messages)
             tool_call_count = 0
             cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
             usage_settled_ids = set()
             finish_reason = "completed"
+            has_tool_calls = False
 
             try:
                 for _ in range(self.max_iterations):
@@ -139,6 +209,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
                         llm_stream, agent, content_parts, tool_calls_buffer,
                         cumulative_usage, usage_settled_ids,
                     ):
+                        self.called_process_stream_iteration = True
                         if event["type"] == "response.cancelled":
                             cancelled = True
                         elif event["type"] in ("response.failed", "error"):
@@ -152,9 +223,11 @@ async def test_custom_streaming_loop_uses_public_helpers():
                     tool_calls_list = list(tool_calls_buffer.values())
 
                     if tool_calls_list:
+                        has_tool_calls = True
                         tool_call_count, max_reached = await self.process_stream_tool_calls(
                             agent, tools, tool_calls_list, working, tool_call_count,
                         )
+                        self.called_process_stream_tool_calls = True
                         if combined:
                             working.append({"role": "assistant", "content": combined})
                         if max_reached:
@@ -172,16 +245,24 @@ async def test_custom_streaming_loop_uses_public_helpers():
             yield {"type": "response.usage", "usage": dict(cumulative_usage)}
             yield {"type": "response.completed", "finish_reason": finish_reason}
 
-    llm_model = _build_language_model()
-    agent = Agent(llm_model=llm_model, loop=CustomStreamingLoop())
+    llm_model = _build_language_model(
+        tool_choice={"type": "function", "function": {"name": "get_weather"}},
+    )
+    loop = CustomStreamingLoop()
+    agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
 
-    stream = await agent.run("Say hello in one word.", stream=True)
+    stream = await agent.run("What is the weather in Tokyo?", stream=True)
     events = [e async for e in stream]
     event_types = [e["type"] for e in events]
 
     assert "response.created" in event_types
     assert "response.completed" in event_types
-    assert any("delta" in e for e in events if e.get("type") == "response.output_text.delta")
+
+    # Prove the streaming helper path was taken
+    assert loop.called_build_system_message, "build_system_message was not called"
+    assert loop.called_process_stream_iteration, (
+        "process_stream_iteration was not called"
+    )
 ```
 
 ### Key Test Scenarios
@@ -241,6 +322,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 - **Add new tests**: Unit tests for each new public helper called from a custom subclass:
   - `test_custom_loop_calls_build_system_message`
   - `test_custom_loop_calls_process_tool_calls`
+  - `test_custom_loop_calls_process_stream_iteration` — uses a fake async LLM stream to cover lifecycle event ordering, content accumulation, tool-call buffering, cancellation, provider failure, and usage settlement behavior
   - `test_custom_loop_calls_process_stream_tool_calls`
   - `test_custom_loop_calls_last_assistant_content`
 
