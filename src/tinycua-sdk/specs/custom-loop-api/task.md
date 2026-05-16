@@ -6,6 +6,12 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
 
 - [ ] Write integration tests for custom loop using public helpers (defined in `implementation-plan.md`) <!-- id: 0 -->
 - [ ] Run integration tests — expect SKIP (skipped due to no LLM server) or RED (failures) since implementation not yet updated <!-- id: 1 -->
+- [ ] Write unit test: custom loop subclass calls `build_system_message()` directly <!-- id: 16 -->
+- [ ] Write unit test: custom loop subclass calls `process_tool_calls()` with fake LLM response <!-- id: 17 -->
+- [ ] Write unit test: custom loop subclass calls `process_stream_iteration()` with fake async LLM stream, covering lifecycle event ordering, content accumulation, tool-call buffering, cancellation, provider failure, and usage settlement behavior <!-- id: 18 -->
+- [ ] Write unit test: custom loop subclass calls `process_stream_tool_calls()` with fake tool calls <!-- id: 19 -->
+- [ ] Write unit test: custom loop subclass calls `last_assistant_content()` directly <!-- id: 20 -->
+- [ ] Run unit tests — expect RED since implementation not yet updated <!-- id: 33 -->
 
 ## Implementation Phase — Phase 1: Promote Private Methods to Public
 
@@ -48,14 +54,6 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
   - [ ] Body: build system message → init state → try/except → iteration loop → `_call_llm`(stream=True) → delegate to `process_stream_iteration()` → handle tool calls via `process_stream_tool_calls()` | return content → yield usage + completion events
   - [ ] Track `cancelled`, `provider_failed`, `completed_by_provider` as local booleans
 - [ ] Run stream tests — all pass (all `TestBaseLoopRunStream`, `TestBaseLoopRunStreamInProgress`) <!-- id: 15 -->
-
-## Implementation Phase — Phase 4: New Unit Tests
-
-- [ ] Write unit test: custom loop subclass calls `build_system_message()` directly <!-- id: 16 -->
-- [ ] Write unit test: custom loop subclass calls `process_tool_calls()` with fake LLM response <!-- id: 17 -->
-- [ ] Write unit test: custom loop subclass calls `process_stream_iteration()` with fake async LLM stream, covering lifecycle event ordering, content accumulation, tool-call buffering, cancellation, provider failure, and usage settlement behavior <!-- id: 18 -->
-- [ ] Write unit test: custom loop subclass calls `process_stream_tool_calls()` with fake tool calls <!-- id: 19 -->
-- [ ] Write unit test: custom loop subclass calls `last_assistant_content()` directly <!-- id: 20 -->
 
 ## Testing Phase
 

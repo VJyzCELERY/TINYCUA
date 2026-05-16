@@ -35,9 +35,11 @@ Restructure `BaseLoop` so that `_run_sync()` and `_run_stream()` are thin orches
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Tests First (TDD)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the integration and unit tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+**Always-run RED gate:** The unit tests for public helpers (items 16–20 in task.md) are designed to run in any environment without an LLM server. They must produce RED (failing) results before implementation and GREEN (passing) results after. The integration tests are supplemental and may SKIP when no LLM server is available.
 
 ```python
 # Test file: tests/integration/test_custom_agent_loop.py
@@ -192,11 +194,15 @@ async def test_custom_streaming_loop_uses_public_helpers():
             usage_settled_ids = set()
             finish_reason = "completed"
             has_tool_calls = False
+            cancelled = False
+            provider_failed = False
+            completed_by_provider = False
 
             try:
                 for _ in range(self.max_iterations):
                     if agent.is_cancelled:
                         yield {"type": "response.cancelled"}
+                        cancelled = True
                         break
 
                     content_parts = []
@@ -205,9 +211,6 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
                     llm_stream = await agent._call_llm(working, tools, stream=True)
 
-                    cancelled = False
-                    provider_failed = False
-                    completed_by_provider = False
                     async for event in self.process_stream_iteration(
                         llm_stream, agent, content_parts, tool_calls_buffer,
                         cumulative_usage, usage_settled_ids,
@@ -288,6 +291,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
 - [x] **Scenario 1**: Custom sync loop using `build_system_message()`, `process_tool_calls()`, and `last_assistant_content()` — verifies tool execution with a real LLM call
 - [x] **Scenario 2**: Custom streaming loop using `process_stream_iteration()` and `process_stream_tool_calls()` — verifies streaming lifecycle events from a subclass
+- [x] **Scenario 3**: Unit tests for each new public helper (`build_system_message`, `process_tool_calls`, `process_stream_iteration`, `process_stream_tool_calls`, `last_assistant_content`) — these are the always-run RED gate that work without an LLM server
 - [x] **Edge case**: All existing unit/contract tests pass after private method renames
 
 ## Verification Plan
@@ -429,7 +433,7 @@ None new.
 | Renaming `_build_system_message` breaks external code that calls private method | Low | Intentional pre-release breaking change — SDK has not been publicly released |
 | `process_stream_iteration()` changes event ordering vs current two-phase approach | High | Existing stream tests validate exact ordering; they must pass without modification |
 | Integration test requires a real LLM key | Low | Use same mock/skip infrastructure as existing integration tests; Option C (split strategy) as fallback |
-| Line count targets for `_run_sync()`/`_run_stream()` are aspirational | Medium | Count lines after refactoring; if slightly over, document trade-off. But current design gives exact counts |
+| Line count targets for `_run_sync()` (≤45) / `_run_stream()` (≤60) are hard acceptance gates | Medium | Current design targets ~40 / ~55 lines, well within limits. Must be verified before merge |
 
 ---
 
