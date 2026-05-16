@@ -993,6 +993,154 @@ class TestBaseLoopRunStream:
         assert cumulative["usage"]["total_tokens"] == 13
 
 
+class TestBaseLoopRunStreamInProgress:
+    """Tests for response.in_progress event emission."""
+
+    @pytest.mark.asyncio
+    async def test_in_progress_emitted_before_delta(self):
+        """SDK emits response.in_progress before first delta when provider emits none."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        event_types = [e["type"] for e in events]
+
+        assert event_types.index("response.created") < event_types.index("response.in_progress")
+        assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
+
+    @pytest.mark.asyncio
+    async def test_in_progress_not_duplicated_when_provider_emits(self):
+        """SDK does not inject duplicate response.in_progress when provider already emits it."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.created", "response": {"id": "r_1"}}
+                yield {"type": "response.in_progress"}
+                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        in_progress_count = sum(1 for e in events if e["type"] == "response.in_progress")
+
+        assert in_progress_count == 1
+
+    @pytest.mark.asyncio
+    async def test_in_progress_injected_after_provider_response_created(self):
+        """SDK injects response.in_progress when provider emits response.created but not in_progress."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.created", "response": {"id": "r_1"}}
+                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        event_types = [e["type"] for e in events]
+
+        assert event_types.index("response.created") < event_types.index("response.in_progress")
+        assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
+
+    @pytest.mark.asyncio
+    async def test_no_in_progress_after_completed_first_chunk(self):
+        """response.in_progress is NOT emitted when first chunk is response.completed."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.completed", "finish_reason": "completed"}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        assert not any(e["type"] == "response.in_progress" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_no_in_progress_after_failed_first_chunk(self):
+        """response.in_progress is NOT emitted when first chunk is response.failed."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "response.failed", "error": {"message": "boom"}}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        assert not any(e["type"] == "response.in_progress" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_no_in_progress_after_error_first_chunk(self):
+        """response.in_progress is NOT emitted when first chunk is error."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                yield {"type": "error", "error": {"message": "oops"}}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "hi"}], [])
+        events = [e async for e in stream_iter]
+        assert not any(e["type"] == "response.in_progress" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_in_progress_in_each_iteration(self):
+        """Each LLM call iteration gets its own response.in_progress."""
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+
+        @tool
+        def dummy_tool() -> str:
+            return "result"
+
+        call_count = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield {
+                        "type": "response.output_item.added",
+                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "dummy_tool"},
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1", "name": "dummy_tool", "arguments": "{}",
+                    }
+                else:
+                    yield {"type": "response.output_text.delta", "delta": "Done.", "item_id": "2"}
+            return _gen()
+
+        agent._call_llm = fake_stream
+        stream_iter = loop._run_stream(agent, [{"role": "user", "content": "go"}], [dummy_tool])
+        events = [e async for e in stream_iter]
+        in_progress_count = sum(1 for e in events if e["type"] == "response.in_progress")
+
+        # Two LLM iterations -> two response.in_progress events
+        assert in_progress_count == 2
+
+
 class TestLoopExecution:
     """Tests for loop execution (mocked LLM)."""
 

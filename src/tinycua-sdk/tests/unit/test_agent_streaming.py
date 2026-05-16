@@ -59,7 +59,8 @@ class TestStreamingOn:
         events = [e async for e in stream_iter]
 
         assert events[0]["type"] == "response.created"
-        assert events[1] == raw_delta_event
+        assert events[1]["type"] == "response.in_progress"
+        assert events[2] == raw_delta_event
         assert events[-1]["type"] == "response.completed"
 
 

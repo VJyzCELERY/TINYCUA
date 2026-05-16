@@ -1,4 +1,15 @@
-"""Integration tests for guardrail approval workflows."""
+"""Guardrail approval workflow tests — ToolExecutor-level integration.
+
+This file tests guardrail behavior at the ToolExecutor level. These tests
+do NOT require a live LLM server because they exercise guardrail/tool
+permission logic directly through ToolExecutor.execute(), not through
+Agent.run() with LLM calls.
+
+The test for Agent.run() guardrail propagation (test_agent_loop_propagates_denied_tool_as_message)
+has been moved to tests/unit/test_agent_guardrail_propagation.py as part
+of the Stage 8 cleanup (ISSUE-001): it validates control flow against
+stubs, not integration with a live LLM endpoint.
+"""
 
 from tinycua_sdk import Agent, LanguageModel, tool
 from tinycua_sdk.agent.executor import ToolExecutor
@@ -90,56 +101,3 @@ async def test_multiple_guardrails_first_denial_wins():
     assert result == {"approved": False, "reason": "Dangerous tool blocked."}
     assert logging_guardrail.calls == [("shell_execute", {"command": "rm -rf /"})]
     assert invoked is False
-
-
-async def test_agent_loop_propagates_denied_tool_as_message():
-    """Denied tool result propagates through Agent.run() as a denied response."""
-    invoked = False
-
-    @tool(name="delete_file")
-    def delete_file(path: str) -> str:
-        nonlocal invoked
-        invoked = True
-        return f"deleted {path}"
-
-    call_count = 0
-    second_call_messages = None
-
-    async def fake_call_llm(messages, tools=None):
-        nonlocal call_count, second_call_messages
-        call_count += 1
-        if call_count == 1:
-            return {
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_denied",
-                        "name": "delete_file",
-                        "arguments": '{"path": "secret.txt"}',
-                    }
-                ],
-            }
-        second_call_messages = messages
-        return {
-            "content": "The tool delete_file was denied because it requires manual approval."
-        }
-
-    agent = Agent(
-        llm_model=LanguageModel(),
-        tool_permissions={"delete_file": "ask"},
-        approval_workflow=DangerousToolGuardrail(),
-        tools=[delete_file],
-    )
-    agent._call_llm = fake_call_llm
-
-    result = await agent.run("Delete secret.txt")
-
-    assert invoked is False
-    assert call_count == 2
-    assert any(
-        isinstance(m, dict)
-        and m.get("type") == "function_call_output"
-        and "Dangerous tool blocked" in m.get("output", "")
-        for m in (second_call_messages or [])
-    )
-    assert "denied" in result.lower() or "blocked" in result.lower()

@@ -46,9 +46,18 @@ class BaseLoop:
 
 ```python
 # On Agent class:
-async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None) -> dict:
-    """Call LLM with agent's configuration. Available to custom loops."""
+async def _call_llm(self, messages: list[dict], tools: list[Tool] | None = None, stream: bool = False, llm_model: LanguageModel | None = None) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+    """Call LLM with agent's configuration. Available to custom loops.
+
+    When llm_model is provided it overrides the agent's default model,
+    allowing custom loops to temporarily change model parameters
+    (e.g., temperature) without modifying the agent's configuration.
+    """
 ```
+
+**Key design:**
+- `llm_model` is optional; when omitted, the agent's default model is used.
+- Custom loops like `PlanThenExecuteLoop` can pass a copied model with modified parameters via this parameter instead of calling the LLM client directly.
 
 Custom loops call this instead of reimplementing HTTP transport.
 
@@ -121,15 +130,15 @@ The agent stores the loop instance and calls `loop.run()` on each `run()`.
 
 ## Success Criteria
 
-Each success criterion must be validated by running the specified target file(s).
+Each success criterion must be validated by running the specified test file(s).
 
-Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
+### Contract Tests (always run, no LLM server required)
+
+These tests use deterministic stubs or no LLM calls at all. They validate the BaseLoop
+subclassing contract and are always run.
 
 - [ ] Custom Loop Overrides Default - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Subclassing `BaseLoop` and passing to `Agent` uses the custom loop.
-
-- [ ] Custom Loop Accesses LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
-  Description: Custom loop can call `agent._call_llm()`.
 
 - [ ] Cancellation Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Custom loop respects `agent.is_cancelled`.
@@ -137,10 +146,49 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] max_iterations Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Custom loop respects `self.max_iterations`.
 
-- [ ] ReActLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
-  Description: The ReActLoop example from goals runs.
+- [ ] Custom Loop Accesses LLM (contract) - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: Custom loop can call `agent._call_llm()` (deterministic fake response).
 
-- [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - 1 passed, 0 failed - pytest -v
+- [ ] ReActLoop Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: ReAct-style loop with fake LLM executes tool and continues.
 
-## Integration Test File
-- `tests/integration/goals/test_adv_01_custom_agent_loop.py`
+- [ ] PlanThenExecuteLoop Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: PlanThenExecuteLoop with fake LLM runs plan phase and execution phase.
+
+- [ ] Streaming Events Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: Default streaming loop emits lifecycle events with fake stream.
+
+- [ ] Guardrail Propagation Contract - tests/unit/test_agent_guardrail_propagation.py - PASS - `print('PASS')`
+  Description: Denied tool results propagate through Agent.run() with fake LLM.
+
+### Real Integration Tests (require local LLM server, marked @pytest.mark.integration)
+
+These tests use the SDK's actual `LanguageModel` transport without monkeypatching
+`_call_llm()`. They are skipped when no LLM server is available.
+
+- [ ] Custom Loop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_custom_loop_calls_real_llm) - string response - `uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v -m integration`
+  Description: Custom loop calls `agent._call_llm()` against the configured endpoint.
+
+- [ ] ReActLoop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_react_loop_real_llm) - string response - same command
+  Description: ReAct-style loop with real model transport and tool support.
+
+- [ ] Streaming Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_streaming_lifecycle_real_llm) - lifecycle events - same command
+  Description: Streaming run verifies provider/SDK lifecycle events through real transport.
+
+- [ ] Model Override Real LLM (was PlanThenExecuteLoop) - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_model_override_real_llm) - string response - same command
+  Description: Custom loop passes a copied LanguageModel (with modified temperature) through `_call_llm(llm_model=...)` to verify the model override path. The full PlanThenExecute two-phase contract is covered deterministically in unit tests.
+
+## Test Files
+
+### Unit / Contract Tests
+- `tests/unit/test_loop_custom.py` — BaseLoop contract tests with fake LLM responses
+- `tests/unit/test_agent_guardrail_propagation.py` — Guardrail propagation contract test
+
+### Integration Tests (contract, always run)
+- `tests/integration/goals/test_adv_01_custom_agent_loop.py` — subset without LLM dependency
+
+### Integration Tests (real LLM, @pytest.mark.integration)
+- `tests/integration/goals/test_adv_01_custom_agent_loop.py` — tests with `@pytest.mark.integration`
+
+### Optional Manual Verification
+- `targets/06_streaming_events.py` — standalone target script (uses deterministic fake stream)

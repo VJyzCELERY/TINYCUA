@@ -175,11 +175,13 @@ class BaseLoop:
 
         completed_by_provider = False
         provider_failed = False
+        in_progress_emitted = False
 
         try:
             for _ in range(self.max_iterations):
                 completed_by_provider = False
                 provider_failed = False
+                in_progress_emitted = False
                 if agent.is_cancelled:
                     yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
@@ -213,6 +215,8 @@ class BaseLoop:
                     inner_cancelled = True
                 elif first_chunk is None:
                     yield {"type": "response.created"}
+                    yield {"type": "response.in_progress"}
+                    in_progress_emitted = True
                 elif first_chunk.get("type") == "response.created":
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
@@ -226,8 +230,15 @@ class BaseLoop:
                     yield {"type": "response.created"}
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                elif first_chunk.get("type") == "response.in_progress":
+                    yield {"type": "response.created"}
+                    yield first_chunk
+                    in_progress_emitted = True
+                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
                 else:
                     yield {"type": "response.created"}
+                    yield {"type": "response.in_progress"}
+                    in_progress_emitted = True
                     yield first_chunk
                     self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
 
@@ -237,6 +248,20 @@ class BaseLoop:
                     ):
                         if chunk is None:
                             break
+                        # Track or inject response.in_progress
+                        if chunk.get("type") == "response.in_progress":
+                            in_progress_emitted = True
+                        elif chunk.get("type") in (
+                            "response.completed", "response.failed", "error"
+                        ):
+                            # Terminal events - do NOT inject response.in_progress
+                            pass
+                        elif not in_progress_emitted:
+                            # First non-terminal content chunk without
+                            # provider response.in_progress - inject it
+                            yield {"type": "response.in_progress"}
+                            in_progress_emitted = True
+
                         if chunk.get("type") == "response.completed":
                             completed_by_provider = True
                         elif chunk.get("type") in ("response.failed", "error"):

@@ -86,6 +86,12 @@ class ResponseOutputItemAddedEvent(TypedDict):
     item: dict
 
 
+class ResponseInProgressEvent(TypedDict):
+    """Emitted after response.created when streaming is active."""
+
+    type: Literal["response.in_progress"]
+
+
 __all__ = [
     "ResponseCreatedEvent",
     "ResponseCancelledEvent",
@@ -98,4 +104,5 @@ __all__ = [
     "ResponseFunctionCallArgumentsDeltaEvent",
     "ResponseFunctionCallArgumentsDoneEvent",
     "ResponseOutputItemAddedEvent",
+    "ResponseInProgressEvent",
 ]

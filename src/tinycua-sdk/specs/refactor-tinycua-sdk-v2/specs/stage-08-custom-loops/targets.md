@@ -1,7 +1,14 @@
 # Stage 8: Extensibility — Custom Loops — Targets
 
 ## Purpose
-Verify `BaseLoop` can be subclassed for custom execution behavior. Uses a real or mock LLM server.
+Verify `BaseLoop` can be subclassed for custom execution behavior. These are standalone
+verification targets that use deterministic fakes or require a local LLM server.
+
+> **Note on test layers**: As part of the Stage 8 cleanup (ISSUE-001), all deterministic
+> fake-LLM scenarios have been moved to unit/contract tests under `tests/unit/` for fast
+> control-flow coverage. Real integration tests against a live LLM endpoint are in
+> `tests/integration/goals/test_adv_01_custom_agent_loop.py` with the `@pytest.mark.integration`
+> marker. The targets below remain as optional manual verification scripts.
 
 ---
 
@@ -163,6 +170,7 @@ asyncio.run(main())
 import asyncio
 import json
 from tinycua_sdk import Agent, LanguageModel, BaseLoop, tool
+from tinycua_sdk.agent.executor import ToolExecutor
 
 
 BASE_URL = "http://localhost:1234/v1"
@@ -184,13 +192,28 @@ class ReActLoop(BaseLoop):
         # If the model produces a tool call in its response, execute it
         if response.get("tool_calls"):
             for tc in response["tool_calls"]:
-                tool_name = tc["function"]["name"]
-                arguments = json.loads(tc["function"]["arguments"])
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
                 for t in tools:
                     if t.name == tool_name:
-                        result = t.invoke(**arguments)
+                        result = await ToolExecutor.execute(t, arguments, agent)
                         messages.append({"role": "assistant", "content": content})
-                        messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        call_id = tc.get("call_id", tc["id"])
+                        messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": call_id,
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        )
+                        messages.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": str(result),
+                            }
+                        )
                         break
 
             # One more LLM call with the tool result
@@ -216,3 +239,66 @@ asyncio.run(main())
 ```
 
 **Expected Output:** `targets/05_react_loop_expected-output.txt` → `Response: <any string>` (must not raise)
+
+---
+
+### Target 8.6: Streaming Events Compliance
+
+**File:** `targets/06_streaming_events.py`
+
+```python
+"""Target 8.6: Verify the default BaseLoop stream injects lifecycle events.
+
+Validates R-8.4: the default loop MUST emit response.created, response.in_progress,
+response.usage, and response.completed even when the raw provider stream only
+emits content deltas.
+
+Uses a deterministic fake stream to avoid needing a live LLM server.
+"""
+
+import asyncio
+from collections.abc import AsyncIterator
+
+from tinycua_sdk import Agent, LanguageModel
+
+
+async def fake_call_llm(messages, tools=None, stream: bool = False):
+    """Return a stream that emits only content deltas (no lifecycle events).
+
+    This lets us verify the default BaseLoop._run_stream() injects the
+    missing response.created, response.in_progress, response.usage, and
+    response.completed events required by R-8.4.
+    """
+
+    async def chunks() -> AsyncIterator[dict]:
+        yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_1"}
+
+    return chunks()
+
+
+async def main():
+    a = Agent(llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"))
+    a._call_llm = fake_call_llm  # type: ignore[method-assign]
+
+    stream = await a.run("Hello", stream=True)
+    events = [event async for event in stream]
+    event_types = [e["type"] for e in events]
+
+    assert "response.created" in event_types, f"Missing response.created in {event_types}"
+    assert "response.in_progress" in event_types, f"Missing response.in_progress in {event_types}"
+    assert "response.usage" in event_types, f"Missing response.usage in {event_types}"
+    assert "response.completed" in event_types, f"Missing response.completed in {event_types}"
+
+    # Verify order: created -> in_progress -> first content delta
+    assert event_types.index("response.created") < event_types.index("response.in_progress"), \
+        f"response.created should come before response.in_progress: {event_types}"
+    assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta"), \
+        f"response.in_progress should come before first delta: {event_types}"
+
+    print(f"Streaming lifecycle events correctly ordered: {event_types}")
+
+
+asyncio.run(main())
+```
+
+**Expected Output:** `targets/06_streaming_events_expected-output.txt` → `Streaming lifecycle events correctly ordered: ['response.created', 'response.in_progress', 'response.output_text.delta', 'response.usage', 'response.completed']` (must not raise)
