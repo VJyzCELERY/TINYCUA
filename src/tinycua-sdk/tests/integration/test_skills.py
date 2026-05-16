@@ -15,7 +15,6 @@ import tempfile
 from pathlib import Path
 
 from tinycua_sdk import Agent, Skill
-from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.native.skills_tools import (
     create_skills_list_tool,
