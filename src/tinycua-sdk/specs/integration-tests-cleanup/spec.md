@@ -137,3 +137,6 @@ No new unit tests needed — this spec addresses reorganization of integration t
 
 2. **Should internal test method names be renamed from `test_gs_*` / `test_int_*` / `test_adv_*` to descriptive names?**
    - **Decision**: YES. The numbered prefixes are tied to old goalspec numbering that no longer exists. Rename to descriptive names alongside the filenames.
+
+3. **Should `test_obsolete_params_rejected` be preserved?**
+   - **Decision**: NO. This test validated that old backward-compatible parameters raised `TypeError`, but backward compatibility is no longer needed. The test and its associated `pytest` import have been removed from `TestAgentConstructor`.

@@ -179,7 +179,7 @@ Merge content from `goals/test_gs_02_agent_creation.py` into the existing `test_
 | `test_gs_02_named_agent` | `test_named_agent` |
 | `test_gs_03_agent_with_policy` | `test_agent_with_policy` |
 | `test_gs_04_agent_with_metadata` | `test_agent_with_metadata` |
-| `test_gs_05_obsolete_params_rejected` | `test_obsolete_params_rejected` |
+| `test_gs_05_obsolete_params_rejected` | ~~`test_obsolete_params_rejected`~~ | _REMOVED: backward compatibility no longer needed_ |
 | `test_gs_06_dynamic_composition` | `test_dynamic_composition` |
 | `test_gs_07_to_config` | `test_to_config` |
 

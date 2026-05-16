@@ -31,7 +31,8 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
 - [x] Merge `test_gs_02_agent_creation.py` into `tests/integration/test_agent_creation.py` <!-- id: 8 -->
   - [x] Rename class `TestGS02AgentCreation` → `TestAgentConstructor`
   - [x] Rename test methods: `test_gs_01_*` → descriptive names
-  - [x] Add necessary imports (`pytest`, `AgentPolicy`, `LanguageModel`, `Skill`, `tool`)
+  - [x] Add necessary imports (`AgentPolicy`, `LanguageModel`, `Skill`, `tool`)
+  - [x] **Remove** `test_obsolete_params_rejected` (backward compat no longer needed) and its `pytest` import
 - [x] Create `tests/integration/test_agent_export.py` merging `test_int_06` + `test_int_07` <!-- id: 9 -->
   - [x] Rename `TestInt06ExportingAgent` → `TestAgentExport`
   - [x] Rename `TestInt07LoadingAgent` → `TestAgentLoading`
@@ -56,7 +57,7 @@ Implementation tasks for tinycua-sdk integration tests cleanup. Check off items 
 - [x] Delete `tests/integration/goals/` directory <!-- id: 12 -->
 - [x] Delete `tests/integration/test_skills_example.py` (now merged into `test_skills.py`) <!-- id: 13 -->
 - [x] Run integration tests: `uv run pytest tests/integration/` — **82 passed** <!-- id: 14 -->
-- [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **309 passed** <!-- id: 15 -->
+- [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` — **308 passed** (307 baseline + 3 new e2e - 1 removed obsolete_params - 1 duplicate YAML redaction) <!-- id: 15 -->
 - [x] Run Makefile target: `make test-integration` — **82 passed** <!-- id: 16 -->
 
 ---

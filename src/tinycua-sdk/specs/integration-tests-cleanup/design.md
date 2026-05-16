@@ -70,6 +70,8 @@ tests/integration/                     tests/integration/
 
 Decision: Merge into `test_agent_creation.py`. Keep both classes distinct since they test different creation paths. Rename method prefixes from `test_gs_*` to descriptive names.
 
+> **Removed test**: `test_gs_05_obsolete_params_rejected` → `test_obsolete_params_rejected` was intentionally dropped. This test validated that old backward-compatible parameters raised `TypeError`, but backward compatibility is no longer needed.
+
 ### Merge 2: `test_int_06_exporting_agent.py` + `test_int_07_loading_agent.py`
 
 | Aspect | `test_int_06_exporting_agent.py` | `test_int_07_loading_agent.py` |
