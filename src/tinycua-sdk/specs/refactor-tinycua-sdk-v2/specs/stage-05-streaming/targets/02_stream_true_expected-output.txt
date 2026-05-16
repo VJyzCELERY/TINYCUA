@@ -1,2 +1,0 @@
-[stream] Events:
-<list of raw events>

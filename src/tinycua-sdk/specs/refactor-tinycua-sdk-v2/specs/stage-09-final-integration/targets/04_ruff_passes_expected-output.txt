@@ -1,1 +1,0 @@
-PASS — ruff check passed

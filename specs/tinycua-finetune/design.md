@@ -352,6 +352,6 @@ python -m tinycua_finetune.convert_to_gguf \
 ## References
 
 - Spec: `specs/tinycua-finetune/spec.md`
-- Project Guidelines: `PROJECT-GUIDELINES.md`
-- Coding Standards: `docs/project_rules/coding_standards.md`
-- Testing Guidelines: `docs/project_rules/testing_guidelines.md`
+- Agent Instructions: `AGENTS.md`
+- Coding Standards: `.agents/rules/002-code-standards.md`
+- Testing Guidelines: `.agents/rules/003-testing.md`
