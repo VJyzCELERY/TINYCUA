@@ -1,1 +1,1 @@
-"""tinycua_backend - Session Context for AI Agents."""
+"""tinycua-backend skeleton package."""

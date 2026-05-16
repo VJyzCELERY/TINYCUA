@@ -1,2 +1,0 @@
-[ASK] write_file({...}) — auto-approved for demo
-Response: <any string>

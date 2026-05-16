@@ -1,1 +1,0 @@
-Streaming lifecycle events correctly ordered: ['response.created', 'response.in_progress', 'response.output_text.delta', 'response.usage', 'response.completed']
