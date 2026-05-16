@@ -101,6 +101,8 @@ class MyStreamingLoop(BaseLoop):
 
 Cleaned-up version of the current `_execute_tools_stream()`. Handles the same logic but returns cleaner state. Public so custom streaming loops can call it after `process_stream_iteration` detects tool calls.
 
+Returns `tuple[int, bool]` — `(updated_tool_call_count, max_tool_calls_reached)`. Custom callers must check the second element to decide whether to break out of the iteration loop (`max_tool_calls_reached=True`) or continue with the next LLM call.
+
 ### `last_assistant_content(messages)`
 
 Renamed from `_last_assistant_content`. Static method, pure function.
@@ -136,7 +138,9 @@ Renamed from `_last_assistant_content`. Static method, pure function.
    d. Delegate to self.process_stream_iteration()  ← public helper
       (yields events, tracks cancelled/provider_failed/completed booleans)
    e. If cancelled/failed: break
-   f. If tool_calls_list: await self.process_stream_tool_calls()  ← public helper
+   f. If tool_calls_list:
+      - tool_call_count, max_tool_calls_reached = await self.process_stream_tool_calls(...)  ← public helper
+      - If max_tool_calls_reached: break
    g. Else: append content and break
 5. Yield usage + completion events
 6. except: yield failed events

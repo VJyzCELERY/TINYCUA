@@ -60,16 +60,18 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 - **FR-004**: The tool processing helper extracted from `_run_sync()` MUST be a public method on `BaseLoop` (no `_` prefix), documented and usable by custom loop subclasses.
 - **FR-005**: The stream event processing helper extracted from `_run_stream()` MUST be a public method on `BaseLoop`, documented and usable by custom loop subclasses.
 - **FR-006**: `build_system_message()` MUST be a public method on `BaseLoop` (currently `_build_system_message`), callable by subclasses.
+- **FR-007**: `process_stream_tool_calls()` MUST be a public method on `BaseLoop`, cleaned up from the current `_execute_tools_stream()`, documented and usable by custom streaming loop subclasses.
+- **FR-008**: `last_assistant_content()` MUST be a public method on `BaseLoop` (currently `_last_assistant_content`), callable by subclasses.
 
 **Testing:**
 
-- **FR-007**: An integration test MUST exist that creates a custom loop subclass, uses it with `Agent.run()`, and verifies correct tool calling behavior via a real LLM call (using the SDK's existing integration test infrastructure).
-- **FR-008**: All standalone unit tests MUST cover the new public helpers directly.
+- **FR-009**: An integration test MUST exist that creates a custom loop subclass, uses it with `Agent.run()`, and verifies correct tool calling behavior via a real LLM call (using the SDK's existing integration test infrastructure).
+- **FR-010**: All standalone unit tests MUST cover the new public helpers directly.
 
 **Backward compatibility:**
 
-- **FR-009**: All existing tests MUST pass after migrating private-helper references to the new public `BaseLoop` helper API.
-- **FR-010**: Custom loops that only rely on the supported `BaseLoop.run(...)` subclassing contract MUST continue to work; private `_` helper access is not preserved because the SDK has not been publicly released.
+- **FR-011**: All existing tests MUST pass after migrating private-helper references to the new public `BaseLoop` helper API.
+- **FR-012**: Custom loops that only rely on the supported `BaseLoop.run(...)` subclassing contract MUST continue to work; private `_` helper access is not preserved because the SDK has not been publicly released.
 
 ---
 
@@ -77,9 +79,9 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 
 - [ ] **`_run_sync()` is ≤45 lines**: Reads as clear orchestration delegating to public helpers
 - [ ] **`_run_stream()` is ≤60 lines**: Single-pass event processing, no `_IterStreamState`
-- [ ] **Public helpers available**: `build_system_message()`, `process_tool_calls()` (sync helper), `process_stream_iteration()` (stream helper) — all callable from a subclass
+- [ ] **Public helpers available**: `build_system_message()`, `process_tool_calls()` (sync helper), `process_stream_iteration()` (stream helper), `process_stream_tool_calls()`, `last_assistant_content()` — all callable from a subclass
 - [ ] **Custom loop integration test**: A test with a real LLM call (or the SDK's standard integration mock) proves a custom loop subclass works end-to-end
-- [ ] **All existing tests pass**: Zero modifications to test files
+- [ ] **All existing tests pass**: All existing behavioral coverage continues to pass after intentional test updates for renamed/public helper APIs
 
 ---
 
