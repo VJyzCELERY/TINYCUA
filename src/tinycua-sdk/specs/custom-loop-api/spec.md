@@ -11,60 +11,112 @@
 
 ### Goals
 
-Provide a simpler, more accessible API for creating custom agent execution loops so that SDK users can:
+Provide a simple, composable API for creating custom agent execution loops so that SDK users can:
 
-- Write a custom loop (e.g., ReAct, PlanThenExecute, simple direct-LLM) with minimal boilerplate — ideally 10–20 lines
-- Reuse stream lifecycle primitives (first-chunk detection, event accumulation, tool call extraction) without subclassing `BaseLoop`
-- Read and understand the default `_run_stream()` implementation at a glance, because its internals are built from the same composable building blocks
+- Write a custom loop (sync or streaming, ReAct-style, PlanThenExecute, or any other pattern) as a straightforward while loop with clear dispatch logic — ideally 20–30 lines
+- Replace or customize individual steps of the loop (permission checks, approval workflows, tool execution, message building) without forking the entire loop implementation
+- Import and use atomic, standalone primitives (`call_llm`, `check_permission`, `request_approval`, `execute_tool`, `build_tool_messages`, etc.) without subclassing `BaseLoop`
+- Read and understand both `_run_sync()` and `_run_stream()` at a glance because they are thin orchestrators over the same composable building blocks
 
 ### Gaps
 
-1. **`_run_stream()` is too complex for what it does.** At ~130 lines for the method body plus ~250 total across its four helper methods (`_yield_first_chunk_events`, `_yield_stream_body_events`, `_execute_tools_stream`, `_accumulate_chunk`), the streaming path is hard to follow end-to-end. Each helper is tightly coupled to `BaseLoop` internals (mutating `_IterStreamState`, `working_messages`, `content_parts`, etc.) and cannot be reused independently.
+1. **Both loop paths are too complex.** `_run_sync()` is ~90 lines of interleaved logic (tool iteration, permission checking buried inside `ToolExecutor.execute()`, message building). `_run_stream()` is ~130 lines plus ~120 more across helper methods. Neither can be understood at a glance.
 
-2. **No standalone stream processing primitives.** The static/private methods (`_read_stream_chunk`, `_iter_llm_events`, `_accumulate_chunk`, `_accumulate_tool_chunk`, `_accumulate_usage`) are prefixed with `_` and undocumented. A custom loop author who wants streaming must reimplement all lifecycle event handling.
+2. **Permission and approval logic is hidden inside `ToolExecutor.execute()`.** A custom loop author who wants different permission behavior (e.g., logging denials, custom approval UI) cannot replace just that piece — they must either fork `ToolExecutor` or reimplement the entire tool calling block.
 
-3. **Tool execution in streaming mode duplicates logic.** The tool call → execute → append cycle in `_run_sync` (lines 102–164) and `_execute_tools_stream` (lines 371–456) have different shapes but share the same core pattern. A shared primitive could unify them and simplify both paths.
+3. **No standalone primitives for tool call handling.** JSON argument parsing, tool lookup, permission checking, approval workflows, result formatting — all are either in `ToolExecutor` or inline in the loop methods. None are importable standalone.
+
+4. **Stream and sync paths share no code.** Despite both doing the same core work (call LLM → process tools → call LLM again), `_run_sync()` and `_run_stream()` have independent implementations of tool execution, message appending, and iteration control.
 
 ### Non-Goals
 
 - Changing the runtime behavior of `BaseLoop.run()` or `Agent.run()` — existing callers must see zero difference
-- Adding new pre-built loop subclasses (ReActLoop, PlanThenExecuteLoop) as built-in SDK components
-- Changing the `Agent` class API, its `run()` signature, or the `BaseLoop` subclassing contract
-- Removing or renaming existing public methods on `BaseLoop`
+- Building a full visual workflow/state-machine editor
+- Removing `BaseLoop` as a class — it remains the default loop, just refactored internally
 - Performance optimization — this is purely a readability/composability improvement
 
 ### Constraints
 
 - Backward compatibility: all existing unit/integration tests must pass without modification
-- The `BaseLoop` subclassing contract (override `run()`, call `agent._call_llm()`, use `ToolExecutor.execute()`) must continue to work
-- Existing private methods on `BaseLoop` may be refactored only if their public equivalent preserves the same behavior
+- `ToolExecutor.execute()` must continue to work (existing custom loops may use it)
+- `Agent` class API unchanged — `agent.run()`, `agent._call_llm()`, `agent.cancel()` all keep their signatures
 - Must work with Python 3.11+
 
 ---
 
 ## User Scenarios & Testing
 
-### Primary Scenario
+### Primary Scenario: Custom Sync Loop
 
-**SDK user writes a custom streaming loop.** A developer wants to create a custom agent loop that streams intermediate events. Currently they would need to subclass `BaseLoop` and reimplement all streaming lifecycle handling. With the new API, they should be able to import standalone helpers and compose them in their custom loop without duplicating lifecycle logic.
+A developer wants to write a custom ReAct loop with custom permission logging:
+
+```python
+class LoggingReActLoop(BaseLoop):
+    async def run(self, agent, messages, tools, ...):
+        system_msg = build_system_message(agent)
+        working = [system_msg] + messages
+
+        for _ in range(self.max_iterations):
+            response = await call_llm(agent, working, tools)
+
+            if not has_tool_calls(response):
+                return get_content(response)
+
+            for tc in get_tool_calls(response):
+                permission = check_tool_permission(tc["name"], agent)
+                if permission == "deny":
+                    log_denial(tc["name"])
+                    append_tool_error(working, tc, "denied")
+                    continue
+                if permission == "ask":
+                    approval = await request_tool_approval(tc, agent)
+                    if not approval:
+                        append_tool_error(working, tc, "not approved")
+                        continue
+
+                result = await execute_tool(tc, tools, agent)
+                append_tool_result(working, tc, result)
+
+        return last_assistant_content(working)
+```
+
+Every step (`check_tool_permission`, `request_tool_approval`, `execute_tool`, `append_tool_result`) is a standalone public function the developer can override or replace.
+
+### Primary Scenario: Custom Streaming Loop
+
+A developer wants streaming with a custom progress callback:
+
+```python
+class StreamingLogLoop(BaseLoop):
+    async def run(self, agent, messages, tools, ...):
+        ...
+        llm_stream = await call_llm_stream(agent, working, tools)
+        async for event in iterate_stream_events(llm_stream, ...):
+            if event["type"] == "response.output_text.delta":
+                await progress_callback(event["delta"])
+            yield event
+        ...
+```
 
 ### Acceptance Scenarios
 
-1. **Given** a developer extends `BaseLoop` with a custom loop, **When** they implement `run()` using only the documented public helpers (stream processing, tool execution), **Then** the loop correctly handles streaming lifecycle (created, in_progress, output deltas, completed events).
+1. **Given** a developer writes a custom loop using only the atomic public helpers (`call_llm`, `check_tool_permission`, `request_tool_approval`, `execute_tool`, `build_tool_messages`, etc.), **When** the loop runs with valid inputs, **Then** it correctly handles tool calls, permission denials, approval workflows, and streaming lifecycle.
 
-2. **Given** the existing `test_loop.py` test suite, **When** the refactored `BaseLoop` is executed against all tests, **Then** every test passes with zero modifications.
+2. **Given** the existing `test_loop.py` and `test_loop_custom.py` test suites, **When** the refactored `BaseLoop` runs against all tests, **Then** every test passes with zero modifications.
 
-3. **Given** the existing `test_loop_custom.py` contract tests, **When** a developer subclasses `BaseLoop` and overrides `run()`, **Then** their custom loop implementation continues to work as before.
+3. **Given** the existing `test_agent_run.py` and `test_agent_streaming.py` test suites, **When** `Agent.run()` is called (sync and stream mode), **Then** all tests pass with zero modifications.
 
-4. **Given** a developer reads `_run_stream()`, **When** they trace through it, **Then** they should be able to understand the full flow by reading ~40–60 lines of orchestration that delegates to clearly-named helpers (not 250+ lines of interleaved logic).
+4. **Given** a developer replaces `check_tool_permission` with a custom implementation, **When** a denied tool is invoked, **Then** the custom permission logic runs instead of the default.
 
 ### Edge Cases
 
-- What happens when a custom loop uses stream processing helpers on an empty LLM stream? → Should handle `StopAsyncIteration` cleanly.
-- What happens when cancellation occurs mid-stream? → Should produce `response.cancelled` event consistently.
-- What happens when the provider emits a terminal event (`response.completed`, `response.failed`, `error`) as the first chunk? → Should not double-emit lifecycle events.
-- What happens when tool call arguments span multiple chunks? → Should accumulate correctly and produce valid JSON.
-- What happens when a custom stream helper encounters a malformed chunk? → Should yield an error event rather than crashing.
+- Tool call with unparseable JSON arguments → error message appended, loop continues
+- Tool call for unknown tool name → error message appended, loop continues
+- Permission "deny" → error message appended, no execution, loop continues
+- Permission "ask" with no `approval_workflow` configured → error message appended
+- All tool calls in a single LLM response denied → no content produced, loop continues or terminates based on policy
+- Empty LLM response (no content, no tool calls) → loop terminates gracefully
+- Cancellation during tool execution → partial results discarded, loop exits
 
 ---
 
@@ -72,31 +124,56 @@ Provide a simpler, more accessible API for creating custom agent execution loops
 
 ### Functional Requirements
 
-- **FR-001**: The SDK MUST expose standalone, documented, public stream processing functions that custom loops can import and use without subclassing `BaseLoop`.
-- **FR-002**: The SDK MUST expose a standalone, documented, public function for building system messages from agent instructions and skills.
-- **FR-003**: The SDK MUST expose a standalone, documented, public function for executing tool calls and appending results to a message list.
-- **FR-004**: `BaseLoop._run_stream()` MUST be refactored to use these standalone helpers, reducing its body size to a clear orchestration layer (~40–60 lines).
-- **FR-005**: All standalone helpers MUST be tested independently (unit tests with fake LLM streams).
-- **FR-006**: All existing tests MUST pass without modification.
-- **FR-007**: The module-level functions `_accumulate_tool_chunk` and `_accumulate_usage` MUST be promoted to public names and documented.
-- **FR-008**: A custom loop author MUST be able to implement a fully functional streaming loop (ReAct-style) using only the public helpers, without accessing any private `BaseLoop` methods.
+**Core loop structure:**
+
+- **FR-001**: The SDK MUST expose a standalone `call_llm()` function that calls the LLM with messages and tools, returning a normalized response dict (sync mode).
+- **FR-002**: The SDK MUST expose a standalone `call_llm_stream()` function that calls the LLM with messages and tools, returning an async iterator of SSE events (stream mode).
+- **FR-003**: The SDK MUST expose a standalone `build_system_message()` function that builds a system message from agent instructions and skills.
+
+**Tool handling primitives:**
+
+- **FR-004**: The SDK MUST expose a standalone `check_tool_permission()` function that checks a tool name against the agent's permission map and returns `"allow"`, `"ask"`, or `"deny"`.
+- **FR-005**: The SDK MUST expose a standalone `request_tool_approval()` function that runs the agent's `ApprovalWorkflow` for a tool call and returns the approval decision.
+- **FR-006**: The SDK MUST expose a standalone `execute_tool_call()` function that, given a single tool call dict, parses arguments, looks up the tool, checks permission, requests approval (if needed), and executes via `ToolExecutor`.
+- **FR-007**: The SDK MUST expose standalone functions for building tool call messages: `build_function_call_message()` and `build_function_call_output_message()`.
+
+**Utility primitives:**
+
+- **FR-008**: The SDK MUST expose `has_tool_calls()` and `get_tool_calls()` helpers for inspecting LLM responses.
+- **FR-009**: The SDK MUST expose `last_assistant_content()` for extracting the last assistant message from a message list.
+
+**Refactoring of BaseLoop:**
+
+- **FR-010**: `BaseLoop._run_sync()` MUST be refactored to use the standalone primitives, with its body reduced to a clear orchestration layer (~30–40 lines).
+- **FR-011**: `BaseLoop._run_stream()` MUST be refactored to use the standalone primitives, with its body reduced to a clear orchestration layer (~40–60 lines).
+- **FR-012**: All standalone primitives MUST be tested independently with unit tests.
+
+**Backward compatibility:**
+
+- **FR-013**: All existing tests MUST pass without modification.
+- **FR-014**: Custom loops written against the current `BaseLoop` subclassing contract MUST continue to work.
 
 ### Key Entities
 
-- **Loop Stream Primitives**: Functions that handle LLM stream lifecycle — reading chunks, detecting first-chunk type, accumulating content/tool calls/usage, iterating remaining events. These are stateless and receive all state via parameters.
-- **Tool Execution Primitives**: Functions that execute tool calls from accumulated tool call data and append results to a working message list in the correct format.
-- **System Message Builder**: A pure function that builds a system message dict from agent instructions and skill definitions.
-- **BaseLoop (unchanged)**: The standard execution loop, refactored internally to delegate to the above primitives.
+- **LLM Primitives**: `call_llm()`, `call_llm_stream()` — communicate with the language model provider.
+- **Permission & Approval Primitives**: `check_tool_permission()`, `request_tool_approval()` — decouple access control from execution.
+- **Tool Execution Primitives**: `execute_tool_call()` — orchestrate permission check → approval → execution for a single tool call.
+- **Message Building Primitives**: `build_system_message()`, `build_function_call_message()`, `build_function_call_output_message()` — construct message dicts in the correct format.
+- **Response Inspection Primitives**: `has_tool_calls()`, `get_tool_calls()`, `get_content()`, `last_assistant_content()` — extract information from LLM responses and message lists.
+- **Stream Processing Primitives**: `iterate_stream_events()` — process an LLM streaming response, yielding lifecycle events and accumulating content, tool calls, and usage.
 
 ---
 
 ## Success Criteria
 
-- [ ] **Custom loop with 15 lines**: A developer can write a streaming custom loop that handles all lifecycle events in ~15–20 lines of `run()` implementation plus helper calls
-- [ ] **`_run_stream()` readability**: The refactored `_run_stream()` body is ≤60 lines and uses only public helper calls
-- [ ] **All existing tests pass**: `test_loop.py`, `test_loop_custom.py`, `test_agent_streaming.py`, and integration tests pass with zero modifications
-- [ ] **Public API documented**: Every exposed helper function has a docstring and appears in `__all__` in its module
-- [ ] **New unit tests pass**: At least 5 new unit tests cover the standalone helpers directly
+- [ ] **Custom sync loop in 25 lines**: A developer can write a fully functional ReAct loop (including permission checks, approval, tool execution) in ~25 lines of `run()` implementation using only public primitives
+- [ ] **Custom streaming loop in 20 lines**: A developer can write a streaming loop (including lifecycle events) in ~20 lines using public primitives
+- [ ] **`_run_sync()` readability**: The refactored `_run_sync()` body is ≤40 lines and uses only public primitive calls
+- [ ] **`_run_stream()` readability**: The refactored `_run_stream()` body is ≤60 lines and uses only public primitive calls
+- [ ] **Permission is replaceable**: A developer can replace `check_tool_permission()` with their own implementation without forking any other code
+- [ ] **Approval is replaceable**: A developer can replace `request_tool_approval()` with their own implementation without forking any other code
+- [ ] **All existing tests pass**: `test_loop.py`, `test_loop_custom.py`, `test_agent_run.py`, `test_agent_streaming.py`, and integration tests pass with zero modifications
+- [ ] **Standalone primitive tests**: Each primitive has dedicated unit tests with at least 3 scenarios (happy path + 2 edge cases)
 
 ---
 
@@ -104,21 +181,20 @@ Provide a simpler, more accessible API for creating custom agent execution loops
 
 ### Unit Tests
 
-- New tests for each standalone helper function with fake streams:
-  - `build_system_message()` — covers instructions, override, skills
-  - `read_stream_chunk()` — covers normal chunk, empty stream, cancellation
-  - `iter_llm_events()` — covers multi-chunk, stream exhaustion, cancellation
-  - `accumulate_chunk()` — covers text delta, tool call delta, usage, completed
-  - `accumulate_tool_chunk()` — covers all 4 event types (tool_call.delta, output_item.added, function_call_arguments.delta/done)
-  - `accumulate_usage()` — covers Responses API keys and Chat Completions keys
-  - `execute_tool_calls()` — covers success, unknown tool, JSON parse error, cancellation
-  - `last_assistant_content()` — covers various message orderings
-- Existing `test_loop.py` and `test_loop_custom.py` tests must still pass
-- Edge case: empty stream, cancellation mid-chunk, provider-failed first chunk
+- New test module `test_loop_primitives.py` covering each standalone primitive:
+  - `call_llm()` — returns dict, handles errors
+  - `build_system_message()` — instructions, override, skills, empty
+  - `check_tool_permission()` — allow, ask, deny, missing, invalid
+  - `request_tool_approval()` — approved, denied, no workflow configured
+  - `execute_tool_call()` — success, unknown tool, JSON parse error, cancelled
+  - `build_function_call_message()` / `build_function_call_output_message()` — correct format
+  - `has_tool_calls()` / `get_tool_calls()` — has calls, no calls, empty list
+  - `last_assistant_content()` — various message orderings
+- Existing `test_loop.py` and `test_loop_custom.py` must still pass
 
 ### Integration Tests
 
-- Existing integration tests (`test_agent_streaming.py`, `test_custom_agent_loop.py`) must pass without modification — this proves backward compatibility
+- Existing integration tests (`test_agent_streaming.py`, `test_custom_agent_loop.py`, `test_tool_loading.py`, `test_permission_system.py`, `test_guardrail_system.py`) must pass without modification
 
 ---
 
@@ -126,15 +202,10 @@ Provide a simpler, more accessible API for creating custom agent execution loops
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Spec | Draft | Initial version |
-| Design | Pending | To be created alongside |
+| Spec | Revised | Expanded from stream-only to full loop; added atomic primitives |
 
 ---
 
 ## Open Questions
 
-1. **Helper module location**
-   - **Owner**: @agent
-   - **Target**: 2026-05-16
-   - **Status**: Decided
-   - **Proposed Answer**: Refactor within `loop.py` — keep all loop primitives in one module. The module will export both `BaseLoop` class and standalone functions. This avoids circular imports and keeps the API surface simple.
+None at this time.
