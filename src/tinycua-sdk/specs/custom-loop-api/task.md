@@ -28,7 +28,7 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
 - [ ] Extract `async process_tool_calls()` from inline loop in `_run_sync()` <!-- id: 5 -->
   - [ ] Move tool call iteration, JSON parsing, tool lookup, `ToolExecutor.execute()`, max_tool_calls guard, and message appending into new public method
   - [ ] New signature: `async process_tool_calls(agent, tools, tool_calls, working_messages, tool_call_count, assistant_content="") -> tuple[int, bool]`
-  - [ ] Appends assistant content (if non-empty) before `function_call` / `function_call_output` messages, preserving current ordering
+  - [ ] Appends an assistant message before `function_call` / `function_call_output` messages whenever tool calls are executed; the message uses `assistant_content` and is still appended even when the assistant content is empty, preserving current ordering
   - [ ] Returns `(updated_tool_call_count, max_tool_calls_reached)` for the caller
 - [ ] Restructure `_run_sync()` to ~40 lines as thin orchestrator <!-- id: 6 -->
   - [ ] Body: build system message → iteration loop → guard checks → `_call_llm` → delegate to `process_tool_calls()` | return content

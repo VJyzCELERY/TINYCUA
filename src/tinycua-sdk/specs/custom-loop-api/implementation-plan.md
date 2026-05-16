@@ -197,84 +197,89 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
         async def run(self, agent, messages, tools,
                       override_instructions=None, stream=False):
-            system_msg = self.build_system_message(agent, override_instructions)
-            self.called_build_system_message = True
-            working = [system_msg] + list(messages)
-            tool_call_count = 0
-            cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-            usage_settled_ids = set()
-            finish_reason = "completed"
-            has_tool_calls = False
-            cancelled = False
-            provider_failed = False
-            completed_by_provider = False
-            llm_calls = 0
+            async def _stream():
+                system_msg = self.build_system_message(agent, override_instructions)
+                self.called_build_system_message = True
+                working = [system_msg] + list(messages)
+                tool_call_count = 0
+                cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                usage_settled_ids = set()
+                finish_reason = "completed"
+                has_tool_calls = False
+                cancelled = False
+                provider_failed = False
+                completed_by_provider = False
+                llm_calls = 0
 
-            try:
-                for _ in range(self.max_iterations):
-                    if agent.is_cancelled:
-                        yield {"type": "response.cancelled"}
-                        cancelled = True
-                        break
-
-                    content_parts = []
-                    tool_calls_buffer = {}
-                    usage_settled_ids.clear()
-
-                    # One-shot tool_choice: use initial model for first call only
-                    if llm_calls == 0 and self.initial_llm_model is not None:
-                        llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)  # supported extension point
-                    else:
-                        llm_stream = await agent._call_llm(working, tools, stream=True)  # supported extension point
-                    llm_calls += 1
-
-                    iteration_completed = False
-                    async for event in self.process_stream_iteration(
-                        llm_stream, agent, content_parts, tool_calls_buffer,
-                        cumulative_usage, usage_settled_ids,
-                    ):
-                        self.called_process_stream_iteration = True
-                        if event["type"] == "response.completed":
-                            iteration_completed = True
-                        if event["type"] == "response.cancelled":
+                try:
+                    for _ in range(self.max_iterations):
+                        if agent.is_cancelled:
+                            yield {"type": "response.cancelled"}
                             cancelled = True
-                        elif event["type"] in ("response.failed", "error"):
-                            provider_failed = True
-                        yield event
-                    # Sync per-iteration completion to outer state so it only
-                    # reflects the LAST stream iteration, not a prior tool-call one.
-                    completed_by_provider = iteration_completed
+                            break
 
-                    if cancelled or provider_failed:
-                        break
+                        content_parts = []
+                        tool_calls_buffer = {}
+                        usage_settled_ids.clear()
 
-                    combined = "".join(content_parts)
-                    tool_calls_list = list(tool_calls_buffer.values())
+                        # One-shot tool_choice: use initial model for first call only
+                        if llm_calls == 0 and self.initial_llm_model is not None:
+                            llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)  # supported extension point
+                        else:
+                            llm_stream = await agent._call_llm(working, tools, stream=True)  # supported extension point
+                        llm_calls += 1
 
-                    if tool_calls_list:
-                        has_tool_calls = True
-                        tool_call_count, max_reached = await self.process_stream_tool_calls(
-                            agent, tools, tool_calls_list, working, tool_call_count,
-                            combined_content=combined,
-                        )
-                        self.called_process_stream_tool_calls = True
-                        if max_reached:
-                            finish_reason = "max_tool_calls"
+                        iteration_completed = False
+                        async for event in self.process_stream_iteration(
+                            llm_stream, agent, content_parts, tool_calls_buffer,
+                            cumulative_usage, usage_settled_ids,
+                        ):
+                            self.called_process_stream_iteration = True
+                            if event["type"] == "response.completed":
+                                iteration_completed = True
+                            if event["type"] == "response.cancelled":
+                                cancelled = True
+                            elif event["type"] in ("response.failed", "error"):
+                                provider_failed = True
+                            yield event
+                        # Sync per-iteration completion to outer state so it only
+                        # reflects the LAST stream iteration, not a prior tool-call one.
+                        completed_by_provider = iteration_completed
+
+                        if cancelled or provider_failed:
+                            break
+
+                        combined = "".join(content_parts)
+                        tool_calls_list = list(tool_calls_buffer.values())
+
+                        if tool_calls_list:
+                            has_tool_calls = True
+                            tool_call_count, max_reached = await self.process_stream_tool_calls(
+                                agent, tools, tool_calls_list, working, tool_call_count,
+                                combined_content=combined,
+                            )
+                            self.called_process_stream_tool_calls = True
+                            if max_reached:
+                                finish_reason = "max_tool_calls"
+                                break
+                        else:
+                            working.append({"role": "assistant", "content": combined})
                             break
                     else:
-                        working.append({"role": "assistant", "content": combined})
-                        break
-                else:
-                    finish_reason = "max_iterations"
-            except Exception as e:
-                self.last_working_messages = list(working)
-                yield {"type": "response.failed", "error": {"message": str(e)}}
-                return
+                        finish_reason = "max_iterations"
+                except Exception as e:
+                    self.last_working_messages = list(working)
+                    yield {"type": "response.failed", "error": {"message": str(e)}}
+                    return
 
-            self.last_working_messages = list(working)
-            yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-            if not completed_by_provider and not provider_failed and not cancelled:
-                yield {"type": "response.completed", "finish_reason": finish_reason}
+                self.last_working_messages = list(working)
+                yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+                if not completed_by_provider and not provider_failed and not cancelled:
+                    yield {"type": "response.completed", "finish_reason": finish_reason}
+
+            if stream:
+                return _stream()
+            raise NotImplementedError("sync path omitted in streaming test")
 
     # One-shot tool_choice: force first LLM call only, clear for follow-ups
     llm_model = _build_language_model()  # default model without tool_choice

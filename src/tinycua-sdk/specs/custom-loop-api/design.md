@@ -90,15 +90,20 @@ Custom streaming loops use this instead of reimplementing lifecycle handling:
 ```python
 class MyStreamingLoop(BaseLoop):
     async def run(self, agent, messages, tools, ...):
-        ...
-        llm_stream = await agent._call_llm(messages, tools, stream=True)  # supported extension point
-        async for event in self.process_stream_iteration(
-            llm_stream, agent, content_parts, tool_calls_buffer,
-            cumulative_usage, usage_settled_ids,
-        ):
-            if event["type"] == "response.output_text.delta":
-                await self.on_token(event["delta"])  # custom callback
-            yield event
+        async def _stream():
+            ...
+            llm_stream = await agent._call_llm(messages, tools, stream=True)  # supported extension point
+            async for event in self.process_stream_iteration(
+                llm_stream, agent, content_parts, tool_calls_buffer,
+                cumulative_usage, usage_settled_ids,
+            ):
+                if event["type"] == "response.output_text.delta":
+                    await self.on_token(event["delta"])  # custom callback
+                yield event
+
+        if stream:
+            return _stream()
+        raise NotImplementedError("sync path omitted in streaming test")
 ```
 
 ### `async process_stream_tool_calls(agent, tools, tool_calls_list, working_messages, tool_call_count, combined_content="")`
