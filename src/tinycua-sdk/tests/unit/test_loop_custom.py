@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
+from tinycua_sdk import Agent, BaseLoop, LanguageModel, Skill, tool
 from tinycua_sdk.agent.executor import ToolExecutor
 
 
@@ -225,3 +225,400 @@ class TestCustomLoopContract:
         assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
         assert "response.usage" in event_types
         assert "response.completed" in event_types
+
+
+class TestCustomPublicHelpers:
+    """Tests for new public helper methods on BaseLoop.
+
+    These tests verify that custom loop subclasses can call the new public
+    helper methods directly in their own run() override. They are the
+    always-run RED gate — they must pass without an LLM server.
+    """
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_build_system_message(self):
+        """Custom loop subclass can call build_system_message() directly."""
+        class HelperLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                return system_msg["content"]
+
+        agent = Agent(
+            instructions="You are helpful.",
+            llm_model=LanguageModel(),
+        )
+        loop = HelperLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "hi"}], [],
+        )
+        assert "You are helpful." in result
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_build_system_message_with_skills(self):
+        """build_system_message includes skill instructions."""
+        skill = Skill(
+            name="coder",
+            description="Write code",
+            instructions="Write clean code.",
+        )
+        agent = Agent(
+            instructions="Be helpful.",
+            llm_model=LanguageModel(),
+            skills=[skill],
+        )
+
+        class HelperLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                return system_msg["content"]
+
+        loop = HelperLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "hi"}], [],
+        )
+        assert "[coder]" in result
+        assert "Write clean code." in result
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_tool_calls(self):
+        """Custom loop can call process_tool_calls() with fake tool calls."""
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        class ToolCallLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                working = [system_msg] + list(messages)
+
+                tool_calls = [
+                    {"id": "call_1", "name": "get_time", "arguments": "{}"},
+                ]
+                count, max_reached = await self.process_tool_calls(
+                    agent, tools, tool_calls, working, 0,
+                )
+                assert count == 1, f"Expected count=1, got {count}"
+                assert max_reached is False
+                assert len(working) >= 3
+                # Verify function_call_output was added
+                has_output = any(
+                    m.get("type") == "function_call_output"
+                    for m in working
+                )
+                assert has_output, "No function_call_output found in working messages"
+                return "ok"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[get_time])
+        loop = ToolCallLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "time?"}], [get_time],
+        )
+        assert result == "ok"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_tool_calls_with_assistant_content(self):
+        """process_tool_calls prepends assistant content before function_call."""
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        class ToolCallLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                working = [system_msg] + list(messages)
+
+                tool_calls = [
+                    {"id": "call_1", "name": "get_time", "arguments": "{}"},
+                ]
+                count, max_reached = await self.process_tool_calls(
+                    agent, tools, tool_calls, working, 0,
+                    assistant_content="Let me check the time.",
+                )
+                assert count == 1
+                assert max_reached is False
+                # Verify assistant message was prepended before function_call
+                assistant_idx = next(
+                    i for i, m in enumerate(working)
+                    if m.get("role") == "assistant"
+                )
+                func_call_idx = next(
+                    i for i, m in enumerate(working)
+                    if m.get("type") == "function_call"
+                )
+                assert assistant_idx < func_call_idx, (
+                    "Assistant message should come before function_call"
+                )
+                return "ok"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[get_time])
+        loop = ToolCallLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "time?"}], [get_time],
+        )
+        assert result == "ok"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_tool_calls_max_reached(self):
+        """process_tool_calls respects max_tool_calls guard."""
+        @tool
+        def dummy() -> str:
+            return "ok"
+
+        from tinycua_sdk import AgentPolicy
+        policy = AgentPolicy(max_tool_calls=1)
+
+        class ToolCallLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                working = [system_msg] + list(messages)
+
+                tool_calls = [
+                    {"id": "call_1", "name": "dummy", "arguments": "{}"},
+                    {"id": "call_2", "name": "dummy", "arguments": "{}"},
+                ]
+                count, max_reached = await self.process_tool_calls(
+                    agent, tools, tool_calls, working, 0,
+                )
+                assert count == 1, f"Expected count=1 (only 1 executed), got {count}"
+                assert max_reached is True
+                return "maxed"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[dummy], policy=policy)
+        loop = ToolCallLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "go"}], [dummy],
+        )
+        assert result == "maxed"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_stream_iteration(self):
+        """Custom loop can call process_stream_iteration() with a fake stream.
+
+        Covers lifecycle event ordering, content accumulation, tool-call
+        buffering, and usage settlement.
+        """
+        class StreamLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                async def fake_llm_stream():
+                    yield {"type": "response.created", "response": {"id": "r_1"}}
+                    yield {"type": "response.in_progress"}
+                    yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "1"}
+                    yield {"type": "response.usage", "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}}
+
+                content_parts: list[str] = []
+                tool_calls_buffer: dict = {}
+                cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                usage_settled_ids: set[str] = set()
+
+                events: list[dict] = []
+                async for event in self.process_stream_iteration(
+                    fake_llm_stream(), agent, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids,
+                ):
+                    events.append(event)
+
+                # Verify lifecycle events
+                event_types = [e["type"] for e in events]
+                assert "response.created" in event_types
+                assert "response.in_progress" in event_types
+                assert "response.output_text.delta" in event_types
+
+                # Content accumulated
+                assert "".join(content_parts) == "Hello"
+
+                # Usage accumulated
+                assert cumulative_usage["total_tokens"] == 8
+
+                return "streamed"
+
+        agent = Agent(llm_model=LanguageModel())
+        loop = StreamLoop()
+        result = await loop.run(agent, [{"role": "user", "content": "hi"}], [])
+        assert result == "streamed"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_stream_iteration_tool_calls(self):
+        """process_stream_iteration buffers tool calls from stream."""
+        class StreamToolLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                async def fake_llm_stream():
+                    yield {
+                        "type": "response.output_item.added",
+                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+                    }
+                    yield {
+                        "type": "response.function_call_arguments.done",
+                        "item_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+
+                content_parts: list[str] = []
+                tool_calls_buffer: dict = {}
+                cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                usage_settled_ids: set[str] = set()
+
+                events: list[dict] = []
+                async for event in self.process_stream_iteration(
+                    fake_llm_stream(), agent, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids,
+                ):
+                    events.append(event)
+
+                # Tool calls should be buffered
+                assert len(tool_calls_buffer) == 1
+                assert tool_calls_buffer["call_1"]["name"] == "get_time"
+                return "tool buffered"
+
+        agent = Agent(llm_model=LanguageModel())
+        loop = StreamToolLoop()
+        result = await loop.run(agent, [{"role": "user", "content": "time?"}], [])
+        assert result == "tool buffered"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_stream_iteration_cancellation(self):
+        """process_stream_iteration handles cancellation via agent."""
+        class CancelStreamLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                async def fake_llm_stream():
+                    yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "1"}
+
+                content_parts: list[str] = []
+                tool_calls_buffer: dict = {}
+                cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                usage_settled_ids: set[str] = set()
+
+                agent._cancelled = True
+                events: list[dict] = []
+                async for event in self.process_stream_iteration(
+                    fake_llm_stream(), agent, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids,
+                ):
+                    events.append(event)
+
+                event_types = [e["type"] for e in events]
+                assert "response.cancelled" in event_types
+                return "cancelled"
+
+        agent = Agent(llm_model=LanguageModel())
+        loop = CancelStreamLoop()
+        result = await loop.run(agent, [{"role": "user", "content": "hi"}], [])
+        assert result == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_stream_tool_calls(self):
+        """Custom loop can call process_stream_tool_calls() with fake tool calls."""
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        class StreamToolExecLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                working = [system_msg] + list(messages)
+
+                tool_calls_list = [
+                    {"id": "call_1", "name": "get_time", "arguments": "{}"},
+                ]
+                count, max_reached = await self.process_stream_tool_calls(
+                    agent, tools, tool_calls_list, working, 0,
+                )
+                assert count == 1
+                assert max_reached is False
+                assert len(working) >= 3
+                has_func_call = any(
+                    m.get("type") == "function_call"
+                    for m in working
+                )
+                has_func_output = any(
+                    m.get("type") == "function_call_output"
+                    for m in working
+                )
+                assert has_func_call, "No function_call found"
+                assert has_func_output, "No function_call_output found"
+                return "executed"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[get_time])
+        loop = StreamToolExecLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "time?"}], [get_time],
+        )
+        assert result == "executed"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_process_stream_tool_calls_with_content(self):
+        """process_stream_tool_calls can accept combined_content."""
+        @tool
+        def get_time() -> str:
+            return "12:00"
+
+        class StreamToolContentLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                system_msg = self.build_system_message(agent, override_instructions)
+                working = [system_msg] + list(messages)
+
+                tool_calls_list = [
+                    {"id": "call_1", "name": "get_time", "arguments": "{}"},
+                ]
+                count, max_reached = await self.process_stream_tool_calls(
+                    agent, tools, tool_calls_list, working, 0,
+                    combined_content="The time is ",
+                )
+                assert count == 1
+                assert max_reached is False
+                # Assistant message with combined_content should be present
+                assistant_msgs = [m for m in working if m.get("role") == "assistant"]
+                assert len(assistant_msgs) >= 1
+                assert assistant_msgs[0].get("content") == "The time is "
+                return "content ok"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[get_time])
+        loop = StreamToolContentLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "time?"}], [get_time],
+        )
+        assert result == "content ok"
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_last_assistant_content(self):
+        """Custom loop can call last_assistant_content() directly."""
+        class ContentLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                working = list(messages)
+                working.append({"role": "assistant", "content": "Final answer."})
+                result = self.last_assistant_content(working)
+                return result
+
+        agent = Agent(llm_model=LanguageModel())
+        loop = ContentLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "hi"}], [],
+        )
+        assert result == "Final answer."
+
+    @pytest.mark.asyncio
+    async def test_custom_loop_calls_last_assistant_content_empty(self):
+        """last_assistant_content returns empty string when no assistant messages."""
+        class ContentLoop(BaseLoop):
+            async def run(self, agent, messages, tools,
+                          override_instructions=None, stream=False):
+                # No assistant messages
+                return self.last_assistant_content(list(messages))
+
+        agent = Agent(llm_model=LanguageModel())
+        loop = ContentLoop()
+        result = await loop.run(
+            agent, [{"role": "user", "content": "hi"}], [],
+        )
+        assert result == ""

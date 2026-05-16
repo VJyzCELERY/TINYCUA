@@ -18,7 +18,7 @@ class _EmptyAsyncStream(AsyncIterator[dict]):
 
 
 class TestBaseLoopBuildSystemMessage:
-    """Test _build_system_message method."""
+    """Test build_system_message method."""
 
     def test_build_system_message_with_instructions(self):
         agent = Agent(
@@ -26,7 +26,7 @@ class TestBaseLoopBuildSystemMessage:
             llm_model=LanguageModel(),
         )
         loop = BaseLoop()
-        msg = loop._build_system_message(agent)
+        msg = loop.build_system_message(agent)
         assert msg["role"] == "system"
         assert "You are helpful." in msg["content"]
 
@@ -36,7 +36,7 @@ class TestBaseLoopBuildSystemMessage:
             llm_model=LanguageModel(),
         )
         loop = BaseLoop()
-        msg = loop._build_system_message(agent, "Override.")
+        msg = loop.build_system_message(agent, "Override.")
         assert "Override." in msg["content"]
         assert "Original." not in msg["content"]
 
@@ -52,14 +52,14 @@ class TestBaseLoopBuildSystemMessage:
             skills=[skill],
         )
         loop = BaseLoop()
-        msg = loop._build_system_message(agent)
+        msg = loop.build_system_message(agent)
         assert "[coder]" in msg["content"]
         assert "Write clean code." in msg["content"]
 
     def test_build_system_message_no_instructions_no_skills(self):
         agent = Agent(llm_model=LanguageModel())
         loop = BaseLoop()
-        msg = loop._build_system_message(agent)
+        msg = loop.build_system_message(agent)
         assert msg["content"] == ""
 
 
