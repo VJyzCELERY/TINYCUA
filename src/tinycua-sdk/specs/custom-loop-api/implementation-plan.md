@@ -91,6 +91,7 @@ async def test_custom_loop_uses_public_helpers():
 
     class CustomToolLoop(BaseLoop):
         def __init__(self, **kwargs):
+            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_tool_calls = False
@@ -103,12 +104,18 @@ async def test_custom_loop_uses_public_helpers():
             self.called_build_system_message = True
             working = [system_msg] + list(messages)
             tool_call_count = 0
+            llm_calls = 0
 
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
                     raise asyncio.CancelledError()
 
-                response = await agent._call_llm(working, tools)
+                # One-shot tool_choice: use initial model for first call only
+                if llm_calls == 0 and self.initial_llm_model is not None:
+                    response = await agent._call_llm(working, tools, llm_model=self.initial_llm_model)  # supported extension point
+                else:
+                    response = await agent._call_llm(working, tools)  # supported extension point
+                llm_calls += 1
                 content = response.get("content")
                 tool_calls = response.get("tool_calls")
 
@@ -134,10 +141,12 @@ async def test_custom_loop_uses_public_helpers():
             self.called_last_assistant_content = True
             return self.last_assistant_content(working) or "[max iterations]"
 
-    llm_model = _build_language_model(
-        tool_choice={"type": "function", "function": {"name": "get_weather"}},
+    # One-shot tool_choice: force first LLM call only, clear for follow-ups
+    llm_model = _build_language_model()  # default model without tool_choice
+    llm_model_with_tc = llm_model.model_copy(
+        update={"tool_choice": {"type": "function", "function": {"name": "get_weather"}}},
     )
-    loop = CustomToolLoop()
+    loop = CustomToolLoop(initial_llm_model=llm_model_with_tc)
     agent = Agent(
         llm_model=llm_model,
         tools=[get_weather],
@@ -147,6 +156,8 @@ async def test_custom_loop_uses_public_helpers():
     result = await agent.run("What is the weather in Tokyo?")
     assert isinstance(result, str)
     assert len(result) > 0
+    assert "[max tool calls]" not in result, "Loop exited via max tool calls fallback"
+    assert "[max iterations]" not in result, "Loop exited via max iterations fallback"
 
     # Prove the custom loop path was taken (not the default BaseLoop)
     assert loop.called_build_system_message, "build_system_message was not called"
@@ -178,6 +189,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
     class CustomStreamingLoop(BaseLoop):
         def __init__(self, **kwargs):
+            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_stream_iteration = False
@@ -197,6 +209,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
             cancelled = False
             provider_failed = False
             completed_by_provider = False
+            llm_calls = 0
 
             try:
                 for _ in range(self.max_iterations):
@@ -209,7 +222,12 @@ async def test_custom_streaming_loop_uses_public_helpers():
                     tool_calls_buffer = {}
                     usage_settled_ids.clear()
 
-                    llm_stream = await agent._call_llm(working, tools, stream=True)
+                    # One-shot tool_choice: use initial model for first call only
+                    if llm_calls == 0 and self.initial_llm_model is not None:
+                        llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)  # supported extension point
+                    else:
+                        llm_stream = await agent._call_llm(working, tools, stream=True)  # supported extension point
+                    llm_calls += 1
 
                     async for event in self.process_stream_iteration(
                         llm_stream, agent, content_parts, tool_calls_buffer,
@@ -255,10 +273,12 @@ async def test_custom_streaming_loop_uses_public_helpers():
             if not completed_by_provider and not provider_failed and not cancelled:
                 yield {"type": "response.completed", "finish_reason": finish_reason}
 
-    llm_model = _build_language_model(
-        tool_choice={"type": "function", "function": {"name": "get_weather"}},
+    # One-shot tool_choice: force first LLM call only, clear for follow-ups
+    llm_model = _build_language_model()  # default model without tool_choice
+    llm_model_with_tc = llm_model.model_copy(
+        update={"tool_choice": {"type": "function", "function": {"name": "get_weather"}}},
     )
-    loop = CustomStreamingLoop()
+    loop = CustomStreamingLoop(initial_llm_model=llm_model_with_tc)
     agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
 
     stream = await agent.run("What is the weather in Tokyo?", stream=True)
@@ -267,6 +287,13 @@ async def test_custom_streaming_loop_uses_public_helpers():
 
     assert "response.created" in event_types
     assert "response.completed" in event_types
+    assert "response.failed" not in event_types, "Stream ended with failure"
+    # Verify the final finish_reason is not a fallback
+    completed_events = [e for e in events if e["type"] == "response.completed"]
+    if completed_events:
+        assert completed_events[0].get("finish_reason") not in ("max_tool_calls", "max_iterations"), (
+            "Stream exited via max limit fallback instead of completing naturally"
+        )
 
     # Prove the streaming helper path was taken
     assert loop.called_build_system_message, "build_system_message was not called"

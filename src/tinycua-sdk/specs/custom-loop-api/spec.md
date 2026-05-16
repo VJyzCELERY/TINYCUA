@@ -14,7 +14,8 @@
 Make `BaseLoop` a clean, readable base class that custom loops can easily build upon:
 
 - `_run_sync()` and `_run_stream()` should be thin orchestrators (~40–55 lines each) that delegate to well-named public helper methods
-- Those helper methods must be **public** (no `_` prefix) so custom loop subclasses can call them directly in their own `run()` override without accessing private API
+- Those helper methods must be **public** (no `_` prefix) so custom loop subclasses can call them directly in their own `run()` override without accessing private `BaseLoop` API
+- `agent._call_llm()` is a **supported extension point** despite its underscore — it serves as the intentional public-transport API that custom loops use to make LLM calls. This is the only `_`-prefixed method custom loops are expected to call.
 - A custom loop author subclassing `BaseLoop` should be able to compose these public helpers however they need — not reverse-engineer private internals
 - The Agent's public API (`agent.tool_permissions`, `agent.tools`, `agent.skills`, `agent.run()`) stays simple and unchanged
 - End-to-end confidence: an integration test proves a custom loop works with a real LLM call

@@ -8,9 +8,9 @@
 
 ## Overview
 
-Restructure `BaseLoop` so that both `_run_sync()` and `_run_stream()` are thin orchestrators (~40–55 lines) that delegate to **public helper methods**. These helpers — `build_system_message()`, `process_tool_calls()`, `process_stream_iteration()`, and a few others — are callable by custom loop subclasses without reaching into private `_` API.
+Restructure `BaseLoop` so that both `_run_sync()` and `_run_stream()` are thin orchestrators (~40–55 lines) that delegate to **public helper methods**. These helpers — `build_system_message()`, `process_tool_calls()`, `process_stream_iteration()`, and a few others — are callable by custom loop subclasses without reaching into private `BaseLoop` API.
 
-The goal is: when a developer writes `class MyLoop(BaseLoop)` and overrides `run()`, the public helpers they need are right there, documented and importable, not hidden behind underscores.
+The goal is: when a developer writes `class MyLoop(BaseLoop)` and overrides `run()`, the public helpers they need are right there, documented and importable, not hidden behind underscores. The one intentional exception is `agent._call_llm()` — it is a **supported extension point** despite the underscore, serving as the LLM transport API that custom loops use to make model calls.
 
 ---
 
@@ -65,7 +65,7 @@ class MyLoop(BaseLoop):
     async def run(self, agent, messages, tools, ...):
         ...
         for _ in range(self.max_iterations):
-            response = await agent._call_llm(messages, tools)
+            response = await agent._call_llm(messages, tools)  # supported extension point
             if response.get("tool_calls"):
                 log_tool_calls(response["tool_calls"])  # custom pre
                 tool_call_count, _ = await self.process_tool_calls(
@@ -87,7 +87,7 @@ Custom streaming loops use this instead of reimplementing lifecycle handling:
 class MyStreamingLoop(BaseLoop):
     async def run(self, agent, messages, tools, ...):
         ...
-        llm_stream = await agent._call_llm(messages, tools, stream=True)
+        llm_stream = await agent._call_llm(messages, tools, stream=True)  # supported extension point
         async for event in self.process_stream_iteration(
             llm_stream, agent, content_parts, tool_calls_buffer,
             cumulative_usage, usage_settled_ids,
