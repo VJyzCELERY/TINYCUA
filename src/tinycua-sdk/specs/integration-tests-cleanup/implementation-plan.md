@@ -42,7 +42,7 @@ cd src/tinycua-sdk && uv run pytest
 
 ### Manual Verification
 
-- [ ] **File count**: `tests/integration/` has exactly the expected files (13 test files + conftest + __init__).
+- [ ] **File count**: `tests/integration/` has exactly the expected files (11 test files + conftest + __init__).
 - [ ] **No goals/**: `tests/integration/goals/` directory no longer exists.
 - [ ] **No test loss**: Every original test method exists in the new structure (documented in merge analysis below).
 

@@ -22,7 +22,6 @@
   - No changes to CI/CD or test runner configuration beyond what is needed for reorganization.
 - **Constraints**:
   - Must preserve all existing test scenarios and assertions.
-  - Must maintain backward compatibility for any external test runners that reference paths.
   - The `test-integration` Makefile target (`pytest tests/integration/`) must continue to work.
   - The `run_integration_tests.py` script must continue to work.
 
@@ -67,7 +66,7 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 - **FR-002**: Each moved test file MUST be renamed to follow `test_<topic>.py` convention.
 - **FR-003**: The `tests/integration/goals/` directory MUST be removed after all tests are migrated.
 - **FR-004**: Tests covering overlapping functionality MUST be merged into single files to eliminate duplication.
-- **FR-005**: All existing test classes, test methods, and assertions MUST be preserved during the move and merge.
+- **FR-005**: All unique test scenarios and assertions MUST be preserved during the move and merge. Duplicate test methods (same scenario covered by multiple original files) MAY be removed, provided a merge traceability table documents which original methods are covered by each new method.
 - **FR-006**: New end-to-end integration tests MUST be added that cover full SDK workflows (agent creation, tool registration, run with real or mock LLM endpoint).
 - **FR-007**: The `make test-integration` target MUST continue to discover and run all integration tests.
 - **FR-008**: The `run_integration_tests.py` script MUST continue to work without modification.
@@ -105,7 +104,7 @@ A developer runs integration tests for tinycua-sdk. They run `make test-integrat
 
 - [ ] `make test-integration` passes: all integration tests succeed or skip gracefully for LLM-dependent tests.
 - [ ] `goals/` directory removed: no tests remain under `tests/integration/goals/`.
-- [ ] All test scenarios preserved: every test method from original files exists in the new structure.
+- [ ] All test scenarios preserved: every unique test scenario from original files exists in the new structure; duplicate methods may be removed per merge traceability.
 - [ ] Overlapping tests merged: duplicate test files are consolidated (agent creation, agent export/loading).
 - [ ] New end-to-end tests added: at least one end-to-end integration test covering a full agent workflow.
 - [ ] Naming consistent: all integration test files follow `test_<topic>.py` convention.
