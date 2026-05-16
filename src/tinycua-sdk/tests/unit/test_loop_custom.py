@@ -68,7 +68,7 @@ class TestCustomLoopContract:
                     tool_obj = next(t for t in tools if t.name == tc["name"])
                     arguments = json.loads(tc["arguments"])
                     result = await ToolExecutor.execute(tool_obj, arguments, agent)
-                    call_id = tc.get("call_id", tc["id"])
+                    call_id = tc.get("call_id") or tc.get("id")
                     messages.append({
                         "type": "function_call",
                         "call_id": call_id,
@@ -151,7 +151,7 @@ class TestCustomLoopContract:
                         for t in tools:
                             if t.name == tool_name:
                                 result = await ToolExecutor.execute(t, arguments, agent)
-                                call_id = tc.get("call_id", tc["id"])
+                                call_id = tc.get("call_id") or tc.get("id")
                                 exec_messages.append({
                                     "type": "function_call",
                                     "call_id": call_id,

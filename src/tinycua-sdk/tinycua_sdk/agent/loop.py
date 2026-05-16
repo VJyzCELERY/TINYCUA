@@ -97,7 +97,7 @@ class BaseLoop:
                 tool_result_messages.append(
                     {
                         "type": "function_call_output",
-                        "call_id": tc.get("call_id", tc["id"]),
+                        "call_id": _resolve_call_id(tc),
                         "output": str(tool_result),
                     }
                 )
@@ -120,7 +120,7 @@ class BaseLoop:
             tool_result_messages.append(
                 {
                     "type": "function_call_output",
-                    "call_id": tc.get("call_id", tc["id"]),
+                    "call_id": _resolve_call_id(tc),
                     "output": str(tool_result),
                 }
             )
@@ -135,7 +135,7 @@ class BaseLoop:
                 working_messages.append(
                     {
                         "type": "function_call",
-                        "call_id": tc.get("call_id", tc["id"]),
+                        "call_id": _resolve_call_id(tc),
                         "name": tc["name"],
                         "arguments": tc["arguments"],
                     }
@@ -425,7 +425,7 @@ class BaseLoop:
                 tool_result_messages.append(
                     {
                         "type": "function_call_output",
-                        "call_id": tc.get("call_id", tc["id"]),
+                        "call_id": _resolve_call_id(tc),
                         "output": str(tool_result),
                     }
                 )
@@ -448,7 +448,7 @@ class BaseLoop:
             tool_result_messages.append(
                 {
                     "type": "function_call_output",
-                    "call_id": tc.get("call_id", tc["id"]),
+                    "call_id": _resolve_call_id(tc),
                     "output": str(tool_result),
                 }
             )
@@ -461,7 +461,7 @@ class BaseLoop:
                 working_messages.append(
                     {
                         "type": "function_call",
-                        "call_id": tc.get("call_id", tc["id"]),
+                        "call_id": _resolve_call_id(tc),
                         "name": tc["name"],
                         "arguments": tc["arguments"],
                     }
@@ -627,6 +627,24 @@ def _accumulate_tool_chunk(
         item_id = chunk.get("item_id", "")
         if item_id and item_id in tool_calls_buffer:
             tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")
+
+
+def _resolve_call_id(tc: dict[str, Any]) -> str:
+    """Resolve ``call_id`` from a tool-call dict with fallback to ``id``.
+
+    Args:
+        tc: A tool-call dict that may contain ``call_id`` and/or ``id``.
+
+    Returns:
+        The resolved call identifier.
+
+    Raises:
+        ValueError: If neither ``call_id`` nor ``id`` is present.
+    """
+    call_id = tc.get("call_id") or tc.get("id")
+    if not call_id:
+        raise ValueError("Tool call is missing both 'call_id' and 'id'")
+    return call_id
 
 
 def _accumulate_usage(
