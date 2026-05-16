@@ -247,6 +247,10 @@ class BaseLoop:
                     break
             else:
                 finish_reason = "max_iterations"
+        except asyncio.CancelledError:
+            yield {"type": "response.created"}
+            yield {"type": "response.cancelled"}
+            return
         except Exception as e:
             yield {"type": "response.failed", "error": {"message": str(e)}}
             yield {"type": "error", "error": {"message": str(e)}}
@@ -382,7 +386,7 @@ class BaseLoop:
 
         for tc in tool_calls_list:
             if agent.is_cancelled:
-                break
+                raise asyncio.CancelledError()
             if tool_call_count >= agent.policy.max_tool_calls:
                 max_tool_calls_reached = True
                 break
@@ -411,8 +415,12 @@ class BaseLoop:
             else:
                 try:
                     tool_result = await ToolExecutor.execute(tool, arguments, agent)
+                    if agent.is_cancelled:
+                        raise asyncio.CancelledError()
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
-                    raise RuntimeError(f"Tool execution failed: {e}") from e
+                    tool_result = {"error": f"Tool execution failed: {e}"}
             tool_call_count += 1
 
             tool_result_messages.append(
