@@ -1,19 +1,28 @@
 """Integration tests for Stage 8 custom agent loops.
 
-Tests the BaseLoop extension point for SDK consumers:
-- Custom loop override of Agent.run()
-- Protected _call_llm() access from custom loops
-- Cooperative cancellation via agent.is_cancelled
-- max_iterations inheritance
-- ReAct-style loop with tool execution
-- PlanThenExecute two-phase loop with model override
-- Streaming lifecycle event completeness (response.in_progress)
+This file contains:
+1. Contract tests that DON'T require an LLM server (always run):
+   - Custom loop override of Agent.run()
+   - Cooperative cancellation via agent.is_cancelled
+   - max_iterations inheritance
+
+2. Real integration tests marked with @pytest.mark.integration (skipped
+   when no LLM server is available):
+   - Custom loop calling agent._call_llm() against the configured endpoint
+   - ReAct-style loop with real LLM transport
+   - Streaming lifecycle events through the real transport
+   - PlanThenExecute two-phase loop with model override
+
+The deterministic fake-LLM contract tests for _call_llm() access, ReAct
+tool execution, PlanThenExecute, and streaming have been moved to
+tests/unit/test_loop_custom.py for fast control-flow coverage (see ISSUE-001).
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import AsyncIterator
 
 import pytest
@@ -22,10 +31,14 @@ from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
 from tinycua_sdk.agent.executor import ToolExecutor
 
 
+# =============================================================================
+# Contract Tests (always run, no LLM server required)
+# =============================================================================
+
+
 @pytest.mark.asyncio
 async def test_custom_loop_overrides_default_execution():
     """Passing a BaseLoop subclass to Agent uses that loop for run()."""
-
     class MyLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
             return "custom result"
@@ -36,30 +49,8 @@ async def test_custom_loop_overrides_default_execution():
 
 
 @pytest.mark.asyncio
-async def test_custom_loop_can_call_agent_call_llm():
-    """Custom loops can reuse the agent LLM transport helper."""
-
-    class LLMLoop(BaseLoop):
-        async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-            response = await agent._call_llm(messages, tools)
-            return response.get("content", "")
-
-    agent = Agent(llm_model=LanguageModel(), loop=LLMLoop())
-
-    async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
-        assert messages[-1] == {"role": "user", "content": "Say hi."}
-        assert tools == []
-        return {"content": "hi", "tool_calls": None, "usage": None}
-
-    agent._call_llm = fake_call_llm
-
-    assert await agent.run("Say hi.") == "hi"
-
-
-@pytest.mark.asyncio
 async def test_custom_loop_can_respect_agent_cancellation():
     """A custom loop can observe agent.is_cancelled and exit cooperatively."""
-
     class SlowLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
             for _ in range(100):
@@ -80,7 +71,6 @@ async def test_custom_loop_can_respect_agent_cancellation():
 @pytest.mark.asyncio
 async def test_custom_loop_can_use_max_iterations():
     """Custom loops inherit and can rely on self.max_iterations."""
-
     class CountingLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
             count = 0
@@ -93,18 +83,78 @@ async def test_custom_loop_can_use_max_iterations():
     assert await agent.run("Hello") == "ran 3 times"
 
 
-@pytest.mark.asyncio
-async def test_react_style_custom_loop_can_execute_tool_and_continue():
-    """A ReAct-style loop can call the LLM, execute a tool, and continue."""
+# =============================================================================
+# Real Integration Tests (require live LLM server, marked @pytest.mark.integration)
+# =============================================================================
 
+
+def _build_language_model() -> LanguageModel:
+    """Build a LanguageModel from environment variables.
+
+    Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
+    """
+    return LanguageModel(
+        provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+        base_url=os.environ.get(
+            "TINYCUA_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        ),
+        model_name=os.environ.get(
+            "TINYCUA_MODEL",
+            os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
+        ),
+        api_key=os.environ.get("TINYCUA_API_KEY", os.environ.get("LLM_API_KEY", "dummy")),
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_integration_custom_loop_calls_real_llm():
+    """A custom loop can call agent._call_llm() against the configured endpoint.
+
+    This test verifies real LLM transport through the SDK: a custom loop
+    that calls agent._call_llm() receives a properly-formatted response
+    from the live endpoint, without any monkeypatching.
+    """
+    class LLMLoop(BaseLoop):
+        async def run(self, agent, messages, tools, override_instructions=None, stream=False):
+            response = await agent._call_llm(messages, tools)
+            content = response.get("content", "")
+            return content if content else "[no content]"
+
+    llm_model = _build_language_model()
+    agent = Agent(llm_model=llm_model, loop=LLMLoop())
+
+    result = await agent.run("Say hello in one word.", stream=False)
+    assert isinstance(result, str)
+    assert len(result) > 0
+    # Verify we got a real response (not an empty or error string)
+    assert result != "[no content]", "LLM returned no content"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_integration_react_loop_real_llm():
+    """A ReAct-style loop calls agent._call_llm() through the real transport.
+
+    This test verifies the ReAct loop pattern works against the configured
+    LLM endpoint. It creates a tool and a ReAct loop, then runs a query.
+    The test does NOT force tool calls — it verifies the loop executes
+    without error and returns a string response from the real model.
+    """
     @tool
-    def weather(city: str) -> str:
-        """Get weather for a city."""
-        return f"Sunny in {city}."
+    def search(query: str) -> str:
+        """Search for information. Returns simulated results."""
+        return f"Simulated result for: {query}"
 
     class ReActLoop(BaseLoop):
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
             response = await agent._call_llm(messages, tools)
+            content = response.get("content", "")
+            if content:
+                return content
+
+            # Handle tool calls if the model makes them
             if response.get("tool_calls"):
                 tc = response["tool_calls"][0]
                 tool_obj = next(t for t in tools if t.name == tc["name"])
@@ -123,39 +173,68 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
                     "output": str(result),
                 })
                 final = await agent._call_llm(messages)
-                return final.get("content", "")
-            return response.get("content", "")
+                return final.get("content", "[no final answer]")
 
-    agent = Agent(llm_model=LanguageModel(), tools=[weather], loop=ReActLoop())
-    calls = []
+            return "[no response]"
 
-    async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
-        calls.append((messages, tools))
-        if len(calls) == 1:
-            return {
-                "content": "Act: weather",
-                "tool_calls": [{"id": "call_1", "name": "weather", "arguments": '{"city": "Tokyo"}'}],
-            }
-        return {"content": "It is sunny in Tokyo.", "tool_calls": None}
+    llm_model = _build_language_model()
+    agent = Agent(llm_model=llm_model, tools=[search], loop=ReActLoop())
 
-    agent._call_llm = fake_call_llm
-
-    assert await agent.run("What is the weather in Tokyo?") == "It is sunny in Tokyo."
-    second_messages = calls[1][0]
-    assert any(
-        msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
-        for msg in second_messages
-    ), "Expected function_call_output with call_id='call_1' in the follow-up call"
+    result = await agent.run("Say hello in one word.", stream=False)
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert result not in ("[no response]", "[no final answer]"), f"Unexpected result: {result}"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_plan_then_execute_loop_works():
-    """A PlanThenExecuteLoop can produce a plan and execute steps."""
+async def test_integration_streaming_lifecycle_real_llm():
+    """Streaming run verifies provider/SDK lifecycle events through real transport.
 
+    This test creates an agent with the real LanguageModel and runs a
+    streaming query. It verifies that the standard lifecycle events
+    (response.created, response.in_progress, response.output_text.delta,
+    response.usage, response.completed) are all present in the stream,
+    delivered through the actual SDK transport without monkeypatching.
+    """
+    llm_model = _build_language_model()
+    agent = Agent(llm_model=llm_model)
+
+    stream = await agent.run("Say hello in one word.", stream=True)
+    events = [event async for event in stream]
+    event_types = [e["type"] for e in events]
+
+    assert "response.created" in event_types, f"Missing response.created in {event_types}"
+    assert "response.in_progress" in event_types, f"Missing response.in_progress in {event_types}"
+    assert "response.output_text.delta" in event_types, f"Missing content delta in {event_types}"
+    assert "response.usage" in event_types, f"Missing response.usage in {event_types}"
+    assert "response.completed" in event_types, f"Missing response.completed in {event_types}"
+
+    # Verify order: created -> in_progress -> deltas -> completed
+    created_idx = event_types.index("response.created")
+    in_progress_idx = event_types.index("response.in_progress")
+    completed_idx = event_types.index("response.completed")
+
+    assert created_idx < in_progress_idx, \
+        f"response.created ({created_idx}) should come before response.in_progress ({in_progress_idx})"
+    assert in_progress_idx < completed_idx, \
+        f"response.in_progress ({in_progress_idx}) should come before response.completed ({completed_idx})"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_integration_plan_then_execute_real_llm():
+    """A PlanThenExecute loop passes a copied LanguageModel through _call_llm().
+
+    This test verifies the model override path: a PlanThenExecute loop
+    copies the agent's LanguageModel with a modified temperature and
+    passes it through _call_llm(llm_model=...). The test verifies the
+    loop completes against the real endpoint.
+    """
     @tool
-    def search(query: str) -> str:
-        """Search for information."""
-        return f"Results for {query}."
+    def lookup(item: str) -> str:
+        """Look up information about an item."""
+        return f"Information about {item}."
 
     class PlanThenExecuteLoop(BaseLoop):
         def __init__(self, max_iterations=5, plan_temperature=0.3):
@@ -163,7 +242,7 @@ async def test_plan_then_execute_loop_works():
             self.plan_temperature = plan_temperature
 
         async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-            # Phase 1: Planning
+            # Phase 1: Planning with model override
             plan_messages = messages + [{
                 "role": "system",
                 "content": "First, outline a step-by-step plan. Do not execute yet.",
@@ -183,11 +262,11 @@ async def test_plan_then_execute_loop_works():
                     return "[cancelled]"
 
                 response = await agent._call_llm(exec_messages, tools)
-                content = response.get("content", "")
-                exec_messages.append({"role": "assistant", "content": content})
+                content = response.get("content")
+                exec_messages.append({"role": "assistant", "content": content or ""})
 
                 if not response.get("tool_calls"):
-                    return content
+                    return content or ""
 
                 for tc in response["tool_calls"]:
                     tool_name = tc["name"]
@@ -211,55 +290,10 @@ async def test_plan_then_execute_loop_works():
 
             return "[max iterations reached]"
 
-    agent = Agent(llm_model=LanguageModel(), tools=[search], loop=PlanThenExecuteLoop(max_iterations=3))
-    calls = []
+    llm_model = _build_language_model()
+    agent = Agent(llm_model=llm_model, tools=[lookup], loop=PlanThenExecuteLoop(max_iterations=3))
 
-    async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
-        calls.append((messages, tools))
-        if len(calls) == 1:
-            # Phase 1: return a plan with model override assertion
-            assert llm_model is not None
-            assert llm_model.temperature == 0.3
-            return {"content": "Plan: 1. Search for Tokyo weather.", "tool_calls": None}
-        if len(calls) == 2:
-            # Phase 2: execute tool
-            return {
-                "content": "",
-                "tool_calls": [{"id": "call_1", "name": "search", "arguments": '{"query": "Tokyo weather"}'}],
-            }
-        # Phase 2 follow-up: final answer
-        assert any(
-            msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
-            for msg in messages
-        ), "Expected function_call_output with call_id='call_1' in PlanThenExecute follow-up"
-        return {"content": "Tokyo has sunny weather.", "tool_calls": None}
-
-    agent._call_llm = fake_call_llm
-
-    result = await agent.run("What is the weather in Tokyo?")
-    assert result == "Tokyo has sunny weather."
-
-
-@pytest.mark.asyncio
-async def test_default_streaming_loop_emits_in_progress_event():
-    """BaseLoop stream output includes the deferred response.in_progress event."""
-
-    async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
-        assert stream is True
-
-        async def chunks() -> AsyncIterator[dict]:
-            yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_1"}
-
-        return chunks()
-
-    agent = Agent(llm_model=LanguageModel())
-    agent._call_llm = fake_call_llm
-
-    stream = await agent.run("Hello", stream=True)
-    events = [event async for event in stream]
-    event_types = [event["type"] for event in events]
-
-    assert event_types.index("response.created") < event_types.index("response.in_progress")
-    assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
-    assert "response.usage" in event_types
-    assert "response.completed" in event_types
+    result = await agent.run("Say hello in one word.", stream=False)
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert result not in ("[cancelled]", "[max iterations reached]"), f"Unexpected result: {result}"

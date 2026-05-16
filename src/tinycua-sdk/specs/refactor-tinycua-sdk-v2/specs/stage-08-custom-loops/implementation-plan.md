@@ -11,11 +11,15 @@ Make `BaseLoop` a stable extension point for SDK consumers by validating custom 
 
 ## Environment Pre-requisites
 
-No special runtime services are required for the test-first implementation when the LLM path is mocked.
+Runtime services are handled differently per test layer:
+
+- **Unit/contract tests** (`tests/unit/test_loop_custom.py`): Use mocked `_call_llm()` for fast deterministic control-flow coverage. No runtime services required.
+- **Integration contract tests** (`tests/integration/goals/test_adv_01_custom_agent_loop.py`): Tests that don't call `_call_llm()` (override, cancellation, max_iterations) require no server.
+- **Real integration tests** (`tests/integration/goals/test_adv_01_custom_agent_loop.py` with `@pytest.mark.integration`): Require a local OpenAI-compatible server. Automatically skipped when the server is unreachable (handled by `tests/integration/conftest.py`).
 
 ### Configuration
 
-- [x] **None** - integration and unit tests should use mocked SDK LLM responses by default.
+- [x] **None** - unit/contract tests use mocked SDK LLM responses; real integration tests use environment configuration.
 
 ### Running Services
 
@@ -313,7 +317,9 @@ async def test_default_streaming_loop_emits_in_progress_event():
 
 ### Automated Tests
 
-- [ ] Integration test file: `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v`.
+- [ ] Contract tests (always run): `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v -k "not integration"`.
+- [ ] Real integration tests (require server): `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v -m integration`.
+- [ ] Unit loop contract tests: `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop_custom.py tests/unit/test_agent_guardrail_propagation.py -v`.
 - [ ] Unit loop tests: `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py tests/unit/test_agent_run.py tests/unit/test_agent_streaming.py -v`.
 - [ ] Full SDK suite: `cd src/tinycua-sdk && uv run pytest`.
 
@@ -329,12 +335,20 @@ async def test_default_streaming_loop_emits_in_progress_event():
 
 ## Proposed Changes
 
-### Integration Coverage
+### Integration Coverage (Split into Unit Contract Tests + Real Integration Tests)
 
-#### [NEW] `tests/integration/goals/test_adv_01_custom_agent_loop.py`
+As part of the Stage 8 cleanup (ISSUE-001), fake-LLM integration tests were split into two layers:
 
-- **Description**: Add Stage 8 integration tests for minimal custom loop override, `_call_llm()` access, cooperative cancellation, `max_iterations`, ReAct-style tool execution, PlanThenExecute two-phase loop with tool execution, and streaming lifecycle event completeness.
-- **Rationale**: The spec names this file as the Stage 8 success target, and the target scripts can be converted into deterministic pytest cases by mocking `_call_llm()`.
+**Layer 1: Unit/Contract Tests** (`tests/unit/test_loop_custom.py`)
+- **Description**: Deterministic fake-LLM contract tests verifying `_call_llm()` access, ReAct tool execution, PlanThenExecute flow, and streaming lifecycle event completeness using stubs.
+- **Rationale**: Fast control-flow coverage without requiring a live LLM server. These are the unit-style tests that validate the BaseLoop subclassing contract.
+
+**Layer 2: Real Integration Tests** (`tests/integration/goals/test_adv_01_custom_agent_loop.py` with `@pytest.mark.integration`)
+- **Description**: End-to-end tests using the SDK's actual `LanguageModel` transport without monkeypatching `_call_llm()`. Covers custom loop LLM access, ReAct loops, streaming lifecycle, and PlanThenExecute with model override against a real OpenAI-compatible endpoint.
+- **Rationale**: Verifies the transport boundary — message shape, tool-call normalization, streaming lifecycle, and model override path — against a live LLM server. Marked with `@pytest.mark.integration` and skipped when no server is available.
+
+**Layer 3: Integration Contract Tests** (in same file, no marker)
+- **Description**: Tests that don't require LLM calls at all (custom loop override, cancellation, max_iterations). Always run as part of the integration test suite.
 
 ### Agent Loop Runtime
 
@@ -371,6 +385,16 @@ async def test_default_streaming_loop_emits_in_progress_event():
 
 - **Description**: Add focused unit coverage for `response.in_progress` ordering, including provider-created, SDK-created, provider-failed, and provider-completed first-chunk paths.
 - **Rationale**: Streaming event insertion has multiple branches and should not produce duplicate or out-of-order lifecycle events.
+
+#### [NEW] `tests/unit/test_loop_custom.py`
+
+- **Description**: Contract tests for BaseLoop subclassing using deterministic fake LLM responses. Covers `_call_llm()` access, ReAct tool execution, PlanThenExecute with model override, and streaming lifecycle events. Moved from `tests/integration/goals/test_adv_01_custom_agent_loop.py` as part of ISSUE-001 cleanup.
+- **Rationale**: Fake-LLM scenarios belong in unit tests for fast control-flow coverage; they validate the extension point contract, not live transport integration.
+
+#### [NEW] `tests/unit/test_agent_guardrail_propagation.py`
+
+- **Description**: Tests that denied tool results propagate through `Agent.run()` as denied response messages using fake `_call_llm()` responses. Moved from `tests/integration/goals/test_adv_02_guardrail_system.py` as part of ISSUE-001 cleanup.
+- **Rationale**: This test validates control flow against stubs, not integration with a live LLM endpoint.
 
 #### [MODIFY] `tests/unit/test_agent_run.py`
 

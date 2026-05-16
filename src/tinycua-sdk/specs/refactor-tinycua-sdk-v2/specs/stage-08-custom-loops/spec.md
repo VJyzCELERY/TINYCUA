@@ -130,15 +130,15 @@ The agent stores the loop instance and calls `loop.run()` on each `run()`.
 
 ## Success Criteria
 
-Each success criterion must be validated by running the specified target file(s).
+Each success criterion must be validated by running the specified test file(s).
 
-Format: [ ] Success Criteria Description - Target File(s) - Expected Output - How to validate
+### Contract Tests (always run, no LLM server required)
+
+These tests use deterministic stubs or no LLM calls at all. They validate the BaseLoop
+subclassing contract and are always run.
 
 - [ ] Custom Loop Overrides Default - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Subclassing `BaseLoop` and passing to `Agent` uses the custom loop.
-
-- [ ] Custom Loop Accesses LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
-  Description: Custom loop can call `agent._call_llm()`.
 
 - [ ] Cancellation Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Custom loop respects `agent.is_cancelled`.
@@ -146,16 +146,49 @@ Format: [ ] Success Criteria Description - Target File(s) - Expected Output - Ho
 - [ ] max_iterations Respected - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
   Description: Custom loop respects `self.max_iterations`.
 
-- [ ] ReActLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
-  Description: The ReActLoop example from goals runs.
+- [ ] Custom Loop Accesses LLM (contract) - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: Custom loop can call `agent._call_llm()` (deterministic fake response).
 
-- [ ] PlanThenExecuteLoop Example Works - tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - `print('PASS')`
-  Description: PlanThenExecuteLoop runs plan phase (with `plan_temperature` override), execution phase with tool calls, and `llm_model` override contract.
+- [ ] ReActLoop Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: ReAct-style loop with fake LLM executes tool and continues.
 
-- [ ] Streaming Events Compliance - targets/06_streaming_events.py and tests/integration/goals/test_adv_01_custom_agent_loop.py - PASS - must not raise
-  Description: Custom loop can collect streaming events (response.created, response.in_progress, response.usage, response.completed).
+- [ ] PlanThenExecuteLoop Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: PlanThenExecuteLoop with fake LLM runs plan phase and execution phase.
 
-- [ ] Integration Test Pass - tests/integration/goals/test_adv_01_custom_agent_loop.py - all tests passed - `cd src/tinycua-sdk && uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v`
+- [ ] Streaming Events Contract - tests/unit/test_loop_custom.py - PASS - `print('PASS')`
+  Description: Default streaming loop emits lifecycle events with fake stream.
 
-## Integration Test File
-- `tests/integration/goals/test_adv_01_custom_agent_loop.py`
+- [ ] Guardrail Propagation Contract - tests/unit/test_agent_guardrail_propagation.py - PASS - `print('PASS')`
+  Description: Denied tool results propagate through Agent.run() with fake LLM.
+
+### Real Integration Tests (require local LLM server, marked @pytest.mark.integration)
+
+These tests use the SDK's actual `LanguageModel` transport without monkeypatching
+`_call_llm()`. They are skipped when no LLM server is available.
+
+- [ ] Custom Loop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_custom_loop_calls_real_llm) - string response - `uv run pytest tests/integration/goals/test_adv_01_custom_agent_loop.py -v -m integration`
+  Description: Custom loop calls `agent._call_llm()` against the configured endpoint.
+
+- [ ] ReActLoop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_react_loop_real_llm) - string response - same command
+  Description: ReAct-style loop with real model transport and tool support.
+
+- [ ] Streaming Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_streaming_lifecycle_real_llm) - lifecycle events - same command
+  Description: Streaming run verifies provider/SDK lifecycle events through real transport.
+
+- [ ] PlanThenExecuteLoop Real LLM - tests/integration/goals/test_adv_01_custom_agent_loop.py (test_integration_plan_then_execute_real_llm) - string response - same command
+  Description: PlanThenExecute loop passes a copied LanguageModel through `_call_llm(llm_model=...)`.
+
+## Test Files
+
+### Unit / Contract Tests
+- `tests/unit/test_loop_custom.py` — BaseLoop contract tests with fake LLM responses
+- `tests/unit/test_agent_guardrail_propagation.py` — Guardrail propagation contract test
+
+### Integration Tests (contract, always run)
+- `tests/integration/goals/test_adv_01_custom_agent_loop.py` — subset without LLM dependency
+
+### Integration Tests (real LLM, @pytest.mark.integration)
+- `tests/integration/goals/test_adv_01_custom_agent_loop.py` — tests with `@pytest.mark.integration`
+
+### Optional Manual Verification
+- `targets/06_streaming_events.py` — standalone target script (uses deterministic fake stream)

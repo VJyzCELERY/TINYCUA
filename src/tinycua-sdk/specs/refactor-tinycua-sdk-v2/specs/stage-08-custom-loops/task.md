@@ -37,6 +37,17 @@ Implementation tasks for Stage 8 Custom Loops. Check off items as completed.
 - [x] Confirm streaming event order is `response.created`, `response.in_progress`, provider deltas, `response.usage`, then `response.completed` for SDK-synthesized streams. <!-- id: 20 -->
 - [ ] Optionally run target scripts in `specs/refactor-tinycua-sdk-v2/specs/stage-08-custom-loops/targets/` against a local OpenAI-compatible server if one is available. <!-- id: 21 -->
 
+## Stage 8 Cleanup: Fake-LLM Integration Test Split (ISSUE-001)
+
+- [x] Create `tests/unit/test_loop_custom.py` — move fake-LLM custom loop contract tests from integration to unit. <!-- id: 30 -->
+- [x] Create `tests/unit/test_agent_guardrail_propagation.py` — move fake-LLM guardrail propagation test from integration to unit. <!-- id: 31 -->
+- [x] Modify `tests/integration/goals/test_adv_01_custom_agent_loop.py` — keep non-LLM tests, remove fake-LLM tests, add real `@pytest.mark.integration` tests. <!-- id: 32 -->
+- [x] Modify `tests/integration/goals/test_adv_02_guardrail_system.py` — remove `test_agent_loop_propagates_denied_tool_as_message` (moved to unit). <!-- id: 33 -->
+- [x] Update `implementation-plan.md` to distinguish unit contract tests from real integration tests. <!-- id: 34 -->
+- [x] Update `spec.md` to reflect unit vs integration test split. <!-- id: 35 -->
+- [x] Update `targets.md` to add note about test layers. <!-- id: 36 -->
+- [x] Run full test suite to verify all changes pass. <!-- id: 37 -->
+
 ## Documentation Phase
 
 - [x] Update `src/tinycua-sdk/docs/examples/07_custom_loop.py` to replace `LLMModel` with `LanguageModel`, use the current `BaseLoop.run()` signature, pass `tools` directly to `_call_llm()`, and use `ToolExecutor.execute()` for tool execution. <!-- id: 22 -->

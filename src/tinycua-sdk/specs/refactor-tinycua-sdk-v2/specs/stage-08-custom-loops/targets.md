@@ -1,7 +1,14 @@
 # Stage 8: Extensibility — Custom Loops — Targets
 
 ## Purpose
-Verify `BaseLoop` can be subclassed for custom execution behavior. Uses a real or mock LLM server.
+Verify `BaseLoop` can be subclassed for custom execution behavior. These are standalone
+verification targets that use deterministic fakes or require a local LLM server.
+
+> **Note on test layers**: As part of the Stage 8 cleanup (ISSUE-001), all deterministic
+> fake-LLM scenarios have been moved to unit/contract tests under `tests/unit/` for fast
+> control-flow coverage. Real integration tests against a live LLM endpoint are in
+> `tests/integration/goals/test_adv_01_custom_agent_loop.py` with the `@pytest.mark.integration`
+> marker. The targets below remain as optional manual verification scripts.
 
 ---
 
