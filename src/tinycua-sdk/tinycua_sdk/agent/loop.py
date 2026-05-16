@@ -56,6 +56,8 @@ class BaseLoop:
     ) -> tuple[int, bool]:
         """Process LLM tool calls: parse arguments, execute tools, append messages.
 
+        Checks ``agent.is_cancelled`` before every tool call and after
+        each tool execution so that cancellation is observed promptly.
         Appends an assistant message (with ``assistant_content``) before
         ``function_call`` / ``function_call_output`` messages.  This method
         mutates ``working_messages`` in place.
@@ -76,6 +78,8 @@ class BaseLoop:
         tool_result_messages: list[dict[str, Any]] = []
 
         for tc in tool_calls:
+            if agent.is_cancelled:
+                raise asyncio.CancelledError()
             if tool_call_count >= agent.policy.max_tool_calls:
                 max_tool_calls_reached = True
                 break
@@ -105,6 +109,10 @@ class BaseLoop:
             else:
                 try:
                     tool_result = await ToolExecutor.execute(tool, arguments, agent)
+                    if agent.is_cancelled:
+                        raise asyncio.CancelledError()
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     tool_result = {"error": f"Tool execution failed: {e}"}
             tool_call_count += 1
@@ -361,6 +369,7 @@ class BaseLoop:
         """
         max_tool_calls_reached = False
         executed_tool_calls: list[dict[str, Any]] = []
+        tool_result_messages: list[dict[str, Any]] = []
 
         for tc in tool_calls_list:
             if agent.is_cancelled:
@@ -378,15 +387,7 @@ class BaseLoop:
                 tool_result = {
                     "error": f"Failed to parse arguments for tool '{tool_name}': {e}",
                 }
-                working_messages.append(
-                    {
-                        "type": "function_call",
-                        "call_id": tc.get("call_id", tc["id"]),
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                    }
-                )
-                working_messages.append(
+                tool_result_messages.append(
                     {
                         "type": "function_call_output",
                         "call_id": tc.get("call_id", tc["id"]),
@@ -405,15 +406,7 @@ class BaseLoop:
                     raise RuntimeError(f"Tool execution failed: {e}") from e
             tool_call_count += 1
 
-            working_messages.append(
-                {
-                    "type": "function_call",
-                    "call_id": tc.get("call_id", tc["id"]),
-                    "name": tc["name"],
-                    "arguments": tc["arguments"],
-                }
-            )
-            working_messages.append(
+            tool_result_messages.append(
                 {
                     "type": "function_call_output",
                     "call_id": tc.get("call_id", tc["id"]),
@@ -422,14 +415,19 @@ class BaseLoop:
             )
 
         if executed_tool_calls:
-            # Insert assistant message before the first function_call message
-            assistant_index = len(working_messages) - (
-                len([m for m in working_messages if m.get("type") in ("function_call", "function_call_output")])
-            )
-            working_messages.insert(
-                assistant_index,
+            working_messages.append(
                 {"role": "assistant", "content": combined_content},
             )
+            for tc in executed_tool_calls:
+                working_messages.append(
+                    {
+                        "type": "function_call",
+                        "call_id": tc.get("call_id", tc["id"]),
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    }
+                )
+        working_messages.extend(tool_result_messages)
 
         return tool_call_count, max_tool_calls_reached
 
