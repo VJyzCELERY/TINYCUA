@@ -202,14 +202,15 @@ Merge `goals/test_int_06_exporting_agent.py` + `goals/test_int_07_loading_agent.
 | `test_int_04_agent_json_file_round_trip` | `test_agent_json_file_round_trip` |
 | `test_int_05_agent_yaml_file_round_trip` | `test_agent_yaml_file_round_trip` |
 
-| Old Method (int_07) | New Method |
-|--------------------|-----------|
-| `test_int_01_yaml_export_import_round_trip` | `test_yaml_export_import_round_trip` |
-| `test_int_02_yaml_file_load` | `test_yaml_file_load` |
-| `test_int_03_yaml_redacted_export` | `test_yaml_redacted_export` |
-| `test_int_04_yaml_exposed_export` | `test_yaml_exposed_export` |
+| Old Method (int_07) | New Method | Notes |
+|--------------------|-----------|-------|
+| `test_int_01_yaml_export_import_round_trip` | `test_yaml_export_import_round_trip` | |
+| `test_int_02_yaml_file_load` | `test_yaml_file_load` | |
+| `test_int_03_yaml_redacted_export` | ~~`test_yaml_redacted_export`~~ | _REMOVED: duplicate — covered by `test_agent_yaml_redaction` from int_06_ |
+| `test_int_04_yaml_exposed_export` | `test_yaml_exposed_export` | |
 
-Deduplicate the YAML redaction tests (both files tested the same thing). Keep the more comprehensive version from `test_int_06` (which tests both JSON and YAML redaction) and remove the duplicate from `test_int_07`.
+> **Removed duplicate**: `test_int_07.test_int_03_yaml_redacted_export` — covered by
+> `test_agent_yaml_redaction` (from `test_int_06`). See merge analysis in design.md.
 
 #### [NEW] `tests/integration/test_skills.py` — Merge 3
 
@@ -243,9 +244,18 @@ Merge `goals/test_int_02_skills_creation.py` + `goals/test_int_08_loading_skills
 | `test_int_04_skill_from_directory_no_frontmatter` | `test_skill_from_directory_no_frontmatter` |
 | `test_int_05_skill_directory_skips_missing_skill_md` | `test_skill_directory_skips_missing_skill_md` |
 
-| Old Method (test_skills_example.py) | New Method |
-|-----------------------------------|-----------|
-| Keep all as-is | Already descriptive |
+| Old Method (test_skills_example.py) | New Method | Notes |
+|-----------------------------------|-----------|-------|
+| `test_discover_skills` | Keep as-is | From `TestSkillDiscovery` class |
+| `test_skill_metadata` | Keep as-is | From `TestSkillDiscovery` class |
+| `test_registry_list_all` | Keep as-is | From `TestSkillRegistry` class |
+| `test_registry_get` | Keep as-is | From `TestSkillRegistry` class |
+| `test_registry_get_not_found` | Keep as-is | From `TestSkillRegistry` class |
+| `test_skills_list_tool` | Keep as-is | From `TestSkillTools` class |
+| `test_skill_view_tool` | Keep as-is | From `TestSkillTools` class |
+| `test_skill_view_not_found` | Keep as-is | From `TestSkillTools` class |
+| `test_agent_creation_without_skills` | Keep as-is | From `TestSkillsWithAgent` class |
+| `test_agent_run_simple` | Keep as-is | From `TestSkillsWithAgent` class |
 
 Consolidate the `temp_skill_dir` fixture and `_load_skills_from_directory` helper — they are duplicated between `test_skills_example.py` and `test_int_08`. Promote to a module-level fixture or shared helper.
 
