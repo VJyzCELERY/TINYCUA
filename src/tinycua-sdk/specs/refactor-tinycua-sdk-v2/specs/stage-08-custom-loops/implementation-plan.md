@@ -145,7 +145,22 @@ async def test_react_style_custom_loop_can_execute_tool_and_continue():
                 tool_obj = next(t for t in tools if t.name == tc["name"])
                 arguments = json.loads(tc["arguments"])
                 result = await ToolExecutor.execute(tool_obj, arguments, agent)
-                messages.append({"role": "tool", "content": str(result), "name": tc["name"]})
+                call_id = tc.get("call_id", tc["id"])
+                messages.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call_id,
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    }
+                )
+                messages.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": str(result),
+                    }
+                )
                 final = await agent._call_llm(messages)
                 return final.get("content", "")
             return response.get("content", "")
@@ -214,7 +229,22 @@ async def test_plan_then_execute_loop_works():
                     for t in tools:
                         if t.name == tool_name:
                             result = await ToolExecutor.execute(t, arguments, agent)
-                            exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                            call_id = tc.get("call_id", tc["id"])
+                            exec_messages.append(
+                                {
+                                    "type": "function_call",
+                                    "call_id": call_id,
+                                    "name": tc["name"],
+                                    "arguments": tc["arguments"],
+                                }
+                            )
+                            exec_messages.append(
+                                {
+                                    "type": "function_call_output",
+                                    "call_id": call_id,
+                                    "output": str(result),
+                                }
+                            )
                             break
 
             return "[max iterations reached]"

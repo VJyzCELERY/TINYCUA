@@ -139,7 +139,22 @@ class ReActLoop(BaseLoop):
                         if t.name == tool_name:
                             result = await ToolExecutor.execute(t, arguments, agent)
                             messages.append({"role": "assistant", "content": content})
-                            messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                            call_id = call.get("call_id", call["id"])
+                            messages.append(
+                                {
+                                    "type": "function_call",
+                                    "call_id": call_id,
+                                    "name": call["name"],
+                                    "arguments": call.get("arguments", {}),
+                                }
+                            )
+                            messages.append(
+                                {
+                                    "type": "function_call_output",
+                                    "call_id": call_id,
+                                    "output": str(result),
+                                }
+                            )
                             break
                     else:
                         return f"Unknown tool: {tool_name}"
@@ -204,7 +219,22 @@ class PlanThenExecuteLoop(BaseLoop):
                 for t in tools:
                     if t.name == tool_name:
                         result = await ToolExecutor.execute(t, arguments, agent)
-                        exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        call_id = tc.get("call_id", tc["id"])
+                        exec_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": call_id,
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        )
+                        exec_messages.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": str(result),
+                            }
+                        )
                         break
 
         return "[max iterations reached]"
