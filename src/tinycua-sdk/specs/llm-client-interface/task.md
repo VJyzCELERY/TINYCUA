@@ -31,16 +31,18 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] Update `__all__` in `events.py` with new types; keep existing exports
 - [ ] Update `tinycua_sdk/agent/__init__.py` exports: add new types alongside existing ones <!-- id: 9 -->
 
-### Task C: New Canonical ABC (alongside existing `LLMClient`)
+### Task C: Refactor `LLMClient` ABC
 
-- [ ] Define new canonical ABC in `tinycua_sdk/agent/llm_client.py` alongside existing `LLMClient` <!-- id: 10 -->
-  - [ ] Name the new ABC (e.g., `CanonicalLLMClient` or similar) and declare it with `ABC` metaclass
-  - [ ] Define abstract `chat()` with canonical types: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`
+- [ ] Refactor existing `LLMClient` ABC in `tinycua_sdk/agent/llm_client.py` with canonical event contract <!-- id: 10 -->
+  - [ ] Refactor existing `LLMClient` ABC in-place — remove old method signatures, add canonical types
+  - [ ] Define concrete `chat()` with canonical types: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`
   - [ ] Add return type union: `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`
-  - [ ] Add validation: `raw_events=True` + `stream=False` → `ValueError`
+  - [ ] Concrete `chat()` performs shared validation: `raw_events=True` + `stream=False` → `ValueError`, then delegates to abstract `_chat_impl()`
+  - [ ] Define abstract `_chat_impl()` with same signature minus `raw_events` — subclasses implement provider-specific logic
   - [ ] Add abstract `close()` method
   - [ ] Update docstring with canonical event contract and tool-call state machine rules
-- [ ] Keep existing `LLMClient` ABC and `OpenAICompatibleClient` unchanged (Phase 1 backward compatibility) <!-- id: 11 -->
+- [ ] Update `OpenAICompatibleClient` to implement new `LLMClient` contract (requires `_chat_impl()`) <!-- id: 11 -->
+  - Note: This is a breaking change; backward compatibility is not maintained
 
 ### Task D: ProviderRegistry Implementation
 

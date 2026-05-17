@@ -32,9 +32,10 @@ from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 
 # ── Fake clients for contract-level testing (no provider SDK) ──────────────
 # NOTE: Cross-parameter validation (e.g., raw_events=True requires stream=True)
-# should live in the LLMClient ABC base class via a concrete template-method
-# pattern or be called from each provider/fake client implementation. These
-# fakes include the check inline so the planned tests can validate the contract.
+# lives in the LLMClient ABC base class via a concrete template-method
+# pattern: chat() is concrete, performs shared validation, then delegates to
+# abstract _chat_impl(). These fakes include the check inline so the planned
+# tests can validate the contract.
 
 class _FakeAlphaClient(LLMClient):
     async def chat(self, messages, tools=None, stream=False, raw_events=False):
@@ -212,7 +213,7 @@ async def test_raw_events_requires_stream(registry):
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **[Description of change]**: Add new canonical ABC alongside existing `LLMClient` ABC. Define `chat()` with canonical parameter types (`list[CanonicalMessage]`, `list[CanonicalToolSpec] | None`, `raw_events: bool = False`) and return type (`CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`). Add `raw_events=True` + `stream=False` → `ValueError` validation. Document canonical event contract and tool-call state machine rules in docstring. Keep existing `LLMClient` ABC and `OpenAICompatibleClient` unchanged for backward compatibility — `OpenAICompatibleClient` continues to work with the old ABC contract in Phase 1.
+- **[Description of change]**: Refactor existing `LLMClient` ABC with canonical event contract. Define `chat()` with canonical parameter types (`list[CanonicalMessage]`, `list[CanonicalToolSpec] | None`, `raw_events: bool = False`) and return type (`CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`). Make `chat()` concrete with shared `raw_events=True` + `stream=False` → `ValueError` validation, then delegate to abstract `_chat_impl()`. Document canonical event contract and tool-call state machine rules in docstring. Existing subclasses must be updated — this is a breaking change.
 - **[Rationale]**: FR-001, FR-005, FR-006, FR-007, FR-013. The ABC must define the contract that all provider clients implement.
 
 ### Provider Registry
@@ -264,7 +265,7 @@ async def test_raw_events_requires_stream(registry):
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `tinycua_sdk/agent/events.py` | Modify | Canonical SSE schema added alongside existing TypedDicts (backward-compatible); canonical input types added |
-| `tinycua_sdk/agent/llm_client.py` | Modify | New canonical ABC added alongside existing `LLMClient` ABC; existing ABC and `OpenAICompatibleClient` unchanged |
+| `tinycua_sdk/agent/llm_client.py` | Modify | Existing `LLMClient` ABC refactored with canonical event contract; concrete `chat()` with validation delegates to abstract `_chat_impl()` |
 | `tinycua_sdk/core/providers.py` | Modify | `ProviderRegistry` added alongside existing provider functions |
 | `tinycua_sdk/core/exceptions.py` | New | Provider-specific exception classes |
 | `tinycua_sdk/agent/__init__.py` | Modify | Updated exports for new canonical types |
@@ -310,14 +311,15 @@ ProviderApiError(status_code, message)
 
 ## API Changes
 
-### New ABC (alongside existing `LLMClient`)
+### Refactored `LLMClient` ABC
 
 | Interface | Change |
 |-----------|--------|
-| **New canonical ABC** `.chat()` | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. |
-| **New canonical ABC** `.close()` | Abstract method. |
+| **`LLMClient.chat()`** (refactored → concrete) | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. Concrete method performs shared validation (`raw_events=True` requires `stream=True`) then delegates to abstract `_chat_impl()`. |
+| **`LLMClient._chat_impl()`** (new, abstract) | Same signature as `chat()` minus `raw_events`. Subclasses implement provider-specific logic here. |
+| **`LLMClient.close()`** | Abstract method (unchanged). |
 
-> **Note**: Existing `LLMClient` ABC and `OpenAICompatibleClient` are NOT modified in Phase 1. The new canonical ABC coexists alongside them. `ProviderRegistry` uses the new ABC for its contract. Existing consumers continue to use the old `LLMClient`/`OpenAICompatibleClient` unchanged.
+> **Note**: This is a **breaking change**. The existing `LLMClient` ABC is refactored in-place — subclasses must add `_chat_impl()` implementation. `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. Backward compatibility is not maintained.
 
 ### New Interfaces
 
@@ -347,7 +349,7 @@ ProviderApiError(status_code, message)
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | Add new ABC alongside deprecated one (Phase 1 is additive). `OpenAICompatibleClient` remains unchanged so existing consumers are not broken. New consumers adopt the new contract. |
+| Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | This is an intentional breaking change — `LLMClient` ABC is refactored in-place. Existing subclasses must be updated to implement `_chat_impl()`. No backward-compatibility shim is provided. |
 | Old event TypedDict removal (deferred to Phase 2) breaks existing consumers | High | Old TypedDicts are NOT removed in Phase 1 — they coexist with new canonical types. Phase 2 migration guide will document the removal. |
 | ProviderRegistry singleton causes test pollution | Medium | Provide `reset()` method; use `autouse` fixture in tests to reset between runs. |
 
