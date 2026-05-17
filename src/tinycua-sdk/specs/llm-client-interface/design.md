@@ -23,20 +23,20 @@ The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` 
 │                       Consumer Code                          │
 │              (Agent Loop / Custom Loop / End User)            │
 └──────────┬──────────────────────────────────────┬────────────┘
-           │ chat(messages, tools, model_config)  │
+           │ create_client(model_config)          │
            ▼                                      │
 ┌──────────────────────────┐                     │
-│    LLMClient (ABC)       │                     │
-│   ┌────────────────────┐ │                     │
-│   │  Provider Registry │ │                     │
-│   │  get_client(...)   │ │                     │
-│   └─────────┬──────────┘ │                     │
-└─────────────┼────────────┘                     │
-              │ resolves to                      │
-              ▼                                  │
+│   ProviderRegistry       │                     │
+│   create_client(...)     │                     │
+│   register(...)          │                     │
+│   list_providers()       │                     │
+└──────────┬───────────────┘                     │
+           │ returns LLMClient-conforming        │
+           │ provider client instance            │
+           ▼                                     │
 ┌─────────────────────────────┐                  │
 │  Provider Client Instance   │                  │
-│  (e.g. OpenAIClient)        │                  │
+│  (implements LLMClient ABC) │                  │
 │  ┌───────────────────────┐  │                  │
 │  │   Official Provider   │  │  raw events      │
 │  │   SDK (e.g. openai)   │──┼──────────────────┼──▶ Raw SSE Stream
@@ -48,13 +48,34 @@ The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` 
 │  │   (per-provider)      │──┼──────────────────┼──▶ Canonical Event Stream
 │  └───────────────────────┘  │                  │
 └─────────────────────────────┘                  │
-                                                 ▼
-                                        ┌────────────────┐
-                                        │  Agent Loop     │
-                                        │  (consumes      │
-                                        │   canonical)    │
-                                        └────────────────┘
+                                                  ▼
+                                         ┌────────────────┐
+                                         │  Agent Loop     │
+                                         │  (consumes      │
+                                         │   canonical)    │
+                                         └────────────────┘
 ```
+
+### Consumer Entrypoint / Agent Loop Contract
+
+The Agent Loop interacts with the LLM provider system through a universal factory — it does NOT need to know about provider resolution internals.
+
+**Contract**:
+
+1. **Universal entrypoint**: The Agent Loop calls `ProviderRegistry.create_client(model_config)` once per request. This method uses `model_config.provider` to select the correct registered provider factory, instantiates the provider client, and returns an `LLMClient`-conforming instance ready for use.
+
+2. **One method to call**: After resolving a client, the Loop calls `client.chat(messages, tools, model_config, stream, raw_events)` on the returned instance. The Loop consumes canonical events from the returned async iterator (or a `CanonicalResponse` for non-streaming). It does NOT inspect provider-specific response types.
+
+3. **Provider selection is not the Loop's concern**: The Loop never calls `ProviderRegistry.create_client()` with hardcoded provider strings, never switches providers mid-stream, and never inspects provider identifiers to branch behavior.
+
+4. **Client lifecycle**: The Loop calls `client.close()` when the provider client is no longer needed. The `ProviderRegistry` does not manage client lifecycle — each resolved client is independent.
+
+5. **Acceptance scenario alignment**: The acceptance scenario "When `LLMClient.chat()` is called" is interpreted as calling `chat()` on the provider client instance returned by `ProviderRegistry.create_client()`. The scenario tests that the correct provider normalizer is used based on `model_config.provider`.
+
+**Design implications**:
+- The `LLMClient` ABC defines the interface that all provider clients implement.
+- The `ProviderRegistry` is the universal factory — it is NOT part of the `LLMClient` ABC.
+- Provider clients receive the full `LanguageModel` object during construction (via the factory) and extract provider-specific settings from it. They do NOT re-consult the registry.
 
 ### Affected Components
 
@@ -145,12 +166,38 @@ class ToolCallReadyEvent(CanonicalEvent):
     name: str                  # Tool name
     arguments: str             # Final complete JSON arguments
 
+### Tool-Call Streaming State Machine
+
+The canonical tool-call event stream follows a normative state machine to ensure provider-normalizer implementations produce consistent events and Agent Loop consumers react only to the correct execution trigger.
+
+**Rules**:
+
+1. **Progress events (informational)**: Providers MAY emit `tool_call.started` and zero or more `tool_call.arguments.delta` events to indicate incremental progress (streaming arguments). These events carry partial metadata and are intended for progress indicators or UI updates.
+
+2. **Execution trigger**: Providers MUST emit exactly one `tool_call.ready` event per executable tool call. The `tool_call.ready` event carries all execution-ready metadata (`id`, `call_id`, `name`, `arguments`) in a single atomic event.
+
+3. **Agent Loop consumption**: The Agent Loop MUST execute tools only from `tool_call.ready` events. It MUST NOT execute tools from `tool_call.arguments.done` or from state accumulated from `tool_call.arguments.delta` events — doing so risks duplicate execution.
+
+4. **`tool_call.arguments.done` role**: The `tool_call.arguments.done` event is an informational milestone emitted before the corresponding `tool_call.ready` to signal argument collection is complete. It is NOT an execution trigger. Provider normalizers that emit `tool_call.arguments.done` MUST always emit the corresponding `tool_call.ready` immediately afterward.
+
+5. **Normalizer contract**: Each provider normalizer must emit exactly one execution trigger event (`tool_call.ready`) per executable tool call detected in the provider's raw stream. Normalizer tests MUST assert this count.
+
+**Event sequencing example**:
+```
+tool_call.started      (id="item_1", call_id="call_abc", name="get_weather")
+tool_call.arguments.delta (id="item_1", arguments='{"location": "')
+tool_call.arguments.delta (id="item_1", arguments='{"location": "Tokyo"}')
+tool_call.arguments.done  (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
+tool_call.ready           (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
+```
+
 class CanonicalUsage(TypedDict):
     """Provider-agnostic token usage schema.
 
     Provider normalizers MUST map their SDK's usage fields into these
-    canonical field names. Fields marked Optional may be omitted when the
-    provider SDK does not report them.
+    canonical field names. All keys are present; unavailable values are `None`.
+    This ensures consumers can always access the three standard usage fields
+    without needing provider-specific defensive code.
     """
     input_tokens: int | None                # Tokens consumed by the prompt
     output_tokens: int | None               # Tokens generated in the response
@@ -273,7 +320,7 @@ class LLMClient(ABC):
         Returns:
             CanonicalResponse when stream=False — normalized, provider-agnostic dict.
             AsyncIterator[CanonicalEvent] when stream=True, raw_events=False.
-            AsyncIterator[tuple[CanonicalEvent, RawSseEvent | None]] when
+            AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]] when
             stream=True, raw_events=True.
 
         Raises:
@@ -379,9 +426,40 @@ async for canonical, raw in stream:
 
 ---
 
+## Planning Scope
+
+This design document, together with the companion spec, defines the contract for the **immediate next implementation plan**. The sections below clarify what is in scope and what is deferred.
+
+### In Scope (Next Implementation Plan)
+
+| Area | Details |
+|------|---------|
+| Canonical SSE event schema | All TypedDicts: `CanonicalEvent` subclasses, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` |
+| `LLMClient` ABC | Refactored abstract base with `chat()` and `close()` contracts; updated return types |
+| `ProviderRegistry` | Singleton registry with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` |
+| Error classes | `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` |
+| Core exception module | `tinycua_sdk/core/exceptions.py` |
+| Unit tests | Schema validation, registry behavior, error cases (unit-level, no SDK mocking) |
+| Integration tests | Provider switching via `LanguageModel.provider` (compile-time contract tests) |
+
+**Key constraint**: Phase 1 is **provider-agnostic**. No provider SDK integration (no `openai` PyPI dependency, no `OpenAIResponsesClient`, no per-provider normalizer). The registry, schema, and ABC must compile and pass tests without any provider SDK installed.
+
+### Out of Scope (Deferred to Future Phases)
+
+| Area | Phase | Details |
+|------|-------|---------|
+| `OpenAIResponsesClient` | Phase 2 | OpenAI Responses API provider client and normalizer wrapping `openai` PyPI SDK |
+| Agent Loop migration | Phase 2 | Update `tinycua_sdk/agent/loop.py` to consume new canonical event schema |
+| Raw pass-through implementation | Phase 2 | Per-provider `raw_events` behavior (type contract is defined in Phase 1; runtime behavior comes with provider implementations) |
+| `OpenAIChatClient` | Phase 3 | OpenAI Chat Completions API provider client |
+
+The PR body references Phase 2 items (OpenAI Responses provider, loop migration) as future milestones, consistent with this scope. The success criteria in the spec that mention provider tests are aspirational for the full roadmap; the immediate Phase 1 success criteria are limited to schema, registry, contract, and compile-time tests.
+
+---
+
 ## Implementation Phases
 
-> **Note**: Each phase below is an independent implementation stage with its own spec and design document. This design document covers only Phase 1 (Foundation). Subsequent phases will have separate specs and designs.
+> **Note**: Each phase below is an independent implementation stage with its own spec and design document. This design document covers planning for Phase 1 (Foundation) as defined in **Planning Scope** above. Subsequent phases will have separate specs and designs.
 
 ### Phase 1 — Foundation: Interface, Schema, Registry (This Milestone)
 
