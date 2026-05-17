@@ -19,7 +19,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 
 ### Task B: Canonical SSE Event Schema + Input Types
 
-- [ ] Add new canonical TypedDicts to `tinycua_sdk/agent/events.py` alongside existing ones <!-- id: 8 -->
+- [ ] Add new canonical TypedDicts to `tinycua_sdk/agent/events.py` replacing existing ones <!-- id: 8 -->
   - [ ] Add `ContentDeltaEvent`, `ContentDoneEvent` TypedDicts
   - [ ] Add `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent` TypedDicts (refined from existing)
   - [ ] Add `CanonicalUsage`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent` TypedDicts (refined)
@@ -29,7 +29,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] Add canonical input types: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`
   - [ ] Remove old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to new canonical types
   - [ ] Update `__all__` in `events.py` with new types only
-- [ ] Update `tinycua_sdk/agent/__init__.py` exports: add new types alongside existing ones <!-- id: 9 -->
+- [ ] Update `tinycua_sdk/agent/__init__.py` exports: replace existing types with new canonical types <!-- id: 9 -->
 
 ### Task C: Refactor `LLMClient` ABC
 

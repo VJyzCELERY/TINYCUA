@@ -10,7 +10,7 @@
 
 This design introduces a unified **Agent + LLM Client** architecture for the TINYCUA SDK. Instead of rebuilding HTTP-level clients for each provider, we delegate to each provider's official Python SDK (e.g., `openai` PyPI) and wrap them behind a common `LLMClient` abstract base class. Each provider client includes an **SSE normalizer** that converts provider-specific streaming events into a canonical format consumed by the Agent Loop, while simultaneously exposing a **raw SSE pass-through** for consumers that need provider-native events. A **provider registry** maps configuration-driven provider identifiers to concrete client implementations, enabling provider switching via `LanguageModel.provider` alone.
 
-The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is **removed in Phase 1** and replaced by a properly normalized **OpenAI Responses API** provider with ID `openai-responses`, wrapping the `openai` PyPI SDK's Responses API. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
+The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is **updated in Phase 1** to match the new `LLMClient` contract (adding `_chat_impl()`) and remains in place. The `OpenAICompatibleClient` is NOT removed — it is refactored in-place. A proper **OpenAI Responses API** provider wrapping the `openai` PyPI SDK is deferred to Phase 2. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
 
 ---
 
@@ -81,7 +81,7 @@ The Agent Loop interacts with the LLM provider system through a universal factor
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua_sdk/agent/llm_client.py` | Modified — Refactored | `LLMClient` ABC updated with canonical event contract; `OpenAICompatibleClient` deprecated |
+| `tinycua_sdk/agent/llm_client.py` | Modified — Refactored | `LLMClient` ABC updated with canonical event contract; `OpenAICompatibleClient` updated to new contract |
 | `tinycua_sdk/agent/events.py` | Modified — Extended | Canonical event TypedDicts formalized; `RawSseEvent` TypedDict added for paired tuples |
 | `tinycua_sdk/agent/llm_model.py` | Modified — Extended | May need minor additions for provider-specific config |
 | `tinycua_sdk/core/providers.py` | Modified — Extended | Provider registry and client factory logic added |
@@ -102,7 +102,7 @@ This is a **breaking change**. The following table documents the migration path 
 
 **Key points**:
 - `LanguageModel.provider` validation in Phase 1 accepts only registered provider IDs. Old provider strings (`"openai"`, `"openai-compatible"`) are not valid — users must migrate to `"openai-responses"`.
-- The old `OpenAICompatibleClient` class and its httpx-based implementation are **removed in Phase 1** — no deprecation shim, no backward-compatibility layer.
+- The old `OpenAICompatibleClient` class and its httpx-based implementation are **updated in Phase 1** to match the new `LLMClient` contract — no deprecation shim, no backward-compatibility layer.
 - Existing `StreamEvent` usage should be migrated to the canonical `CanonicalEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
 
@@ -412,7 +412,7 @@ class LLMClient(ABC):
     async def chat(
         self,
         messages: list[CanonicalMessage],
-        tools: list[CanonicalToolSpec] | None,
+        tools: list[CanonicalToolSpec] | None = None,
         stream: bool = False,
         raw_events: bool = False,
     ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:
@@ -456,7 +456,7 @@ class LLMClient(ABC):
     async def _chat_impl(
         self,
         messages: list[CanonicalMessage],
-        tools: list[CanonicalToolSpec] | None,
+        tools: list[CanonicalToolSpec] | None = None,
         stream: bool = False,
         raw_events: bool = False,
     ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:

@@ -260,7 +260,7 @@ async def test_raw_events_requires_stream(registry):
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua_sdk/agent/events.py` | Modify | Canonical SSE schema added alongside existing TypedDicts (backward-compatible); canonical input types added |
+| `tinycua_sdk/agent/events.py` | Modify | Canonical SSE schema added; old TypedDicts removed (breaking); canonical input types added |
 | `tinycua_sdk/agent/llm_client.py` | Modify | Existing `LLMClient` ABC refactored with canonical event contract; concrete `chat()` with validation delegates to abstract `_chat_impl()` |
 | `tinycua_sdk/core/providers.py` | Modify | `ProviderRegistry` added alongside existing provider functions |
 | `tinycua_sdk/core/exceptions.py` | New | Provider-specific exception classes |
