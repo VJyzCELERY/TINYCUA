@@ -198,12 +198,9 @@ class BaseLoop:
 
     async def _run_stream(self, agent, messages, tools, override_instructions=None):
         working = [self.build_system_message(agent, override_instructions)] + messages
-        tool_call_count = 0
-        cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        tool_call_count, cumulative_usage = 0, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
-        finish_reason = "completed"
-        skip_complete = False
-        created_emitted = False
+        finish_reason, skip_complete, created_emitted = "completed", False, False
         try:
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
@@ -216,8 +213,7 @@ class BaseLoop:
                     finish_reason = "max_tool_calls"
                     skip_complete = False
                     break
-                content_parts: list[str] = []
-                tool_calls_buffer: dict[str, Any] = {}
+                content_parts, tool_calls_buffer = [], {}
                 usage_settled_ids.clear()
                 skip_complete = should_abort = False
                 llm_stream = await self._get_llm_stream(agent, working, tools)
@@ -241,8 +237,7 @@ class BaseLoop:
                         agent, tools, tool_calls_list, working, tool_call_count, combined,
                     )
                     if max_reached:
-                        finish_reason = "max_tool_calls"
-                        skip_complete = False
+                        finish_reason, skip_complete = "max_tool_calls", False
                         break
                 else:
                     working.append({"role": "assistant", "content": combined})
