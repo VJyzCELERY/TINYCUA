@@ -165,7 +165,7 @@ class ProviderRegistry:
         """
         from dataclasses import replace
 
-        self._providers[provider_id] = replace(metadata, factory=factory)
+        self._providers[provider_id] = replace(metadata, id=provider_id, factory=factory)
 
     def create_client(self, model_config: LanguageModel) -> LLMClient:
         """Create an ``LLMClient`` for the given model configuration.

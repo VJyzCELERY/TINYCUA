@@ -372,50 +372,40 @@ class OpenAICompatibleClient(LLMClient):
                 total_tokens=usage_raw.get("total_tokens"),
             )
 
+        # Derive finish_reason from the Responses API status field.
+        # "completed" with tool_calls → "tool_calls", otherwise "stop".
+        # "incomplete" → "length"; "failed" → "error".
+        status: str = data.get("status", "completed")
+        if status == "completed":
+            finish_reason: str = "tool_calls" if tool_calls else "stop"
+        elif status == "incomplete":
+            finish_reason = "length"
+        elif status == "failed":
+            finish_reason = "error"
+        else:
+            finish_reason = "stop"
+
         return LLMResponse(
             content=content,
             tool_calls=tool_calls,
             usage=usage,
-            finish_reason=None,
+            finish_reason=finish_reason,
             model=self._model_config.model_name,
         )
 
     @staticmethod
-    def _normalize_responses_event(
-        event: dict[str, Any],
-        _tool_cache: dict[str, dict[str, str]] | None = None,
-    ) -> list[LLMEvent]:
-        """Normalize a raw Responses API stream event into canonical events.
+    def _normalize_content_event(event: dict[str, Any]) -> list[LLMEvent]:
+        """Normalize a content-related stream event into canonical events.
 
-        Converts provider-specific event names to canonical SDK stream
-        event types so that consumers are decoupled from the upstream
-        provider's SSE dialect. Some provider events may expand into
-        multiple canonical events (e.g. ``response.function_call_arguments.done``
-        yields both ``tool_call.arguments.done`` and ``tool_call.ready``).
-
-        The optional ``_tool_cache`` maintains tool identity metadata
-        (``call_id``, ``name``) keyed by ``item_id`` across a single stream.
-        When ``response.output_item.added`` carries a ``function_call`` item,
-        its ``call_id`` and ``name`` are cached. When
-        ``response.function_call_arguments.done`` lacks those fields
-        (the Responses API may omit them in the done event), the cache
-        supplies them so that ``tool_call.ready`` always carries complete
-        tool identity metadata.
+        Handles ``response.output_text.delta`` and ``response.output_text.done``.
 
         Args:
             event: Raw Responses API stream event dict.
-            _tool_cache: Per-stream dict mapping ``item_id`` to
-                ``{"call_id": str, "name": str}``. Created automatically
-                when ``None`` and mutated during normalization.
 
         Returns:
-            List of canonical SDK stream events (``list[LLMEvent]``).
+            List of canonical SDK stream events.
         """
-        if _tool_cache is None:
-            _tool_cache = {}
-
         event_type = event.get("type", "")
-
         if event_type == "response.output_text.delta":
             return [
                 ContentDeltaEvent(
@@ -424,7 +414,6 @@ class OpenAICompatibleClient(LLMClient):
                     index=0,
                 ),
             ]
-
         if event_type == "response.output_text.done":
             return [
                 ContentDoneEvent(
@@ -432,12 +421,37 @@ class OpenAICompatibleClient(LLMClient):
                     index=0,
                 ),
             ]
+        return []
+
+    @staticmethod
+    def _normalize_tool_event(
+        event: dict[str, Any],
+        _tool_cache: dict[str, dict[str, str]],
+    ) -> list[LLMEvent]:
+        """Normalize a tool-related stream event into canonical events.
+
+        Handles ``response.output_item.added`` (function_call items),
+        ``response.function_call_arguments.delta``, and
+        ``response.function_call_arguments.done``.
+
+        The ``_tool_cache`` is mutated to cache tool identity metadata
+        (``call_id``, ``name``) keyed by ``item_id`` across a single stream,
+        so that ``done`` events lacking identity fields can be enriched.
+
+        Args:
+            event: Raw Responses API stream event dict.
+            _tool_cache: Per-stream dict mapping ``item_id`` to
+                ``{"call_id": str, "name": str}``.
+
+        Returns:
+            List of canonical SDK stream events.
+        """
+        event_type = event.get("type", "")
 
         if event_type == "response.output_item.added":
             item = event.get("item", {})
             if item.get("type") == "function_call":
                 item_id = item.get("id", "")
-                # Cache tool identity metadata for later done/ready events.
                 cached_call_id = item.get("call_id", "")
                 cached_name = item.get("name", "")
                 if item_id:
@@ -493,7 +507,25 @@ class OpenAICompatibleClient(LLMClient):
                 ),
             ]
 
-        # Recognized canonical lifecycle events — convert to canonical TypedDicts.
+        return []
+
+    @staticmethod
+    def _normalize_lifecycle_event(event: dict[str, Any]) -> list[LLMEvent]:
+        """Normalize a lifecycle-related stream event into canonical events.
+
+        Handles ``response.completed``, ``response.failed``, and
+        ``response.usage``. The completed event may also embed a nested
+        usage object that gets emitted as a separate ``response.usage``
+        event before the completion event.
+
+        Args:
+            event: Raw Responses API stream event dict.
+
+        Returns:
+            List of canonical SDK stream events.
+        """
+        event_type = event.get("type", "")
+
         if event_type == "response.completed":
             # Extract finish_reason from direct field or nested response object.
             finish_reason: str = event.get("finish_reason") or event.get("response", {}).get("status", "completed")
@@ -538,6 +570,58 @@ class OpenAICompatibleClient(LLMClient):
                     ),
                 )
             ]
+
+        return []
+
+    @staticmethod
+    def _normalize_responses_event(
+        event: dict[str, Any],
+        _tool_cache: dict[str, dict[str, str]] | None = None,
+    ) -> list[LLMEvent]:
+        """Normalize a raw Responses API stream event into canonical events.
+
+        Dispatches to specialised helpers for content, tool, and lifecycle
+        events so that no single function exceeds the cyclomatic complexity
+        threshold. Unknown provider events are silently dropped.
+
+        The optional ``_tool_cache`` maintains tool identity metadata
+        (``call_id``, ``name``) keyed by ``item_id`` across a single stream.
+        When ``response.output_item.added`` carries a ``function_call`` item,
+        its ``call_id`` and ``name`` are cached. When
+        ``response.function_call_arguments.done`` lacks those fields
+        (the Responses API may omit them in the done event), the cache
+        supplies them so that ``tool_call.ready`` always carries complete
+        tool identity metadata.
+
+        Args:
+            event: Raw Responses API stream event dict.
+            _tool_cache: Per-stream dict mapping ``item_id`` to
+                ``{"call_id": str, "name": str}``. Created automatically
+                when ``None`` and mutated during normalization.
+
+        Returns:
+            List of canonical SDK stream events (``list[LLMEvent]``).
+        """
+        if _tool_cache is None:
+            _tool_cache = {}
+
+        event_type = event.get("type", "")
+
+        # Content events.
+        if event_type in ("response.output_text.delta", "response.output_text.done"):
+            return OpenAICompatibleClient._normalize_content_event(event)
+
+        # Tool events.
+        if event_type in (
+            "response.output_item.added",
+            "response.function_call_arguments.delta",
+            "response.function_call_arguments.done",
+        ):
+            return OpenAICompatibleClient._normalize_tool_event(event, _tool_cache)
+
+        # Lifecycle events.
+        if event_type in ("response.completed", "response.failed", "response.usage"):
+            return OpenAICompatibleClient._normalize_lifecycle_event(event)
 
         # Unknown provider events are not canonical — drop them.
         # In raw_events=True mode, _chat_stream handles yielding the

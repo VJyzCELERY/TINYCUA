@@ -29,7 +29,7 @@ class TestCustomLoopContract:
     custom loops can:
     - Call agent._call_llm() directly
     - Execute ReAct-style tool loops
-    - Implement PlanThenExecute two-phase loops with model override
+    - Implement PlanThenExecute two-phase loops
     - Handle streaming lifecycle events
     """
 
@@ -43,7 +43,7 @@ class TestCustomLoopContract:
 
         agent = Agent(llm_model=LanguageModel(), loop=LLMLoop())
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             assert messages[-1] == {"role": "user", "content": "Say hi."}
             assert tools == []
             return {"content": "hi", "tool_calls": None, "usage": None}
@@ -87,7 +87,7 @@ class TestCustomLoopContract:
         agent = Agent(llm_model=LanguageModel(), tools=[weather], loop=ReActLoop())
         calls = []
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             calls.append((messages, tools))
             if len(calls) == 1:
                 return {
@@ -114,9 +114,8 @@ class TestCustomLoopContract:
             return f"Results for {query}."
 
         class PlanThenExecuteLoop(BaseLoop):
-            def __init__(self, max_iterations=5, plan_temperature=0.3):
+            def __init__(self, max_iterations=5):
                 super().__init__(max_iterations=max_iterations)
-                self.plan_temperature = plan_temperature
 
             async def run(self, agent, messages, tools, override_instructions=None, stream=False):
                 # Phase 1: Planning
@@ -124,8 +123,7 @@ class TestCustomLoopContract:
                     "role": "system",
                     "content": "First, outline a step-by-step plan. Do not execute yet.",
                 }]
-                plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
-                plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
+                plan_response = await agent._call_llm(plan_messages)
                 plan = plan_response.get("content", "")
 
                 # Phase 2: Execution
@@ -170,12 +168,10 @@ class TestCustomLoopContract:
         agent = Agent(llm_model=LanguageModel(), tools=[search], loop=PlanThenExecuteLoop(max_iterations=3))
         calls = []
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             calls.append((messages, tools))
             if len(calls) == 1:
-                # Phase 1: return a plan with model override assertion
-                assert llm_model is not None
-                assert llm_model.temperature == 0.3
+                # Phase 1: return a plan
                 return {"content": "Plan: 1. Search for Tokyo weather.", "tool_calls": None}
             if len(calls) == 2:
                 # Phase 2: execute tool
@@ -206,7 +202,7 @@ class TestCustomLoopContract:
         BaseLoop subclassing path specifically, while the other tests cover
         the default loop path and agent-level streaming.
         """
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             assert stream is True
 
             async def chunks() -> AsyncIterator[dict]:
