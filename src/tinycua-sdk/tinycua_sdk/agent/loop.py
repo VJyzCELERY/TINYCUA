@@ -96,9 +96,9 @@ class BaseLoop:
                 }
                 tool_result_messages.append(
                     {
-                        "type": "function_call_output",
+                        "role": "tool_result",
                         "call_id": _resolve_call_id(tc),
-                        "output": str(tool_result),
+                        "content": str(tool_result),
                     }
                 )
                 continue
@@ -119,9 +119,9 @@ class BaseLoop:
 
             tool_result_messages.append(
                 {
-                    "type": "function_call_output",
+                    "role": "tool_result",
                     "call_id": _resolve_call_id(tc),
-                    "output": str(tool_result),
+                    "content": str(tool_result),
                 }
             )
 
@@ -430,9 +430,9 @@ class BaseLoop:
                 }
                 tool_result_messages.append(
                     {
-                        "type": "function_call_output",
+                        "role": "tool_result",
                         "call_id": _resolve_call_id(tc),
-                        "output": str(tool_result),
+                        "content": str(tool_result),
                     }
                 )
                 continue
@@ -453,9 +453,9 @@ class BaseLoop:
 
             tool_result_messages.append(
                 {
-                    "type": "function_call_output",
+                    "role": "tool_result",
                     "call_id": _resolve_call_id(tc),
-                    "output": str(tool_result),
+                    "content": str(tool_result),
                 }
             )
 
@@ -671,6 +671,18 @@ def _resolve_call_id(tc: dict[str, Any]) -> str:
     return call_id
 
 
+def _usage_int(value: Any) -> int:
+    """Convert a token count value to int, treating ``None`` as zero.
+
+    Args:
+        value: A token count that may be ``int`` or ``None``.
+
+    Returns:
+        The value if it is an ``int``, otherwise ``0``.
+    """
+    return value if isinstance(value, int) else 0
+
+
 def _accumulate_usage(
     cumulative: dict[str, int],
     usage: dict[str, Any],
@@ -680,18 +692,19 @@ def _accumulate_usage(
     Normalises both Responses API keys (``input_tokens``, ``output_tokens``)
     and Chat Completions keys (``prompt_tokens``, ``completion_tokens``) into
     the SDK's canonical ``input_tokens`` / ``output_tokens`` / ``total_tokens``.
+    Handles schema-permitted ``None`` values by treating them as zero.
 
     Args:
         cumulative: Dict of cumulative token counts (mutated in place).
         usage: Usage dict from the provider response.
     """
-    cumulative["input_tokens"] += usage.get(
-        "input_tokens", usage.get("prompt_tokens", 0)
+    cumulative["input_tokens"] += _usage_int(
+        usage.get("input_tokens", usage.get("prompt_tokens"))
     )
-    cumulative["output_tokens"] += usage.get(
-        "output_tokens", usage.get("completion_tokens", 0)
+    cumulative["output_tokens"] += _usage_int(
+        usage.get("output_tokens", usage.get("completion_tokens"))
     )
-    cumulative["total_tokens"] += usage.get("total_tokens", 0)
+    cumulative["total_tokens"] += _usage_int(usage.get("total_tokens"))
 
 
 __all__ = ["BaseLoop"]

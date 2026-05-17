@@ -303,12 +303,12 @@ class TestCustomPublicHelpers:
                 assert count == 1, f"Expected count=1, got {count}"
                 assert max_reached is False
                 assert len(working) >= 3
-                # Verify function_call_output was added
+                # Verify ToolResultMessage was added
                 has_output = any(
-                    m.get("type") == "function_call_output"
+                    m.get("role") == "tool_result"
                     for m in working
                 )
-                assert has_output, "No function_call_output found in working messages"
+                assert has_output, "No tool_result found in working messages"
                 return "ok"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
@@ -541,11 +541,11 @@ class TestCustomPublicHelpers:
                     for m in working
                 )
                 has_func_output = any(
-                    m.get("type") == "function_call_output"
+                    m.get("role") == "tool_result"
                     for m in working
                 )
                 assert has_func_call, "No function_call found"
-                assert has_func_output, "No function_call_output found"
+                assert has_func_output, "No tool_result found in working messages"
                 return "executed"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
