@@ -74,27 +74,33 @@ class _FakeBetaClient(LLMClient):
 
 @pytest.fixture
 def registry():
-    """Return the provider registry singleton, reset before each test.
+    """Return a *fresh* ProviderRegistry instance for isolated provider tests.
 
-    NOTE: reset() clears ALL providers including defaults. Tests that
-    need default registration should use the ``default_registry`` fixture.
+    This fixture does NOT use the singleton registry, so default registrations
+    (e.g. ``openai-responses`` registered at import time) are never affected.
+    Use this fixture for tests that register custom fake providers — each test
+    gets a clean instance with zero pre-registered providers.
     """
-    reg = get_provider_registry()
-    reg.reset()
+    reg = ProviderRegistry()
     yield reg
-    reg.reset()
 
 
 @pytest.fixture
 def default_registry():
-    """Return the provider registry singleton WITHOUT resetting.
+    """Return the singleton provider registry with defaults preserved.
 
     Default providers (e.g. ``openai-responses`` registered at import time)
-    remain available. Use this fixture to test default-registration behavior.
+    remain available because this fixture never calls ``reset()``. Use this
+    fixture to test default-registration behavior.
+
+    .. caution::
+       Tests using this fixture share the singleton. They MUST NOT register
+       custom providers — use the ``registry`` fixture (fresh instance) for
+       custom-provider tests instead. If a test *must* temporarily register
+       a provider, it is responsible for cleaning up after itself.
     """
     reg = get_provider_registry()
     yield reg
-    reg.reset()
 
 
 # ── Test 1: Registry resolves correct provider ─────────────────────────────
@@ -449,7 +455,7 @@ ProviderApiError(status_code, message)
 |------|--------|------------|
 | Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | This is an intentional breaking change — `LLMClient` ABC is refactored in-place. Existing subclasses must be updated to implement `_chat_impl(messages, tools, stream, raw_events)`. No backward-compatibility shim is provided. |
 | Old event TypedDict removal breaks existing consumers | High | This is an intentional breaking change — old TypedDicts are removed in Phase 1. Consumers must migrate to new canonical types. |
-| ProviderRegistry singleton causes test pollution | Medium | Provide `reset()` method; use `autouse` fixture in tests to reset between runs. |
+| ProviderRegistry singleton causes test pollution | Medium | Custom-provider tests use fresh ``ProviderRegistry()`` instances (not the singleton). Default-registration tests use the singleton but never call ``reset()``, so built-in defaults persist. |
 
 ---
 
