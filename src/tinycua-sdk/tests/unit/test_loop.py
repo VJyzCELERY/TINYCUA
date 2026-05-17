@@ -417,7 +417,7 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.output_text.delta",
+                    "type": "content.delta",
                     "delta": "Hello",
                     "item_id": "1",
                 }
@@ -433,7 +433,7 @@ class TestBaseLoopRunStream:
 
         assert events[0] == {"type": "response.created"}
         assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
-        assert any(e["type"] == "response.output_text.delta" for e in events)
+        assert any(e["type"] == "content.delta" for e in events)
 
     @pytest.mark.asyncio
     async def test_run_stream_provider_completed_dedup(self):
@@ -444,7 +444,7 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {"type": "response.created", "response": {"id": "r_1"}}
-                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+                yield {"type": "content.delta", "delta": "Hi", "item_id": "1"}
                 yield {"type": "response.completed", "finish_reason": "completed"}
 
             return _gen()
@@ -586,7 +586,7 @@ class TestBaseLoopRunStream:
                     }
                 else:
                     yield {
-                        "type": "response.output_text.delta",
+                        "type": "content.delta",
                         "delta": "The time is 12:00.",
                         "item_id": "2",
                     }
@@ -603,7 +603,7 @@ class TestBaseLoopRunStream:
         assert events[0] == {"type": "response.created"}
         assert events[-1] == {"type": "response.completed", "finish_reason": "completed"}
         delta_events = [
-            e for e in events if e.get("type") == "response.output_text.delta"
+            e for e in events if e.get("type") == "content.delta"
         ]
         assert any("The time is 12:00." in e.get("delta", "") for e in delta_events)
 
@@ -616,7 +616,7 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.output_text.delta",
+                    "type": "content.delta",
                     "delta": "Hello",
                     "item_id": "1",
                 }
@@ -674,7 +674,7 @@ class TestBaseLoopRunStream:
                     }
                 else:
                     yield {
-                        "type": "response.output_text.delta",
+                        "type": "content.delta",
                         "delta": "It is sunny.",
                         "item_id": "2",
                     }
@@ -694,7 +694,7 @@ class TestBaseLoopRunStream:
         assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
         assert cities_called == ["Tokyo"], f"Expected tool called with Tokyo, got {cities_called}"
         text_deltas = [
-            e for e in events if e.get("type") == "response.output_text.delta"
+            e for e in events if e.get("type") == "content.delta"
         ]
         assert len(text_deltas) == 1, f"Expected 1 text delta, got {len(text_deltas)}"
         assert text_deltas[0]["delta"] == "It is sunny."
@@ -737,7 +737,7 @@ class TestBaseLoopRunStream:
                     }
                 else:
                     yield {
-                        "type": "response.output_text.delta",
+                        "type": "content.delta",
                         "delta": "Sunny in Tokyo.",
                         "item_id": "2",
                     }
@@ -757,7 +757,7 @@ class TestBaseLoopRunStream:
         assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
         assert cities_called == ["Tokyo"], f"Expected tool called with Tokyo, got {cities_called}"
         text_deltas = [
-            e for e in events if e.get("type") == "response.output_text.delta"
+            e for e in events if e.get("type") == "content.delta"
         ]
         assert len(text_deltas) == 1, f"Expected 1 text delta, got {len(text_deltas)}"
         assert text_deltas[0]["delta"] == "Sunny in Tokyo."
@@ -806,7 +806,7 @@ class TestBaseLoopRunStream:
         async def failing_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.output_text.delta",
+                    "type": "content.delta",
                     "delta": "Hello",
                     "item_id": "msg_1",
                 }
@@ -840,7 +840,7 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.output_text.delta",
+                    "type": "content.delta",
                     "delta": "Hello",
                     "item_id": "1",
                 }
@@ -898,7 +898,7 @@ class TestBaseLoopRunStream:
                     }
                 else:
                     yield {
-                        "type": "response.output_text.delta",
+                        "type": "content.delta",
                         "delta": "The time is 12:00.",
                         "item_id": "2",
                     }
@@ -961,7 +961,7 @@ class TestBaseLoopRunStream:
                     }
                 else:
                     yield {
-                        "type": "response.output_text.delta",
+                        "type": "content.delta",
                         "delta": "The time is 12:00.",
                         "item_id": "2",
                     }
@@ -1002,7 +1002,7 @@ class TestBaseLoopRunStreamInProgress:
 
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
-                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+                yield {"type": "content.delta", "delta": "Hi", "item_id": "1"}
             return _gen()
 
         agent._call_llm = fake_stream
@@ -1011,7 +1011,7 @@ class TestBaseLoopRunStreamInProgress:
         event_types = [e["type"] for e in events]
 
         assert event_types.index("response.created") < event_types.index("response.in_progress")
-        assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
+        assert event_types.index("response.in_progress") < event_types.index("content.delta")
 
     @pytest.mark.asyncio
     async def test_in_progress_not_duplicated_when_provider_emits(self):
@@ -1023,7 +1023,7 @@ class TestBaseLoopRunStreamInProgress:
             async def _gen():
                 yield {"type": "response.created", "response": {"id": "r_1"}}
                 yield {"type": "response.in_progress"}
-                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+                yield {"type": "content.delta", "delta": "Hi", "item_id": "1"}
             return _gen()
 
         agent._call_llm = fake_stream
@@ -1042,7 +1042,7 @@ class TestBaseLoopRunStreamInProgress:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {"type": "response.created", "response": {"id": "r_1"}}
-                yield {"type": "response.output_text.delta", "delta": "Hi", "item_id": "1"}
+                yield {"type": "content.delta", "delta": "Hi", "item_id": "1"}
             return _gen()
 
         agent._call_llm = fake_stream
@@ -1051,7 +1051,7 @@ class TestBaseLoopRunStreamInProgress:
         event_types = [e["type"] for e in events]
 
         assert event_types.index("response.created") < event_types.index("response.in_progress")
-        assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
+        assert event_types.index("response.in_progress") < event_types.index("content.delta")
 
     @pytest.mark.asyncio
     async def test_no_in_progress_after_completed_first_chunk(self):
@@ -1130,7 +1130,7 @@ class TestBaseLoopRunStreamInProgress:
                         "arguments": "{}",
                     }
                 else:
-                    yield {"type": "response.output_text.delta", "delta": "Done.", "item_id": "2"}
+                    yield {"type": "content.delta", "delta": "Done.", "item_id": "2"}
             return _gen()
 
         agent._call_llm = fake_stream

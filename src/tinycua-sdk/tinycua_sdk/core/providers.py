@@ -154,13 +154,19 @@ class ProviderRegistry:
     ) -> None:
         """Register a provider factory with metadata.
 
+        The explicit ``factory`` argument takes precedence over
+        ``metadata.factory``. If they differ, ``metadata`` is copied
+        with its factory replaced by the explicit argument.
+
         Args:
             provider_id: Unique provider identifier.
             factory: Callable that creates an ``LLMClient`` from a
                 ``LanguageModel`` configuration.
             metadata: ``ProviderInfo`` instance with provider metadata.
         """
-        self._providers[provider_id] = metadata
+        from dataclasses import replace
+
+        self._providers[provider_id] = replace(metadata, factory=factory)
 
     def create_client(self, model_config: LanguageModel) -> LLMClient:
         """Create an ``LLMClient`` for the given model configuration.

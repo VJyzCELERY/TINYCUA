@@ -491,7 +491,7 @@ class BaseLoop:
             usage_settled_ids: Set of response IDs whose usage has been counted.
         """
         chunk_type = chunk.get("type", "")
-        if chunk_type == "response.output_text.delta":
+        if chunk_type == "content.delta":
             content_parts.append(chunk.get("delta", ""))
         elif chunk_type in ("response.tool_call.delta", "tool_call.started",
                             "tool_call.arguments.delta", "tool_call.arguments.done"):

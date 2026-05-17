@@ -121,6 +121,8 @@ class TestOpenAICompatibleClient:
                 yield line
 
         class FakeStreamResponse:
+            def __init__(self):
+                self.status_code = 200
             async def __aenter__(self):
                 return self
             async def __aexit__(self, *args):
@@ -146,7 +148,7 @@ class TestOpenAICompatibleClient:
 
         assert len(chunks) >= 1
         # First event should be a delta
-        assert chunks[0]["type"] in ("response.output_text.delta",)
+        assert chunks[0]["type"] in ("content.delta",)
 
     @pytest.mark.asyncio
     async def test_raw_events_requires_stream(self) -> None:

@@ -199,7 +199,7 @@ async def test_integration_streaming_lifecycle_real_llm():
 
     This test creates an agent with the real LanguageModel and runs a
     streaming query. It verifies that the standard lifecycle events
-    (response.created, response.in_progress, response.output_text.delta,
+    (response.created, response.in_progress, content.delta,
     response.usage, response.completed) are all present in the stream,
     delivered through the actual SDK transport without monkeypatching.
     """
@@ -212,7 +212,7 @@ async def test_integration_streaming_lifecycle_real_llm():
 
     assert "response.created" in event_types, f"Missing response.created in {event_types}"
     assert "response.in_progress" in event_types, f"Missing response.in_progress in {event_types}"
-    assert "response.output_text.delta" in event_types, f"Missing content delta in {event_types}"
+    assert "content.delta" in event_types, f"Missing content delta in {event_types}"
     assert "response.usage" in event_types, f"Missing response.usage in {event_types}"
     assert "response.completed" in event_types, f"Missing response.completed in {event_types}"
 

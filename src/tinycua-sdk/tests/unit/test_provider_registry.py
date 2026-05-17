@@ -139,3 +139,29 @@ class TestProviderInfo:
         )
         assert info.description == "Full provider"
         assert info.supported_models == ["gpt-4o", "gpt-4o-mini"]
+
+
+class TestRegistryFactoryPrecedence:
+    """Explicit factory argument takes precedence over metadata.factory (ISSUE-005)."""
+
+    def test_explicit_factory_overrides_metadata_factory(self) -> None:
+        """register() uses the explicit factory arg, not metadata.factory."""
+
+        class A(LLMClient):
+            async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
+                from tinycua_sdk.agent.events import LLMResponse
+                return LLMResponse(content='A', tool_calls=None, usage=None, finish_reason='stop', model='a')
+            async def close(self): pass
+
+        class B(LLMClient):
+            async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
+                from tinycua_sdk.agent.events import LLMResponse
+                return LLMResponse(content='B', tool_calls=None, usage=None, finish_reason='stop', model='b')
+            async def close(self): pass
+
+        def factory_a(cfg): return A()
+        def factory_b(cfg): return B()
+
+        r = ProviderRegistry()
+        r.register('p', factory_a, ProviderInfo(id='p', factory=factory_b, description='metadata'))
+        assert isinstance(r.create_client(LanguageModel(provider='p')), A)

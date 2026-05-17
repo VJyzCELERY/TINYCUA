@@ -19,11 +19,15 @@ from tinycua_sdk.agent.events import (
     LLMEvent,
     LLMResponse,
     RawSseEvent,
+    ContentDeltaEvent,
+    ContentDoneEvent,
     ToolCallArgumentsDeltaEvent,
     ToolCallArgumentsDoneEvent,
+    ToolCallReadyEvent,
     ToolCallStartedEvent,
 )
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
 from tinycua_sdk.core.providers import normalize_base_url
 
 if TYPE_CHECKING:
@@ -147,12 +151,66 @@ class OpenAICompatibleClient(LLMClient):
         self._clients.clear()
 
     @staticmethod
+    def _translate_tools(tools: list[LLMToolSpec]) -> list[dict[str, Any]]:
+        """Translate canonical tool specs to OpenAI Responses tool format.
+
+        Each canonical ``LLMToolSpec`` (``name``, ``description``,
+        ``parameters``) is wrapped with the OpenAI ``type="function"``
+        marker required by the Responses API.
+
+        Args:
+            tools: Canonical tool specification list.
+
+        Returns:
+            Provider-native tool list.
+        """
+        result: list[dict[str, Any]] = []
+        for tool in tools:
+            translated = dict(tool)
+            translated["type"] = "function"
+            result.append(translated)
+        return result
+
+    @staticmethod
+    def _translate_messages(messages: list[LLMMessage]) -> list[dict[str, Any]]:
+        """Translate canonical messages to OpenAI Responses API ``input`` items.
+
+        - ``SystemMessage``, ``UserMessage``, ``AssistantMessage`` pass
+          through unchanged (their ``role`` field matches the API).
+        - ``ToolResultMessage`` is converted to the Responses API
+          ``function_call_output`` shape.
+
+        Args:
+            messages: Canonical message list.
+
+        Returns:
+            Provider-native input items for the Responses API ``input`` array.
+        """
+        result: list[dict[str, Any]] = []
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get("role") == "tool_result":
+                result.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": msg["call_id"],
+                        "output": msg["content"],
+                    }
+                )
+            else:
+                result.append(msg)  # type: ignore[arg-type]
+        return result
+
+    @staticmethod
     def _build_payload(
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
         model_config: LanguageModel,
     ) -> dict[str, Any]:
         """Build the chat completion payload shared by sync and streaming paths.
+
+        Translates canonical inputs (messages and tool specs) into
+        OpenAI Responses API native request format before building the
+        payload dict.
 
         Args:
             messages: Canonical message list.
@@ -162,9 +220,11 @@ class OpenAICompatibleClient(LLMClient):
         Returns:
             Complete payload dict ready for the LLM API request.
         """
+        translated_messages = OpenAICompatibleClient._translate_messages(messages)
+
         payload: dict[str, Any] = {
             "model": model_config.model_name,
-            "input": messages,
+            "input": translated_messages,
         }
 
         _FIELD_MAP = {
@@ -189,7 +249,7 @@ class OpenAICompatibleClient(LLMClient):
                 payload[_FIELD_MAP.get(field, field)] = value
 
         if tools:
-            payload["tools"] = tools
+            payload["tools"] = OpenAICompatibleClient._translate_tools(tools)
             if "tool_choice" not in payload:
                 payload["tool_choice"] = "auto"
 
@@ -240,10 +300,23 @@ class OpenAICompatibleClient(LLMClient):
         try:
             response = await client.post("/responses", json=payload)
         except httpx.RequestError as e:
-            raise RuntimeError(
-                f"Failed to connect to LLM at {self._model_config.base_url}: {e}"
+            raise ProviderApiError(
+                0,
+                f"Failed to connect to LLM at {self._model_config.base_url}: {e}",
             ) from e
-        response.raise_for_status()
+
+        if response.status_code in (401, 403):
+            raise ProviderAuthError(
+                f"Authentication failed for provider '{self._model_config.provider}'"
+            )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise ProviderApiError(
+                response.status_code,
+                f"Provider API error: {e}",
+            ) from e
         data = response.json()
 
         content = None
@@ -290,51 +363,88 @@ class OpenAICompatibleClient(LLMClient):
     @staticmethod
     def _normalize_responses_event(
         event: dict[str, Any],
-    ) -> LLMEvent:
-        """Normalize a raw Responses API stream event into a canonical event.
+    ) -> list[LLMEvent]:
+        """Normalize a raw Responses API stream event into canonical events.
 
         Converts provider-specific event names to canonical SDK stream
         event types so that consumers are decoupled from the upstream
-        provider's SSE dialect.
+        provider's SSE dialect. Some provider events may expand into
+        multiple canonical events (e.g. ``response.function_call_arguments.done``
+        yields both ``tool_call.arguments.done`` and ``tool_call.ready``).
 
         Args:
             event: Raw Responses API stream event dict.
 
         Returns:
-            Canonical SDK stream event (``LLMEvent``).
+            List of canonical SDK stream events (``list[LLMEvent]``).
         """
         event_type = event.get("type", "")
+
+        if event_type == "response.output_text.delta":
+            return [
+                ContentDeltaEvent(
+                    type="content.delta",
+                    delta=event.get("delta", ""),
+                    index=0,
+                ),
+            ]
+
+        if event_type == "response.output_text.done":
+            return [
+                ContentDoneEvent(
+                    type="content.done",
+                    index=0,
+                ),
+            ]
 
         if event_type == "response.output_item.added":
             item = event.get("item", {})
             if item.get("type") == "function_call":
-                return ToolCallStartedEvent(
-                    type="tool_call.started",
-                    id=item.get("id", ""),
-                    call_id=item.get("call_id", ""),
-                    name=item.get("name", ""),
-                )
-            # Content events: return as-is (canonical pass-through)
-            return event  # type: ignore[return-value]
+                return [
+                    ToolCallStartedEvent(
+                        type="tool_call.started",
+                        id=item.get("id", ""),
+                        call_id=item.get("call_id", ""),
+                        name=item.get("name", ""),
+                    ),
+                ]
+            # Non-function items (e.g. message items) have no canonical
+            # equivalent; content is delivered via output_text.delta/done.
+            return []
 
         if event_type == "response.function_call_arguments.delta":
-            return ToolCallArgumentsDeltaEvent(
-                type="tool_call.arguments.delta",
-                id=event.get("item_id", ""),
-                arguments=event.get("delta", ""),
-            )
+            return [
+                ToolCallArgumentsDeltaEvent(
+                    type="tool_call.arguments.delta",
+                    id=event.get("item_id", ""),
+                    arguments=event.get("delta", ""),
+                ),
+            ]
 
         if event_type == "response.function_call_arguments.done":
-            return ToolCallArgumentsDoneEvent(
-                type="tool_call.arguments.done",
-                id=event.get("item_id", ""),
-                call_id=event.get("call_id", ""),
-                name=event.get("name", ""),
-                arguments=event.get("arguments", ""),
-            )
+            item_id = event.get("item_id", "")
+            call_id = event.get("call_id", "")
+            name = event.get("name", "")
+            arguments = event.get("arguments", "")
+            return [
+                ToolCallArgumentsDoneEvent(
+                    type="tool_call.arguments.done",
+                    id=item_id,
+                    call_id=call_id,
+                    name=name,
+                    arguments=arguments,
+                ),
+                ToolCallReadyEvent(
+                    type="tool_call.ready",
+                    id=item_id,
+                    call_id=call_id,
+                    name=name,
+                    arguments=arguments,
+                ),
+            ]
 
         # All other events pass through unchanged (they are already canonical)
-        return event  # type: ignore[return-value]
+        return [event]  # type: ignore[return-value]
 
     async def _chat_stream(
         self,
@@ -347,56 +457,77 @@ class OpenAICompatibleClient(LLMClient):
         Args:
             messages: List of message dicts.
             tools: Optional list of tool schemas.
-            raw_events: When True, yield ``(canonical_event, None)`` tuples
-                (no raw event passthrough in Phase 1).
+            raw_events: When True, yield ``(canonical_event, raw_event)``
+                tuples. Synthetic events (generated from one provider event)
+                yield ``(canonical_event, None)`` for the synthetic slot.
 
         Yields:
-            Canonical ``LLMEvent`` items, or ``(LLMEvent, None)`` tuples
-            when ``raw_events=True``.
+            Canonical ``LLMEvent`` items, or ``(LLMEvent | None, RawSseEvent | None)``
+            tuples when ``raw_events=True``.
         """
         client = self._get_client()
 
         req_payload = self._build_payload(messages, tools, self._model_config)
         req_payload["stream"] = True
 
-        async with client.stream("POST", "/responses", json=req_payload) as response:
-            response.raise_for_status()
-            buffer: str = ""
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if line.startswith("data:"):
-                    data_chunk = line[5:].strip()
-                    if data_chunk == "[DONE]":
-                        continue
-                    if buffer:
-                        buffer += "\n" + data_chunk
-                    else:
-                        buffer = data_chunk
-                    try:
+        try:
+            async with client.stream("POST", "/responses", json=req_payload) as response:
+                if response.status_code in (401, 403):
+                    raise ProviderAuthError(
+                        f"Authentication failed for provider '{self._model_config.provider}'"
+                    )
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    raise ProviderApiError(response.status_code, str(e)) from e
+
+                buffer: str = ""
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if line.startswith("data:"):
+                        data_chunk = line[5:].strip()
+                        if data_chunk == "[DONE]":
+                            continue
+                        if buffer:
+                            buffer += "\n" + data_chunk
+                        else:
+                            buffer = data_chunk
+                        try:
+                            data = json.loads(buffer)
+                        except json.JSONDecodeError:
+                            continue
+                        events = self._normalize_responses_event(data)
+                        raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+                        for i, event in enumerate(events):
+                            if raw_events:
+                                yield (event, raw_event_obj if i == 0 else None)
+                            else:
+                                yield event
+                        buffer = ""
+                    elif not line and buffer:
                         data = json.loads(buffer)
-                    except json.JSONDecodeError:
-                        continue
-                    event = self._normalize_responses_event(data)
-                    if raw_events:
-                        yield (event, None)
-                    else:
-                        yield event
-                    buffer = ""
-                elif not line and buffer:
-                    event_data = json.loads(buffer)
-                    event = self._normalize_responses_event(event_data)
-                    if raw_events:
-                        yield (event, None)
-                    else:
-                        yield event
-                    buffer = ""
-            if buffer:
-                event_data = json.loads(buffer)
-                event = self._normalize_responses_event(event_data)
-                if raw_events:
-                    yield (event, None)
-                else:
-                    yield event
+                        events = self._normalize_responses_event(data)
+                        raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+                        for i, event in enumerate(events):
+                            if raw_events:
+                                yield (event, raw_event_obj if i == 0 else None)
+                            else:
+                                yield event
+                        buffer = ""
+                if buffer:
+                    data = json.loads(buffer)
+                    events = self._normalize_responses_event(data)
+                    raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+                    for i, event in enumerate(events):
+                        if raw_events:
+                            yield (event, raw_event_obj if i == 0 else None)
+                        else:
+                            yield event
+        except httpx.RequestError as e:
+            raise ProviderApiError(
+                0,
+                f"Failed to connect to LLM at {self._model_config.base_url}: {e}",
+            ) from e
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]

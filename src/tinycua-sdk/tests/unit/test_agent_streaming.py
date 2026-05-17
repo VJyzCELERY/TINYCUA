@@ -42,9 +42,9 @@ class TestStreamingOn:
         agent = Agent(llm_model=LanguageModel())
 
         raw_delta_event = {
-            "type": "response.output_text.delta",
+            "type": "content.delta",
             "delta": "Hello",
-            "item_id": "1",
+            "index": 0,
         }
 
         async def mock_stream(messages, tools, stream=False):
@@ -91,9 +91,9 @@ class TestStreamingWithToolCalls:
             "arguments": "{}",
         }
         raw_text_event = {
-            "type": "response.output_text.delta",
+            "type": "content.delta",
             "delta": "The time is 12:00.",
-            "item_id": "2",
+            "index": 0,
         }
 
         async def mock_stream(messages, tools, stream=False):
@@ -119,7 +119,7 @@ class TestStreamingWithToolCalls:
             i for i, e in enumerate(events) if e["type"] in tool_event_types
         ]
         text_indices = [
-            i for i, e in enumerate(events) if e["type"] == "response.output_text.delta"
+            i for i, e in enumerate(events) if e["type"] == "content.delta"
         ]
         if tool_indices and text_indices:
             assert max(tool_indices) < min(text_indices)

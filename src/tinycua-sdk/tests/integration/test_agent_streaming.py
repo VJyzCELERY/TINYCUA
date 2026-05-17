@@ -34,6 +34,7 @@ TOOL_EVENT_TYPES = frozenset({
     "tool_call.arguments.delta",
     "tool_call.arguments.done",
     "tool_call.started",
+    "tool_call.ready",
 })
 
 
@@ -94,7 +95,7 @@ async def test_stream_on_yields_events(streaming_agent):
 
     assert events[0]["type"] == "response.created"
     assert any(e["type"] == "response.completed" for e in events)
-    deltas = [e for e in events if e["type"] == "response.output_text.delta"]
+    deltas = [e for e in events if e["type"] == "content.delta"]
     assert len(deltas) > 0
     usage_events = [e for e in events if e["type"] == "response.usage"]
     assert len(usage_events) > 0
@@ -141,7 +142,7 @@ async def test_stream_with_tool_calls(streaming_agent):
         post_tool_events = events[last_tool_idx + 1:]
         post_tool_deltas = [
             e for e in post_tool_events
-            if e.get("type") == "response.output_text.delta"
+            if e.get("type") == "content.delta"
         ]
         assert len(post_tool_deltas) > 0, (
             "Expected text deltas after tool execution — "
