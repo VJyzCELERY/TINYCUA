@@ -563,12 +563,75 @@ class TestOpenAICompatibleClient:
         assert chunks[1]["name"] == "get_weather"
         assert chunks[1]["arguments"] == "{}"
 
+    # ── ISSUE-004: Streaming auth error and cache-path tests ──────────────────
+
+    @pytest.mark.asyncio
+    async def test_chat_stream_raises_provider_auth_error_on_401(self, model: LanguageModel):
+        """401 during streaming raises ProviderAuthError, not ProviderApiError."""
+        client = OpenAICompatibleClient(model)
+
+        fake_response = self._make_fake_stream_response([], status_code=401)
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
+            stream = await client.chat(
+                messages=[{"role": "user", "content": "hi"}],
+                tools=None,
+                stream=True,
+            )
+            with pytest.raises(ProviderAuthError) as excinfo:
+                async for _ in stream:
+                    pass
+        assert "Authentication failed" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_chat_stream_normalizer_cache_path(self, model: LanguageModel):
+        """output_item.added supplies call_id/name; done event omits them → cache used."""
+        client = OpenAICompatibleClient(model)
+
+        # The output_item.added event caches item metadata.
+        # The done event omits call_id/name — cache must supply them.
+        fake_sse_lines = [
+            'data: {"type":"response.output_item.added","item":{"id":"item_1","type":"function_call","call_id":"call_1","name":"get_weather"}}\n',
+            'data: {"type":"response.function_call_arguments.done","item_id":"item_1","arguments":"{}"}\n',
+            "data: [DONE]\n",
+        ]
+
+        fake_response = self._make_fake_stream_response(fake_sse_lines)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(httpx.AsyncClient, "stream", MagicMock(return_value=fake_response))
+            result = await client.chat(
+                messages=[{"role": "user", "content": "weather?"}],
+                tools=[{"type": "function", "name": "get_weather"}],
+                stream=True,
+            )
+            chunks = [c async for c in result]
+
+        # output_item.added → tool_call.started
+        assert chunks[0]["type"] == "tool_call.started"
+        assert chunks[0]["id"] == "item_1"
+        assert chunks[0]["call_id"] == "call_1"
+
+        # function_call_arguments.done → tool_call.arguments.done with cached metadata
+        assert chunks[1]["type"] == "tool_call.arguments.done"
+        assert chunks[1]["id"] == "item_1"
+        # call_id and name should come from cache since done event omitted them
+        assert chunks[1].get("call_id") == "call_1", f"Expected call_id from cache, got: {chunks[1]}"
+        assert chunks[1].get("name") == "get_weather", f"Expected name from cache, got: {chunks[1]}"
+
+        # tool_call.ready also has cached metadata
+        assert chunks[2]["type"] == "tool_call.ready"
+        assert chunks[2]["call_id"] == "call_1"
+        assert chunks[2]["name"] == "get_weather"
+
     # ── ISSUE-002: Payload translation ─────────────────────────────────────
 
     @pytest.mark.asyncio
     async def test_build_payload_translates_tool_result_messages(self, model: LanguageModel):
         """ToolResultMessage is translated to function_call_output in the payload."""
-        from tinycua_sdk.agent.events import LLMToolSpec
 
         payload = OpenAICompatibleClient._build_payload(
             [

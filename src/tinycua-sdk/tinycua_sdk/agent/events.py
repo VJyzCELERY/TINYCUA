@@ -6,7 +6,6 @@ canonical input message types, and related type aliases for the TINYCUA SDK.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import Any, Literal, TypedDict, Union
 
 

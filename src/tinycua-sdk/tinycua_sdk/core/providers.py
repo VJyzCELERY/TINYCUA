@@ -13,11 +13,10 @@ providers are rejected at ``create_client()`` time via
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Final
 
 if TYPE_CHECKING:
-    from tinycua_sdk.agent.events import LLMResponse
     from tinycua_sdk.agent.llm_client import LLMClient
     from tinycua_sdk.agent.llm_model import LanguageModel
 
@@ -249,7 +248,6 @@ def _register_defaults(registry: ProviderRegistry) -> None:
 
         return OpenAICompatibleClient(model_config)
 
-    from tinycua_sdk.core.exceptions import ProviderNotSupportedError  # noqa: PLC0415
 
     registry.register(
         OPENAI_RESPONSES,

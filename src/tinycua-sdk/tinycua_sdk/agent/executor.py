@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
     from tinycua_sdk.agent.events import LLMEvent, LLMMessage, LLMResponse
-    from tinycua_sdk.agent.llm_model import LanguageModel
     from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
 

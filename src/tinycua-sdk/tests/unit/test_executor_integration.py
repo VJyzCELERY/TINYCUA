@@ -5,7 +5,7 @@ import pytest
 
 from tinycua_sdk.agent.config import AgentConfig
 from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
 

@@ -6,7 +6,7 @@ re-registration behavior, and error cases for unsupported providers.
 
 import pytest
 
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
@@ -35,7 +35,8 @@ class TestProviderRegistry:
     """ProviderRegistry core functionality."""
 
     def test_register_and_create_client(self, registry: ProviderRegistry) -> None:
-        factory = lambda cfg: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         info = ProviderInfo(id="test-provider", factory=factory, description="Test")
         registry.register("test-provider", factory, info)
 
@@ -51,7 +52,8 @@ class TestProviderRegistry:
         assert "nonexistent" in str(excinfo.value)
 
     def test_create_client_error_lists_supported(self, registry: ProviderRegistry) -> None:
-        factory = lambda cfg: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         info = ProviderInfo(id="existing", factory=factory, description="Existing")
         registry.register("existing", factory, info)
 
@@ -62,7 +64,8 @@ class TestProviderRegistry:
         assert "existing" in str(excinfo.value)
 
     def test_is_supported_returns_true(self, registry: ProviderRegistry) -> None:
-        factory = lambda cfg: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         info = ProviderInfo(id="my-provider", factory=factory, description="")
         registry.register("my-provider", factory, info)
 
@@ -75,7 +78,8 @@ class TestProviderRegistry:
         assert registry.list_providers() == []
 
     def test_list_providers_after_registration(self, registry: ProviderRegistry) -> None:
-        factory = lambda cfg: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         info = ProviderInfo(id="p1", factory=factory, description="P1")
         registry.register("p1", factory, info)
 
@@ -84,7 +88,8 @@ class TestProviderRegistry:
         assert providers[0].id == "p1"
 
     def test_reset_clears_all_providers(self, registry: ProviderRegistry) -> None:
-        factory = lambda cfg: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         registry.register("p1", factory, ProviderInfo(id="p1", factory=factory, description=""))
 
         registry.reset()
@@ -92,8 +97,10 @@ class TestProviderRegistry:
         assert registry.is_supported("p1") is False
 
     def test_re_register_overwrites(self, registry: ProviderRegistry) -> None:
-        factory_a = lambda cfg: _MinimalClient()
-        factory_b = lambda cfg: _MinimalClient()
+        def factory_a(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
+        def factory_b(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         registry.register("dup", factory_a, ProviderInfo(id="dup", factory=factory_a, description="A"))
         registry.register("dup", factory_b, ProviderInfo(id="dup", factory=factory_b, description="B"))
 
@@ -124,13 +131,16 @@ class TestProviderInfo:
     """ProviderInfo dataclass behavior."""
 
     def test_provider_info_defaults(self) -> None:
-        info = ProviderInfo(id="test", factory=lambda c: _MinimalClient())
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
+        info = ProviderInfo(id="test", factory=factory)
         assert info.id == "test"
         assert info.description == ""
         assert info.supported_models is None
 
     def test_provider_info_full(self) -> None:
-        factory = lambda c: _MinimalClient()
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
         info = ProviderInfo(
             id="full",
             factory=factory,

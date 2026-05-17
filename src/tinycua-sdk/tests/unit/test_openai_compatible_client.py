@@ -13,10 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from tinycua_sdk.agent.events import LLMResponse
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
 
 from tests.conftest import FakeLLMResponse

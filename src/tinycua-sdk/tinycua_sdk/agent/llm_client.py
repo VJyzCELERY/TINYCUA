@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -21,6 +21,10 @@ from tinycua_sdk.agent.events import (
     RawSseEvent,
     ContentDeltaEvent,
     ContentDoneEvent,
+    ResponseCompletedEvent,
+    ResponseFailedEvent,
+    ResponseUsageEvent,
+    TokenUsage,
     ToolCallArgumentsDeltaEvent,
     ToolCallArgumentsDoneEvent,
     ToolCallReadyEvent,
@@ -192,8 +196,8 @@ class OpenAICompatibleClient(LLMClient):
                 result.append(
                     {
                         "type": "function_call_output",
-                        "call_id": msg["call_id"],
-                        "output": msg["content"],
+                        "call_id": msg.get("call_id", ""),
+                        "output": msg.get("content", ""),
                     }
                 )
             else:
@@ -473,14 +477,65 @@ class OpenAICompatibleClient(LLMClient):
                 ),
             ]
 
-        # Recognized canonical lifecycle events — pass through as-is.
-        if event_type in ("response.completed", "response.failed", "response.usage"):
-            return [event]  # type: ignore[return-value]
+        # Recognized canonical lifecycle events — convert to canonical TypedDicts.
+        if event_type == "response.completed":
+            # Extract finish_reason from direct field or nested response object.
+            finish_reason: str = event.get("finish_reason") or event.get("response", {}).get("status", "completed")
+            return [ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason)]
+
+        if event_type == "response.failed":
+            raw_error = event.get("error", {})
+            error: dict[str, str] = {}
+            if isinstance(raw_error, dict):
+                error = {str(k): str(v) for k, v in raw_error.items()}
+            return [ResponseFailedEvent(type="response.failed", error=error)]
+
+        if event_type == "response.usage":
+            # Handle both flat usage fields and nested usage dict.
+            usage_data = event.get("usage", event)
+            if not isinstance(usage_data, dict):
+                usage_data = event
+            return [
+                ResponseUsageEvent(
+                    type="response.usage",
+                    usage=TokenUsage(
+                        input_tokens=usage_data.get("input_tokens"),
+                        output_tokens=usage_data.get("output_tokens"),
+                        total_tokens=usage_data.get("total_tokens"),
+                    ),
+                )
+            ]
 
         # Unknown provider events are not canonical — drop them.
         # In raw_events=True mode, _chat_stream handles yielding the
         # raw event separately.
         return []
+
+    @staticmethod
+    def _yield_events(
+        events: list[LLMEvent],
+        raw_event_obj: RawSseEvent | None,
+        raw_events: bool,
+    ) -> Iterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
+        """Yield canonical events, optionally paired with raw event.
+
+        Args:
+            events: List of canonical events from the normalizer.
+            raw_event_obj: Raw SSE event object for pairing.
+            raw_events: When True, yield ``(canonical, raw)`` tuples.
+
+        Yields:
+            Canonical ``LLMEvent`` items, or ``(LLMEvent | None, RawSseEvent | None)``
+            tuples when ``raw_events=True``.
+        """
+        if not events and raw_events:
+            yield (None, raw_event_obj)
+        else:
+            for i, event in enumerate(events):
+                if raw_events:
+                    yield (event, raw_event_obj if i == 0 else None)
+                else:
+                    yield event
 
     async def _chat_stream(
         self,
@@ -535,40 +590,22 @@ class OpenAICompatibleClient(LLMClient):
                             continue
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        if not events and raw_events:
-                            yield (None, raw_event_obj)
-                        else:
-                            for i, event in enumerate(events):
-                                if raw_events:
-                                    yield (event, raw_event_obj if i == 0 else None)
-                                else:
-                                    yield event
+                        for item in self._yield_events(events, raw_event_obj, raw_events):
+                            yield item  # type: ignore[misc]
                         buffer = ""
                     elif not line and buffer:
                         data = json.loads(buffer)
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        if not events and raw_events:
-                            yield (None, raw_event_obj)
-                        else:
-                            for i, event in enumerate(events):
-                                if raw_events:
-                                    yield (event, raw_event_obj if i == 0 else None)
-                                else:
-                                    yield event
+                        for item in self._yield_events(events, raw_event_obj, raw_events):
+                            yield item  # type: ignore[misc]
                         buffer = ""
                 if buffer:
                     data = json.loads(buffer)
                     events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                     raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                    if not events and raw_events:
-                        yield (None, raw_event_obj)
-                    else:
-                        for i, event in enumerate(events):
-                            if raw_events:
-                                yield (event, raw_event_obj if i == 0 else None)
-                            else:
-                                yield event
+                    for item in self._yield_events(events, raw_event_obj, raw_events):
+                        yield item  # type: ignore[misc]
         except httpx.RequestError as e:
             raise ProviderApiError(
                 0,

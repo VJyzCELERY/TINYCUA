@@ -122,14 +122,14 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Phase 1 (Immediate) Criteria
 
-- [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `LLMResponse`, `RawSseEvent`, `TokenUsage`) are defined and the `LLMEvent` discriminated union type alias type-checks correctly.
-- [ ] **Canonical input types defined**: `LLMMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) and `LLMToolSpec` TypedDicts are defined and type-check correctly.
-- [ ] **LLMClient ABC contract**: The refactored `LLMClient` ABC with `chat()` and `close()` compiles and documents the canonical event return types and tool-call state machine rules.
-- [ ] **ProviderRegistry contract**: The registry provides `register()`, `create_client()`, `list_providers()`, `is_supported()`, and `reset()` methods; unsupported provider strings raise clear errors.
-- [ ] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
-- [ ] **Phase 1 unit tests pass**: Canonical schema validation, registry behavior, error cases all pass without any provider SDK installed.
-- [ ] **Phase 1 integration tests pass**: Provider switching via `LanguageModel.provider` passes at the compile-time/contract level.
-- [ ] **Breaking change documented**: The in-place `LLMClient` refactoring is documented as an intentional breaking change. Existing subclasses must add `_chat_impl()`. Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. The old `OpenAICompatibleClient` is updated to match the new contract in Phase 1 (not deferred to Phase 2).
+- [x] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `LLMResponse`, `RawSseEvent`, `TokenUsage`) are defined and the `LLMEvent` discriminated union type alias type-checks correctly.
+- [x] **Canonical input types defined**: `LLMMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) and `LLMToolSpec` TypedDicts are defined and type-check correctly.
+- [x] **LLMClient ABC contract**: The refactored `LLMClient` ABC with `chat()` and `close()` compiles and documents the canonical event return types and tool-call state machine rules.
+- [x] **ProviderRegistry contract**: The registry provides `register()`, `create_client()`, `list_providers()`, `is_supported()`, and `reset()` methods; unsupported provider strings raise clear errors.
+- [x] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
+- [x] **Phase 1 unit tests pass**: Canonical schema validation, registry behavior, error cases all pass without any provider SDK installed.
+- [x] **Phase 1 integration tests pass**: Provider switching via `LanguageModel.provider` passes at the compile-time/contract level.
+- [x] **Breaking change documented**: The in-place `LLMClient` refactoring is documented as an intentional breaking change. Existing subclasses must add `_chat_impl()`. Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. The old `OpenAICompatibleClient` is updated to match the new contract in Phase 1 (not deferred to Phase 2).
 
 ### Full Roadmap Criteria (including Future Phases)
 
@@ -188,16 +188,16 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | Item | Status | Phase | Notes |
 |------|--------|-------|-------|
 | Spec & Design | Complete | Phase 1 | All questions resolved, ready for planning |
-| Canonical SSE Schema | TODO | Phase 1 | Formal TypedDict definitions complete; implementation pending |
-| LLMClient ABC | TODO | Phase 1 | Refactored contract with canonical event return types |
-| Provider Registry | TODO | Phase 1 | Singleton registry with factory, validation, reset |
-| Error Classes | TODO | Phase 1 | ProviderNotSupportedError, ProviderAuthError, ProviderApiError |
-| Upgrade Guide & Migration Docs | TODO | Phase 1 | Breaking change documentation for in-place LLMClient refactoring; OpenAICompatibleClient updated in Phase 1 |
-| Unit Tests (Phase 1) | TODO | Phase 1 | Schema (output + input types), registry, error cases — no provider SDK mocking |
-| Integration Tests (Phase 1) | TODO | Phase 1 | Compile-time contract tests for registry switching |
-| OpenAI Responses API Provider | TODO | Phase 2 | `openai-responses` ID; requires `openai` PyPI SDK |
-| Raw SSE Pass-Through | TODO | Phase 2 | Runtime behavior dependent on Phase 2+ provider implementation |
-| Agent Loop Migration | TODO | Phase 2 | Update `loop.py` to consume canonical event schema |
+| Canonical SSE Schema | Complete | Phase 1 | Formal TypedDict definitions complete; `LLMEvent` union type-checks correctly |
+| LLMClient ABC | Complete | Phase 1 | Refactored contract with canonical event return types; `OpenAICompatibleClient` updated |
+| Provider Registry | Complete | Phase 1 | Singleton registry with factory, validation, reset; `openai-responses` pre-registered |
+| Error Classes | Complete | Phase 1 | `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` defined and wired |
+| Upgrade Guide & Migration Docs | Complete | Phase 1 | Breaking change documented; migration path from legacy identifiers to `openai-responses` |
+| Unit Tests (Phase 1) | Complete | Phase 1 | Schema (output + input types), registry, error cases, contract tests all pass |
+| Integration Tests (Phase 1) | Complete | Phase 1 | Compile-time contract tests for registry switching |
+| OpenAI Responses API Provider | Complete | Phase 1 | `openai-responses` client via `OpenAICompatibleClient`; httpx-based, no `openai` PyPI SDK |
+| Raw SSE Pass-Through | Complete | Phase 1 | Paired tuple mode; unknown events use `None` canonical slot |
+| Agent Loop Migration | Complete | Phase 1 | `loop.py` consumes canonical event schema with tool-call ready-gating |
 | Unit/Integration Tests (Phase 2+) | TODO | Phase 2+ | Provider-specific mocked and end-to-end tests |
 
 ---
