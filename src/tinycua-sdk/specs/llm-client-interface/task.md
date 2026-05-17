@@ -5,9 +5,17 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests (`tests/integration/test_provider_switching.py`): registry switching, unsupported providers, raw_events validation <!-- id: 1 -->
+  - [ ] Test: `openai-responses` default registration resolves correctly via registry <!-- id: 1a -->
+  - [ ] Test: old provider strings (`"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` <!-- id: 1b -->
 - [ ] Write unit tests (`tests/unit/test_canonical_schema.py`): canonical event TypedDict shapes and type narrowing <!-- id: 2 -->
 - [ ] Write unit tests (`tests/unit/test_provider_registry.py`): register, reset, create_client, list, is_supported, error cases <!-- id: 3 -->
 - [ ] Write unit tests (`tests/unit/test_error_classes.py`): `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` attributes and representation <!-- id: 4 -->
+- [ ] Write unit/contract tests (`tests/unit/test_openai_compatible_client.py`): `OpenAICompatibleClient` under refactored `LLMClient` ABC <!-- id: 4a -->
+  - [ ] Test: instantiates from `LanguageModel` and implements `_chat_impl()` <!-- id: 4a1 -->
+  - [ ] Test: resolves through `ProviderRegistry.create_client()` <!-- id: 4a2 -->
+  - [ ] Test: non-streaming `chat()` returns correct `LLMResponse` shape <!-- id: 4a3 -->
+  - [ ] Test: streaming `chat()` yields canonical `LLMEvent` items <!-- id: 4a4 -->
+  - [ ] Test: `raw_events=True` with `stream=False` raises `ValueError` via base class <!-- id: 4a5 -->
 - [ ] Run all new tests — expect RED (failures) since no implementation yet <!-- id: 5 -->
 
 ## Implementation Phase
@@ -57,6 +65,9 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] `reset()` — clear all registered providers
 - [ ] Add singleton instance `_provider_registry` and convenience function `get_provider_registry()` <!-- id: 17 -->
 - [ ] Keep existing `resolve_provider()`, `normalize_base_url()`, `VALID_PROVIDERS`, etc. unchanged <!-- id: 18 -->
+- [ ] Add default registration: auto-register `"openai-responses"` → `OpenAICompatibleClient` factory in the singleton `_provider_registry` <!-- id: 18a -->
+  - [ ] `openai-responses` is the only pre-registered provider in Phase 1 — old strings (`"openai"`, `"openai-compatible"`) are NOT registered
+  - [ ] `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` for old strings, listing `openai-responses` as the supported migration target
 - [ ] Update `core/__init__.py` exports for new types <!-- id: 19 -->
 
 ## Testing Phase
@@ -65,6 +76,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [ ] Run unit tests (`tests/unit/test_canonical_schema.py`) — expect GREEN <!-- id: 21 -->
 - [ ] Run unit tests (`tests/unit/test_provider_registry.py`) — expect GREEN <!-- id: 22 -->
 - [ ] Run unit tests (`tests/unit/test_error_classes.py`) — expect GREEN <!-- id: 23 -->
+- [ ] Run unit/contract tests (`tests/unit/test_openai_compatible_client.py`) — expect GREEN <!-- id: 23a -->
 - [ ] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 24 -->
 - [ ] Run type checker: `cd src/tinycua-sdk && uv run mypy tinycua_sdk/agent/events.py tinycua_sdk/agent/llm_client.py tinycua_sdk/core/` <!-- id: 25 -->
 

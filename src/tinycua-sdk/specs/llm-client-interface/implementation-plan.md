@@ -166,12 +166,53 @@ async def test_raw_events_requires_stream(registry):
 
     with pytest.raises(ValueError, match="raw_events=True requires stream=True"):
         await client.chat([{"role": "user", "content": "hi"}], raw_events=True)
+
+
+# ── Test 5: openai-responses resolves through registry (default registration) ─
+
+async def test_openai_responses_default_registration(registry):
+    """Given openai-responses registered in the default singleton registry,
+    when create_client is called with provider="openai-responses", the
+    returned client is usable and returns the expected response shape."""
+
+    registry.register(
+        "openai-responses",
+        lambda cfg: _FakeAlphaClient(),
+        ProviderInfo(id="openai-responses", factory=lambda c: _FakeAlphaClient(), description="OpenAI Responses"),
+    )
+
+    model = LanguageModel(provider="openai-responses", model_name="gpt-4o")
+    client = registry.create_client(model)
+    resp = await client.chat([{"role": "user", "content": "hello"}])
+    assert resp["content"] == "alpha response"
+
+
+# ── Test 6: Old provider strings raise ProviderNotSupportedError ─────────────
+
+def test_old_provider_strings_rejected(registry):
+    """Given only openai-responses is registered, old provider strings
+    ("openai", "openai-compatible") raise ProviderNotSupportedError."""
+
+    registry.register(
+        "openai-responses",
+        lambda c: _FakeAlphaClient(),
+        ProviderInfo(id="openai-responses", factory=lambda c: _FakeAlphaClient(), description="OpenAI Responses"),
+    )
+
+    for old_provider in ("openai", "openai-compatible"):
+        model = LanguageModel(provider=old_provider, model_name="test")
+        with pytest.raises(ProviderNotSupportedError) as excinfo:
+            registry.create_client(model)
+        assert old_provider in str(excinfo.value)
+        assert "openai-responses" in str(excinfo.value)
 ```
 
 ### Key Test Scenarios
 
 - [ ] **Scenario 1**: Registry resolves different provider clients from `LanguageModel.provider` and each returns the expected canonical response shape — this is the primary success criterion proving the switching mechanism works.
 - [ ] **Scenario 2**: Unsupported provider strings raise `ProviderNotSupportedError` with a clear message listing supported providers — verifies user-facing error quality.
+- [ ] **Scenario 3**: `provider="openai-responses"` is accepted through the registry and resolves a usable client — proves the Phase 1 default registration path works.
+- [ ] **Scenario 4**: Old provider strings (`"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` with migration guidance — verifies the breaking migration contract.
 - [ ] **Edge case**: `raw_events=True` with `stream=False` raises `ValueError` — validates the cross-parameter validation contract.
 
 ## Verification Plan
@@ -182,6 +223,12 @@ async def test_raw_events_requires_stream(registry):
 - [ ] Unit tests for canonical schema TypedDicts — verify type shapes, imports, and discriminated union narrowing
 - [ ] Unit tests for `ProviderRegistry` — register, reset, create_client, list_providers, is_supported edge cases
 - [ ] Unit tests for error classes — `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` can be imported, raised, and carry expected attributes
+- [ ] `OpenAICompatibleClient` contract tests — verify the refactored client:
+  - [ ] Instantiates correctly from `LanguageModel` configuration with the new `LLMClient` ABC contract
+  - [ ] Implements `_chat_impl()` and can be resolved via `ProviderRegistry.create_client()`
+  - [ ] Non-streaming `chat()` returns correct `LLMResponse` shape
+  - [ ] Streaming `chat()` yields canonical `LLMEvent` items
+  - [ ] `raw_events=True` with `stream=False` raises `ValueError` via base class validation
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest`
 
 ### Manual Verification
@@ -216,7 +263,7 @@ async def test_raw_events_requires_stream(registry):
 
 #### [MODIFY] `tinycua_sdk/core/providers.py`
 
-- **[Description of change]**: Add `ProviderFactory` type alias, `ProviderInfo` dataclass, `ProviderRegistry` class with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` methods. Add singleton instance `_provider_registry`. Keep existing `resolve_provider()` and `normalize_base_url()` functions — they remain usable during Phase 1 migration.
+- **[Description of change]**: Add `ProviderFactory` type alias, `ProviderInfo` dataclass, `ProviderRegistry` class with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` methods. Add singleton instance `_provider_registry`. Keep existing `resolve_provider()` and `normalize_base_url()` functions — they remain usable during Phase 1 migration. **Phase 1 default registration**: Auto-register `"openai-responses"` → `OpenAICompatibleClient` factory in the singleton registry so that `LanguageModel(provider="openai-responses", ...)` resolves correctly via `ProviderRegistry.create_client()`. Old provider strings (`"openai"`, `"openai-compatible"`) are NOT registered — they raise `ProviderNotSupportedError` via `create_client()`.
 - **[Rationale]**: FR-003, FR-004, FR-009. The registry maps provider strings to client factories and provides runtime validation.
 
 ### Error Classes
@@ -256,6 +303,11 @@ async def test_raw_events_requires_stream(registry):
 - **[Description of change]**: Integration tests (defined in Success Criteria above) testing compile-time/contract-level provider switching via `LanguageModel.provider` with fake client implementations.
 - **[Dependencies]**: `llm_client.py`, `providers.py`, `exceptions.py`, `events.py`.
 
+#### [NEW] `tests/unit/test_openai_compatible_client.py`
+
+- **[Description of change]**: Unit and contract tests for the refactored `OpenAICompatibleClient`. Verifies it implements `_chat_impl()`, instantiates from `LanguageModel`, resolves through `ProviderRegistry`, produces correct `LLMResponse` (non-streaming) and `LLMEvent` (streaming) outputs, and passes base class `raw_events=True` with `stream=False` validation.
+- **[Dependencies]**: `llm_client.py`, `providers.py`, `events.py`.
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -269,6 +321,7 @@ async def test_raw_events_requires_stream(registry):
 | `tests/unit/test_provider_registry.py` | New | Registry behavior unit tests |
 | `tests/unit/test_error_classes.py` | New | Error class unit tests |
 | `tests/integration/test_provider_switching.py` | New | Contract-level integration tests |
+| `tests/unit/test_openai_compatible_client.py` | New | `OpenAICompatibleClient` contract and behavior tests |
 
 ## Data Model Changes
 
