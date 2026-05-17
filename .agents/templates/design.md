@@ -1,11 +1,3 @@
----
-agent_guidelines:
-  - "This design must be paired with a spec.md in the same directory. The spec defines WHAT and WHY; this design defines HOW."
-  - "Focus on architecture, data model, API contracts, and implementation phases."
-  - "Keep decisions documented: explain WHY an approach was chosen, not just WHAT."
-  - "Include error handling, edge cases, and failure modes in API contracts."
----
-
 # Design Document: [FEATURE NAME]
 
 **Spec**: [Link to corresponding spec.md]
