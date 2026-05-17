@@ -102,6 +102,8 @@ This is a **breaking change**. The following table documents the migration path 
 
 **Key points**:
 - `LanguageModel.provider` validation in Phase 1 accepts only registered provider IDs. Old provider strings (`"openai"`, `"openai-compatible"`) are not valid — users must migrate to `"openai-responses"`.
+- **Default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"`. `LanguageModel()` with no explicit provider now resolves via `ProviderRegistry` to the `"openai-responses"` client. Callers that do not specify a provider automatically target the Responses API provider.
+- **Default base URL for `openai-responses`**: `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` (the OpenAI API base URL), matching the existing `"openai"` behavior. Local development users must set an explicit `base_url` to override. Previously `normalize_base_url(None, *any_unknown_provider*)` fell through to `http://localhost:1234/v1`; this is now corrected so `openai-responses` has a sensible default.
 - The old `OpenAICompatibleClient` class and its httpx-based implementation are **updated in Phase 1** to match the new `LLMClient` contract — no deprecation shim, no backward-compatibility layer.
 - Existing `StreamEvent` usage should be migrated to the canonical `LLMEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
@@ -533,7 +535,21 @@ class ProviderRegistry:
 
 # Singleton registry instance
 _provider_registry = ProviderRegistry()
+
+# Default registration (at module import time):
+def _register_defaults() -> None:
+    """Register built-in providers using deferred imports to avoid cycles."""
+    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
+    _provider_registry.register(
+        "openai-responses",
+        lambda cfg: OpenAICompatibleClient(),
+        ProviderInfo(id="openai-responses", factory=lambda c: OpenAICompatibleClient(), description="OpenAI Responses API (Phase 1)"),
+    )
+
+_register_defaults()
 ```
+
+> **Import cycle prevention**: `core/providers.py` exports `normalize_base_url` which is already imported by `llm_client.py`. To prevent `core.providers → agent.llm_client → core.providers`, the module uses `from __future__ import annotations`, `TYPE_CHECKING` guards for `LanguageModel`/`LLMClient` type references, and a local deferred import (`from tinycua_sdk.agent.llm_client import OpenAICompatibleClient`) inside `_register_defaults()` rather than at the module top level.
 
 ### Error Handling
 
