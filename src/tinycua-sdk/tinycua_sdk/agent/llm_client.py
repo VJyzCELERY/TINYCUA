@@ -363,6 +363,7 @@ class OpenAICompatibleClient(LLMClient):
     @staticmethod
     def _normalize_responses_event(
         event: dict[str, Any],
+        _tool_cache: dict[str, dict[str, str]] | None = None,
     ) -> list[LLMEvent]:
         """Normalize a raw Responses API stream event into canonical events.
 
@@ -372,12 +373,27 @@ class OpenAICompatibleClient(LLMClient):
         multiple canonical events (e.g. ``response.function_call_arguments.done``
         yields both ``tool_call.arguments.done`` and ``tool_call.ready``).
 
+        The optional ``_tool_cache`` maintains tool identity metadata
+        (``call_id``, ``name``) keyed by ``item_id`` across a single stream.
+        When ``response.output_item.added`` carries a ``function_call`` item,
+        its ``call_id`` and ``name`` are cached. When
+        ``response.function_call_arguments.done`` lacks those fields
+        (the Responses API may omit them in the done event), the cache
+        supplies them so that ``tool_call.ready`` always carries complete
+        tool identity metadata.
+
         Args:
             event: Raw Responses API stream event dict.
+            _tool_cache: Per-stream dict mapping ``item_id`` to
+                ``{"call_id": str, "name": str}``. Created automatically
+                when ``None`` and mutated during normalization.
 
         Returns:
             List of canonical SDK stream events (``list[LLMEvent]``).
         """
+        if _tool_cache is None:
+            _tool_cache = {}
+
         event_type = event.get("type", "")
 
         if event_type == "response.output_text.delta":
@@ -400,12 +416,21 @@ class OpenAICompatibleClient(LLMClient):
         if event_type == "response.output_item.added":
             item = event.get("item", {})
             if item.get("type") == "function_call":
+                item_id = item.get("id", "")
+                # Cache tool identity metadata for later done/ready events.
+                cached_call_id = item.get("call_id", "")
+                cached_name = item.get("name", "")
+                if item_id:
+                    _tool_cache[item_id] = {
+                        "call_id": cached_call_id,
+                        "name": cached_name,
+                    }
                 return [
                     ToolCallStartedEvent(
                         type="tool_call.started",
-                        id=item.get("id", ""),
-                        call_id=item.get("call_id", ""),
-                        name=item.get("name", ""),
+                        id=item_id,
+                        call_id=cached_call_id,
+                        name=cached_name,
                     ),
                 ]
             # Non-function items (e.g. message items) have no canonical
@@ -426,6 +451,11 @@ class OpenAICompatibleClient(LLMClient):
             call_id = event.get("call_id", "")
             name = event.get("name", "")
             arguments = event.get("arguments", "")
+            # Fall back to cached metadata if the done event omits identity.
+            if item_id and (not call_id or not name) and item_id in _tool_cache:
+                cached = _tool_cache[item_id]
+                call_id = call_id or cached.get("call_id", "")
+                name = name or cached.get("name", "")
             return [
                 ToolCallArgumentsDoneEvent(
                     type="tool_call.arguments.done",
@@ -443,8 +473,14 @@ class OpenAICompatibleClient(LLMClient):
                 ),
             ]
 
-        # All other events pass through unchanged (they are already canonical)
-        return [event]  # type: ignore[return-value]
+        # Recognized canonical lifecycle events — pass through as-is.
+        if event_type in ("response.completed", "response.failed", "response.usage"):
+            return [event]  # type: ignore[return-value]
+
+        # Unknown provider events are not canonical — drop them.
+        # In raw_events=True mode, _chat_stream handles yielding the
+        # raw event separately.
+        return []
 
     async def _chat_stream(
         self,
@@ -482,6 +518,7 @@ class OpenAICompatibleClient(LLMClient):
                     raise ProviderApiError(response.status_code, str(e)) from e
 
                 buffer: str = ""
+                tool_cache: dict[str, dict[str, str]] = {}
                 async for line in response.aiter_lines():
                     line = line.strip()
                     if line.startswith("data:"):
@@ -496,33 +533,42 @@ class OpenAICompatibleClient(LLMClient):
                             data = json.loads(buffer)
                         except json.JSONDecodeError:
                             continue
-                        events = self._normalize_responses_event(data)
+                        events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        for i, event in enumerate(events):
-                            if raw_events:
-                                yield (event, raw_event_obj if i == 0 else None)
-                            else:
-                                yield event
+                        if not events and raw_events:
+                            yield (None, raw_event_obj)
+                        else:
+                            for i, event in enumerate(events):
+                                if raw_events:
+                                    yield (event, raw_event_obj if i == 0 else None)
+                                else:
+                                    yield event
                         buffer = ""
                     elif not line and buffer:
                         data = json.loads(buffer)
-                        events = self._normalize_responses_event(data)
+                        events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+                        if not events and raw_events:
+                            yield (None, raw_event_obj)
+                        else:
+                            for i, event in enumerate(events):
+                                if raw_events:
+                                    yield (event, raw_event_obj if i == 0 else None)
+                                else:
+                                    yield event
+                        buffer = ""
+                if buffer:
+                    data = json.loads(buffer)
+                    events = self._normalize_responses_event(data, _tool_cache=tool_cache)
+                    raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+                    if not events and raw_events:
+                        yield (None, raw_event_obj)
+                    else:
                         for i, event in enumerate(events):
                             if raw_events:
                                 yield (event, raw_event_obj if i == 0 else None)
                             else:
                                 yield event
-                        buffer = ""
-                if buffer:
-                    data = json.loads(buffer)
-                    events = self._normalize_responses_event(data)
-                    raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                    for i, event in enumerate(events):
-                        if raw_events:
-                            yield (event, raw_event_obj if i == 0 else None)
-                        else:
-                            yield event
         except httpx.RequestError as e:
             raise ProviderApiError(
                 0,

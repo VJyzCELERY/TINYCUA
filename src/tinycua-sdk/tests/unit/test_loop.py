@@ -584,6 +584,13 @@ class TestBaseLoopRunStream:
                         "id": "call_1",
                         "arguments": "{}",
                     }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
                 else:
                     yield {
                         "type": "content.delta",
@@ -672,6 +679,13 @@ class TestBaseLoopRunStream:
                         "id": "call_1",
                         "arguments": '{"city": "Tokyo"}',
                     }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_weather",
+                        "arguments": '{"city": "Tokyo"}',
+                    }
                 else:
                     yield {
                         "type": "content.delta",
@@ -735,6 +749,13 @@ class TestBaseLoopRunStream:
                         "id": "fc_1",
                         "arguments": '{"city": "Tokyo"}',
                     }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "fc_1",
+                        "call_id": "call_1",
+                        "name": "get_weather",
+                        "arguments": '{"city": "Tokyo"}',
+                    }
                 else:
                     yield {
                         "type": "content.delta",
@@ -779,6 +800,13 @@ class TestBaseLoopRunStream:
                 yield {
                     "type": "tool_call.arguments.done",
                     "id": "call_1",
+                    "arguments": "{}",
+                }
+                yield {
+                    "type": "tool_call.ready",
+                    "id": "call_1",
+                    "call_id": "call_1",
+                    "name": "dummy_tool",
                     "arguments": "{}",
                 }
 
@@ -893,6 +921,13 @@ class TestBaseLoopRunStream:
                         "arguments": "{}",
                     }
                     yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                    yield {
                         "type": "response.usage",
                         "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
                     }
@@ -950,6 +985,13 @@ class TestBaseLoopRunStream:
                     yield {
                         "type": "tool_call.arguments.done",
                         "id": "call_1",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                         "arguments": "{}",
                     }
                     yield {
@@ -1127,6 +1169,13 @@ class TestBaseLoopRunStreamInProgress:
                     yield {
                         "type": "tool_call.arguments.done",
                         "id": "call_1",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "dummy_tool",
                         "arguments": "{}",
                     }
                 else:

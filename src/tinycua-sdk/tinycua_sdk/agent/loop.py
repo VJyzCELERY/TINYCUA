@@ -231,7 +231,10 @@ class BaseLoop:
                 if should_abort:
                     break
                 combined = "".join(content_parts)
-                tool_calls_list = list(tool_calls_buffer.values())
+                tool_calls_list = [
+                    tc for tc in tool_calls_buffer.values()
+                    if tc.get("_ready", False)
+                ]
                 if tool_calls_list:
                     tool_call_count, max_reached = await self.process_stream_tool_calls(
                         agent, tools, tool_calls_list, working, tool_call_count, combined,
@@ -494,7 +497,8 @@ class BaseLoop:
         if chunk_type == "content.delta":
             content_parts.append(chunk.get("delta", ""))
         elif chunk_type in ("response.tool_call.delta", "tool_call.started",
-                            "tool_call.arguments.delta", "tool_call.arguments.done"):
+                            "tool_call.arguments.delta", "tool_call.arguments.done",
+                            "tool_call.ready"):
             _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
         elif chunk_type == "response.completed":
             response_data = chunk.get("response", {})
@@ -602,6 +606,7 @@ def _accumulate_tool_chunk(
                 "index": tc_index,
                 "name": chunk.get("name", ""),
                 "arguments": chunk.get("arguments", ""),
+                "_ready": True,  # Legacy format: always ready
             }
         else:
             buf = tool_calls_buffer[tc_index]
@@ -618,6 +623,7 @@ def _accumulate_tool_chunk(
                 "call_id": chunk.get("call_id", ""),
                 "name": chunk.get("name", ""),
                 "arguments": "",
+                "_ready": False,  # Progress only — not yet ready for execution
             }
     elif chunk_type == "tool_call.arguments.delta":
         item_id = chunk.get("id", "")
@@ -627,6 +633,24 @@ def _accumulate_tool_chunk(
         item_id = chunk.get("id", "")
         if item_id and item_id in tool_calls_buffer:
             tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")
+    elif chunk_type == "tool_call.ready":
+        item_id = chunk.get("id", "")
+        if item_id:
+            if item_id in tool_calls_buffer:
+                tool_calls_buffer[item_id].update({
+                    "call_id": chunk.get("call_id", tool_calls_buffer[item_id].get("call_id", "")),
+                    "name": chunk.get("name", tool_calls_buffer[item_id].get("name", "")),
+                    "arguments": chunk.get("arguments", tool_calls_buffer[item_id].get("arguments", "")),
+                    "_ready": True,
+                })
+            else:
+                tool_calls_buffer[item_id] = {
+                    "id": item_id,
+                    "call_id": chunk.get("call_id", ""),
+                    "name": chunk.get("name", ""),
+                    "arguments": chunk.get("arguments", ""),
+                    "_ready": True,
+                }
 
 
 def _resolve_call_id(tc: dict[str, Any]) -> str:
