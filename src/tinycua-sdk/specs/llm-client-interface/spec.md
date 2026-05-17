@@ -41,7 +41,7 @@ Today the SDK has:
 - Must honor each provider's official SDK interface — no custom wrappers that break upgrade compatibility
 - **This is a breaking change**: The old provider strings (`"openai"`, `"openai-compatible"`) are NOT supported in the new system. Existing code using `LLMClient`, `OpenAICompatibleClient`, and `StreamEvent` MUST be migrated to the new provider IDs (`"openai-responses"`). No deprecation shim or backward-compatibility layer is provided.
 - The canonical SSE event schema must be provider-agnostic — no OpenAI-specific field names
-- Raw SSE pass-through must be delivered as paired `(canonical_event, raw_event)` tuples in the same async iterator, with the raw event being a lossless representation of the provider's original SDK event object
+- Raw SSE pass-through must be delivered as paired `(canonical_event, raw_event)` tuples in the same async iterator. The `canonical_event` slot MAY be `None` for provider-native raw events that have no canonical semantic equivalent. All provider SDK stream events MUST be yielded in arrival order when `raw_events=True`. The raw event is a lossless representation of the provider's original SDK event object
 - Providers must be resolvable from a `LanguageModel.provider` string
 
 ---
@@ -80,7 +80,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - **FR-004**: The provider selection MUST be driven by `LanguageModel.provider` at runtime with no code changes.
 - **FR-005**: The system MUST define a **canonical SSE event schema** — a formal set of event types and shapes that all provider normalizers output.
 - **FR-006**: Each provider client MUST include an **SSE normalizer** that converts the provider's raw stream events into the canonical schema.
-- **FR-007**: The system MUST expose a **raw SSE pass-through** mode where the async iterator yields paired `(canonical_event, raw_event)` tuples so consumers can access provider-native events alongside canonical events.
+- **FR-007**: The system MUST expose a **raw SSE pass-through** mode where the async iterator yields paired `(canonical_event, raw_event)` tuples so consumers can access provider-native events alongside canonical events. Every provider SDK stream event MUST be yielded in arrival order when `raw_events=True`; provider-native events without a canonical equivalent use `None` in the canonical slot.
 - **FR-008**: The `LanguageModel` model MUST support new provider-specific configuration fields without breaking existing providers.
 - **FR-009**: The system MUST raise a clear, actionable error when an unsupported or misspelled provider identifier is used.
 - **FR-010**: The system MUST support provider SDK initialization (API keys, base URLs, timeouts) from `LanguageModel` configuration.
@@ -141,7 +141,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | Canonical SSE Schema | TODO | |
 | OpenAI Responses API Provider | TODO | `openai-responses` ID |
 | Raw SSE Pass-Through | TODO | |
-| Backward Compat Shims | TODO | |
+| Migration Documentation | TODO | Breaking change — no backward-compatibility shim; see design migration table |
 | Unit Tests | TODO | |
 | Integration Tests | TODO | |
 
@@ -159,7 +159,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 2. **Raw pass-through: how to correlate canonical events with raw events**
    - **Status**: Decided
-   - **Decision**: The return signature for streaming with `raw_events=True` is `AsyncIterator[tuple[CanonicalEvent, RawEvent | None]]`. Each yielded tuple pairs the canonical event with its corresponding raw provider event. When there is no corresponding raw event (e.g., synthetic events), the raw slot is `None`.
+   - **Decision**: The return signature for streaming with `raw_events=True` is `AsyncIterator[tuple[CanonicalEvent | None, RawEvent | None]]`. Each yielded tuple pairs a canonical event (or `None` for raw-only provider events) with its corresponding raw provider event (or `None` for synthetic canonical events). Provider SDK events that have no canonical semantic equivalent are yielded with `None` in the canonical slot. All provider SDK stream events are yielded in arrival order when `raw_events=True`.
 
 ---
 

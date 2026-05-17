@@ -129,10 +129,21 @@ class ToolCallArgumentsDoneEvent(CanonicalEvent):
     id: str
     arguments: str
 
+class CanonicalUsage(TypedDict):
+    """Provider-agnostic token usage schema.
+
+    Provider normalizers MUST map their SDK's usage fields into these
+    canonical field names. Fields marked Optional may be omitted when the
+    provider SDK does not report them.
+    """
+    input_tokens: int | None                # Tokens consumed by the prompt
+    output_tokens: int | None               # Tokens generated in the response
+    total_tokens: int | None                # input_tokens + output_tokens (when available)
+
 class ResponseUsageEvent(CanonicalEvent):
     """Token usage information."""
     type: Literal["response.usage"]
-    usage: dict
+    usage: CanonicalUsage
 
 class ResponseCompletedEvent(CanonicalEvent):
     """Stream completed successfully."""
@@ -159,7 +170,7 @@ class CanonicalResponse(TypedDict):
     """
     content: str | None                    # Text content, None if only tool calls
     tool_calls: list[dict] | None          # List of {id, call_id, name, arguments}
-    usage: dict | None                     # Token usage {input_tokens, output_tokens, ...}
+    usage: CanonicalUsage | None            # Token usage — normalized to CanonicalUsage schema
     finish_reason: str | None              # "stop", "tool_calls", "length", etc.
     model: str                             # Model name that generated the response
 ```
@@ -226,7 +237,7 @@ class LLMClient(ABC):
         model_config: LanguageModel,
         stream: bool = False,
         raw_events: bool = False,
-    ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent, RawSseEvent | None]]:
+    ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:
         """Send a chat completion request.
 
         Args:
@@ -295,12 +306,14 @@ _provider_registry = ProviderRegistry()
 
 ### Raw SSE Pass-Through Contract
 
-When `raw_events=True` and `stream=True`, the async iterator yields paired `(canonical_event, raw_event)` tuples. Every canonical event is paired with its corresponding provider-native event when one exists. Synthetic canonical events (e.g., `response.completed` that the normalizer synthesizes without a raw counterpart) have `None` in the raw slot.
+When `raw_events=True` and `stream=True`, the async iterator yields paired `(canonical_event, raw_event)` tuples. **Every provider SDK stream event is yielded in arrival order** — provider-native events are never silently dropped. The canonical event slot MAY be `None` for provider-native raw events that have no canonical semantic equivalent. Synthetic canonical events (e.g., `response.completed` that the normalizer synthesizes without a raw counterpart) have `None` in the raw slot.
 
 ```python
 stream = await client.chat(..., stream=True, raw_events=True)
 async for canonical, raw in stream:
-    # canonical is always a CanonicalEvent dict — process normally
+    if canonical is not None:
+        # canonical is a CanonicalEvent dict — process normally
+        process_canonical(canonical)
     if raw is not None:
         # raw is a RawSseEvent with provider + lossless raw_event
         provider = raw["provider"]   # e.g., "openai-responses"
