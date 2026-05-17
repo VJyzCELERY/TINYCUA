@@ -481,7 +481,24 @@ class OpenAICompatibleClient(LLMClient):
         if event_type == "response.completed":
             # Extract finish_reason from direct field or nested response object.
             finish_reason: str = event.get("finish_reason") or event.get("response", {}).get("status", "completed")
-            return [ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason)]
+            result: list[LLMEvent] = [ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason)]
+            # Preserve nested usage from the completed response payload.
+            nested_usage = event.get("response", {}).get("usage")
+            if isinstance(nested_usage, dict) and any(
+                k in nested_usage for k in ("input_tokens", "output_tokens", "total_tokens")
+            ):
+                result.insert(
+                    0,
+                    ResponseUsageEvent(
+                        type="response.usage",
+                        usage=TokenUsage(
+                            input_tokens=nested_usage.get("input_tokens"),
+                            output_tokens=nested_usage.get("output_tokens"),
+                            total_tokens=nested_usage.get("total_tokens"),
+                        ),
+                    ),
+                )
+            return result
 
         if event_type == "response.failed":
             raw_error = event.get("error", {})

@@ -131,15 +131,6 @@ class BaseLoop:
                 "content": assistant_content,
             }
             working_messages.append(assistant_msg)
-            for tc in executed_tool_calls:
-                working_messages.append(
-                    {
-                        "type": "function_call",
-                        "call_id": _resolve_call_id(tc),
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                    }
-                )
         working_messages.extend(tool_result_messages)
 
         return tool_call_count, max_tool_calls_reached
@@ -463,15 +454,6 @@ class BaseLoop:
             working_messages.append(
                 {"role": "assistant", "content": combined_content},
             )
-            for tc in executed_tool_calls:
-                working_messages.append(
-                    {
-                        "type": "function_call",
-                        "call_id": _resolve_call_id(tc),
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                    }
-                )
         working_messages.extend(tool_result_messages)
 
         return tool_call_count, max_tool_calls_reached

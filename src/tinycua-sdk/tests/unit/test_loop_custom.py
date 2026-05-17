@@ -320,7 +320,7 @@ class TestCustomPublicHelpers:
 
     @pytest.mark.asyncio
     async def test_custom_loop_calls_process_tool_calls_with_assistant_content(self):
-        """process_tool_calls prepends assistant content before function_call."""
+        """process_tool_calls prepends assistant content before tool_result messages (provider-agnostic)."""
         @tool
         def get_time() -> str:
             return "12:00"
@@ -340,18 +340,20 @@ class TestCustomPublicHelpers:
                 )
                 assert count == 1
                 assert max_reached is False
-                # Verify assistant message was prepended before function_call
+                # Verify assistant message is prepended before tool_result messages
                 assistant_idx = next(
                     i for i, m in enumerate(working)
                     if m.get("role") == "assistant"
                 )
-                func_call_idx = next(
+                tool_result_idx = next(
                     i for i, m in enumerate(working)
-                    if m.get("type") == "function_call"
+                    if m.get("role") == "tool_result"
                 )
-                assert assistant_idx < func_call_idx, (
-                    "Assistant message should come before function_call"
+                assert assistant_idx < tool_result_idx, (
+                    "Assistant message should come before tool_result"
                 )
+                # No provider-native function_call entries should exist
+                assert not any(m.get("type") == "function_call" for m in working)
                 return "ok"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
@@ -535,16 +537,14 @@ class TestCustomPublicHelpers:
                 )
                 assert count == 1
                 assert max_reached is False
-                assert len(working) >= 3
-                has_func_call = any(
-                    m.get("type") == "function_call"
-                    for m in working
-                )
+                assert len(working) >= 2
                 has_func_output = any(
                     m.get("role") == "tool_result"
                     for m in working
                 )
-                assert has_func_call, "No function_call found"
+                # Provider-native function_call entries are removed — provider clients
+                # own their own continuation state.
+                assert not any(m.get("type") == "function_call" for m in working)
                 assert has_func_output, "No tool_result found in working messages"
                 return "executed"
 
