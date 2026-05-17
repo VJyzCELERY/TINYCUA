@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from tinycua_sdk.agent.events import LLMEvent, LLMResponse
+from tinycua_sdk.agent.events import LLMEvent, LLMResponse, UserMessage
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderNotSupportedError
@@ -117,8 +117,8 @@ async def test_registry_returns_correct_client_per_provider(registry: ProviderRe
     client_a = registry.create_client(model_a)
     client_b = registry.create_client(model_b)
 
-    resp_a = await client_a.chat([{"role": "user", "content": "hello"}])  # type: ignore[arg-type]
-    resp_b = await client_b.chat([{"role": "user", "content": "hello"}])  # type: ignore[arg-type]
+    resp_a = await client_a.chat([UserMessage(role="user", content="hello")])
+    resp_b = await client_b.chat([UserMessage(role="user", content="hello")])
 
     assert resp_a["content"] == "alpha response"  # type: ignore[index]
     assert resp_b["content"] == "beta response"  # type: ignore[index]
@@ -179,7 +179,7 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
     client = registry.create_client(LanguageModel(provider="test", model_name="test"))
 
     with pytest.raises(ValueError, match="raw_events=True requires stream=True"):
-        await client.chat([{"role": "user", "content": "hi"}], raw_events=True)  # type: ignore[arg-type]
+        await client.chat([UserMessage(role="user", content="hi")], raw_events=True)
 
 
 # ── Test 5: openai-responses resolves through registry (default registration) ─

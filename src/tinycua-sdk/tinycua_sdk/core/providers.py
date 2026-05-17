@@ -170,12 +170,23 @@ class ProviderRegistry:
         ``metadata.factory``. If they differ, ``metadata`` is copied
         with its factory replaced by the explicit argument.
 
+        The explicit ``provider_id`` takes precedence over
+        ``metadata.id``. If they differ, a ``ValueError`` is raised
+        to prevent silent id mismatch.
+
         Args:
             provider_id: Unique provider identifier.
             factory: Callable that creates an ``LLMClient`` from a
                 ``LanguageModel`` configuration.
             metadata: ``ProviderInfo`` instance with provider metadata.
+
+        Raises:
+            ValueError: If ``metadata.id`` differs from ``provider_id``.
         """
+        if metadata.id != provider_id:
+            raise ValueError(
+                f"metadata.id ({metadata.id!r}) conflicts with provider_id ({provider_id!r})"
+            )
         from dataclasses import replace
 
         self._providers[provider_id] = replace(metadata, id=provider_id, factory=factory)

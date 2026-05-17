@@ -5,6 +5,7 @@ import pytest
 
 from tinycua_sdk.agent.config import AgentConfig
 from tinycua_sdk.agent.executor import AgentExecutor
+from tinycua_sdk.agent.events import UserMessage
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
@@ -123,7 +124,7 @@ class TestAgentExecutorCallLlm:
         try:
             executor_module.get_provider_registry = lambda: registry  # type: ignore[method-assign]
             result = await executor._call_llm(
-                messages=[{"role": "user", "content": "hello"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="hello")],
             )
         finally:
             executor_module.get_provider_registry = original_get_registry

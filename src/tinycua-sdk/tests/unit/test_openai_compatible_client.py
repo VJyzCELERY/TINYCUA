@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
+from tinycua_sdk.agent.events import ToolResultMessage, UserMessage
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
@@ -92,7 +93,7 @@ class TestOpenAICompatibleClient:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(httpx.AsyncClient, "post", mock_post)
             result = await client.chat(
-                messages=[{"role": "user", "content": "Hi"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="Hi")],
                 tools=None,
             )
 
@@ -137,7 +138,7 @@ class TestOpenAICompatibleClient:
                 MagicMock(return_value=FakeStreamResponse()),
             )
             stream = await client.chat(
-                messages=[{"role": "user", "content": "hi"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="hi")],
                 tools=None,
                 stream=True,
             )
@@ -156,7 +157,7 @@ class TestOpenAICompatibleClient:
 
         with pytest.raises(ValueError, match="raw_events=True requires stream=True"):
             await client.chat(
-                messages=[{"role": "user", "content": "hi"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="hi")],
                 raw_events=True,
             )
 
@@ -223,7 +224,7 @@ class TestPreviousResponseId:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(httpx.AsyncClient, "post", mock_post)
             await client.chat(
-                messages=[{"role": "user", "content": "Hi"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="Hi")],
                 tools=None,
             )
 
@@ -279,14 +280,14 @@ class TestPreviousResponseId:
             mp.setattr(httpx.AsyncClient, "post", mock_post)
             # First call — no previous_response_id
             await client.chat(
-                messages=[{"role": "user", "content": "Weather?"}],  # type: ignore[arg-type]
+                messages=[UserMessage(role="user", content="Weather?")],
                 tools=None,
             )
             # Second call — with tool_result, should include previous_response_id
             await client.chat(
                 messages=[
-                    {"role": "tool_result", "call_id": "call_1", "content": "Sunny"},
-                ],  # type: ignore[arg-type]
+                    ToolResultMessage(role="tool_result", call_id="call_1", content="Sunny"),
+                ],
                 tools=None,
             )
 

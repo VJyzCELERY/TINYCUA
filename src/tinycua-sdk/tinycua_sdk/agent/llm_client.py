@@ -39,6 +39,40 @@ if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_model import LanguageModel
 
 
+def _yield_events(
+    events: list[LLMEvent],
+    raw_event_obj: RawSseEvent | None,
+    raw_events: bool,
+) -> Iterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
+    """Yield canonical events, optionally paired with raw event.
+
+    Pairing rules (applied when ``raw_events=True``):
+
+    - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
+    - **Canonical-only** (synthetic event): ``(canonical_event, None)``
+    - **One-to-one** (one raw → one canonical): ``(canonical_event, raw_event)``
+    - **One-to-many** (one raw → N canonicals): first gets
+      ``(canonical, raw)``, subsequent get ``(canonical, None)``
+
+    Args:
+        events: List of canonical events from the normalizer.
+        raw_event_obj: Raw SSE event object for pairing.
+        raw_events: When True, yield ``(canonical, raw)`` tuples.
+
+    Yields:
+        Canonical ``LLMEvent`` items, or ``(LLMEvent | None, RawSseEvent | None)``
+        tuples when ``raw_events=True``.
+    """
+    if not events and raw_events:
+        yield (None, raw_event_obj)
+    else:
+        for i, event in enumerate(events):
+            if raw_events:
+                yield (event, raw_event_obj if i == 0 else None)
+            else:
+                yield event
+
+
 class LLMClient(ABC):
     """Abstract base for LLM API clients with canonical event contract.
 
@@ -144,15 +178,13 @@ class OpenAICompatibleClient(LLMClient):
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
         self._previous_response_id: str | None = None
 
-    def _client_key(self, model_config: LanguageModel | None = None) -> tuple[str, str]:
-        cfg = model_config or self._model_config
-        api_key = cfg.api_key.get_secret_value()
-        base_url = normalize_base_url(cfg.base_url, cfg.provider)
+    def _client_key(self) -> tuple[str, str]:
+        api_key = self._model_config.api_key.get_secret_value()
+        base_url = normalize_base_url(self._model_config.base_url, self._model_config.provider)
         return (base_url, api_key)
 
-    def _get_client(self, model_config: LanguageModel | None = None) -> httpx.AsyncClient:
-        cfg = model_config or self._model_config
-        key = self._client_key(cfg)
+    def _get_client(self) -> httpx.AsyncClient:
+        key = self._client_key()
         if key not in self._clients:
             api_key = key[1]
             headers: dict[str, str] = {}
@@ -301,8 +333,8 @@ class OpenAICompatibleClient(LLMClient):
             tools: Optional list of tool specs.
             stream: When True, return an async generator of SSE chunk events.
             raw_events: When True and stream=True, yield ``(canonical, raw)``
-                tuples. OpenAI-compatible endpoints do not support raw event
-                passthrough in Phase 1 — this flag has no effect.
+                tuples. Synthetic events (generated from one provider event)
+                yield ``(canonical_event, None)`` for the synthetic slot.
 
         Returns:
             Non-streaming: ``LLMResponse``.
@@ -542,8 +574,11 @@ class OpenAICompatibleClient(LLMClient):
         event_type = event.get("type", "")
 
         if event_type == "response.completed":
-            # Extract finish_reason from direct field or nested response object.
-            finish_reason: str = event.get("finish_reason") or event.get("response", {}).get("status", "completed")
+            finish_reason = event.get("finish_reason")
+            if not finish_reason:
+                status = event.get("response", {}).get("status", "completed")
+                _FINISH_REASON_MAP = {"completed": "stop", "incomplete": "length", "failed": "error"}
+                finish_reason = _FINISH_REASON_MAP.get(status, "stop")
             result: list[LLMEvent] = [ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason)]
             # Preserve nested usage from the completed response payload.
             nested_usage = event.get("response", {}).get("usage")
@@ -643,40 +678,6 @@ class OpenAICompatibleClient(LLMClient):
         # raw event separately.
         return []
 
-    @staticmethod
-    def _yield_events(
-        events: list[LLMEvent],
-        raw_event_obj: RawSseEvent | None,
-        raw_events: bool,
-    ) -> Iterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
-        """Yield canonical events, optionally paired with raw event.
-
-        Pairing rules (applied when ``raw_events=True``):
-
-        - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
-        - **Canonical-only** (synthetic event): ``(canonical_event, None)``
-        - **One-to-one** (one raw → one canonical): ``(canonical_event, raw_event)``
-        - **One-to-many** (one raw → N canonicals): first gets
-          ``(canonical, raw)``, subsequent get ``(canonical, None)``
-
-        Args:
-            events: List of canonical events from the normalizer.
-            raw_event_obj: Raw SSE event object for pairing.
-            raw_events: When True, yield ``(canonical, raw)`` tuples.
-
-        Yields:
-            Canonical ``LLMEvent`` items, or ``(LLMEvent | None, RawSseEvent | None)``
-            tuples when ``raw_events=True``.
-        """
-        if not events and raw_events:
-            yield (None, raw_event_obj)
-        else:
-            for i, event in enumerate(events):
-                if raw_events:
-                    yield (event, raw_event_obj if i == 0 else None)
-                else:
-                    yield event
-
     async def _chat_stream(
         self,
         messages: list[LLMMessage],
@@ -739,21 +740,21 @@ class OpenAICompatibleClient(LLMClient):
                             )
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        for item in self._yield_events(events, raw_event_obj, raw_events):
+                        for item in _yield_events(events, raw_event_obj, raw_events):
                             yield item  # type: ignore[misc]
                         buffer = ""
                     elif not line and buffer:
                         data = json.loads(buffer)
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        for item in self._yield_events(events, raw_event_obj, raw_events):
+                        for item in _yield_events(events, raw_event_obj, raw_events):
                             yield item  # type: ignore[misc]
                         buffer = ""
                 if buffer:
                     data = json.loads(buffer)
                     events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                     raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                    for item in self._yield_events(events, raw_event_obj, raw_events):
+                    for item in _yield_events(events, raw_event_obj, raw_events):
                         yield item  # type: ignore[misc]
         except httpx.RequestError as e:
             raise ProviderApiError(
