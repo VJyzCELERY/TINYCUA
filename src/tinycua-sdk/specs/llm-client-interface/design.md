@@ -64,7 +64,7 @@ The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` 
 | `tinycua_sdk/agent/events.py` | Modified — Extended | Canonical event TypedDicts formalized; `RawSseEvent` TypedDict added for paired tuples |
 | `tinycua_sdk/agent/llm_model.py` | Modified — Extended | May need minor additions for provider-specific config |
 | `tinycua_sdk/core/providers.py` | Modified — Extended | Provider registry and client factory logic added |
-| `tinycua_sdk/models/response.py` | Modified — StreamEvent | May add raw event fields |
+| `tinycua_sdk/models/response.py` | No changes — usage migrated to CanonicalEvent | StreamEvent itself unchanged (raw pass-through via paired tuples); consumers migrate to CanonicalEvent |
 | `tinycua_sdk/agent/loop.py` | Modified (Phase 2) | Updated to consume new canonical event schema (`content.delta`, `content.done`, `tool_call.*`, etc.) |
 | `tinycua_sdk/providers/openai_responses/` | New (Phase 2) | OpenAI Responses API provider client + normalizer; registered as `"openai-responses"` |
 | `tinycua_sdk/providers/openai_chat/` | New (Phase 3) | OpenAI Chat Completions API provider client (future phase, ID `"openai"`) |
@@ -82,7 +82,7 @@ This is a **breaking change**. The following table documents the migration path 
 **Key points**:
 - `LanguageModel.provider` validation accepts only `"openai-responses"` (and future registered provider IDs).
 - The old `OpenAICompatibleClient` class and its httpx-based implementation are **removed** — no deprecation shim, no backward-compatibility layer.
-- Existing `StreamEvent` usage must be migrated to the canonical `CanonicalEvent` schema.
+- Existing `StreamEvent` usage should be migrated to the canonical `CanonicalEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
 
 ---
@@ -114,20 +114,36 @@ class ContentDoneEvent(CanonicalEvent):
 class ToolCallStartedEvent(CanonicalEvent):
     """New tool call initiated."""
     type: Literal["tool_call.started"]
-    id: str
+    id: str                    # Provider output item ID (correlates deltas to a single call)
+    call_id: str               # Provider tool call ID — used when submitting tool results
     name: str
 
 class ToolCallArgumentsDeltaEvent(CanonicalEvent):
     """Partial tool call arguments."""
     type: Literal["tool_call.arguments.delta"]
-    id: str
+    id: str                    # Provider output item ID (matches ToolCallStartedEvent.id)
     arguments: str
 
 class ToolCallArgumentsDoneEvent(CanonicalEvent):
-    """Tool call arguments complete."""
+    """Tool call arguments complete — execution-ready metadata included."""
     type: Literal["tool_call.arguments.done"]
-    id: str
-    arguments: str
+    id: str                    # Provider output item ID
+    call_id: str               # Provider tool call ID — used when submitting tool results
+    name: str                  # Tool name (copied from the started event for convenience)
+    arguments: str             # Final complete JSON arguments
+
+class ToolCallReadyEvent(CanonicalEvent):
+    """Tool call ready for execution — all metadata in a single event.
+
+    This is the event the Agent Loop should consume to execute a tool call.
+    It carries all necessary data (id, call_id, name, arguments) without
+    requiring the consumer to correlate state across multiple partial events.
+    """
+    type: Literal["tool_call.ready"]
+    id: str                    # Provider output item ID
+    call_id: str               # Provider tool call ID — used when submitting tool results
+    name: str                  # Tool name
+    arguments: str             # Final complete JSON arguments
 
 class CanonicalUsage(TypedDict):
     """Provider-agnostic token usage schema.
@@ -169,7 +185,7 @@ class CanonicalResponse(TypedDict):
     normalize their SDK's response into this shape.
     """
     content: str | None                    # Text content, None if only tool calls
-    tool_calls: list[dict] | None          # List of {id, call_id, name, arguments}
+    tool_calls: list[dict] | None          # List of {id, call_id, name, arguments} — full tool call metadata
     usage: CanonicalUsage | None            # Token usage — normalized to CanonicalUsage schema
     finish_reason: str | None              # "stop", "tool_calls", "length", etc.
     model: str                             # Model name that generated the response
@@ -199,11 +215,13 @@ class RawSseEvent(TypedDict):
 # Provider Registry
 # ──────────────────────────────────────────────
 
+ProviderFactory = Callable[[LanguageModel], LLMClient]
+
 @dataclass
 class ProviderInfo:
     """Registered provider metadata."""
     id: str                                    # canonical identifier, e.g. "openai-responses"
-    client_class: type[LLMClient]              # concrete client implementation
+    factory: ProviderFactory                   # factory creating a configured LLMClient from LanguageModel config
     description: str                           # human-readable
     supported_models: list[str] | None = None  # optional model filter
 ```
@@ -211,7 +229,7 @@ class ProviderInfo:
 ### Schema Changes
 
 - **`LanguageModel`**: No breaking changes. New `provider`-specific fields may be added as optional Pydantic fields (e.g., `openai_chat_params`).
-- **`StreamEvent`** (in `models/response.py`): No changes needed — raw pass-through is handled via the paired tuple API, not by embedding raw events into the canonical stream.
+- **`StreamEvent`** (in `models/response.py`): No changes — raw pass-through is handled via the paired tuple API, not by embedding raw events into the canonical stream. Consumers SHOULD migrate from `StreamEvent` to `CanonicalEvent` for new code.
 - **`events.py`**: Existing TypedDicts replaced by the canonical schema above. Old TypedDicts are removed — no backward-compat aliases are retained.
 
 ---
@@ -249,6 +267,8 @@ class LLMClient(ABC):
                         (canonical_event, raw_event) tuples. The raw slot is
                         None for synthetic canonical events that have no
                         corresponding provider event.
+                        raw_events=True requires stream=True; if stream=False,
+                        a ValueError is raised.
 
         Returns:
             CanonicalResponse when stream=False — normalized, provider-agnostic dict.
@@ -271,16 +291,37 @@ class LLMClient(ABC):
 
 ```python
 class ProviderRegistry:
-    """Registry of available LLM provider clients."""
+    """Registry of available LLM provider clients.
 
-    def register(self, provider_id: str, client_class: type[LLMClient]) -> None:
-        """Register a new provider client."""
+    Providers are registered with a factory function that creates a configured
+    client instance from a LanguageModel config. The factory receives the full
+    LanguageModel object, enabling the provider to extract API keys, base URLs,
+    timeouts, and model-specific settings.
+    """
 
-    def get_client(self, provider_id: str) -> LLMClient:
-        """Get a provider client instance by provider ID.
+    def register(
+        self,
+        provider_id: str,
+        factory: ProviderFactory,
+        metadata: ProviderInfo | None = None,
+    ) -> None:
+        """Register a new provider with its factory.
+
+        Args:
+            provider_id: Canonical provider identifier (e.g. "openai-responses").
+            factory: Callable that receives LanguageModel and returns a configured LLMClient.
+            metadata: Optional ProviderInfo with description and supported models.
+        """
+
+    def create_client(self, model_config: LanguageModel) -> LLMClient:
+        """Create a provider client instance from LanguageModel configuration.
+
+        Uses model_config.provider to select the registered factory and
+        passes the full model_config to it for provider SDK initialization
+        (API keys, base URLs, timeouts, etc.).
 
         Raises:
-            ProviderNotSupportedError: If provider_id is not registered.
+            ProviderNotSupportedError: If model_config.provider is not registered.
         """
 
     def list_providers(self) -> list[ProviderInfo]:
@@ -288,6 +329,12 @@ class ProviderRegistry:
 
     def is_supported(self, provider_id: str) -> bool:
         """Check if a provider is registered."""
+
+    def reset(self) -> None:
+        """Reset the registry — clears all registered providers.
+
+        Useful for testing to avoid test pollution from the singleton instance.
+        """
 
 # Singleton registry instance
 _provider_registry = ProviderRegistry()
@@ -301,6 +348,7 @@ _provider_registry = ProviderRegistry()
 | Missing/invalid API key | `ProviderAuthError("API key not configured")` | Wraps provider SDK auth errors |
 | Provider SDK request failure | `ProviderApiError(status_code, message)` | Wraps SDK HTTP/connection errors |
 | Invalid messages format | `ValueError("Invalid message format")` | Validated before SDK call |
+| `raw_events=True` with `stream=False` | `ValueError("raw_events=True requires stream=True")` | Validated before SDK call |
 | Streaming not supported | `ProviderApiError("Provider does not support streaming")` | Only if provider has no streaming capability |
 | SDK incompatibility | `ImportError` or `ProviderApiError` | If SDK is missing or wrong version |
 
@@ -341,7 +389,7 @@ This phase establishes the core abstractions and is **provider-agnostic** — no
 
 - [ ] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `CanonicalResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema
 - [ ] **1.2**: Refactor `LLMClient` ABC — update `chat()` return type to `CanonicalResponse` (non-streaming) and document canonical event contract in docstring; add `raw_events` parameter
-- [ ] **1.3**: Implement `ProviderRegistry` in `core/providers.py` — register, get_client, list, is_supported
+- [ ] **1.3**: Implement `ProviderRegistry` in `core/providers.py` — register with factory, create_client, list, is_supported, reset
 - [ ] **1.4**: Implement `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` exception classes in `core/exceptions.py`
 - [ ] **1.5**: Write unit tests for:
       - Canonical event schema validation (`CanonicalEvent` subclasses, `CanonicalResponse`, `RawSseEvent`)
@@ -362,7 +410,7 @@ See separate spec and design for this phase.
       - Register as `"openai-responses"` in `ProviderRegistry`
 - [ ] Write unit tests for `OpenAIResponsesClient` (mocked SDK)
 - [ ] Write integration tests for end-to-end streaming/non-streaming with mocked SDK
-- [ ] Update `pyproject.toml` dependencies — add `openai>=1.55` SDK dependency
+- [ ] Update `pyproject.toml` dependencies — add `openai>=1.55` as a core dependency (primary provider); future non-primary providers use optional extras
 - [ ] Update `tinycua_sdk/agent/loop.py` to consume new canonical event schema
 
 ### Phase 3 — OpenAI Chat Completions API Provider (Future)
@@ -399,6 +447,7 @@ See separate spec and design for this phase.
 
 6. **Decision**: `raw_events` is a `chat()` parameter, not a separate method.
    - **Reason**: Keeps the interface surface small. Raw events are opt-in and only meaningful during streaming. A separate `raw_stream()` method would duplicate the streaming setup logic.
+   - **Validation**: `raw_events=True` requires `stream=True`; calling `chat(stream=False, raw_events=True)` raises `ValueError("raw_events=True requires stream=True")`.
 
 7. **Decision**: Provider naming — `openai-responses` for Responses API, `openai` reserved for future Chat Completions API.
    - **Reason**: The current httpx-based client uses `/responses`, so its SDK-backed replacement should be explicitly named for the Responses API. The `openai` ID is reserved for Chat Completions (the standard/most common OpenAI API). This avoids ambiguity and allows both to coexist when Chat Completions support is added.
@@ -412,7 +461,7 @@ See separate spec and design for this phase.
 |------|-----------|--------|------------|
 | Provider SDK API changes break the normalizer | Medium | High | Pin SDK major versions; add integration tests that mock SDK responses; document SDK version compatibility |
 | Existing `OpenAICompatibleClient` users must migrate | High | High | Document migration path clearly in provider migration table; announce breaking change in release notes |
-| Provider SDK dependency conflicts | Low | Medium | Isolate SDKs as optional extras (`pip install tinycua-sdk[openai]`); document dependency tree |
+| Provider SDK dependency conflicts | Low | Medium | First-party provider (`openai`) is a core dependency; additional providers use optional extras (`pip install tinycua-sdk[other-provider]`); document dependency tree |
 | Raw pass-through performance overhead (double serialization) | Low | Medium | Raw events are passed by reference (dict), not re-serialized; only pay the cost when `raw_events=True` |
 | New canonical schema breaks the Agent Loop | Medium | High | Update the loop to consume new canonical event names (`content.delta`, `content.done`, `tool_call.*`); test the loop against the new schema |
 | Provider registry singleton causes test pollution | Low | Medium | Provide `reset()` method for the registry; use per-test setup/teardown in test fixtures |
