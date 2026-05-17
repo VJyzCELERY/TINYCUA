@@ -542,8 +542,8 @@ def _register_defaults() -> None:
     from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
     _provider_registry.register(
         "openai-responses",
-        lambda cfg: OpenAICompatibleClient(),
-        ProviderInfo(id="openai-responses", factory=lambda c: OpenAICompatibleClient(), description="OpenAI Responses API (Phase 1)"),
+        lambda cfg: OpenAICompatibleClient(cfg),
+        ProviderInfo(id="openai-responses", factory=lambda c: OpenAICompatibleClient(c), description="OpenAI Responses API (Phase 1)"),
     )
 
 _register_defaults()

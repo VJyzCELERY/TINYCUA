@@ -55,12 +55,12 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 ### Task C.5: Default Provider & Base URL Migration
 
 - [ ] Update `LanguageModel.provider` default from `"openai-compatible"` to `"openai-responses"` in `tinycua_sdk/agent/llm_model.py` <!-- id: 12a -->
-- [ ] Update `resolve_provider()` / `VALID_PROVIDERS` in `tinycua_sdk/core/providers.py` to accept `"openai-responses"` and reject old provider strings via `ProviderRegistry` (the `LanguageModel` validator still normalizes, but create_client() does the actual validation) <!-- id: 12b -->
+- [ ] Update `resolve_provider()` / `VALID_PROVIDERS` in `tinycua_sdk/core/providers.py` to accept `"openai-responses"` as a valid provider identifier. Provider rejection is registry-driven — `LanguageModel` normalizes without hard-coding the recognized set, and `ProviderRegistry.create_client()` rejects any unrecognized provider via `ProviderNotSupportedError` <!-- id: 12b -->
 - [ ] Update `normalize_base_url(None, "openai-responses")` to return `"https://api.openai.com/v1"` instead of the fallthrough localhost default <!-- id: 12c -->
 - [ ] Add tests:
   - [ ] `LanguageModel()` default provider resolves to `"openai-responses"` <!-- id: 12d -->
   - [ ] `normalize_base_url(None, "openai-responses")` returns OpenAI API URL <!-- id: 12e -->
-  - [ ] `LanguageModel(provider="openai")` and `LanguageModel(provider="openai-compatible")` still raise `ProviderNotSupportedError` at `create_client()` time <!-- id: 12f -->
+  - [ ] Unrecognized provider strings (e.g. `LanguageModel(provider="openai")` or `"openai-compatible"`) raise `ProviderNotSupportedError` at `ProviderRegistry.create_client()` time — rejection is registry-driven, not hard-coded in `LanguageModel` <!-- id: 12f -->
 
 ### Task D: ProviderRegistry Implementation
 

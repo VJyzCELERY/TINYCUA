@@ -189,34 +189,58 @@ async def test_raw_events_requires_stream(registry):
 async def test_openai_responses_default_registration(default_registry):
     """Given openai-responses is auto-registered in the default singleton,
     when create_client is called with provider="openai-responses", the
-    returned client is usable and returns the expected response shape.
+    returned client is correctly configured from the LanguageModel config.
 
     This test does NOT call register() — it relies on the default
     registration that happens at import time. This proves the auto-registration
-    path works, unlike a test that manually re-registers the provider."""
+    path works, unlike a test that manually re-registers the provider.
+
+    Unlike Test 6/7 which verify deterministic fake responses, this test
+    validates that the default registration preserves the configured model
+    and base URL path — the intended Phase 1 migration path."""
+    import os
 
     # Verify the provider is already registered (default registration)
     assert default_registry.is_supported("openai-responses")
 
-    model = LanguageModel(provider="openai-responses", model_name="gpt-4o")
+    # Construct a LanguageModel with an explicit model_name and base_url
+    # that mirrors the configured path a real consumer would use.
+    model = LanguageModel(
+        provider="openai-responses",
+        model_name="gpt-4o",
+        base_url=os.environ.get("TEST_OPENAI_BASE_URL", "https://api.openai.com/v1"),
+    )
     client = default_registry.create_client(model)
-    resp = await client.chat([{"role": "user", "content": "hello"}])
-    assert resp["content"] == "alpha response"
+
+    # Verify the default registration produced a configured client without
+    # manual registration. Do NOT make a live provider call — that is tested
+    # separately (see Test 6/7 for fake-provider switching tests).
+    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
+    assert isinstance(client, OpenAICompatibleClient), (
+        f"Expected OpenAICompatibleClient, got {type(client).__name__}"
+    )
+
+    # The client should be properly initialized from the model config.
+    # Verify by checking it can resolve the httpx client key without error.
+    key = client._client_key(model)
+    assert key[0] == model.base_url, f"Expected base_url {model.base_url}, got {key[0]}"
 
 
-# ── Test 6: Old provider strings raise ProviderNotSupportedError ─────────────
+# ── Test 6: Unrecognized provider strings raise ProviderNotSupportedError ─────
 
-def test_old_provider_strings_rejected(default_registry):
+def test_unrecognized_provider_strings_rejected(default_registry):
     """Given only openai-responses is registered (via default registration),
-    old provider strings ("openai", "openai-compatible") raise
-    ProviderNotSupportedError with migration guidance."""
+    any unrecognized provider strings (e.g. "openai", "openai-compatible",
+    "unknown-provider") raise ProviderNotSupportedError with migration
+    guidance listing registered providers. Rejection is registry-driven —
+    no hard-coded provider list in LanguageModel."""
 
     # openai-responses is auto-registered — no need to manually register
-    for old_provider in ("openai", "openai-compatible"):
-        model = LanguageModel(provider=old_provider, model_name="test")
+    for unrecognized in ("openai", "openai-compatible", "unknown-provider"):
+        model = LanguageModel(provider=unrecognized, model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             default_registry.create_client(model)
-        assert old_provider in str(excinfo.value)
+        assert unrecognized in str(excinfo.value)
         assert "openai-responses" in str(excinfo.value)
 ```
 
@@ -225,7 +249,7 @@ def test_old_provider_strings_rejected(default_registry):
 - [ ] **Scenario 1**: Registry resolves different provider clients from `LanguageModel.provider` and each returns the expected canonical response shape — this is the primary success criterion proving the switching mechanism works.
 - [ ] **Scenario 2**: Unsupported provider strings raise `ProviderNotSupportedError` with a clear message listing supported providers — verifies user-facing error quality.
 - [ ] **Scenario 3**: `provider="openai-responses"` is accepted through the registry and resolves a usable client without manual registration — proves the Phase 1 default registration path works.
-- [ ] **Scenario 4**: Old provider strings (`"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` with migration guidance — verifies the breaking migration contract.
+- [ ] **Scenario 4**: Unrecognized provider strings (including old strings like `"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` with migration guidance via registry-driven rejection — no hard-coded provider list in `LanguageModel`.
 - [ ] **Scenario 5**: `LanguageModel()` with no explicit provider defaults to `"openai-responses"` and resolves successfully through the registry — proves the default provider change.
 - [ ] **Edge case**: `raw_events=True` with `stream=False` raises `ValueError` — validates the cross-parameter validation contract.
 
@@ -247,7 +271,7 @@ def test_old_provider_strings_rejected(default_registry):
   - [ ] `LanguageModel().provider` returns `"openai-responses"` (changed from `"openai-compatible"`)
   - [ ] `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` (correct default for OpenAI Responses API)
   - [ ] `normalize_base_url("http://localhost:1234/v1", "openai-responses")` preserves explicit override
-  - [ ] `LanguageModel(provider="openai")` and `LanguageModel(provider="openai-compatible")` can still instantiate (the `resolve_provider()` normalization happens before registry validation), but `ProviderRegistry.create_client()` on a model with old provider strings raises `ProviderNotSupportedError`
+  - [ ] Unrecognized provider strings (e.g. `"openai"`, `"openai-compatible"`) still instantiate `LanguageModel` — the model normalizes without hard-coding the recognized set — but `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` because the provider is not registered
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest`
 
 ### Manual Verification
@@ -283,7 +307,7 @@ def test_old_provider_strings_rejected(default_registry):
 #### [MODIFY] `tinycua_sdk/core/providers.py`
 
 - **[Description of change]**: Add `ProviderFactory` type alias, `ProviderInfo` dataclass, `ProviderRegistry` class with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` methods. Add singleton instance `_provider_registry`. Keep existing `resolve_provider()` function — it remains usable during Phase 1 migration. **Phase 1 default registration**: Auto-register `"openai-responses"` → `OpenAICompatibleClient` factory in the singleton registry so that `LanguageModel(provider="openai-responses", ...)` resolves correctly via `ProviderRegistry.create_client()`. Old provider strings (`"openai"`, `"openai-compatible"`) are NOT registered — they raise `ProviderNotSupportedError` via `create_client()`.
-- **Default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"` so that `LanguageModel()` with no explicit provider resolves through the registry. The `resolve_provider()` validator in `LanguageModel` must be updated to accept `"openai-responses"` and reject old strings.
+- **Default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"` so that `LanguageModel()` with no explicit provider resolves through the registry. Provider recognition and rejection are owned by `ProviderRegistry` — `LanguageModel` normalizes provider strings without hard-coding the recognized set. Unrecognized providers are rejected at `create_client()` time via `ProviderNotSupportedError`.
 - **Default base URL for `openai-responses`**: `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` instead of the generic default (`http://localhost:1234/v1`). Add `"openai-responses"` → OpenAI default URL mapping in `normalize_base_url()`.
 - **⚠ Import cycle mitigation**: `core/providers.py` already exports `normalize_base_url` which is imported by `llm_client.py`. To prevent circular imports (`core.providers` → `agent.llm_client` → `core.providers`):
   - Add `from __future__ import annotations` to `core/providers.py` (deferred evaluation).
