@@ -8,6 +8,7 @@ abstract ``_chat_impl()``. Provider-specific subclasses implement
 
 from __future__ import annotations
 
+import contextvars
 import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
@@ -26,6 +27,7 @@ from tinycua_sdk.agent.events import (
     TokenUsage,
     ToolCallArgumentsDeltaEvent,
     ToolCallArgumentsDoneEvent,
+    ToolCallDict,
     ToolCallReadyEvent,
     ToolCallStartedEvent,
 )
@@ -37,6 +39,8 @@ if TYPE_CHECKING:
 
     from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
     from tinycua_sdk.agent.llm_model import LanguageModel
+
+_previous_response_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("_previous_response_id", default=None)
 
 
 def _yield_events(
@@ -176,7 +180,6 @@ class OpenAICompatibleClient(LLMClient):
     def __init__(self, model_config: LanguageModel) -> None:
         self._model_config = model_config
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
-        self._previous_response_id: str | None = None
 
     def _client_key(self) -> tuple[str, str]:
         api_key = self._model_config.api_key.get_secret_value()
@@ -359,7 +362,7 @@ class OpenAICompatibleClient(LLMClient):
             Canonical ``LLMResponse`` with content, tool_calls, usage.
         """
         client = self._get_client()
-        payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
+        payload = self._build_payload(messages, tools, self._model_config, _previous_response_id.get())
 
         try:
             response = await client.post("/responses", json=payload)
@@ -384,10 +387,10 @@ class OpenAICompatibleClient(LLMClient):
             ) from e
         data = response.json()
 
-        self._previous_response_id = data.get("id") or None
+        _previous_response_id.set(data.get("id") or None)
 
         content = None
-        tool_calls = None
+        tool_calls: list[ToolCallDict] | None = None
         for item in data.get("output", []):
             if item.get("type") == "message":
                 text_parts = [
@@ -400,16 +403,15 @@ class OpenAICompatibleClient(LLMClient):
                 if tool_calls is None:
                     tool_calls = []
                 tool_calls.append(
-                    {
-                        "id": item.get("id", ""),
-                        "call_id": item.get("call_id", ""),
-                        "name": item.get("name", ""),
-                        "arguments": item.get("arguments", "{}"),
-                    },
+                    ToolCallDict(
+                        id=item.get("id", ""),
+                        call_id=item.get("call_id", ""),
+                        name=item.get("name", ""),
+                        arguments=item.get("arguments", "{}"),
+                    ),
                 )
 
         usage_raw = data.get("usage")
-        from tinycua_sdk.agent.events import TokenUsage
 
         usage: TokenUsage | None = None
         if usage_raw:
@@ -453,19 +455,20 @@ class OpenAICompatibleClient(LLMClient):
             List of canonical SDK stream events.
         """
         event_type = event.get("type", "")
+        content_index = event.get("content_index", 0)
         if event_type == "response.output_text.delta":
             return [
                 ContentDeltaEvent(
                     type="content.delta",
                     delta=event.get("delta", ""),
-                    index=0,
+                    index=content_index,
                 ),
             ]
         if event_type == "response.output_text.done":
             return [
                 ContentDoneEvent(
                     type="content.done",
-                    index=0,
+                    index=content_index,
                 ),
             ]
         return []
@@ -606,20 +609,24 @@ class OpenAICompatibleClient(LLMClient):
             return [ResponseFailedEvent(type="response.failed", error=error)]
 
         if event_type == "response.usage":
-            # Handle both flat usage fields and nested usage dict.
             usage_data = event.get("usage", event)
             if not isinstance(usage_data, dict):
-                usage_data = event
-            return [
-                ResponseUsageEvent(
-                    type="response.usage",
-                    usage=TokenUsage(
-                        input_tokens=usage_data.get("input_tokens"),
-                        output_tokens=usage_data.get("output_tokens"),
-                        total_tokens=usage_data.get("total_tokens"),
+                return []
+            input_t = usage_data.get("input_tokens")
+            output_t = usage_data.get("output_tokens")
+            total_t = usage_data.get("total_tokens")
+            if any(v is not None for v in (input_t, output_t, total_t)):
+                return [
+                    ResponseUsageEvent(
+                        type="response.usage",
+                        usage=TokenUsage(
+                            input_tokens=input_t,
+                            output_tokens=output_t,
+                            total_tokens=total_t,
+                        ),
                     ),
-                ),
-            ]
+                ]
+            return []
 
         return []
 
@@ -678,6 +685,49 @@ class OpenAICompatibleClient(LLMClient):
         # raw event separately.
         return []
 
+    @staticmethod
+    async def _iter_sse_raw_events(
+        response: httpx.Response,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Parse SSE lines from an httpx streaming response into raw event dicts.
+
+        Accumulates partial JSON chunks across consecutive ``data:`` lines
+        and yields complete parsed dicts.
+
+        Args:
+            response: An active httpx streaming response.
+
+        Yields:
+            Parsed JSON dicts from SSE ``data:`` lines.
+        """
+        buffer: str = ""
+        async for line in response.aiter_lines():
+            line = line.strip()
+            if line.startswith("data:"):
+                data_chunk = line[5:].strip()
+                if data_chunk == "[DONE]":
+                    continue
+                buffer += data_chunk
+                try:
+                    data = json.loads(buffer)
+                except json.JSONDecodeError:
+                    continue
+                yield data
+                buffer = ""
+            elif not line and buffer:
+                try:
+                    data = json.loads(buffer)
+                except json.JSONDecodeError:
+                    continue
+                yield data
+                buffer = ""
+        if buffer:
+            try:
+                data = json.loads(buffer)
+            except json.JSONDecodeError:
+                return
+            yield data
+
     async def _chat_stream(
         self,
         messages: list[LLMMessage],
@@ -699,7 +749,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client()
 
-        req_payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
+        req_payload = self._build_payload(messages, tools, self._model_config, _previous_response_id.get())
         req_payload["stream"] = True
 
         try:
@@ -714,50 +764,13 @@ class OpenAICompatibleClient(LLMClient):
                 except httpx.HTTPStatusError as e:
                     raise ProviderApiError(response.status_code, str(e)) from e
 
-                buffer: str = ""
                 tool_cache: dict[str, dict[str, str]] = {}
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if line.startswith("data:"):
-                        data_chunk = line[5:].strip()
-                        if data_chunk == "[DONE]":
-                            continue
-                        if buffer:
-                            buffer += "\n" + data_chunk
-                        else:
-                            buffer = data_chunk
-                        try:
-                            data = json.loads(buffer)
-                        except json.JSONDecodeError:
-                            continue
-                        # Capture response ID from stream events for continuation state.
-                        # response.created carries the response id early; response.completed
-                        # is the fallback if created was missed.
-                        if data.get("type") in ("response.created", "response.completed"):
-                            nested = data.get("response", {})
-                            self._previous_response_id = (
-                                nested.get("id") or data.get("id") or None
-                            )
-                        events = self._normalize_responses_event(data, _tool_cache=tool_cache)
-                        raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        for item in _yield_events(events, raw_event_obj, raw_events):
-                            yield item  # type: ignore[misc]
-                        buffer = ""
-                    elif not line and buffer:
-                        try:
-                            data = json.loads(buffer)
-                        except json.JSONDecodeError:
-                            continue
-                        events = self._normalize_responses_event(data, _tool_cache=tool_cache)
-                        raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
-                        for item in _yield_events(events, raw_event_obj, raw_events):
-                            yield item  # type: ignore[misc]
-                        buffer = ""
-                if buffer:
-                    try:
-                        data = json.loads(buffer)
-                    except json.JSONDecodeError:
-                        return
+                async for data in self._iter_sse_raw_events(response):
+                    if data.get("type") in ("response.created", "response.completed"):
+                        nested = data.get("response", {})
+                        _previous_response_id.set(
+                            nested.get("id") or data.get("id") or None
+                        )
                     events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                     raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
                     for item in _yield_events(events, raw_event_obj, raw_events):

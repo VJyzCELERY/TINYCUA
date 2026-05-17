@@ -71,6 +71,15 @@ class TokenUsage(TypedDict):
     total_tokens: int | None
 
 
+class ToolCallDict(TypedDict):
+    """Typed tool call entry within an LLMResponse."""
+
+    id: str
+    call_id: str
+    name: str
+    arguments: str
+
+
 class ResponseUsageEvent(TypedDict):
     """Emitted with token usage data from the LLM."""
 
@@ -118,7 +127,7 @@ class LLMResponse(TypedDict):
     """Canonical non-streaming LLM response shape."""
 
     content: str | None
-    tool_calls: list[dict[str, Any]] | None
+    tool_calls: list[ToolCallDict] | None
     usage: TokenUsage | None
     finish_reason: str | None
     model: str | None
@@ -200,6 +209,7 @@ __all__ = [
     "TokenUsage",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
+    "ToolCallDict",
     "ToolCallReadyEvent",
     "ToolCallStartedEvent",
     "ToolResultMessage",

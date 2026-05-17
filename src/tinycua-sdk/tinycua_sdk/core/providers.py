@@ -58,7 +58,7 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
 #:     only ``OPENAI_RESPONSES`` (``"openai-responses"``) is registered by
 #:     default. Consumers that need ``"openai-compatible"`` must register
 #:     a factory explicitly.
-VALID_PROVIDERS: Final[frozenset[str]] = frozenset({OPENAI_RESPONSES})
+
 
 
 def resolve_provider(provider: str) -> str:
@@ -285,7 +285,6 @@ __all__ = [
     "OPENAI_BASE_URL",
     "OPENAI_COMPATIBLE",
     "OPENAI_RESPONSES",
-    "VALID_PROVIDERS",
     "ProviderFactory",
     "ProviderInfo",
     "ProviderRegistry",

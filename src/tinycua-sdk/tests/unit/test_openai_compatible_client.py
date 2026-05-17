@@ -14,7 +14,7 @@ import httpx
 import pytest
 
 from tinycua_sdk.agent.events import ToolResultMessage, UserMessage
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient, _previous_response_id
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
 
@@ -204,7 +204,7 @@ class TestPreviousResponseId:
         """Non-streaming chat captures response id for continuation state."""
         model = LanguageModel(model_name="gpt-4o-mini")
         client = OpenAICompatibleClient(model)
-        assert client._previous_response_id is None
+        assert _previous_response_id.get() is None
 
         fake_response_data = {
             "id": "resp_test123",
@@ -228,7 +228,7 @@ class TestPreviousResponseId:
                 tools=None,
             )
 
-        assert client._previous_response_id == "resp_test123"
+        assert _previous_response_id.get() == "resp_test123"
 
     @pytest.mark.asyncio
     async def test_non_streaming_passes_previous_id_to_next_call(self) -> None:
