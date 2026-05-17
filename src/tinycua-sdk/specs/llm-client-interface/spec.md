@@ -54,11 +54,21 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Acceptance Scenarios
 
-1. **Given** a `LanguageModel` with `provider="openai-responses"`, **When** `ProviderRegistry.create_client(model_config)` is called, the returned `LLMClient` instance's `chat()` method invokes the OpenAI Responses API provider client, normalizing the Responses API stream events into the canonical schema. The Agent Loop calls only `chat()` on the resolved client — it does not directly invoke the registry.
+#### Phase 1 — Schema, Registry, and Contract (Current Phase)
 
-2. **Given** a streaming request with `stream=True` and `raw_events=True`, **When** the async iterator is consumed, **Then** each yielded item is a `(canonical_event, raw_event)` tuple where the raw event is the provider's original SDK event object (lossless).
+1. **Given** a `LanguageModel` with a registered provider string, **When** `ProviderRegistry.create_client(model_config)` is called, **Then** a configured `LLMClient`-conforming instance is returned, ready for use.
 
-3. **Given** an unsupported provider string, **When** `LLMClient.chat()` is called, **Then** a clear error is raised indicating which providers are supported.
+2. **Given** a `LanguageModel` with a registered provider string, **When** a client is resolved via `ProviderRegistry.create_client(model_config)` and `client.chat()` is called with a simple message list, **Then** the returned response conforms to `CanonicalResponse` (non-streaming) or the async iterator yields `CanonicalEvent` items (streaming), regardless of which provider is configured.
+
+3. **Given** an unsupported provider string, **When** `ProviderRegistry.create_client(model_config)` is called, **Then** a `ProviderNotSupportedError` is raised indicating which providers are supported — the error is raised at registry resolution, not during the `chat()` call.
+
+4. **Given** a provider registered with `ProviderRegistry.register()`, **When** `ProviderRegistry.list_providers()` is called, **Then** the registered provider appears in the returned list with its metadata.
+
+#### Phase 2 — Provider SDK Integration (Future Milestone)
+
+5. **Given** a `LanguageModel` with `provider="openai-responses"`, **When** `ProviderRegistry.create_client(model_config)` is called, the returned `LLMClient` instance's `chat()` method invokes the OpenAI Responses API provider client, normalizing the Responses API stream events into the canonical schema. The Agent Loop calls only `chat()` on the resolved client — it does not directly invoke the registry.
+
+6. **Given** a streaming request with `stream=True` and `raw_events=True`, **When** the async iterator is consumed, **Then** each yielded item is a `(canonical_event, raw_event)` tuple where the raw event is the provider's original SDK event object (lossless).
 
 ### Edge Cases
 

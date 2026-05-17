@@ -64,18 +64,18 @@ The Agent Loop interacts with the LLM provider system through a universal factor
 
 1. **Universal entrypoint**: The Agent Loop calls `ProviderRegistry.create_client(model_config)` once per request. This method uses `model_config.provider` to select the correct registered provider factory, instantiates the provider client, and returns an `LLMClient`-conforming instance ready for use.
 
-2. **One method to call**: After resolving a client, the Loop calls `client.chat(messages, tools, model_config, stream, raw_events)` on the returned instance. The Loop consumes canonical events from the returned async iterator (or a `CanonicalResponse` for non-streaming). It does NOT inspect provider-specific response types.
+2. **One method to call**: After resolving a client, the Loop calls `client.chat(messages, tools, stream, raw_events)` on the returned instance. The Loop consumes canonical events from the returned async iterator (or a `CanonicalResponse` for non-streaming). It does NOT inspect provider-specific response types. The provider client uses the configuration that was bound during `create_client()` — `model_config` is not passed to `chat()` because the provider, model, API keys, and other settings are already resolved at construction time.
 
 3. **Provider selection is not the Loop's concern**: The Loop never calls `ProviderRegistry.create_client()` with hardcoded provider strings, never switches providers mid-stream, and never inspects provider identifiers to branch behavior.
 
 4. **Client lifecycle**: The Loop calls `client.close()` when the provider client is no longer needed. The `ProviderRegistry` does not manage client lifecycle — each resolved client is independent.
 
-5. **Acceptance scenario alignment**: The acceptance scenario "When `LLMClient.chat()` is called" is interpreted as calling `chat()` on the provider client instance returned by `ProviderRegistry.create_client()`. The scenario tests that the correct provider normalizer is used based on `model_config.provider`.
+5. **Acceptance scenario alignment**: Acceptance scenarios call `chat()` on the provider client instance returned by `ProviderRegistry.create_client()`. The provider client already has the correct provider normalizer bound from its construction configuration — no per-call provider selection occurs.
 
 **Design implications**:
 - The `LLMClient` ABC defines the interface that all provider clients implement.
 - The `ProviderRegistry` is the universal factory — it is NOT part of the `LLMClient` ABC.
-- Provider clients receive the full `LanguageModel` object during construction (via the factory) and extract provider-specific settings from it. They do NOT re-consult the registry.
+- **Bound-client model**: Provider clients receive the full `LanguageModel` object during construction (via the factory) and extract provider-specific settings from it (provider identity, model name, API keys, base URLs, timeouts, etc.). The `chat()` method does NOT accept a `model_config` parameter — configuration is bound once at construction time. To use a different configuration, callers resolve a new client via `ProviderRegistry.create_client()`. This avoids duplicated configuration sources and ensures provider identity cannot diverge between construction and per-request usage.
 
 ### Affected Components
 
@@ -167,46 +167,6 @@ class ToolCallReadyEvent(TypedDict):
     name: str                  # Tool name
     arguments: str             # Final complete JSON arguments
 
-# CanonicalEvent is a discriminated union of all concrete event types.
-# Consumers can narrow by checking event["type"] against a Literal value.
-CanonicalEvent: TypeAlias = (
-    ContentDeltaEvent
-    | ContentDoneEvent
-    | ToolCallStartedEvent
-    | ToolCallArgumentsDeltaEvent
-    | ToolCallArgumentsDoneEvent
-    | ToolCallReadyEvent
-    | ResponseUsageEvent
-    | ResponseCompletedEvent
-    | ResponseFailedEvent
-)
-```
-
-### Tool-Call Streaming State Machine
-
-The canonical tool-call event stream follows a normative state machine to ensure provider-normalizer implementations produce consistent events and Agent Loop consumers react only to the correct execution trigger.
-
-**Rules**:
-
-1. **Progress events (informational)**: Providers MAY emit `tool_call.started` and zero or more `tool_call.arguments.delta` events to indicate incremental progress (streaming arguments). These events carry partial metadata and are intended for progress indicators or UI updates.
-
-2. **Execution trigger**: Providers MUST emit exactly one `tool_call.ready` event per executable tool call. The `tool_call.ready` event carries all execution-ready metadata (`id`, `call_id`, `name`, `arguments`) in a single atomic event.
-
-3. **Agent Loop consumption**: The Agent Loop MUST execute tools only from `tool_call.ready` events. It MUST NOT execute tools from `tool_call.arguments.done` or from state accumulated from `tool_call.arguments.delta` events — doing so risks duplicate execution.
-
-4. **`tool_call.arguments.done` role**: The `tool_call.arguments.done` event is an informational milestone emitted before the corresponding `tool_call.ready` to signal argument collection is complete. It is NOT an execution trigger. Provider normalizers that emit `tool_call.arguments.done` MUST always emit the corresponding `tool_call.ready` immediately afterward.
-
-5. **Normalizer contract**: Each provider normalizer must emit exactly one execution trigger event (`tool_call.ready`) per executable tool call detected in the provider's raw stream. Normalizer tests MUST assert this count.
-
-**Event sequencing example**:
-```
-tool_call.started      (id="item_1", call_id="call_abc", name="get_weather")
-tool_call.arguments.delta (id="item_1", arguments='{"location": "')
-tool_call.arguments.delta (id="item_1", arguments='{"location": "Tokyo"}')
-tool_call.arguments.done  (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
-tool_call.ready           (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
-```
-
 ```python
 class CanonicalUsage(TypedDict):
     """Provider-agnostic token usage schema.
@@ -234,6 +194,44 @@ class ResponseFailedEvent(TypedDict):
     """Stream failed with error."""
     type: Literal["response.failed"]
     error: dict
+
+# CanonicalEvent is a discriminated union of all concrete event types.
+# Consumers can narrow by checking event["type"] against a Literal value.
+CanonicalEvent: TypeAlias = (
+    ContentDeltaEvent
+    | ContentDoneEvent
+    | ToolCallStartedEvent
+    | ToolCallArgumentsDeltaEvent
+    | ToolCallArgumentsDoneEvent
+    | ToolCallReadyEvent
+    | ResponseUsageEvent
+    | ResponseCompletedEvent
+    | ResponseFailedEvent
+)
+
+### Tool-Call Streaming State Machine
+
+The canonical tool-call event stream follows a normative state machine to ensure provider-normalizer implementations produce consistent events and Agent Loop consumers react only to the correct execution trigger.
+
+**Rules**:
+
+1. **Progress events (informational)**: Providers MAY emit `tool_call.started` and zero or more `tool_call.arguments.delta` events to indicate incremental progress (streaming arguments). These events carry partial metadata and are intended for progress indicators or UI updates.
+
+2. **Execution trigger**: Providers MUST emit exactly one `tool_call.ready` event per executable tool call. The `tool_call.ready` event carries all execution-ready metadata (`id`, `call_id`, `name`, `arguments`) in a single atomic event.
+
+3. **Agent Loop consumption**: The Agent Loop MUST execute tools only from `tool_call.ready` events. It MUST NOT execute tools from `tool_call.arguments.done` or from state accumulated from `tool_call.arguments.delta` events — doing so risks duplicate execution.
+
+4. **`tool_call.arguments.done` role**: The `tool_call.arguments.done` event is an informational milestone emitted before the corresponding `tool_call.ready` to signal argument collection is complete. It is NOT an execution trigger. Provider normalizers that emit `tool_call.arguments.done` MUST always emit the corresponding `tool_call.ready` immediately afterward.
+
+5. **Normalizer contract**: Each provider normalizer must emit exactly one execution trigger event (`tool_call.ready`) per executable tool call detected in the provider's raw stream. Normalizer tests MUST assert this count.
+
+**Event sequencing example**:
+```
+tool_call.started      (id="item_1", call_id="call_abc", name="get_weather")
+tool_call.arguments.delta (id="item_1", arguments='{"location": "')
+tool_call.arguments.delta (id="item_1", arguments='{"location": "Tokyo"}')
+tool_call.arguments.done  (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
+tool_call.ready           (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
 ```
 
 ```python
@@ -315,16 +313,17 @@ class LLMClient(ABC):
         self,
         messages: list[dict],
         tools: list[dict] | None,
-        model_config: LanguageModel,
         stream: bool = False,
         raw_events: bool = False,
     ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:
-        """Send a chat completion request.
+        """Send a chat completion request using the provider configuration
+        that was bound during client construction (via
+        `ProviderRegistry.create_client`). Model, API keys, base URLs, and
+        other provider settings are resolved once at construction time.
 
         Args:
             messages: List of message dicts with role and content.
             tools: Optional list of tool schemas.
-            model_config: Language model configuration.
             stream: When True, return an async iterator of canonical events.
             raw_events: When True AND stream=True, yield paired
                         (canonical_event, raw_event) tuples. The raw slot is
@@ -340,12 +339,11 @@ class LLMClient(ABC):
             stream=True, raw_events=True.
 
         Raises:
-            ProviderNotSupportedError: If the configured provider is not
-                registered.
             ProviderAuthError: If credentials are missing or invalid.
             ProviderApiError: For provider SDK-level errors.
         """
 
+    @abstractmethod
     async def close(self) -> None:
         """Close and release provider SDK resources (HTTP sessions, etc.)."""
 ```
