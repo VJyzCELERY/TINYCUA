@@ -214,6 +214,7 @@ class BaseLoop:
                     break
                 if tool_call_count >= agent.policy.max_tool_calls:
                     finish_reason = "max_tool_calls"
+                    skip_complete = False
                     break
                 content_parts: list[str] = []
                 tool_calls_buffer: dict[str, Any] = {}
@@ -241,6 +242,7 @@ class BaseLoop:
                     )
                     if max_reached:
                         finish_reason = "max_tool_calls"
+                        skip_complete = False
                         break
                 else:
                     working.append({"role": "assistant", "content": combined})

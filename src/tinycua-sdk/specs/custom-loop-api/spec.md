@@ -33,7 +33,6 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 ### Non-Goals
 
 - Adding a large surface of new standalone module-level API functions
-- Changing the runtime behavior of `BaseLoop.run()` or `Agent.run()` for existing callers
 - Removing the `BaseLoop` class
 - Extracting permission/approval logic out of `ToolExecutor`
 - Performance optimization
@@ -108,6 +107,7 @@ Make `BaseLoop` a clean, readable base class that custom loops can easily build 
 
 - **FR-011**: All existing tests MUST pass after migrating private-helper references to the new public `BaseLoop` helper API.
 - **FR-012**: Custom loops that only rely on the supported `BaseLoop.run(...)` subclassing contract MUST continue to work; private `_` helper access is not preserved because the SDK has not been publicly released.
+- **FR-013**: `Agent.run(stream=True)` MUST yield SDK-normalized stream events (e.g., `tool_call.started`, `tool_call.arguments.delta`, `tool_call.arguments.done`) instead of raw provider SSE events. This is an intentional runtime behavior change to provide a stable, provider-agnostic event contract.
 
 ---
 
