@@ -10,7 +10,7 @@
 
 This design introduces a unified **Agent + LLM Client** architecture for the TINYCUA SDK. Instead of rebuilding HTTP-level clients for each provider, we delegate to each provider's official Python SDK (e.g., `openai` PyPI) and wrap them behind a common `LLMClient` abstract base class. Each provider client includes an **SSE normalizer** that converts provider-specific streaming events into a canonical format consumed by the Agent Loop, while simultaneously exposing a **raw SSE pass-through** for consumers that need provider-native events. A **provider registry** maps configuration-driven provider identifiers to concrete client implementations, enabling provider switching via `LanguageModel.provider` alone.
 
-The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) will be **removed in Phase 2** and replaced by a properly normalized **OpenAI Responses API** provider with ID `openai-responses`, wrapping the `openai` PyPI SDK's Responses API. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) will no longer be supported after Phase 2. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
+The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is **removed in Phase 1** and replaced by a properly normalized **OpenAI Responses API** provider with ID `openai-responses`, wrapping the `openai` PyPI SDK's Responses API. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
 
 ---
 
@@ -101,8 +101,8 @@ This is a **breaking change**. The following table documents the migration path 
 | `"openai-responses"` | `"openai-responses"` | No change (new canonical name). |
 
 **Key points**:
-- `LanguageModel.provider` validation in Phase 1 accepts the existing provider strings (`"openai"`, `"openai-compatible"`) alongside `"openai-responses"` for backward compatibility. In Phase 2, validation will accept only registered provider IDs.
-- The old `OpenAICompatibleClient` class and its httpx-based implementation will be **removed in Phase 2** — no deprecation shim, no backward-compatibility layer once removed.
+- `LanguageModel.provider` validation in Phase 1 accepts only registered provider IDs. Old provider strings (`"openai"`, `"openai-compatible"`) are not valid — users must migrate to `"openai-responses"`.
+- The old `OpenAICompatibleClient` class and its httpx-based implementation are **removed in Phase 1** — no deprecation shim, no backward-compatibility layer.
 - Existing `StreamEvent` usage should be migrated to the canonical `CanonicalEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
 
@@ -210,6 +210,8 @@ CanonicalEvent: TypeAlias = (
     | ResponseCompletedEvent
     | ResponseFailedEvent
 )
+
+```
 
 ### Canonical Input Types (Request Contract)
 
@@ -407,7 +409,6 @@ class LLMClient(ABC):
     normalizers and event consumers (Agent Loop, custom loops).
     """
 
-    @abstractmethod
     async def chat(
         self,
         messages: list[CanonicalMessage],
@@ -419,6 +420,9 @@ class LLMClient(ABC):
         that was bound during client construction (via
         `ProviderRegistry.create_client`). Model, API keys, base URLs, and
         other provider settings are resolved once at construction time.
+
+        This is a concrete method that performs shared validation before
+        delegating to the provider-specific ``_chat_impl()``.
 
         Args:
             messages: List of canonical messages (system, user, assistant,
@@ -440,8 +444,37 @@ class LLMClient(ABC):
             stream=True, raw_events=True.
 
         Raises:
+            ValueError: If raw_events=True and stream=False.
             ProviderAuthError: If credentials are missing or invalid.
             ProviderApiError: For provider SDK-level errors.
+        """
+        if raw_events and not stream:
+            raise ValueError("raw_events=True requires stream=True")
+        return await self._chat_impl(messages, tools, stream, raw_events)
+
+    @abstractmethod
+    async def _chat_impl(
+        self,
+        messages: list[CanonicalMessage],
+        tools: list[CanonicalToolSpec] | None,
+        stream: bool = False,
+        raw_events: bool = False,
+    ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:
+        """Provider-specific chat implementation.
+
+        Subclasses must implement this method with their provider SDK's
+        request/response logic. The method receives the same parameters
+        as ``chat()`` after shared validation.
+
+        Args:
+            messages: List of canonical messages to translate to provider format.
+            tools: Optional list of canonical tool specifications.
+            stream: When True, return an async iterator of canonical events.
+            raw_events: When True AND stream=True, yield paired
+                        (canonical_event, raw_event) tuples.
+
+        Returns:
+            Same return type as ``chat()`` — see ``chat()`` for details.
         """
 
     @abstractmethod

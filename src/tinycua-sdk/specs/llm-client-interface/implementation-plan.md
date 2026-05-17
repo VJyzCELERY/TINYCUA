@@ -187,7 +187,7 @@ async def test_raw_events_requires_stream(registry):
 ### Manual Verification
 
 - [ ] Run type checker on the new TypedDicts: `cd src/tinycua-sdk && uv run mypy tinycua_sdk/agent/events.py`
-- [ ] Verify all old event exports in `agent/__init__.py` remain functional (old TypedDicts preserved until Phase 2 removal)
+- [ ] Verify old event exports are removed from `agent/__init__.py` (consumers must migrate to new canonical types)
 
 ### Performance Considerations
 
@@ -199,13 +199,13 @@ async def test_raw_events_requires_stream(registry):
 
 #### [MODIFY] `tinycua_sdk/agent/events.py`
 
-- **[Description of change]**: Add new canonical event TypedDicts alongside existing ones. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `CanonicalUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Keep old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) for backward compatibility — they will be removed in Phase 2. Add `CanonicalEvent` union type alias, `CanonicalResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`).
+- **[Description of change]**: Add new canonical event TypedDicts replacing existing ones. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `CanonicalUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Remove old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to the new canonical types. Add `CanonicalEvent` union type alias, `CanonicalResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`).
 - **[Rationale]**: The spec requires a formalized provider-agnostic canonical schema. Existing TypedDicts are a mix of normalized and raw provider events with overlapping semantics.
 
 #### [MODIFY] `tinycua_sdk/agent/__init__.py`
 
-- **[Description of change]**: Add new canonical event types and canonical input type exports to `__all__`. Keep existing TypedDict exports for backward compatibility (old exports will be removed in Phase 2).
-- **[Rationale]**: Public API must expose the new schema while keeping existing imports working for Phase 1 backward compatibility.
+- **[Description of change]**: Add new canonical event types and canonical input type exports to `__all__`. Replace existing TypedDict exports with the new canonical types.
+- **[Rationale]**: Public API must expose the new schema. This is a breaking change — consumers must update imports to use the new canonical types.
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
@@ -231,8 +231,8 @@ async def test_raw_events_requires_stream(registry):
 
 #### [NEW] update exports in `tinycua_sdk/agent/__init__.py`
 
-- **[Description of change]**: Add `CanonicalEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `CanonicalResponse`, `CanonicalMessage`, `CanonicalToolSpec`, `CanonicalUsage`, `RawSseEvent` to `__all__`. Keep existing event type exports for backward compatibility (old exports will be removed in Phase 2).
-- **[Rationale]**: Public API must expose new canonical types while maintaining Phase 1 backward compatibility for existing imports.
+- **[Description of change]**: Add `CanonicalEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `CanonicalResponse`, `CanonicalMessage`, `CanonicalToolSpec`, `CanonicalUsage`, `RawSseEvent` to `__all__`. Replace existing event type exports with the new canonical types.
+- **[Rationale]**: Public API must expose the new canonical types. This is a breaking change — consumers must update imports.
 
 ### Tests
 
@@ -346,7 +346,7 @@ ProviderApiError(status_code, message)
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | This is an intentional breaking change — `LLMClient` ABC is refactored in-place. Existing subclasses must be updated to implement `_chat_impl(messages, tools, stream, raw_events)`. No backward-compatibility shim is provided. |
-| Old event TypedDict removal (deferred to Phase 2) breaks existing consumers | High | Old TypedDicts are NOT removed in Phase 1 — they coexist with new canonical types. Phase 2 migration guide will document the removal. |
+| Old event TypedDict removal breaks existing consumers | High | This is an intentional breaking change — old TypedDicts are removed in Phase 1. Consumers must migrate to new canonical types. |
 | ProviderRegistry singleton causes test pollution | Medium | Provide `reset()` method; use `autouse` fixture in tests to reset between runs. |
 
 ---

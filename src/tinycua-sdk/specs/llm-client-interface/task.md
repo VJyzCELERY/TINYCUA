@@ -27,8 +27,8 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] Add `CanonicalResponse` TypedDict
   - [ ] Add `RawSseEvent` TypedDict
   - [ ] Add canonical input types: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`
-  - [ ] Keep old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) for backward compatibility (removal deferred to Phase 2)
-  - [ ] Update `__all__` in `events.py` with new types; keep existing exports
+  - [ ] Remove old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to new canonical types
+  - [ ] Update `__all__` in `events.py` with new types only
 - [ ] Update `tinycua_sdk/agent/__init__.py` exports: add new types alongside existing ones <!-- id: 9 -->
 
 ### Task C: Refactor `LLMClient` ABC
