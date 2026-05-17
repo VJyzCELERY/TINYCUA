@@ -558,7 +558,7 @@ class TestBaseLoopRunStream:
 
     @pytest.mark.asyncio
     async def test_run_stream_with_tool_calls(self):
-        """Tool calls execute and stream resumes with raw events."""
+        """Tool calls execute and stream resumes with normalized events."""
         loop = BaseLoop(max_iterations=5)
         agent = Agent(llm_model=LanguageModel())
 
@@ -574,13 +574,14 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1",
-                        "name": "get_time",
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
                         "arguments": "{}",
                     }
                 else:
@@ -656,18 +657,19 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_weather"},
-                    }
-                    yield {
-                        "type": "response.function_call_arguments.delta",
-                        "item_id": "call_1",
-                        "delta": '{"cit',
-                    }
-                    yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1",
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
                         "name": "get_weather",
+                    }
+                    yield {
+                        "type": "tool_call.arguments.delta",
+                        "id": "call_1",
+                        "arguments": '{"cit',
+                    }
+                    yield {
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
                         "arguments": '{"city": "Tokyo"}',
                     }
                 else:
@@ -699,8 +701,7 @@ class TestBaseLoopRunStream:
 
     @pytest.mark.asyncio
     async def test_run_stream_accumulates_flow2_tool_call_args(self):
-        """Flow 2: output_item.added + function_call_arguments.delta/done
-        are accumulated and tool is executed correctly."""
+        """Normalized tool call events are accumulated and tool is executed correctly."""
         loop = BaseLoop(max_iterations=5)
         agent = Agent(llm_model=LanguageModel())
 
@@ -719,22 +720,19 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {
-                            "type": "function_call",
-                            "id": "fc_1",
-                            "call_id": "call_1",
-                            "name": "get_weather",
-                        },
+                        "type": "tool_call.started",
+                        "id": "fc_1",
+                        "call_id": "call_1",
+                        "name": "get_weather",
                     }
                     yield {
-                        "type": "response.function_call_arguments.delta",
-                        "item_id": "fc_1",
-                        "delta": '{"cit',
+                        "type": "tool_call.arguments.delta",
+                        "id": "fc_1",
+                        "arguments": '{"cit',
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "fc_1",
+                        "type": "tool_call.arguments.done",
+                        "id": "fc_1",
                         "arguments": '{"city": "Tokyo"}',
                     }
                 else:
@@ -773,13 +771,14 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "response.output_item.added",
-                    "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "dummy_tool"},
+                    "type": "tool_call.started",
+                    "id": "call_1",
+                    "call_id": "call_1",
+                    "name": "dummy_tool",
                 }
                 yield {
-                    "type": "response.function_call_arguments.done",
-                    "item_id": "call_1",
-                    "name": "dummy_tool",
+                    "type": "tool_call.arguments.done",
+                    "id": "call_1",
                     "arguments": "{}",
                 }
 
@@ -883,18 +882,14 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {
-                            "type": "function_call",
-                            "id": "call_1",
-                            "call_id": "call_1",
-                            "name": "get_time",
-                        },
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1",
-                        "name": "get_time",
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
                         "arguments": "{}",
                     }
                     yield {
@@ -947,18 +942,14 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {
-                            "type": "function_call",
-                            "id": "call_1",
-                            "call_id": "call_1",
-                            "name": "get_time",
-                        },
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1",
-                        "name": "get_time",
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
                         "arguments": "{}",
                     }
                     yield {
@@ -1128,12 +1119,15 @@ class TestBaseLoopRunStreamInProgress:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "dummy_tool"},
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "dummy_tool",
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1", "name": "dummy_tool", "arguments": "{}",
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
+                        "arguments": "{}",
                     }
                 else:
                     yield {"type": "response.output_text.delta", "delta": "Done.", "item_id": "2"}

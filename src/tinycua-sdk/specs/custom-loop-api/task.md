@@ -39,7 +39,7 @@ Implementation tasks for the Custom Loop Creation API Simplification feature. Ch
 - [x] Create `process_stream_iteration()` async generator method <!-- id: 8 -->
   - [x] Combine `_yield_first_chunk_events` + `_yield_stream_body_events` logic into single public method
   - [x] Signature: `process_stream_iteration(llm_stream, agent, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids) -> AsyncIterator[dict]`
-  - [x] Yields raw SSE events plus synthetic lifecycle events (`response.created`, `response.in_progress`, `response.cancelled`, etc.)
+  - [x] Yields SDK-normalized stream events plus synthetic lifecycle events (`response.created`, `response.in_progress`, `response.cancelled`, etc.)
   - [x] No `_IterStreamState` dependency — use local variables
 - [x] Create `async process_stream_tool_calls()` method <!-- id: 9 -->
   - [x] Cleaned-up version of `_execute_tools_stream()`

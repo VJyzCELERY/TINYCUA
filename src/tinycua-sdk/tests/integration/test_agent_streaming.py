@@ -2,7 +2,7 @@
 
 Covers 3 success criteria:
   1. stream=False Returns String
-  2. stream=True Yields Raw SSE Events
+  2. stream=True Yields SDK-Normalized Stream Events
   3. stream=True with tool calls accumulates and resumes
 """
 
@@ -31,9 +31,9 @@ def streaming_agent():
 
 
 TOOL_EVENT_TYPES = frozenset({
-    "response.function_call_arguments.delta",
-    "response.function_call_arguments.done",
-    "response.output_item.added",
+    "tool_call.arguments.delta",
+    "tool_call.arguments.done",
+    "tool_call.started",
 })
 
 
@@ -56,10 +56,9 @@ async def _can_call_tools(agent: Agent, retries: int = 2) -> bool:
             events: list[dict] = [e async for e in stream]
             for e in events:
                 if e.get("type") in TOOL_EVENT_TYPES:
-                    if e["type"] == "response.output_item.added":
-                        item = e.get("item", {})
-                        if item.get("type") != "function_call":
-                            continue
+                    if e["type"] == "tool_call.started":
+                        # Already normalized; no item nesting to check
+                        pass
                     return True
         except (httpx.ConnectError, httpx.TimeoutException, asyncio.TimeoutError):
             if attempt < retries:
@@ -87,7 +86,7 @@ async def test_stream_off_returns_string(streaming_agent):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_stream_on_yields_events(streaming_agent):
-    """stream=True yields raw SSE events."""
+    """stream=True yields SDK-normalized stream events."""
     stream: AsyncIterator[dict] = await streaming_agent.run(
         "Count to 3.", stream=True
     )
@@ -122,10 +121,9 @@ async def test_stream_with_tool_calls(streaming_agent):
     tool_call_events = [
         e
         for e in events
-        if e.get("type") in ("response.function_call_arguments.delta",
-                             "response.function_call_arguments.done")
-        or (e.get("type") == "response.output_item.added"
-            and e.get("item", {}).get("type") == "function_call")
+        if e.get("type") in ("tool_call.arguments.delta",
+                             "tool_call.arguments.done")
+        or e.get("type") == "tool_call.started"
     ]
     assert len(tool_call_events) > 0, (
         "Expected tool call events in the stream; "
@@ -134,10 +132,9 @@ async def test_stream_with_tool_calls(streaming_agent):
 
     tool_event_indices = {
         i for i, e in enumerate(events)
-        if e.get("type") in ("response.function_call_arguments.delta",
-                             "response.function_call_arguments.done")
-        or (e.get("type") == "response.output_item.added"
-            and e.get("item", {}).get("type") == "function_call")
+        if e.get("type") in ("tool_call.arguments.delta",
+                             "tool_call.arguments.done")
+        or e.get("type") == "tool_call.started"
     }
     if tool_event_indices:
         last_tool_idx = max(tool_event_indices)

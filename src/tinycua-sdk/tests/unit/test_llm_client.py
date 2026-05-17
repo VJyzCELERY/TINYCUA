@@ -388,7 +388,7 @@ class TestOpenAICompatibleClient:
 
     @pytest.mark.asyncio
     async def test_chat_stream_parses_function_call_arguments(self):
-        """SSE parsing yields function_call_arguments.delta/.done events."""
+        """SSE parsing yields normalized tool_call.arguments events."""
         client = OpenAICompatibleClient()
 
         fake_sse_lines = [
@@ -417,14 +417,13 @@ class TestOpenAICompatibleClient:
 
         assert len(chunks) == 2
         assert chunks[0] == {
-            "type": "response.function_call_arguments.delta",
-            "item_id": "call_1",
-            "delta": '{"city": "Tokyo"}',
+            "type": "tool_call.arguments.delta",
+            "id": "call_1",
+            "arguments": '{"city": "Tokyo"}',
         }
         assert chunks[1] == {
-            "type": "response.function_call_arguments.done",
-            "item_id": "call_1",
-            "name": "get_weather",
+            "type": "tool_call.arguments.done",
+            "id": "call_1",
             "arguments": '{"city": "Tokyo"}',
         }
 

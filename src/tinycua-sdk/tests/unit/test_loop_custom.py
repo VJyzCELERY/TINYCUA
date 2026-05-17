@@ -450,13 +450,14 @@ class TestCustomPublicHelpers:
                           override_instructions=None, stream=False):
                 async def fake_llm_stream():
                     yield {
-                        "type": "response.output_item.added",
-                        "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+                        "type": "tool_call.started",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                     }
                     yield {
-                        "type": "response.function_call_arguments.done",
-                        "item_id": "call_1",
-                        "name": "get_time",
+                        "type": "tool_call.arguments.done",
+                        "id": "call_1",
                         "arguments": "{}",
                     }
 

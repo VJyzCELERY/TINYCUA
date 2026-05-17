@@ -159,7 +159,7 @@ class BaseLoop:
             messages: List of message dicts.
             tools: List of available tools.
             override_instructions: Optional instructions override.
-            stream: When True, returns an async iterator of raw SSE events.
+            stream: When True, returns an async iterator of SDK-normalized stream events.
 
         Returns:
             Final response string when stream=False, or an async iterator
@@ -203,11 +203,14 @@ class BaseLoop:
         usage_settled_ids: set[str] = set()
         finish_reason = "completed"
         skip_complete = False
+        created_emitted = False
         try:
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
                     yield {"type": "response.created"}
+                    created_emitted = True
                     yield {"type": "response.cancelled"}
+                    skip_complete = True
                     break
                 if tool_call_count >= agent.policy.max_tool_calls:
                     finish_reason = "max_tool_calls"
@@ -221,6 +224,8 @@ class BaseLoop:
                     llm_stream, agent, content_parts, tool_calls_buffer,
                     cumulative_usage, usage_settled_ids,
                 ):
+                    if event["type"] == "response.created":
+                        created_emitted = True
                     if event["type"] == "response.completed":
                         skip_complete = True
                     elif event["type"] in ("response.failed", "error", "response.cancelled"):
@@ -243,9 +248,10 @@ class BaseLoop:
             else:
                 finish_reason = "max_iterations"
         except asyncio.CancelledError:
-            yield {"type": "response.created"}
+            if not created_emitted:
+                yield {"type": "response.created"}
             yield {"type": "response.cancelled"}
-            return
+            skip_complete = True
         except Exception as e:
             yield {"type": "response.failed", "error": {"message": str(e)}}
             yield {"type": "error", "error": {"message": str(e)}}
@@ -268,7 +274,7 @@ class BaseLoop:
             tools: List of available tools.
 
         Returns:
-            An async iterator of raw SSE event dicts.
+            An async iterator of SDK-normalized stream event dicts.
 
         Raises:
             TypeError: If the LLM does not return an async iterator.
@@ -305,7 +311,7 @@ class BaseLoop:
             usage_settled_ids: Set of response IDs whose usage has been counted.
 
         Yields:
-            Raw SSE events and synthetic lifecycle events.
+            SDK-normalized stream events and synthetic lifecycle events.
         """
         provider_failed = False
         in_progress_emitted = False
@@ -481,7 +487,7 @@ class BaseLoop:
         """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
 
         Args:
-            chunk: Raw SSE event dict from the LLM stream.
+            chunk: SDK-normalized or raw stream event dict from the LLM.
             content_parts: List of text delta strings (appended in place).
             tool_calls_buffer: Dict of tool call index to accumulated data.
             cumulative_usage: Dict of cumulative token counts (accumulated in place).
@@ -490,9 +496,8 @@ class BaseLoop:
         chunk_type = chunk.get("type", "")
         if chunk_type == "response.output_text.delta":
             content_parts.append(chunk.get("delta", ""))
-        elif chunk_type in ("response.tool_call.delta", "response.output_item.added",
-                            "response.function_call_arguments.delta",
-                            "response.function_call_arguments.done"):
+        elif chunk_type in ("response.tool_call.delta", "tool_call.started",
+                            "tool_call.arguments.delta", "tool_call.arguments.done"):
             _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
         elif chunk_type == "response.completed":
             response_data = chunk.get("response", {})
@@ -588,7 +593,7 @@ def _accumulate_tool_chunk(
     """Accumulate tool call data from a stream chunk into the buffer.
 
     Args:
-        chunk: Raw SSE event dict from the LLM stream.
+        chunk: SDK-normalized or raw stream event dict from the LLM.
         chunk_type: The type of the chunk event.
         tool_calls_buffer: Dict of tool call key to accumulated data (mutated in place).
     """
@@ -608,23 +613,21 @@ def _accumulate_tool_chunk(
             if chunk.get("name"):
                 buf["name"] = chunk["name"]
             buf["arguments"] += chunk.get("arguments", "")
-    elif chunk_type == "response.output_item.added":
-        item = chunk.get("item", {})
-        if item.get("type") == "function_call":
-            item_id = item.get("id", "")
-            if item_id:
-                tool_calls_buffer[item_id] = {
-                    "id": item_id,
-                    "call_id": item.get("call_id", ""),
-                    "name": item.get("name", ""),
-                    "arguments": "",
-                }
-    elif chunk_type == "response.function_call_arguments.delta":
-        item_id = chunk.get("item_id", "")
+    elif chunk_type == "tool_call.started":
+        item_id = chunk.get("id", "")
+        if item_id:
+            tool_calls_buffer[item_id] = {
+                "id": item_id,
+                "call_id": chunk.get("call_id", ""),
+                "name": chunk.get("name", ""),
+                "arguments": "",
+            }
+    elif chunk_type == "tool_call.arguments.delta":
+        item_id = chunk.get("id", "")
         if item_id and item_id in tool_calls_buffer:
-            tool_calls_buffer[item_id]["arguments"] += chunk.get("delta", "")
-    elif chunk_type == "response.function_call_arguments.done":
-        item_id = chunk.get("item_id", "")
+            tool_calls_buffer[item_id]["arguments"] += chunk.get("arguments", "")
+    elif chunk_type == "tool_call.arguments.done":
+        item_id = chunk.get("id", "")
         if item_id and item_id in tool_calls_buffer:
             tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")
 

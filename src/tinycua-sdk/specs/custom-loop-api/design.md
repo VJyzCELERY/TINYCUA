@@ -83,7 +83,7 @@ class MyLoop(BaseLoop):
 
 ### `process_stream_iteration(llm_stream, agent, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)`
 
-An async generator that processes a full LLM stream iteration. Combines the current two-phase logic (`_yield_first_chunk_events` + `_yield_stream_body_events`) into a single public method. Yields raw SSE events plus synthetic lifecycle events (`response.created`, `response.in_progress`, `response.cancelled`). Returns cancellation/provider status via yielded events rather than a shared state object.
+An async generator that processes a full LLM stream iteration. Combines the current two-phase logic (`_yield_first_chunk_events` + `_yield_stream_body_events`) into a single public method. Yields SDK-normalized stream events plus synthetic lifecycle events (`response.created`, `response.in_progress`, `response.cancelled`). Returns cancellation/provider status via yielded events rather than a shared state object.
 
 Custom streaming loops use this instead of reimplementing lifecycle handling:
 

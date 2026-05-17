@@ -356,7 +356,7 @@ async def test_custom_streaming_loop_uses_public_helpers():
 - **[Rename to public]**: `_build_system_message` → `build_system_message` — no signature change, all internal references updated
 - **[Rename to public]**: `_last_assistant_content` → `last_assistant_content` — static method, pure function
 - **[NEW]**: `async process_tool_calls(assistant_content="")` — extracted from inline loop in `_run_sync()`, handles tool call iteration, JSON parsing, tool lookup, `ToolExecutor.execute()`, cancellation checks, and message appending. Accepts `assistant_content` to prepend an assistant message before `function_call` / `function_call_output` messages, ensuring correct message ordering. Returns `(updated_tool_call_count, max_tool_calls_reached)`
-- **[NEW]**: `process_stream_iteration()` — async generator combining `_yield_first_chunk_events` + `_yield_stream_body_events` into a single public method. Yields raw SSE events plus synthetic lifecycle events. Returns cancellation/provider status via yielded events
+- **[NEW]**: `process_stream_iteration()` — async generator combining `_yield_first_chunk_events` + `_yield_stream_body_events` into a single public method. Yields SDK-normalized stream events plus synthetic lifecycle events. Returns cancellation/provider status via yielded events
 - **[NEW]**: `async process_stream_tool_calls()` — cleaned-up version of `_execute_tools_stream()`, returns `(tool_call_count, max_tool_calls_reached)` instead of tuple with internal state
 - **[DELETE]**: `_IterStreamState` dataclass — no longer needed
 - **[DELETE]**: `_yield_first_chunk_events()` — replaced by `process_stream_iteration()`
