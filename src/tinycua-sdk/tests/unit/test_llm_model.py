@@ -11,7 +11,7 @@ class TestLanguageModel:
         from tinycua_sdk import LanguageModel
 
         llm = LanguageModel()
-        assert llm.provider == "openai-compatible"
+        assert llm.provider == "openai-responses"
         assert llm.model_name == "gpt-4o-mini"
         assert llm.max_context == 128_000
         assert llm.temperature == 1.0

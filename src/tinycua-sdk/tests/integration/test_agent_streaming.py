@@ -22,7 +22,7 @@ def streaming_agent():
     return Agent(
         name="streaming_test",
         llm_model=LanguageModel(
-            provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+            provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
             model_name=os.environ.get("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
             base_url=os.environ.get("TINYCUA_BASE_URL", "http://localhost:1234/v1"),
             api_key=os.environ.get("LLM_API_KEY", "dummy"),

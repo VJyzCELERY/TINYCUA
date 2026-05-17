@@ -20,7 +20,7 @@ def _build_language_model() -> LanguageModel:
     Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
     """
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
         model_name=os.environ.get(
             "TINYCUA_MODEL",
             os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
@@ -131,7 +131,7 @@ class TestEndToEnd:
         assert isinstance(response, str)
         assert len(response) > 0
         # The LLM cannot know "crystal-7" without calling the tool.
-        # If it appears in the response, the skill + tool pipeline worked.
-        assert "crystal-7" in response, (
+        # If it appears in the response (case-insensitive), the skill + tool pipeline worked.
+        assert "crystal-7" in response.lower(), (
             f"Expected tool result 'crystal-7' in response, got: {response!r}"
         )

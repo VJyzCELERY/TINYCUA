@@ -3,18 +3,25 @@
 from tinycua_sdk.agent.agent import Agent
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.events import (
-    ErrorEvent,
-    ResponseCancelledEvent,
+    AssistantMessage,
+    ContentDeltaEvent,
+    ContentDoneEvent,
+    LLMEvent,
+    LLMMessage,
+    LLMResponse,
+    LLMToolSpec,
+    RawSseEvent,
     ResponseCompletedEvent,
-    ResponseCreatedEvent,
     ResponseFailedEvent,
-    ResponseInProgressEvent,
-    ResponseOutputTextDeltaEvent,
-    ResponseToolCallDeltaEvent,
     ResponseUsageEvent,
+    SystemMessage,
+    TokenUsage,
     ToolCallArgumentsDeltaEvent,
     ToolCallArgumentsDoneEvent,
+    ToolCallReadyEvent,
     ToolCallStartedEvent,
+    ToolResultMessage,
+    UserMessage,
 )
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
@@ -30,16 +37,28 @@ __all__ = [
     "LanguageModel",
     "LLMClient",
     "OpenAICompatibleClient",
-    "ErrorEvent",
-    "ResponseCancelledEvent",
-    "ResponseCompletedEvent",
-    "ResponseCreatedEvent",
-    "ResponseFailedEvent",
-    "ResponseInProgressEvent",
-    "ResponseOutputTextDeltaEvent",
-    "ResponseToolCallDeltaEvent",
-    "ResponseUsageEvent",
+    # Canonical SSE Events
+    "ContentDeltaEvent",
+    "ContentDoneEvent",
+    "ToolCallStartedEvent",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
-    "ToolCallStartedEvent",
+    "ToolCallReadyEvent",
+    "TokenUsage",
+    "ResponseUsageEvent",
+    "ResponseCompletedEvent",
+    "ResponseFailedEvent",
+    # Union type
+    "LLMEvent",
+    # Non-streaming response
+    "LLMResponse",
+    # Raw SSE event
+    "RawSseEvent",
+    # Canonical Input Types
+    "SystemMessage",
+    "UserMessage",
+    "AssistantMessage",
+    "ToolResultMessage",
+    "LLMMessage",
+    "LLMToolSpec",
 ]

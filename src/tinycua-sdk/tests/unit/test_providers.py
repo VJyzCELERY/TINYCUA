@@ -63,10 +63,10 @@ class TestBaseUrlNormalization:
 class TestProviderDefaults:
     """Tests for default provider configuration."""
 
-    def test_default_provider_is_openai_compatible(self):
-        """Default provider should be openai-compatible."""
+    def test_default_provider_is_openai_responses(self):
+        """Default provider should be openai-responses (from LanguageModel default)."""
         config = AgentConfig(name="test", llm_model=LanguageModel())
-        assert config.llm_model.provider == "openai-compatible"
+        assert config.llm_model.provider == "openai-responses"
 
     def test_provider_can_be_changed(self):
         """Provider can be changed to another valid provider."""

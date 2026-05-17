@@ -6,11 +6,13 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient
+from tinycua_sdk.core.providers import get_provider_registry
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
+    from tinycua_sdk.agent.events import LLMEvent, LLMMessage, LLMResponse
     from tinycua_sdk.agent.llm_model import LanguageModel
     from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
@@ -91,34 +93,34 @@ class AgentExecutor:
 
     def _get_llm_client(self) -> LLMClient:
         if self._llm_client is None:
-            self._llm_client = OpenAICompatibleClient()
+            self._llm_client = get_provider_registry().create_client(self.config.llm_model)
         return self._llm_client
 
     async def _call_llm(
         self,
-        messages: list[dict],
+        messages: list[LLMMessage],
         tools: list[Tool] | None = None,
         stream: bool = False,
-        llm_model: LanguageModel | None = None,
-    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+    ) -> LLMResponse | AsyncIterator[LLMEvent]:
         """Call the LLM with messages and optional tools.
 
+        Configuration is bound at client construction via
+        ``self.config.llm_model`` — different configurations require
+        creating a new client through the registry.
+
         Args:
-            messages: List of message dicts.
+            messages: Canonical message list.
             tools: Optional list of Tool instances.
-            stream: When True, return an async iterator of SSE chunk events.
-            llm_model: Optional LanguageModel override. When provided, use this
-                instead of ``self.config.llm_model`` so custom loops can pass a
-                ``model_copy()`` override without calling the LLM client directly.
+            stream: When True, return an async iterator of canonical stream events.
 
         Returns:
-            Normalized response dict or async iterator of event dicts.
+            ``LLMResponse`` when stream=False, or ``AsyncIterator[LLMEvent]``
+            when streaming.
         """
         client = self._get_llm_client()
         tool_schemas = [t.to_config() for t in tools] if tools else None
-        model = llm_model or self.config.llm_model
         return await client.chat(
-            messages, tool_schemas, model, stream=stream
+            messages, tool_schemas, stream=stream
         )
 
 

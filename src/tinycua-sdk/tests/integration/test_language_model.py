@@ -21,7 +21,7 @@ class TestLanguageModel:
         """Target 1.1: Create a minimal LanguageModel with defaults."""
         m = LanguageModel(model_name="qwen/qwen3.5-9b")
 
-        assert m.provider == "openai-compatible"
+        assert m.provider == "openai-responses"
         assert m.model_name == "qwen/qwen3.5-9b"
         assert m.temperature == 1.0
         assert m.max_tokens is None

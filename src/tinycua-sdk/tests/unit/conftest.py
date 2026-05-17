@@ -12,7 +12,7 @@ def default_llm():
     from tinycua_sdk import LanguageModel
 
     return LanguageModel(
-        provider="openai-compatible",
+        provider="openai-responses",
         model_name="gpt-4o-mini",
         base_url="http://localhost:1234/v1",
     )
