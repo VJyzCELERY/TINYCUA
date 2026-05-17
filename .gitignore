@@ -40,7 +40,7 @@ dev/
 # Development Artifacts
 */research/*
 *dev/*
-*.github/*
+
 /.worktrees/
 */reviews/*
 reviews/
