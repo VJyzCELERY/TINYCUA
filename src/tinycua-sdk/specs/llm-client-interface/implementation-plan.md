@@ -26,16 +26,22 @@ Define the integration tests that prove the feature works. These are written FIR
 import pytest
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.providers import ProviderRegistry, ProviderInfo
+from tinycua_sdk.core.providers import ProviderRegistry, ProviderInfo, get_provider_registry
 from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 
 
 # ── Fake clients for contract-level testing (no provider SDK) ──────────────
+# NOTE: Cross-parameter validation (e.g., raw_events=True requires stream=True)
+# should live in the LLMClient ABC base class via a concrete template-method
+# pattern or be called from each provider/fake client implementation. These
+# fakes include the check inline so the planned tests can validate the contract.
 
 class _FakeAlphaClient(LLMClient):
     async def chat(self, messages, tools=None, stream=False, raw_events=False):
         from collections.abc import AsyncIterator
         from tinycua_sdk.agent.events import CanonicalResponse
+        if raw_events and not stream:
+            raise ValueError("raw_events=True requires stream=True")
         if stream:
             async def _gen():
                 yield {"type": "response.completed", "finish_reason": "stop"}
@@ -55,6 +61,8 @@ class _FakeAlphaClient(LLMClient):
 class _FakeBetaClient(LLMClient):
     async def chat(self, messages, tools=None, stream=False, raw_events=False):
         from tinycua_sdk.agent.events import CanonicalResponse
+        if raw_events and not stream:
+            raise ValueError("raw_events=True requires stream=True")
         return CanonicalResponse(
             content="beta response",
             tool_calls=None,
@@ -67,26 +75,27 @@ class _FakeBetaClient(LLMClient):
         pass
 
 
-@pytest.fixture(autouse=True)
-def _fresh_registry():
-    """Reset registry before each test to avoid test pollution."""
-    ProviderRegistry.reset()
-    yield
-    ProviderRegistry.reset()
+@pytest.fixture
+def registry():
+    """Return the provider registry singleton, reset before each test."""
+    reg = get_provider_registry()
+    reg.reset()
+    yield reg
+    reg.reset()
 
 
 # ── Test 1: Registry resolves correct provider ─────────────────────────────
 
-async def test_registry_returns_correct_client_per_provider():
+async def test_registry_returns_correct_client_per_provider(registry):
     """Given registered providers, when create_client is called, the
     returned client's chat() response reflects the correct provider."""
 
-    ProviderRegistry.register(
+    registry.register(
         "alpha",
         lambda cfg: _FakeAlphaClient(),
         ProviderInfo(id="alpha", factory=lambda c: _FakeAlphaClient(), description="Alpha"),
     )
-    ProviderRegistry.register(
+    registry.register(
         "beta",
         lambda cfg: _FakeBetaClient(),
         ProviderInfo(id="beta", factory=lambda c: _FakeBetaClient(), description="Beta"),
@@ -95,8 +104,8 @@ async def test_registry_returns_correct_client_per_provider():
     model_a = LanguageModel(provider="alpha", model_name="alpha-model")
     model_b = LanguageModel(provider="beta", model_name="beta-model")
 
-    client_a = ProviderRegistry.create_client(model_a)
-    client_b = ProviderRegistry.create_client(model_b)
+    client_a = registry.create_client(model_a)
+    client_b = registry.create_client(model_b)
 
     resp_a = await client_a.chat([{"role": "user", "content": "hello"}])
     resp_b = await client_b.chat([{"role": "user", "content": "hello"}])
@@ -107,11 +116,11 @@ async def test_registry_returns_correct_client_per_provider():
 
 # ── Test 2: Unsupported provider raises clear error ────────────────────────
 
-def test_unsupported_provider_raises_error():
+def test_unsupported_provider_raises_error(registry):
     """Given no providers registered for a string, when create_client is
     called, ProviderNotSupportedError is raised with supported list."""
 
-    ProviderRegistry.register(
+    registry.register(
         "supported-one",
         lambda c: _FakeAlphaClient(),
         ProviderInfo(id="supported-one", factory=lambda c: _FakeAlphaClient(), description="S1"),
@@ -119,28 +128,28 @@ def test_unsupported_provider_raises_error():
 
     model = LanguageModel(provider="does-not-exist", model_name="test")
     with pytest.raises(ProviderNotSupportedError) as excinfo:
-        ProviderRegistry.create_client(model)
+        registry.create_client(model)
     assert "does-not-exist" in str(excinfo.value)
     assert "supported-one" in str(excinfo.value)
 
 
 # ── Test 3: list_providers returns registered providers ────────────────────
 
-def test_list_providers_returns_registered():
+def test_list_providers_returns_registered(registry):
     """Given providers registered, list_providers includes all of them."""
 
-    ProviderRegistry.register(
+    registry.register(
         "p1",
         lambda c: _FakeAlphaClient(),
         ProviderInfo(id="p1", factory=lambda c: _FakeAlphaClient(), description="Provider 1"),
     )
-    ProviderRegistry.register(
+    registry.register(
         "p2",
         lambda c: _FakeBetaClient(),
         ProviderInfo(id="p2", factory=lambda c: _FakeBetaClient(), description="Provider 2"),
     )
 
-    providers = ProviderRegistry.list_providers()
+    providers = registry.list_providers()
     ids = [p.id for p in providers]
     assert "p1" in ids
     assert "p2" in ids
@@ -148,15 +157,15 @@ def test_list_providers_returns_registered():
 
 # ── Test 4: raw_events=True with stream=False raises ValueError ────────────
 
-async def test_raw_events_requires_stream():
+async def test_raw_events_requires_stream(registry):
     """Given raw_events=True and stream=False, chat() raises ValueError."""
 
-    ProviderRegistry.register(
+    registry.register(
         "test",
         lambda c: _FakeAlphaClient(),
         ProviderInfo(id="test", factory=lambda c: _FakeAlphaClient(), description="Test"),
     )
-    client = ProviderRegistry.create_client(LanguageModel(provider="test", model_name="test"))
+    client = registry.create_client(LanguageModel(provider="test", model_name="test"))
 
     with pytest.raises(ValueError, match="raw_events=True requires stream=True"):
         await client.chat([{"role": "user", "content": "hi"}], raw_events=True)
@@ -181,7 +190,7 @@ async def test_raw_events_requires_stream():
 ### Manual Verification
 
 - [ ] Run type checker on the new TypedDicts: `cd src/tinycua-sdk && uv run mypy tinycua_sdk/agent/events.py`
-- [ ] Verify all old event exports in `agent/__init__.py` that are removed are marked with migration guidance
+- [ ] Verify all old event exports in `agent/__init__.py` remain functional (Phase 1 is additive)
 
 ### Performance Considerations
 
@@ -193,17 +202,17 @@ async def test_raw_events_requires_stream():
 
 #### [MODIFY] `tinycua_sdk/agent/events.py`
 
-- **[Description of change]**: Replace existing event TypedDicts with the new canonical schema. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `CanonicalUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Remove old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`, raw provider events). Add `CanonicalEvent` union type alias, `CanonicalResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`).
+- **[Description of change]**: Add new canonical event TypedDicts alongside existing ones. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `CanonicalUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Keep old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) for backward compatibility — they will be removed in Phase 2. Add `CanonicalEvent` union type alias, `CanonicalResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`).
 - **[Rationale]**: The spec requires a formalized provider-agnostic canonical schema. Existing TypedDicts are a mix of normalized and raw provider events with overlapping semantics.
 
 #### [MODIFY] `tinycua_sdk/agent/__init__.py`
 
-- **[Description of change]**: Update exports to include new canonical event types and remove removed old TypedDict exports. Add canonical input type exports.
-- **[Rationale]**: Public API must reflect the new schema. Consumers importing from `agent.__init__` should get the new types.
+- **[Description of change]**: Add new canonical event types and canonical input type exports to `__all__`. Keep existing TypedDict exports for backward compatibility (old exports will be removed in Phase 2).
+- **[Rationale]**: Public API must expose the new schema while keeping existing imports working for Phase 1 backward compatibility.
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **[Description of change]**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[CanonicalMessage]` and `list[CanonicalToolSpec] | None`, add `raw_events` parameter, update return type to `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`. Add `raw_events=True` + `stream=False` → `ValueError` validation. Document canonical event contract and tool-call state machine rules in docstring. Deprecate `OpenAICompatibleClient` (mark as deprecated, keep functional in Phase 1).
+- **[Description of change]**: Add new canonical ABC alongside existing `LLMClient` ABC. Define `chat()` with canonical parameter types (`list[CanonicalMessage]`, `list[CanonicalToolSpec] | None`, `raw_events: bool = False`) and return type (`CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`). Add `raw_events=True` + `stream=False` → `ValueError` validation. Document canonical event contract and tool-call state machine rules in docstring. Keep existing `LLMClient` ABC and `OpenAICompatibleClient` unchanged for backward compatibility — `OpenAICompatibleClient` continues to work with the old ABC contract in Phase 1.
 - **[Rationale]**: FR-001, FR-005, FR-006, FR-007, FR-013. The ABC must define the contract that all provider clients implement.
 
 ### Provider Registry
@@ -225,8 +234,8 @@ async def test_raw_events_requires_stream():
 
 #### [NEW] update exports in `tinycua_sdk/agent/__init__.py`
 
-- **[Description of change]**: Add `CanonicalEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `CanonicalResponse`, `CanonicalMessage`, `CanonicalToolSpec`, `CanonicalUsage`, `RawSseEvent` to `__all__`. Remove old event types that are no longer part of the canonical schema.
-- **[Rationale]**: Public API alignment with new canonical schema.
+- **[Description of change]**: Add `CanonicalEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `CanonicalResponse`, `CanonicalMessage`, `CanonicalToolSpec`, `CanonicalUsage`, `RawSseEvent` to `__all__`. Keep existing event type exports for backward compatibility (old exports will be removed in Phase 2).
+- **[Rationale]**: Public API must expose new canonical types while maintaining Phase 1 backward compatibility for existing imports.
 
 ### Tests
 
@@ -254,8 +263,8 @@ async def test_raw_events_requires_stream():
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua_sdk/agent/events.py` | Modify | Canonical SSE schema replaces old TypedDicts; canonical input types added |
-| `tinycua_sdk/agent/llm_client.py` | Modify | Refactored ABC with canonical types; `OpenAICompatibleClient` deprecated |
+| `tinycua_sdk/agent/events.py` | Modify | Canonical SSE schema added alongside existing TypedDicts (backward-compatible); canonical input types added |
+| `tinycua_sdk/agent/llm_client.py` | Modify | New canonical ABC added alongside existing `LLMClient` ABC; existing ABC and `OpenAICompatibleClient` unchanged |
 | `tinycua_sdk/core/providers.py` | Modify | `ProviderRegistry` added alongside existing provider functions |
 | `tinycua_sdk/core/exceptions.py` | New | Provider-specific exception classes |
 | `tinycua_sdk/agent/__init__.py` | Modify | Updated exports for new canonical types |
@@ -301,12 +310,14 @@ ProviderApiError(status_code, message)
 
 ## API Changes
 
-### Modified Interfaces
+### New ABC (alongside existing `LLMClient`)
 
 | Interface | Change |
 |-----------|--------|
-| `LLMClient.chat()` | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, added `raw_events: bool = False`. Removed `model_config: LanguageModel` (configuration now bound at construction). Return type now union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. |
-| `LLMClient.close()` | Made abstract (was optional). |
+| **New canonical ABC** `.chat()` | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. |
+| **New canonical ABC** `.close()` | Abstract method. |
+
+> **Note**: Existing `LLMClient` ABC and `OpenAICompatibleClient` are NOT modified in Phase 1. The new canonical ABC coexists alongside them. `ProviderRegistry` uses the new ABC for its contract. Existing consumers continue to use the old `LLMClient`/`OpenAICompatibleClient` unchanged.
 
 ### New Interfaces
 
@@ -337,7 +348,7 @@ ProviderApiError(status_code, message)
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | Add new ABC alongside deprecated one (Phase 1 is additive). `OpenAICompatibleClient` remains unchanged so existing consumers are not broken. New consumers adopt the new contract. |
-| Old event TypedDict removal breaks existing consumers | High | Update all internal references (loop, agent) to use new canonical types. Export removal is documented in the breaking change migration guide. |
+| Old event TypedDict removal (deferred to Phase 2) breaks existing consumers | High | Old TypedDicts are NOT removed in Phase 1 — they coexist with new canonical types. Phase 2 migration guide will document the removal. |
 | ProviderRegistry singleton causes test pollution | Medium | Provide `reset()` method; use `autouse` fixture in tests to reset between runs. |
 
 ---

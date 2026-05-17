@@ -19,7 +19,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 
 ### Task B: Canonical SSE Event Schema + Input Types
 
-- [ ] Replace existing TypedDicts in `tinycua_sdk/agent/events.py` with new canonical schema <!-- id: 8 -->
+- [ ] Add new canonical TypedDicts to `tinycua_sdk/agent/events.py` alongside existing ones <!-- id: 8 -->
   - [ ] Add `ContentDeltaEvent`, `ContentDoneEvent` TypedDicts
   - [ ] Add `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent` TypedDicts (refined from existing)
   - [ ] Add `CanonicalUsage`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent` TypedDicts (refined)
@@ -27,22 +27,20 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] Add `CanonicalResponse` TypedDict
   - [ ] Add `RawSseEvent` TypedDict
   - [ ] Add canonical input types: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`
-  - [ ] Remove old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`, raw provider events)
-  - [ ] Update `__all__` in `events.py`
-- [ ] Update `tinycua_sdk/agent/__init__.py` exports: add new types, remove old types <!-- id: 9 -->
+  - [ ] Keep old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) for backward compatibility (removal deferred to Phase 2)
+  - [ ] Update `__all__` in `events.py` with new types; keep existing exports
+- [ ] Update `tinycua_sdk/agent/__init__.py` exports: add new types alongside existing ones <!-- id: 9 -->
 
-### Task C: Refactored LLMClient ABC
+### Task C: New Canonical ABC (alongside existing `LLMClient`)
 
-- [ ] Update `LLMClient.chat()` signature in `tinycua_sdk/agent/llm_client.py` <!-- id: 10 -->
-  - [ ] Change `messages` param: `list[dict]` → `list[CanonicalMessage]`
-  - [ ] Change `tools` param: `list[dict] | None` → `list[CanonicalToolSpec] | None`
-  - [ ] Remove `model_config: LanguageModel` param
-  - [ ] Add `raw_events: bool = False` param
-  - [ ] Update return type union: `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`
+- [ ] Define new canonical ABC in `tinycua_sdk/agent/llm_client.py` alongside existing `LLMClient` <!-- id: 10 -->
+  - [ ] Name the new ABC (e.g., `CanonicalLLMClient` or similar) and declare it with `ABC` metaclass
+  - [ ] Define abstract `chat()` with canonical types: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`
+  - [ ] Add return type union: `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`
   - [ ] Add validation: `raw_events=True` + `stream=False` → `ValueError`
+  - [ ] Add abstract `close()` method
   - [ ] Update docstring with canonical event contract and tool-call state machine rules
-- [ ] Make `close()` abstract (decorate with `@abstractmethod`) <!-- id: 11 -->
-- [ ] Add deprecation notice to `OpenAICompatibleClient` class docstring <!-- id: 12 -->
+- [ ] Keep existing `LLMClient` ABC and `OpenAICompatibleClient` unchanged (Phase 1 backward compatibility) <!-- id: 11 -->
 
 ### Task D: ProviderRegistry Implementation
 
