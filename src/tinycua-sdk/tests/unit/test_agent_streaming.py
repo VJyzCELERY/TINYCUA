@@ -1,7 +1,7 @@
-"""Integration tests for Stage 5 — Streaming.
+"""Unit tests for Stage 5 — Streaming.
 
-Tests streaming with stream=True (raw SSE passthrough) and stream=False
-(string return), mocking the LLM call at the agent level.
+Tests streaming with stream=True (normalized stream event passthrough) and
+stream=False (string return), mocking the LLM call at the agent level.
 """
 
 from __future__ import annotations
@@ -34,11 +34,11 @@ class TestStreamingOff:
 
 
 class TestStreamingOn:
-    """Test stream=True yields raw SSE events."""
+    """Test stream=True yields normalized stream events."""
 
     @pytest.mark.asyncio
-    async def test_stream_yields_raw_events(self):
-        """stream=True yields raw events including deltas."""
+    async def test_stream_yields_normalized_events(self):
+        """stream=True yields normalized events including deltas."""
         agent = Agent(llm_model=LanguageModel())
 
         raw_delta_event = {
@@ -80,13 +80,14 @@ class TestStreamingWithToolCalls:
         call_count = 0
 
         raw_tool_call_event = {
-            "type": "response.output_item.added",
-            "item": {"type": "function_call", "id": "call_1", "call_id": "call_1", "name": "get_time"},
+            "type": "tool_call.started",
+            "id": "call_1",
+            "call_id": "call_1",
+            "name": "get_time",
         }
         raw_arguments_event = {
-            "type": "response.function_call_arguments.done",
-            "item_id": "call_1",
-            "name": "get_time",
+            "type": "tool_call.arguments.done",
+            "id": "call_1",
             "arguments": "{}",
         }
         raw_text_event = {
@@ -113,7 +114,7 @@ class TestStreamingWithToolCalls:
         events = [e async for e in stream_iter]
 
         # Tool call events appear BEFORE tool execution resumes
-        tool_event_types = {"response.output_item.added", "response.function_call_arguments.done"}
+        tool_event_types = {"tool_call.started", "tool_call.arguments.done"}
         tool_indices = [
             i for i, e in enumerate(events) if e["type"] in tool_event_types
         ]

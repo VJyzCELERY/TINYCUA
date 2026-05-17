@@ -63,8 +63,33 @@ class ResponseToolCallDeltaEvent(TypedDict):
     arguments: str
 
 
+class ToolCallStartedEvent(TypedDict):
+    """Emitted when a new tool call starts in the stream."""
+
+    type: Literal["tool_call.started"]
+    id: str
+    call_id: str
+    name: str
+
+
+class ToolCallArgumentsDeltaEvent(TypedDict):
+    """Emitted for tool call arguments delta in the stream."""
+
+    type: Literal["tool_call.arguments.delta"]
+    id: str
+    arguments: str
+
+
+class ToolCallArgumentsDoneEvent(TypedDict):
+    """Emitted when tool call arguments are complete."""
+
+    type: Literal["tool_call.arguments.done"]
+    id: str
+    arguments: str
+
+
 class ResponseFunctionCallArgumentsDeltaEvent(TypedDict):
-    """Emitted for each function call argument delta in streaming."""
+    """Emitted for each function call argument delta in streaming (raw provider event)."""
 
     type: Literal["response.function_call_arguments.delta"]
     item_id: str
@@ -72,7 +97,7 @@ class ResponseFunctionCallArgumentsDeltaEvent(TypedDict):
 
 
 class ResponseFunctionCallArgumentsDoneEvent(TypedDict):
-    """Emitted when function call arguments are complete."""
+    """Emitted when function call arguments are complete (raw provider event)."""
 
     type: Literal["response.function_call_arguments.done"]
     item_id: str
@@ -80,7 +105,7 @@ class ResponseFunctionCallArgumentsDoneEvent(TypedDict):
 
 
 class ResponseOutputItemAddedEvent(TypedDict):
-    """Emitted when a new output item is added during streaming."""
+    """Emitted when a new output item is added during streaming (raw provider event)."""
 
     type: Literal["response.output_item.added"]
     item: dict
@@ -101,6 +126,9 @@ __all__ = [
     "ResponseUsageEvent",
     "ResponseOutputTextDeltaEvent",
     "ResponseToolCallDeltaEvent",
+    "ToolCallStartedEvent",
+    "ToolCallArgumentsDeltaEvent",
+    "ToolCallArgumentsDoneEvent",
     "ResponseFunctionCallArgumentsDeltaEvent",
     "ResponseFunctionCallArgumentsDoneEvent",
     "ResponseOutputItemAddedEvent",

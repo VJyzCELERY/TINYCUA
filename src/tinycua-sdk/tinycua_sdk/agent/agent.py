@@ -127,7 +127,7 @@ class Agent(AgentExecutor):
             query: The user query string.
             messages: Optional message history to prepend.
             instructions: Optional instructions override.
-            stream: If True, returns an async iterator of raw SSE events.
+            stream: If True, returns an async iterator of SDK-normalized stream events.
 
         Returns:
             Final response string when stream=False, or an async iterator

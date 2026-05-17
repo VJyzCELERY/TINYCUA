@@ -199,6 +199,52 @@ class OpenAICompatibleClient(LLMClient):
             "usage": data.get("usage"),
         }
 
+    @staticmethod
+    def _normalize_responses_event(
+        event: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Normalize a raw Responses API stream event into an SDK event.
+
+        Converts provider-specific event names to canonical SDK stream
+        event types so that ``BaseLoop`` and custom loops are decoupled
+        from the upstream provider's SSE dialect.
+
+        Args:
+            event: Raw Responses API stream event dict.
+
+        Returns:
+            Normalized SDK stream event dict.
+        """
+        event_type = event.get("type", "")
+
+        if event_type == "response.output_item.added":
+            item = event.get("item", {})
+            if item.get("type") == "function_call":
+                return {
+                    "type": "tool_call.started",
+                    "id": item.get("id", ""),
+                    "call_id": item.get("call_id", ""),
+                    "name": item.get("name", ""),
+                }
+            return event
+
+        if event_type == "response.function_call_arguments.delta":
+            return {
+                "type": "tool_call.arguments.delta",
+                "id": event.get("item_id", ""),
+                "arguments": event.get("delta", ""),
+            }
+
+        if event_type == "response.function_call_arguments.done":
+            return {
+                "type": "tool_call.arguments.done",
+                "id": event.get("item_id", ""),
+                "arguments": event.get("arguments", ""),
+            }
+
+        # All other events pass through unchanged
+        return event
+
     async def _chat_stream(
         self,
         messages: list[dict],
@@ -213,7 +259,7 @@ class OpenAICompatibleClient(LLMClient):
             model_config: Language model configuration.
 
         Yields:
-            Raw SSE event dicts from the Responses API stream.
+            Normalized SDK stream event dicts.
         """
         client = self._get_client(model_config)
 
@@ -237,13 +283,13 @@ class OpenAICompatibleClient(LLMClient):
                         data = json.loads(buffer)
                     except json.JSONDecodeError:
                         continue
-                    yield data
+                    yield self._normalize_responses_event(data)
                     buffer = ""
                 elif not line and buffer:
-                    yield json.loads(buffer)
+                    yield self._normalize_responses_event(json.loads(buffer))
                     buffer = ""
             if buffer:
-                yield json.loads(buffer)
+                yield self._normalize_responses_event(json.loads(buffer))
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient"]
