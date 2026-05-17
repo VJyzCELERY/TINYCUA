@@ -40,12 +40,12 @@ from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 class _FakeAlphaClient(LLMClient):
     async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
         from collections.abc import AsyncIterator
-        from tinycua_sdk.agent.events import CanonicalResponse
+        from tinycua_sdk.agent.events import LLMResponse
         if stream:
             async def _gen():
                 yield {"type": "response.completed", "finish_reason": "stop"}
             return _gen()
-        return CanonicalResponse(
+        return LLMResponse(
             content="alpha response",
             tool_calls=None,
             usage=None,
@@ -59,8 +59,8 @@ class _FakeAlphaClient(LLMClient):
 
 class _FakeBetaClient(LLMClient):
     async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
-        from tinycua_sdk.agent.events import CanonicalResponse
-        return CanonicalResponse(
+        from tinycua_sdk.agent.events import LLMResponse
+        return LLMResponse(
             content="beta response",
             tool_calls=None,
             usage=None,
@@ -199,7 +199,7 @@ async def test_raw_events_requires_stream(registry):
 
 #### [MODIFY] `tinycua_sdk/agent/events.py`
 
-- **[Description of change]**: Add new canonical event TypedDicts replacing existing ones. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `CanonicalUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Remove old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to the new canonical types. Add `CanonicalEvent` union type alias, `CanonicalResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`).
+- **[Description of change]**: Add new canonical event TypedDicts replacing existing ones. Add `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent` (refined), `ToolCallArgumentsDeltaEvent` (refined), `ToolCallArgumentsDoneEvent` (refined), `ToolCallReadyEvent`, `TokenUsage`, `ResponseUsageEvent` (refined), `ResponseCompletedEvent` (refined), `ResponseFailedEvent` (refined). Remove old TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to the new canonical types. Add `LLMEvent` union type alias, `LLMResponse`, `RawSseEvent` TypedDicts. Add canonical input types (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `LLMMessage` union, `LLMToolSpec`).
 - **[Rationale]**: The spec requires a formalized provider-agnostic canonical schema. Existing TypedDicts are a mix of normalized and raw provider events with overlapping semantics.
 
 #### [MODIFY] `tinycua_sdk/agent/__init__.py`
@@ -209,7 +209,7 @@ async def test_raw_events_requires_stream(registry):
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **[Description of change]**: Refactor existing `LLMClient` ABC with canonical event contract. Define `chat()` with canonical parameter types (`list[CanonicalMessage]`, `list[CanonicalToolSpec] | None`, `raw_events: bool = False`) and return type (`CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`). Make `chat()` concrete with shared `raw_events=True` + `stream=False` → `ValueError` validation, then delegate to abstract `_chat_impl()`. Document canonical event contract and tool-call state machine rules in docstring. Existing subclasses must be updated — this is a breaking change.
+- **[Description of change]**: Refactor existing `LLMClient` ABC with canonical event contract. Define `chat()` with canonical parameter types (`list[LLMMessage]`, `list[LLMToolSpec] | None`, `raw_events: bool = False`) and return type (`LLMResponse | AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]`). Make `chat()` concrete with shared `raw_events=True` + `stream=False` → `ValueError` validation, then delegate to abstract `_chat_impl()`. Document canonical event contract and tool-call state machine rules in docstring. Existing subclasses must be updated — this is a breaking change.
 - **[Rationale]**: FR-001, FR-005, FR-006, FR-007, FR-013. The ABC must define the contract that all provider clients implement.
 
 ### Provider Registry
@@ -231,14 +231,14 @@ async def test_raw_events_requires_stream(registry):
 
 #### [NEW] update exports in `tinycua_sdk/agent/__init__.py`
 
-- **[Description of change]**: Add `CanonicalEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `CanonicalResponse`, `CanonicalMessage`, `CanonicalToolSpec`, `CanonicalUsage`, `RawSseEvent` to `__all__`. Replace existing event type exports with the new canonical types.
+- **[Description of change]**: Add `LLMEvent`, `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallReadyEvent`, `LLMResponse`, `LLMMessage`, `LLMToolSpec`, `TokenUsage`, `RawSseEvent` to `__all__`. Replace existing event type exports with the new canonical types.
 - **[Rationale]**: Public API must expose the new canonical types. This is a breaking change — consumers must update imports.
 
 ### Tests
 
 #### [NEW] `tests/unit/test_canonical_schema.py`
 
-- **[Description of change]**: Unit tests validating canonical schema TypedDicts type-check and have correct shapes. Tests for `CanonicalEvent` discriminated union narrowing by `type` field.
+- **[Description of change]**: Unit tests validating canonical schema TypedDicts type-check and have correct shapes. Tests for `LLMEvent` discriminated union narrowing by `type` field.
 - **[Dependencies]**: `events.py` canonical types.
 
 #### [NEW] `tests/unit/test_provider_registry.py`
@@ -280,11 +280,11 @@ ToolCallStartedEvent   — type: "tool_call.started", id, call_id, name
 ToolCallArgumentsDeltaEvent — type: "tool_call.arguments.delta", id, arguments: str
 ToolCallArgumentsDoneEvent  — type: "tool_call.arguments.done", id, call_id, name, arguments
 ToolCallReadyEvent     — type: "tool_call.ready", id, call_id, name, arguments
-CanonicalUsage         — input_tokens: int|None, output_tokens: int|None, total_tokens: int|None
-ResponseUsageEvent     — type: "response.usage", usage: CanonicalUsage
+TokenUsage         — input_tokens: int|None, output_tokens: int|None, total_tokens: int|None
+ResponseUsageEvent     — type: "response.usage", usage: TokenUsage
 ResponseCompletedEvent — type: "response.completed", finish_reason: str
 ResponseFailedEvent    — type: "response.failed", error: dict
-CanonicalResponse      — content, tool_calls, usage, finish_reason, model
+LLMResponse      — content, tool_calls, usage, finish_reason, model
 RawSseEvent            — provider: str, raw_event: Any
 
 # Canonical Input Types (events.py)
@@ -292,8 +292,8 @@ SystemMessage          — role: "system", content: str
 UserMessage            — role: "user", content: str
 AssistantMessage       — role: "assistant", content: str|None
 ToolResultMessage      — role: "tool_result", call_id: str, content: str
-CanonicalMessage       — union of SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
-CanonicalToolSpec      — name: str, description: str, parameters: dict
+LLMMessage       — union of SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
+LLMToolSpec      — name: str, description: str, parameters: dict
 
 # Provider Registry (providers.py)
 ProviderFactory        — Callable[[LanguageModel], LLMClient]
@@ -311,8 +311,8 @@ ProviderApiError(status_code, message)
 
 | Interface | Change |
 |-----------|--------|
-| **`LLMClient.chat()`** (refactored → concrete) | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. Concrete method performs shared validation (`raw_events=True` requires `stream=True`) then delegates to abstract `_chat_impl()`. |
-| **`LLMClient._chat_impl()`** (new, abstract) | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `stream: bool = False`, `raw_events: bool = False`. Subclasses implement provider-specific logic here. The `raw_events` flag is passed through so providers can yield paired `(canonical, raw)` tuples when requested. |
+| **`LLMClient.chat()`** (refactored → concrete) | Parameters: `messages: list[LLMMessage]`, `tools: list[LLMToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `LLMResponse` / `AsyncIterator[LLMEvent]` / `AsyncIterator[tuple[LLMEvent|None, RawSseEvent|None]]`. Concrete method performs shared validation (`raw_events=True` requires `stream=True`) then delegates to abstract `_chat_impl()`. |
+| **`LLMClient._chat_impl()`** (new, abstract) | Parameters: `messages: list[LLMMessage]`, `tools: list[LLMToolSpec] | None`, `stream: bool = False`, `raw_events: bool = False`. Subclasses implement provider-specific logic here. The `raw_events` flag is passed through so providers can yield paired `(canonical, raw)` tuples when requested. |
 | **`LLMClient.close()`** | Abstract method (unchanged). |
 
 > **Note**: This is a **breaking change**. The existing `LLMClient` ABC is refactored in-place — subclasses must add `_chat_impl()` implementation. `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. Backward compatibility is not maintained.

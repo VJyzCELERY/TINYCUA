@@ -58,7 +58,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 1. **Given** a `LanguageModel` with a registered provider string, **When** `ProviderRegistry.create_client(model_config)` is called, **Then** a configured `LLMClient`-conforming instance is returned, ready for use.
 
-2. **Given** a `LanguageModel` with a registered provider string, **When** a client is resolved via `ProviderRegistry.create_client(model_config)` and `client.chat()` is called with a simple message list, **Then** the returned response conforms to `CanonicalResponse` (non-streaming) or the async iterator yields `CanonicalEvent` items (streaming), regardless of which provider is configured.
+2. **Given** a `LanguageModel` with a registered provider string, **When** a client is resolved via `ProviderRegistry.create_client(model_config)` and `client.chat()` is called with a simple message list, **Then** the returned response conforms to `LLMResponse` (non-streaming) or the async iterator yields `LLMEvent` items (streaming), regardless of which provider is configured.
 
 3. **Given** an unsupported provider string, **When** `ProviderRegistry.create_client(model_config)` is called, **Then** a `ProviderNotSupportedError` is raised indicating which providers are supported — the error is raised at registry resolution, not during the `chat()` call.
 
@@ -88,7 +88,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST define a provider-agnostic `LLMClient` abstract base class with `chat()` and `close()` methods that all providers implement. The `chat()` method MUST accept `list[CanonicalMessage]` and `list[CanonicalToolSpec] | None` as input parameters (not raw `dict` types) to ensure provider-neutral messaging.
+- **FR-001**: The system MUST define a provider-agnostic `LLMClient` abstract base class with `chat()` and `close()` methods that all providers implement. The `chat()` method MUST accept `list[LLMMessage]` and `list[LLMToolSpec] | None` as input parameters (not raw `dict` types) to ensure provider-neutral messaging.
 - **FR-002**: Each supported provider MUST have a concrete `LLMClient` subclass that wraps the provider's official Python SDK.
 - **FR-003**: The system MUST provide a **provider registry** that maps provider identifiers (e.g., `"openai-responses"`, `"openai"`) to their client implementations.
 - **FR-004**: The provider selection MUST be driven by `LanguageModel.provider` at runtime with no code changes.
@@ -99,7 +99,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - **FR-009**: The system MUST raise a clear, actionable error when an unsupported or misspelled provider identifier is used.
 - **FR-010**: The system MUST support provider SDK initialization (API keys, base URLs, timeouts) from `LanguageModel` configuration.
 - **FR-011**: The system MUST define a normative tool-call streaming state machine that specifies event ordering — providers MUST emit exactly one execution-trigger event (`tool_call.ready`) per executable tool call, and the Agent Loop MUST execute tools only from that event.
-- **FR-012**: The system MUST define canonical input types (`CanonicalMessage` discriminated union, `CanonicalToolSpec`) that all `LLMClient.chat()` calls accept, so the Agent Loop never constructs provider-specific message dicts.
+- **FR-012**: The system MUST define canonical input types (`LLMMessage` discriminated union, `LLMToolSpec`) that all `LLMClient.chat()` calls accept, so the Agent Loop never constructs provider-specific message dicts.
 - **FR-013**: The system MUST define a tool-result continuation contract where the Agent Loop submits tool outputs by appending `ToolResultMessage` (with `call_id` from `tool_call.ready`) to the messages list, and each provider client internally translates this into the provider SDK's continuation mechanism (e.g., `previous_response_id` for OpenAI Responses API). The `chat()` method MUST handle continuation internally — there must be no separate `continue_with_tools()` method.
 
 ### Key Entities
@@ -120,8 +120,8 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Phase 1 (Immediate) Criteria
 
-- [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage`) are defined and the `CanonicalEvent` discriminated union type alias type-checks correctly.
-- [ ] **Canonical input types defined**: `CanonicalMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) and `CanonicalToolSpec` TypedDicts are defined and type-check correctly.
+- [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `LLMResponse`, `RawSseEvent`, `TokenUsage`) are defined and the `LLMEvent` discriminated union type alias type-checks correctly.
+- [ ] **Canonical input types defined**: `LLMMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) and `LLMToolSpec` TypedDicts are defined and type-check correctly.
 - [ ] **LLMClient ABC contract**: The refactored `LLMClient` ABC with `chat()` and `close()` compiles and documents the canonical event return types and tool-call state machine rules.
 - [ ] **ProviderRegistry contract**: The registry provides `register()`, `create_client()`, `list_providers()`, `is_supported()`, and `reset()` methods; unsupported provider strings raise clear errors.
 - [ ] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
@@ -145,8 +145,8 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 **Unit Tests — Phase 1**:
 
-- Test canonical schema TypedDicts/type-alias type-checks: `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` — all required shapes and import correctly
-- Test canonical input types type-checks: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` discriminated union, `CanonicalToolSpec`
+- Test canonical schema TypedDicts/type-alias type-checks: `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `LLMResponse`, `RawSseEvent`, `TokenUsage` — all required shapes and import correctly
+- Test canonical input types type-checks: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `LLMMessage` discriminated union, `LLMToolSpec`
 - Test `ProviderRegistry` behavior: `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` work correctly
 - Test unsupported provider strings raise `ProviderNotSupportedError`
 - Test `LanguageModel.provider` field drives client selection at the registry/contract level (no actual provider SDK)
@@ -212,7 +212,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 2. **Raw pass-through: how to correlate canonical events with raw events**
    - **Status**: Decided
-   - **Decision**: The return signature for streaming with `raw_events=True` is `AsyncIterator[tuple[CanonicalEvent | None, RawEvent | None]]`. Each yielded tuple pairs a canonical event (or `None` for raw-only provider events) with its corresponding raw provider event (or `None` for synthetic canonical events). Provider SDK events that have no canonical semantic equivalent are yielded with `None` in the canonical slot. All provider SDK stream events are yielded in arrival order when `raw_events=True`.
+   - **Decision**: The return signature for streaming with `raw_events=True` is `AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]`. Each yielded tuple pairs a canonical event (or `None` for raw-only provider events) with its corresponding raw provider event (or `None` for synthetic canonical events). Provider SDK events that have no canonical semantic equivalent are yielded with `None` in the canonical slot. All provider SDK stream events are yielded in arrival order when `raw_events=True`.
 
 ---
 

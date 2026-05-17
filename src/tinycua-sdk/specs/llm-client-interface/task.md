@@ -22,11 +22,11 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [ ] Add new canonical TypedDicts to `tinycua_sdk/agent/events.py` replacing existing ones <!-- id: 8 -->
   - [ ] Add `ContentDeltaEvent`, `ContentDoneEvent` TypedDicts
   - [ ] Add `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent` TypedDicts (refined from existing)
-  - [ ] Add `CanonicalUsage`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent` TypedDicts (refined)
-  - [ ] Add `CanonicalEvent` union type alias
-  - [ ] Add `CanonicalResponse` TypedDict
+  - [ ] Add `TokenUsage`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent` TypedDicts (refined)
+  - [ ] Add `LLMEvent` union type alias
+  - [ ] Add `LLMResponse` TypedDict
   - [ ] Add `RawSseEvent` TypedDict
-  - [ ] Add canonical input types: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` union, `CanonicalToolSpec`
+  - [ ] Add canonical input types: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `LLMMessage` union, `LLMToolSpec`
   - [ ] Remove old event TypedDicts (`ResponseCreatedEvent`, `ResponseCancelledEvent`, `ResponseOutputTextDeltaEvent`, `ResponseToolCallDeltaEvent`, `ErrorEvent`, `ResponseInProgressEvent`) — consumers must migrate to new canonical types
   - [ ] Update `__all__` in `events.py` with new types only
 - [ ] Update `tinycua_sdk/agent/__init__.py` exports: replace existing types with new canonical types <!-- id: 9 -->
@@ -35,8 +35,8 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 
 - [ ] Refactor existing `LLMClient` ABC in `tinycua_sdk/agent/llm_client.py` with canonical event contract <!-- id: 10 -->
   - [ ] Refactor existing `LLMClient` ABC in-place — remove old method signatures, add canonical types
-  - [ ] Define concrete `chat()` with canonical types: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`
-  - [ ] Add return type union: `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`
+  - [ ] Define concrete `chat()` with canonical types: `messages: list[LLMMessage]`, `tools: list[LLMToolSpec] | None`, `raw_events: bool = False`
+  - [ ] Add return type union: `LLMResponse | AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]`
   - [ ] Concrete `chat()` performs shared validation: `raw_events=True` + `stream=False` → `ValueError`, then delegates to abstract `_chat_impl()`
   - [ ] Define abstract `_chat_impl(messages, tools, stream, raw_events)` — `raw_events` is passed through so providers can yield paired `(canonical, raw)` tuples when requested
   - [ ] Add abstract `close()` method
