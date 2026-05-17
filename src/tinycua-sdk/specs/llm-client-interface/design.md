@@ -167,6 +167,8 @@ class ToolCallReadyEvent(TypedDict):
     name: str                  # Tool name
     arguments: str             # Final complete JSON arguments
 
+```
+
 ```python
 class CanonicalUsage(TypedDict):
     """Provider-agnostic token usage schema.
@@ -208,6 +210,103 @@ CanonicalEvent: TypeAlias = (
     | ResponseCompletedEvent
     | ResponseFailedEvent
 )
+
+### Canonical Input Types (Request Contract)
+
+In addition to the canonical output event schema, the system defines canonical input types so the Agent Loop communicates with every provider using a uniform message/tool format. This eliminates the need for the loop to construct provider-specific dict shapes.
+
+```python
+# ──────────────────────────────────────────────
+# Canonical Input Schema (TypedDicts)
+# ──────────────────────────────────────────────
+# These types define the contract for messages sent TO the provider.
+# Provider clients translate these canonical types into their SDK's
+# native request format.
+
+class SystemMessage(TypedDict):
+    """System-level instruction."""
+    role: Literal["system"]
+    content: str
+
+class UserMessage(TypedDict):
+    """User input."""
+    role: Literal["user"]
+    content: str
+
+class AssistantMessage(TypedDict):
+    """Model assistant response (used for multi-turn context)."""
+    role: Literal["assistant"]
+    content: str | None
+
+class ToolResultMessage(TypedDict):
+    """Tool execution result submitted back to the model.
+
+    The ``call_id`` field MUST carry the value from the corresponding
+    ``tool_call.ready.call_id`` received in the canonical output event.
+    Provider clients map this to their SDK's continuation mechanism
+    (e.g., ``previous_response_id`` + ``function_call_output`` for OpenAI
+    Responses API).
+    """
+    role: Literal["tool_result"]
+    call_id: str            # Copied from tool_call.ready.call_id
+    content: str            # The tool's output (stringified if necessary)
+
+CanonicalMessage: TypeAlias = (
+    SystemMessage
+    | UserMessage
+    | AssistantMessage
+    | ToolResultMessage
+)
+
+class CanonicalToolSpec(TypedDict):
+    """A tool/function specification in provider-neutral form.
+
+    Provider clients translate this into the SDK's tool definition
+    format (e.g., OpenAI ``function`` tool type).
+    """
+    name: str
+    description: str
+    parameters: dict  # JSON Schema object
+```
+
+### Tool Result Continuation Contract
+
+After the Agent Loop receives a ``tool_call.ready`` event, it executes the named tool and must submit the result back to the provider to continue the model interaction. The continuation contract is designed so the loop never touches provider-specific fields:
+
+1. **Submit via message list**: The Agent Loop constructs a ``ToolResultMessage`` from the tool output and appends it to the ``messages`` list passed to the next ``chat()`` call. The ``call_id`` field MUST be copied from the ``tool_call.ready.call_id`` that triggered execution.
+
+2. **Provider client owns continuation state**: Each provider client is responsible for translating the appended ``ToolResultMessage`` into the provider SDK's continuation mechanism. For example, the OpenAI Responses API provider client maps ``call_id`` + ``content`` to ``function_call_output`` and uses ``previous_response_id`` internally — the Agent Loop never manages these fields.
+
+3. **Multi-turn tool loop**: The Agent Loop iterates:
+   - Call ``chat(messages, tools)`` → consume canonical events
+   - On ``tool_call.ready`` → execute tool → append ``ToolResultMessage`` to messages
+   - Call ``chat(messages, tools)`` again with updated messages (provider client manages continuation internally)
+   - Repeat until no more ``tool_call.ready`` events or a ``response.completed`` is received
+
+4. **No separate ``continue_with_tools()`` method**: Continuation is represented entirely by appending canonical tool-result messages to the message list. This keeps the ``LLMClient`` interface simple — there is only one ``chat()`` method, and the loop builds longer message histories across turns.
+
+5. **Validation**: Provider normalizer tests MUST verify that a ``ToolResultMessage`` with the correct ``call_id`` is correctly translated into the provider SDK's expected continuation format.
+
+```python
+# Example Agent Loop tool-loop pseudocode using canonical types:
+messages: list[CanonicalMessage] = [UserMessage(role="user", content="What is the weather?")]
+tools: list[CanonicalToolSpec] = [weather_tool]
+
+while True:
+    stream = await client.chat(messages, tools, stream=True)
+    async for event in stream:
+        if event["type"] == "tool_call.ready":
+            result = await execute_tool(event["name"], event["arguments"])
+            # Append tool result — provider client handles SDK-specific
+            # continuation (previous_response_id, etc.) internally
+            messages.append(ToolResultMessage(
+                role="tool_result",
+                call_id=event["call_id"],
+                content=result,
+            ))
+        elif event["type"] == "response.completed":
+            return  # Interaction complete
+```
 
 ### Tool-Call Streaming State Machine
 
@@ -311,8 +410,8 @@ class LLMClient(ABC):
     @abstractmethod
     async def chat(
         self,
-        messages: list[dict],
-        tools: list[dict] | None,
+        messages: list[CanonicalMessage],
+        tools: list[CanonicalToolSpec] | None,
         stream: bool = False,
         raw_events: bool = False,
     ) -> CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]:
@@ -322,8 +421,10 @@ class LLMClient(ABC):
         other provider settings are resolved once at construction time.
 
         Args:
-            messages: List of message dicts with role and content.
-            tools: Optional list of tool schemas.
+            messages: List of canonical messages (system, user, assistant,
+                      tool_result). Provider clients translate these into the
+                      provider SDK's native message format internally.
+            tools: Optional list of canonical tool specifications.
             stream: When True, return an async iterator of canonical events.
             raw_events: When True AND stream=True, yield paired
                         (canonical_event, raw_event) tuples. The raw slot is
@@ -449,7 +550,9 @@ This design document, together with the companion spec, defines the contract for
 | Area | Details |
 |------|---------|
 | Canonical SSE event schema | All concrete event TypedDicts with `CanonicalEvent` discriminated union type alias, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` |
-| `LLMClient` ABC | Refactored abstract base with `chat()` and `close()` contracts; updated return types |
+| Canonical input types | `CanonicalMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`), `CanonicalToolSpec` |
+| Tool result continuation contract | Documentation of the append-to-messages pattern for tool-result submission; provider clients own SDK-specific continuation state (e.g., `previous_response_id`) |
+| `LLMClient` ABC | Refactored abstract base with `chat()` and `close()` contracts; updated return types and canonical input types |
 | `ProviderRegistry` | Singleton registry with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` |
 | Error classes | `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` |
 | Core exception module | `tinycua_sdk/core/exceptions.py` |
@@ -479,8 +582,8 @@ The PR body references Phase 2 items (OpenAI Responses provider, loop migration)
 
 This phase establishes the core abstractions and is **provider-agnostic** — no provider SDK integrations.
 
-- [ ] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `CanonicalResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema
-- [ ] **1.2**: Refactor `LLMClient` ABC — update `chat()` return type to `CanonicalResponse` (non-streaming) and document canonical event contract in docstring; add `raw_events` parameter
+- [ ] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `CanonicalResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema; define canonical input types (`CanonicalMessage`, `CanonicalToolSpec`, `ToolResultMessage`)
+- [ ] **1.2**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[CanonicalMessage]` and `list[CanonicalToolSpec] | None`, update return type to `CanonicalResponse` (non-streaming), and document canonical event contract in docstring; add `raw_events` parameter
 - [ ] **1.3**: Implement `ProviderRegistry` in `core/providers.py` — register with factory, create_client, list, is_supported, reset
 - [ ] **1.4**: Implement `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` exception classes in `core/exceptions.py`
 - [ ] **1.5**: Write unit tests for:

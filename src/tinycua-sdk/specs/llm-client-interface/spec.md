@@ -70,6 +70,8 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 6. **Given** a streaming request with `stream=True` and `raw_events=True`, **When** the async iterator is consumed, **Then** each yielded item is a `(canonical_event, raw_event)` tuple where the raw event is the provider's original SDK event object (lossless).
 
+7. **Given** a `tool_call.ready` event is received and the Agent Loop executes the tool, **When** a `ToolResultMessage` with the matching `call_id` is appended to the messages list and `chat()` is called again, **Then** the provider client correctly translates the tool result into the provider SDK's continuation format (e.g., `previous_response_id` + `function_call_output` for OpenAI Responses API) and the model continues the interaction — the Agent Loop does not manage any provider-specific fields.
+
 ### Edge Cases
 
 - What happens when a provider SDK version changes and breaks the normalizer? The normalizer should be version-pinned or tested against known SDK versions.
@@ -78,6 +80,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - How are rate limits and retries handled? Delegated to provider SDK retry mechanisms.
 - What happens when a provider has no tool-call support? The canonical event stream omits tool-related events.
 - Does the tool-call streaming have a defined event order? Yes — the design defines a normative state machine: providers MUST emit exactly one `tool_call.ready` per executable tool call, and the Agent Loop MUST execute tools only from `tool_call.ready` events. `tool_call.arguments.done` is informational only and is NOT an execution trigger.
+- How does the Agent Loop submit tool results back to the provider? By appending a `ToolResultMessage` (with `call_id` from `tool_call.ready`) to the messages list and calling `chat()` again. Each provider client handles the provider-specific continuation mechanism internally (e.g., `previous_response_id` for OpenAI Responses API) — the loop never manages provider-specific state.
 
 ---
 
@@ -85,7 +88,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST define a provider-agnostic `LLMClient` abstract base class with `chat()` and `close()` methods that all providers implement.
+- **FR-001**: The system MUST define a provider-agnostic `LLMClient` abstract base class with `chat()` and `close()` methods that all providers implement. The `chat()` method MUST accept `list[CanonicalMessage]` and `list[CanonicalToolSpec] | None` as input parameters (not raw `dict` types) to ensure provider-neutral messaging.
 - **FR-002**: Each supported provider MUST have a concrete `LLMClient` subclass that wraps the provider's official Python SDK.
 - **FR-003**: The system MUST provide a **provider registry** that maps provider identifiers (e.g., `"openai-responses"`, `"openai"`) to their client implementations.
 - **FR-004**: The provider selection MUST be driven by `LanguageModel.provider` at runtime with no code changes.
@@ -96,6 +99,8 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - **FR-009**: The system MUST raise a clear, actionable error when an unsupported or misspelled provider identifier is used.
 - **FR-010**: The system MUST support provider SDK initialization (API keys, base URLs, timeouts) from `LanguageModel` configuration.
 - **FR-011**: The system MUST define a normative tool-call streaming state machine that specifies event ordering — providers MUST emit exactly one execution-trigger event (`tool_call.ready`) per executable tool call, and the Agent Loop MUST execute tools only from that event.
+- **FR-012**: The system MUST define canonical input types (`CanonicalMessage` discriminated union, `CanonicalToolSpec`) that all `LLMClient.chat()` calls accept, so the Agent Loop never constructs provider-specific message dicts.
+- **FR-013**: The system MUST define a tool-result continuation contract where the Agent Loop submits tool outputs by appending `ToolResultMessage` (with `call_id` from `tool_call.ready`) to the messages list, and each provider client internally translates this into the provider SDK's continuation mechanism (e.g., `previous_response_id` for OpenAI Responses API). The `chat()` method MUST handle continuation internally — there must be no separate `continue_with_tools()` method.
 
 ### Key Entities
 
@@ -104,6 +109,9 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - **SSE Normalizer**: Per-provider component that maps raw SDK stream events to canonical schema events and exposes raw pass-through.
 - **Provider Registry**: Runtime mapping of provider strings to client factories, with validation and error handling.
 - **Canonical Event**: A typed event dict adhering to the canonical schema — provider-agnostic, consumable by the Agent Loop.
+- **Canonical Message**: A discriminated union of typed message dicts (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) that all provider clients accept as input. Provider clients translate these into their SDK's native message format.
+- **Canonical Tool Spec**: A typed tool definition dict (`name`, `description`, `parameters`) in provider-neutral form that all provider clients accept.
+- **Tool Result Continuation**: The pattern where the Agent Loop submits tool outputs by appending `ToolResultMessage` (with `call_id` from `tool_call.ready`) to the message list. Each provider client owns the SDK-specific continuation state internally.
 - **Raw SSE Stream**: When `raw_events=True`, each yielded item is a `(canonical_event, raw_event)` tuple where the raw event is the provider's original SDK event object (lossless, not a dict conversion).
 
 ---
@@ -113,6 +121,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 ### Phase 1 (Immediate) Criteria
 
 - [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage`) are defined and the `CanonicalEvent` discriminated union type alias type-checks correctly.
+- [ ] **Canonical input types defined**: `CanonicalMessage` (discriminated union of `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`) and `CanonicalToolSpec` TypedDicts are defined and type-check correctly.
 - [ ] **LLMClient ABC contract**: The refactored `LLMClient` ABC with `chat()` and `close()` compiles and documents the canonical event return types and tool-call state machine rules.
 - [ ] **ProviderRegistry contract**: The registry provides `register()`, `create_client()`, `list_providers()`, `is_supported()`, and `reset()` methods; unsupported provider strings raise clear errors.
 - [ ] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
@@ -132,23 +141,41 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ## Testing Plan
 
-### Unit Tests
+### Phase 1 Tests (Schema, Registry, Contract — No Provider SDK Mocking)
+
+**Unit Tests — Phase 1**:
+
+- Test canonical schema TypedDicts/type-alias type-checks: `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` — all required shapes and import correctly
+- Test canonical input types type-checks: `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage`, `CanonicalMessage` discriminated union, `CanonicalToolSpec`
+- Test `ProviderRegistry` behavior: `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` work correctly
+- Test unsupported provider strings raise `ProviderNotSupportedError`
+- Test `LanguageModel.provider` field drives client selection at the registry/contract level (no actual provider SDK)
+- Test `raw_events=True` with `stream=False` raises `ValueError`
+- Test error classes (`ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError`) can be imported and raised
+
+**Integration Tests — Phase 1**:
+
+- Test registry provider switching via `LanguageModel.provider` at compile-time/contract level (use fake/mock LLMClient implementations, no provider SDKs)
+- Verify the `LLMClient` ABC compiles with correct canonical input and output type signatures
+
+### Phase 2+ Tests (Provider SDK Integration)
+
+**Unit Tests — Phase 2+**:
 
 - Test each provider client's `chat()` (non-streaming) returns expected canonical response shape
 - Test each provider normalizer maps all known provider event types to canonical equivalents
+- Test tool-result continuation: submit `ToolResultMessage` with matching `call_id` and verify the provider client translates it into the correct SDK continuation format (e.g., `previous_response_id` for OpenAI Responses API)
 - Test raw pass-through stream yields identical events to the provider SDK's raw output
-- Test provider registry: valid providers resolve correctly, invalid providers raise clear errors
-- Test `LanguageModel` provider field drives client selection
 - Test edge cases: empty responses, connection errors, auth failures, rate limits
 
-### Integration Tests
+**Integration Tests — Phase 2+**:
 
 - Test end-to-end chat flow with mocked provider SDK responses for each provider
 - Test streaming end-to-end: raw events pass through, canonical events are normalized
 - Test provider switching at runtime via config changes
 - Verify that existing integration tests (`test_custom_agent_loop.py`, `test_language_model.py`) still pass
 
-### Manual Tests
+**Manual Tests — Phase 2+**:
 
 - Run against real OpenAI API endpoints with a test API key to verify end-to-end streaming and normalization
 
@@ -164,7 +191,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | Provider Registry | TODO | Phase 1 | Singleton registry with factory, validation, reset |
 | Error Classes | TODO | Phase 1 | ProviderNotSupportedError, ProviderAuthError, ProviderApiError |
 | Upgrade Guide & Migration Docs | TODO | Phase 2 | Breaking change documentation; actual removal deferred to Phase 2 with OpenAIResponsesClient |
-| Unit Tests (Phase 1) | TODO | Phase 1 | Schema, registry, error cases — no provider SDK mocking |
+| Unit Tests (Phase 1) | TODO | Phase 1 | Schema (output + input types), registry, error cases — no provider SDK mocking |
 | Integration Tests (Phase 1) | TODO | Phase 1 | Compile-time contract tests for registry switching |
 | OpenAI Responses API Provider | TODO | Phase 2 | `openai-responses` ID; requires `openai` PyPI SDK |
 | Raw SSE Pass-Through | TODO | Phase 2 | Runtime behavior dependent on Phase 2+ provider implementation |
