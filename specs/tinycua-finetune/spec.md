@@ -144,7 +144,7 @@ This approach is suitable for:
 ## References
 
 - Notebook: `src/tinycua-finetune/tinycua_finetune/kaggle-gpu-pipeline-finetune-qwen3-4b-structure.ipynb`
-- Pipeline scripts: `src/tinycua-finetune/kaggle-unsloth-finetune-pipeline/`
+- Pipeline scripts: `src/tinycua-finetune/tinycua_finetune/kaggle-unsloth-finetune-pipeline/`
 - Manager: `finetune.py` (run via `python finetune.py run all`)
 - Unsloth: https://github.com/unslothai/unsloth
 - Dataset: younissk/tool-calling-mix

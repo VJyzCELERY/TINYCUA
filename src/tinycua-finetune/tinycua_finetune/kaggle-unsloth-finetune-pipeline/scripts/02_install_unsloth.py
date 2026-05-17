@@ -6,11 +6,13 @@ Handles both Kaggle/Colab and local/cloud environments.
 
 
 def run_pip_install(cmd):
-    import os
+    import subprocess
     import sys
-    result = os.popen(cmd + " 2>&1").read()
-    if result and ("error" in result.lower() or "exception" in result.lower() or "failed" in result.lower()):
-        print(f"pip warning: {result[:500]}", file=sys.stderr)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr[:500] if result.stderr else ""
+        stdout = result.stdout[:500] if result.stdout else ""
+        print(f"pip warning: {stderr} {stdout}".strip(), file=sys.stderr)
     return result
 
 

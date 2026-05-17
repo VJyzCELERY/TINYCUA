@@ -82,10 +82,14 @@ def run_step(step_name, state, dry_run=False):
         return True
 
     module = load_step_module(step_name, state)
-    if hasattr(module, "run"):
-        module.run(state)
-    else:
-        module.main()
+    try:
+        if hasattr(module, "run"):
+            module.run(state)
+        else:
+            module.main()
+    except Exception as e:
+        print(f"\n[ERROR] Step {step_name} failed: {e}")
+        sys.exit(1)
 
     return True
 

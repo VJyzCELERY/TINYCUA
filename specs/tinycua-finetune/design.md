@@ -109,7 +109,7 @@ jupyter nbconvert --to notebook *.py
          |
          v
 [Training Cell]
-  - Configure LoRA parameters (r=16, lora_alpha=32)
+  - Configure LoRA parameters (r=64, lora_alpha=64)
   - Set training arguments (lr=1e-4, batch_size=2)
   - Run trainer with W&B integration
          |
@@ -158,9 +158,9 @@ jupyter nbconvert --to notebook *.py
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| r | 16 | LoRA rank |
-| lora_alpha | 32 | LoRA alpha |
-| lora_dropout | 0.05 | Dropout probability |
+| r | 64 | LoRA rank |
+| lora_alpha | 64 | LoRA alpha |
+| lora_dropout | 0 | Dropout probability |
 | target_modules | q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj | Modules to apply LoRA |
 
 ### Training Arguments
