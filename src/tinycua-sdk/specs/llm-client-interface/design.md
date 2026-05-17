@@ -10,7 +10,7 @@
 
 This design introduces a unified **Agent + LLM Client** architecture for the TINYCUA SDK. Instead of rebuilding HTTP-level clients for each provider, we delegate to each provider's official Python SDK (e.g., `openai` PyPI) and wrap them behind a common `LLMClient` abstract base class. Each provider client includes an **SSE normalizer** that converts provider-specific streaming events into a canonical format consumed by the Agent Loop, while simultaneously exposing a **raw SSE pass-through** for consumers that need provider-native events. A **provider registry** maps configuration-driven provider identifiers to concrete client implementations, enabling provider switching via `LanguageModel.provider` alone.
 
-The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is **removed** and replaced by a properly normalized **OpenAI Responses API** provider with ID `openai-responses`, wrapping the `openai` PyPI SDK's Responses API. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are NOT supported. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
+The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) will be **removed in Phase 2** and replaced by a properly normalized **OpenAI Responses API** provider with ID `openai-responses`, wrapping the `openai` PyPI SDK's Responses API. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) will no longer be supported after Phase 2. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
 
 ---
 
@@ -101,8 +101,8 @@ This is a **breaking change**. The following table documents the migration path 
 | `"openai-responses"` | `"openai-responses"` | No change (new canonical name). |
 
 **Key points**:
-- `LanguageModel.provider` validation accepts only `"openai-responses"` (and future registered provider IDs).
-- The old `OpenAICompatibleClient` class and its httpx-based implementation are **removed** — no deprecation shim, no backward-compatibility layer.
+- `LanguageModel.provider` validation in Phase 1 accepts the existing provider strings (`"openai"`, `"openai-compatible"`) alongside `"openai-responses"` for backward compatibility. In Phase 2, validation will accept only registered provider IDs.
+- The old `OpenAICompatibleClient` class and its httpx-based implementation will be **removed in Phase 2** — no deprecation shim, no backward-compatibility layer once removed.
 - Existing `StreamEvent` usage should be migrated to the canonical `CanonicalEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
 
@@ -117,35 +117,36 @@ This is a **breaking change**. The following table documents the migration path 
 # Canonical SSE Event Schema (TypedDicts)
 # ──────────────────────────────────────────────
 
-class CanonicalEvent(TypedDict):
-    """Base shape for all canonical stream events."""
-    type: str  # canonical event type name
+# Each concrete event is defined as its own TypedDict with a type: Literal[...]
+# field. There is no base TypedDict with type: str — type checkers reject
+# TypedDict field overrides since they are invariant. Instead, CanonicalEvent
+# is defined as a union type alias below.
 
-class ContentDeltaEvent(CanonicalEvent):
+class ContentDeltaEvent(TypedDict):
     """Text content delta from the LLM."""
     type: Literal["content.delta"]
     delta: str
     index: int
 
-class ContentDoneEvent(CanonicalEvent):
+class ContentDoneEvent(TypedDict):
     """Text content block completed."""
     type: Literal["content.done"]
     index: int
 
-class ToolCallStartedEvent(CanonicalEvent):
+class ToolCallStartedEvent(TypedDict):
     """New tool call initiated."""
     type: Literal["tool_call.started"]
     id: str                    # Provider output item ID (correlates deltas to a single call)
     call_id: str               # Provider tool call ID — used when submitting tool results
     name: str
 
-class ToolCallArgumentsDeltaEvent(CanonicalEvent):
+class ToolCallArgumentsDeltaEvent(TypedDict):
     """Partial tool call arguments."""
     type: Literal["tool_call.arguments.delta"]
     id: str                    # Provider output item ID (matches ToolCallStartedEvent.id)
     arguments: str
 
-class ToolCallArgumentsDoneEvent(CanonicalEvent):
+class ToolCallArgumentsDoneEvent(TypedDict):
     """Tool call arguments complete — execution-ready metadata included."""
     type: Literal["tool_call.arguments.done"]
     id: str                    # Provider output item ID
@@ -153,7 +154,7 @@ class ToolCallArgumentsDoneEvent(CanonicalEvent):
     name: str                  # Tool name (copied from the started event for convenience)
     arguments: str             # Final complete JSON arguments
 
-class ToolCallReadyEvent(CanonicalEvent):
+class ToolCallReadyEvent(TypedDict):
     """Tool call ready for execution — all metadata in a single event.
 
     This is the event the Agent Loop should consume to execute a tool call.
@@ -165,6 +166,21 @@ class ToolCallReadyEvent(CanonicalEvent):
     call_id: str               # Provider tool call ID — used when submitting tool results
     name: str                  # Tool name
     arguments: str             # Final complete JSON arguments
+
+# CanonicalEvent is a discriminated union of all concrete event types.
+# Consumers can narrow by checking event["type"] against a Literal value.
+CanonicalEvent: TypeAlias = (
+    ContentDeltaEvent
+    | ContentDoneEvent
+    | ToolCallStartedEvent
+    | ToolCallArgumentsDeltaEvent
+    | ToolCallArgumentsDoneEvent
+    | ToolCallReadyEvent
+    | ResponseUsageEvent
+    | ResponseCompletedEvent
+    | ResponseFailedEvent
+)
+```
 
 ### Tool-Call Streaming State Machine
 
@@ -191,6 +207,7 @@ tool_call.arguments.done  (id="item_1", call_id="call_abc", name="get_weather", 
 tool_call.ready           (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
 ```
 
+```python
 class CanonicalUsage(TypedDict):
     """Provider-agnostic token usage schema.
 
@@ -203,21 +220,20 @@ class CanonicalUsage(TypedDict):
     output_tokens: int | None               # Tokens generated in the response
     total_tokens: int | None                # input_tokens + output_tokens (when available)
 
-class ResponseUsageEvent(CanonicalEvent):
+class ResponseUsageEvent(TypedDict):
     """Token usage information."""
     type: Literal["response.usage"]
     usage: CanonicalUsage
 
-class ResponseCompletedEvent(CanonicalEvent):
+class ResponseCompletedEvent(TypedDict):
     """Stream completed successfully."""
     type: Literal["response.completed"]
     finish_reason: str
 
-class ResponseFailedEvent(CanonicalEvent):
+class ResponseFailedEvent(TypedDict):
     """Stream failed with error."""
     type: Literal["response.failed"]
     error: dict
-
 ```
 
 ```python
@@ -434,7 +450,7 @@ This design document, together with the companion spec, defines the contract for
 
 | Area | Details |
 |------|---------|
-| Canonical SSE event schema | All TypedDicts: `CanonicalEvent` subclasses, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` |
+| Canonical SSE event schema | All concrete event TypedDicts with `CanonicalEvent` discriminated union type alias, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage` |
 | `LLMClient` ABC | Refactored abstract base with `chat()` and `close()` contracts; updated return types |
 | `ProviderRegistry` | Singleton registry with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` |
 | Error classes | `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` |
@@ -540,7 +556,7 @@ See separate spec and design for this phase.
 | Provider SDK API changes break the normalizer | Medium | High | Pin SDK major versions; add integration tests that mock SDK responses; document SDK version compatibility |
 | Existing `OpenAICompatibleClient` users must migrate | High | High | Document migration path clearly in provider migration table; announce breaking change in release notes |
 | Provider SDK dependency conflicts | Low | Medium | First-party provider (`openai`) is a core dependency; additional providers use optional extras (`pip install tinycua-sdk[other-provider]`); document dependency tree |
-| Raw pass-through performance overhead (double serialization) | Low | Medium | Raw events are passed by reference (dict), not re-serialized; only pay the cost when `raw_events=True` |
+| Raw pass-through performance overhead (double serialization) | Low | Medium | Raw provider SDK event objects are passed by reference inside `RawSseEvent.raw_event`; they are not converted or re-serialized; only pay the cost when `raw_events=True` |
 | New canonical schema breaks the Agent Loop | Medium | High | Update the loop to consume new canonical event names (`content.delta`, `content.done`, `tool_call.*`); test the loop against the new schema |
 | Provider registry singleton causes test pollution | Low | Medium | Provide `reset()` method for the registry; use per-test setup/teardown in test fixtures |
 

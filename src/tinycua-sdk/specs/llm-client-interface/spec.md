@@ -21,9 +21,9 @@ Provide a unified **Agent + LLM Client** architecture so that the TINYCUA SDK ca
 ### Gaps
 
 Today the SDK has:
-- A single `LLMClient` ABC and `OpenAICompatibleClient` that uses httpx directly — tightly coupled to OpenAI's Responses API format
+- A single `LLMClient` ABC with an httpx-based client tightly coupled to OpenAI's Responses API format
 - No mechanism to support non-OpenAI providers (Google, etc.)
-- No canonical SSE event schema — normalization logic (`_normalize_responses_event`) is embedded inside `OpenAICompatibleClient` with no formal contract
+- No canonical SSE event schema — normalization logic is embedded inside the existing client with no formal contract
 - No raw SSE pass-through stream for external consumers
 - `providers.py` only handles URL normalization and aliases — no provider registry or client factory
 - The `StreamEvent` model (`models/response.py`) and `events.py` TypedDicts have overlapping but inconsistent event definitions
@@ -39,7 +39,7 @@ Today the SDK has:
 ### Constraints
 
 - Must honor each provider's official SDK interface — no custom wrappers that break upgrade compatibility
-- **This is a breaking change**: The old provider strings (`"openai"`, `"openai-compatible"`) are NOT supported in the new system. Existing code using `LLMClient`, `OpenAICompatibleClient`, and `StreamEvent` MUST be migrated to the new provider IDs (`"openai-responses"`). No deprecation shim or backward-compatibility layer is provided.
+- **Phase 1 is additive only**: Existing provider identifiers (e.g. `"openai"`, `"openai-compatible"`) and the current httpx-based client remain usable in Phase 1. Phase 2 introduces a **breaking change** by removing the old httpx-based client and restricting `LanguageModel.provider` to only registered provider IDs. Users should migrate to `"openai-responses"` before Phase 2. No deprecation shim or backward-compatibility layer will be provided after removal.
 - The canonical SSE event schema must be provider-agnostic — no OpenAI-specific field names
 - Raw SSE pass-through must be delivered as paired `(canonical_event, raw_event)` tuples in the same async iterator. The `canonical_event` slot MAY be `None` for provider-native raw events that have no canonical semantic equivalent. All provider SDK stream events MUST be yielded in arrival order when `raw_events=True`. The raw event is a lossless representation of the provider's original SDK event object
 - Providers must be resolvable from a `LanguageModel.provider` string
@@ -63,7 +63,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 ### Edge Cases
 
 - What happens when a provider SDK version changes and breaks the normalizer? The normalizer should be version-pinned or tested against known SDK versions.
-- How does the system handle providers that don't support streaming? The canonical stream should yield a single completed event.
+- How does the system handle providers that don't support streaming? The provider client raises `ProviderApiError("Provider does not support streaming")` when `stream=True` is requested and the provider has no streaming capability.
 - What is the behavior with empty/null API keys? Provider SDKs should raise appropriate auth errors.
 - How are rate limits and retries handled? Delegated to provider SDK retry mechanisms.
 - What happens when a provider has no tool-call support? The canonical event stream omits tool-related events.
@@ -102,13 +102,13 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 
 ### Phase 1 (Immediate) Criteria
 
-- [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`CanonicalEvent` subclasses, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage`) are defined and type-check correctly.
+- [ ] **Canonical SSE schema defined**: All canonical event TypedDicts (`ContentDeltaEvent`, `ContentDoneEvent`, `ToolCall*`, `Response*`, `CanonicalResponse`, `RawSseEvent`, `CanonicalUsage`) are defined and the `CanonicalEvent` discriminated union type alias type-checks correctly.
 - [ ] **LLMClient ABC contract**: The refactored `LLMClient` ABC with `chat()` and `close()` compiles and documents the canonical event return types and tool-call state machine rules.
 - [ ] **ProviderRegistry contract**: The registry provides `register()`, `create_client()`, `list_providers()`, `is_supported()`, and `reset()` methods; unsupported provider strings raise clear errors.
 - [ ] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
 - [ ] **Phase 1 unit tests pass**: Canonical schema validation, registry behavior, error cases all pass without any provider SDK installed.
 - [ ] **Phase 1 integration tests pass**: Provider switching via `LanguageModel.provider` passes at the compile-time/contract level.
-- [ ] **Breaking change acknowledged**: The old `OpenAICompatibleClient` and provider strings (`"openai"`, `"openai-compatible"`) are removed. Migration documentation is provided.
+- [ ] **Breaking change documented**: Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. Actual client removal is deferred to Phase 2.
 
 ### Full Roadmap Criteria (including Future Phases)
 
@@ -153,7 +153,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | LLMClient ABC | TODO | Phase 1 | Refactored contract with canonical event return types |
 | Provider Registry | TODO | Phase 1 | Singleton registry with factory, validation, reset |
 | Error Classes | TODO | Phase 1 | ProviderNotSupportedError, ProviderAuthError, ProviderApiError |
-| Migration Documentation | TODO | Phase 1 | Breaking change — no backward-compatibility shim; see design migration table |
+| Upgrade Guide & Migration Docs | TODO | Phase 2 | Breaking change documentation; actual removal deferred to Phase 2 with OpenAIResponsesClient |
 | Unit Tests (Phase 1) | TODO | Phase 1 | Schema, registry, error cases — no provider SDK mocking |
 | Integration Tests (Phase 1) | TODO | Phase 1 | Compile-time contract tests for registry switching |
 | OpenAI Responses API Provider | TODO | Phase 2 | `openai-responses` ID; requires `openai` PyPI SDK |
