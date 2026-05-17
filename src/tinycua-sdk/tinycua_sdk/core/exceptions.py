@@ -44,6 +44,10 @@ class ProviderAuthError(Exception):
         self.message = message
         super().__init__(message)
 
+    def __reduce__(self) -> tuple[type[ProviderAuthError], tuple[str]]:
+        """Return pickling reduce for the exception."""
+        return (self.__class__, (self.message,))
+
 
 class ProviderApiError(Exception):
     """Raised when a provider API call returns an error status.

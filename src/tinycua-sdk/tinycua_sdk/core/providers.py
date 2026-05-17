@@ -58,9 +58,7 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
 #:     only ``OPENAI_RESPONSES`` (``"openai-responses"``) is registered by
 #:     default. Consumers that need ``"openai-compatible"`` must register
 #:     a factory explicitly.
-VALID_PROVIDERS: Final[frozenset[str]] = frozenset(
-    {OPENAI_COMPATIBLE, OPENAI_RESPONSES, "openai"} | set(_PROVIDER_ALIASES.keys()),
-)
+VALID_PROVIDERS: Final[frozenset[str]] = frozenset({OPENAI_RESPONSES})
 
 
 def resolve_provider(provider: str) -> str:
@@ -116,8 +114,6 @@ def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> 
 
     """
     if not url:
-        if provider == "openai":
-            return OPENAI_BASE_URL
         if provider == OPENAI_RESPONSES:
             return OPENAI_BASE_URL
         return DEFAULT_BASE_URL

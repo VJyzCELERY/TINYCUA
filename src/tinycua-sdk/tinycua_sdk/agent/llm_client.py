@@ -744,14 +744,20 @@ class OpenAICompatibleClient(LLMClient):
                             yield item  # type: ignore[misc]
                         buffer = ""
                     elif not line and buffer:
-                        data = json.loads(buffer)
+                        try:
+                            data = json.loads(buffer)
+                        except json.JSONDecodeError:
+                            continue
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
                         for item in _yield_events(events, raw_event_obj, raw_events):
                             yield item  # type: ignore[misc]
                         buffer = ""
                 if buffer:
-                    data = json.loads(buffer)
+                    try:
+                        data = json.loads(buffer)
+                    except json.JSONDecodeError:
+                        return
                     events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                     raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
                     for item in _yield_events(events, raw_event_obj, raw_events):

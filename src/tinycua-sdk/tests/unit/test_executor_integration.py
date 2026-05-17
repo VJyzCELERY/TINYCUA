@@ -49,17 +49,9 @@ class TestAgentExecutorRegistryIntegration:
 
         model = LanguageModel(provider="test-provider", model_name="test")
         config = AgentConfig(name="executor-test", llm_model=model)
-        executor = AgentExecutor(config=config)
+        executor = AgentExecutor(config=config, registry=registry)
 
-        # Override the singleton registry with our test registry for this test
-        import tinycua_sdk.agent.executor as executor_module
-
-        original_get_registry = executor_module.get_provider_registry
-        try:
-            executor_module.get_provider_registry = lambda: registry  # type: ignore[method-assign]
-            client = executor._get_llm_client()
-        finally:
-            executor_module.get_provider_registry = original_get_registry
+        client = executor._get_llm_client()
 
         assert isinstance(client, _FakeExecutorClient)
         assert client.tag == "executor-test"
@@ -83,16 +75,10 @@ class TestAgentExecutorRegistryIntegration:
 
         model = LanguageModel(provider="test", model_name="test")
         config = AgentConfig(name="caching-test", llm_model=model)
-        executor = AgentExecutor(config=config)
+        executor = AgentExecutor(config=config, registry=registry)
 
-        import tinycua_sdk.agent.executor as executor_module
-        original_get_registry = executor_module.get_provider_registry
-        try:
-            executor_module.get_provider_registry = lambda: registry  # type: ignore[method-assign]
-            client1 = executor._get_llm_client()
-            client2 = executor._get_llm_client()
-        finally:
-            executor_module.get_provider_registry = original_get_registry
+        client1 = executor._get_llm_client()
+        client2 = executor._get_llm_client()
 
         assert client1 is client2
         assert call_count == 1
@@ -117,17 +103,11 @@ class TestAgentExecutorCallLlm:
 
         model = LanguageModel(provider="test-provider", model_name="test")
         config = AgentConfig(name="call-llm-test", llm_model=model)
-        executor = AgentExecutor(config=config)
+        executor = AgentExecutor(config=config, registry=registry)
 
-        import tinycua_sdk.agent.executor as executor_module
-        original_get_registry = executor_module.get_provider_registry
-        try:
-            executor_module.get_provider_registry = lambda: registry  # type: ignore[method-assign]
-            result = await executor._call_llm(
-                messages=[UserMessage(role="user", content="hello")],
-            )
-        finally:
-            executor_module.get_provider_registry = original_get_registry
+        result = await executor._call_llm(
+            messages=[UserMessage(role="user", content="hello")],
+        )
 
         assert isinstance(result, dict)
         assert result["content"] == "response from llm-call-test"

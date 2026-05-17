@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.llm_client import LLMClient
-from tinycua_sdk.core.providers import get_provider_registry
+from tinycua_sdk.core.providers import ProviderRegistry, get_provider_registry
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
@@ -60,8 +60,9 @@ class ToolExecutor:
 class AgentExecutor:
     """Base executor providing config storage, cancellation, and LLM client."""
 
-    def __init__(self, config: AgentConfig) -> None:
+    def __init__(self, config: AgentConfig, registry: ProviderRegistry | None = None) -> None:
         self.config = config
+        self._registry = registry
         self._cancelled = False
         self._cancel_event = asyncio.Event()
         self._llm_client: LLMClient | None = None
@@ -92,7 +93,8 @@ class AgentExecutor:
 
     def _get_llm_client(self) -> LLMClient:
         if self._llm_client is None:
-            self._llm_client = get_provider_registry().create_client(self.config.llm_model)
+            registry = self._registry or get_provider_registry()
+            self._llm_client = registry.create_client(self.config.llm_model)
         return self._llm_client
 
     async def _call_llm(
