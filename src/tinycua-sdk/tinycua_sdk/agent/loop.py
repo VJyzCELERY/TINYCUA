@@ -25,7 +25,7 @@ class BaseLoop:
         self.max_iterations = max_iterations
 
     def build_system_message(
-        self, agent: Agent, override_instructions: str | None = None
+        self, agent: Agent, override_instructions: str | None = None,
     ) -> dict[str, str]:
         """Build the system message from agent instructions and skills.
 
@@ -79,7 +79,7 @@ class BaseLoop:
 
         for tc in tool_calls:
             if agent.is_cancelled:
-                raise asyncio.CancelledError()
+                raise asyncio.CancelledError
             if tool_call_count >= agent.policy.max_tool_calls:
                 max_tool_calls_reached = True
                 break
@@ -99,7 +99,7 @@ class BaseLoop:
                         "role": "tool_result",
                         "call_id": _resolve_call_id(tc),
                         "content": str(tool_result),
-                    }
+                    },
                 )
                 continue
 
@@ -110,7 +110,7 @@ class BaseLoop:
                 try:
                     tool_result = await ToolExecutor.execute(tool, arguments, agent)
                     if agent.is_cancelled:
-                        raise asyncio.CancelledError()
+                        raise asyncio.CancelledError
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -122,7 +122,7 @@ class BaseLoop:
                     "role": "tool_result",
                     "call_id": _resolve_call_id(tc),
                     "content": str(tool_result),
-                }
+                },
             )
 
         if executed_tool_calls:
@@ -161,17 +161,18 @@ class BaseLoop:
         return self._run_stream(agent, messages, tools, override_instructions)
 
     async def _run_sync(self, agent, messages, tools, override_instructions=None):
-        working = [self.build_system_message(agent, override_instructions)] + messages
+        working = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count = 0
         for _ in range(self.max_iterations):
             if agent.is_cancelled:
-                raise asyncio.CancelledError()
+                raise asyncio.CancelledError
             if tool_call_count >= agent.policy.max_tool_calls:
                 return self.last_assistant_content(working) or "[max tool calls reached]"
             response = await agent._call_llm(working, tools)
             if not isinstance(response, dict):
+                msg = f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
                 raise TypeError(
-                    f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
+                    msg,
                 )
             if response.get("tool_calls"):
                 tool_call_count, max_reached = await self.process_tool_calls(
@@ -188,7 +189,7 @@ class BaseLoop:
         return self.last_assistant_content(working) or "[max iterations reached]"
 
     async def _run_stream(self, agent, messages, tools, override_instructions=None):
-        working = [self.build_system_message(agent, override_instructions)] + messages
+        working = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count, cumulative_usage = 0, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
         finish_reason, skip_complete, created_emitted = "completed", False, False
@@ -272,13 +273,16 @@ class BaseLoop:
         """
         llm_stream = await agent._call_llm(working, tools, stream=True)
         if not isinstance(llm_stream, AsyncIterator):
-            raise TypeError(
+            msg = (
                 f"Expected AsyncIterator from _call_llm(stream=True), got "
                 f"{type(llm_stream).__name__}"
             )
+            raise TypeError(
+                msg,
+            )
         return llm_stream
 
-    async def process_stream_iteration(  # noqa: C901
+    async def process_stream_iteration(
         self,
         llm_stream: AsyncIterator[dict[str, Any]],
         agent: Agent,
@@ -289,9 +293,9 @@ class BaseLoop:
     ) -> AsyncIterator[dict[str, Any]]:
         """Process one LLM stream iteration, yield lifecycle and data events.
 
-        Combines the first-chunk and stream-body processing into a single
-        public method. Tracks cancellation, provider failure, and completion
-        via yielded events — the caller observes these through the event stream.
+        Orchestrates first-chunk processing and stream-body iteration.
+        Delegates to ``_process_first_chunk`` and ``_process_stream_body``
+        to keep each method focused and testable.
 
         Args:
             llm_stream: The LLM stream async iterator.
@@ -304,61 +308,127 @@ class BaseLoop:
         Yields:
             SDK-normalized stream events and synthetic lifecycle events.
         """
-        provider_failed = False
-        in_progress_emitted = False
+        events, provider_failed, in_progress_emitted = await self._process_first_chunk(
+            llm_stream, agent, content_parts, tool_calls_buffer,
+            cumulative_usage, usage_settled_ids,
+        )
+        for event in events:
+            yield event
+        if provider_failed:
+            return
 
-        # --- First chunk ---
+        async for event in self._process_stream_body(
+            llm_stream, agent, content_parts, tool_calls_buffer,
+            cumulative_usage, usage_settled_ids, in_progress_emitted,
+        ):
+            yield event
+
+    async def _process_first_chunk(
+        self,
+        llm_stream: AsyncIterator[dict[str, Any]],
+        agent: Agent,
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
+    ) -> tuple[list[dict[str, Any]], bool, bool]:
+        """Process the first chunk from ``llm_stream``.
+
+        Handles cancellation, empty stream, and all first-chunk event type
+        routing. Accumulates the first chunk's data into the shared buffers.
+
+        Returns:
+            Tuple of (events_to_yield, provider_failed, in_progress_emitted).
+            ``provider_failed`` is ``True`` when the first chunk indicates a
+            provider error — the caller should return immediately without
+            processing the stream body.
+        """
         first_chunk, first_cancelled = await self._read_stream_chunk(
-            llm_stream, agent._cancel_event
+            llm_stream, agent._cancel_event,
         )
         if first_cancelled:
             if hasattr(llm_stream, "aclose"):
                 await llm_stream.aclose()
-            yield {"type": "response.created"}
-            yield {"type": "response.cancelled"}
-            return
+            return [
+                {"type": "response.created"},
+                {"type": "response.cancelled"},
+            ], False, False
 
         if first_chunk is None:
-            yield {"type": "response.created"}
-            yield {"type": "response.in_progress"}
-            return
+            return [
+                {"type": "response.created"},
+                {"type": "response.in_progress"},
+            ], False, False
 
         chunk_type = first_chunk.get("type", "")
+        events: list[dict[str, Any]] = []
+        provider_failed = False
+        in_progress_emitted = False
 
         if chunk_type == "response.created":
-            yield first_chunk
+            events.append(first_chunk)
         elif chunk_type == "response.completed":
-            yield {"type": "response.created"}
-            yield first_chunk
+            events.append({"type": "response.created"})
+            events.append(first_chunk)
         elif chunk_type in ("response.failed", "error"):
             provider_failed = True
-            yield {"type": "response.created"}
-            yield first_chunk
+            events.append({"type": "response.created"})
+            events.append(first_chunk)
         elif chunk_type == "response.in_progress":
-            yield {"type": "response.created"}
-            yield first_chunk
+            events.append({"type": "response.created"})
+            events.append(first_chunk)
             in_progress_emitted = True
         else:
-            yield {"type": "response.created"}
-            yield {"type": "response.in_progress"}
+            events.append({"type": "response.created"})
+            events.append({"type": "response.in_progress"})
             in_progress_emitted = True
-            yield first_chunk
+            events.append(first_chunk)
 
-        self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+        self._accumulate_chunk(
+            first_chunk, content_parts, tool_calls_buffer,
+            cumulative_usage, usage_settled_ids,
+        )
 
-        if provider_failed:
-            return
+        return events, provider_failed, in_progress_emitted
 
-        # --- Stream body ---
+    async def _process_stream_body(
+        self,
+        llm_stream: AsyncIterator[dict[str, Any]],
+        agent: Agent,
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
+        in_progress_emitted: bool = False,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Iterate through the stream body after the first chunk.
+
+        Yields stream body events, accumulates chunk data into the shared
+        buffers, tracks ``in_progress`` emission, and detects provider
+        failure / cancellation.
+
+        Args:
+            llm_stream: The LLM stream async iterator.
+            agent: The agent executing the loop.
+            content_parts: List of text delta strings (appended in place).
+            tool_calls_buffer: Dict of tool call key to accumulated data.
+            cumulative_usage: Dict of cumulative token counts.
+            usage_settled_ids: Set of response IDs whose usage has been counted.
+            in_progress_emitted: Whether ``response.in_progress`` was already
+                emitted by the first-chunk handler.
+
+        Yields:
+            SDK-normalized stream events from the stream body.
+        """
         async for chunk, _ in self._iter_llm_events(
-            llm_stream, agent._cancel_event
+            llm_stream, agent._cancel_event,
         ):
             if chunk is None:
                 break
             if chunk.get("type") == "response.in_progress":
                 in_progress_emitted = True
             elif chunk.get("type") in (
-                "response.completed", "response.failed", "error"
+                "response.completed", "response.failed", "error",
             ):
                 pass
             elif not in_progress_emitted:
@@ -366,11 +436,17 @@ class BaseLoop:
                 in_progress_emitted = True
 
             if chunk.get("type") in ("response.failed", "error"):
-                provider_failed = True
-            yield chunk
-            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-            if provider_failed:
+                yield chunk
+                self._accumulate_chunk(
+                    chunk, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids,
+                )
                 break
+            yield chunk
+            self._accumulate_chunk(
+                chunk, content_parts, tool_calls_buffer,
+                cumulative_usage, usage_settled_ids,
+            )
         if agent.is_cancelled:
             yield {"type": "response.cancelled"}
 
@@ -405,7 +481,7 @@ class BaseLoop:
 
         for tc in tool_calls_list:
             if agent.is_cancelled:
-                raise asyncio.CancelledError()
+                raise asyncio.CancelledError
             if tool_call_count >= agent.policy.max_tool_calls:
                 max_tool_calls_reached = True
                 break
@@ -424,7 +500,7 @@ class BaseLoop:
                         "role": "tool_result",
                         "call_id": _resolve_call_id(tc),
                         "content": str(tool_result),
-                    }
+                    },
                 )
                 continue
 
@@ -435,7 +511,7 @@ class BaseLoop:
                 try:
                     tool_result = await ToolExecutor.execute(tool, arguments, agent)
                     if agent.is_cancelled:
-                        raise asyncio.CancelledError()
+                        raise asyncio.CancelledError
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -447,7 +523,7 @@ class BaseLoop:
                     "role": "tool_result",
                     "call_id": _resolve_call_id(tc),
                     "content": str(tool_result),
-                }
+                },
             )
 
         if executed_tool_calls:
@@ -486,15 +562,15 @@ class BaseLoop:
             response_data = chunk.get("response", {})
             resp_id = response_data.get("id", "")
             usage = response_data.get("usage", {})
-            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
+            if usage and resp_id not in usage_settled_ids:
                 _accumulate_usage(cumulative_usage, usage)
-                usage_settled_ids.add("__any__")
+                usage_settled_ids.add(resp_id)
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
             resp_id = chunk.get("response", {}).get("id", "")
-            if usage and "__any__" not in usage_settled_ids and resp_id not in usage_settled_ids:
+            if usage and resp_id not in usage_settled_ids:
                 _accumulate_usage(cumulative_usage, usage)
-                usage_settled_ids.add("__any__")
+                usage_settled_ids.add(resp_id)
 
     @staticmethod
     async def _read_stream_chunk(
@@ -508,10 +584,10 @@ class BaseLoop:
         exhaustion (``StopAsyncIteration``).
         """
         next_task: asyncio.Task[dict[str, Any] | None] = asyncio.ensure_future(
-            llm_stream.__anext__()
+            llm_stream.__anext__(),
         )
         cancel_task = asyncio.create_task(cancel_event.wait())
-        done, pending = await asyncio.wait(
+        _done, pending = await asyncio.wait(
             [next_task, cancel_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -649,7 +725,8 @@ def _resolve_call_id(tc: dict[str, Any]) -> str:
     """
     call_id = tc.get("call_id") or tc.get("id")
     if not call_id:
-        raise ValueError("Tool call is missing both 'call_id' and 'id'")
+        msg = "Tool call is missing both 'call_id' and 'id'"
+        raise ValueError(msg)
     return call_id
 
 
@@ -681,10 +758,10 @@ def _accumulate_usage(
         usage: Usage dict from the provider response.
     """
     cumulative["input_tokens"] += _usage_int(
-        usage.get("input_tokens", usage.get("prompt_tokens"))
+        usage.get("input_tokens", usage.get("prompt_tokens")),
     )
     cumulative["output_tokens"] += _usage_int(
-        usage.get("output_tokens", usage.get("completion_tokens"))
+        usage.get("output_tokens", usage.get("completion_tokens")),
     )
     cumulative["total_tokens"] += _usage_int(usage.get("total_tokens"))
 

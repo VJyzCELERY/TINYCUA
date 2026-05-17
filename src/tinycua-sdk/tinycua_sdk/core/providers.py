@@ -13,8 +13,9 @@ providers are rejected at ``create_client()`` time via
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Final
+from typing import TYPE_CHECKING, Any, Final
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_client import LLMClient
@@ -44,9 +45,21 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
     "openai": "openai",
 }
 
-#: Valid provider identifiers (canonical + aliases + openai-responses).
+#: Recognized provider identifiers (canonical + aliases + openai-responses).
+#:
+#: .. note::
+#:     This set lists all *recognized* provider identifier strings, but only
+#:     *registered* providers are functional at runtime. Registration is owned
+#:     by ``ProviderRegistry`` — see ``get_provider_registry().register()``.
+#:     Unregistered providers (e.g. ``"openai-compatible"``, ``"lmstudio"``)
+#:     raise ``ProviderNotSupportedError`` from ``create_client()``.
+#:
+#:     **Phase 1** removes the old generic OpenAI-compatible registration;
+#:     only ``OPENAI_RESPONSES`` (``"openai-responses"``) is registered by
+#:     default. Consumers that need ``"openai-compatible"`` must register
+#:     a factory explicitly.
 VALID_PROVIDERS: Final[frozenset[str]] = frozenset(
-    {OPENAI_COMPATIBLE, OPENAI_RESPONSES, "openai"} | set(_PROVIDER_ALIASES.keys())
+    {OPENAI_COMPATIBLE, OPENAI_RESPONSES, "openai"} | set(_PROVIDER_ALIASES.keys()),
 )
 
 
@@ -261,15 +274,15 @@ def _register_defaults(registry: ProviderRegistry) -> None:
 
 
 __all__ = [
-    "OPENAI_COMPATIBLE",
-    "OPENAI_RESPONSES",
     "DEFAULT_BASE_URL",
     "OPENAI_BASE_URL",
+    "OPENAI_COMPATIBLE",
+    "OPENAI_RESPONSES",
     "VALID_PROVIDERS",
-    "resolve_provider",
-    "normalize_base_url",
     "ProviderFactory",
     "ProviderInfo",
     "ProviderRegistry",
     "get_provider_registry",
+    "normalize_base_url",
+    "resolve_provider",
 ]

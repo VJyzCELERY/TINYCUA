@@ -10,17 +10,16 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Iterator
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from tinycua_sdk.agent.events import (
+    ContentDeltaEvent,
+    ContentDoneEvent,
     LLMEvent,
     LLMResponse,
     RawSseEvent,
-    ContentDeltaEvent,
-    ContentDoneEvent,
     ResponseCompletedEvent,
     ResponseFailedEvent,
     ResponseUsageEvent,
@@ -30,12 +29,14 @@ from tinycua_sdk.agent.events import (
     ToolCallReadyEvent,
     ToolCallStartedEvent,
 )
-from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
 from tinycua_sdk.core.providers import normalize_base_url
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator
+
     from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
+    from tinycua_sdk.agent.llm_model import LanguageModel
 
 
 class LLMClient(ABC):
@@ -97,6 +98,18 @@ class LLMClient(ABC):
         Validates that ``raw_events=True`` requires ``stream=True``,
         then delegates to ``_chat_impl()``.
 
+        .. note::
+            When ``raw_events=True``, the yielded ``(canonical, raw)`` tuples
+            follow these pairing rules:
+
+            - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
+            - **Canonical-only** (synthetic event): ``(canonical_event, None)``
+            - **One-to-one**: ``(canonical_event, raw_event)``
+            - **One-to-many**: first gets ``(canonical, raw)``, subsequent
+              get ``(canonical, None)``
+
+            Consumers MUST handle ``None`` in either slot.
+
         Args:
             messages: Canonical message list.
             tools: Optional list of tool specs.
@@ -109,7 +122,8 @@ class LLMClient(ABC):
             Streaming: ``AsyncIterator[LLMEvent]`` or paired tuples.
         """
         if raw_events and not stream:
-            raise ValueError("raw_events=True requires stream=True")
+            msg = "raw_events=True requires stream=True"
+            raise ValueError(msg)
         return await self._chat_impl(messages, tools, stream=stream, raw_events=raw_events)
 
     @abstractmethod
@@ -145,7 +159,7 @@ class OpenAICompatibleClient(LLMClient):
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
             self._clients[key] = httpx.AsyncClient(
-                base_url=key[0], headers=headers, timeout=60.0
+                base_url=key[0], headers=headers, timeout=60.0,
             )
         return self._clients[key]
 
@@ -199,7 +213,7 @@ class OpenAICompatibleClient(LLMClient):
                         "type": "function_call_output",
                         "call_id": msg.get("call_id", ""),
                         "output": msg.get("content", ""),
-                    }
+                    },
                 )
             else:
                 result.append(msg)  # type: ignore[arg-type]
@@ -324,8 +338,9 @@ class OpenAICompatibleClient(LLMClient):
             ) from e
 
         if response.status_code in (401, 403):
+            msg = f"Authentication failed for provider '{self._model_config.provider}'"
             raise ProviderAuthError(
-                f"Authentication failed for provider '{self._model_config.provider}'"
+                msg,
             )
 
         try:
@@ -358,7 +373,7 @@ class OpenAICompatibleClient(LLMClient):
                         "call_id": item.get("call_id", ""),
                         "name": item.get("name", ""),
                         "arguments": item.get("arguments", "{}"),
-                    }
+                    },
                 )
 
         usage_raw = data.get("usage")
@@ -550,9 +565,9 @@ class OpenAICompatibleClient(LLMClient):
 
         if event_type == "response.failed":
             raw_error = event.get("error", {})
-            error: dict[str, str] = {}
+            error: dict[str, Any] = {}
             if isinstance(raw_error, dict):
-                error = {str(k): str(v) for k, v in raw_error.items()}
+                error = {str(k): v for k, v in raw_error.items()}
             return [ResponseFailedEvent(type="response.failed", error=error)]
 
         if event_type == "response.usage":
@@ -568,7 +583,7 @@ class OpenAICompatibleClient(LLMClient):
                         output_tokens=usage_data.get("output_tokens"),
                         total_tokens=usage_data.get("total_tokens"),
                     ),
-                )
+                ),
             ]
 
         return []
@@ -636,6 +651,14 @@ class OpenAICompatibleClient(LLMClient):
     ) -> Iterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
         """Yield canonical events, optionally paired with raw event.
 
+        Pairing rules (applied when ``raw_events=True``):
+
+        - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
+        - **Canonical-only** (synthetic event): ``(canonical_event, None)``
+        - **One-to-one** (one raw → one canonical): ``(canonical_event, raw_event)``
+        - **One-to-many** (one raw → N canonicals): first gets
+          ``(canonical, raw)``, subsequent get ``(canonical, None)``
+
         Args:
             events: List of canonical events from the normalizer.
             raw_event_obj: Raw SSE event object for pairing.
@@ -681,8 +704,9 @@ class OpenAICompatibleClient(LLMClient):
         try:
             async with client.stream("POST", "/responses", json=req_payload) as response:
                 if response.status_code in (401, 403):
+                    msg = f"Authentication failed for provider '{self._model_config.provider}'"
                     raise ProviderAuthError(
-                        f"Authentication failed for provider '{self._model_config.provider}'"
+                        msg,
                     )
                 try:
                     response.raise_for_status()
@@ -705,8 +729,10 @@ class OpenAICompatibleClient(LLMClient):
                             data = json.loads(buffer)
                         except json.JSONDecodeError:
                             continue
-                        # Capture response ID from stream completion for continuation state.
-                        if data.get("type") == "response.completed":
+                        # Capture response ID from stream events for continuation state.
+                        # response.created carries the response id early; response.completed
+                        # is the fallback if created was missed.
+                        if data.get("type") in ("response.created", "response.completed"):
                             nested = data.get("response", {})
                             self._previous_response_id = (
                                 nested.get("id") or data.get("id") or None

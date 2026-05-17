@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any, Literal, TypedDict, Union
 
-
 # ── Canonical SSE Events ────────────────────────────────────────────────────
 
 
@@ -87,10 +86,15 @@ class ResponseCompletedEvent(TypedDict):
 
 
 class ResponseFailedEvent(TypedDict):
-    """Emitted when an exception occurs during streaming."""
+    """Emitted when an exception occurs during streaming.
+
+    The ``error`` dict preserves original provider error value types
+    (e.g. numeric codes, nested objects) — consumer code should handle
+    mixed types via ``isinstance`` checks.
+    """
 
     type: Literal["response.failed"]
-    error: dict[str, str]
+    error: dict[str, Any]
 
 
 # ── LLMEvent union ──────────────────────────────────────────────────────────
@@ -176,28 +180,28 @@ class LLMToolSpec(TypedDict):
 # ── Public API ──────────────────────────────────────────────────────────────
 
 __all__ = [
+    "AssistantMessage",
     # Canonical SSE Events
     "ContentDeltaEvent",
     "ContentDoneEvent",
-    "ToolCallStartedEvent",
+    # Union type
+    "LLMEvent",
+    "LLMMessage",
+    # Non-streaming response
+    "LLMResponse",
+    "LLMToolSpec",
+    # Raw SSE event
+    "RawSseEvent",
+    "ResponseCompletedEvent",
+    "ResponseFailedEvent",
+    "ResponseUsageEvent",
+    # Canonical Input Types
+    "SystemMessage",
+    "TokenUsage",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
     "ToolCallReadyEvent",
-    "TokenUsage",
-    "ResponseUsageEvent",
-    "ResponseCompletedEvent",
-    "ResponseFailedEvent",
-    # Union type
-    "LLMEvent",
-    # Non-streaming response
-    "LLMResponse",
-    # Raw SSE event
-    "RawSseEvent",
-    # Canonical Input Types
-    "SystemMessage",
-    "UserMessage",
-    "AssistantMessage",
+    "ToolCallStartedEvent",
     "ToolResultMessage",
-    "LLMMessage",
-    "LLMToolSpec",
+    "UserMessage",
 ]
