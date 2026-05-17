@@ -608,18 +608,16 @@ This design document, together with the companion spec, defines the contract for
 | Unit tests | Schema validation, registry behavior, error cases (unit-level, no SDK mocking) |
 | Integration tests | Provider switching via `LanguageModel.provider` (compile-time contract tests) |
 
-**Key constraint**: Phase 1 is **provider-agnostic**. No provider SDK integration (no `openai` PyPI dependency, no `OpenAIResponsesClient`, no per-provider normalizer). The registry, schema, and ABC must compile and pass tests without any provider SDK installed.
+**Scope expansion note**: Phase 1 implementation expanded beyond the original provider-agnostic constraint. The `OpenAICompatibleClient` (httpx-based, no `openai` PyPI SDK dependency), Agent Loop migration, and raw pass-through were all implemented within Phase 1. The `openai` PyPI SDK-backed `OpenAIResponsesClient` remains a separate Phase 2 item.
 
 ### Out of Scope (Deferred to Future Phases)
 
 | Area | Phase | Details |
 |------|-------|---------|
 | `OpenAIResponsesClient` | Phase 2 | OpenAI Responses API provider client and normalizer wrapping `openai` PyPI SDK |
-| Agent Loop migration | Phase 2 | Update `tinycua_sdk/agent/loop.py` to consume new canonical event schema |
-| Raw pass-through implementation | Phase 2 | Per-provider `raw_events` behavior (type contract is defined in Phase 1; runtime behavior comes with provider implementations) |
 | `OpenAIChatClient` | Phase 3 | OpenAI Chat Completions API provider client |
 
-The PR body references Phase 2 items (OpenAI Responses provider, loop migration) as future milestones, consistent with this scope. The success criteria in the spec that mention provider tests are aspirational for the full roadmap; the immediate Phase 1 success criteria are limited to schema, registry, contract, and compile-time tests.
+The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 deliverables include schema, registry, contract, provider client (httpx-backed), loop migration, raw pass-through, and corresponding unit & integration tests.
 
 ---
 
@@ -627,22 +625,32 @@ The PR body references Phase 2 items (OpenAI Responses provider, loop migration)
 
 > **Note**: Each phase below is an independent implementation stage with its own spec and design document. This design document covers planning for Phase 1 (Foundation) as defined in **Planning Scope** above. Subsequent phases will have separate specs and designs.
 
-### Phase 1 — Foundation: Interface, Schema, Registry (This Milestone)
+### Phase 1 — Foundation: Interface, Schema, Registry, Provider Client (This Milestone)
 
-This phase establishes the core abstractions and is **provider-agnostic** — no provider SDK integrations.
+This phase establishes the core abstractions, an httpx-based provider client, and the Agent Loop integration — all without the `openai` PyPI SDK dependency.
 
-- [ ] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `LLMResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema; define canonical input types (`LLMMessage`, `LLMToolSpec`, `ToolResultMessage`)
-- [ ] **1.2**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[LLMMessage]` and `list[LLMToolSpec] | None`, update return type to `LLMResponse` (non-streaming), and document canonical event contract in docstring; add `raw_events` parameter
-- [ ] **1.3**: Implement `ProviderRegistry` in `core/providers.py` — register with factory, create_client, list, is_supported, reset
-- [ ] **1.4**: Implement `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` exception classes in `core/exceptions.py`
-- [ ] **1.5**: Write unit tests for:
+- [x] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `LLMResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema; define canonical input types (`LLMMessage`, `LLMToolSpec`, `ToolResultMessage`)
+- [x] **1.2**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[LLMMessage]` and `list[LLMToolSpec] | None`, update return type to `LLMResponse` (non-streaming), and document canonical event contract in docstring; add `raw_events` parameter
+- [x] **1.3**: Implement `ProviderRegistry` in `core/providers.py` — register with factory, create_client, list, is_supported, reset
+- [x] **1.4**: Implement `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` exception classes in `core/exceptions.py`
+- [x] **1.5**: Write unit tests for:
       - Canonical event schema validation (`LLMEvent` subclasses, `LLMResponse`, `RawSseEvent`)
       - `ProviderRegistry` behavior (register, resolve, unsupported provider errors)
       - Error cases: auth failure, SDK import errors (unit-level)
-- [ ] **1.6**: Write integration tests for:
+- [x] **1.6**: Write integration tests for:
       - Provider registry provider switching via `LanguageModel.provider`
+- [x] **1.7**: Implement `OpenAICompatibleClient` with full Responses API support (httpx-based):
+      - Non-streaming and streaming via `/responses` endpoint
+      - `_normalize_responses_event()` normalizer for SSE stream events
+      - `raw_events` paired-tuple mode for provider-native event passthrough
+      - Tool-call continuation state via `previous_response_id` tracking
+- [x] **1.8**: Migrate Agent Loop (`loop.py`) to consume canonical event schema:
+      - `BaseLoop` public helpers (`process_tool_calls`, `process_stream_iteration`, etc.)
+      - Tool-call ready-gating via `ToolCallReadyEvent`
+      - Streaming lifecycle events (`content.delta`, `response.completed`, etc.)
+- [x] **1.9**: Write unit and integration tests for provider client, loop migration, and raw pass-through
 
-### Phase 2 — OpenAI Responses API Provider (Next Milestone)
+### Phase 2 — OpenAI `openai` PyPI SDK Provider (Next Milestone)
 
 See separate spec and design for this phase.
 
@@ -650,12 +658,10 @@ See separate spec and design for this phase.
       - `chat()` non-streaming via `openai.responses.create()` → normalize SDK response to `LLMResponse`
       - `chat()` streaming via `openai.responses.stream()` with SSE normalizer → normalize raw stream events to canonical schema
       - Extract and formalize the existing `_normalize_responses_event()` into the per-provider normalizer
-      - Raw pass-through via `raw_events` flag: yield `(canonical, raw)` tuples
       - Register as `"openai-responses"` in `ProviderRegistry`
 - [ ] Write unit tests for `OpenAIResponsesClient` (mocked SDK)
 - [ ] Write integration tests for end-to-end streaming/non-streaming with mocked SDK
 - [ ] Update `pyproject.toml` dependencies — add `openai>=1.55` as a core dependency (primary provider); future non-primary providers use optional extras
-- [ ] Update `tinycua_sdk/agent/loop.py` to consume new canonical event schema
 
 ### Phase 3 — OpenAI Chat Completions API Provider (Future)
 

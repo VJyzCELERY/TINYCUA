@@ -269,7 +269,6 @@ async def test_custom_loop_uses_public_helpers():
 
     class CustomToolLoop(BaseLoop):
         def __init__(self, **kwargs):
-            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_tool_calls = False
@@ -282,17 +281,12 @@ async def test_custom_loop_uses_public_helpers():
             self.called_build_system_message = True
             working = [system_msg] + list(messages)
             tool_call_count = 0
-            llm_calls = 0
 
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
                     raise asyncio.CancelledError()
 
-                if llm_calls == 0 and self.initial_llm_model is not None:
-                    response = await agent._call_llm(working, tools, llm_model=self.initial_llm_model)
-                else:
-                    response = await agent._call_llm(working, tools)
-                llm_calls += 1
+                response = await agent._call_llm(working, tools)
                 content = response.get("content")
                 tool_calls = response.get("tool_calls")
 
@@ -321,9 +315,9 @@ async def test_custom_loop_uses_public_helpers():
     llm_model_with_tc = llm_model.model_copy(
         update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
-    loop = CustomToolLoop(initial_llm_model=llm_model_with_tc)
+    loop = CustomToolLoop()
     agent = Agent(
-        llm_model=llm_model,
+        llm_model=llm_model_with_tc,
         tools=[get_weather],
         loop=loop,
     )
@@ -340,10 +334,10 @@ async def test_custom_loop_uses_public_helpers():
 
     helper_call_msgs = [
         m for m in loop.last_working_messages
-        if isinstance(m, dict) and m.get("type") == "function_call_output"
+        if isinstance(m, dict) and m.get("role") == "tool_result"
     ]
     assert len(helper_call_msgs) > 0, (
-        "No function_call_output messages found — helpers did not execute tool calls"
+        "No tool_result messages found — helpers did not execute tool calls"
     )
 
 
@@ -363,7 +357,6 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     class CustomStreamingLoop(BaseLoop):
         def __init__(self, **kwargs):
-            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_stream_iteration = False
@@ -383,7 +376,6 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
                 cancelled = False
                 provider_failed = False
                 completed_by_provider = False
-                llm_calls = 0
 
                 try:
                     for _ in range(self.max_iterations):
@@ -396,11 +388,7 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
                         tool_calls_buffer = {}
                         usage_settled_ids.clear()
 
-                        if llm_calls == 0 and self.initial_llm_model is not None:
-                            llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)
-                        else:
-                            llm_stream = await agent._call_llm(working, tools, stream=True)
-                        llm_calls += 1
+                        llm_stream = await agent._call_llm(working, tools, stream=True)
 
                         iteration_completed = False
                         async for event in self.process_stream_iteration(
@@ -453,8 +441,8 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
     llm_model_with_tc = llm_model.model_copy(
         update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
-    loop = CustomStreamingLoop(initial_llm_model=llm_model_with_tc)
-    agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
+    loop = CustomStreamingLoop()
+    agent = Agent(llm_model=llm_model_with_tc, tools=[get_weather], loop=loop)
 
     stream = await agent.run("What is the weather in Tokyo?", stream=True)
     events = [e async for e in stream]
@@ -476,8 +464,8 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     helper_call_msgs = [
         m for m in loop.last_working_messages
-        if isinstance(m, dict) and m.get("type") == "function_call_output"
+        if isinstance(m, dict) and m.get("role") == "tool_result"
     ]
     assert len(helper_call_msgs) > 0, (
-        "No function_call_output messages found — streaming helpers did not execute tool calls"
+        "No tool_result messages found — streaming helpers did not execute tool calls"
     )

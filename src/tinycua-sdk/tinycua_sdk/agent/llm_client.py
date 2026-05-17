@@ -128,6 +128,7 @@ class OpenAICompatibleClient(LLMClient):
     def __init__(self, model_config: LanguageModel) -> None:
         self._model_config = model_config
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
+        self._previous_response_id: str | None = None
 
     def _client_key(self, model_config: LanguageModel | None = None) -> tuple[str, str]:
         cfg = model_config or self._model_config
@@ -209,6 +210,7 @@ class OpenAICompatibleClient(LLMClient):
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
         model_config: LanguageModel,
+        previous_response_id: str | None = None,
     ) -> dict[str, Any]:
         """Build the chat completion payload shared by sync and streaming paths.
 
@@ -220,6 +222,10 @@ class OpenAICompatibleClient(LLMClient):
             messages: Canonical message list.
             tools: Optional list of tool specs.
             model_config: Language model configuration.
+            previous_response_id: The ``id`` of the preceding response when
+                continuing a conversation with tool-result inputs. Only
+                included in the payload when there are ``function_call_output``
+                items in the translated input.
 
         Returns:
             Complete payload dict ready for the LLM API request.
@@ -230,6 +236,14 @@ class OpenAICompatibleClient(LLMClient):
             "model": model_config.model_name,
             "input": translated_messages,
         }
+
+        if previous_response_id:
+            has_function_call_output = any(
+                item.get("type") == "function_call_output"
+                for item in translated_messages
+            )
+            if has_function_call_output:
+                payload["previous_response_id"] = previous_response_id
 
         _FIELD_MAP = {
             "max_tokens": "max_output_tokens",
@@ -299,7 +313,7 @@ class OpenAICompatibleClient(LLMClient):
             Canonical ``LLMResponse`` with content, tool_calls, usage.
         """
         client = self._get_client()
-        payload = self._build_payload(messages, tools, self._model_config)
+        payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
 
         try:
             response = await client.post("/responses", json=payload)
@@ -322,6 +336,8 @@ class OpenAICompatibleClient(LLMClient):
                 f"Provider API error: {e}",
             ) from e
         data = response.json()
+
+        self._previous_response_id = data.get("id") or None
 
         content = None
         tool_calls = None
@@ -575,7 +591,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client()
 
-        req_payload = self._build_payload(messages, tools, self._model_config)
+        req_payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
         req_payload["stream"] = True
 
         try:
@@ -605,6 +621,12 @@ class OpenAICompatibleClient(LLMClient):
                             data = json.loads(buffer)
                         except json.JSONDecodeError:
                             continue
+                        # Capture response ID from stream completion for continuation state.
+                        if data.get("type") == "response.completed":
+                            nested = data.get("response", {})
+                            self._previous_response_id = (
+                                nested.get("id") or data.get("id") or None
+                            )
                         events = self._normalize_responses_event(data, _tool_cache=tool_cache)
                         raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
                         for item in self._yield_events(events, raw_event_obj, raw_events):
