@@ -101,18 +101,18 @@ async def test_registry_returns_correct_client_per_provider(registry: ProviderRe
     """Given registered providers, when create_client is called, the
     returned client's chat() response reflects the correct provider."""
     registry.register(
-        "openai-compatible",
+        "openai-responses",
         lambda cfg: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiCompatibleClient(), description="OpenAI Compatible"),
+        ProviderInfo(id="openai-responses", factory=lambda c: _FakeOpenaiCompatibleClient(), description="OpenAI Responses"),
     )
     registry.register(
-        "openai",
+        "openai-compatible",
         lambda cfg: _FakeOpenaiClient(),
-        ProviderInfo(id="openai", factory=lambda c: _FakeOpenaiClient(), description="OpenAI"),
+        ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiClient(), description="Compatible"),
     )
 
-    model_a = LanguageModel(provider="openai-compatible", model_name="compatible-model")
-    model_b = LanguageModel(provider="openai", model_name="openai-model")
+    model_a = LanguageModel(provider="openai-responses", model_name="alpha-model")
+    model_b = LanguageModel.model_construct(provider="openai-compatible", model_name="beta-model")
 
     client_a = registry.create_client(model_a)
     client_b = registry.create_client(model_b)
@@ -122,6 +122,7 @@ async def test_registry_returns_correct_client_per_provider(registry: ProviderRe
 
     assert resp_a["content"] == "openai-compatible response"  # type: ignore[index]
     assert resp_b["content"] == "openai response"  # type: ignore[index]
+    # (intentionally swapped names — model_a uses _FakeOpenaiCompatibleClient, model_b uses _FakeOpenaiClient)
 
 
 # ── Test 2: Unsupported provider raises clear error ────────────────────────
@@ -137,7 +138,7 @@ def test_unsupported_provider_raises_error(registry: ProviderRegistry) -> None:
         ProviderInfo(id="supported-one", factory=lambda c: _FakeOpenaiCompatibleClient(), description="S1"),
     )
 
-    model = LanguageModel(provider="openai", model_name="test")
+    model = LanguageModel.model_construct(provider="openai", model_name="test")
     with pytest.raises(ProviderNotSupportedError) as excinfo:
         registry.create_client(model)
     assert "openai" in str(excinfo.value)
@@ -150,20 +151,20 @@ def test_unsupported_provider_raises_error(registry: ProviderRegistry) -> None:
 def test_list_providers_returns_registered(registry: ProviderRegistry) -> None:
     """Given providers registered, list_providers includes all of them."""
     registry.register(
-        "openai-compatible",
+        "provider-alpha",
         lambda c: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiCompatibleClient(), description="Provider 1"),
+        ProviderInfo(id="provider-alpha", factory=lambda c: _FakeOpenaiCompatibleClient(), description="Provider 1"),
     )
     registry.register(
-        "openai",
+        "provider-beta",
         lambda c: _FakeOpenaiClient(),
-        ProviderInfo(id="openai", factory=lambda c: _FakeOpenaiClient(), description="Provider 2"),
+        ProviderInfo(id="provider-beta", factory=lambda c: _FakeOpenaiClient(), description="Provider 2"),
     )
 
     providers = registry.list_providers()
     ids = [p.id for p in providers]
-    assert "openai-compatible" in ids
-    assert "openai" in ids
+    assert "provider-alpha" in ids
+    assert "provider-beta" in ids
 
 
 # ── Test 4: raw_events=True with stream=False raises ValueError ────────────
@@ -177,7 +178,7 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
         lambda c: _FakeOpenaiCompatibleClient(),
         ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiCompatibleClient(), description="OpenAI Compatible"),
     )
-    client = registry.create_client(LanguageModel(provider="openai-compatible", model_name="test"))
+    client = registry.create_client(LanguageModel.model_construct(provider="openai-compatible", model_name="test"))
 
     with pytest.raises(ValueError, match="raw_events=True requires stream=True"):
         await client.chat([UserMessage(role="user", content="hi")], raw_events=True)
@@ -223,17 +224,12 @@ async def test_openai_responses_default_registration(default_registry: ProviderR
 # ── Test 6: Known but unregistered providers raise ProviderNotSupportedError ──
 
 
-def test_known_but_unregistered_providers_rejected(default_registry: ProviderRegistry) -> None:
-    """Given only openai-responses is registered (via default registration),
-    known but unregistered provider strings (e.g. "openai", "openai-compatible")
-    raise ProviderNotSupportedError with migration guidance listing registered
-    providers."""
+def test_deprecated_providers_rejected_at_construction() -> None:
+    """Given deprecated provider strings ("openai", "openai-compatible"),
+    LanguageModel raises ValueError at construction time."""
     for known in ("openai", "openai-compatible"):
-        model = LanguageModel(provider=known, model_name="test")
-        with pytest.raises(ProviderNotSupportedError) as excinfo:
-            default_registry.create_client(model)
-        assert known in str(excinfo.value)
-        assert "openai-responses" in str(excinfo.value)
+        with pytest.raises(ValueError, match="Unknown provider"):
+            LanguageModel(provider=known, model_name="test")
 
 
 # ── Test 7: Unknown provider string rejected at LanguageModel construction ──

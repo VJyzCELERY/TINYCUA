@@ -40,13 +40,13 @@ class TestProviderRegistry:
         info = ProviderInfo(id="openai-compatible", factory=factory, description="Test")
         registry.register("openai-compatible", factory, info)
 
-        model = LanguageModel(provider="openai-compatible", model_name="test")
+        model = LanguageModel.model_construct(provider="openai-compatible", model_name="test")
         client = registry.create_client(model)
         assert isinstance(client, LLMClient)
         assert isinstance(client, _MinimalClient)
 
     def test_create_client_unsupported_provider(self, registry: ProviderRegistry) -> None:
-        model = LanguageModel(provider="openai", model_name="test")
+        model = LanguageModel.model_construct(provider="openai", model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             registry.create_client(model)
         assert "openai" in str(excinfo.value)
@@ -57,7 +57,7 @@ class TestProviderRegistry:
         info = ProviderInfo(id="existing", factory=factory, description="Existing")
         registry.register("existing", factory, info)
 
-        model = LanguageModel(provider="openai", model_name="test")
+        model = LanguageModel.model_construct(provider="openai", model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             registry.create_client(model)
         assert "openai" in str(excinfo.value)
@@ -119,7 +119,7 @@ class TestProviderRegistry:
         info = ProviderInfo(id="openai-compatible", factory=capturing_factory, description="Capture")
         registry.register("openai-compatible", capturing_factory, info)
 
-        model = LanguageModel(provider="openai-compatible", model_name="gpt-4o", temperature=0.5)
+        model = LanguageModel.model_construct(provider="openai-compatible", model_name="gpt-4o", temperature=0.5)
         registry.create_client(model)
 
         assert len(captured_configs) == 1
@@ -174,4 +174,4 @@ class TestRegistryFactoryPrecedence:
 
         r = ProviderRegistry()
         r.register('openai-compatible', factory_a, ProviderInfo(id='openai-compatible', factory=factory_b, description='metadata'))
-        assert isinstance(r.create_client(LanguageModel(provider='openai-compatible')), A)
+        assert isinstance(r.create_client(LanguageModel.model_construct(provider='openai-compatible')), A)

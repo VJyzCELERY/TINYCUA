@@ -13,7 +13,7 @@ class TestAgentCreation:
             "instructions": "Test agent",
             "llm_model": {
                 "model_name": "gpt-4",
-                "provider": "openai",
+                "provider": "openai-responses",
             },
         }
         agent = Agent.from_config(config)

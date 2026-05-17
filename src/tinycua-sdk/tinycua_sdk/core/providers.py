@@ -41,8 +41,6 @@ OPENAI_BASE_URL: Final = "https://api.openai.com/v1"
 _PROVIDER_ALIASES: Final[dict[str, str]] = {
     "lmstudio": OPENAI_COMPATIBLE,
     "ollama": OPENAI_COMPATIBLE,
-    # "openai" maps to itself for backward compatibility
-    "openai": "openai",
 }
 
 #: Recognized provider identifiers (canonical + aliases + openai-responses).

@@ -9,12 +9,10 @@ from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
 
-from tinycua_sdk.core.providers import OPENAI_COMPATIBLE, OPENAI_RESPONSES, resolve_provider
+from tinycua_sdk.core.providers import OPENAI_RESPONSES, resolve_provider
 
 _KNOWN_PROVIDERS: Final[frozenset[str]] = frozenset({
     OPENAI_RESPONSES,
-    OPENAI_COMPATIBLE,
-    "openai",
 })
 
 

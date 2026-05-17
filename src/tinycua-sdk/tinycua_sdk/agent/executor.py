@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.core.providers import ProviderRegistry, get_provider_registry
@@ -12,7 +12,7 @@ from tinycua_sdk.core.providers import ProviderRegistry, get_provider_registry
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.agent.config import AgentConfig
-    from tinycua_sdk.agent.events import LLMEvent, LLMMessage, LLMResponse
+    from tinycua_sdk.agent.events import LLMEvent, LLMMessage, LLMResponse, LLMToolSpec
     from tinycua_sdk.security.approval import ApprovalWorkflow
     from tinycua_sdk.tools.decorators import Tool
 
@@ -119,9 +119,13 @@ class AgentExecutor:
             when streaming.
         """
         client = self._get_llm_client()
-        tool_schemas = [t.to_config() for t in tools] if tools else None
-        return await client.chat(
-            messages, tool_schemas, stream=stream
+        tool_schemas: list[LLMToolSpec] | None = cast(
+            "list[LLMToolSpec] | None",
+            [t.to_config() for t in tools] if tools else None,
+        )
+        return cast(
+            "LLMResponse | AsyncIterator[LLMEvent]",
+            await client.chat(messages, tool_schemas, stream=stream),
         )
 
 

@@ -6,14 +6,13 @@ import asyncio
 import contextlib
 import json
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from tinycua_sdk.agent.executor import ToolExecutor
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
-
 
 
 
@@ -160,15 +159,21 @@ class BaseLoop:
             return await self._run_sync(agent, messages, tools, override_instructions)
         return self._run_stream(agent, messages, tools, override_instructions)
 
-    async def _run_sync(self, agent, messages, tools, override_instructions=None):
-        working = [self.build_system_message(agent, override_instructions), *messages]
+    async def _run_sync(
+        self,
+        agent: Agent,
+        messages: list[dict],
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> str:
+        working: list[dict] = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count = 0
         for _ in range(self.max_iterations):
             if agent.is_cancelled:
                 raise asyncio.CancelledError
             if tool_call_count >= agent.policy.max_tool_calls:
                 return self.last_assistant_content(working) or "[max tool calls reached]"
-            response = await agent._call_llm(working, tools)
+            response = await agent._call_llm(working, tools)  # type: ignore[arg-type]
             if not isinstance(response, dict):
                 msg = f"Expected dict from _call_llm(stream=False), got {type(response).__name__}"
                 raise TypeError(
@@ -176,7 +181,7 @@ class BaseLoop:
                 )
             if response.get("tool_calls"):
                 tool_call_count, max_reached = await self.process_tool_calls(
-                    agent, tools, response["tool_calls"], working, tool_call_count,
+                    agent, tools, response["tool_calls"], working, tool_call_count,  # type: ignore[arg-type]
                     response.get("content") or "",
                 )
                 if max_reached:
@@ -188,8 +193,14 @@ class BaseLoop:
                 return content or ""
         return self.last_assistant_content(working) or "[max iterations reached]"
 
-    async def _run_stream(self, agent, messages, tools, override_instructions=None):
-        working = [self.build_system_message(agent, override_instructions), *messages]
+    async def _run_stream(
+        self,
+        agent: Agent,
+        messages: list[dict],
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        working: list[dict] = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count, cumulative_usage = 0, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
         finish_reason, skip_complete, created_emitted = "completed", False, False
@@ -205,7 +216,8 @@ class BaseLoop:
                     finish_reason = "max_tool_calls"
                     skip_complete = False
                     break
-                content_parts, tool_calls_buffer = [], {}
+                content_parts: list[str] = []
+                tool_calls_buffer: dict[str, dict[str, Any]] = {}
                 usage_settled_ids.clear()
                 skip_complete = should_abort = False
                 llm_stream = await self._get_llm_stream(agent, working, tools)
@@ -271,7 +283,7 @@ class BaseLoop:
         Raises:
             TypeError: If the LLM does not return an async iterator.
         """
-        llm_stream = await agent._call_llm(working, tools, stream=True)
+        llm_stream = await agent._call_llm(working, tools, stream=True)  # type: ignore[arg-type]
         if not isinstance(llm_stream, AsyncIterator):
             msg = (
                 f"Expected AsyncIterator from _call_llm(stream=True), got "
@@ -280,7 +292,7 @@ class BaseLoop:
             raise TypeError(
                 msg,
             )
-        return llm_stream
+        return cast("AsyncIterator[dict[str, Any]]", llm_stream)
 
     async def process_stream_iteration(
         self,

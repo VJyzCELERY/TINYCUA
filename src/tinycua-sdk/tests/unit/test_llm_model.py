@@ -22,14 +22,14 @@ class TestLanguageModel:
         from tinycua_sdk import LanguageModel
 
         llm = LanguageModel(
-            provider="openai",
+            provider="openai-responses",
             model_name="gpt-4",
             base_url="http://localhost:1234/v1",
             max_context=64_000,
             temperature=0.5,
             system_prompt="You are a coder.",
         )
-        assert llm.provider == "openai"
+        assert llm.provider == "openai-responses"
         assert llm.model_name == "gpt-4"
         assert llm.base_url == "http://localhost:1234/v1"
         assert llm.max_context == 64_000
@@ -49,10 +49,10 @@ class TestLanguageModel:
         """LanguageModel.from_dict() reconstructs the model."""
         from tinycua_sdk import LanguageModel
 
-        d = {"model_name": "gpt-4", "provider": "openai"}
+        d = {"model_name": "gpt-4", "provider": "openai-responses"}
         llm = LanguageModel.from_dict(d)
         assert llm.model_name == "gpt-4"
-        assert llm.provider == "openai"
+        assert llm.provider == "openai-responses"
 
     def test_language_model_immutable(self):
         """LanguageModel is immutable after creation."""

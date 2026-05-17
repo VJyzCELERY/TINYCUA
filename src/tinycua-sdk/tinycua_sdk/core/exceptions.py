@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-
 class ProviderNotSupportedError(ValueError):
     """Raised when a requested provider is not registered in the registry.
 
