@@ -39,7 +39,7 @@ Today the SDK has:
 ### Constraints
 
 - Must honor each provider's official SDK interface — no custom wrappers that break upgrade compatibility
-- **Phase 1 is additive only**: Existing provider identifiers (e.g. `"openai"`, `"openai-compatible"`) and the current httpx-based client remain usable in Phase 1. Phase 2 introduces a **breaking change** by removing the old httpx-based client and restricting `LanguageModel.provider` to only registered provider IDs. Users should migrate to `"openai-responses"` before Phase 2. No deprecation shim or backward-compatibility layer will be provided after removal.
+- **Phase 1 is a breaking refactoring**: The existing `LLMClient` ABC is refactored in-place — `chat()` becomes concrete and delegates to an abstract `_chat_impl()`. Existing subclasses must be updated to implement `_chat_impl()`. The `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. **Backward compatibility is not maintained.** No deprecation shim or backward-compatibility layer is provided. Users should migrate to `"openai-responses"` or update their custom subclasses before Phase 2.
 - The canonical SSE event schema must be provider-agnostic — no OpenAI-specific field names
 - Raw SSE pass-through must be delivered as paired `(canonical_event, raw_event)` tuples in the same async iterator. The `canonical_event` slot MAY be `None` for provider-native raw events that have no canonical semantic equivalent. All provider SDK stream events MUST be yielded in arrival order when `raw_events=True`. The raw event is a lossless representation of the provider's original SDK event object
 - Providers must be resolvable from a `LanguageModel.provider` string
@@ -127,7 +127,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - [ ] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
 - [ ] **Phase 1 unit tests pass**: Canonical schema validation, registry behavior, error cases all pass without any provider SDK installed.
 - [ ] **Phase 1 integration tests pass**: Provider switching via `LanguageModel.provider` passes at the compile-time/contract level.
-- [ ] **Breaking change documented**: Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. Actual client removal is deferred to Phase 2.
+- [ ] **Breaking change documented**: The in-place `LLMClient` refactoring is documented as an intentional breaking change. Existing subclasses must add `_chat_impl()`. Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. The old `OpenAICompatibleClient` is updated to match the new contract in Phase 1 (not deferred to Phase 2).
 
 ### Full Roadmap Criteria (including Future Phases)
 
@@ -190,7 +190,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | LLMClient ABC | TODO | Phase 1 | Refactored contract with canonical event return types |
 | Provider Registry | TODO | Phase 1 | Singleton registry with factory, validation, reset |
 | Error Classes | TODO | Phase 1 | ProviderNotSupportedError, ProviderAuthError, ProviderApiError |
-| Upgrade Guide & Migration Docs | TODO | Phase 2 | Breaking change documentation; actual removal deferred to Phase 2 with OpenAIResponsesClient |
+| Upgrade Guide & Migration Docs | TODO | Phase 1 | Breaking change documentation for in-place LLMClient refactoring; OpenAICompatibleClient updated in Phase 1 |
 | Unit Tests (Phase 1) | TODO | Phase 1 | Schema (output + input types), registry, error cases — no provider SDK mocking |
 | Integration Tests (Phase 1) | TODO | Phase 1 | Compile-time contract tests for registry switching |
 | OpenAI Responses API Provider | TODO | Phase 2 | `openai-responses` ID; requires `openai` PyPI SDK |

@@ -38,11 +38,9 @@ from tinycua_sdk.core.exceptions import ProviderNotSupportedError
 # tests can validate the contract.
 
 class _FakeAlphaClient(LLMClient):
-    async def chat(self, messages, tools=None, stream=False, raw_events=False):
+    async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
         from collections.abc import AsyncIterator
         from tinycua_sdk.agent.events import CanonicalResponse
-        if raw_events and not stream:
-            raise ValueError("raw_events=True requires stream=True")
         if stream:
             async def _gen():
                 yield {"type": "response.completed", "finish_reason": "stop"}
@@ -60,10 +58,8 @@ class _FakeAlphaClient(LLMClient):
 
 
 class _FakeBetaClient(LLMClient):
-    async def chat(self, messages, tools=None, stream=False, raw_events=False):
+    async def _chat_impl(self, messages, tools=None, stream=False, raw_events=False):
         from tinycua_sdk.agent.events import CanonicalResponse
-        if raw_events and not stream:
-            raise ValueError("raw_events=True requires stream=True")
         return CanonicalResponse(
             content="beta response",
             tool_calls=None,
@@ -191,7 +187,7 @@ async def test_raw_events_requires_stream(registry):
 ### Manual Verification
 
 - [ ] Run type checker on the new TypedDicts: `cd src/tinycua-sdk && uv run mypy tinycua_sdk/agent/events.py`
-- [ ] Verify all old event exports in `agent/__init__.py` remain functional (Phase 1 is additive)
+- [ ] Verify all old event exports in `agent/__init__.py` remain functional (old TypedDicts preserved until Phase 2 removal)
 
 ### Performance Considerations
 
@@ -316,7 +312,7 @@ ProviderApiError(status_code, message)
 | Interface | Change |
 |-----------|--------|
 | **`LLMClient.chat()`** (refactored → concrete) | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`. No `model_config` (configuration bound at construction). Return type union of `CanonicalResponse` / `AsyncIterator[CanonicalEvent]` / `AsyncIterator[tuple[CanonicalEvent|None, RawSseEvent|None]]`. Concrete method performs shared validation (`raw_events=True` requires `stream=True`) then delegates to abstract `_chat_impl()`. |
-| **`LLMClient._chat_impl()`** (new, abstract) | Same signature as `chat()` minus `raw_events`. Subclasses implement provider-specific logic here. |
+| **`LLMClient._chat_impl()`** (new, abstract) | Parameters: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `stream: bool = False`, `raw_events: bool = False`. Subclasses implement provider-specific logic here. The `raw_events` flag is passed through so providers can yield paired `(canonical, raw)` tuples when requested. |
 | **`LLMClient.close()`** | Abstract method (unchanged). |
 
 > **Note**: This is a **breaking change**. The existing `LLMClient` ABC is refactored in-place — subclasses must add `_chat_impl()` implementation. `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. Backward compatibility is not maintained.
@@ -349,7 +345,7 @@ ProviderApiError(status_code, message)
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | This is an intentional breaking change — `LLMClient` ABC is refactored in-place. Existing subclasses must be updated to implement `_chat_impl()`. No backward-compatibility shim is provided. |
+| Breaking change to `LLMClient` ABC signature breaks existing subclasses | High | This is an intentional breaking change — `LLMClient` ABC is refactored in-place. Existing subclasses must be updated to implement `_chat_impl(messages, tools, stream, raw_events)`. No backward-compatibility shim is provided. |
 | Old event TypedDict removal (deferred to Phase 2) breaks existing consumers | High | Old TypedDicts are NOT removed in Phase 1 — they coexist with new canonical types. Phase 2 migration guide will document the removal. |
 | ProviderRegistry singleton causes test pollution | Medium | Provide `reset()` method; use `autouse` fixture in tests to reset between runs. |
 

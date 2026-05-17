@@ -38,7 +38,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] Define concrete `chat()` with canonical types: `messages: list[CanonicalMessage]`, `tools: list[CanonicalToolSpec] | None`, `raw_events: bool = False`
   - [ ] Add return type union: `CanonicalResponse | AsyncIterator[CanonicalEvent] | AsyncIterator[tuple[CanonicalEvent | None, RawSseEvent | None]]`
   - [ ] Concrete `chat()` performs shared validation: `raw_events=True` + `stream=False` → `ValueError`, then delegates to abstract `_chat_impl()`
-  - [ ] Define abstract `_chat_impl()` with same signature minus `raw_events` — subclasses implement provider-specific logic
+  - [ ] Define abstract `_chat_impl(messages, tools, stream, raw_events)` — `raw_events` is passed through so providers can yield paired `(canonical, raw)` tuples when requested
   - [ ] Add abstract `close()` method
   - [ ] Update docstring with canonical event contract and tool-call state machine rules
 - [ ] Update `OpenAICompatibleClient` to implement new `LLMClient` contract (requires `_chat_impl()`) <!-- id: 11 -->
