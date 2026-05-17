@@ -321,6 +321,13 @@ def test_unrecognized_provider_strings_rejected(default_registry):
   - Use a local deferred import inside the default-registration callable: `from tinycua_sdk.agent.llm_client import OpenAICompatibleClient` is placed inside the factory function body, not at module top level. This ensures `core.providers` can be fully imported without triggering the `agent.llm_client` import chain until the factory is actually invoked.
 - **[Rationale]**: FR-003, FR-004, FR-009. The registry maps provider strings to client factories and provides runtime validation.
 
+### Agent Executor Integration
+
+#### [MODIFY] `tinycua_sdk/agent/executor.py`
+
+- **[Description of change]**: Update `AgentExecutor._get_llm_client()` to use `ProviderRegistry` instead of hardcoded `OpenAICompatibleClient()`. Replace direct instantiation with `get_provider_registry().create_client(self.config.llm_model)` so the executor respects `LanguageModel.provider` switching. Update `_call_llm()` to the new `LLMClient.chat()` signature — configuration is bound at construction so `model` is no longer passed as a per-call parameter; callers create a new client via the registry for different configurations. Add `LanguageModel` support in `AgentExecutor.__init__()` or ensure `self.config.llm_model` is always set for registry resolution.
+- **[Rationale]**: REVIEW ISSUE-001 — The registry-first entrypoint is documented in the design but the implementation plan omitted the concrete component (`AgentExecutor`) that currently hardcodes `OpenAICompatibleClient()`. Without this migration, registry unit tests can pass while real agent execution flows continue bypassing the registry, making provider switching through `LanguageModel.provider` ineffective.
+
 ### Error Classes
 
 #### [NEW] `tinycua_sdk/core/exceptions.py`
@@ -363,6 +370,11 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 - **[Description of change]**: Unit and contract tests for the refactored `OpenAICompatibleClient`. Verifies it implements `_chat_impl()`, instantiates from `LanguageModel`, resolves through `ProviderRegistry`, produces correct `LLMResponse` (non-streaming) and `LLMEvent` (streaming) outputs, and passes base class `raw_events=True` with `stream=False` validation.
 - **[Dependencies]**: `llm_client.py`, `providers.py`, `events.py`.
 
+#### [MODIFY] `tests/unit/test_executor_integration.py`
+
+- **[Description of change]**: New tests proving `AgentExecutor`/`Agent` uses `ProviderRegistry` and respects `LanguageModel.provider` switching. Tests verify `_get_llm_client()` returns correct client per provider, and `_call_llm()` uses the new `LLMClient.chat()` signature without passing `model` as a per-call parameter. These tests use the `registry` fixture (fresh instance) so default registrations are not affected.
+- **[Dependencies]**: `executor.py`, `providers.py`, `llm_client.py`.
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -372,11 +384,13 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 | `tinycua_sdk/core/providers.py` | Modify | `ProviderRegistry` added alongside existing provider functions; `from __future__ import annotations` + `TYPE_CHECKING` guards to prevent circular imports with `agent.llm_client`; default `openai-responses` registration via deferred local import; `normalize_base_url()` updated for `"openai-responses"` default URL |
 | `tinycua_sdk/core/exceptions.py` | New | Provider-specific exception classes |
 | `tinycua_sdk/agent/__init__.py` | Modify | Updated exports for new canonical types |
+| `tinycua_sdk/agent/executor.py` | Modify | `_get_llm_client()` updated to use `get_provider_registry().create_client(self.config.llm_model)` instead of hardcoded `OpenAICompatibleClient()`; `_call_llm()` updated to new `LLMClient.chat()` signature without per-call `model` parameter |
 | `tests/unit/test_canonical_schema.py` | New | Schema type validation tests |
 | `tests/unit/test_provider_registry.py` | New | Registry behavior unit tests |
 | `tests/unit/test_error_classes.py` | New | Error class unit tests |
 | `tests/integration/test_provider_switching.py` | New | Contract-level integration tests |
 | `tests/unit/test_openai_compatible_client.py` | New | `OpenAICompatibleClient` contract and behavior tests |
+| `tests/unit/test_executor_integration.py` | New | Tests proving `AgentExecutor` uses registry and respects `LanguageModel.provider` switching |
 
 ## Data Model Changes
 

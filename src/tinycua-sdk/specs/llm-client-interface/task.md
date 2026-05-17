@@ -74,12 +74,19 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [ ] `is_supported(provider_id) → bool`
   - [ ] `reset()` — clear all registered providers
 - [ ] Add singleton instance `_provider_registry` and convenience function `get_provider_registry()` <!-- id: 17 -->
-- [ ] Keep existing `resolve_provider()`, `VALID_PROVIDERS` infrastructure unchanged (they remain usable during Phase 1 migration) <!-- id: 18 -->
+- [ ] Preserve `resolve_provider()` and `VALID_PROVIDERS` as migration-compatibility helpers — existing code can still reference them during the Phase 1 transition — but explicitly update them to accept `"openai-responses"` and remove any hard-coded validation of the registered-provider set from `LanguageModel`. Final support/rejection of provider strings is now owned by `ProviderRegistry.create_client()` via `ProviderNotSupportedError`. The helpers are preserved as concepts (provider normalization, default URL mapping) but their validation role is superseded by the registry. <!-- id: 18 -->
 - [ ] Update `normalize_base_url()` to add `"openai-responses"` → OpenAI API base URL mapping (was falling through to localhost default) <!-- id: 18b -->
 - [ ] Add default registration: auto-register `"openai-responses"` → `OpenAICompatibleClient` factory in the singleton `_provider_registry` using a deferred local import (`from tinycua_sdk.agent.llm_client import OpenAICompatibleClient` inside the factory body) <!-- id: 18a -->
   - [ ] `openai-responses` is the only pre-registered provider in Phase 1 — old strings (`"openai"`, `"openai-compatible"`) are NOT registered
   - [ ] `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` for old strings, listing `openai-responses` as the supported migration target
 - [ ] Update `core/__init__.py` exports for new types <!-- id: 19 -->
+
+### Task E: AgentExecutor Integration with ProviderRegistry
+
+- [ ] Update `_get_llm_client()` in `tinycua_sdk/agent/executor.py` to use `get_provider_registry().create_client(self.config.llm_model)` instead of hardcoded `OpenAICompatibleClient()` — ensures the executor respects `LanguageModel.provider` switching through the registry <!-- id: 20a -->
+- [ ] Ensure `AgentExecutor.__init__()` or `self.config.llm_model` always provides a `LanguageModel` so the registry can resolve the provider correctly; add type annotations if needed <!-- id: 20b -->
+- [ ] Update `_call_llm()` signature: remove `model` positional parameter (configuration is bound at client construction); update call to `client.chat(messages, tool_schemas, stream=stream)` using new canonical types (no per-call `model` or `model_config` parameter) <!-- id: 20c -->
+- [ ] Write tests proving `AgentExecutor` uses the registry and respects `LanguageModel.provider` switching — include tests for `_get_llm_client()` resolving different providers and `_call_llm()` using the new `LLMClient.chat()` signature <!-- id: 20d -->
 
 ## Testing Phase
 
