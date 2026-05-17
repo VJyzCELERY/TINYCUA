@@ -79,7 +79,7 @@ class TestProviderDefaults:
         """Provider can be configured with custom base URL."""
         config = AgentConfig(
             name="test",
-            llm_model=LanguageModel(provider="local", base_url="http://localhost:8000"),
+            llm_model=LanguageModel(provider="openai-compatible", base_url="http://localhost:8000"),
         )
         assert config.llm_model.base_url == "http://localhost:8000"
 

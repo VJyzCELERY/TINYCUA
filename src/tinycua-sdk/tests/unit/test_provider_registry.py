@@ -37,19 +37,19 @@ class TestProviderRegistry:
     def test_register_and_create_client(self, registry: ProviderRegistry) -> None:
         def factory(cfg: LanguageModel) -> _MinimalClient:
             return _MinimalClient()
-        info = ProviderInfo(id="test-provider", factory=factory, description="Test")
-        registry.register("test-provider", factory, info)
+        info = ProviderInfo(id="openai-compatible", factory=factory, description="Test")
+        registry.register("openai-compatible", factory, info)
 
-        model = LanguageModel(provider="test-provider", model_name="test")
+        model = LanguageModel(provider="openai-compatible", model_name="test")
         client = registry.create_client(model)
         assert isinstance(client, LLMClient)
         assert isinstance(client, _MinimalClient)
 
     def test_create_client_unsupported_provider(self, registry: ProviderRegistry) -> None:
-        model = LanguageModel(provider="nonexistent", model_name="test")
+        model = LanguageModel(provider="openai", model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             registry.create_client(model)
-        assert "nonexistent" in str(excinfo.value)
+        assert "openai" in str(excinfo.value)
 
     def test_create_client_error_lists_supported(self, registry: ProviderRegistry) -> None:
         def factory(cfg: LanguageModel) -> _MinimalClient:
@@ -57,10 +57,10 @@ class TestProviderRegistry:
         info = ProviderInfo(id="existing", factory=factory, description="Existing")
         registry.register("existing", factory, info)
 
-        model = LanguageModel(provider="unknown", model_name="test")
+        model = LanguageModel(provider="openai", model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             registry.create_client(model)
-        assert "unknown" in str(excinfo.value)
+        assert "openai" in str(excinfo.value)
         assert "existing" in str(excinfo.value)
 
     def test_is_supported_returns_true(self, registry: ProviderRegistry) -> None:
@@ -80,29 +80,29 @@ class TestProviderRegistry:
     def test_list_providers_after_registration(self, registry: ProviderRegistry) -> None:
         def factory(cfg: LanguageModel) -> _MinimalClient:
             return _MinimalClient()
-        info = ProviderInfo(id="p1", factory=factory, description="P1")
-        registry.register("p1", factory, info)
+        info = ProviderInfo(id="openai-compatible", factory=factory, description="OpenAI Compatible")
+        registry.register("openai-compatible", factory, info)
 
         providers = registry.list_providers()
         assert len(providers) == 1
-        assert providers[0].id == "p1"
+        assert providers[0].id == "openai-compatible"
 
     def test_reset_clears_all_providers(self, registry: ProviderRegistry) -> None:
         def factory(cfg: LanguageModel) -> _MinimalClient:
             return _MinimalClient()
-        registry.register("p1", factory, ProviderInfo(id="p1", factory=factory, description=""))
+        registry.register("openai-compatible", factory, ProviderInfo(id="openai-compatible", factory=factory, description=""))
 
         registry.reset()
         assert registry.list_providers() == []
-        assert registry.is_supported("p1") is False
+        assert registry.is_supported("openai-compatible") is False
 
     def test_re_register_overwrites(self, registry: ProviderRegistry) -> None:
         def factory_a(cfg: LanguageModel) -> _MinimalClient:
             return _MinimalClient()
         def factory_b(cfg: LanguageModel) -> _MinimalClient:
             return _MinimalClient()
-        registry.register("dup", factory_a, ProviderInfo(id="dup", factory=factory_a, description="A"))
-        registry.register("dup", factory_b, ProviderInfo(id="dup", factory=factory_b, description="B"))
+        registry.register("openai-compatible", factory_a, ProviderInfo(id="openai-compatible", factory=factory_a, description="A"))
+        registry.register("openai-compatible", factory_b, ProviderInfo(id="openai-compatible", factory=factory_b, description="B"))
 
         providers = registry.list_providers()
         assert len(providers) == 1
@@ -116,10 +116,10 @@ class TestProviderRegistry:
             captured_configs.append(cfg)
             return _MinimalClient()
 
-        info = ProviderInfo(id="capture", factory=capturing_factory, description="Capture")
-        registry.register("capture", capturing_factory, info)
+        info = ProviderInfo(id="openai-compatible", factory=capturing_factory, description="Capture")
+        registry.register("openai-compatible", capturing_factory, info)
 
-        model = LanguageModel(provider="capture", model_name="gpt-4o", temperature=0.5)
+        model = LanguageModel(provider="openai-compatible", model_name="gpt-4o", temperature=0.5)
         registry.create_client(model)
 
         assert len(captured_configs) == 1
@@ -173,5 +173,5 @@ class TestRegistryFactoryPrecedence:
         def factory_b(cfg): return B()
 
         r = ProviderRegistry()
-        r.register('p', factory_a, ProviderInfo(id='p', factory=factory_b, description='metadata'))
-        assert isinstance(r.create_client(LanguageModel(provider='p')), A)
+        r.register('openai-compatible', factory_a, ProviderInfo(id='openai-compatible', factory=factory_b, description='metadata'))
+        assert isinstance(r.create_client(LanguageModel(provider='openai-compatible')), A)

@@ -42,12 +42,12 @@ class TestAgentExecutorRegistryIntegration:
             return _FakeExecutorClient(tag="executor-test")
 
         registry.register(
-            "test-provider",
+            "openai-compatible",
             factory,
-            ProviderInfo(id="test-provider", factory=factory, description="Test"),
+            ProviderInfo(id="openai-compatible", factory=factory, description="Test"),
         )
 
-        model = LanguageModel(provider="test-provider", model_name="test")
+        model = LanguageModel(provider="openai-compatible", model_name="test")
         config = AgentConfig(name="executor-test", llm_model=model)
         executor = AgentExecutor(config=config, registry=registry)
 
@@ -68,12 +68,12 @@ class TestAgentExecutorRegistryIntegration:
             return _FakeExecutorClient(tag=f"call-{call_count}")
 
         registry.register(
-            "test",
+            "openai",
             factory,
-            ProviderInfo(id="test", factory=factory, description=""),
+            ProviderInfo(id="openai", factory=factory, description=""),
         )
 
-        model = LanguageModel(provider="test", model_name="test")
+        model = LanguageModel(provider="openai", model_name="test")
         config = AgentConfig(name="caching-test", llm_model=model)
         executor = AgentExecutor(config=config, registry=registry)
 
@@ -96,12 +96,12 @@ class TestAgentExecutorCallLlm:
             return _FakeExecutorClient(tag="llm-call-test")
 
         registry.register(
-            "test-provider",
+            "openai-compatible",
             factory,
-            ProviderInfo(id="test-provider", factory=factory, description=""),
+            ProviderInfo(id="openai-compatible", factory=factory, description=""),
         )
 
-        model = LanguageModel(provider="test-provider", model_name="test")
+        model = LanguageModel(provider="openai-compatible", model_name="test")
         config = AgentConfig(name="call-llm-test", llm_model=model)
         executor = AgentExecutor(config=config, registry=registry)
 

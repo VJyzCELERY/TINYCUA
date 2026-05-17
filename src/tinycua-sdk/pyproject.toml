@@ -38,6 +38,14 @@ lint = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.mypy]
+explicit_package_bases = true
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
 [tool.ruff]
 line-length = 88
 
