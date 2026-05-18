@@ -2,7 +2,7 @@
 
 **Status**: Complete
 **Created**: 2026-05-17
-**Last Updated**: 2026-05-17
+**Last Updated**: 2026-05-18
 **Subproject(s) Affected**: tinycua-sdk
 
 ---
@@ -39,7 +39,7 @@ Today the SDK has:
 ### Constraints
 
 - Must honor each provider's official SDK interface — no custom wrappers that break upgrade compatibility
-- **Phase 1 is a breaking refactoring**: The existing `LLMClient` ABC is refactored in-place — `chat()` becomes concrete and delegates to an abstract `_chat_impl()`. Existing subclasses must be updated to implement `_chat_impl()`. The `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. **Backward compatibility is not maintained.** No deprecation shim or backward-compatibility layer is provided. Users should migrate to `"openai-responses"` or update their custom subclasses before Phase 2.
+- **Phase 1 is a breaking refactoring**: The existing `LLMClient` ABC is refactored in-place — `chat()` becomes concrete and delegates to an abstract `_chat_impl()`. Existing subclasses must be updated to implement `_chat_impl()`. The `OpenAICompatibleClient` (httpx-based) has been **removed** in Phase 1; the old class no longer exists. Users must migrate to `OpenAIResponsesClient` (official `openai` SDK-backed). **Backward compatibility is not maintained.** No deprecation shim or backward-compatibility layer is provided. Users should migrate to `"openai-responses"` or update their custom subclasses before Phase 2.
 - **Phase 1 default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"`. `LanguageModel()` with no explicit provider now resolves to the `"openai-responses"` provider via `ProviderRegistry`. Old defaults (`"openai"`, `"openai-compatible"`) are no longer registered — they raise `ProviderNotSupportedError`. Callers must explicitly pass `provider="openai-responses"` or update their configuration.
 - **Phase 1 default base URL**: `normalize_base_url(None, "openai-responses")` returns the OpenAI API base URL (`https://api.openai.com/v1`) by default, matching the behavior of the existing `"openai"` provider. Local development users must set an explicit `base_url` to override.
 - The canonical SSE event schema MUST be OpenAI Responses-shaped — event type names and field shapes follow OpenAI Responses API event conventions (e.g., `response.output_text.delta`, `response.function_call_arguments.done`)
@@ -105,7 +105,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 ### Key Entities
 
 - **LLMClient (ABC)**: Abstract base class for all provider clients. Defines `chat()` (with streaming support), `close()`, and the canonical event contract.
-- **Provider Client**: Concrete implementation of `LLMClient` wrapping a specific provider SDK (e.g., `OpenAIResponsesClient`, `OpenAIChatClient`).
+- **Provider Client**: Concrete implementation of `LLMClient` wrapping a specific provider SDK (e.g., `OpenAIResponsesClient`, `OpenAIChatClient`). `OpenAICompatibleClient` (httpx-based, no SDK dependency) has been removed — all providers use official SDKs.
 - **SSE Normalizer**: Per-provider component that maps raw SDK stream events to canonical schema events and exposes raw pass-through.
 - **Provider Registry**: Runtime mapping of provider strings to client factories, with validation and error handling.
 - **Canonical Event**: A typed event dict adhering to the canonical schema — provider-agnostic, consumable by the Agent Loop.
@@ -127,7 +127,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - [x] **Error classes**: `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` are defined and raised appropriately.
 - [x] **Phase 1 unit tests pass**: Canonical schema validation, registry behavior, error cases all pass without any provider SDK installed.
 - [x] **Phase 1 integration tests pass**: Provider switching via `LanguageModel.provider` passes at the compile-time/contract level.
-- [x] **Breaking change documented**: The in-place `LLMClient` refactoring is documented as an intentional breaking change. Existing subclasses must add `_chat_impl()`. Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. The old `OpenAICompatibleClient` is updated to match the new contract in Phase 1 (not deferred to Phase 2).
+- [x] **Breaking change documented**: The in-place `LLMClient` refactoring is documented as an intentional breaking change. Existing subclasses must add `_chat_impl()`. Migration path from legacy identifiers (`"openai"`, `"openai-compatible"`) to `"openai-responses"` is documented. The old `OpenAICompatibleClient` (httpx-based) has been **removed** — users must migrate to the SDK-backed `OpenAIResponsesClient`.
 
 ### Full Roadmap Criteria (including Future Phases)
 
@@ -187,7 +187,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 |------|--------|-------|-------|
 | Spec & Design | Complete | Phase 1 | All questions resolved, ready for planning |
 | Canonical SSE Schema | Complete | Phase 1 | Formal TypedDict definitions complete; `LLMEvent` union type-checks correctly |
-| LLMClient ABC | Complete | Phase 1 | Refactored contract with canonical event return types; `OpenAICompatibleClient` updated |
+| LLMClient ABC | Complete | Phase 1 | Refactored contract with canonical event return types; `OpenAICompatibleClient` removed |
 | Provider Registry | Complete | Phase 1 | Singleton registry with factory, validation, reset; `openai-responses` pre-registered |
 | Error Classes | Complete | Phase 1 | `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` defined and wired |
 | Upgrade Guide & Migration Docs | Complete | Phase 1 | Breaking change documented; migration path from legacy identifiers to `openai-responses` |

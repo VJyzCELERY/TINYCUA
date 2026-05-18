@@ -2,7 +2,7 @@
 
 **Spec**: `./spec.md`
 **Status**: Complete
-**Last Updated**: 2026-05-17
+**Last Updated**: 2026-05-18
 
 ---
 
@@ -10,7 +10,7 @@
 
 This design introduces a unified **Agent + LLM Client** architecture for the TINYCUA SDK. Instead of rebuilding HTTP-level clients for each provider, we delegate to each provider's official Python SDK (e.g., `openai` PyPI) and wrap them behind a common `LLMClient` abstract base class. Each provider client includes an **SSE normalizer** that converts provider-specific streaming events into a canonical format consumed by the Agent Loop, while simultaneously exposing a **raw SSE pass-through** for consumers that need provider-native events. A **provider registry** maps configuration-driven provider identifiers to concrete client implementations, enabling provider switching via `LanguageModel.provider` alone.
 
-The affected subproject is `tinycua-sdk`. Phase 1 ships the official SDK-backed **OpenAI Responses API** provider (`OpenAIResponsesClient`) wrapping the `openai` PyPI SDK via `openai.responses.create()` and `openai.responses.stream()`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is refactored in **Phase 1** to match the new `LLMClient` contract (adding `_chat_impl()`) and is kept as a secondary implementation. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
+The affected subproject is `tinycua-sdk`. Phase 1 ships the official SDK-backed **OpenAI Responses API** provider (`OpenAIResponsesClient`) wrapping the `openai` PyPI SDK via `openai.responses.create()`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) has been **removed** — all providers now use official SDKs. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
 
 ---
 
@@ -81,7 +81,7 @@ The Agent Loop interacts with the LLM provider system through a universal factor
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua_sdk/agent/llm_client.py` | Modified — Refactored | `LLMClient` ABC updated with canonical event contract; `OpenAICompatibleClient` updated to new contract |
+| `tinycua_sdk/agent/llm_client.py` | Modified — Refactored | `LLMClient` ABC updated with canonical event contract; `OpenAICompatibleClient` removed (httpx-based); shared normalization functions promoted to module-level |
 | `tinycua_sdk/agent/events.py` | Modified — Extended | Canonical event TypedDicts formalized; `RawSseEvent` TypedDict added for paired tuples |
 | `tinycua_sdk/agent/llm_model.py` | Modified — Extended | May need minor additions for provider-specific config |
 | `tinycua_sdk/core/providers.py` | Modified — Extended | Provider registry and client factory logic added |
@@ -97,14 +97,14 @@ This is a **breaking change**. The following table documents the migration path 
 | Old Provider String | New Provider String | Migration Action |
 |---|---|---|
 | `"openai"` | `"openai-responses"` | Replace `provider="openai"` with `provider="openai-responses"`. The `"openai"` ID is now reserved for a future Chat Completions API provider (not yet implemented). |
-| `"openai-compatible"` | `"openai-responses"` | Replace `provider="openai-compatible"` with `provider="openai-responses"`. The old provider string is removed — use `"openai-responses"`. The underlying `OpenAICompatibleClient` is refactored in-place to match the new contract. |
+| `"openai-compatible"` | `"openai-responses"` | Replace `provider="openai-compatible"` with `provider="openai-responses"`. The old provider string is removed — use `"openai-responses"`. The underlying `OpenAICompatibleClient` (httpx-based) has been **removed**; all providers now use official SDKs. |
 | `"openai-responses"` | `"openai-responses"` | No change (new canonical name). |
 
 **Key points**:
 - `LanguageModel.provider` validation in Phase 1 accepts only registered provider IDs. Old provider strings (`"openai"`, `"openai-compatible"`) are not valid — users must migrate to `"openai-responses"`.
 - **Default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"`. `LanguageModel()` with no explicit provider now resolves via `ProviderRegistry` to the `"openai-responses"` client. Callers that do not specify a provider automatically target the Responses API provider.
 - **Default base URL for `openai-responses`**: `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` (the OpenAI API base URL), matching the existing `"openai"` behavior. Local development users must set an explicit `base_url` to override. Previously `normalize_base_url(None, *any_unknown_provider*)` fell through to `http://localhost:1234/v1`; this is now corrected so `openai-responses` has a sensible default.
-- The old `OpenAICompatibleClient` class and its httpx-based implementation are **updated in Phase 1** to match the new `LLMClient` contract — no deprecation shim, no backward-compatibility layer.
+- The old `OpenAICompatibleClient` class and its httpx-based implementation have been **removed in Phase 1**. All provider clients now use official SDKs. Shared normalization and translation utilities (formerly `@staticmethod`s on `OpenAICompatibleClient`) have been promoted to module-level functions. No deprecation shim, no backward-compatibility layer.
 - Existing `StreamEvent` usage should be migrated to the canonical `LLMEvent` schema. The `StreamEvent` model itself remains unchanged (raw pass-through is via the paired tuple API, not by modifying `StreamEvent`).
 - The `events.py` TypedDicts are consolidated into the new canonical schema — old TypedDicts are removed.
 
@@ -614,7 +614,7 @@ This design document, together with the companion spec, defines the contract for
 | Unit tests | Schema validation, registry behavior, error cases (unit-level, no SDK mocking) |
 | Integration tests | Provider switching via `LanguageModel.provider` (compile-time contract tests) |
 
-**Scope expansion note**: Phase 1 implementation expanded beyond the original provider-agnostic constraint. The `OpenAICompatibleClient` (httpx-based, no `openai` PyPI SDK dependency), `OpenAIResponsesClient` (official `openai` SDK-backed), Agent Loop migration, and raw pass-through were all implemented within Phase 1.
+**Scope expansion note**: Phase 1 implementation expanded beyond the original provider-agnostic constraint. The `OpenAIResponsesClient` (official `openai` SDK-backed), Agent Loop migration, and raw pass-through were all implemented within Phase 1. The `OpenAICompatibleClient` (httpx-based) was initially kept but later **removed** — all providers now use official SDKs. Shared normalization/translation utilities were promoted to module-level functions.
 
 ### Out of Scope (Deferred to Future Phases)
 
@@ -623,7 +623,7 @@ This design document, together with the companion spec, defines the contract for
 | `OpenAIChatClient` | Future | OpenAI Chat Completions API provider client |
 | Additional providers | Future | Anthropic, Google, etc. |
 
-The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 deliverables include schema, registry, contract, provider clients (SDK-backed and httpx-backed), loop migration, raw pass-through, and corresponding unit & integration tests.
+The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 deliverables include schema, registry, contract, provider client (SDK-backed `OpenAIResponsesClient` only — `OpenAICompatibleClient` removed), loop migration, raw pass-through, and corresponding unit & integration tests.
 
 ---
 
@@ -633,7 +633,7 @@ The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 delivera
 
 ### Phase 1 — Foundation: Interface, Schema, Registry, Provider Client (This Milestone)
 
-This phase establishes the core abstractions, both httpx-based and official SDK-backed provider clients, and the Agent Loop integration — all with the `openai` PyPI SDK as a core dependency.
+This phase establishes the core abstractions, the official SDK-backed `OpenAIResponsesClient`, and the Agent Loop integration — all with the `openai` PyPI SDK as a core dependency. The old `OpenAICompatibleClient` (httpx-based) has been removed.
 
 - [x] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `LLMResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema; define canonical input types (`LLMMessage`, `LLMToolSpec`, `ToolResultMessage`)
 - [x] **1.2**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[LLMMessage]` and `list[LLMToolSpec] | None`, update return type to `LLMResponse` (non-streaming), and document canonical event contract in docstring; add `raw_events` parameter
@@ -645,15 +645,11 @@ This phase establishes the core abstractions, both httpx-based and official SDK-
       - Error cases: auth failure, SDK import errors (unit-level)
 - [x] **1.6**: Write integration tests for:
       - Provider registry provider switching via `LanguageModel.provider`
-- [x] **1.7**: Implement `OpenAICompatibleClient` with full Responses API support (httpx-based):
-      - Non-streaming and streaming via `/responses` endpoint
-      - `_normalize_responses_event()` normalizer for SSE stream events
-      - `raw_events` paired-tuple mode for provider-native event passthrough
-      - Tool-call continuation state via `previous_response_id` tracking
-- [x] **1.8**: Implement `OpenAIResponsesClient` wrapping the official `openai` PyPI SDK:
+- [x] **1.7**: Implement `OpenAIResponsesClient` wrapping the official `openai` PyPI SDK:
       - `chat()` non-streaming via `openai.responses.create()` — normalize SDK response to `LLMResponse`
       - `chat()` streaming via `openai.responses.create(stream=True)` — normalize raw stream events via shared normalizer
-      - Reuses `_normalize_responses_event()` from `OpenAICompatibleClient` for event normalization
+      - `raw_events` paired-tuple mode for provider-native event passthrough
+      - Tool-call continuation state via `previous_response_id` tracking
       - Registered as `"openai-responses"` in `ProviderRegistry` (default provider)
 - [x] **1.9**: Migrate Agent Loop (`loop.py`) to consume canonical event schema:
       - `BaseLoop` public helpers (`process_tool_calls`, `process_stream_iteration`, etc.)
@@ -691,7 +687,7 @@ See separate spec and design for this phase.
    - **Alternatives Considered**: (a) Interleaved single stream with type-based filtering — rejected because it loses the 1:1 correlation between canonical and raw events. (b) Two separate iterators — rejected because it requires the caller to coordinate two async generators in lockstep, which is error-prone.
 
 5. **Decision**: No backward compatibility — breaking change accepted.
-   - **Reason**: The internal architecture changes fundamentally (httpx → official SDK). Supporting a backward-compatibility shim would add maintenance burden and delay the migration. The old provider strings (`"openai"`, `"openai-compatible"`) are removed. The existing `OpenAICompatibleClient` is **refactored in-place** to match the new `LLMClient` contract (it is NOT removed). Users must migrate to the new provider IDs.
+   - **Reason**: The internal architecture changes fundamentally (httpx → official SDK). Supporting a backward-compatibility shim would add maintenance burden and delay the migration. The old provider strings (`"openai"`, `"openai-compatible"`) are removed. The existing `OpenAICompatibleClient` (httpx-based) has been **removed** — shared utilities promoted to module-level functions. Users must migrate to the SDK-backed `OpenAIResponsesClient` and new provider IDs.
    - **Alternatives Considered**: Delegation shim with deprecation warning — rejected because it adds complexity without long-term benefit.
 
 6. **Decision**: `raw_events` is a `chat()` parameter, not a separate method.

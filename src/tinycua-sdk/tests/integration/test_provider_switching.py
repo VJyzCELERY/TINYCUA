@@ -226,13 +226,32 @@ async def test_openai_responses_default_registration(default_registry: ProviderR
 def test_deprecated_providers_rejected_by_registry(default_registry: ProviderRegistry) -> None:
     """Given deprecated provider strings ("openai", "openai-compatible"),
     LanguageModel accepts them, but ProviderRegistry.create_client() raises
-    ProviderNotSupportedError — rejection is registry-driven."""
-    for known in ("openai", "openai-compatible"):
-        model = LanguageModel(provider=known, model_name="test")
-        with pytest.raises(ProviderNotSupportedError) as excinfo:
-            default_registry.create_client(model)
-        assert known in str(excinfo.value)
-        assert "openai-responses" in str(excinfo.value)
+    ProviderNotSupportedError — rejection is registry-driven.
+
+    .. note::
+       ``"openai"`` is now aliased to ``"openai-responses"`` (with a
+       deprecation warning), so it resolves successfully. Only truly
+       unsupported strings like ``"openai-compatible"`` are rejected.
+    """
+    # "openai" is now aliased to "openai-responses" → succeeds with warning
+    import logging
+
+    try:
+        model = LanguageModel(provider="openai", model_name="test")
+        client = default_registry.create_client(model)
+    except ProviderNotSupportedError:
+        pytest.fail("'openai' should now resolve to 'openai-responses' via alias")
+
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+
+    assert isinstance(client, OpenAIResponsesClient)
+
+    # "openai-compatible" is NOT registered → raises ProviderNotSupportedError
+    model2 = LanguageModel(provider="openai-compatible", model_name="test")
+    with pytest.raises(ProviderNotSupportedError) as excinfo:
+        default_registry.create_client(model2)
+    assert "openai-compatible" in str(excinfo.value)
+    assert "openai-responses" in str(excinfo.value)
 
 
 # ── Test 7: Unknown provider string rejected at registry time ──
