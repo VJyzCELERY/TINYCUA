@@ -25,7 +25,7 @@ Kuesioner ini ditujukan kepada responden yang sering menggunakan PC/Laptop dalam
 - [ ] *RAR*  
 - [ ] Jenis file lain:\_\_\_
 
-3. Pernahkah Anda mengalami kesulitan dalam install,menggunakan suatu aplikasi, atau kesulitan lainnya saat menggunakan komputer/laptop Anda? Jika iya kesulitan apa yang Anda hadapi?  
+3. Pernahkah Anda mengalami kesulitan dalam install, menggunakan suatu aplikasi, atau kesulitan lainnya saat menggunakan komputer/laptop Anda? Jika iya kesulitan apa yang Anda hadapi?  
 - [ ] Mengisi form online (misalnya form pendaftaran, form input data, google form, etc)  
 - [ ] Setup software  
 - [ ] Automation script  
@@ -81,13 +81,7 @@ Kuesioner ini ditujukan kepada responden yang sering menggunakan PC/Laptop dalam
 - [ ] Ya, tapi hapus otomatis setelah 24 jam  
 - [ ] Tidak perlu
 
-15. Seberapa penting bagi Anda bahwa sistem dapat melakukan pengecekan pada kondisi perangkat Anda dan melaporkan pada Anda?  
-    *(Skala: Tidak penting – Sangat penting)*
-
-16. Seberapa penting bagi Anda bahwa Anda dapat mengubah tema warna sistem sesuai preferensi Anda?  
-    *(Skala: Tidak penting – Sangat penting)*
-
-17. Apakah ada fitur lain yang Anda inginkan tapi belum disebutkan?  
+15. Apakah ada fitur lain yang Anda inginkan tapi belum disebutkan?  
     deskripsi:\_\_\_
 
     
