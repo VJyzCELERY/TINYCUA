@@ -97,6 +97,11 @@ _SUPPORTED_FIELDS: set[str] = {
     "user",
 }
 
+_FIELD_MAP: dict[str, str] = {
+    "max_tokens": "max_output_tokens",
+    "response_format": "text",
+}
+
 
 def _translate_tools(tools: list[LLMToolSpec]) -> list[dict[str, Any]]:
     """Translate canonical tool specs to OpenAI Responses tool format.
@@ -187,10 +192,6 @@ def _build_payload(
         if has_function_call_output:
             payload["previous_response_id"] = previous_response_id
 
-    _FIELD_MAP = {
-        "max_tokens": "max_output_tokens",
-        "response_format": "text",
-    }
     for field in _SUPPORTED_FIELDS:
         value = getattr(model_config, field)
         if value is not None:
@@ -623,16 +624,6 @@ class OpenAIResponsesClient(LLMClient):
             await self._client.close()
             self._client = None
 
-    _RESPONSES_API_FIELDS: set[str] = {
-        "temperature",
-        "max_tokens",
-        "top_p",
-        "response_format",
-        "tool_choice",
-        "top_logprobs",
-        "user",
-    }
-
     _RESPONSES_API_UNSUPPORTED_FIELDS: dict[str, object] = {
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0,
@@ -668,11 +659,7 @@ class OpenAIResponsesClient(LLMClient):
                     f"(provider 'openai-responses'). Value was: {value!r}",
                 )
 
-        _FIELD_MAP = {
-            "max_tokens": "max_output_tokens",
-            "response_format": "text",
-        }
-        for field in self._RESPONSES_API_FIELDS:
+        for field in _SUPPORTED_FIELDS:
             value = getattr(self._model_config, field, None)
             if value is not None:
                 mapped = _FIELD_MAP.get(field, field)
@@ -687,6 +674,15 @@ class OpenAIResponsesClient(LLMClient):
                 kwargs["tool_choice"] = "auto"
 
         return kwargs
+
+    @staticmethod
+    def _handle_provider_error(e: Exception, context: str = "OpenAI API") -> None:
+        status_code = getattr(e, "status_code", 0)
+        if status_code in (401, 403):
+            raise ProviderAuthError(str(e)) from e
+        if "auth" in str(e).lower() or "credential" in str(e).lower():
+            raise ProviderAuthError(str(e)) from e
+        raise ProviderApiError(status_code, f"{context} error: {e}") from e
 
     @staticmethod
     def _normalize_non_streaming_response(data: dict[str, Any]) -> LLMResponse:
@@ -762,12 +758,7 @@ class OpenAIResponsesClient(LLMClient):
             client = self._get_client()
             response = await client.responses.create(**kwargs)
         except Exception as e:
-            status_code = getattr(e, "status_code", 0)
-            if status_code in (401, 403):
-                raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower() or "credential" in str(e).lower():
-                raise ProviderAuthError(str(e)) from e
-            raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
+            self._handle_provider_error(e)
 
         data = response.model_dump() if hasattr(response, "model_dump") else {}
         self._previous_response_id = data.get("id", None) or None
@@ -788,12 +779,7 @@ class OpenAIResponsesClient(LLMClient):
             client = self._get_client()
             stream = await client.responses.create(**kwargs)
         except Exception as e:
-            status_code = getattr(e, "status_code", 0)
-            if status_code in (401, 403):
-                raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower() or "credential" in str(e).lower():
-                raise ProviderAuthError(str(e)) from e
-            raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
+            self._handle_provider_error(e)
 
         tool_cache: dict[str, dict[str, str]] = {}
         try:
@@ -809,12 +795,7 @@ class OpenAIResponsesClient(LLMClient):
                 for item in _yield_events(events, raw_event_obj, raw_events):
                     yield item  # type: ignore[misc]
         except Exception as e:
-            status_code = getattr(e, "status_code", 0)
-            if status_code in (401, 403):
-                raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower() or "credential" in str(e).lower():
-                raise ProviderAuthError(str(e)) from e
-            raise ProviderApiError(status_code, f"OpenAI API stream error: {e}") from e
+            self._handle_provider_error(e, context="OpenAI API stream")
 
 
 __all__ = ["LLMClient", "OpenAIResponsesClient"]
