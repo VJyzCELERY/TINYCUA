@@ -827,17 +827,31 @@ class OpenAIResponsesClient(LLMClient):
             if has_function_call_output:
                 kwargs["previous_response_id"] = self._previous_response_id
 
-        _FIELD_MAP = {"max_tokens": "max_output_tokens"}
+        _FIELD_MAP = {
+            "max_tokens": "max_output_tokens",
+            "response_format": "text",
+        }
         for field in (
             "temperature",
             "max_tokens",
             "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+            "response_format",
             "tool_choice",
+            "logprobs",
+            "top_logprobs",
             "user",
         ):
             value = getattr(self._model_config, field, None)
             if value is not None:
-                kwargs[_FIELD_MAP.get(field, field)] = value
+                mapped = _FIELD_MAP.get(field, field)
+                if mapped == "text":
+                    kwargs[mapped] = {"format": value}
+                else:
+                    kwargs[mapped] = value
 
         if tools:
             kwargs["tools"] = OpenAICompatibleClient._translate_tools(tools)
@@ -923,7 +937,8 @@ class OpenAIResponsesClient(LLMClient):
             error_str = str(e)
             if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
                 raise ProviderAuthError(error_str) from e
-            raise ProviderApiError(0, f"OpenAI API error: {e}") from e
+            status_code = getattr(e, "status_code", 0)
+            raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
         data = response.model_dump() if hasattr(response, "model_dump") else {}
         self._previous_response_id = data.get("id", None) or None
@@ -947,20 +962,28 @@ class OpenAIResponsesClient(LLMClient):
             error_str = str(e)
             if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
                 raise ProviderAuthError(error_str) from e
-            raise ProviderApiError(0, f"OpenAI API error: {e}") from e
+            status_code = getattr(e, "status_code", 0)
+            raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
         tool_cache: dict[str, dict[str, str]] = {}
-        async for event in stream:
-            data = event.model_dump() if hasattr(event, "model_dump") else {}
-            if data.get("type") in ("response.created", "response.completed"):
-                nested = data.get("response", {})
-                self._previous_response_id = (
-                    nested.get("id") or data.get("id") or None
-                )
-            events = OpenAICompatibleClient._normalize_responses_event(data, _tool_cache=tool_cache)
-            raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=event)
-            for item in _yield_events(events, raw_event_obj, raw_events):
-                yield item  # type: ignore[misc]
+        try:
+            async for event in stream:
+                data = event.model_dump() if hasattr(event, "model_dump") else {}
+                if data.get("type") in ("response.created", "response.completed"):
+                    nested = data.get("response", {})
+                    self._previous_response_id = (
+                        nested.get("id") or data.get("id") or None
+                    )
+                events = OpenAICompatibleClient._normalize_responses_event(data, _tool_cache=tool_cache)
+                raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=event)
+                for item in _yield_events(events, raw_event_obj, raw_events):
+                    yield item  # type: ignore[misc]
+        except Exception as e:
+            error_str = str(e)
+            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
+                raise ProviderAuthError(error_str) from e
+            status_code = getattr(e, "status_code", 0)
+            raise ProviderApiError(status_code, f"OpenAI API stream error: {e}") from e
 
 
 __all__ = ["LLMClient", "OpenAICompatibleClient", "OpenAIResponsesClient"]

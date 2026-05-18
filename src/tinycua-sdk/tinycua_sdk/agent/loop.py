@@ -575,8 +575,12 @@ class BaseLoop:
             resp_id = response_data.get("id", "")
             usage = response_data.get("usage", {})
             if usage and resp_id not in usage_settled_ids:
-                _accumulate_usage(cumulative_usage, usage)
-                usage_settled_ids.add(resp_id)
+                if "" in usage_settled_ids:
+                    usage_settled_ids.remove("")
+                    usage_settled_ids.add(resp_id)
+                else:
+                    _accumulate_usage(cumulative_usage, usage)
+                    usage_settled_ids.add(resp_id)
         elif chunk_type == "response.usage":
             usage = chunk.get("usage", {})
             resp_id = chunk.get("response", {}).get("id", "")

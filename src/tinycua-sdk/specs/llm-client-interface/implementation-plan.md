@@ -1,6 +1,6 @@
 # Implementation: Unified LLM Client Interface — Phase 1 (Foundation)
 
-Define the canonical SSE event schema, canonical input types, refactored `LLMClient` ABC, `ProviderRegistry`, and error classes for the TINYCUA SDK. This phase is provider-agnostic — no provider SDK integrations are included.
+Define the canonical SSE event schema, canonical input types, refactored `LLMClient` ABC, `ProviderRegistry`, error classes, and default SDK-backed `OpenAIResponsesClient` for the TINYCUA SDK. This phase includes the `openai` SDK dependency for the default provider.
 
 ## Context
 
@@ -11,7 +11,7 @@ Define the canonical SSE event schema, canonical input types, refactored `LLMCli
 
 ## Environment Pre-requisites
 
-> **N/A** — Phase 1 is provider-agnostic and requires no external services, API keys, or running infrastructure. All tests run purely against the type system and in-memory registry.
+> **Dependencies**: Phase 1 requires the `openai` SDK (pinned to v2.x) for the default `OpenAIResponsesClient` provider. No external API keys or running infrastructure are needed for unit tests — all provider SDK tests use mocked clients. Integration tests against live providers are opt-in via environment variables.
 
 ---
 
@@ -460,7 +460,7 @@ ProviderApiError(status_code, message)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| None | — | Phase 1 is provider-agnostic and requires no new external dependencies |
+| openai | >=2.34,<3 | Official OpenAI Python SDK — used by `OpenAIResponsesClient` (the default registered provider) for Responses API calls. Major version pinned to v2 to mitigate provider SDK API-change risk. |
 
 ### Internal Dependencies
 
