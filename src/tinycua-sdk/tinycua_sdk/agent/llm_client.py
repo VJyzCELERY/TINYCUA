@@ -384,7 +384,13 @@ class OpenAICompatibleClient(LLMClient):
                 response.status_code,
                 f"Provider API error: {e}",
             ) from e
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as e:
+            raise ProviderApiError(
+                response.status_code,
+                "Invalid provider JSON response",
+            ) from e
 
         self._previous_response_id = data.get("id") or None
 
@@ -950,17 +956,17 @@ class OpenAIResponsesClient(LLMClient):
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
     ) -> LLMResponse:
-        client = self._get_client()
         translated_input = OpenAICompatibleClient._translate_messages(messages)
         kwargs = self._build_request_kwargs(translated_input, tools)
 
         try:
+            client = self._get_client()
             response = await client.responses.create(**kwargs)
         except Exception as e:
             status_code = getattr(e, "status_code", 0)
             if status_code in (401, 403):
                 raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower():
+            if "auth" in str(e).lower() or "credential" in str(e).lower():
                 raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
@@ -975,18 +981,18 @@ class OpenAIResponsesClient(LLMClient):
         tools: list[LLMToolSpec] | None,
         raw_events: bool = False,
     ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
-        client = self._get_client()
         translated_input = OpenAICompatibleClient._translate_messages(messages)
         kwargs = self._build_request_kwargs(translated_input, tools)
         kwargs["stream"] = True
 
         try:
+            client = self._get_client()
             stream = await client.responses.create(**kwargs)
         except Exception as e:
             status_code = getattr(e, "status_code", 0)
             if status_code in (401, 403):
                 raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower():
+            if "auth" in str(e).lower() or "credential" in str(e).lower():
                 raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
@@ -1007,7 +1013,7 @@ class OpenAIResponsesClient(LLMClient):
             status_code = getattr(e, "status_code", 0)
             if status_code in (401, 403):
                 raise ProviderAuthError(str(e)) from e
-            if "auth" in str(e).lower():
+            if "auth" in str(e).lower() or "credential" in str(e).lower():
                 raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API stream error: {e}") from e
 

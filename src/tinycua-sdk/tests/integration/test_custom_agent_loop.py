@@ -168,15 +168,9 @@ async def test_integration_react_loop_real_llm():
                 result = await ToolExecutor.execute(tool_obj, arguments, agent)
                 call_id = tc.get("call_id") or tc.get("id")
                 messages.append({
-                    "type": "function_call",
+                    "role": "tool_result",
                     "call_id": call_id,
-                    "name": tc["name"],
-                    "arguments": tc["arguments"],
-                })
-                messages.append({
-                    "type": "function_call_output",
-                    "call_id": call_id,
-                    "output": str(result),
+                    "content": str(result),
                 })
                 final = await agent._call_llm(messages)
                 return final.get("content", "[no final answer]")

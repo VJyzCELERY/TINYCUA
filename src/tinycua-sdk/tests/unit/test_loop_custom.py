@@ -70,15 +70,9 @@ class TestCustomLoopContract:
                     result = await ToolExecutor.execute(tool_obj, arguments, agent)
                     call_id = tc.get("call_id") or tc.get("id")
                     messages.append({
-                        "type": "function_call",
+                        "role": "tool_result",
                         "call_id": call_id,
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                    })
-                    messages.append({
-                        "type": "function_call_output",
-                        "call_id": call_id,
-                        "output": str(result),
+                        "content": str(result),
                     })
                     final = await agent._call_llm(messages)
                     return final.get("content", "")
@@ -101,9 +95,9 @@ class TestCustomLoopContract:
         assert await agent.run("What is the weather in Tokyo?") == "It is sunny in Tokyo."
         second_messages = calls[1][0]
         assert any(
-            msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+            msg.get("role") == "tool_result" and msg.get("call_id") == "call_1"
             for msg in second_messages
-        ), "Expected function_call_output with call_id='call_1' in the follow-up call"
+        ), "Expected tool_result with call_id='call_1' in the follow-up call"
 
     @pytest.mark.asyncio
     async def test_plan_then_execute_loop_works(self):
@@ -151,15 +145,9 @@ class TestCustomLoopContract:
                                 result = await ToolExecutor.execute(t, arguments, agent)
                                 call_id = tc.get("call_id") or tc.get("id")
                                 exec_messages.append({
-                                    "type": "function_call",
+                                    "role": "tool_result",
                                     "call_id": call_id,
-                                    "name": tc["name"],
-                                    "arguments": tc["arguments"],
-                                })
-                                exec_messages.append({
-                                    "type": "function_call_output",
-                                    "call_id": call_id,
-                                    "output": str(result),
+                                    "content": str(result),
                                 })
                                 break
 
@@ -181,9 +169,9 @@ class TestCustomLoopContract:
                 }
             # Phase 2 follow-up: final answer
             assert any(
-                msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+                msg.get("role") == "tool_result" and msg.get("call_id") == "call_1"
                 for msg in messages
-            ), "Expected function_call_output with call_id='call_1' in PlanThenExecute follow-up"
+            ), "Expected tool_result with call_id='call_1' in PlanThenExecute follow-up"
             return {"content": "Tokyo has sunny weather.", "tool_calls": None}
 
         agent._call_llm = fake_call_llm

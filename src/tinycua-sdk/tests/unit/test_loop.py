@@ -996,6 +996,7 @@ class TestBaseLoopRunStream:
                     }
                     yield {
                         "type": "response.completed",
+                        "finish_reason": "tool_calls",
                         "response": {
                             "id": "r1",
                             "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
@@ -1024,7 +1025,7 @@ class TestBaseLoopRunStream:
         completed_events = [e for e in events if e["type"] == "response.completed"]
         usage_events = [e for e in events if e["type"] == "response.usage"]
 
-        assert len(completed_events) == 2  # provider forwarded + SDK synthetic
+        assert len(completed_events) == 1  # only the final SDK synthetic
         assert len(usage_events) == 2  # iter2 raw + cumulative summary
 
         cumulative = usage_events[-1]

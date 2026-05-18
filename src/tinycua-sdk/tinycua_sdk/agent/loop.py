@@ -229,6 +229,11 @@ class BaseLoop:
                         created_emitted = True
                     if event["type"] == "response.completed":
                         skip_complete = True
+                        # Suppress intermediate tool-call completions so
+                        # consumers only see one terminal response.completed
+                        # for the entire Agent.run(stream=True) call.
+                        if event.get("finish_reason") == "tool_calls" or tool_calls_buffer:
+                            continue
                     elif event["type"] in ("response.failed", "error", "response.cancelled"):
                         skip_complete = should_abort = True
                     yield event
