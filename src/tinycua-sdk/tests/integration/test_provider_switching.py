@@ -234,7 +234,6 @@ def test_deprecated_providers_rejected_by_registry(default_registry: ProviderReg
        unsupported strings like ``"openai-compatible"`` are rejected.
     """
     # "openai" is now aliased to "openai-responses" → succeeds with warning
-    import logging
 
     try:
         model = LanguageModel(provider="openai", model_name="test")
