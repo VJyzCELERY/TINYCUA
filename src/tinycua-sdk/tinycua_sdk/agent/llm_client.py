@@ -295,24 +295,24 @@ class OpenAICompatibleClient(LLMClient):
 
         _FIELD_MAP = {
             "max_tokens": "max_output_tokens",
+            "response_format": "text",
         }
         for field in (
             "temperature",
             "max_tokens",
             "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "stop",
-            "seed",
             "response_format",
             "tool_choice",
-            "logprobs",
             "top_logprobs",
             "user",
         ):
             value = getattr(model_config, field)
             if value is not None:
-                payload[_FIELD_MAP.get(field, field)] = value
+                mapped = _FIELD_MAP.get(field, field)
+                if mapped == "text":
+                    payload[mapped] = {"format": {"type": value["type"]}} if isinstance(value, dict) else {"format": value}
+                else:
+                    payload[mapped] = value
 
         if tools:
             payload["tools"] = OpenAICompatibleClient._translate_tools(tools)
@@ -815,6 +815,7 @@ class OpenAIResponsesClient(LLMClient):
         "top_p",
         "response_format",
         "tool_choice",
+        "top_logprobs",
         "user",
     }
 
@@ -824,7 +825,6 @@ class OpenAIResponsesClient(LLMClient):
         "stop": None,
         "seed": None,
         "logprobs": False,
-        "top_logprobs": None,
     }
 
     def _build_request_kwargs(

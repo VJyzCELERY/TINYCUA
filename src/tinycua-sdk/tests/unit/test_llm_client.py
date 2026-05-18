@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from tests.conftest import FakeLLMResponse
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient, OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
 
@@ -786,3 +786,38 @@ class TestOpenAICompatibleClient:
         # Second event (tool_call.ready) is synthetic → None
         assert pairs[1][0]["type"] == "tool_call.ready"
         assert pairs[1][1] is None
+
+    # ── ISSUE-001: Supported field forwarding ────────────────────────────────
+
+    def test_build_payload_only_includes_responses_supported_fields(self):
+        """_build_payload excludes unsupported Responses API fields even when set."""
+        model = LanguageModel(
+            temperature=0.7,
+            max_tokens=100,
+            top_p=0.9,
+            frequency_penalty=0.5,
+            presence_penalty=0.5,
+            stop=["."],
+            seed=42,
+            logprobs=True,
+            top_logprobs=3,
+        )
+        payload = OpenAICompatibleClient._build_payload(
+            [{"role": "user", "content": "hi"}], None, model,
+        )
+        assert payload.get("temperature") == 0.7
+        assert payload.get("max_output_tokens") == 100
+        assert payload.get("top_p") == 0.9
+        assert payload.get("top_logprobs") == 3
+        assert "frequency_penalty" not in payload
+        assert "presence_penalty" not in payload
+        assert "stop" not in payload
+        assert "seed" not in payload
+        assert "logprobs" not in payload
+
+    def test_build_request_kwargs_includes_top_logprobs(self):
+        """OpenAIResponsesClient._build_request_kwargs includes top_logprobs."""
+        model = LanguageModel(top_logprobs=2)
+        client = OpenAIResponsesClient(model)
+        kwargs = client._build_request_kwargs([{"role": "user", "content": "hi"}])
+        assert kwargs.get("top_logprobs") == 2
