@@ -809,6 +809,24 @@ class OpenAIResponsesClient(LLMClient):
             await self._client.close()
             self._client = None
 
+    _RESPONSES_API_FIELDS: set[str] = {
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "response_format",
+        "tool_choice",
+        "user",
+    }
+
+    _RESPONSES_API_UNSUPPORTED_FIELDS: dict[str, object] = {
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stop": None,
+        "seed": None,
+        "logprobs": False,
+        "top_logprobs": None,
+    }
+
     def _build_request_kwargs(
         self,
         input_items: list[dict[str, Any]],
@@ -827,29 +845,25 @@ class OpenAIResponsesClient(LLMClient):
             if has_function_call_output:
                 kwargs["previous_response_id"] = self._previous_response_id
 
+        for field, default in self._RESPONSES_API_UNSUPPORTED_FIELDS.items():
+            value = getattr(self._model_config, field, default)
+            if value != default:
+                raise ProviderApiError(
+                    0,
+                    f"'{field}' is not supported by the OpenAI Responses API "
+                    f"(provider 'openai-responses'). Value was: {value!r}",
+                )
+
         _FIELD_MAP = {
             "max_tokens": "max_output_tokens",
             "response_format": "text",
         }
-        for field in (
-            "temperature",
-            "max_tokens",
-            "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "stop",
-            "seed",
-            "response_format",
-            "tool_choice",
-            "logprobs",
-            "top_logprobs",
-            "user",
-        ):
+        for field in self._RESPONSES_API_FIELDS:
             value = getattr(self._model_config, field, None)
             if value is not None:
                 mapped = _FIELD_MAP.get(field, field)
                 if mapped == "text":
-                    kwargs[mapped] = {"format": value}
+                    kwargs[mapped] = {"format": {"type": value["type"]}} if isinstance(value, dict) else {"format": value}
                 else:
                     kwargs[mapped] = value
 
