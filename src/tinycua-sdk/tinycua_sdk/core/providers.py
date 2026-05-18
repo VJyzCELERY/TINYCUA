@@ -156,7 +156,7 @@ class ProviderRegistry:
         self,
         provider_id: str,
         factory: ProviderFactory,
-        metadata: ProviderInfo,
+        metadata: ProviderInfo | None = None,
     ) -> None:
         """Register a provider factory with metadata.
 
@@ -168,15 +168,21 @@ class ProviderRegistry:
         ``metadata.id``. If they differ, a ``ValueError`` is raised
         to prevent silent id mismatch.
 
+        When ``metadata`` is None, a default ``ProviderInfo`` is
+        synthesized using the given ``provider_id``, ``factory``,
+        and an empty description.
+
         Args:
             provider_id: Unique provider identifier.
             factory: Callable that creates an ``LLMClient`` from a
                 ``LanguageModel`` configuration.
-            metadata: ``ProviderInfo`` instance with provider metadata.
+            metadata: Optional ``ProviderInfo`` instance with provider metadata.
 
         Raises:
             ValueError: If ``metadata.id`` differs from ``provider_id``.
         """
+        if metadata is None:
+            metadata = ProviderInfo(id=provider_id, factory=factory, description="")
         if metadata.id != provider_id:
             raise ValueError(
                 f"metadata.id ({metadata.id!r}) conflicts with provider_id ({provider_id!r})"
@@ -262,9 +268,9 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     def _openai_responses_factory(model_config: LanguageModel) -> Any:
         # Deferred local import to prevent circular imports:
         # core.providers → agent.llm_client → core.providers
-        from tinycua_sdk.agent.llm_client import OpenAICompatibleClient  # noqa: PLC0415
+        from tinycua_sdk.agent.llm_client import OpenAIResponsesClient  # noqa: PLC0415
 
-        return OpenAICompatibleClient(model_config)
+        return OpenAIResponsesClient(model_config)
 
 
     registry.register(

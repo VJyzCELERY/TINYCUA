@@ -6,6 +6,35 @@ from unittest.mock import AsyncMock
 from tests.conftest import FakeLLMResponse
 
 
+def _httpx_compatible_registry():
+    """Build a ProviderRegistry with OpenAICompatibleClient (httpx-based) as default.
+
+    Tests that mock httpx.AsyncClient.post should use this instead of the
+    default SDK-backed registry, because the httpx patch does not intercept
+    the openai SDK's internal HTTP client.
+    """
+    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
+    from tinycua_sdk.core.providers import OPENAI_RESPONSES, ProviderInfo, ProviderRegistry
+
+    registry = ProviderRegistry()
+    registry.register(
+        OPENAI_RESPONSES,
+        lambda cfg: OpenAICompatibleClient(cfg),
+        ProviderInfo(id=OPENAI_RESPONSES, factory=lambda cfg: OpenAICompatibleClient(cfg), description="test"),
+    )
+    return registry
+
+
+def _patch_registry(monkeypatch):
+    """Replace get_provider_registry in executor and providers modules with httpx-compatible registry."""
+    from tinycua_sdk.agent import executor as agent_executor
+    from tinycua_sdk.core import providers as core_providers
+
+    new_registry = _httpx_compatible_registry()
+    monkeypatch.setattr(core_providers, "get_provider_registry", lambda: new_registry)
+    monkeypatch.setattr(agent_executor, "get_provider_registry", lambda: new_registry)
+
+
 @pytest.fixture
 def default_llm():
     """Return a default LanguageModel instance."""
@@ -28,10 +57,12 @@ def default_loop():
 
 @pytest.fixture
 def mock_llm_client():
-    """Mock OpenAICompatibleClient for tests."""
+    """Mock LLM client for tests — uses OpenAICompatibleClient (httpx-based) with patched post."""
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
+        _patch_registry(mp)
+
         fake_response_data = {
             "output": [
                 {
@@ -72,6 +103,8 @@ def mock_llm_with_tool_calls():
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
+        _patch_registry(mp)
+
         first_response = FakeLLMResponse(
             json_data={
                 "output": [
@@ -154,6 +187,8 @@ def mock_llm_with_failing_tool_call():
     with (
         pytest.MonkeyPatch.context() as mp,
     ):
+        _patch_registry(mp)
+
         first_response = FakeLLMResponse(
             json_data={
                 "output": [

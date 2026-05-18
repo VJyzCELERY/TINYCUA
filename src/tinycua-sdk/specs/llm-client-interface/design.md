@@ -10,7 +10,7 @@
 
 This design introduces a unified **Agent + LLM Client** architecture for the TINYCUA SDK. Instead of rebuilding HTTP-level clients for each provider, we delegate to each provider's official Python SDK (e.g., `openai` PyPI) and wrap them behind a common `LLMClient` abstract base class. Each provider client includes an **SSE normalizer** that converts provider-specific streaming events into a canonical format consumed by the Agent Loop, while simultaneously exposing a **raw SSE pass-through** for consumers that need provider-native events. A **provider registry** maps configuration-driven provider identifiers to concrete client implementations, enabling provider switching via `LanguageModel.provider` alone.
 
-The affected subproject is `tinycua-sdk`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is **updated in Phase 1** to match the new `LLMClient` contract (adding `_chat_impl()`) and remains in place. The `OpenAICompatibleClient` is NOT removed — it is refactored in-place. A proper **OpenAI Responses API** provider wrapping the `openai` PyPI SDK is deferred to Phase 2. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
+The affected subproject is `tinycua-sdk`. Phase 1 ships the official SDK-backed **OpenAI Responses API** provider (`OpenAIResponsesClient`) wrapping the `openai` PyPI SDK via `openai.responses.create()` and `openai.responses.stream()`. The existing `OpenAICompatibleClient` (httpx-based, `/responses` endpoint) is refactored in **Phase 1** to match the new `LLMClient` contract (adding `_chat_impl()`) and is kept as a secondary implementation. This is a **breaking change**: old provider strings (`"openai"`, `"openai-compatible"`) are no longer supported in Phase 1. The `openai` provider ID is reserved for a future **OpenAI Chat Completions API** provider. No backward-compatibility shim is provided.
 
 ---
 
@@ -86,8 +86,8 @@ The Agent Loop interacts with the LLM provider system through a universal factor
 | `tinycua_sdk/agent/llm_model.py` | Modified — Extended | May need minor additions for provider-specific config |
 | `tinycua_sdk/core/providers.py` | Modified — Extended | Provider registry and client factory logic added |
 | `tinycua_sdk/models/response.py` | No changes — usage migrated to LLMEvent | StreamEvent itself unchanged (raw pass-through via paired tuples); consumers migrate to LLMEvent |
-| `tinycua_sdk/agent/loop.py` | Modified (Phase 2) | Updated to consume new Responses-shaped canonical event schema (`response.output_text.delta`, `response.output_item.added`, `response.function_call_arguments.*`, `tool_call.ready`, etc.) |
-| `tinycua_sdk/providers/openai_responses/` | New (Phase 2) | OpenAI Responses API provider client + normalizer; registered as `"openai-responses"` |
+| `tinycua_sdk/agent/loop.py` | Modified (Phase 1) | Updated to consume new Responses-shaped canonical event schema (`response.output_text.delta`, `response.output_item.added`, `response.function_call_arguments.*`, `tool_call.ready`, etc.) |
+| `tinycua_sdk/agent/llm_client.py` | Extended — New class | `OpenAIResponsesClient` wrapping the official `openai` PyPI SDK (`openai.responses.create()`, `openai.responses.stream()`); registered as `"openai-responses"` |
 | `tinycua_sdk/providers/openai_chat/` | New (Phase 3) | OpenAI Chat Completions API provider client (future phase, ID `"openai"`) |
 
 ### Provider Migration Table
@@ -614,16 +614,16 @@ This design document, together with the companion spec, defines the contract for
 | Unit tests | Schema validation, registry behavior, error cases (unit-level, no SDK mocking) |
 | Integration tests | Provider switching via `LanguageModel.provider` (compile-time contract tests) |
 
-**Scope expansion note**: Phase 1 implementation expanded beyond the original provider-agnostic constraint. The `OpenAICompatibleClient` (httpx-based, no `openai` PyPI SDK dependency), Agent Loop migration, and raw pass-through were all implemented within Phase 1. The `openai` PyPI SDK-backed `OpenAIResponsesClient` remains a separate Phase 2 item.
+**Scope expansion note**: Phase 1 implementation expanded beyond the original provider-agnostic constraint. The `OpenAICompatibleClient` (httpx-based, no `openai` PyPI SDK dependency), `OpenAIResponsesClient` (official `openai` SDK-backed), Agent Loop migration, and raw pass-through were all implemented within Phase 1.
 
 ### Out of Scope (Deferred to Future Phases)
 
 | Area | Phase | Details |
 |------|-------|---------|
-| `OpenAIResponsesClient` | Phase 2 | OpenAI Responses API provider client and normalizer wrapping `openai` PyPI SDK |
-| `OpenAIChatClient` | Phase 3 | OpenAI Chat Completions API provider client |
+| `OpenAIChatClient` | Future | OpenAI Chat Completions API provider client |
+| Additional providers | Future | Anthropic, Google, etc. |
 
-The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 deliverables include schema, registry, contract, provider client (httpx-backed), loop migration, raw pass-through, and corresponding unit & integration tests.
+The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 deliverables include schema, registry, contract, provider clients (SDK-backed and httpx-backed), loop migration, raw pass-through, and corresponding unit & integration tests.
 
 ---
 
@@ -633,7 +633,7 @@ The PR body reflects this expanded Phase 1 scope. The immediate Phase 1 delivera
 
 ### Phase 1 — Foundation: Interface, Schema, Registry, Provider Client (This Milestone)
 
-This phase establishes the core abstractions, an httpx-based provider client, and the Agent Loop integration — all without the `openai` PyPI SDK dependency.
+This phase establishes the core abstractions, both httpx-based and official SDK-backed provider clients, and the Agent Loop integration — all with the `openai` PyPI SDK as a core dependency.
 
 - [x] **1.1**: Formalize the canonical SSE event schema in `events.py` — define all canonical event TypedDicts, `LLMResponse`, and `RawSseEvent`; replace existing TypedDicts with new canonical schema; define canonical input types (`LLMMessage`, `LLMToolSpec`, `ToolResultMessage`)
 - [x] **1.2**: Refactor `LLMClient` ABC — update `chat()` parameter types to `list[LLMMessage]` and `list[LLMToolSpec] | None`, update return type to `LLMResponse` (non-streaming), and document canonical event contract in docstring; add `raw_events` parameter
@@ -650,26 +650,19 @@ This phase establishes the core abstractions, an httpx-based provider client, an
       - `_normalize_responses_event()` normalizer for SSE stream events
       - `raw_events` paired-tuple mode for provider-native event passthrough
       - Tool-call continuation state via `previous_response_id` tracking
-- [x] **1.8**: Migrate Agent Loop (`loop.py`) to consume canonical event schema:
+- [x] **1.8**: Implement `OpenAIResponsesClient` wrapping the official `openai` PyPI SDK:
+      - `chat()` non-streaming via `openai.responses.create()` — normalize SDK response to `LLMResponse`
+      - `chat()` streaming via `openai.responses.create(stream=True)` — normalize raw stream events via shared normalizer
+      - Reuses `_normalize_responses_event()` from `OpenAICompatibleClient` for event normalization
+      - Registered as `"openai-responses"` in `ProviderRegistry` (default provider)
+- [x] **1.9**: Migrate Agent Loop (`loop.py`) to consume canonical event schema:
       - `BaseLoop` public helpers (`process_tool_calls`, `process_stream_iteration`, etc.)
       - Tool-call ready-gating via `ToolCallReadyEvent`
       - Streaming lifecycle events (`content.delta`, `response.completed`, etc.)
-- [x] **1.9**: Write unit and integration tests for provider client, loop migration, and raw pass-through
+- [x] **1.10**: Write unit and integration tests for provider client, loop migration, and raw pass-through
+- [x] **1.11**: Add `openai>=1.55` to `pyproject.toml` as a core dependency
 
-### Phase 2 — OpenAI `openai` PyPI SDK Provider (Next Milestone)
-
-See separate spec and design for this phase.
-
-- [ ] Build `OpenAIResponsesClient` wrapping the `openai` PyPI SDK Responses API:
-      - `chat()` non-streaming via `openai.responses.create()` → normalize SDK response to `LLMResponse`
-      - `chat()` streaming via `openai.responses.stream()` with SSE normalizer → normalize raw stream events to canonical schema
-      - Extract and formalize the existing `_normalize_responses_event()` into the per-provider normalizer
-      - Register as `"openai-responses"` in `ProviderRegistry`
-- [ ] Write unit tests for `OpenAIResponsesClient` (mocked SDK)
-- [ ] Write integration tests for end-to-end streaming/non-streaming with mocked SDK
-- [ ] Update `pyproject.toml` dependencies — add `openai>=1.55` as a core dependency (primary provider); future non-primary providers use optional extras
-
-### Phase 3 — OpenAI Chat Completions API Provider (Future)
+### Phase 2 — OpenAI Chat Completions API Provider (Next Milestone)
 
 See separate spec and design for this phase.
 
@@ -728,7 +721,7 @@ See separate spec and design for this phase.
 
 1. **Provider naming: `openai-responses` vs `openai`**: The `/responses`-based client is named `openai-responses`. The `openai` ID is reserved for the future Chat Completions API provider. See Technical Decision #7.
 
-2. **OpenAI SDK version**: Use `openai>=1.55` which supports the Responses API natively. The SDK-backed `OpenAIResponsesClient` wraps `openai.responses.create()` and `openai.responses.stream()` — matching the current `/responses` endpoint used by `OpenAICompatibleClient`.
+2. **OpenAI SDK version**: Use `openai>=1.55` which supports the Responses API natively. Phase 1 delivers the SDK-backed Responses provider wrapping `openai.responses.create()` and `openai.responses.stream()` — matching the `/responses` endpoint used by `OpenAICompatibleClient`.
 
 3. **Non-streaming response normalization**: Both streaming and non-streaming paths normalize into the canonical format. Non-streaming returns `LLMResponse` dict; streaming yields `LLMEvent` subclasses.
 

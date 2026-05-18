@@ -195,10 +195,10 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 | Upgrade Guide & Migration Docs | Complete | Phase 1 | Breaking change documented; migration path from legacy identifiers to `openai-responses` |
 | Unit Tests (Phase 1) | Complete | Phase 1 | Schema (output + input types), registry, error cases, contract tests all pass |
 | Integration Tests (Phase 1) | Complete | Phase 1 | Compile-time contract tests for registry switching |
-| OpenAI Responses API Provider | Complete | Phase 1 | `openai-responses` client via `OpenAICompatibleClient`; httpx-based, no `openai` PyPI SDK |
-| Raw SSE Pass-Through | Complete | Phase 1 | Paired tuple mode; unknown events use `None` canonical slot |
-| Agent Loop Migration | Complete | Phase 1 | `loop.py` consumes canonical event schema with tool-call ready-gating |
-| Unit/Integration Tests (Phase 2+) | TODO | Phase 2+ | Provider-specific mocked and end-to-end tests |
+  | OpenAI Responses API Provider | Complete | Phase 1 | `openai-responses` client via `OpenAIResponsesClient` wrapping the official `openai` PyPI SDK; registered as default provider |
+  | Raw SSE Pass-Through | Complete | Phase 1 | Paired tuple mode; unknown events use `None` canonical slot |
+  | Agent Loop Migration | Complete | Phase 1 | `loop.py` consumes canonical event schema with tool-call ready-gating |
+  | Unit/Integration Tests (Phase 2+) | TODO | Phase 2+ | Provider-specific mocked and end-to-end tests |
 
 ---
 

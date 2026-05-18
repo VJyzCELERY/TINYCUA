@@ -68,7 +68,8 @@ class TestOpenAICompatibleClient:
         registry = get_provider_registry()
         model = LanguageModel(provider="openai-responses", model_name="gpt-4o-mini")
         client = registry.create_client(model)
-        assert isinstance(client, OpenAICompatibleClient)
+        from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+        assert isinstance(client, OpenAIResponsesClient)
 
     @pytest.mark.asyncio
     async def test_non_streaming_chat_returns_llm_response(self) -> None:
@@ -296,6 +297,9 @@ class TestPreviousResponseId:
         assert "previous_response_id" not in sent_payloads[0]
         # Second payload SHOULD have previous_response_id from first response
         assert sent_payloads[1].get("previous_response_id") == "resp_first"
+        # The second payload should include the translated tool result with call_id
+        input_items = sent_payloads[1].get("input", [])
         assert any(
-            i.get("type") == "function_call_output" for i in sent_payloads[1].get("input", [])
+            i.get("type") == "function_call_output" and i.get("call_id") == "call_1" and i.get("output") == "Sunny"
+            for i in input_items
         )

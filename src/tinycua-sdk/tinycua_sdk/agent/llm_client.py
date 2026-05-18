@@ -36,6 +36,8 @@ from tinycua_sdk.core.providers import normalize_base_url
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
 
+    from openai import AsyncOpenAI
+
     from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
     from tinycua_sdk.agent.llm_model import LanguageModel
 
@@ -779,4 +781,185 @@ class OpenAICompatibleClient(LLMClient):
             ) from e
 
 
-__all__ = ["LLMClient", "OpenAICompatibleClient"]
+class OpenAIResponsesClient(LLMClient):
+    """OpenAI Responses API provider client wrapping the official openai SDK.
+
+    Uses ``openai.responses.create()`` for non-streaming and
+    ``client.responses.create(stream=True)`` for streaming.
+    Reuses the canonical event normalization from ``OpenAICompatibleClient``.
+    """
+
+    def __init__(self, model_config: LanguageModel) -> None:
+        self._model_config = model_config
+        self._client: AsyncOpenAI | None = None
+        self._previous_response_id: str | None = None
+
+    def _get_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            from openai import AsyncOpenAI
+
+            api_key = self._model_config.api_key.get_secret_value() if self._model_config.api_key else None
+            base_url = normalize_base_url(self._model_config.base_url, self._model_config.provider)
+            self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        return self._client
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.close()
+            self._client = None
+
+    def _build_request_kwargs(
+        self,
+        input_items: list[dict[str, Any]],
+        tools: list[LLMToolSpec] | None = None,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "model": self._model_config.model_name,
+            "input": input_items,
+        }
+
+        if self._previous_response_id:
+            has_function_call_output = any(
+                item.get("type") == "function_call_output"
+                for item in input_items
+            )
+            if has_function_call_output:
+                kwargs["previous_response_id"] = self._previous_response_id
+
+        _FIELD_MAP = {"max_tokens": "max_output_tokens"}
+        for field in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "tool_choice",
+            "user",
+        ):
+            value = getattr(self._model_config, field, None)
+            if value is not None:
+                kwargs[_FIELD_MAP.get(field, field)] = value
+
+        if tools:
+            kwargs["tools"] = OpenAICompatibleClient._translate_tools(tools)
+            if "tool_choice" not in kwargs:
+                kwargs["tool_choice"] = "auto"
+
+        return kwargs
+
+    @staticmethod
+    def _normalize_non_streaming_response(data: dict[str, Any]) -> LLMResponse:
+        content = None
+        tool_calls: list[ToolCallDict] | None = None
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                text_parts = [
+                    p.get("text", "")
+                    for p in item.get("content", [])
+                    if p.get("type") == "output_text"
+                ]
+                content = "".join(text_parts) or None
+            elif item.get("type") == "function_call":
+                if tool_calls is None:
+                    tool_calls = []
+                tool_calls.append(
+                    ToolCallDict(
+                        id=item.get("id", ""),
+                        call_id=item.get("call_id", ""),
+                        name=item.get("name", ""),
+                        arguments=item.get("arguments", "{}"),
+                    ),
+                )
+
+        usage_raw = data.get("usage")
+        usage: TokenUsage | None = None
+        if usage_raw:
+            usage = TokenUsage(
+                input_tokens=usage_raw.get("input_tokens"),
+                output_tokens=usage_raw.get("output_tokens"),
+                total_tokens=usage_raw.get("total_tokens"),
+            )
+
+        status: str = data.get("status", "completed")
+        if status == "completed":
+            finish_reason: str = "tool_calls" if tool_calls else "stop"
+        elif status == "incomplete":
+            finish_reason = "length"
+        elif status == "failed":
+            finish_reason = "error"
+        else:
+            finish_reason = "stop"
+
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            usage=usage,
+            finish_reason=finish_reason,
+            model=data.get("model", ""),
+        )
+
+    async def _chat_impl(
+        self,
+        messages: list[LLMMessage],
+        tools: list[LLMToolSpec] | None = None,
+        stream: bool = False,
+        raw_events: bool = False,
+    ) -> LLMResponse | AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
+        if not stream:
+            return await self._chat_sync(messages, tools)
+        return self._chat_stream(messages, tools, raw_events=raw_events)
+
+    async def _chat_sync(
+        self,
+        messages: list[LLMMessage],
+        tools: list[LLMToolSpec] | None,
+    ) -> LLMResponse:
+        client = self._get_client()
+        translated_input = OpenAICompatibleClient._translate_messages(messages)
+        kwargs = self._build_request_kwargs(translated_input, tools)
+
+        try:
+            response = await client.responses.create(**kwargs)
+        except Exception as e:
+            error_str = str(e)
+            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
+                raise ProviderAuthError(error_str) from e
+            raise ProviderApiError(0, f"OpenAI API error: {e}") from e
+
+        data = response.model_dump() if hasattr(response, "model_dump") else {}
+        self._previous_response_id = data.get("id", None) or None
+        data["model"] = data.get("model", self._model_config.model_name)
+        return self._normalize_non_streaming_response(data)
+
+    async def _chat_stream(
+        self,
+        messages: list[LLMMessage],
+        tools: list[LLMToolSpec] | None,
+        raw_events: bool = False,
+    ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
+        client = self._get_client()
+        translated_input = OpenAICompatibleClient._translate_messages(messages)
+        kwargs = self._build_request_kwargs(translated_input, tools)
+        kwargs["stream"] = True
+
+        try:
+            stream = await client.responses.create(**kwargs)
+        except Exception as e:
+            error_str = str(e)
+            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
+                raise ProviderAuthError(error_str) from e
+            raise ProviderApiError(0, f"OpenAI API error: {e}") from e
+
+        tool_cache: dict[str, dict[str, str]] = {}
+        async for event in stream:
+            data = event.model_dump() if hasattr(event, "model_dump") else {}
+            if data.get("type") in ("response.created", "response.completed"):
+                nested = data.get("response", {})
+                self._previous_response_id = (
+                    nested.get("id") or data.get("id") or None
+                )
+            events = OpenAICompatibleClient._normalize_responses_event(data, _tool_cache=tool_cache)
+            raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+            for item in _yield_events(events, raw_event_obj, raw_events):
+                yield item  # type: ignore[misc]
+
+
+__all__ = ["LLMClient", "OpenAICompatibleClient", "OpenAIResponsesClient"]

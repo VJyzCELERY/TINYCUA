@@ -209,16 +209,15 @@ async def test_openai_responses_default_registration(default_registry: ProviderR
     client = default_registry.create_client(model)
 
     # Verify the default registration produced a configured client
-    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
 
-    assert isinstance(client, OpenAICompatibleClient), (
-        f"Expected OpenAICompatibleClient, got {type(client).__name__}"
+    assert isinstance(client, OpenAIResponsesClient), (
+        f"Expected OpenAIResponsesClient, got {type(client).__name__}"
     )
 
     # The client should be properly initialized from the model config.
-    # Verify by checking it can resolve the httpx client key without error.
-    key = client._client_key()
-    assert key[0] == model.base_url, f"Expected base_url {model.base_url}, got {key[0]}"
+    # Verify it has the expected model config.
+    assert client._model_config is model
 
 
 # ── Test 6: Known but unregistered providers raise ProviderNotSupportedError ──

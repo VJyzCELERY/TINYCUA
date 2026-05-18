@@ -221,15 +221,17 @@ async def test_openai_responses_default_registration(default_registry):
     # Verify the default registration produced a configured client without
     # manual registration. Do NOT make a live provider call — that is tested
     # separately (see Test 6/7 for fake-provider switching tests).
-    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
-    assert isinstance(client, OpenAICompatibleClient), (
-        f"Expected OpenAICompatibleClient, got {type(client).__name__}"
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    assert isinstance(client, OpenAIResponsesClient), (
+        f"Expected OpenAIResponsesClient, got {type(client).__name__}"
     )
 
     # The client should be properly initialized from the model config.
     # Verify by checking it can resolve the httpx client key without error.
-    key = client._client_key(model)
-    assert key[0] == model.base_url, f"Expected base_url {model.base_url}, got {key[0]}"
+    key = client._client_key()
+    assert key[0] == normalize_base_url(model.base_url, model.provider), (
+        f"Expected base_url {normalize_base_url(model.base_url, model.provider)}, got {key[0]}"
+    )
 
 
 # ── Test 6: Unrecognized provider strings raise ProviderNotSupportedError ─────
@@ -267,12 +269,15 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 - [ ] Unit tests for canonical schema TypedDicts — verify type shapes, imports, and discriminated union narrowing
 - [ ] Unit tests for `ProviderRegistry` — register, reset, create_client, list_providers, is_supported edge cases
 - [ ] Unit tests for error classes — `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` can be imported, raised, and carry expected attributes
-- [ ] `OpenAICompatibleClient` contract tests — verify the refactored client:
-  - [ ] Instantiates correctly from `LanguageModel` configuration with the new `LLMClient` ABC contract
-  - [ ] Implements `_chat_impl()` and can be resolved via `ProviderRegistry.create_client()`
+- [ ] `OpenAICompatibleClient` and `OpenAIResponsesClient` contract tests — verify both clients:
+  - [ ] Instantiate correctly from `LanguageModel` configuration with the new `LLMClient` ABC contract
+  - [ ] Implement `_chat_impl()` and can be resolved via `ProviderRegistry.create_client()`
   - [ ] Non-streaming `chat()` returns correct `LLMResponse` shape
   - [ ] Streaming `chat()` yields canonical `LLMEvent` items
   - [ ] `raw_events=True` with `stream=False` raises `ValueError` via base class validation
+- [ ] `OpenAIResponsesClient` SDK-backed tests:
+  - [ ] Uses `openai.responses.create()` for non-streaming via mocked SDK
+  - [ ] Uses `openai.responses.create(stream=True)` for streaming via mocked SDK
 - [ ] Unit tests for default provider behavior:
   - [ ] `LanguageModel().provider` returns `"openai-responses"` (changed from `"openai-compatible"`)
   - [ ] `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` (correct default for OpenAI Responses API)
@@ -312,13 +317,13 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 
 #### [MODIFY] `tinycua_sdk/core/providers.py`
 
-- **[Description of change]**: Add `ProviderFactory` type alias, `ProviderInfo` dataclass, `ProviderRegistry` class with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` methods. Add singleton instance `_provider_registry`. Keep existing `resolve_provider()` function — it remains usable during Phase 1 migration. **Phase 1 default registration**: Auto-register `"openai-responses"` → `OpenAICompatibleClient` factory in the singleton registry so that `LanguageModel(provider="openai-responses", ...)` resolves correctly via `ProviderRegistry.create_client()`. Old provider strings (`"openai"`, `"openai-compatible"`) are NOT registered — they raise `ProviderNotSupportedError` via `create_client()`.
+- **[Description of change]**: Add `ProviderFactory` type alias, `ProviderInfo` dataclass, `ProviderRegistry` class with `register()`, `create_client()`, `list_providers()`, `is_supported()`, `reset()` methods. Add singleton instance `_provider_registry`. Keep existing `resolve_provider()` function — it remains usable during Phase 1 migration. **Phase 1 default registration**: Auto-register `"openai-responses"` → `OpenAIResponsesClient` factory in the singleton registry so that `LanguageModel(provider="openai-responses", ...)` resolves correctly via `ProviderRegistry.create_client()`. Old provider strings (`"openai"`, `"openai-compatible"`) are NOT registered — they raise `ProviderNotSupportedError` via `create_client()`.
 - **Default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"` so that `LanguageModel()` with no explicit provider resolves through the registry. Provider recognition and rejection are owned by `ProviderRegistry` — `LanguageModel` normalizes provider strings without hard-coding the recognized set. Unrecognized providers are rejected at `create_client()` time via `ProviderNotSupportedError`.
 - **Default base URL for `openai-responses`**: `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` instead of the generic default (`http://localhost:1234/v1`). Add `"openai-responses"` → OpenAI default URL mapping in `normalize_base_url()`.
 - **⚠ Import cycle mitigation**: `core/providers.py` already exports `normalize_base_url` which is imported by `llm_client.py`. To prevent circular imports (`core.providers` → `agent.llm_client` → `core.providers`):
   - Add `from __future__ import annotations` to `core/providers.py` (deferred evaluation).
   - Import `LanguageModel` and `LLMClient` under `TYPE_CHECKING` guards (type-only references, never evaluated at runtime).
-  - Use a local deferred import inside the default-registration callable: `from tinycua_sdk.agent.llm_client import OpenAICompatibleClient` is placed inside the factory function body, not at module top level. This ensures `core.providers` can be fully imported without triggering the `agent.llm_client` import chain until the factory is actually invoked.
+  - Use a local deferred import inside the default-registration callable: `from tinycua_sdk.agent.llm_client import OpenAIResponsesClient` is placed inside the factory function body, not at module top level. This ensures `core.providers` can be fully imported without triggering the `agent.llm_client` import chain until the factory is actually invoked.
 - **[Rationale]**: FR-003, FR-004, FR-009. The registry maps provider strings to client factories and provides runtime validation.
 
 ### Agent Executor Integration

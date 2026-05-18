@@ -18,12 +18,13 @@ from tinycua_sdk.agent.events import (
     TokenUsage,
     ToolCallArgumentsDeltaEvent,
     ToolCallArgumentsDoneEvent,
+    ToolCallReadyEvent,
     ToolCallStartedEvent,
     ToolResultMessage,
     UserMessage,
 )
 from tinycua_sdk.agent.executor import AgentExecutor
-from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
+from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient, OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.agent.loop import BaseLoop
 
@@ -36,12 +37,14 @@ __all__ = [
     "LanguageModel",
     "LLMClient",
     "OpenAICompatibleClient",
+    "OpenAIResponsesClient",
     # Canonical SSE Events
     "ContentDeltaEvent",
     "ContentDoneEvent",
     "ToolCallStartedEvent",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
+    "ToolCallReadyEvent",
     "TokenUsage",
     "ResponseUsageEvent",
     "ResponseCompletedEvent",
