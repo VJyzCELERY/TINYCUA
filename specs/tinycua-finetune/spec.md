@@ -2,7 +2,7 @@
 
 **Status**: In Progress
 **Created**: 2026-03-11
-**Last Updated**: 2026-05-11
+**Last Updated**: 2026-05-18
 **Subproject(s) Affected**: tinycua-finetune
 **Focus**: Kaggle GPU + Unsloth QLoRA Notebook Pipeline
 
@@ -61,6 +61,15 @@ This approach is suitable for:
    examples are skipped and only valid records are used for training.
 5. **Given** W&B integration is configured, **When** training runs, **Then** experiment metrics
    are logged to the specified W&B project.
+
+### Testing Approach
+
+This pipeline targets Kaggle GPU environments as a notebook-driven experimental flow. Standard unit/integration tests are not applied because:
+- **GPU-dependent**: requires Kaggle GPU (P100/V100) — no CI runner has this
+- **External services**: HF datasets, W&B, Unsloth — require live API keys and runtime environments
+- **Notebook-native**: primary artifact is a Kaggle notebook; scripts exist for review clarity only
+
+**Validation**: run the notebook end-to-end on Kaggle and verify training completes without error. See `design.md` for full rationale.
 
 ### Edge Cases
 

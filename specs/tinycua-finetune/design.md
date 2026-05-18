@@ -2,7 +2,7 @@
 
 **Spec**: [specs/tinycua-finetune/spec.md](spec.md)
 **Status**: In Progress
-**Last Updated**: 2026-05-11
+**Last Updated**: 2026-05-18
 **Focus**: Kaggle GPU + Unsloth QLoRA Notebook Pipeline
 
 ---
@@ -83,6 +83,20 @@ python finetune.py run 5-12     # Run steps 5 through 12
 - ipynb files are stored as JSON, making diff review difficult
 - Splitting into .py files allows standard code review
 - Each script has clear purpose matching cell headers
+
+### Testing & Validation
+
+This pipeline is an experimental notebook-driven flow. Standard unit/integration tests under `tests/` are not applied because:
+- **GPU dependency**: requires Kaggle GPU (P100/V100, 16+ GB VRAM) — no CI environment provides this
+- **External API keys**: HF_TOKEN, WANDB_API_KEY are required at runtime — cannot be injected in CI
+- **Unsloth runtime**: Unsloth installation and CUDA toolkit are Kaggle-environment-specific
+- **Review-purpose scripts**: the .py scripts exist solely for diff-based code review; the primary execution artifact is the Kaggle notebook
+
+**Validation approach:**
+1. Run the notebook end-to-end on Kaggle with a P100/V100 GPU
+2. Verify training completes without error
+3. Verify model checkpoint is saved/pushed to HF Hub
+4. For script changes: reconstruct notebook from scripts, run on Kaggle, verify output
 
 **Notebook Reconstruction:**
 If needed, scripts can be combined back via:
