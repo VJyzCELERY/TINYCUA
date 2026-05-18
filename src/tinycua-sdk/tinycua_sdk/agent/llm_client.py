@@ -14,11 +14,8 @@ which has been removed in favor of the SDK-backed client only.
 
 from __future__ import annotations
 
-import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
-
-import httpx
 
 from tinycua_sdk.agent.events import (
     ContentDeltaEvent,
@@ -484,49 +481,6 @@ def _normalize_responses_event(
         return _normalize_reasoning_event(event)
 
     return []
-
-
-async def _iter_sse_raw_events(
-    response: httpx.Response,
-) -> AsyncIterator[dict[str, Any]]:
-    """Parse SSE lines from an httpx streaming response into raw event dicts.
-
-    Accumulates partial JSON chunks across consecutive ``data:`` lines
-    and yields complete parsed dicts.
-
-    Args:
-        response: An active httpx streaming response.
-
-    Yields:
-        Parsed JSON dicts from SSE ``data:`` lines.
-    """
-    buffer: str = ""
-    async for line in response.aiter_lines():
-        line = line.strip()
-        if line.startswith("data:"):
-            data_chunk = line[5:].strip()
-            if data_chunk == "[DONE]":
-                continue
-            buffer += data_chunk
-            try:
-                data = json.loads(buffer)
-            except json.JSONDecodeError:
-                continue
-            yield data
-            buffer = ""
-        elif not line and buffer:
-            try:
-                data = json.loads(buffer)
-            except json.JSONDecodeError:
-                continue
-            yield data
-            buffer = ""
-    if buffer:
-        try:
-            data = json.loads(buffer)
-        except json.JSONDecodeError:
-            return
-        yield data
 
 
 class LLMClient(ABC):

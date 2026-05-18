@@ -6,7 +6,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 
 - [x] Write integration tests (`tests/integration/test_provider_switching.py`): registry switching, unsupported providers, raw_events validation <!-- id: 1 -->
   - [x] Test: `openai-responses` default registration resolves correctly via registry <!-- id: 1a -->
-  - [x] Test: old provider strings (`"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` <!-- id: 1b -->
+  - [x] Test: deprecated `"openai-compatible"` and unknown provider strings raise `ProviderNotSupportedError`; `"openai"` resolves as a deprecated alias for `"openai-responses"` <!-- id: 1b -->
 - [x] Write unit tests (`tests/unit/test_canonical_schema.py`): canonical event TypedDict shapes and type narrowing <!-- id: 2 -->
 - [x] Write unit tests (`tests/unit/test_provider_registry.py`): register, reset, create_client, list, is_supported, error cases <!-- id: 3 -->
 - [x] Write unit tests (`tests/unit/test_error_classes.py`): `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` attributes and representation <!-- id: 4 -->
@@ -61,7 +61,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [x] Add tests:
   - [x] `LanguageModel()` default provider resolves to `"openai-responses"` <!-- id: 12d -->
   - [x] `normalize_base_url(None, "openai-responses")` returns OpenAI API URL <!-- id: 12e -->
-  - [x] Unrecognized provider strings (e.g. `LanguageModel(provider="openai")` or `"openai-compatible"`) raise `ProviderNotSupportedError` at `ProviderRegistry.create_client()` time — rejection is registry-driven, not hard-coded in `LanguageModel` <!-- id: 12f -->
+  - [x] Unrecognized provider strings (e.g. `LanguageModel(provider="openai-compatible")` or `"unknown-provider"`) raise `ProviderNotSupportedError` at `ProviderRegistry.create_client()` time — rejection is registry-driven, not hard-coded in `LanguageModel`. Note: `"openai"` is a deprecated compatibility alias that resolves to `"openai-responses"` in Phase 1. <!-- id: 12f -->
 
 ### Task D: ProviderRegistry Implementation
 

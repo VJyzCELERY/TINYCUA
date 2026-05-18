@@ -238,13 +238,16 @@ async def test_openai_responses_default_registration(default_registry):
 
 def test_unrecognized_provider_strings_rejected(default_registry):
     """Given only openai-responses is registered (via default registration),
-    any unrecognized provider strings (e.g. "openai", "openai-compatible",
+    unrecognized provider strings (e.g. "openai-compatible",
     "unknown-provider") raise ProviderNotSupportedError with migration
     guidance listing registered providers. Rejection is registry-driven —
-    no hard-coded provider list in LanguageModel."""
+    no hard-coded provider list in LanguageModel.
+    
+    Note: "openai" is a deprecated compatibility alias that resolves to
+    "openai-responses" and does NOT raise an error in Phase 1."""
 
     # openai-responses is auto-registered — no need to manually register
-    for unrecognized in ("openai", "openai-compatible", "unknown-provider"):
+    for unrecognized in ("openai-compatible", "unknown-provider"):
         model = LanguageModel(provider=unrecognized, model_name="test")
         with pytest.raises(ProviderNotSupportedError) as excinfo:
             default_registry.create_client(model)
