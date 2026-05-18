@@ -466,7 +466,7 @@ ProviderApiError(status_code, message)
 
 - [ ] Depends on existing `LanguageModel` model (`tinycua_sdk/agent/llm_model.py`)
 - [ ] Depends on existing `core/providers.py` infrastructure (coexists alongside new registry)
-- [ ] Blocks Phase 2 (OpenAI Responses API provider implementation)
+- [ ] Blocks Phase 2 (non-OpenAI provider implementations — e.g. Anthropic, Google, or OpenAI Chat Completions)
 
 ## Risks and Mitigations
 

@@ -98,6 +98,11 @@ class TestEndToEnd:
         3. The LLM should call the tool based on the skill instructions
         4. Execute the tool via ``ToolExecutor.execute()``
         5. Return a final response incorporating the tool result
+
+        This test uses a recorded-call pattern to assert deterministic SDK
+        behavior: it records tool invocations and checks that ``lookup_item``
+        was called with ``"magic_box"``, rather than relying on non-deterministic
+        LLM prose for the final assertion.
         """
         @tool
         def lookup_item(key: str) -> str:
@@ -118,6 +123,14 @@ class TestEndToEnd:
             ),
         )
 
+        # Record tool invocations for deterministic assertion using Tool.invoke
+        tool_invocation_log: list[dict[str, str]] = []
+        _original_invoke = lookup_item.invoke
+        def _recorded_invoke(**kwargs: str) -> str:
+            tool_invocation_log.append(kwargs)
+            return _original_invoke(**kwargs)
+        lookup_item.invoke = _recorded_invoke  # type: ignore[method-assign]
+
         agent = Agent(
             name="e2e-skills-agent",
             instructions="You are a helpful assistant.",
@@ -130,9 +143,11 @@ class TestEndToEnd:
 
         assert isinstance(response, str)
         assert len(response) > 0
-        # The LLM cannot know the magic box contents without calling the tool.
-        # If the response mentions tool-related keywords, the skill + tool pipeline worked.
-        tool_keywords = ["magic_box", "crystal", "tool", "result", "item", "lookup"]
-        assert any(kw in response.lower() for kw in tool_keywords), (
-            f"Expected tool-related keywords in response, got: {response!r}"
+        # Assert deterministic SDK behavior: the tool must have been invoked
+        # with "magic_box" during the agent run.
+        assert any(
+            call.get("key") == "magic_box" for call in tool_invocation_log
+        ), (
+            f"Expected lookup_item to be called with 'magic_box', "
+            f"invocation log: {tool_invocation_log}"
         )

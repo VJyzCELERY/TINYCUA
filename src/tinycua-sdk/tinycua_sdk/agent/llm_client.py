@@ -581,6 +581,15 @@ class OpenAICompatibleClient(LLMClient):
                 status = event.get("response", {}).get("status", "completed")
                 _FINISH_REASON_MAP = {"completed": "stop", "incomplete": "length", "failed": "error"}
                 finish_reason = _FINISH_REASON_MAP.get(status, "stop")
+                # When status is "completed", check if the completed response
+                # contains function_call output — if so, emit tool_calls.
+                if status == "completed":
+                    output = event.get("response", {}).get("output", [])
+                    if any(
+                        isinstance(item, dict) and item.get("type") == "function_call"
+                        for item in output
+                    ):
+                        finish_reason = "tool_calls"
             result: list[LLMEvent] = [ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason)]
             # Preserve nested usage from the completed response payload.
             nested_usage = event.get("response", {}).get("usage")
@@ -601,7 +610,7 @@ class OpenAICompatibleClient(LLMClient):
             return result
 
         if event_type == "response.failed":
-            raw_error = event.get("error", {})
+            raw_error = event.get("error") or event.get("response", {}).get("error", {})
             error: dict[str, Any] = {}
             if isinstance(raw_error, dict):
                 error = {str(k): v for k, v in raw_error.items()}
