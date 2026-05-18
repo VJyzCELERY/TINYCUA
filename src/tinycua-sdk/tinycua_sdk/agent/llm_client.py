@@ -310,7 +310,7 @@ class OpenAICompatibleClient(LLMClient):
             if value is not None:
                 mapped = _FIELD_MAP.get(field, field)
                 if mapped == "text":
-                    payload[mapped] = {"format": {"type": value["type"]}} if isinstance(value, dict) else {"format": value}
+                    payload[mapped] = {"format": value}
                 else:
                     payload[mapped] = value
 
@@ -872,7 +872,7 @@ class OpenAIResponsesClient(LLMClient):
             if value is not None:
                 mapped = _FIELD_MAP.get(field, field)
                 if mapped == "text":
-                    kwargs[mapped] = {"format": {"type": value["type"]}} if isinstance(value, dict) else {"format": value}
+                    kwargs[mapped] = {"format": value}
                 else:
                     kwargs[mapped] = value
 

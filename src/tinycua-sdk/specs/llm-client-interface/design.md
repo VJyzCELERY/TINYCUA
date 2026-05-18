@@ -545,17 +545,17 @@ _provider_registry = ProviderRegistry()
 # Default registration (at module import time):
 def _register_defaults() -> None:
     """Register built-in providers using deferred imports to avoid cycles."""
-    from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
     _provider_registry.register(
         "openai-responses",
-        lambda cfg: OpenAICompatibleClient(cfg),
-        ProviderInfo(id="openai-responses", factory=lambda c: OpenAICompatibleClient(c), description="OpenAI Responses API (Phase 1)"),
+        lambda cfg: OpenAIResponsesClient(cfg),
+        ProviderInfo(id="openai-responses", factory=lambda c: OpenAIResponsesClient(c), description="OpenAI Responses API (Phase 1)"),
     )
 
 _register_defaults()
 ```
 
-> **Import cycle prevention**: `core/providers.py` exports `normalize_base_url` which is already imported by `llm_client.py`. To prevent `core.providers → agent.llm_client → core.providers`, the module uses `from __future__ import annotations`, `TYPE_CHECKING` guards for `LanguageModel`/`LLMClient` type references, and a local deferred import (`from tinycua_sdk.agent.llm_client import OpenAICompatibleClient`) inside `_register_defaults()` rather than at the module top level.
+> **Import cycle prevention**: `core/providers.py` exports `normalize_base_url` which is already imported by `llm_client.py`. To prevent `core.providers → agent.llm_client → core.providers`, the module uses `from __future__ import annotations`, `TYPE_CHECKING` guards for `LanguageModel`/`LLMClient` type references, and a local deferred import (`from tinycua_sdk.agent.llm_client import OpenAIResponsesClient`) inside `_register_defaults()` rather than at the module top level.
 
 ### Error Handling
 
@@ -660,7 +660,7 @@ This phase establishes the core abstractions, both httpx-based and official SDK-
       - Tool-call ready-gating via `ToolCallReadyEvent`
       - Streaming lifecycle events (`content.delta`, `response.completed`, etc.)
 - [x] **1.10**: Write unit and integration tests for provider client, loop migration, and raw pass-through
-- [x] **1.11**: Add `openai>=1.55` to `pyproject.toml` as a core dependency
+- [x] **1.11**: Add `openai>=2.34,<3` to `pyproject.toml` as a core dependency
 
 ### Phase 2 — OpenAI Chat Completions API Provider (Next Milestone)
 
@@ -721,7 +721,7 @@ See separate spec and design for this phase.
 
 1. **Provider naming: `openai-responses` vs `openai`**: The `/responses`-based client is named `openai-responses`. The `openai` ID is reserved for the future Chat Completions API provider. See Technical Decision #7.
 
-2. **OpenAI SDK version**: Use `openai>=1.55` which supports the Responses API natively. Phase 1 delivers the SDK-backed Responses provider wrapping `openai.responses.create()` and `openai.responses.stream()` — matching the `/responses` endpoint used by `OpenAICompatibleClient`.
+2. **OpenAI SDK version**: Use `openai>=2.34,<3` which supports the Responses API natively. Phase 1 delivers the SDK-backed Responses provider wrapping `openai.responses.create()` and `openai.responses.stream()` — matching the `/responses` endpoint used by `OpenAIResponsesClient`.
 
 3. **Non-streaming response normalization**: Both streaming and non-streaming paths normalize into the canonical format. Non-streaming returns `LLMResponse` dict; streaming yields `LLMEvent` subclasses.
 

@@ -160,6 +160,11 @@ class ProviderRegistry:
     ) -> None:
         """Register a provider factory with metadata.
 
+        The ``provider_id`` is normalized via ``resolve_provider()`` to
+        its canonical form (e.g., ``"lmstudio"`` → ``"openai-compatible"``)
+        so that alias-based registration is consistent with the public
+        ``LanguageModel`` resolution path.
+
         The explicit ``factory`` argument takes precedence over
         ``metadata.factory``. If they differ, ``metadata`` is copied
         with its factory replaced by the explicit argument.
@@ -173,7 +178,7 @@ class ProviderRegistry:
         and an empty description.
 
         Args:
-            provider_id: Unique provider identifier.
+            provider_id: Unique provider identifier (may be an alias).
             factory: Callable that creates an ``LLMClient`` from a
                 ``LanguageModel`` configuration.
             metadata: Optional ``ProviderInfo`` instance with provider metadata.
@@ -181,13 +186,18 @@ class ProviderRegistry:
         Raises:
             ValueError: If ``metadata.id`` differs from ``provider_id``.
         """
+        from dataclasses import replace
+
+        provider_id = resolve_provider(provider_id)
+        if metadata is not None:
+            # Normalize metadata.id too, if set
+            metadata = replace(metadata, id=resolve_provider(metadata.id))
         if metadata is None:
             metadata = ProviderInfo(id=provider_id, factory=factory, description="")
         if metadata.id != provider_id:
             raise ValueError(
                 f"metadata.id ({metadata.id!r}) conflicts with provider_id ({provider_id!r})"
             )
-        from dataclasses import replace
 
         self._providers[provider_id] = replace(metadata, id=provider_id, factory=factory)
 
@@ -204,7 +214,7 @@ class ProviderRegistry:
         Raises:
             ProviderNotSupportedError: If the provider is not registered.
         """
-        provider_id = model_config.provider
+        provider_id = resolve_provider(model_config.provider)
         info = self._providers.get(provider_id)
         if info is None:
             supported = list(self._providers.keys())
@@ -222,13 +232,16 @@ class ProviderRegistry:
     def is_supported(self, provider_id: str) -> bool:
         """Check if a provider is registered.
 
+        The ``provider_id`` is normalized via ``resolve_provider()``
+        before lookup, so alias identifiers resolve to the canonical key.
+
         Args:
-            provider_id: Provider identifier to check.
+            provider_id: Provider identifier to check (may be an alias).
 
         Returns:
             True if the provider is registered.
         """
-        return provider_id in self._providers
+        return resolve_provider(provider_id) in self._providers
 
     def reset(self) -> None:
         """Clear all registered providers.

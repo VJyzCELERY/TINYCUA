@@ -106,6 +106,36 @@ class ResponseFailedEvent(TypedDict):
     error: dict[str, Any]
 
 
+class ResponseCreatedEvent(TypedDict):
+    """Emitted when a response is created at the start of streaming."""
+
+    type: Literal["response.created"]
+
+
+class ResponseInProgressEvent(TypedDict):
+    """Emitted when the response processing is in progress."""
+
+    type: Literal["response.in_progress"]
+
+
+class ResponseCancelledEvent(TypedDict):
+    """Emitted when a streaming response is cancelled."""
+
+    type: Literal["response.cancelled"]
+
+
+class ErrorEvent(TypedDict):
+    """Emitted when an unexpected error occurs during streaming.
+
+    The ``error`` dict preserves original provider error value types
+    (e.g. numeric codes, nested objects) — consumer code should handle
+    mixed types via ``isinstance`` checks.
+    """
+
+    type: Literal["error"]
+    error: dict[str, Any]
+
+
 # ── LLMEvent union ──────────────────────────────────────────────────────────
 
 LLMEvent = Union[
@@ -117,6 +147,10 @@ LLMEvent = Union[
     ToolCallReadyEvent,
     ResponseUsageEvent,
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
+    ResponseInProgressEvent,
+    ResponseCancelledEvent,
+    ErrorEvent,
     ResponseFailedEvent,
 ]
 
@@ -193,6 +227,7 @@ __all__ = [
     # Canonical SSE Events
     "ContentDeltaEvent",
     "ContentDoneEvent",
+    "ErrorEvent",
     # Union type
     "LLMEvent",
     "LLMMessage",
@@ -201,8 +236,11 @@ __all__ = [
     "LLMToolSpec",
     # Raw SSE event
     "RawSseEvent",
+    "ResponseCancelledEvent",
     "ResponseCompletedEvent",
+    "ResponseCreatedEvent",
     "ResponseFailedEvent",
+    "ResponseInProgressEvent",
     "ResponseUsageEvent",
     # Canonical Input Types
     "SystemMessage",
