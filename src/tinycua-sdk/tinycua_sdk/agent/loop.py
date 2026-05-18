@@ -437,7 +437,7 @@ class BaseLoop:
             return [
                 {"type": "response.created"},
                 {"type": "response.cancelled"},
-            ], False, False
+            ], True, False
 
         if first_chunk is None:
             return [

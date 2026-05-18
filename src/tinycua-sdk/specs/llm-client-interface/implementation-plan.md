@@ -260,7 +260,7 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 - [ ] **Scenario 1**: Registry resolves different provider clients from `LanguageModel.provider` and each returns the expected canonical response shape — this is the primary success criterion proving the switching mechanism works.
 - [ ] **Scenario 2**: Unsupported provider strings raise `ProviderNotSupportedError` with a clear message listing supported providers — verifies user-facing error quality.
 - [ ] **Scenario 3**: `provider="openai-responses"` is accepted through the registry and resolves a usable client without manual registration — proves the Phase 1 default registration path works.
-- [ ] **Scenario 4**: Unrecognized provider strings (including old strings like `"openai"`, `"openai-compatible"`) raise `ProviderNotSupportedError` with migration guidance via registry-driven rejection — no hard-coded provider list in `LanguageModel`.
+- [ ] **Scenario 4**: Unrecognized provider strings (including `"openai-compatible"` and other unknown strings) raise `ProviderNotSupportedError` with migration guidance via registry-driven rejection — no hard-coded provider list in `LanguageModel`. Note: `"openai"` is a deprecated alias that resolves to `"openai-responses"` and does NOT raise an error in Phase 1.
 - [ ] **Scenario 5**: `LanguageModel()` with no explicit provider defaults to `"openai-responses"` and resolves successfully through the registry — proves the default provider change.
 - [ ] **Edge case**: `raw_events=True` with `stream=False` raises `ValueError` — validates the cross-parameter validation contract.
 
@@ -272,7 +272,7 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 - [ ] Unit tests for canonical schema TypedDicts — verify type shapes, imports, and discriminated union narrowing
 - [ ] Unit tests for `ProviderRegistry` — register, reset, create_client, list_providers, is_supported edge cases
 - [ ] Unit tests for error classes — `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` can be imported, raised, and carry expected attributes
-- [ ] `OpenAICompatibleClient` and `OpenAIResponsesClient` contract tests — verify both clients:
+- [ ] `OpenAIResponsesClient` contract tests — verify the default provider client:
   - [ ] Instantiate correctly from `LanguageModel` configuration with the new `LLMClient` ABC contract
   - [ ] Implement `_chat_impl()` and can be resolved via `ProviderRegistry.create_client()`
   - [ ] Non-streaming `chat()` returns correct `LLMResponse` shape
@@ -285,7 +285,7 @@ def test_unrecognized_provider_strings_rejected(default_registry):
   - [ ] `LanguageModel().provider` returns `"openai-responses"` (changed from `"openai-compatible"`)
   - [ ] `normalize_base_url(None, "openai-responses")` returns `"https://api.openai.com/v1"` (correct default for OpenAI Responses API)
   - [ ] `normalize_base_url("http://localhost:1234/v1", "openai-responses")` preserves explicit override
-  - [ ] Unrecognized provider strings (e.g. `"openai"`, `"openai-compatible"`) still instantiate `LanguageModel` — the model normalizes without hard-coding the recognized set — but `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` because the provider is not registered
+  - [ ] Unrecognized provider strings (e.g. `"openai-compatible"`, `"unknown-provider"`) still instantiate `LanguageModel` — the model normalizes without hard-coding the recognized set — but `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` because the provider is not registered. Note: `"openai"` is a deprecated alias that resolves to `"openai-responses"` and is accepted by the registry.
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest`
 
 ### Manual Verification
@@ -373,9 +373,9 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 - **[Description of change]**: Integration tests (defined in Success Criteria above) testing compile-time/contract-level provider switching via `LanguageModel.provider` with fake client implementations.
 - **[Dependencies]**: `llm_client.py`, `providers.py`, `exceptions.py`, `events.py`.
 
-#### [NEW] `tests/unit/test_openai_compatible_client.py`
+#### [NEW] `tests/unit/test_llm_client.py`
 
-- **[Description of change]**: Unit and contract tests for the refactored `OpenAICompatibleClient`. Verifies it implements `_chat_impl()`, instantiates from `LanguageModel`, resolves through `ProviderRegistry`, produces correct `LLMResponse` (non-streaming) and `LLMEvent` (streaming) outputs, and passes base class `raw_events=True` with `stream=False` validation.
+- **[Description of change]**: Unit and contract tests for the SDK-backed `OpenAIResponsesClient` (the default Phase 1 provider). Verifies it implements `_chat_impl()`, instantiates from `LanguageModel`, resolves through `ProviderRegistry`, produces correct `LLMResponse` (non-streaming) and `LLMEvent` (streaming) outputs, and passes base class `raw_events=True` with `stream=False` validation.
 - **[Dependencies]**: `llm_client.py`, `providers.py`, `events.py`.
 
 #### [MODIFY] `tests/unit/test_executor_integration.py`
@@ -397,7 +397,7 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 | `tests/unit/test_provider_registry.py` | New | Registry behavior unit tests |
 | `tests/unit/test_error_classes.py` | New | Error class unit tests |
 | `tests/integration/test_provider_switching.py` | New | Contract-level integration tests |
-| `tests/unit/test_openai_compatible_client.py` | New | `OpenAICompatibleClient` contract and behavior tests |
+| `tests/unit/test_llm_client.py` | New | `OpenAIResponsesClient` contract and behavior tests (replaces old `OpenAICompatibleClient` tests) |
 | `tests/unit/test_executor_integration.py` | New | Tests proving `AgentExecutor` uses registry and respects `LanguageModel.provider` switching |
 
 ## Data Model Changes
@@ -445,7 +445,7 @@ ProviderApiError(status_code, message)
 | **`LLMClient._chat_impl()`** (new, abstract) | Parameters: `messages: list[LLMMessage]`, `tools: list[LLMToolSpec] | None`, `stream: bool = False`, `raw_events: bool = False`. Subclasses implement provider-specific logic here. The `raw_events` flag is passed through so providers can yield paired `(canonical, raw)` tuples when requested. |
 | **`LLMClient.close()`** | Abstract method (unchanged). |
 
-> **Note**: This is a **breaking change**. The existing `LLMClient` ABC is refactored in-place — subclasses must add `_chat_impl()` implementation. `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. Backward compatibility is not maintained.
+> **Note**: This is a **breaking change**. The existing `LLMClient` ABC is refactored in-place — subclasses must add `_chat_impl()` implementation. `OpenAICompatibleClient` has been **removed** in Phase 1 — replaced by the SDK-backed `OpenAIResponsesClient`. Backward compatibility is not maintained.
 
 ### New Interfaces
 

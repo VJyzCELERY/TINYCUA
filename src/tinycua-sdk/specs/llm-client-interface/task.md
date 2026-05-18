@@ -10,7 +10,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [x] Write unit tests (`tests/unit/test_canonical_schema.py`): canonical event TypedDict shapes and type narrowing <!-- id: 2 -->
 - [x] Write unit tests (`tests/unit/test_provider_registry.py`): register, reset, create_client, list, is_supported, error cases <!-- id: 3 -->
 - [x] Write unit tests (`tests/unit/test_error_classes.py`): `ProviderNotSupportedError`, `ProviderAuthError`, `ProviderApiError` attributes and representation <!-- id: 4 -->
-- [x] Write unit/contract tests (`tests/unit/test_openai_compatible_client.py`): `OpenAICompatibleClient` under refactored `LLMClient` ABC <!-- id: 4a -->
+- [x] Write unit/contract tests (`tests/unit/test_llm_client.py`): `OpenAIResponsesClient` under refactored `LLMClient` ABC <!-- id: 4a -->
   - [x] Test: instantiates from `LanguageModel` and implements `_chat_impl()` <!-- id: 4a1 -->
   - [x] Test: resolves through `ProviderRegistry.create_client()` <!-- id: 4a2 -->
   - [x] Test: non-streaming `chat()` returns correct `LLMResponse` shape <!-- id: 4a3 -->
@@ -50,7 +50,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
   - [x] Define abstract `_chat_impl(messages, tools, stream, raw_events)` — `raw_events` is passed through so providers can yield paired `(canonical, raw)` tuples when requested
   - [x] Add abstract `close()` method
   - [x] Update docstring with canonical event contract and tool-call state machine rules
-- [x] Update `OpenAICompatibleClient` to implement new `LLMClient` contract (requires `_chat_impl()`) <!-- id: 11 -->
+- [x] Replace `OpenAICompatibleClient` with `OpenAIResponsesClient` implementing the new `LLMClient` contract (requires `_chat_impl()`) — the old httpx-based class is removed, shared utilities promoted to module-level functions <!-- id: 11 -->
   - Note: This is a breaking change; backward compatibility is not maintained
 
 ### Task C.5: Default Provider & Base URL Migration
@@ -95,7 +95,7 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [x] Run unit tests (`tests/unit/test_canonical_schema.py`) — expect GREEN <!-- id: 21 -->
 - [x] Run unit tests (`tests/unit/test_provider_registry.py`) — expect GREEN <!-- id: 22 -->
 - [x] Run unit tests (`tests/unit/test_error_classes.py`) — expect GREEN <!-- id: 23 -->
-- [x] Run unit/contract tests (`tests/unit/test_openai_compatible_client.py`) — expect GREEN <!-- id: 23a -->
+- [x] Run unit/contract tests (`tests/unit/test_llm_client.py`) — expect GREEN <!-- id: 23a -->
 - [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 24 -->
 - [x] Run type checker: `cd src/tinycua-sdk && uv run mypy tinycua_sdk/agent/events.py tinycua_sdk/agent/llm_client.py tinycua_sdk/core/` <!-- id: 25 -->
 

@@ -73,7 +73,7 @@ def resolve_provider(provider: str) -> str:
         >>> resolve_provider("lmstudio")
         'openai-compatible'
         >>> resolve_provider("openai")
-        'openai'
+        'openai-responses'
         >>> resolve_provider("openai-responses")
         'openai-responses'
 
