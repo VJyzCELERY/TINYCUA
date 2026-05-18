@@ -136,6 +136,28 @@ class ErrorEvent(TypedDict):
     error: dict[str, Any]
 
 
+class ReasoningDeltaEvent(TypedDict):
+    """Emitted for each reasoning token delta in streaming.
+
+    Reasoning tokens (chain-of-thought) are produced by models like
+    DeepSeek R1, Qwen with reasoning enabled, or OpenAI o-series.
+    """
+
+    type: Literal["response.reasoning.delta"]
+    delta: str
+
+
+class ReasoningDoneEvent(TypedDict):
+    """Emitted when the reasoning block is complete.
+
+    Marks the end of chain-of-thought output — the stream will
+    subsequently emit ``response.output_text.delta`` events for the
+    visible response.
+    """
+
+    type: Literal["response.reasoning.done"]
+
+
 # ── LLMEvent union ──────────────────────────────────────────────────────────
 
 LLMEvent = Union[
@@ -152,6 +174,8 @@ LLMEvent = Union[
     ResponseCancelledEvent,
     ErrorEvent,
     ResponseFailedEvent,
+    ReasoningDeltaEvent,
+    ReasoningDoneEvent,
 ]
 
 # ── Non-streaming response type ─────────────────────────────────────────────
@@ -236,6 +260,8 @@ __all__ = [
     "LLMToolSpec",
     # Raw SSE event
     "RawSseEvent",
+    "ReasoningDeltaEvent",
+    "ReasoningDoneEvent",
     "ResponseCancelledEvent",
     "ResponseCompletedEvent",
     "ResponseCreatedEvent",

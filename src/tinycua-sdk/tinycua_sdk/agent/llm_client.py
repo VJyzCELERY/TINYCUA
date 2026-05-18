@@ -26,6 +26,8 @@ from tinycua_sdk.agent.events import (
     LLMEvent,
     LLMResponse,
     RawSseEvent,
+    ReasoningDeltaEvent,
+    ReasoningDoneEvent,
     ResponseCompletedEvent,
     ResponseFailedEvent,
     ResponseUsageEvent,
@@ -237,6 +239,42 @@ def _normalize_content_event(event: dict[str, Any]) -> list[LLMEvent]:
     return []
 
 
+def _normalize_reasoning_event(event: dict[str, Any]) -> list[LLMEvent]:
+    """Normalize a reasoning-related stream event into canonical events.
+
+    Handles these raw event types from the OpenAI Responses API:
+
+    * ``response.reasoning.delta`` — streaming chain-of-thought tokens
+      (OpenAI standard, e.g. o-series models).
+    * ``response.reasoning.summary`` — end-of-reasoning marker (OpenAI).
+    * ``response.reasoning_text.delta`` — alternative token event used by
+      LiteLLM / proxy servers that wrap Chat Completions reasoning into
+      the Responses API format.
+    * ``response.reasoning_text.done`` — end-of-reasoning marker for the
+      ``reasoning_text`` variant.
+
+    All delta variants produce ``ReasoningDeltaEvent``; all done/summary
+    variants produce ``ReasoningDoneEvent``.
+
+    Args:
+        event: Raw Responses API stream event dict.
+
+    Returns:
+        List of canonical SDK stream events.
+    """
+    event_type = event.get("type", "")
+    if event_type in ("response.reasoning.delta", "response.reasoning_text.delta"):
+        return [
+            ReasoningDeltaEvent(
+                type="response.reasoning.delta",
+                delta=event.get("delta", ""),
+            ),
+        ]
+    if event_type in ("response.reasoning.summary", "response.reasoning_text.done"):
+        return [ReasoningDoneEvent(type="response.reasoning.done")]
+    return []
+
+
 def _normalize_tool_event(
     event: dict[str, Any],
     _tool_cache: dict[str, dict[str, str]],
@@ -436,6 +474,14 @@ def _normalize_responses_event(
 
     if event_type in ("response.completed", "response.failed", "response.usage"):
         return _normalize_lifecycle_event(event)
+
+    if event_type in (
+        "response.reasoning.delta",
+        "response.reasoning.summary",
+        "response.reasoning_text.delta",
+        "response.reasoning_text.done",
+    ):
+        return _normalize_reasoning_event(event)
 
     return []
 

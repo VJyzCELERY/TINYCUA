@@ -11,6 +11,8 @@ from tinycua_sdk.agent.events import (
     LLMResponse,
     LLMToolSpec,
     RawSseEvent,
+    ReasoningDeltaEvent,
+    ReasoningDoneEvent,
     ResponseCompletedEvent,
     ResponseFailedEvent,
     ResponseUsageEvent,
@@ -40,6 +42,8 @@ __all__ = [
     # Canonical SSE Events
     "ContentDeltaEvent",
     "ContentDoneEvent",
+    "ReasoningDeltaEvent",
+    "ReasoningDoneEvent",
     "ToolCallStartedEvent",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
