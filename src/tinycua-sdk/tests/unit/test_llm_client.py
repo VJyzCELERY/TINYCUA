@@ -3,7 +3,14 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tinycua_sdk.agent.events import LLMEvent, ReasoningDeltaEvent, ReasoningDoneEvent
+from tinycua_sdk.agent.events import (
+    LLMEvent,
+    ReasoningDeltaEvent,
+    ReasoningDoneEvent,
+    ResponseCancelledEvent,
+    ResponseCreatedEvent,
+    ResponseInProgressEvent,
+)
 from tinycua_sdk.agent.llm_client import (
     LLMClient,
     OpenAIResponsesClient,
@@ -184,8 +191,8 @@ class TestOpenAIResponsesClientSDK:
                 return self._data
 
         async def mock_stream():
-            # Note: response.created is dropped by _normalize_responses_event
-            # (it is not in the recognised lifecycle set).
+            # Note: response.created is now normalised by _normalize_responses_event
+            # into ResponseCreatedEvent.
             yield MockStreamEvent({"type": "response.output_text.delta", "delta": "Hello", "item_id": "1"})
             yield MockStreamEvent({"type": "response.output_text.done", "item_id": "1"})
             yield MockStreamEvent({"type": "response.completed"})
@@ -405,10 +412,10 @@ class TestReasoningEventNormalization:
     def test_full_stream_with_reasoning(self):
         """Simulate a full streaming sequence with reasoning followed by output.
 
-        Note: ``response.created`` and ``response.in_progress`` are
-        synthetic events injected by the loop (``_process_first_chunk``),
-        not by the normalizer — they are intentionally absent from the
-        normalized output.
+        Note: ``response.created`` and ``response.in_progress`` are now
+        normalised by the normalizer into canonical lifecycle events, but
+        they are intentionally omitted from this test because this test
+        focuses on reasoning + content tool event ordering.
         """
         events = [
             # response.created is handled separately by _chat_stream
@@ -486,3 +493,77 @@ class TestReasoningEventNormalization:
         assert flattened[1]["delta"] == "let me "
         assert flattened[2]["delta"] == "think..."
         assert flattened[3]["type"] == "response.reasoning.done"
+
+
+class TestLifecycleEventNormalization:
+    """Tests for lifecycle event normalization (response.created, etc.).
+
+    These test the ``_normalize_lifecycle_event`` path exercised through
+    ``_normalize_responses_event`` for lifecycle events from the OpenAI
+    Responses API.
+    """
+
+    def test_response_created_normalizes_to_created_event(self):
+        """``response.created`` normalizes to ``ResponseCreatedEvent``."""
+        raw = {"type": "response.created", "response": {"id": "resp_1"}}
+        result = _normalize_responses_event(raw)
+        assert len(result) == 1
+        event = result[0]
+        assert event["type"] == "response.created"
+
+    def test_response_created_is_llmevent_union_member(self):
+        """ResponseCreatedEvent satisfies the LLMEvent union."""
+        event: LLMEvent = ResponseCreatedEvent(type="response.created")
+        assert event["type"] == "response.created"
+
+    def test_response_in_progress_normalizes_to_in_progress_event(self):
+        """``response.in_progress`` normalizes to ``ResponseInProgressEvent``."""
+        raw = {"type": "response.in_progress"}
+        result = _normalize_responses_event(raw)
+        assert len(result) == 1
+        assert result[0]["type"] == "response.in_progress"
+
+    def test_response_in_progress_is_llmevent_union_member(self):
+        """ResponseInProgressEvent satisfies the LLMEvent union."""
+        event: LLMEvent = ResponseInProgressEvent(type="response.in_progress")
+        assert event["type"] == "response.in_progress"
+
+    def test_response_cancelled_normalizes_to_cancelled_event(self):
+        """``response.cancelled`` normalizes to ``ResponseCancelledEvent``."""
+        raw = {"type": "response.cancelled"}
+        result = _normalize_responses_event(raw)
+        assert len(result) == 1
+        assert result[0]["type"] == "response.cancelled"
+
+    def test_response_cancelled_is_llmevent_union_member(self):
+        """ResponseCancelledEvent satisfies the LLMEvent union."""
+        event: LLMEvent = ResponseCancelledEvent(type="response.cancelled")
+        assert event["type"] == "response.cancelled"
+
+    def test_lifecycle_events_are_normalized_in_full_stream(self):
+        """Lifecycle events appear in the normalized output of a full stream."""
+        events = [
+            {"type": "response.created", "response": {"id": "resp_1"}},
+            {"type": "response.in_progress"},
+            {"type": "response.output_text.delta", "delta": "Hello", "content_index": 0},
+            {"type": "response.output_text.done", "content_index": 0},
+            {"type": "response.completed", "finish_reason": "stop"},
+        ]
+        results = [_normalize_responses_event(e) for e in events]
+        flattened = [item for sublist in results for item in sublist]
+
+        types = [e["type"] for e in flattened]
+        assert types == [
+            "response.created",
+            "response.in_progress",
+            "response.output_text.delta",
+            "response.output_text.done",
+            "response.completed",
+        ]
+
+    def test_raw_events_pairing_with_lifecycle_events(self):
+        """Lifecycle events produce proper (canonical, raw) pairs with raw_events=True."""
+        raw = {"type": "response.created", "response": {"id": "resp_1"}}
+        result = _normalize_responses_event(raw)
+        assert len(result) == 1
+        assert result[0]["type"] == "response.created"

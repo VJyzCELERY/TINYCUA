@@ -25,8 +25,11 @@ from tinycua_sdk.agent.events import (
     RawSseEvent,
     ReasoningDeltaEvent,
     ReasoningDoneEvent,
+    ResponseCancelledEvent,
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
     ResponseFailedEvent,
+    ResponseInProgressEvent,
     ResponseUsageEvent,
     TokenUsage,
     ToolCallArgumentsDeltaEvent,
@@ -358,8 +361,9 @@ def _normalize_tool_event(
 def _normalize_lifecycle_event(event: dict[str, Any]) -> list[LLMEvent]:
     """Normalize a lifecycle-related stream event into canonical events.
 
-    Handles ``response.completed``, ``response.failed``, and
-    ``response.usage``. The completed event may also embed a nested
+    Handles ``response.created``, ``response.in_progress``,
+    ``response.completed``, ``response.failed``, ``response.cancelled``,
+    and ``response.usage``. The completed event may also embed a nested
     usage object that gets emitted as a separate ``response.usage``
     event before the completion event.
 
@@ -370,6 +374,15 @@ def _normalize_lifecycle_event(event: dict[str, Any]) -> list[LLMEvent]:
         List of canonical SDK stream events.
     """
     event_type = event.get("type", "")
+
+    if event_type == "response.created":
+        return [ResponseCreatedEvent(type="response.created")]
+
+    if event_type == "response.in_progress":
+        return [ResponseInProgressEvent(type="response.in_progress")]
+
+    if event_type == "response.cancelled":
+        return [ResponseCancelledEvent(type="response.cancelled")]
 
     if event_type == "response.completed":
         finish_reason = event.get("finish_reason")
@@ -469,7 +482,14 @@ def _normalize_responses_event(
     ):
         return _normalize_tool_event(event, _tool_cache)
 
-    if event_type in ("response.completed", "response.failed", "response.usage"):
+    if event_type in (
+        "response.created",
+        "response.in_progress",
+        "response.completed",
+        "response.failed",
+        "response.usage",
+        "response.cancelled",
+    ):
         return _normalize_lifecycle_event(event)
 
     if event_type in (

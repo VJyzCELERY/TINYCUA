@@ -78,8 +78,8 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 - [x] Preserve `resolve_provider()` and `VALID_PROVIDERS` as migration-compatibility helpers — existing code can still reference them during the Phase 1 transition — but explicitly update them to accept `"openai-responses"` and remove any hard-coded validation of the registered-provider set from `LanguageModel`. Final support/rejection of provider strings is now owned by `ProviderRegistry.create_client()` via `ProviderNotSupportedError`. The helpers are preserved as concepts (provider normalization, default URL mapping) but their validation role is superseded by the registry. <!-- id: 18 -->
 - [x] Update `normalize_base_url()` to add `"openai-responses"` → OpenAI API base URL mapping (was falling through to localhost default) <!-- id: 18b -->
 - [x] Add default registration: auto-register `"openai-responses"` → `OpenAIResponsesClient` factory in the singleton `_provider_registry` using a deferred local import (`from tinycua_sdk.agent.llm_client import OpenAIResponsesClient` inside the factory body) <!-- id: 18a -->
-  - [x] `openai-responses` is the only pre-registered provider in Phase 1 — old strings (`"openai"`, `"openai-compatible"`) are NOT registered
-  - [x] `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` for old strings, listing `openai-responses` as the supported migration target
+  - [x] `openai-responses` is the primary pre-registered provider in Phase 1 — `"openai-compatible"` is NOT registered; `"openai"` is registered as a deprecated compatibility alias that resolves to `"openai-responses"` (with a deprecation warning)
+  - [x] `ProviderRegistry.create_client()` raises `ProviderNotSupportedError` for `"openai-compatible"`, listing `openai-responses` as the supported migration target; `"openai"` is accepted as a deprecated alias
 - [x] Update `core/__init__.py` exports for new types <!-- id: 19 -->
 
 ### Task E: AgentExecutor Integration with ProviderRegistry

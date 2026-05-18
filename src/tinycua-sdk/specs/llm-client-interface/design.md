@@ -215,8 +215,14 @@ LLMEvent: TypeAlias = (
     | ToolCallArgumentsDoneEvent
     | ToolCallReadyEvent
     | ResponseUsageEvent
+    | ResponseCreatedEvent
+    | ResponseInProgressEvent
+    | ResponseCancelledEvent
+    | ErrorEvent
     | ResponseCompletedEvent
     | ResponseFailedEvent
+    | ReasoningDeltaEvent
+    | ReasoningDoneEvent
 )
 
 ```
