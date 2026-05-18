@@ -400,7 +400,7 @@ class ProviderInfo:
 
 - **`LanguageModel`**: No breaking changes. New `provider`-specific fields may be added as optional Pydantic fields (e.g., `openai_chat_params`).
 - **`StreamEvent`** (in `models/response.py`): No changes — raw pass-through is handled via the paired tuple API, not by embedding raw events into the canonical stream. Consumers SHOULD migrate from `StreamEvent` to `LLMEvent` for new code.
-- **`events.py`**: Existing TypedDicts replaced by the canonical schema above. Old TypedDicts are removed — no backward-compat aliases are retained.
+- **`events.py`**: Existing content/tool-specific TypedDicts replaced by the canonical schema above (``ContentDeltaEvent``, ``ToolCallStartedEvent``, etc.) — no backward-compat aliases are retained. Lifecycle and error event TypedDicts (``ResponseCreatedEvent``, ``ResponseInProgressEvent``, ``ResponseCancelledEvent``, ``ErrorEvent``, ``ResponseFailedEvent``) are canonical and included in the ``LLMEvent`` union.
 
 ---
 

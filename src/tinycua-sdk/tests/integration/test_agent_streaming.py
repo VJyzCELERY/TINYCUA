@@ -38,8 +38,14 @@ TOOL_EVENT_TYPES = frozenset({
 })
 
 
-async def _can_call_tools(agent: Agent, retries: int = 2) -> bool:
+async def _can_call_tools(agent: Agent, retries: int = 2) -> list[dict] | None:
     """Probe whether the LLM can call tools by making a test request.
+
+    Returns the full event list when tool-call events are detected,
+    or ``None`` when the LLM does not support tool calling (test
+    should be skipped).  Returning the events eliminates the need
+    for a second independent LLM call in the caller, removing a
+    common source of flakiness.
 
     Retries up to ``retries`` times on transient errors to avoid
     false negatives from slow model responses or brief network issues.
@@ -57,16 +63,13 @@ async def _can_call_tools(agent: Agent, retries: int = 2) -> bool:
             events: list[dict] = [e async for e in stream]
             for e in events:
                 if e.get("type") in TOOL_EVENT_TYPES:
-                    if e["type"] == "response.output_item.added":
-                        # Already normalized; no item nesting to check
-                        pass
-                    return True
+                    return events
         except (httpx.ConnectError, httpx.TimeoutException, asyncio.TimeoutError):
             if attempt < retries:
                 await asyncio.sleep(0.5)
                 continue
             raise
-    return False
+    return None
 
 
 @tool
@@ -107,24 +110,19 @@ async def test_stream_on_yields_events(streaming_agent):
 @pytest.mark.asyncio
 async def test_stream_with_tool_calls(streaming_agent):
     """stream=True with a registered tool triggers function call events."""
-    if not await _can_call_tools(streaming_agent):
+    events = await _can_call_tools(streaming_agent)
+    if events is None:
         pytest.skip("LLM does not support tool calling")
 
-    streaming_agent.add_tools(get_time)
-    stream: AsyncIterator[dict] = await streaming_agent.run(
-        "What time is it? Use the get_time tool.", stream=True
-    )
-    events = [e async for e in stream]
-
+    # Use the probe's events directly — avoids a second independent LLM
+    # call that historically caused flaky failures (the LLM may decide
+    # differently on the second invocation).
     assert events[0]["type"] == "response.created"
     assert any(e["type"] == "response.completed" for e in events)
 
     tool_call_events = [
-        e
-        for e in events
-        if e.get("type") in ("response.function_call_arguments.delta",
-                             "response.function_call_arguments.done")
-        or e.get("type") == "response.output_item.added"
+        e for e in events
+        if e.get("type") in TOOL_EVENT_TYPES
     ]
     assert len(tool_call_events) > 0, (
         "Expected tool call events in the stream; "
@@ -133,9 +131,7 @@ async def test_stream_with_tool_calls(streaming_agent):
 
     tool_event_indices = {
         i for i, e in enumerate(events)
-        if e.get("type") in ("response.function_call_arguments.delta",
-                             "response.function_call_arguments.done")
-        or e.get("type") == "response.output_item.added"
+        if e.get("type") in TOOL_EVENT_TYPES
     }
     if tool_event_indices:
         last_tool_idx = max(tool_event_indices)

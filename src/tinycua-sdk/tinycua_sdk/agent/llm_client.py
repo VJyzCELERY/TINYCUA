@@ -957,10 +957,11 @@ class OpenAIResponsesClient(LLMClient):
         try:
             response = await client.responses.create(**kwargs)
         except Exception as e:
-            error_str = str(e)
-            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
-                raise ProviderAuthError(error_str) from e
             status_code = getattr(e, "status_code", 0)
+            if status_code in (401, 403):
+                raise ProviderAuthError(str(e)) from e
+            if "auth" in str(e).lower():
+                raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
         data = response.model_dump() if hasattr(response, "model_dump") else {}
@@ -982,10 +983,11 @@ class OpenAIResponsesClient(LLMClient):
         try:
             stream = await client.responses.create(**kwargs)
         except Exception as e:
-            error_str = str(e)
-            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
-                raise ProviderAuthError(error_str) from e
             status_code = getattr(e, "status_code", 0)
+            if status_code in (401, 403):
+                raise ProviderAuthError(str(e)) from e
+            if "auth" in str(e).lower():
+                raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API error: {e}") from e
 
         tool_cache: dict[str, dict[str, str]] = {}
@@ -1002,10 +1004,11 @@ class OpenAIResponsesClient(LLMClient):
                 for item in _yield_events(events, raw_event_obj, raw_events):
                     yield item  # type: ignore[misc]
         except Exception as e:
-            error_str = str(e)
-            if "auth" in error_str.lower() or "401" in error_str or "403" in error_str:
-                raise ProviderAuthError(error_str) from e
             status_code = getattr(e, "status_code", 0)
+            if status_code in (401, 403):
+                raise ProviderAuthError(str(e)) from e
+            if "auth" in str(e).lower():
+                raise ProviderAuthError(str(e)) from e
             raise ProviderApiError(status_code, f"OpenAI API stream error: {e}") from e
 
 
