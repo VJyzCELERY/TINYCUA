@@ -94,14 +94,6 @@ class TestProviderConfiguration:
         )
         assert config.llm_model.provider == "openai-responses"
 
-    def test_openai_responses_provider_config(self):
-        """openai-responses provider configuration."""
-        config = AgentConfig(
-            name="test",
-            llm_model=LanguageModel(provider="openai-responses"),
-        )
-        assert config.llm_model.provider == "openai-responses"
-
 
 class TestProviderValidationIntegration:
     """Integration tests for provider validation."""

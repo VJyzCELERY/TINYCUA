@@ -112,8 +112,5 @@ class TestLanguageModel:
 
     def test_provider_normalization(self):
         """Verify provider normalization via resolve_provider."""
-        m = LanguageModel.model_construct(model_name="test", provider="lmstudio")
         assert resolve_provider("lmstudio") == "openai-compatible"
-
-        m2 = LanguageModel.model_construct(model_name="test", provider="ollama")
         assert resolve_provider("ollama") == "openai-compatible"

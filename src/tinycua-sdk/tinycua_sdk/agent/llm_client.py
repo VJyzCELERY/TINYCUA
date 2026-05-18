@@ -804,6 +804,7 @@ class OpenAIResponsesClient(LLMClient):
         return self._client
 
     async def close(self) -> None:
+        """Close the underlying OpenAI client and release resources."""
         if self._client is not None:
             await self._client.close()
             self._client = None
@@ -957,7 +958,7 @@ class OpenAIResponsesClient(LLMClient):
                     nested.get("id") or data.get("id") or None
                 )
             events = OpenAICompatibleClient._normalize_responses_event(data, _tool_cache=tool_cache)
-            raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=data)
+            raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=event)
             for item in _yield_events(events, raw_event_obj, raw_events):
                 yield item  # type: ignore[misc]
 
