@@ -206,7 +206,7 @@ class TestCustomLoopContract:
             assert stream is True
 
             async def chunks() -> AsyncIterator[dict]:
-                yield {"type": "content.delta", "delta": "Hello", "item_id": "msg_1"}
+                yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "msg_1"}
 
             return chunks()
 
@@ -218,7 +218,7 @@ class TestCustomLoopContract:
         event_types = [event["type"] for event in events]
 
         assert event_types.index("response.created") < event_types.index("response.in_progress")
-        assert event_types.index("response.in_progress") < event_types.index("content.delta")
+        assert event_types.index("response.in_progress") < event_types.index("response.output_text.delta")
         assert "response.usage" in event_types
         assert "response.completed" in event_types
 
@@ -406,7 +406,7 @@ class TestCustomPublicHelpers:
                 async def fake_llm_stream():
                     yield {"type": "response.created", "response": {"id": "r_1"}}
                     yield {"type": "response.in_progress"}
-                    yield {"type": "content.delta", "delta": "Hello", "item_id": "1"}
+                    yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "1"}
                     yield {"type": "response.usage", "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}}
 
                 content_parts: list[str] = []
@@ -425,7 +425,7 @@ class TestCustomPublicHelpers:
                 event_types = [e["type"] for e in events]
                 assert "response.created" in event_types
                 assert "response.in_progress" in event_types
-                assert "content.delta" in event_types
+                assert "response.output_text.delta" in event_types
 
                 # Content accumulated
                 assert "".join(content_parts) == "Hello"
@@ -448,13 +448,13 @@ class TestCustomPublicHelpers:
                           override_instructions=None, stream=False):
                 async def fake_llm_stream():
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_time",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
                         "arguments": "{}",
                     }
@@ -488,7 +488,7 @@ class TestCustomPublicHelpers:
             async def run(self, agent, messages, tools,
                           override_instructions=None, stream=False):
                 async def fake_llm_stream():
-                    yield {"type": "content.delta", "delta": "Hello", "item_id": "1"}
+                    yield {"type": "response.output_text.delta", "delta": "Hello", "item_id": "1"}
 
                 content_parts: list[str] = []
                 tool_calls_buffer: dict = {}

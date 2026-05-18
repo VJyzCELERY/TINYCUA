@@ -33,7 +33,7 @@ Today the SDK has:
 - Building provider SDKs from scratch (we delegate to official PyPI packages)
 - Non-SSE transport protocols (initial scope is SSE only)
 - Supporting providers that do not offer official Python SDKs (community SDKs may be added later via extensions)
-- The Agent Loop itself will be updated to consume the new canonical event schema (content.delta, content.done, tool_call.started, etc.) — the loop must be modified for the new provider system
+- The Agent Loop itself will be updated to consume the new canonical event schema (response.output_text.delta, response.output_text.done, response.output_item.added, response.function_call_arguments.done, tool_call.ready, etc.) — the loop must be modified for the new provider system
 - Provider-specific response models beyond what the canonical format requires
 
 ### Constraints
@@ -42,7 +42,7 @@ Today the SDK has:
 - **Phase 1 is a breaking refactoring**: The existing `LLMClient` ABC is refactored in-place — `chat()` becomes concrete and delegates to an abstract `_chat_impl()`. Existing subclasses must be updated to implement `_chat_impl()`. The `OpenAICompatibleClient` must be updated to match the new contract in Phase 1. **Backward compatibility is not maintained.** No deprecation shim or backward-compatibility layer is provided. Users should migrate to `"openai-responses"` or update their custom subclasses before Phase 2.
 - **Phase 1 default provider change**: `LanguageModel.provider` default changes from `"openai-compatible"` to `"openai-responses"`. `LanguageModel()` with no explicit provider now resolves to the `"openai-responses"` provider via `ProviderRegistry`. Old defaults (`"openai"`, `"openai-compatible"`) are no longer registered — they raise `ProviderNotSupportedError`. Callers must explicitly pass `provider="openai-responses"` or update their configuration.
 - **Phase 1 default base URL**: `normalize_base_url(None, "openai-responses")` returns the OpenAI API base URL (`https://api.openai.com/v1`) by default, matching the behavior of the existing `"openai"` provider. Local development users must set an explicit `base_url` to override.
-- The canonical SSE event schema must be provider-agnostic — no OpenAI-specific field names
+- The canonical SSE event schema MUST be OpenAI Responses-shaped — event type names and field shapes follow OpenAI Responses API event conventions (e.g., `response.output_text.delta`, `response.function_call_arguments.done`)
 - Raw SSE pass-through must be delivered as paired `(canonical_event, raw_event)` tuples in the same async iterator. The `canonical_event` slot MAY be `None` for provider-native raw events that have no canonical semantic equivalent. All provider SDK stream events MUST be yielded in arrival order when `raw_events=True`. The raw event is a lossless representation of the provider's original SDK event object
 - Providers must be resolvable from a `LanguageModel.provider` string
 
@@ -94,7 +94,7 @@ A developer building an agent application wants to use OpenAI's Responses API. T
 - **FR-002**: Each supported provider MUST have a concrete `LLMClient` subclass that wraps the provider's official Python SDK.
 - **FR-003**: The system MUST provide a **provider registry** that maps provider identifiers (e.g., `"openai-responses"`, `"openai"`) to their client implementations.
 - **FR-004**: The provider selection MUST be driven by `LanguageModel.provider` at runtime with no code changes.
-- **FR-005**: The system MUST define a **canonical SSE event schema** — a formal set of event types and shapes that all provider normalizers output.
+- **FR-005**: The system MUST define a **canonical SSE event schema** — a formal set of event types and shapes that all provider normalizers output. The canonical event type names and field shapes MUST follow OpenAI Responses API conventions (e.g., `response.output_text.delta`, `response.function_call_arguments.done`). Non-OpenAI providers and Chat Completions endpoints normalize into this Responses-shaped contract.
 - **FR-006**: Each provider client MUST include an **SSE normalizer** that converts the provider's raw stream events into the canonical schema.
 - **FR-007**: The system MUST expose a **raw SSE pass-through** mode where the async iterator yields paired `(canonical_event, raw_event)` tuples so consumers can access provider-native events alongside canonical events. Every provider SDK stream event MUST be yielded in arrival order when `raw_events=True`; provider-native events without a canonical equivalent use `None` in the canonical slot.
 - **FR-008**: The `LanguageModel` model MUST support new provider-specific configuration fields without breaking existing providers.

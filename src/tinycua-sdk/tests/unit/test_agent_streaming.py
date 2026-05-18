@@ -42,7 +42,7 @@ class TestStreamingOn:
         agent = Agent(llm_model=LanguageModel())
 
         raw_delta_event = {
-            "type": "content.delta",
+            "type": "response.output_text.delta",
             "delta": "Hello",
             "index": 0,
         }
@@ -80,13 +80,13 @@ class TestStreamingWithToolCalls:
         call_count = 0
 
         raw_tool_call_event = {
-            "type": "tool_call.started",
+            "type": "response.output_item.added",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_time",
         }
         raw_arguments_event = {
-            "type": "tool_call.arguments.done",
+            "type": "response.function_call_arguments.done",
             "id": "call_1",
             "arguments": "{}",
         }
@@ -98,7 +98,7 @@ class TestStreamingWithToolCalls:
             "arguments": "{}",
         }
         raw_text_event = {
-            "type": "content.delta",
+            "type": "response.output_text.delta",
             "delta": "The time is 12:00.",
             "index": 0,
         }
@@ -125,18 +125,18 @@ class TestStreamingWithToolCalls:
         assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
 
         # Tool call events appear BEFORE tool execution resumes
-        tool_event_types = {"tool_call.started", "tool_call.arguments.done", "tool_call.ready"}
+        tool_event_types = {"response.output_item.added", "response.function_call_arguments.done", "tool_call.ready"}
         tool_indices = [
             i for i, e in enumerate(events) if e["type"] in tool_event_types
         ]
         text_indices = [
-            i for i, e in enumerate(events) if e["type"] == "content.delta"
+            i for i, e in enumerate(events) if e["type"] == "response.output_text.delta"
         ]
         if tool_indices and text_indices:
             assert max(tool_indices) < min(text_indices)
         assert any(e["type"] == "response.completed" for e in events)
         # Verify follow-up content exists after tool execution
-        assert any(e["type"] == "content.delta" for e in events)
+        assert any(e["type"] == "response.output_text.delta" for e in events)
 
     @pytest.mark.asyncio
     async def test_arguments_done_without_ready_does_not_execute(self):
@@ -151,13 +151,13 @@ class TestStreamingWithToolCalls:
         call_count = 0
 
         raw_tool_call_event = {
-            "type": "tool_call.started",
+            "type": "response.output_item.added",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_time",
         }
         raw_arguments_event = {
-            "type": "tool_call.arguments.done",
+            "type": "response.function_call_arguments.done",
             "id": "call_1",
             "arguments": "{}",
         }
@@ -181,7 +181,7 @@ class TestStreamingWithToolCalls:
         # Only one LLM call — tool was NOT executed
         assert call_count == 1, f"Expected 1 LLM call (tool not executed), got {call_count}"
         # No content delta since tool wasn't executed to produce follow-up content
-        assert not any(e["type"] == "content.delta" for e in events)
+        assert not any(e["type"] == "response.output_text.delta" for e in events)
 
 
 class TestProviderFailure:

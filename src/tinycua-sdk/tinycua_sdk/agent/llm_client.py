@@ -8,7 +8,6 @@ abstract ``_chat_impl()``. Provider-specific subclasses implement
 
 from __future__ import annotations
 
-import contextvars
 import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
@@ -39,9 +38,6 @@ if TYPE_CHECKING:
 
     from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
     from tinycua_sdk.agent.llm_model import LanguageModel
-
-_previous_response_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("_previous_response_id", default=None)
-
 
 def _yield_events(
     events: list[LLMEvent],
@@ -180,6 +176,7 @@ class OpenAICompatibleClient(LLMClient):
     def __init__(self, model_config: LanguageModel) -> None:
         self._model_config = model_config
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
+        self._previous_response_id: str | None = None
 
     def _client_key(self) -> tuple[str, str]:
         api_key = self._model_config.api_key.get_secret_value()
@@ -362,7 +359,7 @@ class OpenAICompatibleClient(LLMClient):
             Canonical ``LLMResponse`` with content, tool_calls, usage.
         """
         client = self._get_client()
-        payload = self._build_payload(messages, tools, self._model_config, _previous_response_id.get())
+        payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
 
         try:
             response = await client.post("/responses", json=payload)
@@ -387,7 +384,7 @@ class OpenAICompatibleClient(LLMClient):
             ) from e
         data = response.json()
 
-        _previous_response_id.set(data.get("id") or None)
+        self._previous_response_id = data.get("id") or None
 
         content = None
         tool_calls: list[ToolCallDict] | None = None
@@ -459,7 +456,7 @@ class OpenAICompatibleClient(LLMClient):
         if event_type == "response.output_text.delta":
             return [
                 ContentDeltaEvent(
-                    type="content.delta",
+                    type="response.output_text.delta",
                     delta=event.get("delta", ""),
                     index=content_index,
                 ),
@@ -467,7 +464,7 @@ class OpenAICompatibleClient(LLMClient):
         if event_type == "response.output_text.done":
             return [
                 ContentDoneEvent(
-                    type="content.done",
+                    type="response.output_text.done",
                     index=content_index,
                 ),
             ]
@@ -511,7 +508,7 @@ class OpenAICompatibleClient(LLMClient):
                     }
                 return [
                     ToolCallStartedEvent(
-                        type="tool_call.started",
+                        type="response.output_item.added",
                         id=item_id,
                         call_id=cached_call_id,
                         name=cached_name,
@@ -524,7 +521,7 @@ class OpenAICompatibleClient(LLMClient):
         if event_type == "response.function_call_arguments.delta":
             return [
                 ToolCallArgumentsDeltaEvent(
-                    type="tool_call.arguments.delta",
+                    type="response.function_call_arguments.delta",
                     id=event.get("item_id", ""),
                     arguments=event.get("delta", ""),
                 ),
@@ -542,7 +539,7 @@ class OpenAICompatibleClient(LLMClient):
                 name = name or cached.get("name", "")
             return [
                 ToolCallArgumentsDoneEvent(
-                    type="tool_call.arguments.done",
+                    type="response.function_call_arguments.done",
                     id=item_id,
                     call_id=call_id,
                     name=name,
@@ -749,7 +746,7 @@ class OpenAICompatibleClient(LLMClient):
         """
         client = self._get_client()
 
-        req_payload = self._build_payload(messages, tools, self._model_config, _previous_response_id.get())
+        req_payload = self._build_payload(messages, tools, self._model_config, self._previous_response_id)
         req_payload["stream"] = True
 
         try:
@@ -768,7 +765,7 @@ class OpenAICompatibleClient(LLMClient):
                 async for data in self._iter_sse_raw_events(response):
                     if data.get("type") in ("response.created", "response.completed"):
                         nested = data.get("response", {})
-                        _previous_response_id.set(
+                        self._previous_response_id = (
                             nested.get("id") or data.get("id") or None
                         )
                     events = self._normalize_responses_event(data, _tool_cache=tool_cache)

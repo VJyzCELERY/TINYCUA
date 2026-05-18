@@ -14,7 +14,7 @@ from typing import Any, Literal, TypedDict, Union
 class ContentDeltaEvent(TypedDict):
     """Emitted for each text content delta in streaming."""
 
-    type: Literal["content.delta"]
+    type: Literal["response.output_text.delta"]
     delta: str
     index: int
 
@@ -22,14 +22,14 @@ class ContentDeltaEvent(TypedDict):
 class ContentDoneEvent(TypedDict):
     """Emitted when a text content block is complete."""
 
-    type: Literal["content.done"]
+    type: Literal["response.output_text.done"]
     index: int
 
 
 class ToolCallStartedEvent(TypedDict):
     """Emitted when a new tool call starts in the stream."""
 
-    type: Literal["tool_call.started"]
+    type: Literal["response.output_item.added"]
     id: str
     call_id: str
     name: str
@@ -38,7 +38,7 @@ class ToolCallStartedEvent(TypedDict):
 class ToolCallArgumentsDeltaEvent(TypedDict):
     """Emitted for tool call arguments delta in the stream."""
 
-    type: Literal["tool_call.arguments.delta"]
+    type: Literal["response.function_call_arguments.delta"]
     id: str
     arguments: str
 
@@ -46,7 +46,7 @@ class ToolCallArgumentsDeltaEvent(TypedDict):
 class ToolCallArgumentsDoneEvent(TypedDict):
     """Emitted when tool call arguments are complete."""
 
-    type: Literal["tool_call.arguments.done"]
+    type: Literal["response.function_call_arguments.done"]
     id: str
     call_id: str
     name: str
@@ -210,7 +210,6 @@ __all__ = [
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
     "ToolCallDict",
-    "ToolCallReadyEvent",
     "ToolCallStartedEvent",
     "ToolResultMessage",
     "UserMessage",

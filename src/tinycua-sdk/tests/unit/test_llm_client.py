@@ -349,12 +349,12 @@ class TestOpenAICompatibleClient:
 
         assert len(chunks) == 3
         assert chunks[0] == {
-            "type": "content.delta",
+            "type": "response.output_text.delta",
             "delta": "Hello",
             "index": 0,
         }
         assert chunks[1] == {
-            "type": "content.delta",
+            "type": "response.output_text.delta",
             "delta": " world",
             "index": 0,
         }
@@ -390,12 +390,12 @@ class TestOpenAICompatibleClient:
 
         assert len(chunks) == 3
         assert chunks[0] == {
-            "type": "tool_call.arguments.delta",
+            "type": "response.function_call_arguments.delta",
             "id": "call_1",
             "arguments": '{"city": "Tokyo"}',
         }
         # ToolCallArgumentsDoneEvent now includes call_id and name fields
-        assert chunks[1]["type"] == "tool_call.arguments.done"
+        assert chunks[1]["type"] == "response.function_call_arguments.done"
         assert chunks[1]["id"] == "call_1"
         assert chunks[1]["arguments"] == '{"city": "Tokyo"}'
         assert chunks[1]["name"] == "get_weather"
@@ -529,9 +529,9 @@ class TestOpenAICompatibleClient:
             chunks = [c async for c in result]
 
         assert len(chunks) == 2
-        assert chunks[0]["type"] == "content.delta"
+        assert chunks[0]["type"] == "response.output_text.delta"
         assert chunks[0]["delta"] == "Hello"
-        assert chunks[1]["type"] == "content.done"
+        assert chunks[1]["type"] == "response.output_text.done"
 
     @pytest.mark.asyncio
     async def test_chat_stream_emits_tool_call_ready(self, model: LanguageModel):
@@ -555,7 +555,7 @@ class TestOpenAICompatibleClient:
             chunks = [c async for c in result]
 
         assert len(chunks) == 2
-        assert chunks[0]["type"] == "tool_call.arguments.done"
+        assert chunks[0]["type"] == "response.function_call_arguments.done"
         assert chunks[0]["id"] == "item_1"
         assert chunks[1]["type"] == "tool_call.ready"
         assert chunks[1]["id"] == "item_1"
@@ -611,12 +611,12 @@ class TestOpenAICompatibleClient:
             chunks = [c async for c in result]
 
         # output_item.added → tool_call.started
-        assert chunks[0]["type"] == "tool_call.started"
+        assert chunks[0]["type"] == "response.output_item.added"
         assert chunks[0]["id"] == "item_1"
         assert chunks[0]["call_id"] == "call_1"
 
         # function_call_arguments.done → tool_call.arguments.done with cached metadata
-        assert chunks[1]["type"] == "tool_call.arguments.done"
+        assert chunks[1]["type"] == "response.function_call_arguments.done"
         assert chunks[1]["id"] == "item_1"
         # call_id and name should come from cache since done event omitted them
         assert chunks[1].get("call_id") == "call_1", f"Expected call_id from cache, got: {chunks[1]}"
@@ -751,7 +751,7 @@ class TestOpenAICompatibleClient:
 
         assert len(pairs) == 1
         canonical, raw = pairs[0]
-        assert canonical["type"] == "content.delta"
+        assert canonical["type"] == "response.output_text.delta"
         assert raw is not None
         assert raw["provider"] == "openai-responses"
         assert raw["raw_event"]["delta"] == "Hi"
@@ -780,7 +780,7 @@ class TestOpenAICompatibleClient:
 
         assert len(pairs) == 2
         # First event (arguments.done) has raw data
-        assert pairs[0][0]["type"] == "tool_call.arguments.done"
+        assert pairs[0][0]["type"] == "response.function_call_arguments.done"
         assert pairs[0][1] is not None
         assert pairs[0][1]["provider"] == "openai-responses"
         # Second event (tool_call.ready) is synthetic → None

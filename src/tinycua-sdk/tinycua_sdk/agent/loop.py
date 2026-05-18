@@ -564,10 +564,10 @@ class BaseLoop:
             usage_settled_ids: Set of response IDs whose usage has been counted.
         """
         chunk_type = chunk.get("type", "")
-        if chunk_type == "content.delta":
+        if chunk_type == "response.output_text.delta":
             content_parts.append(chunk.get("delta", ""))
-        elif chunk_type in ("response.tool_call.delta", "tool_call.started",
-                            "tool_call.arguments.delta", "tool_call.arguments.done",
+        elif chunk_type in ("response.tool_call.delta", "response.output_item.added",
+                            "response.function_call_arguments.delta", "response.function_call_arguments.done",
                             "tool_call.ready"):
             _accumulate_tool_chunk(chunk, chunk_type, tool_calls_buffer)
         elif chunk_type == "response.completed":
@@ -685,7 +685,7 @@ def _accumulate_tool_chunk(
             if chunk.get("name"):
                 buf["name"] = chunk["name"]
             buf["arguments"] += chunk.get("arguments", "")
-    elif chunk_type == "tool_call.started":
+    elif chunk_type == "response.output_item.added":
         item_id = chunk.get("id", "")
         if item_id:
             tool_calls_buffer[item_id] = {
@@ -695,11 +695,11 @@ def _accumulate_tool_chunk(
                 "arguments": "",
                 "_ready": False,  # Progress only — not yet ready for execution
             }
-    elif chunk_type == "tool_call.arguments.delta":
+    elif chunk_type == "response.function_call_arguments.delta":
         item_id = chunk.get("id", "")
         if item_id and item_id in tool_calls_buffer:
             tool_calls_buffer[item_id]["arguments"] += chunk.get("arguments", "")
-    elif chunk_type == "tool_call.arguments.done":
+    elif chunk_type == "response.function_call_arguments.done":
         item_id = chunk.get("id", "")
         if item_id and item_id in tool_calls_buffer:
             tool_calls_buffer[item_id]["arguments"] = chunk.get("arguments", "")

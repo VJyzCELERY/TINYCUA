@@ -32,50 +32,50 @@ class TestCanonicalEventShapes:
 
     def test_content_delta_event_shape(self) -> None:
         event: ContentDeltaEvent = {
-            "type": "content.delta",
+            "type": "response.output_text.delta",
             "delta": "Hello",
             "index": 0,
         }
-        assert event["type"] == "content.delta"
+        assert event["type"] == "response.output_text.delta"
         assert event["delta"] == "Hello"
         assert event["index"] == 0
 
     def test_content_done_event_shape(self) -> None:
         event: ContentDoneEvent = {
-            "type": "content.done",
+            "type": "response.output_text.done",
             "index": 0,
         }
-        assert event["type"] == "content.done"
+        assert event["type"] == "response.output_text.done"
         assert event["index"] == 0
 
     def test_tool_call_started_event_shape(self) -> None:
         event: ToolCallStartedEvent = {
-            "type": "tool_call.started",
+            "type": "response.output_item.added",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_weather",
         }
-        assert event["type"] == "tool_call.started"
+        assert event["type"] == "response.output_item.added"
         assert event["id"] == "call_1"
         assert event["name"] == "get_weather"
 
     def test_tool_call_arguments_delta_event_shape(self) -> None:
         event: ToolCallArgumentsDeltaEvent = {
-            "type": "tool_call.arguments.delta",
+            "type": "response.function_call_arguments.delta",
             "id": "call_1",
             "arguments": '{"city": "Tokyo"}',
         }
-        assert event["type"] == "tool_call.arguments.delta"
+        assert event["type"] == "response.function_call_arguments.delta"
 
     def test_tool_call_arguments_done_event_shape(self) -> None:
         event: ToolCallArgumentsDoneEvent = {
-            "type": "tool_call.arguments.done",
+            "type": "response.function_call_arguments.done",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_weather",
             "arguments": '{"city": "Tokyo"}',
         }
-        assert event["type"] == "tool_call.arguments.done"
+        assert event["type"] == "response.function_call_arguments.done"
 
     def test_tool_call_ready_event_shape(self) -> None:
         event: ToolCallReadyEvent = {
@@ -205,9 +205,9 @@ class TestLLMEventNarrowing:
     """Test LLMEvent union can be narrowed by type field."""
 
     def test_narrow_content_delta(self) -> None:
-        event: LLMEvent = {"type": "content.delta", "delta": "Hello", "index": 0}
-        assert event["type"] == "content.delta"
-        if event["type"] == "content.delta":
+        event: LLMEvent = {"type": "response.output_text.delta", "delta": "Hello", "index": 0}
+        assert event["type"] == "response.output_text.delta"
+        if event["type"] == "response.output_text.delta":
             assert event["delta"] == "Hello"
             assert event["index"] == 0
 
@@ -219,13 +219,13 @@ class TestLLMEventNarrowing:
 
     def test_narrow_tool_call_started(self) -> None:
         event: LLMEvent = {
-            "type": "tool_call.started",
+            "type": "response.output_item.added",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_weather",
         }
-        assert event["type"] == "tool_call.started"
-        if event["type"] == "tool_call.started":
+        assert event["type"] == "response.output_item.added"
+        if event["type"] == "response.output_item.added":
             assert event["name"] == "get_weather"
 
 

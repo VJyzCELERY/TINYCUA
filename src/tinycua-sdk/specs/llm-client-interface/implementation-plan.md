@@ -396,12 +396,12 @@ def test_unrecognized_provider_strings_rejected(default_registry):
 
 ```python
 # Canonical SSE Event Schema (events.py)
-ContentDeltaEvent      — type: "content.delta", delta: str, index: int
-ContentDoneEvent       — type: "content.done", index: int
-ToolCallStartedEvent   — type: "tool_call.started", id, call_id, name
-ToolCallArgumentsDeltaEvent — type: "tool_call.arguments.delta", id, arguments: str
-ToolCallArgumentsDoneEvent  — type: "tool_call.arguments.done", id, call_id, name, arguments
-ToolCallReadyEvent     — type: "tool_call.ready", id, call_id, name, arguments
+ContentDeltaEvent      — type: "response.output_text.delta", delta: str, index: int
+ContentDoneEvent       — type: "response.output_text.done", index: int
+ToolCallStartedEvent   — type: "response.output_item.added", id, call_id, name
+ToolCallArgumentsDeltaEvent — type: "response.function_call_arguments.delta", id, arguments: str
+ToolCallArgumentsDoneEvent  — type: "response.function_call_arguments.done", id, call_id, name, arguments
+ToolCallReadyEvent     — type: "tool_call.ready", id, call_id, name, arguments (synthetic convenience, not a Responses API event)
 TokenUsage         — input_tokens: int|None, output_tokens: int|None, total_tokens: int|None
 ResponseUsageEvent     — type: "response.usage", usage: TokenUsage
 ResponseCompletedEvent — type: "response.completed", finish_reason: str

@@ -5,15 +5,11 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Final
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
 
-from tinycua_sdk.core.providers import OPENAI_RESPONSES, resolve_provider
-
-_KNOWN_PROVIDERS: Final[frozenset[str]] = frozenset({
-    OPENAI_RESPONSES,
-})
+from tinycua_sdk.core.providers import resolve_provider
 
 
 class LanguageModel(BaseModel):
@@ -48,18 +44,8 @@ class LanguageModel(BaseModel):
     @field_validator("provider", mode="before")
     @classmethod
     def _normalize_provider(cls, v: str) -> str:
-        """Normalize provider identifier and validate it is a known provider.
-
-        Raises:
-            ValueError: If the provider resolves to an unrecognized identifier.
-        """
-        resolved = resolve_provider(v)
-        if resolved not in _KNOWN_PROVIDERS:
-            raise ValueError(
-                f"Unknown provider: {v!r} (resolved to {resolved!r}). "
-                f"Known providers: {', '.join(sorted(_KNOWN_PROVIDERS))}"
-            )
-        return resolved
+        """Normalize provider identifier via alias resolution only."""
+        return resolve_provider(v)
 
     @field_validator("api_key", mode="before")
     @classmethod

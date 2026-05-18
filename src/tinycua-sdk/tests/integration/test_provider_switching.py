@@ -224,19 +224,27 @@ async def test_openai_responses_default_registration(default_registry: ProviderR
 # ── Test 6: Known but unregistered providers raise ProviderNotSupportedError ──
 
 
-def test_deprecated_providers_rejected_at_construction() -> None:
+def test_deprecated_providers_rejected_by_registry(default_registry: ProviderRegistry) -> None:
     """Given deprecated provider strings ("openai", "openai-compatible"),
-    LanguageModel raises ValueError at construction time."""
+    LanguageModel accepts them, but ProviderRegistry.create_client() raises
+    ProviderNotSupportedError — rejection is registry-driven."""
     for known in ("openai", "openai-compatible"):
-        with pytest.raises(ValueError, match="Unknown provider"):
-            LanguageModel(provider=known, model_name="test")
+        model = LanguageModel(provider=known, model_name="test")
+        with pytest.raises(ProviderNotSupportedError) as excinfo:
+            default_registry.create_client(model)
+        assert known in str(excinfo.value)
+        assert "openai-responses" in str(excinfo.value)
 
 
-# ── Test 7: Unknown provider string rejected at LanguageModel construction ──
+# ── Test 7: Unknown provider string rejected at registry time ──
 
 
-def test_unknown_provider_rejected_at_construction() -> None:
-    """Given a completely unknown provider string, LanguageModel raises
-    ValueError at construction time with a clear error message."""
-    with pytest.raises(ValueError, match="Unknown provider"):
-        LanguageModel(provider="completely-unknown-provider", model_name="test")
+def test_unknown_provider_rejected_by_registry(default_registry: ProviderRegistry) -> None:
+    """Given a completely unknown provider string, LanguageModel accepts it,
+    but ProviderRegistry.create_client() raises ProviderNotSupportedError —
+    rejection is registry-driven."""
+    model = LanguageModel(provider="completely-unknown-provider", model_name="test")
+    with pytest.raises(ProviderNotSupportedError) as excinfo:
+        default_registry.create_client(model)
+    assert "completely-unknown-provider" in str(excinfo.value)
+    assert "openai-responses" in str(excinfo.value)

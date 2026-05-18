@@ -124,7 +124,7 @@ class TestAgentRun:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "content.delta",
+                    "type": "response.output_text.delta",
                     "delta": "Hello",
                     "index": 0,
                 }
@@ -135,7 +135,7 @@ class TestAgentRun:
 
         stream_iter = await agent.run("Query", stream=True)
         events = [e async for e in stream_iter]
-        assert any(e["type"] == "content.delta" for e in events)
+        assert any(e["type"] == "response.output_text.delta" for e in events)
         assert any(e["type"] == "response.created" for e in events)
         assert any(e["type"] == "response.completed" for e in events)
 

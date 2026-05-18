@@ -28,8 +28,8 @@ Implementation tasks for Phase 1 of the Unified LLM Client Interface. Check off 
 ### Task B: Canonical SSE Event Schema + Input Types
 
 - [x] Add new canonical TypedDicts to `tinycua_sdk/agent/events.py` replacing existing ones <!-- id: 8 -->
-  - [x] Add `ContentDeltaEvent`, `ContentDoneEvent` TypedDicts
-  - [x] Add `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent` TypedDicts (refined from existing)
+  - [x] Add `ContentDeltaEvent` (type: `"response.output_text.delta"`), `ContentDoneEvent` (type: `"response.output_text.done"`) TypedDicts — Responses-shaped canonical event names
+  - [x] Add `ToolCallStartedEvent` (type: `"response.output_item.added"`), `ToolCallArgumentsDeltaEvent` (type: `"response.function_call_arguments.delta"`), `ToolCallArgumentsDoneEvent` (type: `"response.function_call_arguments.done"`), `ToolCallReadyEvent` (type: `"tool_call.ready"`, synthetic) TypedDicts — Responses-shaped canonical event names
   - [x] Add `TokenUsage`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent` TypedDicts (refined)
   - [x] Add `LLMEvent` union type alias
   - [x] Add `LLMResponse` TypedDict

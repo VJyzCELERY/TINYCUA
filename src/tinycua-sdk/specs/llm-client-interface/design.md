@@ -86,7 +86,7 @@ The Agent Loop interacts with the LLM provider system through a universal factor
 | `tinycua_sdk/agent/llm_model.py` | Modified — Extended | May need minor additions for provider-specific config |
 | `tinycua_sdk/core/providers.py` | Modified — Extended | Provider registry and client factory logic added |
 | `tinycua_sdk/models/response.py` | No changes — usage migrated to LLMEvent | StreamEvent itself unchanged (raw pass-through via paired tuples); consumers migrate to LLMEvent |
-| `tinycua_sdk/agent/loop.py` | Modified (Phase 2) | Updated to consume new canonical event schema (`content.delta`, `content.done`, `tool_call.*`, etc.) |
+| `tinycua_sdk/agent/loop.py` | Modified (Phase 2) | Updated to consume new Responses-shaped canonical event schema (`response.output_text.delta`, `response.output_item.added`, `response.function_call_arguments.*`, `tool_call.ready`, etc.) |
 | `tinycua_sdk/providers/openai_responses/` | New (Phase 2) | OpenAI Responses API provider client + normalizer; registered as `"openai-responses"` |
 | `tinycua_sdk/providers/openai_chat/` | New (Phase 3) | OpenAI Chat Completions API provider client (future phase, ID `"openai"`) |
 
@@ -117,6 +117,9 @@ This is a **breaking change**. The following table documents the migration path 
 ```python
 # ──────────────────────────────────────────────
 # Canonical SSE Event Schema (TypedDicts)
+# The canonical schema is OpenAI Responses-shaped: event type names and
+# field shapes follow OpenAI Responses API event conventions. Non-OpenAI
+# providers and Chat Completions endpoints normalize into this contract.
 # ──────────────────────────────────────────────
 
 # Each concrete event is defined as its own TypedDict with a type: Literal[...]
@@ -126,31 +129,31 @@ This is a **breaking change**. The following table documents the migration path 
 
 class ContentDeltaEvent(TypedDict):
     """Text content delta from the LLM."""
-    type: Literal["content.delta"]
+    type: Literal["response.output_text.delta"]
     delta: str
     index: int
 
 class ContentDoneEvent(TypedDict):
     """Text content block completed."""
-    type: Literal["content.done"]
+    type: Literal["response.output_text.done"]
     index: int
 
 class ToolCallStartedEvent(TypedDict):
     """New tool call initiated."""
-    type: Literal["tool_call.started"]
+    type: Literal["response.output_item.added"]
     id: str                    # Provider output item ID (correlates deltas to a single call)
     call_id: str               # Provider tool call ID — used when submitting tool results
     name: str
 
 class ToolCallArgumentsDeltaEvent(TypedDict):
     """Partial tool call arguments."""
-    type: Literal["tool_call.arguments.delta"]
+    type: Literal["response.function_call_arguments.delta"]
     id: str                    # Provider output item ID (matches ToolCallStartedEvent.id)
     arguments: str
 
 class ToolCallArgumentsDoneEvent(TypedDict):
     """Tool call arguments complete — execution-ready metadata included."""
-    type: Literal["tool_call.arguments.done"]
+    type: Literal["response.function_call_arguments.done"]
     id: str                    # Provider output item ID
     call_id: str               # Provider tool call ID — used when submitting tool results
     name: str                  # Tool name (copied from the started event for convenience)
@@ -159,7 +162,8 @@ class ToolCallArgumentsDoneEvent(TypedDict):
 class ToolCallReadyEvent(TypedDict):
     """Tool call ready for execution — all metadata in a single event.
 
-    This is the event the Agent Loop should consume to execute a tool call.
+    This is a synthetic convenience event (not an OpenAI Responses API event).
+    The Agent Loop should consume this to execute a tool call.
     It carries all necessary data (id, call_id, name, arguments) without
     requiring the consumer to correlate state across multiple partial events.
     """
@@ -201,6 +205,8 @@ class ResponseFailedEvent(TypedDict):
 
 # LLMEvent is a discriminated union of all concrete event types.
 # Consumers can narrow by checking event["type"] against a Literal value.
+# Note: ToolCallReadyEvent is a synthetic convenience (not a Responses API event)
+# but is included in the union since the normalizer still emits it.
 LLMEvent: TypeAlias = (
     ContentDeltaEvent
     | ContentDoneEvent
@@ -318,23 +324,23 @@ The canonical tool-call event stream follows a normative state machine to ensure
 
 **Rules**:
 
-1. **Progress events (informational)**: Providers MAY emit `tool_call.started` and zero or more `tool_call.arguments.delta` events to indicate incremental progress (streaming arguments). These events carry partial metadata and are intended for progress indicators or UI updates.
+1. **Progress events (informational)**: Providers MAY emit `response.output_item.added` and zero or more `response.function_call_arguments.delta` events to indicate incremental progress (streaming arguments). These events carry partial metadata and are intended for progress indicators or UI updates.
 
 2. **Execution trigger**: Providers MUST emit exactly one `tool_call.ready` event per executable tool call. The `tool_call.ready` event carries all execution-ready metadata (`id`, `call_id`, `name`, `arguments`) in a single atomic event.
 
-3. **Agent Loop consumption**: The Agent Loop MUST execute tools only from `tool_call.ready` events. It MUST NOT execute tools from `tool_call.arguments.done` or from state accumulated from `tool_call.arguments.delta` events — doing so risks duplicate execution.
+3. **Agent Loop consumption**: The Agent Loop MUST execute tools only from `tool_call.ready` events. It MUST NOT execute tools from `response.function_call_arguments.done` or from state accumulated from `response.function_call_arguments.delta` events — doing so risks duplicate execution.
 
-4. **`tool_call.arguments.done` role**: The `tool_call.arguments.done` event is an informational milestone emitted before the corresponding `tool_call.ready` to signal argument collection is complete. It is NOT an execution trigger. Provider normalizers that emit `tool_call.arguments.done` MUST always emit the corresponding `tool_call.ready` immediately afterward.
+4. **`response.function_call_arguments.done` role**: The `response.function_call_arguments.done` event is an informational milestone emitted before the corresponding `tool_call.ready` to signal argument collection is complete. It is NOT an execution trigger. Provider normalizers that emit `response.function_call_arguments.done` MUST always emit the corresponding `tool_call.ready` immediately afterward.
 
 5. **Normalizer contract**: Each provider normalizer must emit exactly one execution trigger event (`tool_call.ready`) per executable tool call detected in the provider's raw stream. Normalizer tests MUST assert this count.
 
 **Event sequencing example**:
 ```
-tool_call.started      (id="item_1", call_id="call_abc", name="get_weather")
-tool_call.arguments.delta (id="item_1", arguments='{"location": "')
-tool_call.arguments.delta (id="item_1", arguments='{"location": "Tokyo"}')
-tool_call.arguments.done  (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
-tool_call.ready           (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
+response.output_item.added                   (id="item_1", call_id="call_abc", name="get_weather")
+response.function_call_arguments.delta        (id="item_1", arguments='{"location": "')
+response.function_call_arguments.delta        (id="item_1", arguments='{"location": "Tokyo"}')
+response.function_call_arguments.done         (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
+tool_call.ready                               (id="item_1", call_id="call_abc", name="get_weather", arguments='{"location": "Tokyo"}')
 ```
 
 ```python
