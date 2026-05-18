@@ -41,6 +41,7 @@ OPENAI_BASE_URL: Final = "https://api.openai.com/v1"
 _PROVIDER_ALIASES: Final[dict[str, str]] = {
     "lmstudio": OPENAI_COMPATIBLE,
     "ollama": OPENAI_COMPATIBLE,
+    "openai": OPENAI_RESPONSES,
 }
 
 #: Recognized provider identifiers (canonical + aliases + openai-responses).
@@ -260,7 +261,7 @@ def get_provider_registry() -> ProviderRegistry:
     """Return the singleton ``ProviderRegistry`` instance.
 
     Lazily initializes the registry on first call and registers
-    default providers (``openai-responses`` → ``OpenAICompatibleClient``).
+    default providers (``openai-responses`` → ``OpenAIResponsesClient``).
 
     Returns:
         The singleton ``ProviderRegistry`` instance.

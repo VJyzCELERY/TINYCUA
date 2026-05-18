@@ -20,9 +20,9 @@ class TestProviderResolution:
         """ollama alias should resolve to openai-compatible."""
         assert resolve_provider("ollama") == "openai-compatible"
 
-    def test_openai_resolves_to_openai(self):
-        """openai (without alias) returns itself as default."""
-        assert resolve_provider("openai") == "openai"
+    def test_openai_resolves_to_openai_responses(self):
+        """openai now resolves to openai-responses via new alias."""
+        assert resolve_provider("openai") == "openai-responses"
 
     def test_case_insensitive_resolution(self):
         """Provider resolution should be case-insensitive."""

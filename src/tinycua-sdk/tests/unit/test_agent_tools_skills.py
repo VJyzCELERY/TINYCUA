@@ -42,7 +42,7 @@ class TestInt05AgentWithToolsAndSkills:
         assert len(response) > 0
 
         first_call_kwargs = mock_llm_with_tool_calls.call_args_list[0][1]
-        messages =         first_call_kwargs["json"]["input"]
+        messages =         first_call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "You are a research assistant." in system_msg["content"]
         assert "[web_research]" in system_msg["content"]
@@ -51,7 +51,7 @@ class TestInt05AgentWithToolsAndSkills:
         assert mock_llm_with_tool_calls.call_count >= 2
 
         second_call_kwargs = mock_llm_with_tool_calls.call_args_list[1][1]
-        second_messages = second_call_kwargs["json"]["input"]
+        second_messages = second_call_kwargs["input"]
         tool_msgs = [m for m in second_messages if m.get("type") == "function_call_output"]
         assert len(tool_msgs) >= 1
         assert "[Search results for: quantum]" in tool_msgs[0]["output"]

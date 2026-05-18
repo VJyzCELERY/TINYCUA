@@ -223,16 +223,39 @@ async def test_openai_responses_default_registration(default_registry: ProviderR
 # ── Test 6: Known but unregistered providers raise ProviderNotSupportedError ──
 
 
-def test_deprecated_providers_rejected_by_registry(default_registry: ProviderRegistry) -> None:
+def test_deprecated_providers_rejected_by_registry(
+    default_registry: ProviderRegistry, caplog: pytest.LogCaptureFixture,
+) -> None:
     """Given deprecated provider strings ("openai", "openai-compatible"),
     LanguageModel accepts them, but ProviderRegistry.create_client() raises
-    ProviderNotSupportedError — rejection is registry-driven."""
-    for known in ("openai", "openai-compatible"):
-        model = LanguageModel(provider=known, model_name="test")
-        with pytest.raises(ProviderNotSupportedError) as excinfo:
-            default_registry.create_client(model)
-        assert known in str(excinfo.value)
-        assert "openai-responses" in str(excinfo.value)
+    ProviderNotSupportedError — rejection is registry-driven.
+
+    .. note::
+       ``"openai"`` now resolves to ``"openai-responses"`` via the alias
+       map with a deprecation warning, so it DOES work. Only truly
+       unsupported strings like ``"openai-compatible"`` are rejected.
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING)
+
+    # "openai" is now aliased to "openai-responses" → succeeds with warning
+    model = LanguageModel(provider="openai", model_name="test")
+    client = default_registry.create_client(model)
+    assert any("deprecated" in rec.message.lower() for rec in caplog.records), (
+        f"Expected deprecation warning for 'openai', got: {[rec.message for rec in caplog.records]}"
+    )
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    assert isinstance(client, OpenAIResponsesClient)
+
+    caplog.clear()
+
+    # "openai-compatible" is NOT registered → raises ProviderNotSupportedError
+    model2 = LanguageModel(provider="openai-compatible", model_name="test")
+    with pytest.raises(ProviderNotSupportedError) as excinfo:
+        default_registry.create_client(model2)
+    assert "openai-compatible" in str(excinfo.value)
+    assert "openai-responses" in str(excinfo.value)
 
 
 # ── Test 7: Unknown provider string rejected at registry time ──

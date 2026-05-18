@@ -237,22 +237,13 @@ class BaseLoop:
                     elif event["type"] in ("response.failed", "error", "response.cancelled"):
                         skip_complete = should_abort = True
                     yield event
-                if should_abort:
-                    break
-                combined = "".join(content_parts)
-                tool_calls_list = [
-                    tc for tc in tool_calls_buffer.values()
-                    if tc.get("_ready", False)
-                ]
-                if tool_calls_list:
-                    tool_call_count, max_reached = await self.process_stream_tool_calls(
-                        agent, tools, tool_calls_list, working, tool_call_count, combined,
+                should_break, finish_reason, tool_call_count, skip_complete = (
+                    await self._finalize_stream_iteration(
+                        content_parts, tool_calls_buffer, agent, tools, working,
+                        tool_call_count, should_abort, finish_reason, skip_complete,
                     )
-                    if max_reached:
-                        finish_reason, skip_complete = "max_tool_calls", False
-                        break
-                else:
-                    working.append({"role": "assistant", "content": combined})
+                )
+                if should_break:
                     break
             else:
                 finish_reason = "max_iterations"
@@ -262,12 +253,89 @@ class BaseLoop:
             yield {"type": "response.cancelled"}
             skip_complete = True
         except Exception as e:
-            yield {"type": "response.failed", "error": {"message": str(e)}}
-            yield {"type": "error", "error": {"message": str(e)}}
+            async for evt in self._handle_stream_exception(e):
+                yield evt
             return
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
         if not skip_complete and not agent.is_cancelled:
             yield {"type": "response.completed", "finish_reason": finish_reason}
+
+    async def _finalize_stream_iteration(
+        self,
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        agent: Agent,
+        tools: list[Tool],
+        working: list[dict],
+        tool_call_count: int,
+        should_abort: bool,
+        finish_reason: str,
+        skip_complete: bool,
+    ) -> tuple[bool, str, int, bool]:
+        """Finalize one stream iteration, processing tool calls or content.
+
+        Combines accumulated text deltas, resolves ready tool calls, and
+        determines whether the agent loop should continue. Reduces
+        cyclomatic complexity of ``_run_stream``.
+
+        Args:
+            content_parts: Accumulated text deltas from the iteration.
+            tool_calls_buffer: Accumulated tool call data.
+            agent: The agent executing the loop.
+            tools: List of available tools.
+            working: Working message list (mutated in place).
+            tool_call_count: Current tool call count.
+            should_abort: Whether the iteration was aborted (error/cancel).
+            finish_reason: Current finish reason.
+            skip_complete: Whether to skip the response.completed event.
+
+        Returns:
+            Tuple of (should_break, finish_reason_updated,
+            tool_call_count_updated, skip_complete_updated).
+        """
+        if should_abort:
+            return True, finish_reason, tool_call_count, skip_complete
+
+        combined = "".join(content_parts)
+        tool_calls_list = [
+            tc for tc in tool_calls_buffer.values()
+            if tc.get("_ready", False)
+        ]
+        if tool_calls_list:
+            tool_call_count, max_reached = await self.process_stream_tool_calls(
+                agent, tools, tool_calls_list, working, tool_call_count, combined,
+            )
+            if max_reached:
+                return True, "max_tool_calls", tool_call_count, False
+            # Tool calls processed but max not reached → continue iteration
+            return False, finish_reason, tool_call_count, skip_complete
+        # No tool calls → content accumulated, break out to emit final completion.
+        # Preserve original skip_complete so that provider-emitted
+        # response.completed is not duplicated.
+        working.append({"role": "assistant", "content": combined})
+        return True, finish_reason, tool_call_count, skip_complete
+
+    @staticmethod
+    async def _handle_stream_exception(
+        exc: Exception,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield appropriate lifecycle events for stream exceptions.
+
+        Yields response.failed or response.cancelled events depending
+        on the exception type. Extracted from ``_run_stream`` to reduce
+        cyclomatic complexity.
+
+        Args:
+            exc: The caught exception from the stream loop.
+
+        Yields:
+            Lifecycle events appropriate to the exception type.
+        """
+        if isinstance(exc, asyncio.CancelledError):
+            yield {"type": "response.cancelled"}
+        else:
+            yield {"type": "response.failed", "error": {"message": str(exc)}}
+            yield {"type": "error", "error": {"message": str(exc)}}
 
     @staticmethod
     async def _get_llm_stream(
@@ -580,6 +648,9 @@ class BaseLoop:
             resp_id = response_data.get("id", "")
             usage = response_data.get("usage", {})
             if usage and resp_id not in usage_settled_ids:
+                # The empty string acts as a sentinel for usage events
+                # without a response ID. Providers that don't include
+                # response IDs key on "" to prevent double-counting.
                 if "" in usage_settled_ids:
                     usage_settled_ids.remove("")
                     usage_settled_ids.add(resp_id)
