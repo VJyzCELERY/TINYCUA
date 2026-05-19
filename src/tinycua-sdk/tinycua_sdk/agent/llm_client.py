@@ -17,7 +17,7 @@ static methods on ``OpenAIChatCompletionsClient``.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field as dataclass_field
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.events import (
@@ -116,7 +116,7 @@ class ToolCallAccumulator:
     index: int
     id: str | None = None
     name: str | None = None
-    arguments_parts: list[str] = field(default_factory=list)
+    arguments_parts: list[str] = dataclass_field(default_factory=list)
     started_emitted: bool = False
     done_emitted: bool = False
     ready_emitted: bool = False
@@ -141,8 +141,8 @@ class ChoiceAccumulator:
     """Tracks content, tool calls, finish reason, and usage for a single choice."""
 
     index: int
-    content_parts: list[str] = field(default_factory=list)
-    tool_calls: dict[int, ToolCallAccumulator] = field(default_factory=dict)
+    content_parts: list[str] = dataclass_field(default_factory=list)
+    tool_calls: dict[int, ToolCallAccumulator] = dataclass_field(default_factory=dict)
     finish_reason: str | None = None
     usage: dict | None = None
     content_done_emitted: bool = False
@@ -888,6 +888,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         return self._client
 
     async def close(self) -> None:
+        """Close the underlying OpenAI client and release resources."""
         if self._client is not None:
             await self._client.close()
             self._client = None
@@ -983,96 +984,102 @@ class OpenAIChatCompletionsClient(LLMClient):
         return payload
 
     @staticmethod
-    def _normalize_chat_chunk(
+    def _normalize_chunk_usage_only(
         chunk_data: dict[str, Any],
-        acc: ChoiceAccumulator,
     ) -> list[LLMEvent]:
-        """Normalize a single Chat Completions streaming chunk into canonical events.
-
-        Accumulates content and tool-call deltas in ``acc`` and emits
-        events only when state transitions occur (e.g. first delta,
-        content done, tool-call ready).
-        """
+        """Normalize a usage-only chunk (no choices) into canonical events."""
         events: list[LLMEvent] = []
-        choices = chunk_data.get("choices", [])
-        if not choices:
-            usage_raw = chunk_data.get("usage")
-            if usage_raw:
-                events.append(
-                    ResponseUsageEvent(
-                        type="response.usage",
-                        usage=TokenUsage(
-                            input_tokens=usage_raw.get("prompt_tokens"),
-                            output_tokens=usage_raw.get("completion_tokens"),
-                            total_tokens=usage_raw.get("total_tokens"),
-                        ),
-                    ),
-                )
-            return events
-
-        choice = choices[0]
-        delta = choice.get("delta", {})
-        finish_reason = choice.get("finish_reason")
-
-        if not acc.started_emitted:
-            acc.started_emitted = True
-            events.append(ResponseCreatedEvent(type="response.created"))
-
-        # Content delta
-        content = delta.get("content")
-        if content:
-            acc.content_parts.append(content)
+        usage_raw = chunk_data.get("usage")
+        if usage_raw:
             events.append(
-                ContentDeltaEvent(
-                    type="response.output_text.delta",
-                    delta=content,
-                    index=acc.index,
+                ResponseUsageEvent(
+                    type="response.usage",
+                    usage=TokenUsage(
+                        input_tokens=usage_raw.get("prompt_tokens"),
+                        output_tokens=usage_raw.get("completion_tokens"),
+                        total_tokens=usage_raw.get("total_tokens"),
+                    ),
                 ),
             )
+        return events
 
-        # Tool call deltas
+    @staticmethod
+    def _normalize_chunk_content(
+        delta: dict[str, Any],
+        acc: ChoiceAccumulator,
+        events: list[LLMEvent],
+    ) -> None:
+        """Normalize content delta within a streaming chunk."""
+        content = delta.get("content")
+        if not content:
+            return
+        acc.content_parts.append(content)
+        events.append(
+            ContentDeltaEvent(
+                type="response.output_text.delta",
+                delta=content,
+                index=acc.index,
+            ),
+        )
+
+    @staticmethod
+    def _normalize_chunk_tool_calls(
+        delta: dict[str, Any],
+        acc: ChoiceAccumulator,
+        events: list[LLMEvent],
+    ) -> None:
+        """Normalize tool-call deltas within a streaming chunk."""
         raw_tool_calls = delta.get("tool_calls")
-        if raw_tool_calls:
-            for tc in raw_tool_calls:
-                tc_index = tc.get("index", 0)
-                if tc_index not in acc.tool_calls:
-                    acc.tool_calls[tc_index] = ToolCallAccumulator(index=tc_index)
+        if not raw_tool_calls:
+            return
+        for tc in raw_tool_calls:
+            tc_index = tc.get("index", 0)
+            if tc_index not in acc.tool_calls:
+                acc.tool_calls[tc_index] = ToolCallAccumulator(index=tc_index)
 
-                tca = acc.tool_calls[tc_index]
+            tca = acc.tool_calls[tc_index]
 
-                tc_id = tc.get("id")
-                if tc_id:
-                    tca.id = tc_id
+            tc_id = tc.get("id")
+            if tc_id:
+                tca.id = tc_id
 
-                tc_function = tc.get("function", {})
-                tc_name = tc_function.get("name")
-                if tc_name:
-                    tca.name = tc_name
+            tc_function = tc.get("function", {})
+            tc_name = tc_function.get("name")
+            if tc_name:
+                tca.name = tc_name
 
-                tc_args = tc_function.get("arguments", "")
-                if tc_args:
-                    tca.arguments_parts.append(tc_args)
+            tc_args = tc_function.get("arguments", "")
+            if tc_args:
+                tca.arguments_parts.append(tc_args)
 
-                if not tca.started_emitted:
-                    tca.started_emitted = True
-                    events.append(
-                        ToolCallStartedEvent(
-                            type="response.output_item.added",
-                            id=tca.id or "",
-                            call_id=tca.id or "",
-                            name=tca.name or "",
-                        ),
-                    )
+            if not tca.started_emitted:
+                tca.started_emitted = True
+                events.append(
+                    ToolCallStartedEvent(
+                        type="response.output_item.added",
+                        id=tca.id or "",
+                        call_id=tca.id or "",
+                        name=tca.name or "",
+                    ),
+                )
 
-                if tc_args:
-                    events.append(
-                        ToolCallArgumentsDeltaEvent(
-                            type="response.function_call_arguments.delta",
-                            id=tca.id or "",
-                            arguments=tc_args,
-                        ),
-                    )
+            if tc_args:
+                events.append(
+                    ToolCallArgumentsDeltaEvent(
+                        type="response.function_call_arguments.delta",
+                        id=tca.id or "",
+                        arguments=tc_args,
+                    ),
+                )
 
+    @staticmethod
+    def _normalize_chunk_finalize(
+        finish_reason: str | None,
+        chunk_data: dict[str, Any],
+        acc: ChoiceAccumulator,
+        events: list[LLMEvent],
+    ) -> None:
+        """Finalize chunk: tool call completion, content done, usage, lifecycle."""
         # Finalize tool calls when finish_reason indicates tool use
         if finish_reason == "tool_calls" and acc.tool_calls:
             for tca in acc.tool_calls.values():
@@ -1135,6 +1142,34 @@ class OpenAIChatCompletionsClient(LLMClient):
                     events.append(
                         ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason),
                     )
+
+    @staticmethod
+    def _normalize_chat_chunk(
+        chunk_data: dict[str, Any],
+        acc: ChoiceAccumulator,
+    ) -> list[LLMEvent]:
+        """Normalize a single Chat Completions streaming chunk into canonical events.
+
+        Accumulates content and tool-call deltas in ``acc`` and emits
+        events only when state transitions occur (e.g. first delta,
+        content done, tool-call ready).
+        """
+        choices = chunk_data.get("choices", [])
+        if not choices:
+            return OpenAIChatCompletionsClient._normalize_chunk_usage_only(chunk_data)
+
+        choice = choices[0]
+        delta = choice.get("delta", {})
+        finish_reason = choice.get("finish_reason")
+
+        events: list[LLMEvent] = []
+        if not acc.started_emitted:
+            acc.started_emitted = True
+            events.append(ResponseCreatedEvent(type="response.created"))
+
+        OpenAIChatCompletionsClient._normalize_chunk_content(delta, acc, events)
+        OpenAIChatCompletionsClient._normalize_chunk_tool_calls(delta, acc, events)
+        OpenAIChatCompletionsClient._normalize_chunk_finalize(finish_reason, chunk_data, acc, events)
 
         return events
 

@@ -7,7 +7,7 @@ tool-call accumulation, error mapping, and raw-events pairing.
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tinycua_sdk.agent.events import LLMResponse, UserMessage
+from tinycua_sdk.agent.events import LLMResponse
 from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
