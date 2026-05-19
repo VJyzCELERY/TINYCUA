@@ -70,10 +70,15 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
 ## Verification Phase
 
 - [ ] Verify `provider="openai"` no longer emits a deprecation warning or resolves to `openai-responses` <!-- id: 14 -->
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_provider_registry.py -k "test_openai_resolves_to_chat"`
 - [ ] Verify both default providers appear in `ProviderRegistry.list_providers()` <!-- id: 15 -->
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_provider_registry.py -k "test_list_providers_includes_both"`
 - [ ] Verify streaming event order for content-only responses: created, delta, done, usage if present, completed <!-- id: 16 -->
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py -k "test_streaming_content_events_order"`
 - [ ] Verify streaming event order for tool responses: created, started, argument delta, arguments done, ready, usage if present, completed <!-- id: 17 -->
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py -k "test_streaming_tool_events_order"`
 - [ ] Verify tool-only non-streaming responses return `content is None` and populated `tool_calls` <!-- id: 18 -->
+  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py -k "test_tool_only_response_content_none"`
 - [ ] Optionally run a manual real-API smoke test with `OPENAI_API_KEY` and `provider="openai"` <!-- id: 19 -->
 
 ## Documentation Phase

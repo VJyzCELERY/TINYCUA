@@ -56,7 +56,7 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 
 1. **Given** a `LanguageModel` with `provider="openai"` (Chat Completions), **When** a provider client is created from the model configuration, **Then** a Chat Completions provider client instance is returned, not a Responses API provider client.
 
-2. **Given** a Chat Completions provider client instance, **When** `client.chat(messages=[UserMessage(role="user", content="Hello"])` is called with `stream=False`, **Then** the returned `LLMResponse` contains the assistant's text content, normalized usage data, and a finish reason.
+2. **Given** a Chat Completions provider client instance, **When** `client.chat(messages=[UserMessage(role="user", content="Hello")])` is called with `stream=False`, **Then** the returned `LLMResponse` contains the assistant's text content, normalized usage data, and a finish reason.
 
 3. **Given** a Chat Completions provider client instance, **When** `client.chat(messages, tools, stream=True)` is called and the model responds with tool calls, **Then** the stream yields `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, and exactly one `ToolCallReadyEvent` per tool call — matching the canonical tool-call state machine.
 

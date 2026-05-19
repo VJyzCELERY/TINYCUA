@@ -149,6 +149,29 @@ async def test_openai_chat_raw_events_pair_canonical_with_sdk_chunks():
     assert raw["raw_event"] is raw_chunk
 
 
+@pytest.mark.asyncio
+async def test_openai_chat_raw_events_one_to_many_pairing():
+    """One chunk producing >=2 canonical events: first gets raw, follow-on gets raw=None."""
+    client = OpenAIChatClient(LanguageModel(provider="openai", model_name="gpt-4o"))
+    terminal_chunk = _chunk({"content": "Bye"}, finish_reason="stop", usage={"prompt_tokens": 5, "completion_tokens": 8})
+    sdk = MagicMock()
+    sdk.chat.completions.create = AsyncMock(return_value=_mock_chat_stream([terminal_chunk]))
+    client._client = sdk
+
+    result = await client.chat(
+        [UserMessage(role="user", content="Hello")],
+        stream=True,
+        raw_events=True,
+    )
+    pairs = [pair async for pair in result]
+
+    # First event (ContentDelta) should carry the raw chunk
+    assert pairs[0].raw is not None
+    assert pairs[0].raw["raw_event"] is terminal_chunk
+    # A later synthetic event (e.g. ContentDone or ResponseCompleted) gets raw=None
+    assert any(p.raw is None for p in pairs[1:]), "Expected at least one follow-on event with raw=None"
+
+
 async def _mock_chat_stream(chunks):
     for chunk in chunks:
         yield chunk
@@ -286,6 +309,7 @@ class ChoiceAccumulator:
     content_parts: list[str] = field(default_factory=list)
     tool_calls: dict[int, ToolCallAccumulator] = field(default_factory=dict)
     finish_reason: str | None = None
+    usage: dict | None = None
     content_done_emitted: bool = False
 
 

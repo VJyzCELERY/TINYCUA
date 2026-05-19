@@ -104,6 +104,10 @@ class ChoiceAccumulator:
     tool_calls: dict[int, ToolCallAccumulator] = field(default_factory=dict)
     finish_reason: str | None = None
     usage: dict | None = None
+    content_done_emitted: bool = False
+    started_emitted: bool = False
+    done_emitted: bool = False
+    ready_emitted: bool = False
 
 
 @dataclass
@@ -113,6 +117,9 @@ class ToolCallAccumulator:
     id: str | None = None
     name: str | None = None
     arguments_parts: list[str] = field(default_factory=list)
+    started_emitted: bool = False
+    done_emitted: bool = False
+    ready_emitted: bool = False
 ```
 
 ### Schema Changes
@@ -154,7 +161,7 @@ class OpenAIChatClient(LLMClient):
         tools: list[LLMToolSpec] | None = None,
         stream: bool = False,
         raw_events: bool = False,
-    ) -> LLMResponse | AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
+    ) -> LLMResponse | AsyncIterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
         """Provider-specific implementation using client.chat.completions.create().
 
         Non-streaming: calls create() with stream=False, normalizes response to LLMResponse.
