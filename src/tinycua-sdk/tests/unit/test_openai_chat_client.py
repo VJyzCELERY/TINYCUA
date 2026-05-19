@@ -57,7 +57,10 @@ class TestChatCompletionsPayloadTranslation:
         assert payload["response_format"] == {"type": "json_object"}
 
     def test_tool_result_maps_to_tool_role(self, client: OpenAIChatCompletionsClient):
-        """ToolResultMessage maps to {role: 'tool', tool_call_id, content}."""
+        """ToolResultMessage maps to {role: 'tool', tool_call_id, content} with prior tool_calls."""
+        client._prior_tool_calls = [
+            {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": '{"q":"time"}'}},
+        ]
         messages = client._translate_chat_messages([
             {"role": "user", "content": "what is the result?"},
             {"role": "tool_result", "call_id": "call_1", "content": "42"},
@@ -65,7 +68,7 @@ class TestChatCompletionsPayloadTranslation:
         assert len(messages) == 3
         assert messages[0]["role"] == "user"
         assert messages[1]["role"] == "assistant"
-        assert messages[1]["tool_calls"] == [{"id": "call_1", "type": "function", "function": {"name": "", "arguments": "{}"}}]
+        assert messages[1]["tool_calls"] == [{"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": '{"q":"time"}'}}]
         assert messages[2]["role"] == "tool"
         assert messages[2]["tool_call_id"] == "call_1"
         assert messages[2]["content"] == "42"
@@ -160,13 +163,14 @@ class TestChatCompletionsStreamingContent:
 
         types = [e["type"] for e in events]
         assert types == [
+            "response.created",
             "response.output_text.delta",
             "response.output_text.delta",
             "response.output_text.done",
             "response.completed",
         ]
-        assert events[0]["delta"] == "Hello"
-        assert events[1]["delta"] == " world"
+        assert events[1]["delta"] == "Hello"
+        assert events[2]["delta"] == " world"
 
     @pytest.mark.asyncio
     async def test_streaming_tool_call_accumulation(self, client: OpenAIChatCompletionsClient):
@@ -213,7 +217,7 @@ class TestChatCompletionsStreamingContent:
             stream=True,
         )
         events = [e async for e in result]
-        assert events[0]["type"] == "response.output_text.delta"
+        assert events[0]["type"] == "response.created"
         assert events[-1]["type"] == "response.completed"
 
     @pytest.mark.asyncio

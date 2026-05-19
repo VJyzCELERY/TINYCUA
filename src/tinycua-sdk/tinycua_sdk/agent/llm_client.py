@@ -122,6 +122,20 @@ class ToolCallAccumulator:
     ready_emitted: bool = False
 
 
+def _accumulator_to_chat_tool_calls(acc: ChoiceAccumulator) -> list[dict[str, Any]] | None:
+    if not acc.tool_calls:
+        return None
+    result: list[dict[str, Any]] = []
+    for tca in sorted(acc.tool_calls.values(), key=lambda x: x.index):
+        full_args = "".join(tca.arguments_parts) if tca.arguments_parts else "{}"
+        result.append({
+            "id": tca.id or "",
+            "type": "function",
+            "function": {"name": tca.name or "", "arguments": full_args},
+        })
+    return result if result else None
+
+
 @dataclass
 class ChoiceAccumulator:
     """Tracks content, tool calls, finish reason, and usage for a single choice."""
@@ -862,6 +876,7 @@ class OpenAIChatCompletionsClient(LLMClient):
     def __init__(self, model_config: LanguageModel) -> None:
         self._model_config = model_config
         self._client: AsyncOpenAI | None = None
+        self._prior_tool_calls: list[dict[str, Any]] | None = None
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -877,8 +892,7 @@ class OpenAIChatCompletionsClient(LLMClient):
             await self._client.close()
             self._client = None
 
-    @staticmethod
-    def _translate_chat_messages(messages: list[LLMMessage]) -> list[dict[str, Any]]:
+    def _translate_chat_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
         """Translate canonical messages to Chat Completions ``messages``.
 
         - ``SystemMessage``, ``UserMessage``, ``AssistantMessage`` pass
@@ -887,40 +901,27 @@ class OpenAIChatCompletionsClient(LLMClient):
           tool_call_id, content}``.
         - An assistant message with ``tool_calls`` metadata is injected
           immediately *before* any tool-result messages when prior
-          tool-call context is needed. The assistant tool-call entry
-          is synthesized from the tool-result ``call_id``.
+          tool-call context is available via ``self._prior_tool_calls``.
         """
         result: list[dict[str, Any]] = []
-        tool_result_indices: list[int] = []
-        for i, msg in enumerate(messages):
-            if isinstance(msg, dict) and msg.get("role") == "tool_result":
-                tool_result_indices.append(i)
+        has_tool_result = any(
+            isinstance(msg, dict) and msg.get("role") == "tool_result"
+            for msg in messages
+        )
 
-        if tool_result_indices:
-            assistant_tool_calls: list[dict[str, Any]] = []
-            for idx in tool_result_indices:
-                msg = messages[idx]
-                if isinstance(msg, dict):
+        if has_tool_result and self._prior_tool_calls:
+            injected = False
+            for msg in messages:
+                if isinstance(msg, dict) and msg.get("role") == "tool_result":
+                    if not injected:
+                        result.append({"role": "assistant", "content": None, "tool_calls": self._prior_tool_calls})
+                        injected = True
                     call_id = msg.get("call_id", "")
-                    if call_id:
-                        assistant_tool_calls.append({
-                            "id": call_id,
-                            "type": "function",
-                            "function": {"name": "", "arguments": "{}"},
-                        })
-            if assistant_tool_calls:
-                injected = False
-                for _i, msg in enumerate(messages):
-                    if isinstance(msg, dict) and msg.get("role") == "tool_result":
-                        if not injected:
-                            result.append({"role": "assistant", "content": None, "tool_calls": assistant_tool_calls})
-                            injected = True
-                        call_id = msg.get("call_id", "")
-                        content = msg.get("content", "")
-                        result.append({"role": "tool", "tool_call_id": call_id, "content": content})
-                    else:
-                        result.append(msg)  # type: ignore[arg-type]
-                return result
+                    content = msg.get("content", "")
+                    result.append({"role": "tool", "tool_call_id": call_id, "content": content})
+                else:
+                    result.append(msg)
+            return result
 
         for msg in messages:
             if isinstance(msg, dict) and msg.get("role") == "tool_result":
@@ -1012,6 +1013,10 @@ class OpenAIChatCompletionsClient(LLMClient):
         choice = choices[0]
         delta = choice.get("delta", {})
         finish_reason = choice.get("finish_reason")
+
+        if not acc.started_emitted:
+            acc.started_emitted = True
+            events.append(ResponseCreatedEvent(type="response.created"))
 
         # Content delta
         content = delta.get("content")
@@ -1200,7 +1205,29 @@ class OpenAIChatCompletionsClient(LLMClient):
             self._handle_provider_error(e)
 
         data = response.model_dump() if hasattr(response, "model_dump") else {}
+        self._capture_tool_calls(data)
         return self._normalize_non_streaming_response(data)
+
+    def _capture_tool_calls(self, data: dict[str, Any]) -> None:
+        choices = data.get("choices", [])
+        if not choices:
+            return
+        message = choices[0].get("message", {})
+        raw_tool_calls = message.get("tool_calls")
+        if not raw_tool_calls:
+            self._prior_tool_calls = None
+            return
+        self._prior_tool_calls = [
+            {
+                "id": tc.get("id", ""),
+                "type": "function",
+                "function": {
+                    "name": tc.get("function", {}).get("name", ""),
+                    "arguments": tc.get("function", {}).get("arguments", "{}"),
+                },
+            }
+            for tc in raw_tool_calls
+        ]
 
     async def _chat_stream(
         self,
@@ -1222,12 +1249,13 @@ class OpenAIChatCompletionsClient(LLMClient):
             async for chunk in stream:
                 data = chunk.model_dump() if hasattr(chunk, "model_dump") else {}
                 events = self._normalize_chat_chunk(data, acc)
-                if events:
-                    raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=chunk)
-                    for item in _yield_events(events, raw_event_obj, raw_events):
-                        yield item  # type: ignore[misc]
+                raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=chunk)
+                for item in _yield_events(events, raw_event_obj, raw_events):
+                    yield item  # type: ignore[misc]
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
+        finally:
+            self._prior_tool_calls = _accumulator_to_chat_tool_calls(acc)
 
 
 __all__ = ["LLMClient", "OpenAIChatCompletionsClient", "OpenAIResponsesClient"]

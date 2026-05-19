@@ -97,10 +97,11 @@ async def test_openai_chat_raw_events_pair_canonical_with_sdk_chunks():
     )
     pairs = [pair async for pair in result]
 
-    canonical, raw = pairs[0]
-    assert canonical["type"] == "response.output_text.delta"
-    assert raw["provider"] == "openai-chat-completions"
-    assert raw["raw_event"] is raw_chunk
+    assert pairs[0][0]["type"] == "response.created"
+    assert pairs[0][1]["provider"] == "openai-chat-completions"
+    assert pairs[0][1]["raw_event"] is raw_chunk
+    assert pairs[1][0]["type"] == "response.output_text.delta"
+    assert pairs[1][1] is None
 
 
 @pytest.mark.asyncio

@@ -116,7 +116,7 @@ def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> 
 
     """
     if not url:
-        if provider in (OPENAI_RESPONSES, "openai"):
+        if provider in (OPENAI_RESPONSES, OPENAI_CHAT_COMPLETIONS, "openai"):
             return OPENAI_BASE_URL
         return DEFAULT_BASE_URL
     return url.rstrip("/")
