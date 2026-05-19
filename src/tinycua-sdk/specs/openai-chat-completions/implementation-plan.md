@@ -206,8 +206,8 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **Description of change**: Add Chat Completions-specific translation helpers for request payloads where needed, including Chat Completions message shape, tool specs, `max_tokens`, and `ToolResultMessage` mapping to `{role: "tool", tool_call_id, content}`.
-- **Rationale**: Existing helpers are Responses API-shaped (`input`, `function_call_output`, `max_output_tokens`) and must not be reused blindly for Chat Completions request payloads.
+- **Description of change**: Add Chat Completions-specific translation helpers for request payloads where needed, including Chat Completions message shape, tool specs, `max_tokens`, and `ToolResultMessage` mapping to `{role: "tool", tool_call_id, content}`. The client MUST also preserve prior assistant `tool_calls` from the Chat Completions response and inject a preceding assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before tool-result messages in follow-up requests, so the Chat Completions API can validate each `tool_call_id`.
+- **Rationale**: Existing helpers are Responses API-shaped (`input`, `function_call_output`, `max_output_tokens`) and must not be reused blindly for Chat Completions request payloads. Without the assistant `tool_calls` context, the Chat Completions API rejects tool-result messages as invalid.
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
@@ -343,7 +343,7 @@ class ToolCallAccumulator:
 | Reusing Responses payload helpers sends wrong Chat Completions request fields | High | Add Chat-specific payload tests for `messages`, `tools`, `max_tokens`, and tool-result mapping |
 | Tool-call deltas produce duplicate `tool_call.ready` events | High | Track emitted state in `ToolCallAccumulator` and assert exactly one ready event per call |
 | Alias removal breaks tests or users relying on Stage 1 `provider="openai"` Responses behavior | High | Update tests and document that Responses users must use `provider="openai-responses"` |
-| Raw pass-through loses the original SDK object | Medium | Pair each canonical event with `RawSseEvent(provider="openai", raw_event=chunk)` through `_yield_events()` |
+| Raw pass-through loses the original SDK object | Medium | Pair canonical events with `RawSseEvent(provider="openai", raw_event=chunk)` through `_yield_events()` following standard one-to-many pairing rules (first canonical gets raw, follow-on canonicals get `raw=None`) |
 | Streaming terminal chunks without content omit completion events | Medium | Unit test empty/tool-only terminal chunks and always emit `ResponseCompletedEvent` when `finish_reason` is present |
 | OpenAI SDK chunk model variations differ from mocked dictionaries | Medium | Normalize through `model_dump()` when available and write mocks that match SDK field names |
 | Multiple choices are ignored for MVP | Low | Explicitly normalize only `choices[0]`, document `n=1` scope, and avoid accumulating other choices |

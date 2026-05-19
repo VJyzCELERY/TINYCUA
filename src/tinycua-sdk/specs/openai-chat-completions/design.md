@@ -221,9 +221,18 @@ def _register_defaults() -> None:
 | Empty stream | `ResponseCompletedEvent(finish_reason="stop")` | No content events emitted |
 | `raw_events=True` with `stream=False` | `ValueError` | Inherited from `LLMClient.chat()` validation |
 
+### Tool-Result Continuation and Assistant Tool Calls Injection
+
+When the Agent Loop appends tool results after executing tool calls, the Chat Completions API requires a preceding assistant message containing the `tool_calls` payload that corresponds to each tool result. The `OpenAIChatClient` handles this by:
+
+1. **Preserving** the assistant `tool_calls` from the prior Chat Completions response (both non-streaming and streaming paths). In streaming mode, the `ToolCallAccumulator` already accumulates the complete tool call data, so the client stores the fully resolved tool calls after the stream completes.
+2. **Injecting** an assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before the batch of `role="tool"` messages when building the follow-up request payload.
+
+This ensures every `tool_call_id` in a tool result has a matching entry in the preceding assistant `tool_calls`, satisfying the Chat Completions API validation constraint. Unit tests must cover a full tool-call round trip: first response returns tool calls, the loop appends tool results, and the second request contains both the assistant `tool_calls` context and the tool result messages.
+
 ### Raw SSE Pass-Through
 
-Same contract as Stage 1: when `raw_events=True`, the stream yields `(canonical, raw)` tuples. The raw slot contains the original `ChatCompletionChunk` SDK object (lossless). The canonical slot may be `None` for chunks that have no canonical equivalent (should not occur for Chat Completions since every delta chunk has a canonical mapping, but the contract supports it).
+Same contract as Stage 1: when `raw_events=True`, the stream yields `(canonical, raw)` tuples following the `_yield_events()` pairing rules. The raw slot contains the original `ChatCompletionChunk` SDK object (lossless) for the first canonical event from each chunk. Synthetic or follow-on canonical events (from one-to-many chunk expansion) are paired with `raw=None`. The canonical slot may be `None` for chunks that have no canonical equivalent (should not occur for Chat Completions since every delta chunk has a canonical mapping, but the contract supports it).
 
 ```python
 stream = await client.chat(..., stream=True, raw_events=True)

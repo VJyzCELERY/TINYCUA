@@ -17,7 +17,7 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
   - [ ] Test streaming content deltas and terminal completion events
   - [ ] Test streaming tool-call accumulation across partial chunks
   - [ ] Test error translation to `ProviderAuthError` and `ProviderApiError`
-  - [ ] Test `raw_events=True` paired tuples preserve SDK chunk identity
+  - [ ] Test raw-events one-to-many pairing: one chunk producing multiple canonical events asserts first gets raw chunk, follow-on gets `raw=None`
 - [ ] Update provider registry tests for alias removal and default registration behavior, then confirm RED where implementation is missing <!-- id: 3 -->
   - [ ] Update `tests/unit/test_provider_registry.py`
   - [ ] Update `tests/unit/test_provider_switching.py`
@@ -29,6 +29,7 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
   - [ ] Add Chat-specific supported field mapping, including `max_tokens` instead of `max_output_tokens`
   - [ ] Map canonical messages to Chat Completions `messages`
   - [ ] Map `ToolResultMessage` to Chat Completions tool messages with `tool_call_id`
+  - [ ] Preserve prior assistant `tool_calls` from Chat Completions response and inject a preceding assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before tool-result messages in follow-up requests
   - [ ] Reuse or adapt tool translation without changing Responses API behavior
 - [ ] Implement Chat Completions stream accumulators and normalizer <!-- id: 5 -->
   - [ ] Add `ChoiceAccumulator` and `ToolCallAccumulator`
