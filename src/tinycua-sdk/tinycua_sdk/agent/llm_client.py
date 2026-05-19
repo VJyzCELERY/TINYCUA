@@ -1112,6 +1112,20 @@ class OpenAIChatCompletionsClient(LLMClient):
                         ),
                     )
 
+        # Usage (emit before response.completed when present)
+        usage_raw = chunk_data.get("usage")
+        if usage_raw:
+            events.append(
+                ResponseUsageEvent(
+                    type="response.usage",
+                    usage=TokenUsage(
+                        input_tokens=usage_raw.get("prompt_tokens"),
+                        output_tokens=usage_raw.get("completion_tokens"),
+                        total_tokens=usage_raw.get("total_tokens"),
+                    ),
+                ),
+            )
+
         # Finish reason lifecycle
         if finish_reason:
             acc.finish_reason = finish_reason

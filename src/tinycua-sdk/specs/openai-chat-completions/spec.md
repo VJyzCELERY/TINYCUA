@@ -142,11 +142,11 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 | Item | Status | Notes |
 |------|--------|-------|
 | Spec & Design | Complete | Ready for planning |
-| Chat Completions provider client implementation | TODO | |
-| Chat Completions SSE normalizer | TODO | |
-| Provider registration (openai-chat-completions) | TODO | |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| Chat Completions provider client implementation | Complete | |
+| Chat Completions SSE normalizer | Complete | |
+| Provider registration (openai-chat-completions) | Complete | |
+| Unit tests | Complete | |
+| Integration tests | Complete | |
 
 ---
 
