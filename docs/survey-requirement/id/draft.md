@@ -50,11 +50,8 @@ Kuesioner ini ditujukan kepada responden yang sering menggunakan PC/Laptop dalam
 6. Apa hal yang anda kurang sukai dari AI agent tersebut?  
    deskripsi:\_\_\_
 
-7. Jenis tugas apakah yang Anda harapkan agent bisa jalankan?  
-- [ ] Tugas simpel (tugas yang yang dimana sebuah perintah dapat diselesaikan dalam satu sesi. Misalnya mengubah file, setup software, dst)  
-- [ ] Tugas kompleks (tugas yang dimana dapat membutuhkan beberapa sesi untuk menyelesaikannya atau tugas bersifat berkelanjutan yang sewaktu waktu perlu dilanjutkan kembali pengerjaannya. Misalnya mengelola server, mengelola suatu project, dst)  
-- [ ] Tugas terjadwal (Cron/Scheduled)  
-- [ ] Semua jenis tugas tersebut.
+7. Seberapa penting bagi Anda bahwa sistem dapat menjalankan tugas terjadwal (Cron/Scheduled)?  
+   *(Skala: Tidak penting – Sangat penting)*
 
 8. Seberapa penting bagi Anda bahwa sistem dapat berjalan lebih dari 1 sesi sekaligus? (contoh 2 atau lebih ChatGPT session sekaligus)  
    *(Skala: Tidak penting – Sangat penting)*
