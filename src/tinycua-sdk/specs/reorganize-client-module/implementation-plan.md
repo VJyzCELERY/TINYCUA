@@ -35,9 +35,9 @@ Extract provider-specific LLM client implementations (`OpenAIResponsesClient`, `
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Import Sanity Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the import sanity tests (unit-level smoke tests) that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
 # File: tests/unit/test_import_sanity.py (NEW — smoke tests)
@@ -305,6 +305,8 @@ No new types or modified interfaces. Pure file reorganization — all classes, f
 | `OPENAI_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `ProviderFactory` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `ProviderInfo` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `VALID_PROVIDERS` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `_PROVIDER_ALIASES` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `LLMClient` | `tinycua_sdk.agent.llm_client` | **Unchanged** |
 
 ### Convenience Namespace

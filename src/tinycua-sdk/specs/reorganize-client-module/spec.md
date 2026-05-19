@@ -126,7 +126,8 @@ Provide a clear module boundary for provider-specific LLM implementations by ext
 
 ### Unit Tests
 
-- No new unit tests needed (no behavioral changes); existing tests continue to pass after import updates
+- No new behavioral unit tests needed. New smoke tests in `tests/unit/test_import_sanity.py` (per FR-010/FR-011) verify import path correctness — both that new paths resolve and that old paths raise `ImportError`.
+- Existing tests continue to pass after import updates
 - The existing `test_providers.py` tests must pass from the new `providers/providers.py` location
 - The existing `test_llm_client.py` tests for `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` must pass after import updates
 
