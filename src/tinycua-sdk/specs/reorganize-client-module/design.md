@@ -38,7 +38,7 @@ tinycua_sdk/
 ```
 tinycua_sdk/
 ├── core/
-│   ├── __init__.py         # Unchanged
+│   ├── __init__.py         # Modified — remove core.providers imports
 │   ├── exceptions.py       # Unchanged
 │   └── providers.py        # ← DELETED
 ├── agent/
@@ -78,6 +78,13 @@ tinycua_sdk/
 | `tests/unit/test_llm_client.py` | **Modified** | Updates import source for `OpenAIResponsesClient` |
 | `tests/unit/conftest.py` | **Modified** | Updates mock import reference (if any) |
 | `tests/integration/conftest.py` | None | No references to `core.providers` — local `_build_auth_headers()` is self-contained |
+| `tests/unit/test_provider_switching.py` | **Modified** | Update imports from `core.providers` to `providers.providers` |
+| `tests/unit/test_provider_registry.py` | **Modified** | Update imports from `core.providers` to `providers.providers` |
+| `tests/unit/test_openai_chat_client.py` | **Modified** | Update import of `OpenAIChatCompletionsClient` from `agent.llm_client` to `providers.open_ai` |
+| `tests/unit/test_executor_integration.py` | **Modified** | Update imports from `core.providers` to `providers.providers` |
+| `tests/integration/test_provider_switching.py` | **Modified** | Update imports from `core.providers` to `providers.providers` |
+| `tests/integration/test_openai_chat_completions_provider.py` | **Modified** | Update imports of both client classes from `agent.llm_client` to `providers.open_ai`; import `get_provider_registry` from `core.providers` to `providers.providers` |
+| `tests/integration/test_language_model.py` | **Modified** | Update import of `resolve_provider` from `core.providers` to `providers.providers` |
 
 ---
 
