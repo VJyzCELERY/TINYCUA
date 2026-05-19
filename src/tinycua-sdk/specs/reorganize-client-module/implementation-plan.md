@@ -98,7 +98,7 @@ def test_old_core_providers_path_removed():
     import importlib.util
     spec = importlib.util.find_spec("tinycua_sdk.core.providers")
     assert spec is None, "core.providers module should not exist — it was deleted"
-```
+
 
 def test_old_openai_responses_client_path_removed():
     """AC-002: OpenAIResponsesClient raises ImportError from old path."""
@@ -110,7 +110,7 @@ def test_old_openai_chat_completions_path_removed():
     """AC-002: OpenAIChatCompletionsClient raises ImportError from old path."""
     import tinycua_sdk.agent.llm_client
     assert not hasattr(tinycua_sdk.agent.llm_client, "OpenAIChatCompletionsClient")
-
+```
 
 ### Key Test Scenarios
 

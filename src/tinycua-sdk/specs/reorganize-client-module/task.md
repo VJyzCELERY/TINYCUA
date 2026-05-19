@@ -51,7 +51,7 @@ Implementation tasks for extracting provider-specific implementations into `tiny
   - `from openai import AsyncOpenAI` (TYPE_CHECKING block)
 - [ ] Update `__all__` — only `["LLMClient"]` remains <!-- id: 8 -->
 - [ ] Update module docstring to reflect that only `LLMClient` ABC lives here <!-- id: 9 -->
-- [ ] Keep `_yield_events` and `_build_payload` (legacy) in the module
+- [ ] Remove `_build_payload` from `agent/llm_client.py` (moved to `providers/open_ai.py`). Keep `_yield_events` (legacy) in the module
 
 ### Phase 3 — Delete `core/providers.py`
 
@@ -67,7 +67,7 @@ Implementation tasks for extracting provider-specific implementations into `tiny
 
 ### Phase 5 — Update All Internal Imports (Tests)
 
-- [ ] `tests/unit/test_llm_client.py`: Update imports for `OpenAIResponsesClient`, `_normalize_responses_event` from `tinycua_sdk.agent.llm_client` → `tinycua_sdk.providers.open_ai`. `LLMClient`, `_build_payload` remain from `tinycua_sdk.agent.llm_client`. <!-- id: 16 -->
+- [ ] `tests/unit/test_llm_client.py`: Update imports for `OpenAIResponsesClient`, `_normalize_responses_event` from `tinycua_sdk.agent.llm_client` → `tinycua_sdk.providers.open_ai`. `LLMClient` remains from `tinycua_sdk.agent.llm_client`; `_build_payload` from `tinycua_sdk.providers.open_ai`. <!-- id: 16 -->
 - [ ] `tests/unit/test_providers.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 17 -->
 - [ ] `tests/unit/test_provider_switching.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 18 -->
 - [ ] `tests/unit/test_provider_registry.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 19 -->

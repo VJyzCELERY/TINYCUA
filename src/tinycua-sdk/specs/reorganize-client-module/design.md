@@ -162,7 +162,7 @@ from tinycua_sdk.providers import OpenAIResponsesClient, OpenAIChatCompletionsCl
 - [ ] `agent/__init__.py`: Change imports to `from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient`
 - [ ] `agent/executor.py`: Change imports to `from tinycua_sdk.providers.providers import ProviderRegistry, get_provider_registry`
 - [ ] `agent/llm_model.py`: Change import to `from tinycua_sdk.providers.providers import resolve_provider`
-- [ ] `tests/unit/test_llm_client.py`: Change imports for `OpenAIResponsesClient`, `_normalize_responses_event` to `from tinycua_sdk.providers.open_ai`; `LLMClient`, `_build_payload` remain from `tinycua_sdk.agent.llm_client`
+- [ ] `tests/unit/test_llm_client.py`: Change imports for `OpenAIResponsesClient`, `_normalize_responses_event` to `from tinycua_sdk.providers.open_ai`; `LLMClient` remains from `tinycua_sdk.agent.llm_client`; `_build_payload` from `tinycua_sdk.providers.open_ai`
 - [ ] `tests/unit/test_providers.py`: Change import to `from tinycua_sdk.providers.providers import ...`
 - [ ] `tests/unit/conftest.py`: Update any reference to `OpenAIResponsesClient` to use new path
 - [ ] `tests/integration/conftest.py`: Update any reference
