@@ -221,6 +221,27 @@ class TestChatCompletionsStreamingContent:
         assert events[-1]["type"] == "response.completed"
 
     @pytest.mark.asyncio
+    async def test_streaming_usage_before_completed(self, client: OpenAIChatCompletionsClient):
+        """Usage-only chunk after terminal choice chunk: usage emitted before completed."""
+        chunks = [
+            _mock_chunk({"content": "x"}, finish_reason="stop"),
+            _mock_chunk({}, usage={"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}),
+        ]
+        sdk = MagicMock()
+        sdk.chat.completions.create = AsyncMock(return_value=async_iter(chunks))
+        client._client = sdk
+
+        result = await client.chat(
+            [{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        events = [e async for e in result]
+        types = [e["type"] for e in events]
+        usage_idx = types.index("response.usage")
+        completed_idx = types.index("response.completed")
+        assert usage_idx < completed_idx, f"usage at {usage_idx} must precede completed at {completed_idx}"
+
+    @pytest.mark.asyncio
     async def test_streaming_tool_events_order(self, client: OpenAIChatCompletionsClient):
         """Streaming tool events: started, argument delta, arguments done, ready, completed."""
         chunks = [

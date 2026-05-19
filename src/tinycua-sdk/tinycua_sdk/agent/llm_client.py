@@ -149,6 +149,7 @@ class ChoiceAccumulator:
     started_emitted: bool = False
     done_emitted: bool = False
     ready_emitted: bool = False
+    completion_deferred: bool = False
 
 
 # ── Chat Completions supported fields ─────────────────────────────────────────
@@ -986,8 +987,14 @@ class OpenAIChatCompletionsClient(LLMClient):
     @staticmethod
     def _normalize_chunk_usage_only(
         chunk_data: dict[str, Any],
+        acc: ChoiceAccumulator | None = None,
     ) -> list[LLMEvent]:
-        """Normalize a usage-only chunk (no choices) into canonical events."""
+        """Normalize a usage-only chunk (no choices) into canonical events.
+
+        If the accumulator has a deferred completion (set by
+        ``_normalize_chunk_finalize``), emits ``response.usage`` first,
+        then the deferred ``response.completed`` to preserve event order.
+        """
         events: list[LLMEvent] = []
         usage_raw = chunk_data.get("usage")
         if usage_raw:
@@ -1001,6 +1008,13 @@ class OpenAIChatCompletionsClient(LLMClient):
                     ),
                 ),
             )
+
+        if acc is not None and acc.completion_deferred:
+            acc.completion_deferred = False
+            events.append(
+                ResponseCompletedEvent(type="response.completed", finish_reason=acc.finish_reason or "stop"),
+            )
+
         return events
 
     @staticmethod
@@ -1133,15 +1147,12 @@ class OpenAIChatCompletionsClient(LLMClient):
                 ),
             )
 
-        # Finish reason lifecycle
+        # Defer completion — emit only after usage if usage may arrive separately
         if finish_reason:
             acc.finish_reason = finish_reason
             if not acc.done_emitted:
                 acc.done_emitted = True
-                if not events or events[-1]["type"] != "response.completed":
-                    events.append(
-                        ResponseCompletedEvent(type="response.completed", finish_reason=finish_reason),
-                    )
+                acc.completion_deferred = True
 
     @staticmethod
     def _normalize_chat_chunk(
@@ -1156,7 +1167,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         """
         choices = chunk_data.get("choices", [])
         if not choices:
-            return OpenAIChatCompletionsClient._normalize_chunk_usage_only(chunk_data)
+            return OpenAIChatCompletionsClient._normalize_chunk_usage_only(chunk_data, acc)
 
         choice = choices[0]
         delta = choice.get("delta", {})
@@ -1286,6 +1297,7 @@ class OpenAIChatCompletionsClient(LLMClient):
     ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
         payload = self._build_chat_payload(messages, tools)
         payload["stream"] = True
+        payload["stream_options"] = {"include_usage": True}
 
         try:
             client = self._get_client()
@@ -1301,6 +1313,10 @@ class OpenAIChatCompletionsClient(LLMClient):
                 raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=chunk)
                 for item in _yield_events(events, raw_event_obj, raw_events):
                     yield item  # type: ignore[misc]
+
+            if acc.completion_deferred:
+                acc.completion_deferred = False
+                yield ResponseCompletedEvent(type="response.completed", finish_reason=acc.finish_reason or "stop")
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
         finally:
