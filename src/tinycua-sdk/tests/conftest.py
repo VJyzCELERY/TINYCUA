@@ -58,7 +58,7 @@ os.environ.setdefault("LLM_MODEL", "qwen/qwen3.5-9b")
 os.environ.setdefault("LLM_API_KEY", "dummy")
 
 # Backward compatibility: map LLM_* vars to TINYCUA_* names
-os.environ.setdefault("TINYCUA_PROVIDER", "openai-compatible")
+os.environ.setdefault("TINYCUA_PROVIDER", "openai-responses")
 os.environ.setdefault("TINYCUA_MODEL", os.environ["LLM_MODEL"])
 os.environ.setdefault("TINYCUA_BASE_URL", os.environ["LLM_BASE_URL"])
 

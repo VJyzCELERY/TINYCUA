@@ -1,34 +1,90 @@
-"""TypedDict definitions for agent event shapes."""
+"""Canonical TypedDict definitions for agent event shapes and input types.
+
+This module defines the canonical SSE event schema (provider-agnostic),
+canonical input message types, and related type aliases for the TINYCUA SDK.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, Union
+
+# ── Canonical SSE Events ────────────────────────────────────────────────────
 
 
-class ResponseCreatedEvent(TypedDict):
-    """Emitted at the start of every stream session."""
+class ContentDeltaEvent(TypedDict):
+    """Emitted for each text content delta in streaming."""
 
-    type: Literal["response.created"]
-
-
-class ResponseCancelledEvent(TypedDict):
-    """Emitted when the agent is cancelled during streaming."""
-
-    type: Literal["response.cancelled"]
+    type: Literal["response.output_text.delta"]
+    delta: str
+    index: int
 
 
-class ResponseFailedEvent(TypedDict):
-    """Emitted when an exception occurs during streaming."""
+class ContentDoneEvent(TypedDict):
+    """Emitted when a text content block is complete."""
 
-    type: Literal["response.failed"]
-    error: dict[str, str]
+    type: Literal["response.output_text.done"]
+    index: int
 
 
-class ErrorEvent(TypedDict):
-    """Emitted for transient errors during streaming."""
+class ToolCallStartedEvent(TypedDict):
+    """Emitted when a new tool call starts in the stream."""
 
-    type: Literal["error"]
-    error: dict[str, str]
+    type: Literal["response.output_item.added"]
+    id: str
+    call_id: str
+    name: str
+
+
+class ToolCallArgumentsDeltaEvent(TypedDict):
+    """Emitted for tool call arguments delta in the stream."""
+
+    type: Literal["response.function_call_arguments.delta"]
+    id: str
+    arguments: str
+
+
+class ToolCallArgumentsDoneEvent(TypedDict):
+    """Emitted when tool call arguments are complete."""
+
+    type: Literal["response.function_call_arguments.done"]
+    id: str
+    call_id: str
+    name: str
+    arguments: str
+
+
+class ToolCallReadyEvent(TypedDict):
+    """Emitted when a tool call is fully ready to execute."""
+
+    type: Literal["tool_call.ready"]
+    id: str
+    call_id: str
+    name: str
+    arguments: str
+
+
+class TokenUsage(TypedDict):
+    """Token usage summary for an LLM response."""
+
+    input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+
+
+class ToolCallDict(TypedDict):
+    """Typed tool call entry within an LLMResponse."""
+
+    id: str
+    call_id: str
+    name: str
+    arguments: str
+
+
+class ResponseUsageEvent(TypedDict):
+    """Emitted with token usage data from the LLM."""
+
+    type: Literal["response.usage"]
+    usage: TokenUsage
 
 
 class ResponseCompletedEvent(TypedDict):
@@ -38,99 +94,188 @@ class ResponseCompletedEvent(TypedDict):
     finish_reason: str
 
 
-class ResponseUsageEvent(TypedDict):
-    """Emitted with token usage data from the LLM."""
+class ResponseFailedEvent(TypedDict):
+    """Emitted when an exception occurs during streaming.
 
-    type: Literal["response.usage"]
-    usage: dict[str, Any]
+    The ``error`` dict preserves original provider error value types
+    (e.g. numeric codes, nested objects) — consumer code should handle
+    mixed types via ``isinstance`` checks.
+    """
 
-
-class ResponseOutputTextDeltaEvent(TypedDict):
-    """Emitted for each text content delta in streaming."""
-
-    type: Literal["response.output_text.delta"]
-    delta: str
-    item_id: str
+    type: Literal["response.failed"]
+    error: dict[str, Any]
 
 
-class ResponseToolCallDeltaEvent(TypedDict):
-    """Emitted for each tool call argument delta in streaming."""
+class ResponseCreatedEvent(TypedDict):
+    """Emitted when a response is created at the start of streaming."""
 
-    type: Literal["response.tool_call.delta"]
-    index: int
-    id: str
-    name: str
-    arguments: str
-
-
-class ToolCallStartedEvent(TypedDict):
-    """Emitted when a new tool call starts in the stream."""
-
-    type: Literal["tool_call.started"]
-    id: str
-    call_id: str
-    name: str
-
-
-class ToolCallArgumentsDeltaEvent(TypedDict):
-    """Emitted for tool call arguments delta in the stream."""
-
-    type: Literal["tool_call.arguments.delta"]
-    id: str
-    arguments: str
-
-
-class ToolCallArgumentsDoneEvent(TypedDict):
-    """Emitted when tool call arguments are complete."""
-
-    type: Literal["tool_call.arguments.done"]
-    id: str
-    arguments: str
-
-
-class ResponseFunctionCallArgumentsDeltaEvent(TypedDict):
-    """Emitted for each function call argument delta in streaming (raw provider event)."""
-
-    type: Literal["response.function_call_arguments.delta"]
-    item_id: str
-    delta: str
-
-
-class ResponseFunctionCallArgumentsDoneEvent(TypedDict):
-    """Emitted when function call arguments are complete (raw provider event)."""
-
-    type: Literal["response.function_call_arguments.done"]
-    item_id: str
-    arguments: str
-
-
-class ResponseOutputItemAddedEvent(TypedDict):
-    """Emitted when a new output item is added during streaming (raw provider event)."""
-
-    type: Literal["response.output_item.added"]
-    item: dict
+    type: Literal["response.created"]
 
 
 class ResponseInProgressEvent(TypedDict):
-    """Emitted after response.created when streaming is active."""
+    """Emitted when the response processing is in progress."""
 
     type: Literal["response.in_progress"]
 
 
+class ResponseCancelledEvent(TypedDict):
+    """Emitted when a streaming response is cancelled."""
+
+    type: Literal["response.cancelled"]
+
+
+class ErrorEvent(TypedDict):
+    """Emitted when an unexpected error occurs during streaming.
+
+    The ``error`` dict preserves original provider error value types
+    (e.g. numeric codes, nested objects) — consumer code should handle
+    mixed types via ``isinstance`` checks.
+    """
+
+    type: Literal["error"]
+    error: dict[str, Any]
+
+
+class ReasoningDeltaEvent(TypedDict):
+    """Emitted for each reasoning token delta in streaming.
+
+    Reasoning tokens (chain-of-thought) are produced by models like
+    DeepSeek R1, Qwen with reasoning enabled, or OpenAI o-series.
+    """
+
+    type: Literal["response.reasoning.delta"]
+    delta: str
+
+
+class ReasoningDoneEvent(TypedDict):
+    """Emitted when the reasoning block is complete.
+
+    Marks the end of chain-of-thought output — the stream will
+    subsequently emit ``response.output_text.delta`` events for the
+    visible response.
+    """
+
+    type: Literal["response.reasoning.done"]
+
+
+# ── LLMEvent union ──────────────────────────────────────────────────────────
+
+LLMEvent = Union[
+    ContentDeltaEvent,
+    ContentDoneEvent,
+    ToolCallStartedEvent,
+    ToolCallArgumentsDeltaEvent,
+    ToolCallArgumentsDoneEvent,
+    ToolCallReadyEvent,
+    ResponseUsageEvent,
+    ResponseCompletedEvent,
+    ResponseCreatedEvent,
+    ResponseInProgressEvent,
+    ResponseCancelledEvent,
+    ErrorEvent,
+    ResponseFailedEvent,
+    ReasoningDeltaEvent,
+    ReasoningDoneEvent,
+]
+
+# ── Non-streaming response type ─────────────────────────────────────────────
+
+
+class LLMResponse(TypedDict):
+    """Canonical non-streaming LLM response shape."""
+
+    content: str | None
+    tool_calls: list[ToolCallDict] | None
+    usage: TokenUsage | None
+    finish_reason: str | None
+    model: str | None
+
+
+# ── Raw SSE event type ──────────────────────────────────────────────────────
+
+
+class RawSseEvent(TypedDict):
+    """Raw provider SSE event, paired with its canonical form."""
+
+    provider: str
+    raw_event: Any
+
+
+# ── Canonical Input Types ───────────────────────────────────────────────────
+
+
+class SystemMessage(TypedDict):
+    """System instruction message."""
+
+    role: Literal["system"]
+    content: str
+
+
+class UserMessage(TypedDict):
+    """User message."""
+
+    role: Literal["user"]
+    content: str
+
+
+class AssistantMessage(TypedDict):
+    """Assistant response message."""
+
+    role: Literal["assistant"]
+    content: str | None
+
+
+class ToolResultMessage(TypedDict):
+    """Tool result message."""
+
+    role: Literal["tool_result"]
+    call_id: str
+    content: str
+
+
+LLMMessage = Union[SystemMessage, UserMessage, AssistantMessage, ToolResultMessage]
+
+
+class LLMToolSpec(TypedDict):
+    """Tool specification for LLM function calling."""
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+# ── Public API ──────────────────────────────────────────────────────────────
+
 __all__ = [
-    "ResponseCreatedEvent",
-    "ResponseCancelledEvent",
-    "ResponseFailedEvent",
+    "AssistantMessage",
+    # Canonical SSE Events
+    "ContentDeltaEvent",
+    "ContentDoneEvent",
     "ErrorEvent",
+    # Union type
+    "LLMEvent",
+    "LLMMessage",
+    # Non-streaming response
+    "LLMResponse",
+    "LLMToolSpec",
+    # Raw SSE event
+    "RawSseEvent",
+    "ReasoningDeltaEvent",
+    "ReasoningDoneEvent",
+    "ResponseCancelledEvent",
     "ResponseCompletedEvent",
+    "ResponseCreatedEvent",
+    "ResponseFailedEvent",
+    "ResponseInProgressEvent",
     "ResponseUsageEvent",
-    "ResponseOutputTextDeltaEvent",
-    "ResponseToolCallDeltaEvent",
-    "ToolCallStartedEvent",
+    # Canonical Input Types
+    "SystemMessage",
+    "TokenUsage",
     "ToolCallArgumentsDeltaEvent",
     "ToolCallArgumentsDoneEvent",
-    "ResponseFunctionCallArgumentsDeltaEvent",
-    "ResponseFunctionCallArgumentsDoneEvent",
-    "ResponseOutputItemAddedEvent",
-    "ResponseInProgressEvent",
+    "ToolCallDict",
+    "ToolCallReadyEvent",
+    "ToolCallStartedEvent",
+    "ToolResultMessage",
+    "UserMessage",
 ]

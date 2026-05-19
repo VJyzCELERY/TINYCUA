@@ -21,7 +21,7 @@ class LanguageModel(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    provider: str = "openai-compatible"
+    provider: str = "openai-responses"
     model_name: str = "gpt-4o-mini"
     base_url: str | None = None
     api_key: SecretStr = SecretStr("")
@@ -44,7 +44,7 @@ class LanguageModel(BaseModel):
     @field_validator("provider", mode="before")
     @classmethod
     def _normalize_provider(cls, v: str) -> str:
-        """Normalize provider identifier."""
+        """Normalize provider identifier via alias resolution only."""
         return resolve_provider(v)
 
     @field_validator("api_key", mode="before")
