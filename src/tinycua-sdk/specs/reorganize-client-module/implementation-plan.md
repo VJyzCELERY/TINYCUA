@@ -174,7 +174,7 @@ def test_old_core_providers_path_removed():
   - `ToolCallAccumulator`, `ChoiceAccumulator`, `_accumulator_to_chat_tool_calls`
   - `_SUPPORTED_FIELDS`, `_FIELD_MAP`, `_CHAT_SUPPORTED_FIELDS`
   - `_build_request_kwargs` (Responses)
-- **[Removed imports]**: `httpx`, `from openai import AsyncOpenAI`, `from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError`, `from tinycua_sdk.core.providers import normalize_base_url`, `from dataclasses import dataclass, field`
+- **[Removed imports]**: `from openai import AsyncOpenAI`, `from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError`, `from tinycua_sdk.core.providers import normalize_base_url`, `from dataclasses import dataclass, field`
 - **[Kept]**: `LLMClient` ABC, `_yield_events`, `_build_payload` (legacy), `__all__` updated to `["LLMClient"]`
 - **[Breaking changes]**: Old import paths for client classes removed — consumers must import from `tinycua_sdk.providers.open_ai`
 
@@ -322,7 +322,7 @@ from tinycua_sdk.providers import OpenAIResponsesClient, OpenAIChatCompletionsCl
 
 ### External Dependencies
 
-No new external dependencies. The `httpx` import was only used by the now-extracted client classes — it's removed from `agent/llm_client.py` but remains as an implicit dependency through the OpenAI SDK.
+No new external dependencies. The `from openai import AsyncOpenAI` import moves from a `TYPE_CHECKING` guard in `agent/llm_client.py` to a local runtime import inside `_get_client()` in `providers/open_ai.py`.
 
 ### Internal Dependencies
 
