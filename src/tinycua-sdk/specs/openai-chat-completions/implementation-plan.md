@@ -1,6 +1,6 @@
 # Implementation: OpenAI Chat Completions Provider
 
-Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `provider="openai"` uses `client.chat.completions.create()` while `provider="openai-responses"` continues to use the Responses API client. The implementation normalizes Chat Completions streaming chunks into the existing canonical event schema, preserves raw event pass-through, and removes the Stage 1 alias that routed `openai` to `openai-responses`.
+Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `provider="openai-chat-completions"` uses `client.chat.completions.create()` while `provider="openai"` and `provider="openai-responses"` continue to use the Responses API client (via the Stage 1 deprecation alias). The implementation normalizes Chat Completions streaming chunks into the existing canonical event schema, preserves raw event pass-through, and registers the new provider without removing the existing alias.
 
 ## Context
 
@@ -30,7 +30,7 @@ Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `p
 
 - [ ] **None** - automated tests must not require network access or external credentials.
 - [ ] **Local LLM Server** - required for manual smoke tests. Default endpoint is `http://localhost:1234/v1`.
-- [ ] **Optional OpenAI API access** - only for manual verification against real OpenAI with `provider="openai"` and `model="gpt-4o"`.
+- [ ] **Optional OpenAI API access** - only for manual verification against real OpenAI with `provider="openai-chat-completions"` and `model="gpt-4o"`.
 
 ### Developer Tooling
 
@@ -42,7 +42,7 @@ Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `p
 
 ## Success Criteria — Integration Tests (TDD First)
 
-Write these tests before implementation. They should fail first because `OpenAIChatClient` is not registered or implemented yet, then pass after the implementation is complete.
+Write these tests before implementation. They should fail first because `OpenAIChatCompletionsClient` is not registered or implemented yet, then pass after the implementation is complete.
 
 ```python
 # Test file: tests/integration/test_openai_chat_completions_provider.py
@@ -53,34 +53,35 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from tinycua_sdk.agent.events import UserMessage
-from tinycua_sdk.agent.llm_client import OpenAIChatClient, OpenAIResponsesClient
+from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.providers import get_provider_registry
 
 
 @pytest.mark.asyncio
-async def test_openai_provider_resolves_to_chat_completions_client():
-    """provider='openai' creates OpenAIChatClient, not OpenAIResponsesClient."""
+async def test_openai_chat_completions_provider_resolves():
+    """provider='openai-chat-completions' creates OpenAIChatCompletionsClient."""
     registry = get_provider_registry()
+    assert registry.is_supported("openai-chat-completions")
     assert registry.is_supported("openai")
     assert registry.is_supported("openai-responses")
 
-    openai_client = registry.create_client(
-        LanguageModel(provider="openai", model_name="gpt-4o")
+    chat_client = registry.create_client(
+        LanguageModel(provider="openai-chat-completions", model_name="gpt-4o")
     )
     responses_client = registry.create_client(
         LanguageModel(provider="openai-responses", model_name="gpt-4o")
     )
 
-    assert isinstance(openai_client, OpenAIChatClient)
-    assert not isinstance(openai_client, OpenAIResponsesClient)
+    assert isinstance(chat_client, OpenAIChatCompletionsClient)
+    assert not isinstance(chat_client, OpenAIResponsesClient)
     assert isinstance(responses_client, OpenAIResponsesClient)
 
 
 @pytest.mark.asyncio
 async def test_openai_chat_non_streaming_normalizes_response():
     """Non-streaming Chat Completions responses normalize to LLMResponse."""
-    client = OpenAIChatClient(LanguageModel(provider="openai", model_name="gpt-4o"))
+    client = OpenAIChatCompletionsClient(LanguageModel(provider="openai-chat-completions", model_name="gpt-4o"))
     sdk = MagicMock()
     sdk.chat.completions.create = AsyncMock(return_value=MagicMock(model_dump=lambda: {
         "model": "gpt-4o",
@@ -104,7 +105,7 @@ async def test_openai_chat_non_streaming_normalizes_response():
 @pytest.mark.asyncio
 async def test_openai_chat_streaming_tool_calls_emit_ready_once():
     """Streaming tool deltas accumulate into exactly one ready event."""
-    client = OpenAIChatClient(LanguageModel(provider="openai", model_name="gpt-4o"))
+    client = OpenAIChatCompletionsClient(LanguageModel(provider="openai-chat-completions", model_name="gpt-4o"))
     stream = _mock_chat_stream([
         _chunk({"tool_calls": [{"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{\"q"}}]}),
         _chunk({"tool_calls": [{"index": 0, "function": {"arguments": "\":\"time\"}"}}]}),
@@ -131,7 +132,7 @@ async def test_openai_chat_streaming_tool_calls_emit_ready_once():
 @pytest.mark.asyncio
 async def test_openai_chat_raw_events_pair_canonical_with_sdk_chunks():
     """raw_events=True preserves the original ChatCompletionChunk object."""
-    client = OpenAIChatClient(LanguageModel(provider="openai", model_name="gpt-4o"))
+    client = OpenAIChatCompletionsClient(LanguageModel(provider="openai-chat-completions", model_name="gpt-4o"))
     raw_chunk = _chunk({"content": "Hi"})
     sdk = MagicMock()
     sdk.chat.completions.create = AsyncMock(return_value=_mock_chat_stream([raw_chunk]))
@@ -146,14 +147,14 @@ async def test_openai_chat_raw_events_pair_canonical_with_sdk_chunks():
 
     canonical, raw = pairs[0]
     assert canonical["type"] == "response.output_text.delta"
-    assert raw["provider"] == "openai"
+    assert raw["provider"] == "openai-chat-completions"
     assert raw["raw_event"] is raw_chunk
 
 
 @pytest.mark.asyncio
 async def test_openai_chat_raw_events_one_to_many_pairing():
     """One chunk producing >=2 canonical events: first gets raw, follow-on gets raw=None."""
-    client = OpenAIChatClient(LanguageModel(provider="openai", model_name="gpt-4o"))
+    client = OpenAIChatCompletionsClient(LanguageModel(provider="openai-chat-completions", model_name="gpt-4o"))
     terminal_chunk = _chunk({"content": "Bye"}, finish_reason="stop", usage={"prompt_tokens": 5, "completion_tokens": 8})
     sdk = MagicMock()
     sdk.chat.completions.create = AsyncMock(return_value=_mock_chat_stream([terminal_chunk]))
@@ -191,12 +192,12 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 ### Key Test Scenarios
 
-- [ ] **Provider resolution**: `provider="openai"` resolves to `OpenAIChatClient`, while `provider="openai-responses"` still resolves to `OpenAIResponsesClient`.
+- [ ] **Provider resolution**: `provider="openai-chat-completions"` resolves to `OpenAIChatCompletionsClient`, while `provider="openai"` still resolves to `OpenAIResponsesClient` via alias, and `provider="openai-responses"` still resolves to `OpenAIResponsesClient`.
 - [ ] **Non-streaming response normalization**: Chat Completions SDK responses produce `LLMResponse` with `content`, `tool_calls`, `usage`, `finish_reason`, and `model`.
 - [ ] **Streaming content normalization**: `choices[0].delta.content` yields `ContentDeltaEvent`, finalizes with `ContentDoneEvent`, and emits `ResponseCompletedEvent`.
 - [ ] **Streaming tool-call accumulation**: partial `delta.tool_calls[]` chunks are accumulated by index and emit exactly one `ToolCallReadyEvent` per call.
 - [ ] **Raw event pass-through**: `raw_events=True` yields `(canonical_event, RawSseEvent)` tuples containing the original SDK chunk object.
-- [ ] **Alias removal**: `resolve_provider("openai")` remains `"openai"` and no longer warns or maps to `"openai-responses"`.
+- [ ] **Alias preserved**: `resolve_provider("openai")` continues to resolve to `"openai-responses"` (alias remains in place).
 - [ ] **Responses API coexistence**: existing `OpenAIResponsesClient` tests continue to pass without behavior changes.
 
 ## Verification Plan
@@ -210,8 +211,8 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 ### Manual Verification
 
-- [ ] **Local LLM Server smoke test**: With the local server running at `http://localhost:1234/v1`, run a smoke script using `LanguageModel(provider="openai", model_name=<model>, base_url="http://localhost:1234/v1")` and confirm non-streaming response returns content. Use `.env.example` as the configuration reference.
-- [ ] **Real OpenAI API smoke test**: With `OPENAI_API_KEY` set, run a smoke script using `LanguageModel(provider="openai", model_name="gpt-4o")` and confirm a non-streaming response returns content.
+- [ ] **Local LLM Server smoke test**: With the local server running at `http://localhost:1234/v1`, run a smoke script using `LanguageModel(provider="openai-chat-completions", model_name=<model>, base_url="http://localhost:1234/v1")` and confirm non-streaming response returns content. Use `.env.example` as the configuration reference.
+- [ ] **Real OpenAI API smoke test**: With `OPENAI_API_KEY` set, run a smoke script using `LanguageModel(provider="openai-chat-completions", model_name="gpt-4o")` and confirm a non-streaming response returns content.
 - [ ] Run a streaming request against the local LLM server and confirm canonical events are yielded in the expected state-machine order.
 - [ ] Run `LanguageModel(provider="openai-responses", model_name="gpt-4o")` and confirm the Responses API client remains selectable.
 
@@ -226,7 +227,7 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **Description of change**: Add `OpenAIChatClient` next to `OpenAIResponsesClient`, wrapping `AsyncOpenAI.chat.completions.create()` for non-streaming and streaming modes.
+- **Description of change**: Add `OpenAIChatCompletionsClient` next to `OpenAIResponsesClient`, wrapping `AsyncOpenAI.chat.completions.create()` for non-streaming and streaming modes.
 - **Rationale**: The provider needs a concrete `LLMClient` implementation under the existing SDK-backed client module to reuse shared error handling and canonical event contracts.
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
@@ -248,24 +249,19 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 #### [MODIFY] `tinycua_sdk/core/providers.py`
 
-- **Description of change**: Remove `_PROVIDER_ALIASES["openai"] = OPENAI_RESPONSES`, add an `OPENAI_CHAT` constant if useful, and make `resolve_provider("openai")` return `"openai"`.
-- **Rationale**: `openai` becomes a real Chat Completions provider, not a deprecated alias.
-
-#### [MODIFY] `tinycua_sdk/core/providers.py`
-
-- **Description of change**: Register `"openai"` to create `OpenAIChatClient` and continue registering `"openai-responses"` to create `OpenAIResponsesClient`.
-- **Rationale**: Both OpenAI provider variants must coexist with stable identifiers.
+- **Description of change**: Register `"openai-chat-completions"` to create `OpenAIChatCompletionsClient` and continue registering `"openai-responses"` to create `OpenAIResponsesClient`. The `"openai"` → `"openai-responses"` alias remains in place.
+- **Rationale**: Chat Completions gets its own stable identifier; existing `"openai"` users are unaffected.
 
 ### Public Exports
 
 #### [MODIFY] `tinycua_sdk/agent/__init__.py`
 
-- **Description of change**: Export `OpenAIChatClient` from the agent package if provider-specific clients are exported there.
+- **Description of change**: Export `OpenAIChatCompletionsClient` from the agent package if provider-specific clients are exported there.
 - **Rationale**: Keeps import behavior consistent with `OpenAIResponsesClient`.
 
 #### [MODIFY] `tinycua_sdk/agent/llm_client.py`
 
-- **Description of change**: Add `OpenAIChatClient` to `__all__`.
+- **Description of change**: Add `OpenAIChatCompletionsClient` to `__all__`.
 - **Rationale**: Makes the new provider client an explicit module export.
 
 ### Tests
@@ -277,8 +273,8 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 #### [NEW] `tests/integration/test_openai_chat_completions_provider.py`
 
-- **Description**: Integration tests for default registry provider coexistence, alias removal, and end-to-end mocked client behavior through `LanguageModel(provider="openai")`.
-- **Dependencies**: `ProviderRegistry`, `LanguageModel`, `OpenAIChatClient`, and `OpenAIResponsesClient`.
+- **Description**: Integration tests for default registry provider coexistence, alias preservation, and end-to-end mocked client behavior through `LanguageModel(provider="openai-chat-completions")`.
+- **Dependencies**: `ProviderRegistry`, `LanguageModel`, `OpenAIChatCompletionsClient`, and `OpenAIResponsesClient`.
 
 #### [MODIFY] `tests/unit/test_llm_client.py`
 
@@ -287,20 +283,20 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 #### [MODIFY] `tests/unit/test_provider_registry.py`, `tests/unit/test_provider_switching.py`, `tests/integration/test_provider_switching.py`
 
-- **Description of change**: Update expectations that currently treat `"openai"` as an alias to `"openai-responses"`; assert `"openai"` is directly supported and returns `OpenAIChatClient`.
-- **Rationale**: The core behavioral change is provider identifier ownership.
+- **Description of change**: Update expectations: assert `"openai-chat-completions"` is directly supported and returns `OpenAIChatCompletionsClient`; `"openai"` still resolves to `OpenAIResponsesClient` via alias.
+- **Rationale**: The new provider uses a distinct identifier; the existing alias is preserved.
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `OpenAIChatClient` | New | SDK-backed Chat Completions provider implementing `LLMClient` |
+| `OpenAIChatCompletionsClient` | New | SDK-backed Chat Completions provider implementing `LLMClient` |
 | Chat Completions normalizer | New | Converts `ChatCompletionChunk` deltas into canonical `LLMEvent` types |
 | `ChoiceAccumulator` | New | Tracks content, tool calls, finish reason, and usage for choice index 0 |
 | `ToolCallAccumulator` | New | Tracks streamed tool-call `id`, `name`, and argument fragments by tool-call index |
-| `ProviderRegistry` defaults | Modify | Registers both `openai` and `openai-responses` as distinct providers |
-| Provider alias map | Modify | Removes `openai` to `openai-responses` alias |
-| Agent package exports | Modify | Exposes `OpenAIChatClient` where provider clients are exported |
+| `ProviderRegistry` defaults | Modify | Registers `openai-chat-completions`, `openai`, and `openai-responses` as distinct entries |
+| Provider alias map | No change | `openai` → `openai-responses` alias remains in place |
+| Agent package exports | Modify | Exposes `OpenAIChatCompletionsClient` where provider clients are exported |
 
 ## Data Model Changes
 
@@ -313,6 +309,9 @@ class ChoiceAccumulator:
     finish_reason: str | None = None
     usage: dict | None = None
     content_done_emitted: bool = False
+    started_emitted: bool = False
+    done_emitted: bool = False
+    ready_emitted: bool = False
 
 
 @dataclass
@@ -344,10 +343,11 @@ class ToolCallAccumulator:
 
 | Interface | Change |
 |-----------|--------|
-| `tinycua_sdk.agent.llm_client.OpenAIChatClient` | New provider client class |
-| `ProviderRegistry.create_client(LanguageModel(provider="openai"))` | Returns `OpenAIChatClient` |
+| `tinycua_sdk.agent.llm_client.OpenAIChatCompletionsClient` | New provider client class |
+| `ProviderRegistry.create_client(LanguageModel(provider="openai-chat-completions"))` | Returns `OpenAIChatCompletionsClient` |
+| `ProviderRegistry.create_client(LanguageModel(provider="openai"))` | Continues returning `OpenAIResponsesClient` (via alias) |
 | `ProviderRegistry.create_client(LanguageModel(provider="openai-responses"))` | Continues returning `OpenAIResponsesClient` |
-| `resolve_provider("openai")` | Returns `"openai"` instead of `"openai-responses"` |
+| `resolve_provider("openai-chat-completions")` | Returns `"openai-chat-completions"` |
 
 ## Dependencies
 
@@ -360,7 +360,7 @@ class ToolCallAccumulator:
 ### Internal Dependencies
 
 - [ ] Depends on Stage 1 `LLMClient`, canonical event schema, `OpenAIResponsesClient`, and `ProviderRegistry` work already present.
-- [ ] Does not block other features except provider-specific work that assumes `provider="openai"` should resolve to Chat Completions.
+- [ ] Does not block other features except provider-specific work that assumes `provider="openai-chat-completions"` should resolve to Chat Completions.
 
 ## Risks and Mitigations
 
@@ -368,8 +368,8 @@ class ToolCallAccumulator:
 |------|--------|------------|
 | Reusing Responses payload helpers sends wrong Chat Completions request fields | High | Add Chat-specific payload tests for `messages`, `tools`, `max_tokens`, and tool-result mapping |
 | Tool-call deltas produce duplicate `tool_call.ready` events | High | Track emitted state in `ToolCallAccumulator` and assert exactly one ready event per call |
-| Alias removal breaks tests or users relying on Stage 1 `provider="openai"` Responses behavior | High | Update tests and document that Responses users must use `provider="openai-responses"` |
-| Raw pass-through loses the original SDK object | Medium | Pair canonical events with `RawSseEvent(provider="openai", raw_event=chunk)` through `_yield_events()` following standard one-to-many pairing rules (first canonical gets raw, follow-on canonicals get `raw=None`) |
+| Alias remains in place — no breaking change for `provider="openai"` users | Low | The `"openai"` → `"openai-responses"` alias is preserved |
+| Raw pass-through loses the original SDK object | Medium | Pair canonical events with `RawSseEvent(provider="openai-chat-completions", raw_event=chunk)` through `_yield_events()` following standard one-to-many pairing rules (first canonical gets raw, follow-on canonicals get `raw=None`) |
 | Streaming terminal chunks without content omit completion events | Medium | Unit test empty/tool-only terminal chunks and always emit `ResponseCompletedEvent` when `finish_reason` is present |
 | OpenAI SDK chunk model variations differ from mocked dictionaries | Medium | Normalize through `model_dump()` when available and write mocks that match SDK field names |
 | Multiple choices are ignored for MVP | Low | Explicitly normalize only `choices[0]`, document `n=1` scope, and avoid accumulating other choices |

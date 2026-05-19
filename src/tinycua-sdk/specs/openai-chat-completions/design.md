@@ -8,7 +8,7 @@
 
 ## Overview
 
-This design introduces an **OpenAIChatClient** — a new `LLMClient` subclass wrapping the OpenAI Chat Completions API via the official `openai` PyPI SDK (`client.chat.completions.create()`). The client includes a Chat Completions-specific SSE normalizer that converts delta-chunk streaming events into the canonical Responses-shaped event schema established in Stage 1, and registers as `"openai"` in the `ProviderRegistry`. The Stage 1 `"openai"` → `"openai-responses"` deprecation alias is removed. Only `tinycua-sdk` is affected; no new dependencies are required since `openai>=2.34,<3` is already declared.
+This design introduces an **OpenAIChatCompletionsClient** — a new `LLMClient` subclass wrapping the OpenAI Chat Completions API via the official `openai` PyPI SDK (`client.chat.completions.create()`). The client includes a Chat Completions-specific SSE normalizer that converts delta-chunk streaming events into the canonical Responses-shaped event schema established in Stage 1, and registers as `"openai-chat-completions"` in the `ProviderRegistry`. The Stage 1 `"openai"` → `"openai-responses"` deprecation alias remains in place since `"openai-chat-completions"` does not conflict. Only `tinycua-sdk` is affected; no new dependencies are required since `openai>=2.34,<3` is already declared.
 
 ---
 
@@ -24,17 +24,18 @@ This design introduces an **OpenAIChatClient** — a new `LLMClient` subclass wr
            │ create_client(model_config)           │
            ▼                                       │
 ┌──────────────────────────┐                      │
-│   ProviderRegistry       │                      │
+ │   ProviderRegistry       │                      │
 │   create_client(...)     │                      │
-│   (now has both          │                      │
-│    "openai" and          │                      │
+│   (now has                │                      │
+│    "openai-chat-completions",                      │
+│    "openai", and          │                      │
 │    "openai-responses")   │                      │
 └──────────┬───────────────┘                      │
-           │ returns OpenAIChatClient(            │
+           │ returns OpenAIChatCompletionsClient(            │
            │   configured for Chat Completions)   │
            ▼                                      │
 ┌────────────────────────────────┐               │
-│   OpenAIChatClient             │               │
+│   OpenAIChatCompletionsClient             │               │
 │   (implements LLMClient ABC)   │               │
 │   ┌────────────────────────┐   │               │
 │   │   openai SDK            │   │  raw events   │
@@ -83,9 +84,9 @@ The normalizer must bridge this gap by:
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua_sdk/agent/llm_client.py` | Extended — New class | `OpenAIChatClient` added; shared normalizer utilities reused |
-| `tinycua_sdk/core/providers.py` | Modified | Register `"openai"` → `OpenAIChatClient`; remove deprecation alias |
-| `tinycua_sdk/agent/__init__.py` | Modified | Export `OpenAIChatClient` |
+| `tinycua_sdk/agent/llm_client.py` | Extended — New class | `OpenAIChatCompletionsClient` added; shared normalizer utilities reused |
+| `tinycua_sdk/core/providers.py` | Modified | Register `"openai-chat-completions"` → `OpenAIChatCompletionsClient`; deprecation alias remains |
+| `tinycua_sdk/agent/__init__.py` | Modified | Export `OpenAIChatCompletionsClient` |
 | `tinycua_sdk/__init__.py` | No change | `LLMClient` already exported; consumers import provider-specific clients from subpackages |
 
 ---
@@ -133,24 +134,24 @@ class ToolCallAccumulator:
 
 ## API / Interface Contracts
 
-### OpenAIChatClient
+### OpenAIChatCompletionsClient
 
 ```python
-class OpenAIChatClient(LLMClient):
+class OpenAIChatCompletionsClient(LLMClient):
     """OpenAI Chat Completions API provider client.
 
     Wraps the official openai SDK's chat.completions.create() for both
     streaming and non-streaming modes. Normalizes Chat Completions delta
     chunks into the canonical Responses-shaped event schema.
 
-    Registered as provider "openai" in the ProviderRegistry.
+    Registered as provider "openai-chat-completions" in the ProviderRegistry.
     """
 
     def __init__(self, model_config: LanguageModel) -> None:
         """Initialize the OpenAI Chat Completions client.
 
         Args:
-            model_config: LanguageModel configuration with provider="openai".
+            model_config: LanguageModel configuration with provider="openai-chat-completions".
                           Extracts api_key, base_url, model, temperature,
                           max_tokens, and other SDK parameters.
         """
@@ -202,7 +203,7 @@ async def _normalize_chat_chunk(
 
 def _register_defaults() -> None:
     """Register built-in providers."""
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient, OpenAIChatClient
+    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient, OpenAIChatCompletionsClient
 
     _provider_registry.register(
         "openai-responses",
@@ -210,12 +211,11 @@ def _register_defaults() -> None:
         ProviderInfo(...),
     )
     _provider_registry.register(
-        "openai",
-        lambda cfg: OpenAIChatClient(cfg),  # was: deprecated alias to openai-responses
+        "openai-chat-completions",
+        lambda cfg: OpenAIChatCompletionsClient(cfg),
         ProviderInfo(...),
     )
-    # The old: _provider_registry.register("openai", _openai_deprecation_alias)
-    # is REMOVED.
+    # The "openai" -> "openai-responses" deprecation alias remains in place.
 ```
 
 ### Error Handling
@@ -231,7 +231,7 @@ def _register_defaults() -> None:
 
 ### Tool-Result Continuation and Assistant Tool Calls Injection
 
-When the Agent Loop appends tool results after executing tool calls, the Chat Completions API requires a preceding assistant message containing the `tool_calls` payload that corresponds to each tool result. The `OpenAIChatClient` handles this by:
+When the Agent Loop appends tool results after executing tool calls, the Chat Completions API requires a preceding assistant message containing the `tool_calls` payload that corresponds to each tool result. The `OpenAIChatCompletionsClient` handles this by:
 
 1. **Preserving** the assistant `tool_calls` from the prior Chat Completions response (both non-streaming and streaming paths). In streaming mode, the `ToolCallAccumulator` already accumulates the complete tool call data, so the client stores the fully resolved tool calls after the stream completes.
 2. **Injecting** an assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before the batch of `role="tool"` messages when building the follow-up request payload.
@@ -246,7 +246,7 @@ Same contract as Stage 1: when `raw_events=True`, the stream yields `(canonical,
 stream = await client.chat(..., stream=True, raw_events=True)
 async for canonical, raw in stream:
     # canonical: LLMEvent (e.g., ContentDeltaEvent)
-    # raw: RawSseEvent(provider="openai", raw_event=ChatCompletionChunk(...))
+    # raw: RawSseEvent(provider="openai-chat-completions", raw_event=ChatCompletionChunk(...))
 ```
 
 ---
@@ -257,9 +257,9 @@ async for canonical, raw in stream:
 
 - [ ] **2.1**: Implement `ChoiceAccumulator` and `ToolCallAccumulator` dataclasses for per-choice chunk accumulation
 - [ ] **2.2**: Implement `_normalize_chat_chunk()` — process a single Chat Completions delta chunk and yield canonical events
-- [ ] **2.3**: Implement `OpenAIChatClient` class — `_chat_impl()` for non-streaming and streaming modes
-- [ ] **2.4**: Register `"openai"` → `OpenAIChatClient` in `ProviderRegistry._register_defaults()`; remove the Stage 1 deprecation alias
-- [ ] **2.5**: Update `tinycua_sdk/agent/__init__.py` to export `OpenAIChatClient`
+- [ ] **2.3**: Implement `OpenAIChatCompletionsClient` class — `_chat_impl()` for non-streaming and streaming modes
+- [ ] **2.4**: Register `"openai-chat-completions"` → `OpenAIChatCompletionsClient` in `ProviderRegistry._register_defaults()`; keep the Stage 1 deprecation alias in place
+- [ ] **2.5**: Update `tinycua_sdk/agent/__init__.py` to export `OpenAIChatCompletionsClient`
 - [ ] **2.6**: Write unit tests for:
       - Non-streaming normalization (mock `openai.resources.chat.completions.create`)
       - Streaming normalization (mock chunk iterator)
@@ -267,16 +267,16 @@ async for canonical, raw in stream:
       - Error translation
       - Raw pass-through paired tuples
 - [ ] **2.7**: Write integration tests for:
-      - Provider registry coexistence (`"openai"` + `"openai-responses"`)
-      - Alias removal: `"openai"` no longer resolves to `"openai-responses"`
+      - Provider registry coexistence (`"openai-chat-completions"` + `"openai"` + `"openai-responses"`)
+      - Alias preserved: `"openai"` still resolves to `"openai-responses"`
       - Existing `OpenAIResponsesClient` tests still pass
-- [ ] **2.8**: Manual test against real OpenAI API with `provider="openai"` and `model="gpt-4o"`
+- [ ] **2.8**: Manual test against real OpenAI API with `provider="openai-chat-completions"` and `model="gpt-4o"`
 
 ---
 
 ## Technical Decisions
 
-1. **Decision**: Implement `OpenAIChatClient` in the same file (`llm_client.py`) as `OpenAIResponsesClient`.
+1. **Decision**: Implement `OpenAIChatCompletionsClient` in the same file (`llm_client.py`) as `OpenAIResponsesClient`.
    - **Reason**: Both share the same module-level helpers (`_translate_tools`, `_translate_messages`, `_build_payload`). Keeping them in one file avoids circular imports and allows code reuse.
    - **Alternatives Considered**: Separate `providers/openai_chat/` package — rejected because it would duplicate shared translation logic and introduce import complexity.
 
@@ -292,9 +292,9 @@ async for canonical, raw in stream:
    - **Reason**: Chat Completions does not emit lifecycle events like the Responses API. The normalizer synthesizes these from available chunk data to maintain canonical event contract compatibility.
    - **Note**: `ResponseInProgressEvent` and `ResponseCancelledEvent` are not emitted by Chat Completions (no equivalent concept). The normalizer will not synthesize them — consumers that need them must use the Responses API.
 
-5. **Decision**: Remove the `"openai"` deprecation alias entirely, not just override it.
-   - **Reason**: The Stage 1 alias registered `"openai"` as a compatibility shim to `"openai-responses"`. Now that Chat Completions has a real provider, the alias must be removed — not just overridden — to avoid any residual behavior (e.g., warning messages, backward-compat logic).
-   - **Migration**: Users who were using `provider="openai"` during Stage 1 to get Responses API behavior must switch to `provider="openai-responses"` explicitly, or switch to `provider="openai"` for Chat Completions behavior.
+5. **Decision**: Keep the `"openai"` deprecation alias in place; register Chat Completions under `"openai-chat-completions"`.
+   - **Reason**: Since the Chat Completions provider uses a distinct identifier (`"openai-chat-completions"`), there is no naming conflict with the Stage 1 `"openai"` → `"openai-responses"` alias. Keeping the alias avoids a breaking change for users still relying on `provider="openai"` for Responses API access.
+   - **Migration**: Users who want Chat Completions should use `provider="openai-chat-completions"`. Users still relying on `provider="openai"` continue to get Responses API behavior through the alias.
 
 6. **Decision**: Extend the existing `_normalize_responses_event`-style pattern with a new `_normalize_chat_chunk` rather than modifying the Responses normalizer.
    - **Reason**: The two APIs have fundamentally different streaming models (named events vs. delta chunks). A single normalizer that tries to handle both would be complex and hard to test. Separate normalizers with a shared interface (both yield `AsyncIterator[LLMEvent]`) is cleaner.
@@ -308,7 +308,7 @@ async for canonical, raw in stream:
 |------|-----------|--------|------------|
 | Chat Completions streaming chunks may change format with SDK upgrades | Low | Medium | Pin `openai` major version; add integration tests with known chunk shapes |
 | Tool call accumulation across chunks may miss edge cases (e.g., empty `tool_calls` array in some chunks) | Medium | Medium | Add defensive checks; emit partial tool call events even if not all fields are populated; unit test all chunk patterns |
-| Existing code using `provider="openai"` silently switches from Responses API to Chat Completions | Medium | High | Document the breaking change in release notes; the Stage 1 spec already warned this would happen; users should have migrated to `"openai-responses"` |
+| Existing code using `provider="openai"` continues to get Responses API via alias; no breaking change | Low | Low | The alias remains in place; `"openai-chat-completions"` is a separate identifier |
 | Chat Completions has no native reasoning events — o-series reasoning appears as content prefix | Medium | Low | The existing `strip_thinking` logic in `LanguageModel` already handles this at the model config level |
 | Multiple choices (`n>1`) not supported — may surprise users who set `n=2` | Low | Low | Document single-choice limitation; the normalizer ignores `choices[1+]` |
 
