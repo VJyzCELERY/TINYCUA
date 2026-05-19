@@ -72,7 +72,7 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
 - [ ] Verify `provider="openai"` no longer emits a deprecation warning or resolves to `openai-responses` <!-- id: 14 -->
 - [ ] Verify both default providers appear in `ProviderRegistry.list_providers()` <!-- id: 15 -->
 - [ ] Verify streaming event order for content-only responses: created, delta, done, usage if present, completed <!-- id: 16 -->
-- [ ] Verify streaming event order for tool responses: started, argument delta, arguments done, ready, usage if present, completed <!-- id: 17 -->
+- [ ] Verify streaming event order for tool responses: created, started, argument delta, arguments done, ready, usage if present, completed <!-- id: 17 -->
 - [ ] Verify tool-only non-streaming responses return `content is None` and populated `tool_calls` <!-- id: 18 -->
 - [ ] Optionally run a manual real-API smoke test with `OPENAI_API_KEY` and `provider="openai"` <!-- id: 19 -->
 

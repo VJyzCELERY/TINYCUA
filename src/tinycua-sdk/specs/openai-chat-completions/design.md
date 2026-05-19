@@ -176,6 +176,7 @@ async def _normalize_chat_chunk(
 
     Mutates the accumulator in-place across chunks. Yields zero or more
     canonical events per chunk:
+    - ResponseCreatedEvent synthesized from first chunk metadata
     - ContentDeltaEvent for each content delta
     - ContentDoneEvent when a choice reaches a terminal state
     - ToolCallStartedEvent for each new tool call index
