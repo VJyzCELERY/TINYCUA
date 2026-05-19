@@ -87,7 +87,7 @@ Provide a clear module boundary for provider-specific LLM implementations by ext
 - **FR-001**: A new `tinycua_sdk/providers/` Python package MUST be created with `__init__.py`
 - **FR-002**: `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` MUST be extracted from `agent/llm_client.py` into `providers/open_ai.py`
 - **FR-003**: `LLMClient` ABC MUST remain in `agent/llm_client.py` — no changes to its interface
-- **FR-004**: Provider resolution utilities (`resolve_provider`, `normalize_base_url`, `ProviderRegistry`, `get_provider_registry`, `ProviderInfo`, `ProviderFactory`, `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `DEFAULT_BASE_URL`, `OPENAI_BASE_URL`, `VALID_PROVIDERS`, `_PROVIDER_ALIASES`) MUST be moved from `core/providers.py` to `providers/providers.py`
+- **FR-004**: Provider resolution utilities (`resolve_provider`, `normalize_base_url`, `ProviderRegistry`, `get_provider_registry`, `ProviderInfo`, `ProviderFactory`, `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `DEFAULT_BASE_URL`, `OPENAI_BASE_URL`, `_PROVIDER_ALIASES`) MUST be moved from `core/providers.py` to `providers/providers.py`
 - **FR-005**: `core/providers.py` MUST be deleted after its contents are moved — no re-export shim
 
 **Import updates:**

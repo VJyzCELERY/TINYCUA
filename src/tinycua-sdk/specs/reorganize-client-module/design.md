@@ -106,7 +106,6 @@ No new entities or schema changes. This is a pure file reorganization — all cl
 | `normalize_base_url` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `OPENAI_COMPATIBLE` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `DEFAULT_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
-| `VALID_PROVIDERS` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `LLMClient` | `tinycua_sdk.agent.llm_client` | **Unchanged** |
 
 ### Convenience Namespace
@@ -179,7 +178,6 @@ from tinycua_sdk.providers.providers import (
     OPENAI_COMPATIBLE,
     OPENAI_CHAT_COMPLETIONS,
     OPENAI_RESPONSES,
-    VALID_PROVIDERS,
     get_provider_registry,
     normalize_base_url,
     ProviderRegistry,
@@ -195,7 +193,6 @@ __all__ = [
     "OpenAIResponsesClient",
     "OpenAIChatCompletionsClient",
     "ProviderRegistry",
-    "VALID_PROVIDERS",
     "get_provider_registry",
     "normalize_base_url",
     "resolve_provider",
@@ -208,7 +205,7 @@ Identical content to the current `core/providers.py`. This module has no interna
 
 - `resolve_provider()`
 - `normalize_base_url()`
-- Constants: `OPENAI_COMPATIBLE`, `DEFAULT_BASE_URL`, `VALID_PROVIDERS`, `_PROVIDER_ALIASES`
+- Constants: `OPENAI_COMPATIBLE`, `DEFAULT_BASE_URL`, `_PROVIDER_ALIASES`
 - `__all__`
 
 ### `tinycua_sdk/providers/open_ai.py` (new — extracted from `agent/llm_client.py`)
