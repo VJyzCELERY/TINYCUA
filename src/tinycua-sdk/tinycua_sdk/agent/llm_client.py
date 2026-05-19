@@ -877,7 +877,7 @@ class OpenAIChatCompletionsClient(LLMClient):
     def __init__(self, model_config: LanguageModel) -> None:
         self._model_config = model_config
         self._client: AsyncOpenAI | None = None
-        self._prior_tool_calls: list[dict[str, Any]] | None = None
+        self._prior_tool_calls: dict[str, dict[str, Any]] = {}
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -898,42 +898,81 @@ class OpenAIChatCompletionsClient(LLMClient):
         """Translate canonical messages to Chat Completions ``messages``.
 
         - ``SystemMessage``, ``UserMessage``, ``AssistantMessage`` pass
-          through unchanged.
+          through unchanged.  Assistant messages that already carry
+          ``tool_calls`` (embedded by the agent loop) are kept as-is.
         - ``ToolResultMessage`` is converted to ``{role: "tool",
           tool_call_id, content}``.
-        - An assistant message with ``tool_calls`` metadata is injected
-          immediately *before* any tool-result messages when prior
-          tool-call context is available via ``self._prior_tool_calls``.
+        - An assistant message with matching ``tool_calls`` is injected
+          before each contiguous batch of ``tool_result`` messages whose
+          ``call_id`` s are found in ``self._prior_tool_calls`` — but
+          ONLY when the batch is NOT already preceded by an assistant
+          message that already contains matching ``tool_calls``.
+
+          This supports multi-turn tool conversations: the agent loop
+          embeds ``tool_calls`` in the assistant messages it appends,
+          so previously processed batches are self-contained and do not
+          require injection.  Only new tool results (whose call_ids are
+          still in the history from the most recent API response) get a
+          fresh assistant ``tool_calls`` injected before them.
         """
         result: list[dict[str, Any]] = []
-        has_tool_result = any(
-            isinstance(msg, dict) and msg.get("role") == "tool_result"
-            for msg in messages
-        )
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
 
-        if has_tool_result and self._prior_tool_calls:
-            injected = False
-            for msg in messages:
-                if isinstance(msg, dict) and msg.get("role") == "tool_result":
-                    if not injected:
-                        result.append({"role": "assistant", "content": None, "tool_calls": self._prior_tool_calls})
-                        injected = True
-                    call_id = msg.get("call_id", "")
-                    content = msg.get("content", "")
-                    result.append({"role": "tool", "tool_call_id": call_id, "content": content})
-                else:
-                    result.append(msg)  # type: ignore[arg-type]
-            return result
+            # Assistant messages that already carry tool_calls (embedded
+            # by the agent loop) pass through as-is — no injection needed.
+            if isinstance(msg, dict) and msg.get("role") == "assistant" and "tool_calls" in msg:
+                result.append(msg)  # type: ignore[arg-type]
+                i += 1
+                continue
 
-        for msg in messages:
             if isinstance(msg, dict) and msg.get("role") == "tool_result":
-                result.append({
-                    "role": "tool",
-                    "tool_call_id": msg.get("call_id", ""),
-                    "content": msg.get("content", ""),
-                })
+                # Collect the contiguous batch of tool_result messages.
+                batch: list[dict] = []
+                while i < len(messages):
+                    m = messages[i]
+                    if isinstance(m, dict) and m.get("role") == "tool_result":
+                        batch.append(m)  # type: ignore[arg-type]
+                        i += 1
+                    else:
+                        break
+
+                # Only inject if the preceding result entry is NOT an
+                # assistant message with matching tool_calls (i.e. this
+                # batch is "new" and hasn't been paired yet).
+                last_has_matching_tc = (
+                    result
+                    and result[-1].get("role") == "assistant"
+                    and "tool_calls" in result[-1]
+                )
+                if not last_has_matching_tc:
+                    batch_call_ids = {
+                        m.get("call_id", "") for m in batch
+                        if m.get("call_id")
+                    }
+                    matched_calls = [
+                        self._prior_tool_calls[cid]
+                        for cid in batch_call_ids
+                        if cid in self._prior_tool_calls
+                    ]
+                    if matched_calls:
+                        result.append({
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": matched_calls,
+                        })
+
+                for tool_msg in batch:
+                    result.append({
+                        "role": "tool",
+                        "tool_call_id": tool_msg.get("call_id", ""),
+                        "content": tool_msg.get("content", ""),
+                    })
             else:
                 result.append(msg)  # type: ignore[arg-type]
+                i += 1
+
         return result
 
     @staticmethod
@@ -1275,19 +1314,18 @@ class OpenAIChatCompletionsClient(LLMClient):
         message = choices[0].get("message", {})
         raw_tool_calls = message.get("tool_calls")
         if not raw_tool_calls:
-            self._prior_tool_calls = None
             return
-        self._prior_tool_calls = [
-            {
-                "id": tc.get("id", ""),
-                "type": "function",
-                "function": {
-                    "name": tc.get("function", {}).get("name", ""),
-                    "arguments": tc.get("function", {}).get("arguments", "{}"),
-                },
-            }
-            for tc in raw_tool_calls
-        ]
+        for tc in raw_tool_calls:
+            tid = tc.get("id", "")
+            if tid:
+                self._prior_tool_calls[tid] = {
+                    "id": tid,
+                    "type": "function",
+                    "function": {
+                        "name": tc.get("function", {}).get("name", ""),
+                        "arguments": tc.get("function", {}).get("arguments", "{}"),
+                    },
+                }
 
     async def _chat_stream(
         self,
@@ -1330,7 +1368,12 @@ class OpenAIChatCompletionsClient(LLMClient):
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
         finally:
-            self._prior_tool_calls = _accumulator_to_chat_tool_calls(acc)
+            stream_tool_calls = _accumulator_to_chat_tool_calls(acc)
+            if stream_tool_calls:
+                for tc in stream_tool_calls:
+                    tid = tc.get("id", "")
+                    if tid:
+                        self._prior_tool_calls[tid] = tc
 
 
 __all__ = ["LLMClient", "OpenAIChatCompletionsClient", "OpenAIResponsesClient"]

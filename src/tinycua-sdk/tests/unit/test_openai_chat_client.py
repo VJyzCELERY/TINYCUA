@@ -58,9 +58,9 @@ class TestChatCompletionsPayloadTranslation:
 
     def test_tool_result_maps_to_tool_role(self, client: OpenAIChatCompletionsClient):
         """ToolResultMessage maps to {role: 'tool', tool_call_id, content} with prior tool_calls."""
-        client._prior_tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": '{"q":"time"}'}},
-        ]
+        client._prior_tool_calls = {
+            "call_1": {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": '{"q":"time"}'}},
+        }
         messages = client._translate_chat_messages([
             {"role": "user", "content": "what is the result?"},
             {"role": "tool_result", "call_id": "call_1", "content": "42"},
@@ -72,6 +72,97 @@ class TestChatCompletionsPayloadTranslation:
         assert messages[2]["role"] == "tool"
         assert messages[2]["tool_call_id"] == "call_1"
         assert messages[2]["content"] == "42"
+
+    def test_multi_turn_tool_result_batches_pair_correctly(self, client: OpenAIChatCompletionsClient):
+        """Each contiguous tool-result batch is paired with its own originating tool_calls.
+
+        Simulates two tool-calling turns with the *full* accumulated history
+        in ``_prior_tool_calls``.  The first batch lacks a preceding assistant
+        with tool_calls and thus needs injection from the history dict.  The
+        second batch has an assistant with tool_calls already embedded (as the
+        agent loop now does), so no injection occurs — ensuring that each
+        ``tool`` message's ``tool_call_id`` matches the immediately preceding
+        ``assistant.tool_calls`` entry.
+        """
+        # After two tool-calling turns the history dict contains both
+        # the first and second batch's call_ids.
+        client._prior_tool_calls = {
+            "call_1": {"id": "call_1", "type": "function", "function": {"name": "first", "arguments": "{}"}},
+            "call_2": {"id": "call_2", "type": "function", "function": {"name": "second", "arguments": "{}"}},
+        }
+        messages = client._translate_chat_messages([
+            {"role": "user", "content": "start"},
+            {"role": "assistant", "content": ""},  # No tool_calls — needs injection
+            # Batch 1
+            {"role": "tool_result", "call_id": "call_1", "content": "first-result"},
+            # Assistant with embedded tool_calls (agent loop did this after second response)
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "call_2", "type": "function", "function": {"name": "second", "arguments": "{}"}},
+            ]},
+            # Batch 2 — already preceded by assistant with matching tool_calls
+            {"role": "tool_result", "call_id": "call_2", "content": "second-result"},
+        ])
+        # user, assistant(empty), assistant(injected=[call_1]), tool(call_1),
+        # assistant(embedded=[call_2]), tool(call_2) = 6 messages
+        assert len(messages) == 6, f"Expected 6 messages, got {len(messages)}: {messages}"
+
+        # Batch 1: injection from history
+        assert messages[0]["role"] == "user"
+        assert messages[1]["role"] == "assistant"
+        assert messages[1].get("content") == ""
+        assert "tool_calls" not in messages[1]
+        assert messages[2]["role"] == "assistant"
+        assert "tool_calls" in messages[2]
+        assert len(messages[2]["tool_calls"]) == 1
+        assert messages[2]["tool_calls"][0]["id"] == "call_1"
+        assert messages[3]["role"] == "tool"
+        assert messages[3]["tool_call_id"] == "call_1"
+
+        # Batch 2: preceding assistant ALREADY has tool_calls — no injection
+        assert messages[4]["role"] == "assistant"
+        assert "tool_calls" in messages[4]
+        assert messages[4]["tool_calls"][0]["id"] == "call_2"
+        assert messages[5]["role"] == "tool"
+        assert messages[5]["tool_call_id"] == "call_2"
+
+    def test_multi_turn_with_full_history_no_embedded_tc(self, client: OpenAIChatCompletionsClient):
+        """When no assistant has embedded tool_calls, each batch is injected from history.
+
+        Tests the fallback injection path: all ``_prior_tool_calls`` are in the
+        history dict, and no assistant message carries pre-embedded ``tool_calls``.
+        Each contiguous batch must still get its own matching tool_calls injected.
+        """
+        client._prior_tool_calls = {
+            "call_1": {"id": "call_1", "type": "function", "function": {"name": "first", "arguments": "{}"}},
+            "call_2": {"id": "call_2", "type": "function", "function": {"name": "second", "arguments": "{}"}},
+        }
+        messages = client._translate_chat_messages([
+            {"role": "user", "content": "start"},
+            {"role": "assistant", "content": ""},
+            # Batch 1
+            {"role": "tool_result", "call_id": "call_1", "content": "first-result"},
+            # Assistant without tool_calls (simulates path where agent loop does NOT embed)
+            {"role": "assistant", "content": "intermediate"},
+            # Batch 2
+            {"role": "tool_result", "call_id": "call_2", "content": "second-result"},
+        ])
+        # user, assistant(empty), assistant(injected=[call_1]), tool(call_1),
+        # assistant(intermediate), assistant(injected=[call_2]), tool(call_2) = 7 messages
+        assert len(messages) == 7, f"Expected 7 messages, got {len(messages)}: {messages}"
+
+        # Batch 1 injection
+        assert messages[2]["role"] == "assistant"
+        assert "tool_calls" in messages[2]
+        assert messages[2]["tool_calls"][0]["id"] == "call_1"
+        assert messages[3]["role"] == "tool"
+        assert messages[3]["tool_call_id"] == "call_1"
+
+        # Batch 2 injection
+        assert messages[5]["role"] == "assistant"
+        assert "tool_calls" in messages[5]
+        assert messages[5]["tool_calls"][0]["id"] == "call_2"
+        assert messages[6]["role"] == "tool"
+        assert messages[6]["tool_call_id"] == "call_2"
 
     def test_translate_chat_tools_adds_function_wrapper(self, client: OpenAIChatCompletionsClient):
         """Tool specs are wrapped with type='function' and function nested object."""
