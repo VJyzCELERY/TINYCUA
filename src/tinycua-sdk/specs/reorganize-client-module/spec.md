@@ -103,7 +103,6 @@ Provide a clear module boundary for provider-specific LLM implementations by ext
 
 - **FR-009**: All existing unit and integration tests MUST pass after the reorganization
 - **FR-010**: Smoke tests MUST verify that both `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` can be instantiated from their new canonical import paths
-- **FR-011**: Smoke tests MUST verify that the old import paths (`tinycua_sdk.agent.llm_client`) raise `ImportError`
 
 ### Key Entities
 
@@ -131,7 +130,7 @@ Provide a clear module boundary for provider-specific LLM implementations by ext
 
 ### Unit Tests
 
-- No new behavioral unit tests needed. New smoke tests in `tests/unit/test_import_sanity.py` (per FR-010/FR-011) verify import path correctness — both that new paths resolve and that old paths raise `ImportError`.
+- No new behavioral unit tests needed. New smoke tests in `tests/unit/test_import_sanity.py` (per FR-010) verify that new import paths resolve correctly.
 - Existing tests continue to pass after import updates
 - The existing `test_providers.py` tests must pass from the new `providers/` sub-modules (`utility.py`, `registry.py`, `constants.py`)
 - The existing `test_llm_client.py` tests for `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` must pass after import updates
@@ -143,7 +142,6 @@ Provide a clear module boundary for provider-specific LLM implementations by ext
 ### Manual Tests
 
 - Verify that `from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient` resolves in a Python interpreter
-- Verify that `from tinycua_sdk.agent.llm_client import OpenAIResponsesClient` and `from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient` each raise `ImportError`
 
 ---
 

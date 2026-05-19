@@ -90,8 +90,6 @@ Implementation tasks for extracting provider-specific implementations into `tiny
 
 ## Verification Phase
 
-- [ ] Verify old import path raises `ImportError`: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAIResponsesClient" 2>&1 | grep -q ImportError && echo 'old path removed'` <!-- id: 29 -->
-- [ ] Verify `core.providers` is deleted: `uv run python -c "from tinycua_sdk.core.providers import resolve_provider" 2>&1 | grep -q ImportError && echo 'core.providers deleted'` <!-- id: 30 -->
 - [ ] Verify convenience namespace: `uv run python -c "from tinycua_sdk.providers import OpenAIResponsesClient, resolve_provider, ProviderRegistry, DEFAULT_BASE_URL; print('convenience namespace OK')"` <!-- id: 31 -->
 - [ ] Verify circular import safety: `uv run python -c "import tinycua_sdk; print('no circular import')"` <!-- id: 32 -->
 

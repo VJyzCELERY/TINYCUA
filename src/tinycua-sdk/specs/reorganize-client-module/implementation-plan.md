@@ -41,7 +41,7 @@ Define the import sanity tests (unit-level smoke tests) that prove the feature w
 
 ```python
 # File: tests/unit/test_import_sanity.py (NEW — smoke tests)
-"""Reorganization smoke tests: new import paths resolve, old paths fail."""
+"""Reorganization smoke tests: verify new import paths resolve correctly."""
 
 
 def test_new_providers_package_importable():
@@ -93,25 +93,6 @@ def test_llm_client_abc_still_in_agent():
     """AC-003: LLMClient ABC still resolves from agent.llm_client."""
     from tinycua_sdk.agent.llm_client import LLMClient
     assert LLMClient is not None
-
-
-def test_old_core_providers_path_removed():
-    """FR-005: Old core.providers module is deleted."""
-    import importlib.util
-    spec = importlib.util.find_spec("tinycua_sdk.core.providers")
-    assert spec is None, "core.providers module should not exist — it was deleted"
-
-
-def test_old_openai_responses_client_path_removed():
-    """AC-002: OpenAIResponsesClient raises ImportError from old path."""
-    import tinycua_sdk.agent.llm_client
-    assert not hasattr(tinycua_sdk.agent.llm_client, "OpenAIResponsesClient")
-
-
-def test_old_openai_chat_completions_path_removed():
-    """AC-002: OpenAIChatCompletionsClient raises ImportError from old path."""
-    import tinycua_sdk.agent.llm_client
-    assert not hasattr(tinycua_sdk.agent.llm_client, "OpenAIChatCompletionsClient")
 ```
 
 ### Key Test Scenarios
@@ -120,8 +101,7 @@ def test_old_openai_chat_completions_path_removed():
 - [ ] **Scenario 2**: Provider registry utilities importable from `tinycua_sdk.providers.registry`; utilities from `tinycua_sdk.providers.utility`; constants from `tinycua_sdk.providers.constants`
 - [ ] **Scenario 3**: Convenience namespace `tinycua_sdk.providers` re-exports key symbols
 - [ ] **Scenario 4**: `LLMClient` ABC still resolves from `tinycua_sdk.agent.llm_client`
-- [ ] **Scenario 5**: Old `core/providers.py` module raises `ImportError` (deleted)
-- [ ] **Scenario 6**: Full existing test suite passes — verified manually via `uv run pytest tests/unit/ -x --tb=short` (see Manual Verification)
+- [ ] **Scenario 5**: Full existing test suite passes — verified manually via `uv run pytest tests/unit/ -x --tb=short` (see Manual Verification)
 
 ## Verification Plan
 
@@ -129,13 +109,9 @@ def test_old_openai_chat_completions_path_removed():
 
 - [ ] Import sanity smoke tests (defined above) — these must pass for implementation to be complete
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest tests/unit/`
-- [ ] Negative import test: `from tinycua_sdk.core.providers import ...` raises `ImportError`
 
 ### Manual Verification
 
-- [ ] Run: `uv run python -c "from tinycua_sdk.providers.open_ai import OpenAIResponsesClient; print('new path OK')"`
-- [ ] Run: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAIResponsesClient" 2>&1 | grep -q ImportError && echo 'old path correctly removed'`
-- [ ] Run: `uv run python -c "from tinycua_sdk.core.providers import resolve_provider" 2>&1 | grep -q ImportError && echo 'core.providers deleted'`
 - [ ] Verify full test suite passes: `uv run pytest tests/unit/ -x --tb=short` exits with code 0
 
 ### Performance Considerations

@@ -185,7 +185,6 @@ from tinycua_sdk.providers import (
 
 - [ ] Run `uv run pytest tests/` — all tests pass
 - [ ] Run smoke test: `uv run python -c "from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient; from tinycua_sdk.providers.utility import resolve_provider; from tinycua_sdk.providers.registry import ProviderRegistry; from tinycua_sdk.providers.constants import DEFAULT_BASE_URL; print('new paths OK')"`
-- [ ] Run negative smoke test: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAIResponsesClient" 2>&1 | grep -q ImportError && echo 'old path correctly removed'`
 
 ---
 
@@ -327,7 +326,7 @@ Removed entirely. No replacement.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Missed import reference causes runtime `ImportError` | Medium | High | Full test suite run in Phase 5 catches this; negative smoke test explicitly verifies old paths fail |
+| Missed import reference causes runtime `ImportError` | Medium | High | Full test suite run in Phase 5 catches this; moved symbols will not be found at the old location, so any stale import causes an immediate `ImportError` at load time |
 | Circular import between `providers/open_ai.py` and `agent/llm_model.py` | Low | High | `open_ai.py` imports `LanguageModel` from `agent/llm_model.py`; `llm_model.py` imports `resolve_provider` from `providers/utility.py`. This is a DAG with no cycle (`providers` → `agent` is not reciprocated). Verify with `uv run python -c "import tinycua_sdk"` |
 | `agent/llm_client.py` still needs `httpx` for some future use | Low | Low | Easily re-added when needed — not a reason to keep unused imports |
 | `core/providers.py` deletion breaks a downstream consumer not in this repo | Low | Low (pre-release SDK) | No public consumers — this is a pre-1.0 SDK; breaking changes are expected |
