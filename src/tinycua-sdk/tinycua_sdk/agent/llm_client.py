@@ -922,7 +922,7 @@ class OpenAIChatCompletionsClient(LLMClient):
                     content = msg.get("content", "")
                     result.append({"role": "tool", "tool_call_id": call_id, "content": content})
                 else:
-                    result.append(msg)
+                    result.append(msg)  # type: ignore[arg-type]
             return result
 
         for msg in messages:
