@@ -48,7 +48,7 @@ Implementation tasks for extracting provider-specific implementations into `tiny
   - `from dataclasses import dataclass, field as dataclass_field`
   - `from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError`
   - `from tinycua_sdk.core.providers import normalize_base_url`
-  - `from openai import AsyncOpenai` (TYPE_CHECKING block)
+  - `from openai import AsyncOpenAI` (TYPE_CHECKING block)
 - [ ] Update `__all__` — only `["LLMClient"]` remains <!-- id: 8 -->
 - [ ] Update module docstring to reflect that only `LLMClient` ABC lives here <!-- id: 9 -->
 - [ ] Keep `_yield_events` and `_build_payload` (legacy) in the module
