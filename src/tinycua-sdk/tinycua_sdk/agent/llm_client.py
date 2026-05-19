@@ -1316,7 +1316,9 @@ class OpenAIChatCompletionsClient(LLMClient):
 
             if acc.completion_deferred:
                 acc.completion_deferred = False
-                yield ResponseCompletedEvent(type="response.completed", finish_reason=acc.finish_reason or "stop")
+                completion_event = ResponseCompletedEvent(type="response.completed", finish_reason=acc.finish_reason or "stop")
+                for item in _yield_events([completion_event], None, raw_events):
+                    yield item  # type: ignore[misc]
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
         finally:

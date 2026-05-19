@@ -56,9 +56,9 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
 #:     Unregistered providers (e.g. ``"openai-compatible"``, ``"lmstudio"``)
 #:     raise ``ProviderNotSupportedError`` from ``create_client()``.
 #:
-#:     **Phase 1** removes the old generic OpenAI-compatible registration;
-#:     only ``OPENAI_RESPONSES`` (``"openai-responses"``) is registered by
-#:     default. Consumers that need ``"openai-compatible"`` must register
+#:     By default, ``OPENAI_RESPONSES`` (``"openai-responses"``) and
+#:     ``OPENAI_CHAT_COMPLETIONS`` (``"openai-chat-completions"``) are
+#:     registered. Consumers that need ``"openai-compatible"`` must register
 #:     a factory explicitly.
 
 
@@ -264,7 +264,8 @@ def get_provider_registry() -> ProviderRegistry:
     """Return the singleton ``ProviderRegistry`` instance.
 
     Lazily initializes the registry on first call and registers
-    default providers (``openai-responses`` → ``OpenAIResponsesClient``).
+    default providers (``openai-responses`` → ``OpenAIResponsesClient``,
+    ``openai-chat-completions`` → ``OpenAIChatCompletionsClient``).
 
     Returns:
         The singleton ``ProviderRegistry`` instance.
