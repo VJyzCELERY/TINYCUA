@@ -290,7 +290,7 @@ async for canonical, raw in stream:
 
 6. **Decision**: Extend the existing `_normalize_responses_event`-style pattern with a new `_normalize_chat_chunk` rather than modifying the Responses normalizer.
    - **Reason**: The two APIs have fundamentally different streaming models (named events vs. delta chunks). A single normalizer that tries to handle both would be complex and hard to test. Separate normalizers with a shared interface (both yield `AsyncIterator[LLMEvent]`) is cleaner.
-   - **Shared Code**: Both normalizers use the same `_yield_events()`, `_translate_tools()`, `_translate_messages()`, and `_build_payload()` helpers already in `llm_client.py`.
+   - **Shared Code**: Both normalizers use the same `_yield_events()`, `_translate_messages()`, and `_build_payload()` helpers already in `llm_client.py`. For tool translation, a Chat Completions-specific `_translate_chat_tools()` helper is required because the existing `_translate_tools()` emits the Responses API format (`{name, description, parameters}`), while Chat Completions requires the nested shape `{type: "function", function: {name, description, parameters}}`.
 
 ---
 
@@ -310,7 +310,7 @@ async for canonical, raw in stream:
 
 1. **Should we support `response_format` for structured outputs?**
    - **Status**: Decided
-   - **Decision**: Yes — the `LanguageModel.response_format` field is already passed through to the SDK via `_build_payload`. No additional work needed.
+   - **Decision**: Yes — the client MUST map `LanguageModel.response_format` to the Chat Completions `response_format` request field, NOT the Responses API `text` field. The existing `_build_payload()` and `_FIELD_MAP` route `response_format` to the Responses `text` field, which is wrong for Chat Completions. A Chat-specific payload builder or field mapping override is required.
 
 2. **Should we emit `ResponseInProgressEvent` for Chat Completions?**
    - **Status**: Decided

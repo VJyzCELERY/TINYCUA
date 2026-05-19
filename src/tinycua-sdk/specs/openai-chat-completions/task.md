@@ -12,12 +12,13 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
   - [ ] `cd src/tinycua-sdk && uv run pytest tests/integration/test_openai_chat_completions_provider.py`
 - [ ] Write focused unit tests for Chat Completions request/response behavior <!-- id: 2 -->
   - [ ] Add `tests/unit/test_openai_chat_client.py`
-  - [ ] Test Chat Completions payload uses `messages`, `tools`, `max_tokens`, and tool-result `role="tool"`
+  - [ ] Test Chat Completions payload uses `messages`, `tools`, `max_tokens`, `response_format`, and tool-result `role="tool"`
   - [ ] Test non-streaming response normalization with text, usage, finish reason, and tool calls
   - [ ] Test streaming content deltas and terminal completion events
   - [ ] Test streaming tool-call accumulation across partial chunks
   - [ ] Test error translation to `ProviderAuthError` and `ProviderApiError`
   - [ ] Test raw-events one-to-many pairing: one chunk producing multiple canonical events asserts first gets raw chunk, follow-on gets `raw=None`
+  - [ ] Test that `LanguageModel(response_format=...)` produces a Chat Completions request with `response_format` and does not emit the Responses-only `text` field
 - [ ] Update provider registry tests for alias removal and default registration behavior, then confirm RED where implementation is missing <!-- id: 3 -->
   - [ ] Update `tests/unit/test_provider_registry.py`
   - [ ] Update `tests/unit/test_provider_switching.py`
