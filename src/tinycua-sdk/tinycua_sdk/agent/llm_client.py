@@ -1319,6 +1319,14 @@ class OpenAIChatCompletionsClient(LLMClient):
                 completion_event = ResponseCompletedEvent(type="response.completed", finish_reason=acc.finish_reason or "stop")
                 for item in _yield_events([completion_event], None, raw_events):
                     yield item  # type: ignore[misc]
+            elif not acc.started_emitted:
+                # Empty stream — no chunks were received, so no
+                # events at all were emitted.  Emit a terminal
+                # response.completed so consumers always get a
+                # canonical lifecycle signal.
+                completion_event = ResponseCompletedEvent(type="response.completed", finish_reason="stop")
+                for item in _yield_events([completion_event], None, raw_events):
+                    yield item  # type: ignore[misc]
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
         finally:
