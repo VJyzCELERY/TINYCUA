@@ -15,7 +15,7 @@ Extend the TINYCUA SDK with an **OpenAI Chat Completions API** provider client s
 - Users can interact with OpenAI's `/chat/completions` endpoint through the same `LLMClient` interface established in Stage 1
 - Chat Completions streaming events (delta-based content, tool calls) are normalized into the canonical Responses-shaped event schema
 - Raw SSE events from the Chat Completions API are exposed as a pass-through stream
-- The provider is registered as `"openai"` (the identifier reserved in Stage 1) in the `ProviderRegistry`
+- The provider is registered as `"openai"` (the identifier reserved in Stage 1) in the provider registry
 - The Stage 1 `"openai"` → `"openai-responses"` deprecation alias is removed so `"openai"` resolves to the Chat Completions client
 
 ### Gaps
@@ -36,10 +36,10 @@ Extend the TINYCUA SDK with an **OpenAI Chat Completions API** provider client s
 
 ### Constraints
 
-- Must use the official `openai` PyPI SDK (`client.chat.completions.create()`) — no HTTP-level client
+- Must use the official `openai` PyPI SDK for Chat Completions access — no HTTP-level client
 - Must normalize Chat Completions SSE events into the existing canonical event schema (Responses-shaped TypedDicts)
 - Must support raw event pass-through via the same `(canonical, raw)` paired tuple mechanism
-- Must remove the Stage 1 `"openai"` deprecation alias from `ProviderRegistry` and register the Chat Completions client under `"openai"` instead
+- Must remove the Stage 1 `"openai"` deprecation alias from the provider registry and register the Chat Completions client under `"openai"` instead
 - The `"openai-responses"` provider must continue to work unchanged
 - Existing tool-call state machine rules (one `tool_call.ready` per executable call) apply unchanged
 - Must handle Chat Completions-specific edge cases: `content` can be `null` when only tool calls are returned, multiple choices are requested but only `n=1` is in scope for MVP
@@ -54,15 +54,15 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 
 ### Acceptance Scenarios
 
-1. **Given** a `LanguageModel` with `provider="openai"` (Chat Completions), **When** `ProviderRegistry.create_client(model_config)` is called, **Then** an `OpenAIChatClient` instance is returned, not the `OpenAIResponsesClient`.
+1. **Given** a `LanguageModel` with `provider="openai"` (Chat Completions), **When** a provider client is created from the model configuration, **Then** a Chat Completions provider client instance is returned, not a Responses API provider client.
 
-2. **Given** an `OpenAIChatClient` instance, **When** `client.chat(messages=[UserMessage(role="user", content="Hello"])` is called with `stream=False`, **Then** the returned `LLMResponse` contains the assistant's text content, normalized usage data, and a finish reason.
+2. **Given** a Chat Completions provider client instance, **When** `client.chat(messages=[UserMessage(role="user", content="Hello"])` is called with `stream=False`, **Then** the returned `LLMResponse` contains the assistant's text content, normalized usage data, and a finish reason.
 
-3. **Given** an `OpenAIChatClient` instance, **When** `client.chat(messages, tools, stream=True)` is called and the model responds with tool calls, **Then** the stream yields `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, and exactly one `ToolCallReadyEvent` per tool call — matching the canonical tool-call state machine.
+3. **Given** a Chat Completions provider client instance, **When** `client.chat(messages, tools, stream=True)` is called and the model responds with tool calls, **Then** the stream yields `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, and exactly one `ToolCallReadyEvent` per tool call — matching the canonical tool-call state machine.
 
 4. **Given** a streaming request with `stream=True` and `raw_events=True`, **When** the async iterator is consumed, **Then** each yielded item follows the standard pairing contract from Stage 1: first canonical event from a chunk is paired with the raw SDK object, while synthetic or follow-on canonical events (from one-to-many chunk expansion) are paired with `raw=None`. Consumers MUST handle `raw=None` for synthetic or follow-on canonical events.
 
-5. **Given** the `ProviderRegistry` singleton, **When** `ProviderRegistry.is_supported("openai")` is called, **Then** it returns `True`, and `ProviderRegistry.is_supported("openai-responses")` also returns `True` (both providers coexist).
+5. **Given** the provider registry, **When** provider support is checked for `"openai"`, **Then** it returns `True`, and checking `"openai-responses"` also returns `True` (both providers coexist).
 
 6. **Given** the Stage 1 `"openai"` → `"openai-responses"` deprecation alias, **When** Stage 2 is deployed, **Then** the alias is removed and `"openai"` resolves to the Chat Completions client — existing code using `provider="openai-responses"` is unaffected.
 
@@ -81,30 +81,24 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST provide an `OpenAIChatClient` class implementing the `LLMClient` ABC, wrapping `openai.chat.completions.create()`.
+- **FR-001**: The system MUST provide a first-class provider for OpenAI Chat Completions through the existing `LLMClient` interface.
 - **FR-002**: Non-streaming `chat()` MUST normalize the Chat Completions response to `LLMResponse` with `content`, `tool_calls`, `usage`, `finish_reason`, and `model`.
-- **FR-003**: Streaming `chat()` MUST normalize Chat Completions delta chunks into canonical `LLMEvent` types: `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent`, `ResponseUsageEvent`, `ResponseCompletedEvent`, `ResponseFailedEvent`.
+- **FR-003**: Streaming `chat()` MUST normalize Chat Completions delta chunks into canonical `LLMEvent` types: `ContentDeltaEvent`, `ContentDoneEvent`, `ToolCallStartedEvent`, `ToolCallArgumentsDeltaEvent`, `ToolCallArgumentsDoneEvent`, `ToolCallReadyEvent`, `ResponseUsageEvent`, `ResponseCompletedEvent`.
 - **FR-004**: The Chat Completions normalizer MUST aggregate `delta.tool_calls` array chunks across stream chunks by tool call index, producing one `ToolCallReadyEvent` per complete tool call.
 - **FR-005**: The Chat Completions normalizer MUST emit exactly one `ToolCallReadyEvent` per executable tool call (matching the Stage 1 state machine contract).
 - **FR-006**: Raw pass-through (`raw_events=True`) MUST follow the standard pairing contract from Stage 1's `_yield_events()`: when one chunk produces multiple canonical events, the first canonical event is paired with the original `ChatCompletionChunk` SDK object (lossless), and subsequent canonical events from the same chunk are paired with `raw=None`. For chunks that produce a single canonical event, the pair is `(canonical_event, raw_event)` where `raw_event.raw_event` is the SDK's `ChatCompletionChunk` object.
-- **FR-007**: The provider MUST be registered under the `"openai"` identifier in `ProviderRegistry`.
+- **FR-007**: The provider MUST be registered under the `"openai"` identifier in the provider registry.
 - **FR-008**: The Stage 1 `"openai"` deprecation alias (pointing to `"openai-responses"`) MUST be removed upon registration of the Chat Completions client.
-- **FR-009**: The `OpenAIChatClient` MUST accept `LanguageModel` configuration (API key, base URL, model name, temperature, max_tokens, etc.) and pass them to the SDK constructor.
+- **FR-009**: The OpenAI Chat Completions provider MUST accept `LanguageModel` configuration (API key, base URL, model name, temperature, max_tokens, etc.) and pass them to the SDK constructor.
 - **FR-010**: Errors from the `openai` SDK (authentication, rate limits, invalid requests) MUST be translated to `ProviderAuthError` or `ProviderApiError` as appropriate.
 - **FR-011**: The client MUST support tool-result continuation by appending `ToolResultMessage` to the messages list, mapping `call_id` and `content` to the Chat Completions tool message format internally. The client MUST also preserve the prior assistant response's `tool_calls` payload and inject a preceding assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before each batch of `role="tool"` messages so the Chat Completions API can validate tool results against the original tool calls.
 - **FR-012**: The `openai` SDK dependency (`openai>=2.34,<3`) already declared in `pyproject.toml` covers Chat Completions — no new dependencies are required.
-
-### Key Entities
-
-- **OpenAIChatClient**: Concrete `LLMClient` subclass wrapping `openai.chat.completions.create()`.
-- **ChatCompletionsNormalizer**: Per-provider SSE normalizer that maps Chat Completions delta chunks to canonical `LLMEvent` types. Handles tool call accumulation across chunks.
-- **ChoiceAccumulator**: Internal state tracker that accumulates `delta.content` and `delta.tool_calls` across stream chunks for a single choice index.
 
 ---
 
 ## Success Criteria
 
-- [ ] **Non-streaming chat**: `OpenAIChatClient.chat(stream=False)` returns a valid `LLMResponse` with content, usage, and finish reason.
+- [ ] **Non-streaming chat**: Chat Completions non-streaming chat returns a valid `LLMResponse` with content, usage, and finish reason.
 - [ ] **Streaming content**: Streaming chat yields `ContentDeltaEvent` and `ContentDoneEvent` events with correct delta text.
 - [ ] **Streaming tool calls**: Streaming chat with tool-using models yields correctly accumulated `ToolCallReadyEvent` events.
 - [ ] **Raw pass-through**: `raw_events=True` yields paired tuples with lossless SDK chunk objects.
@@ -121,19 +115,19 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 
 ### Unit Tests
 
-- Test `OpenAIChatClient._chat_impl(non-streaming)` returns correct `LLMResponse` shape
+- Test Chat Completions non-streaming `_chat_impl` returns correct `LLMResponse` shape
 - Test streaming normalization maps all Chat Completions chunk types to canonical events
 - Test tool call accumulation across chunks (partial `tool_calls` arrays, index-based merging)
 - Test raw pass-through yields correct `(canonical, raw)` pairs
 - Test error translation: `openai.AuthenticationError` → `ProviderAuthError`, `openai.APIError` → `ProviderApiError`
-- Test `ProviderRegistry` registration and resolution for `"openai"`
+- Test provider registry registration and resolution for `"openai"`
 - Test that `"openai"` → `"openai-responses"` alias is gone
 - Test tool-result continuation: `ToolResultMessage` → Chat Completions tool message format
 
 ### Integration Tests
 
 - Test end-to-end streaming with mocked Chat Completions responses
-- Test provider switching: `LanguageModel(provider="openai")` resolves to `OpenAIChatClient`, `LanguageModel(provider="openai-responses")` resolves to `OpenAIResponsesClient`
+- Test provider switching: `LanguageModel(provider="openai")` resolves to the Chat Completions provider client, `LanguageModel(provider="openai-responses")` resolves to `OpenAIResponsesClient`
 - Test that existing `OpenAIResponsesClient` integration tests still pass
 
 ### Manual Tests
@@ -147,8 +141,8 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 | Item | Status | Notes |
 |------|--------|-------|
 | Spec & Design | Complete | Ready for planning |
-| OpenAIChatClient implementation | TODO | |
-| ChatCompletionsNormalizer | TODO | |
+| Chat Completions provider client implementation | TODO | |
+| Chat Completions SSE normalizer | TODO | |
 | Provider registration + alias removal | TODO | |
 | Unit tests | TODO | |
 | Integration tests | TODO | |
