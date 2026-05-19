@@ -31,6 +31,9 @@ OPENAI_COMPATIBLE: Final = "openai-compatible"
 #: The canonical identifier for OpenAI Responses API.
 OPENAI_RESPONSES: Final = "openai-responses"
 
+#: The canonical identifier for OpenAI Chat Completions API.
+OPENAI_CHAT_COMPLETIONS: Final = "openai-chat-completions"
+
 #: Default base URL for local OpenAI-compatible endpoints.
 DEFAULT_BASE_URL: Final = "http://localhost:1234/v1"
 
@@ -297,10 +300,26 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         ),
     )
 
+    def _openai_chat_completions_factory(model_config: LanguageModel) -> Any:
+        from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient  # noqa: PLC0415
+
+        return OpenAIChatCompletionsClient(model_config)
+
+    registry.register(
+        OPENAI_CHAT_COMPLETIONS,
+        _openai_chat_completions_factory,
+        ProviderInfo(
+            id=OPENAI_CHAT_COMPLETIONS,
+            factory=_openai_chat_completions_factory,
+            description="OpenAI Chat Completions API",
+        ),
+    )
+
 
 __all__ = [
     "DEFAULT_BASE_URL",
     "OPENAI_BASE_URL",
+    "OPENAI_CHAT_COMPLETIONS",
     "OPENAI_COMPATIBLE",
     "OPENAI_RESPONSES",
     "ProviderFactory",

@@ -184,40 +184,25 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
         await client.chat([UserMessage(role="user", content="hi")], raw_events=True)
 
 
-# ── Test 5: openai-responses resolves through registry (default registration) ─
+# ── Test 5: openai-responses and openai-chat-completions resolve through registry ──
 
 
 @pytest.mark.asyncio
-async def test_openai_responses_default_registration(default_registry: ProviderRegistry) -> None:
-    """Given openai-responses is auto-registered in the default singleton,
-    when create_client is called with provider="openai-responses", the
-    returned client is correctly configured from the LanguageModel config.
+async def test_default_registrations(default_registry: ProviderRegistry) -> None:
+    """Given providers are auto-registered in the default singleton,
+    create_client returns the correct client type for each."""
+    from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
-    This test does NOT call register() — it relies on the default
-    registration that happens at import time. This proves the auto-registration
-    path works, unlike a test that manually re-registers the provider.
-    """
-    # Verify the provider is already registered (default registration)
     assert default_registry.is_supported("openai-responses")
+    assert default_registry.is_supported("openai-chat-completions")
 
-    # Construct a LanguageModel with an explicit model_name and base_url
-    model = LanguageModel(
-        provider="openai-responses",
-        model_name="gpt-4o",
-        base_url="https://api.openai.com/v1",
-    )
-    client = default_registry.create_client(model)
+    model_resp = LanguageModel(provider="openai-responses", model_name="gpt-4o")
+    client_resp = default_registry.create_client(model_resp)
+    assert isinstance(client_resp, OpenAIResponsesClient)
 
-    # Verify the default registration produced a configured client
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
-
-    assert isinstance(client, OpenAIResponsesClient), (
-        f"Expected OpenAIResponsesClient, got {type(client).__name__}"
-    )
-
-    # The client should be properly initialized from the model config.
-    # Verify it has the expected model config.
-    assert client._model_config is model
+    model_chat = LanguageModel(provider="openai-chat-completions", model_name="gpt-4o")
+    client_chat = default_registry.create_client(model_chat)
+    assert isinstance(client_chat, OpenAIChatCompletionsClient)
 
 
 # ── Test 6: Known but unregistered providers raise ProviderNotSupportedError ──

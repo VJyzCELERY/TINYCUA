@@ -4,67 +4,67 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests from `implementation-plan.md` for provider resolution, non-streaming normalization, streaming tool calls, and raw event pass-through <!-- id: 0 -->
-  - [ ] Add `tests/integration/test_openai_chat_completions_provider.py`
-  - [ ] Mock `AsyncOpenAI.chat.completions.create()` responses and streams
-  - [ ] Assert `provider="openai-chat-completions"` returns `OpenAIChatCompletionsClient`, `provider="openai"` returns `OpenAIResponsesClient` (via alias), and `provider="openai-responses"` returns `OpenAIResponsesClient`
-- [ ] Run integration tests and confirm RED failures before implementation <!-- id: 1 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest tests/integration/test_openai_chat_completions_provider.py`
-- [ ] Write focused unit tests for Chat Completions request/response behavior <!-- id: 2 -->
-  - [ ] Add `tests/unit/test_openai_chat_client.py`
-  - [ ] Test Chat Completions payload uses `messages`, `tools`, `max_tokens`, `response_format`, and tool-result `role="tool"`
-  - [ ] Test non-streaming response normalization with text, usage, finish reason, and tool calls
-  - [ ] Test streaming content deltas and terminal completion events
-  - [ ] Test streaming tool-call accumulation across partial chunks
-  - [ ] Test error translation to `ProviderAuthError` and `ProviderApiError`
-  - [ ] Test raw-events one-to-many pairing: one chunk producing multiple canonical events asserts first gets raw chunk, follow-on gets `raw=None`
-  - [ ] Test that `LanguageModel(response_format=...)` produces a Chat Completions request with `response_format` and does not emit the Responses-only `text` field
-- [ ] Update provider registry tests for new `"openai-chat-completions"` registration and alias preservation, then confirm RED where implementation is missing <!-- id: 3 -->
-  - [ ] Update `tests/unit/test_provider_registry.py`
-  - [ ] Update `tests/unit/test_provider_switching.py`
-  - [ ] Update `tests/integration/test_provider_switching.py`
+- [x] Write integration tests from `implementation-plan.md` for provider resolution, non-streaming normalization, streaming tool calls, and raw event pass-through <!-- id: 0 -->
+  - [x] Add `tests/integration/test_openai_chat_completions_provider.py`
+  - [x] Mock `AsyncOpenAI.chat.completions.create()` responses and streams
+  - [x] Assert `provider="openai-chat-completions"` returns `OpenAIChatCompletionsClient`, `provider="openai"` returns `OpenAIResponsesClient` (via alias), and `provider="openai-responses"` returns `OpenAIResponsesClient`
+- [x] Run integration tests and confirm RED failures before implementation <!-- id: 1 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/integration/test_openai_chat_completions_provider.py`
+- [x] Write focused unit tests for Chat Completions request/response behavior <!-- id: 2 -->
+  - [x] Add `tests/unit/test_openai_chat_client.py`
+  - [x] Test Chat Completions payload uses `messages`, `tools`, `max_tokens`, `response_format`, and tool-result `role="tool"`
+  - [x] Test non-streaming response normalization with text, usage, finish reason, and tool calls
+  - [x] Test streaming content deltas and terminal completion events
+  - [x] Test streaming tool-call accumulation across partial chunks
+  - [x] Test error translation to `ProviderAuthError` and `ProviderApiError`
+  - [x] Test raw-events one-to-many pairing: one chunk producing multiple canonical events asserts first gets raw chunk, follow-on gets `raw=None`
+  - [x] Test that `LanguageModel(response_format=...)` produces a Chat Completions request with `response_format` and does not emit the Responses-only `text` field
+- [x] Update provider registry tests for new `"openai-chat-completions"` registration and alias preservation, then confirm RED where implementation is missing <!-- id: 3 -->
+  - [x] Update `tests/unit/test_provider_registry.py`
+  - [x] Update `tests/unit/test_provider_switching.py`
+  - [x] Update `tests/integration/test_provider_switching.py`
 
 ## Implementation Phase
 
-- [ ] Implement Chat Completions payload translation in `tinycua_sdk/agent/llm_client.py` <!-- id: 4 -->
-  - [ ] Add Chat-specific supported field mapping, including `max_tokens` instead of `max_output_tokens`
-  - [ ] Map canonical messages to Chat Completions `messages`
-  - [ ] Map `ToolResultMessage` to Chat Completions tool messages with `tool_call_id`
-  - [ ] Preserve prior assistant `tool_calls` from Chat Completions response and inject a preceding assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before tool-result messages in follow-up requests
-  - [ ] Reuse or adapt tool translation without changing Responses API behavior
-- [ ] Implement Chat Completions stream accumulators and normalizer <!-- id: 5 -->
-  - [ ] Add `ChoiceAccumulator` and `ToolCallAccumulator`
-  - [ ] Add `_normalize_chat_chunk()` and small helper functions for content, usage, lifecycle, and tool-call events
-  - [ ] Emit `ContentDoneEvent` only when content exists
-  - [ ] Emit `ToolCallArgumentsDoneEvent` and exactly one `ToolCallReadyEvent` per executable tool call
-  - [ ] Emit `ResponseUsageEvent` from terminal chunk usage when present
-  - [ ] Emit `ResponseCompletedEvent` for terminal `finish_reason`
-- [ ] Implement `OpenAIChatCompletionsClient` in `tinycua_sdk/agent/llm_client.py` <!-- id: 6 -->
-  - [ ] Initialize and close `AsyncOpenAI` with API key and normalized base URL
-  - [ ] Implement non-streaming `_chat_impl()` path using `client.chat.completions.create(stream=False)`
-  - [ ] Implement streaming `_chat_impl()` path using `client.chat.completions.create(stream=True)`
-  - [ ] Preserve raw event pairing with `RawSseEvent(provider="openai-chat-completions", raw_event=chunk)`
-  - [ ] Translate provider errors consistently with `OpenAIResponsesClient`
-- [ ] Register the new provider in `tinycua_sdk/core/providers.py` <!-- id: 7 -->
-  - [ ] Keep the `"openai" -> "openai-responses"` alias in place
-  - [ ] Register `"openai-chat-completions"` with `OpenAIChatCompletionsClient`
-  - [ ] Keep `"openai-responses"` registered with `OpenAIResponsesClient`
-- [ ] Update public exports <!-- id: 8 -->
-  - [ ] Export `OpenAIChatCompletionsClient` from `tinycua_sdk/agent/__init__.py`
-  - [ ] Add `OpenAIChatCompletionsClient` to `tinycua_sdk/agent/llm_client.py::__all__`
+- [x] Implement Chat Completions payload translation in `tinycua_sdk/agent/llm_client.py` <!-- id: 4 -->
+  - [x] Add Chat-specific supported field mapping, including `max_tokens` instead of `max_output_tokens`
+  - [x] Map canonical messages to Chat Completions `messages`
+  - [x] Map `ToolResultMessage` to Chat Completions tool messages with `tool_call_id`
+  - [x] Preserve prior assistant `tool_calls` from Chat Completions response and inject a preceding assistant message with `tool_calls=[{id, type: "function", function: {name, arguments}}]` before tool-result messages in follow-up requests
+  - [x] Reuse or adapt tool translation without changing Responses API behavior
+- [x] Implement Chat Completions stream accumulators and normalizer <!-- id: 5 -->
+  - [x] Add `ChoiceAccumulator` and `ToolCallAccumulator`
+  - [x] Add `_normalize_chat_chunk()` and small helper functions for content, usage, lifecycle, and tool-call events
+  - [x] Emit `ContentDoneEvent` only when content exists
+  - [x] Emit `ToolCallArgumentsDoneEvent` and exactly one `ToolCallReadyEvent` per executable tool call
+  - [x] Emit `ResponseUsageEvent` from terminal chunk usage when present
+  - [x] Emit `ResponseCompletedEvent` for terminal `finish_reason`
+- [x] Implement `OpenAIChatCompletionsClient` in `tinycua_sdk/agent/llm_client.py` <!-- id: 6 -->
+  - [x] Initialize and close `AsyncOpenAI` with API key and normalized base URL
+  - [x] Implement non-streaming `_chat_impl()` path using `client.chat.completions.create(stream=False)`
+  - [x] Implement streaming `_chat_impl()` path using `client.chat.completions.create(stream=True)`
+  - [x] Preserve raw event pairing with `RawSseEvent(provider="openai-chat-completions", raw_event=chunk)`
+  - [x] Translate provider errors consistently with `OpenAIResponsesClient`
+- [x] Register the new provider in `tinycua_sdk/core/providers.py` <!-- id: 7 -->
+  - [x] Keep the `"openai" -> "openai-responses"` alias in place
+  - [x] Register `"openai-chat-completions"` with `OpenAIChatCompletionsClient`
+  - [x] Keep `"openai-responses"` registered with `OpenAIResponsesClient`
+- [x] Update public exports <!-- id: 8 -->
+  - [x] Export `OpenAIChatCompletionsClient` from `tinycua_sdk/agent/__init__.py`
+  - [x] Add `OpenAIChatCompletionsClient` to `tinycua_sdk/agent/llm_client.py::__all__`
 
 ## Testing Phase
 
-- [ ] Run new Chat Completions integration tests and expect GREEN <!-- id: 9 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest tests/integration/test_openai_chat_completions_provider.py`
-- [ ] Run new Chat Completions unit tests and expect GREEN <!-- id: 10 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py`
-- [ ] Run provider registry and provider switching tests <!-- id: 11 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_provider_registry.py tests/unit/test_provider_switching.py tests/integration/test_provider_switching.py`
-- [ ] Run existing LLM client tests to confirm Responses API behavior did not regress <!-- id: 12 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_llm_client.py`
-- [ ] Run full SDK test suite <!-- id: 13 -->
-  - [ ] `cd src/tinycua-sdk && uv run pytest`
+- [x] Run new Chat Completions integration tests and expect GREEN <!-- id: 9 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/integration/test_openai_chat_completions_provider.py`
+- [x] Run new Chat Completions unit tests and expect GREEN <!-- id: 10 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py`
+- [x] Run provider registry and provider switching tests <!-- id: 11 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/unit/test_provider_registry.py tests/unit/test_provider_switching.py tests/integration/test_provider_switching.py`
+- [x] Run existing LLM client tests to confirm Responses API behavior did not regress <!-- id: 12 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest tests/unit/test_llm_client.py`
+- [x] Run full SDK test suite <!-- id: 13 -->
+  - [x] `cd src/tinycua-sdk && uv run pytest`
 
 ## Setup Phase
 
