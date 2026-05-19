@@ -8,7 +8,7 @@
 
 ## Overview
 
-Restructure the SDK's provider-related code by extracting provider implementations and resolution utilities into a dedicated `tinycua_sdk/providers/` package. The `OpenAICompatibleClient` class moves from `agent/llm_client.py` to `providers/open_ai.py`, and provider resolution utilities move from `core/providers.py` to `providers/providers.py`. The `LLMClient` ABC remains in `agent/llm_client.py`. Old files (`core/providers.py`) are deleted; old class locations (`agent/llm_client.py`) are cleaned up — no backward-compatible re-export shims are left behind.
+Restructure the SDK's provider-related code by extracting provider implementations and resolution utilities into a dedicated `tinycua_sdk/providers/` package. The `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` classes move from `agent/llm_client.py` to `providers/open_ai.py`, and provider resolution utilities move from `core/providers.py` to `providers/providers.py`. The `LLMClient` ABC remains in `agent/llm_client.py`. Old files (`core/providers.py`) are deleted; old class locations (`agent/llm_client.py`) are cleaned up — no backward-compatible re-export shims are left behind.
 
 **Affected subproject**: `tinycua-sdk` only.
 
@@ -25,10 +25,10 @@ tinycua_sdk/
 │   ├── exceptions.py
 │   └── providers.py       # resolve_provider(), normalize_base_url(), constants
 ├── agent/
-│   ├── __init__.py         # Re-exports LLMClient + OpenAICompatibleClient
-│   ├── llm_client.py       # LLMClient ABC + OpenAICompatibleClient
+│   ├── __init__.py         # Re-exports LLMClient + OpenAIResponsesClient + OpenAIChatCompletionsClient
+│   ├── llm_client.py       # LLMClient ABC + OpenAIResponsesClient + OpenAIChatCompletionsClient
 │   ├── llm_model.py        # Imports resolve_provider from core.providers
-│   ├── executor.py         # Imports OpenAICompatibleClient from agent.llm_client
+│   ├── executor.py         # Imports both client classes from agent.llm_client
 │   └── ...
 └── ...
 ```
@@ -42,15 +42,15 @@ tinycua_sdk/
 │   ├── exceptions.py       # Unchanged
 │   └── providers.py        # ← DELETED
 ├── agent/
-│   ├── __init__.py         # Re-exports LLMClient; re-exports OpenAICompatibleClient via providers path
-│   ├── llm_client.py       # ← ONLY: LLMClient ABC (no more OpenAICompatibleClient)
+│   ├── __init__.py         # Re-exports LLMClient; re-exports both client classes via providers path
+│   ├── llm_client.py       # ← ONLY: LLMClient ABC (no more client classes)
 │   ├── llm_model.py        # Imports resolve_provider from providers.providers
-│   ├── executor.py         # Imports OpenAICompatibleClient from providers.open_ai
+│   ├── executor.py         # Imports both client classes from providers.open_ai
 │   └── ...
 └── providers/              # ← NEW package
     ├── __init__.py         # Convenience re-exports
     ├── providers.py        # ← MOVED FROM: core/providers.py (resolve_provider, normalize_base_url, constants)
-    └── open_ai.py          # ← MOVED FROM: agent/llm_client.py (OpenAICompatibleClient)
+    └── open_ai.py          # ← MOVED FROM: agent/llm_client.py (OpenAIResponsesClient + OpenAIChatCompletionsClient)
 ```
 
 ### File Movement Summary
@@ -58,7 +58,7 @@ tinycua_sdk/
 | Source | Destination | Action |
 |--------|-------------|--------|
 | `core/providers.py` | `providers/providers.py` | Move contents, then DELETE source |
-| `agent/llm_client.py` (partial: `OpenAICompatibleClient`) | `providers/open_ai.py` | Extract class, then REMOVE from source |
+| `agent/llm_client.py` (partial: `OpenAIResponsesClient` + `OpenAIChatCompletionsClient`) | `providers/open_ai.py` | Extract both classes, then REMOVE from source |
 | `agent/llm_client.py` | — | Keep `LLMClient` ABC only |
 
 ### Affected Components
@@ -66,18 +66,18 @@ tinycua_sdk/
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua_sdk/core/providers.py` | **Deleted** | Entire file removed |
-| `tinycua_sdk/core/__init__.py` | None | No changes needed |
-| `tinycua_sdk/agent/llm_client.py` | **Modified** | Removes `OpenAICompatibleClient` class and helpers; keeps `LLMClient` ABC; removes from `__all__` |
-| `tinycua_sdk/agent/__init__.py` | **Modified** | Changes `OpenAICompatibleClient` import source to `tinycua_sdk.providers.open_ai` |
-| `tinycua_sdk/agent/executor.py` | **Modified** | Updates import of `OpenAICompatibleClient` |
+| `tinycua_sdk/core/__init__.py` | **Modified** | Remove all imports from `tinycua_sdk.core.providers` — only `core.exceptions` imports remain |
+| `tinycua_sdk/agent/llm_client.py` | **Modified** | Removes `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` classes and helpers; keeps `LLMClient` ABC; removes both from `__all__` |
+| `tinycua_sdk/agent/__init__.py` | **Modified** | Changes `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` import source to `tinycua_sdk.providers.open_ai` |
+| `tinycua_sdk/agent/executor.py` | **Modified** | Updates imports of `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` |
 | `tinycua_sdk/agent/llm_model.py` | **Modified** | Updates import of `resolve_provider` |
 | `tinycua_sdk/providers/__init__.py` | **New** | Package init with convenience re-exports |
 | `tinycua_sdk/providers/providers.py` | **New** | Moved from `core/providers.py` |
-| `tinycua_sdk/providers/open_ai.py` | **New** | Contains `OpenAICompatibleClient` (extracted from `agent/llm_client.py`) |
+| `tinycua_sdk/providers/open_ai.py` | **New** | Contains `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` (extracted from `agent/llm_client.py`) |
 | `tests/unit/test_providers.py` | **Modified** | Updates import source |
-| `tests/unit/test_llm_client.py` | **Modified** | Updates import source for `OpenAICompatibleClient` |
+| `tests/unit/test_llm_client.py` | **Modified** | Updates import source for `OpenAIResponsesClient` |
 | `tests/unit/conftest.py` | **Modified** | Updates mock import reference (if any) |
-| `tests/integration/conftest.py` | **Modified** | Updates auth header logic reference (if any) |
+| `tests/integration/conftest.py` | None | No references to `core.providers` — local `_build_auth_headers()` is self-contained |
 
 ---
 
@@ -93,7 +93,8 @@ No new entities or schema changes. This is a pure file reorganization — all cl
 
 | Symbol | Old Path | New Path |
 |--------|----------|----------|
-| `OpenAICompatibleClient` | `tinycua_sdk.agent.llm_client` | `tinycua_sdk.providers.open_ai` |
+| `OpenAIResponsesClient` | `tinycua_sdk.agent.llm_client` | `tinycua_sdk.providers.open_ai` |
+| `OpenAIChatCompletionsClient` | `tinycua_sdk.agent.llm_client` | `tinycua_sdk.providers.open_ai` |
 | `resolve_provider` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `normalize_base_url` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `OPENAI_COMPATIBLE` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
@@ -106,7 +107,7 @@ No new entities or schema changes. This is a pure file reorganization — all cl
 `tinycua_sdk.providers` (via `__init__.py`) re-exports key symbols for ergonomic access:
 
 ```python
-from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider
+from tinycua_sdk.providers import OpenAIResponsesClient, OpenAIChatCompletionsClient, resolve_provider
 ```
 
 ### Error Handling
@@ -114,7 +115,7 @@ from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider
 | Error Case | Exception | Notes |
 |------------|-----------|-------|
 | Import from old `core.providers` | `ModuleNotFoundError` | File deleted — clear error on missing module |
-| Import `OpenAICompatibleClient` from `agent.llm_client` | `ImportError` | Symbol removed from module |
+| Import `OpenAIResponsesClient` or `OpenAIChatCompletionsClient` from `agent.llm_client` | `ImportError` | Symbols removed from module |
 
 ---
 
@@ -124,17 +125,17 @@ from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider
 
 - [ ] Create `tinycua_sdk/providers/__init__.py` with convenience re-exports
 - [ ] Create `tinycua_sdk/providers/providers.py` — copy `core/providers.py` content verbatim (no behavioral changes). Update any internal import paths if needed.
-- [ ] Create `tinycua_sdk/providers/open_ai.py` — copy `OpenAICompatibleClient` and its helper methods (`_build_payload`, `_chat_sync`, `_chat_stream`, `_normalize_responses_event`) from `agent/llm_client.py`. Update imports:
+- [ ] Create `tinycua_sdk/providers/open_ai.py` — copy `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` and their helper methods from `agent/llm_client.py`. Update imports:
   - `normalize_base_url` → from `tinycua_sdk.providers.providers`
   - `LanguageModel` → from `tinycua_sdk.agent.llm_model`
-- [ ] Verify new files are importable: `uv run python -c "from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider"`
+- [ ] Verify new files are importable: `uv run python -c "from tinycua_sdk.providers import OpenAIResponsesClient, OpenAIChatCompletionsClient, resolve_provider"`
 
 ### Phase 2 — Clean up `agent/llm_client.py`
 
-- [ ] Remove `OpenAICompatibleClient` class and all its helper methods (`_build_payload`, `_chat_sync`, `_chat_stream`, `_normalize_responses_event`)
+- [ ] Remove `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` classes and all their helper methods
 - [ ] Remove `httpx` import (verify it's not used by `LLMClient` ABC — it is not)
-- [ ] Remove `OpenAICompatibleClient` from `__all__` — only `LLMClient` remains
-- [ ] Run `uv run pytest tests/unit/test_llm_client.py` — tests pass (they now import `OpenAICompatibleClient` from the new location)
+- [ ] Remove `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` from `__all__` — only `LLMClient` remains
+- [ ] Run `uv run pytest tests/unit/test_llm_client.py` — tests pass (they now import `OpenAIResponsesClient` from the new location)
 
 ### Phase 3 — Delete `core/providers.py`
 
@@ -144,19 +145,19 @@ from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider
 
 ### Phase 4 — Update all internal imports
 
-- [ ] `agent/__init__.py`: Change `OpenAICompatibleClient` import to `from tinycua_sdk.providers.open_ai import OpenAICompatibleClient`
-- [ ] `agent/executor.py`: Change import to `from tinycua_sdk.providers.open_ai import OpenAICompatibleClient`
+- [ ] `agent/__init__.py`: Change imports to `from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient`
+- [ ] `agent/executor.py`: Change imports to `from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient`
 - [ ] `agent/llm_model.py`: Change import to `from tinycua_sdk.providers.providers import resolve_provider`
-- [ ] `tests/unit/test_llm_client.py`: Change import to `from tinycua_sdk.providers.open_ai import OpenAICompatibleClient`
+- [ ] `tests/unit/test_llm_client.py`: Change imports for `OpenAIResponsesClient`, `_normalize_responses_event` to `from tinycua_sdk.providers.open_ai`; `LLMClient`, `_build_payload` remain from `tinycua_sdk.agent.llm_client`
 - [ ] `tests/unit/test_providers.py`: Change import to `from tinycua_sdk.providers.providers import ...`
-- [ ] `tests/unit/conftest.py`: Update any reference to `OpenAICompatibleClient` to use new path
+- [ ] `tests/unit/conftest.py`: Update any reference to `OpenAIResponsesClient` to use new path
 - [ ] `tests/integration/conftest.py`: Update any reference
 
 ### Phase 5 — Full verification
 
 - [ ] Run `uv run pytest tests/` — all tests pass
-- [ ] Run smoke test: `uv run python -c "from tinycua_sdk.providers.open_ai import OpenAICompatibleClient; print('new path OK')"`
-- [ ] Run negative smoke test: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAICompatibleClient" 2>&1 | grep -q ImportError && echo 'old path correctly removed'`
+- [ ] Run smoke test: `uv run python -c "from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient; print('new paths OK')"`
+- [ ] Run negative smoke test: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAIResponsesClient" 2>&1 | grep -q ImportError && echo 'old path correctly removed'`
 
 ---
 
@@ -169,17 +170,26 @@ from tinycua_sdk.providers import OpenAICompatibleClient, resolve_provider
 from tinycua_sdk.providers.providers import (
     DEFAULT_BASE_URL,
     OPENAI_COMPATIBLE,
+    OPENAI_CHAT_COMPLETIONS,
+    OPENAI_RESPONSES,
     VALID_PROVIDERS,
+    get_provider_registry,
     normalize_base_url,
+    ProviderRegistry,
     resolve_provider,
 )
-from tinycua_sdk.providers.open_ai import OpenAICompatibleClient
+from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompletionsClient
 
 __all__ = [
     "DEFAULT_BASE_URL",
+    "OPENAI_CHAT_COMPLETIONS",
     "OPENAI_COMPATIBLE",
-    "OpenAICompatibleClient",
+    "OPENAI_RESPONSES",
+    "OpenAIResponsesClient",
+    "OpenAIChatCompletionsClient",
+    "ProviderRegistry",
     "VALID_PROVIDERS",
+    "get_provider_registry",
     "normalize_base_url",
     "resolve_provider",
 ]
@@ -197,14 +207,14 @@ Identical content to the current `core/providers.py`. This module has no interna
 ### `tinycua_sdk/providers/open_ai.py` (new — extracted from `agent/llm_client.py`)
 
 Contains:
-- `OpenAICompatibleClient(LLMClient)` class
-- Helper methods: `_build_payload`, `_chat_sync`, `_chat_stream`, `_normalize_responses_event`
+- `OpenAIResponsesClient(LLMClient)` and `OpenAIChatCompletionsClient(LLMClient)` classes
+- All helper methods, dataclasses, and constants for both classes
 - Imports:
   - `from tinycua_sdk.providers.providers import normalize_base_url`
   - `from tinycua_sdk.agent.llm_model import LanguageModel`
   - `from tinycua_sdk.agent.llm_client import LLMClient`
   - `httpx`, `json`, `ABC`, `AsyncIterator`, `Any` (stdlib/third-party)
-- `__all__ = ["OpenAICompatibleClient"]`
+- `__all__ = ["OpenAIResponsesClient", "OpenAIChatCompletionsClient"]`
 
 ### `tinycua_sdk/agent/llm_client.py` (modified)
 
@@ -215,10 +225,11 @@ Before:
 from tinycua_sdk.core.providers import normalize_base_url
 ...
 class LLMClient(ABC): ...
-class OpenAICompatibleClient(LLMClient): ...  # ← REMOVE
+class OpenAIResponsesClient(LLMClient): ...   # ← REMOVE
+class OpenAIChatCompletionsClient(LLMClient): ...  # ← REMOVE
 ...
 
-__all__ = ["LLMClient", "OpenAICompatibleClient"]
+__all__ = ["LLMClient", "OpenAIResponsesClient", "OpenAIChatCompletionsClient"]
 ```
 
 After:
@@ -249,10 +260,14 @@ Removed entirely. No replacement.
 
 3. **Decision**: Keep `LLMClient` ABC in `agent/llm_client.py`
    - **Reason**: The ABC is tightly coupled to the agent loop system (consumed by `BaseLoop` and `Agent.run()`). The spec's scope is to extract *provider implementations*, not the interface. Moving the ABC would create a circular dependency risk (`providers` importing from `agent` for `LLMClient`, and `agent` importing from `providers` for concrete clients).
-   - **Alternatives Considered**: Move ABC to `providers/base.py` — rejected because `OpenAICompatibleClient` inherits from `LLMClient`, creating `providers` → `agent` → `providers` if the ABC moves to `providers` and `agent/loop.py` still imports from `agent/llm_client.py`.
+   - **Alternatives Considered**: Move ABC to `providers/base.py` — rejected because `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` inherit from `LLMClient`, creating `providers` → `agent` → `providers` if the ABC moves to `providers` and `agent/loop.py` still imports from `agent/llm_client.py`.
 
-4. **Decision**: `agent/llm_client.py` removes `httpx` import entirely
-   - **Reason**: The `httpx` import was only used by `OpenAICompatibleClient`. The `LLMClient` ABC is pure abstract (uses only `abc`, `collections.abc`, `typing`). Removing it cleans up the module's dependency footprint.
+4. **Decision**: Keep `_build_payload` helper in `agent/llm_client.py` (not moved to `providers/`)
+   - **Reason**: `_build_payload` is a general-purpose OpenAI API payload builder that is also consumed by `LLMClient`-related utilities still in `agent/llm_client.py`. Moving it to `providers/open_ai.py` would require those remaining utilities to import from `providers/`, creating an unnecessary dependency edge in the opposite direction. Since `_build_payload` is small (~20 lines) and its only dependency is `typing`, keeping it in place minimizes churn while preserving clean module boundaries.
+   - **Alternatives Considered**: Move to `providers/open_ai.py` — rejected because remaining `agent/llm_client.py` utilities would then depend on `providers/`.
+
+5. **Decision**: `agent/llm_client.py` removes `httpx` import entirely
+   - **Reason**: The `httpx` import was only used by `OpenAIResponsesClient` and `OpenAIChatCompletionsClient`. The `LLMClient` ABC is pure abstract (uses only `abc`, `collections.abc`, `typing`). Removing it cleans up the module's dependency footprint.
    - **Verification**: Confirm `grep -rn "httpx" tinycua_sdk/agent/` returns no results after removal.
 
 ---

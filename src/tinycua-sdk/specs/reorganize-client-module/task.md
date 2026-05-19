@@ -4,7 +4,7 @@ Implementation tasks for extracting provider-specific implementations into `tiny
 
 ## TDD Phase (Tests First)
 
-- [ ] Write smoke test — verify new import paths resolve (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Create `tests/unit/test_import_sanity.py` — write smoke tests as defined in implementation-plan.md <!-- id: 0 -->
 - [ ] Run smoke tests — expect RED (failures) since new `providers/` package does not exist yet <!-- id: 1 -->
 
 ## Implementation Phase
@@ -67,7 +67,7 @@ Implementation tasks for extracting provider-specific implementations into `tiny
 
 ### Phase 5 — Update All Internal Imports (Tests)
 
-- [ ] `tests/unit/test_llm_client.py`: Update imports for `OpenAIResponsesClient`, `_normalize_responses_event` <!-- id: 16 -->
+- [ ] `tests/unit/test_llm_client.py`: Update imports for `OpenAIResponsesClient`, `_normalize_responses_event` from `tinycua_sdk.agent.llm_client` → `tinycua_sdk.providers.open_ai`. `LLMClient`, `_build_payload` remain from `tinycua_sdk.agent.llm_client`. <!-- id: 16 -->
 - [ ] `tests/unit/test_providers.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 17 -->
 - [ ] `tests/unit/test_provider_switching.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 18 -->
 - [ ] `tests/unit/test_provider_registry.py`: Update imports to `tinycua_sdk.providers.providers` <!-- id: 19 -->

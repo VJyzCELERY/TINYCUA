@@ -40,7 +40,7 @@ Extract provider-specific LLM client implementations (`OpenAIResponsesClient`, `
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: tests/unit/test_import_sanity.py (new smoke tests — run manually or via pytest)
+# File: tests/unit/test_import_sanity.py (NEW — smoke tests)
 """Reorganization smoke tests: new import paths resolve, old paths fail."""
 
 
@@ -95,14 +95,9 @@ def test_llm_client_abc_still_in_agent():
 
 def test_old_core_providers_path_removed():
     """FR-005: Old core.providers module is deleted."""
-    import importlib
-    import tinycua_sdk.core.providers  # noqa: F811
-    # This should still raise ImportError — the module is deleted
-    try:
-        importlib.reload(tinycua_sdk.core.providers)
-        assert False, "core.providers should be gone"
-    except ImportError:
-        pass
+    import importlib.util
+    spec = importlib.util.find_spec("tinycua_sdk.core.providers")
+    assert spec is None, "core.providers module should not exist — it was deleted"
 
 
 def test_full_test_suite_passes():
@@ -145,12 +140,12 @@ def test_full_test_suite_passes():
 
 - **[Description]**: Package init with convenience re-exports of all public symbols from `providers.open_ai` and `providers.providers`
 - **[Rationale]**: Provides ergonomic imports like `from tinycua_sdk.providers import OpenAIResponsesClient`
-- **[Contents]**: Re-exports `OpenAIResponsesClient`, `OpenAIChatCompletionsClient`, `resolve_provider`, `normalize_base_url`, `DEFAULT_BASE_URL`, `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `ProviderRegistry`, `get_provider_registry`
+- **[Contents]**: Re-exports `OpenAIResponsesClient`, `OpenAIChatCompletionsClient`, `resolve_provider`, `normalize_base_url`, `DEFAULT_BASE_URL`, `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `ProviderRegistry`, `get_provider_registry`, `VALID_PROVIDERS`
 
 #### [NEW] `tinycua_sdk/providers/providers.py`
 
 - **[Description]**: Moved verbatim from `tinycua_sdk/core/providers.py` — contains `ProviderRegistry`, `resolve_provider`, `normalize_base_url`, `get_provider_registry`, constants, and `_register_defaults`
-- **[Dependencies]**: Updated deferred local imports inside factory functions to import from `tinycua_sdk.providers.open_ai` instead of `tinycua_sdk.agent.llm_client`
+- **[Dependencies]**: Inside the new `providers/providers.py`, update deferred local imports inside factory functions (`_register_defaults()`) to import from `tinycua_sdk.providers.open_ai` instead of `tinycua_sdk.agent.llm_client`
 - **[Rationale]**: Keeps provider resolution and registry alongside the provider implementations they create
 
 #### [NEW] `tinycua_sdk/providers/open_ai.py`
