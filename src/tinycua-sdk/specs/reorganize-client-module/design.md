@@ -213,10 +213,19 @@ __all__ = [
 ]
 ```
 
-### `tinycua_sdk/providers/providers.py` (new — verbatim from `core/providers.py`)
+### `tinycua_sdk/providers/providers.py` (new — based on `core/providers.py` with import path updates)
 
-Identical content to the current `core/providers.py`. This module has no internal dependency on `tinycua_sdk` packages (all imports are stdlib), so a straight copy is sufficient:
+Near-identical content to `core/providers.py`, but with internal import paths updated. The source module has internal dependencies that need path adjustments in the new location:
 
+- `tinycua_sdk.core.exceptions.ProviderNotSupportedError` → unchanged (core package is not being moved)
+- `tinycua_sdk.agent.llm_client.LLMClient` (TYPE_CHECKING only) → unchanged (LLMClient stays in agent)
+- `tinycua_sdk.agent.llm_model.LanguageModel` (TYPE_CHECKING only) → unchanged (LanguageModel stays in agent)
+- `tinycua_sdk.agent.llm_client.OpenAIResponsesClient` (deferred in `_openai_responses_factory`) → **update to** `tinycua_sdk.providers.open_ai`
+- `tinycua_sdk.agent.llm_client.OpenAIChatCompletionsClient` (deferred in `_openai_chat_completions_factory`) → **update to** `tinycua_sdk.providers.open_ai`
+
+This is not a straight copy — deferred client imports in factory functions must point to the new locations. Since `providers/providers.py` depends on `providers/open_ai.py`, these files must be created together in Phase 1 before imports resolve.
+
+Contents:
 - `resolve_provider()`
 - `normalize_base_url()`
 - Constants: `OPENAI_COMPATIBLE`, `DEFAULT_BASE_URL`, `_PROVIDER_ALIASES`
