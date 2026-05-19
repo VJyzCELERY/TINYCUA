@@ -13,14 +13,14 @@ Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `p
 
 ### Configuration
 
-- [ ] **None** - mocked unit and integration tests require no `.env` file.
-- [ ] **Optional manual verification** - `OPENAI_API_KEY` is required only for the real OpenAI API smoke test.
+- [ ] **`.env` setup** - copy `.env.example` to `.env` and configure `TINYCUA_BASE_URL` pointing to the local LLM server (default: `http://localhost:1234/v1`). This is required for local smoke tests.
+- [ ] **Optional real OpenAI API key** - set `OPENAI_API_KEY` only for real OpenAI API smoke tests.
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| None | No | N/A | N/A |
+| LLM Server (OpenAI-compatible) | Yes (for manual smoke tests) | Start any OpenAI-compatible server on `localhost:1234/v1` (e.g., LM Studio, llama.cpp, vLLM) | `curl http://localhost:1234/v1/models` returns 200 |
 
 ### Data / Fixtures
 
@@ -29,7 +29,8 @@ Implement a first-class OpenAI Chat Completions provider for `tinycua-sdk` so `p
 ### Access / Permissions
 
 - [ ] **None** - automated tests must not require network access or external credentials.
-- [ ] **Optional OpenAI API access** - only for manual verification against `provider="openai"` and `model="gpt-4o"`.
+- [ ] **Local LLM Server** - required for manual smoke tests. Default endpoint is `http://localhost:1234/v1`.
+- [ ] **Optional OpenAI API access** - only for manual verification against real OpenAI with `provider="openai"` and `model="gpt-4o"`.
 
 ### Developer Tooling
 
@@ -209,8 +210,9 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 ### Manual Verification
 
-- [ ] With `OPENAI_API_KEY` set, run a local smoke script using `LanguageModel(provider="openai", model_name="gpt-4o")` and confirm a non-streaming response returns content.
-- [ ] Run a streaming request against the real API and confirm canonical events are yielded in the expected state-machine order.
+- [ ] **Local LLM Server smoke test**: With the local server running at `http://localhost:1234/v1`, run a smoke script using `LanguageModel(provider="openai", model_name=<model>, base_url="http://localhost:1234/v1")` and confirm non-streaming response returns content. Use `.env.example` as the configuration reference.
+- [ ] **Real OpenAI API smoke test**: With `OPENAI_API_KEY` set, run a smoke script using `LanguageModel(provider="openai", model_name="gpt-4o")` and confirm a non-streaming response returns content.
+- [ ] Run a streaming request against the local LLM server and confirm canonical events are yielded in the expected state-machine order.
 - [ ] Run `LanguageModel(provider="openai-responses", model_name="gpt-4o")` and confirm the Responses API client remains selectable.
 
 ### Performance Considerations

@@ -67,6 +67,14 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
 - [ ] Run full SDK test suite <!-- id: 13 -->
   - [ ] `cd src/tinycua-sdk && uv run pytest`
 
+## Setup Phase
+
+- [ ] Set up local environment by copying `.env.example` to `.env` <!-- id: 13 -->
+  - [ ] Ensure `TINYCUA_BASE_URL=http://localhost:1234/v1` is configured
+  - [ ] Ensure `LLM_BASE_URL=http://localhost:1234/v1` is configured (if not already set in `.env`)
+- [ ] Start the local LLM Server on `localhost:1234/v1` (LM Studio, llama.cpp, vLLM, etc.) <!-- id: 13b -->
+  - [ ] Verify: `curl http://localhost:1234/v1/models` returns 200
+
 ## Verification Phase
 
 - [ ] Verify `provider="openai"` no longer emits a deprecation warning or resolves to `openai-responses` <!-- id: 14 -->
@@ -79,11 +87,14 @@ Implementation tasks for the OpenAI Chat Completions Provider. Check off items a
   - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py -k "test_streaming_tool_events_order"`
 - [ ] Verify tool-only non-streaming responses return `content is None` and populated `tool_calls` <!-- id: 18 -->
   - [ ] `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py -k "test_tool_only_response_content_none"`
-- [ ] Optionally run a manual real-API smoke test with `OPENAI_API_KEY` and `provider="openai"` <!-- id: 19 -->
+- [ ] Run a manual local LLM server smoke test with the local server at `http://localhost:1234/v1` and `provider="openai"` <!-- id: 19 -->
+  - [ ] `cd src/tinycua-sdk && uv run python -c "from tinycua_sdk.agent.llm_model import LanguageModel; from tinycua_sdk.core.providers import get_provider_registry; r = get_provider_registry(); c = r.create_client(LanguageModel(provider='openai', model_name='<your-model>')); import asyncio; print(asyncio.run(c.chat([{'role': 'user', 'content': 'Hello'}])))"`
+- [ ] Optionally run a real-API smoke test with `OPENAI_API_KEY` and `provider="openai"` <!-- id: 19b -->
 
 ## Documentation Phase
 
-- [ ] Update SDK docs or examples that describe supported providers, if present <!-- id: 20 -->
+- [ ] Update `.env.example` if any new env vars are introduced (e.g., new provider-specific base URLs) <!-- id: 20 -->
+- [ ] Update SDK docs or examples that describe supported providers, if present <!-- id: 20b -->
 - [ ] Document the Stage 2 provider identifier change: `openai` is Chat Completions, `openai-responses` is Responses API <!-- id: 21 -->
 - [ ] Add a changelog or release-note entry if the project maintains one <!-- id: 22 -->
 

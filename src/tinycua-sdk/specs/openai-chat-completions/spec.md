@@ -132,6 +132,7 @@ A developer building an agent application wants to use OpenAI's Chat Completions
 
 ### Manual Tests
 
+- Run against a local OpenAI-compatible server (default `http://localhost:1234/v1`) with `provider="openai"` to verify end-to-end streaming and normalization against local LLM
 - Run against real OpenAI API with `provider="openai"` and `model="gpt-4o"` to verify end-to-end streaming and normalization
 
 ---
