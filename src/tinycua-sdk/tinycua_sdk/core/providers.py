@@ -31,6 +31,9 @@ OPENAI_COMPATIBLE: Final = "openai-compatible"
 #: The canonical identifier for OpenAI Responses API.
 OPENAI_RESPONSES: Final = "openai-responses"
 
+#: The canonical identifier for OpenAI Chat Completions API.
+OPENAI_CHAT_COMPLETIONS: Final = "openai-chat-completions"
+
 #: Default base URL for local OpenAI-compatible endpoints.
 DEFAULT_BASE_URL: Final = "http://localhost:1234/v1"
 
@@ -53,9 +56,9 @@ _PROVIDER_ALIASES: Final[dict[str, str]] = {
 #:     Unregistered providers (e.g. ``"openai-compatible"``, ``"lmstudio"``)
 #:     raise ``ProviderNotSupportedError`` from ``create_client()``.
 #:
-#:     **Phase 1** removes the old generic OpenAI-compatible registration;
-#:     only ``OPENAI_RESPONSES`` (``"openai-responses"``) is registered by
-#:     default. Consumers that need ``"openai-compatible"`` must register
+#:     By default, ``OPENAI_RESPONSES`` (``"openai-responses"``) and
+#:     ``OPENAI_CHAT_COMPLETIONS`` (``"openai-chat-completions"``) are
+#:     registered. Consumers that need ``"openai-compatible"`` must register
 #:     a factory explicitly.
 
 
@@ -113,7 +116,7 @@ def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> 
 
     """
     if not url:
-        if provider in (OPENAI_RESPONSES, "openai"):
+        if provider in (OPENAI_RESPONSES, OPENAI_CHAT_COMPLETIONS, "openai"):
             return OPENAI_BASE_URL
         return DEFAULT_BASE_URL
     return url.rstrip("/")
@@ -261,7 +264,8 @@ def get_provider_registry() -> ProviderRegistry:
     """Return the singleton ``ProviderRegistry`` instance.
 
     Lazily initializes the registry on first call and registers
-    default providers (``openai-responses`` → ``OpenAIResponsesClient``).
+    default providers (``openai-responses`` → ``OpenAIResponsesClient``,
+    ``openai-chat-completions`` → ``OpenAIChatCompletionsClient``).
 
     Returns:
         The singleton ``ProviderRegistry`` instance.
@@ -297,10 +301,26 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         ),
     )
 
+    def _openai_chat_completions_factory(model_config: LanguageModel) -> Any:
+        from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient  # noqa: PLC0415
+
+        return OpenAIChatCompletionsClient(model_config)
+
+    registry.register(
+        OPENAI_CHAT_COMPLETIONS,
+        _openai_chat_completions_factory,
+        ProviderInfo(
+            id=OPENAI_CHAT_COMPLETIONS,
+            factory=_openai_chat_completions_factory,
+            description="OpenAI Chat Completions API",
+        ),
+    )
+
 
 __all__ = [
     "DEFAULT_BASE_URL",
     "OPENAI_BASE_URL",
+    "OPENAI_CHAT_COMPLETIONS",
     "OPENAI_COMPATIBLE",
     "OPENAI_RESPONSES",
     "ProviderFactory",

@@ -126,6 +126,31 @@ class TestProviderRegistry:
         assert captured_configs[0].model_name == "gpt-4o"
         assert captured_configs[0].temperature == 0.5
 
+    def test_list_providers_includes_all(self, registry: ProviderRegistry) -> None:
+        """list_providers includes openai-chat-completions when registered."""
+        def factory(cfg: LanguageModel) -> _MinimalClient:
+            return _MinimalClient()
+        registry.register("openai-chat-completions", factory, ProviderInfo(id="openai-chat-completions", factory=factory, description="Chat"))
+        registry.register("openai-responses", factory, ProviderInfo(id="openai-responses", factory=factory, description="Responses"))
+
+        providers = registry.list_providers()
+        ids = [p.id for p in providers]
+        assert "openai-chat-completions" in ids
+        assert "openai-responses" in ids
+
+    def test_openai_chat_completions_resolves(self, registry: ProviderRegistry) -> None:
+        """provider='openai-chat-completions' creates the right client."""
+        from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient
+
+        def factory(cfg: LanguageModel) -> LLMClient:
+            return OpenAIChatCompletionsClient(cfg)
+
+        registry.register("openai-chat-completions", factory, ProviderInfo(id="openai-chat-completions", factory=factory, description="Chat"))
+
+        model = LanguageModel.model_construct(provider="openai-chat-completions", model_name="gpt-4o")
+        client = registry.create_client(model)
+        assert isinstance(client, OpenAIChatCompletionsClient)
+
 
 class TestProviderInfo:
     """ProviderInfo dataclass behavior."""

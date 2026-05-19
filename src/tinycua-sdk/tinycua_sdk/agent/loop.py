@@ -125,9 +125,24 @@ class BaseLoop:
             )
 
         if executed_tool_calls:
+            # Embed tool_calls in the assistant message so that
+            # _translate_chat_messages can pair each tool-result batch
+            # with its own originating tool calls across multiple turns.
+            tool_calls_for_msg = [
+                {
+                    "id": _resolve_call_id(tc),
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    },
+                }
+                for tc in executed_tool_calls
+            ]
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
                 "content": assistant_content,
+                "tool_calls": tool_calls_for_msg,
             }
             working_messages.append(assistant_msg)
         working_messages.extend(tool_result_messages)
@@ -612,9 +627,25 @@ class BaseLoop:
             )
 
         if executed_tool_calls:
-            working_messages.append(
-                {"role": "assistant", "content": combined_content},
-            )
+            # Embed tool_calls in the assistant message so that
+            # _translate_chat_messages can pair each tool-result batch
+            # with its own originating tool calls across multiple turns.
+            tool_calls_for_msg = [
+                {
+                    "id": _resolve_call_id(tc),
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    },
+                }
+                for tc in executed_tool_calls
+            ]
+            working_messages.append({
+                "role": "assistant",
+                "content": combined_content,
+                "tool_calls": tool_calls_for_msg,
+            })
         working_messages.extend(tool_result_messages)
 
         return tool_call_count, max_tool_calls_reached
