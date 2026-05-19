@@ -106,6 +106,14 @@ No new entities or schema changes. This is a pure file reorganization — all cl
 | `normalize_base_url` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `OPENAI_COMPATIBLE` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `DEFAULT_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `OPENAI_RESPONSES` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `OPENAI_CHAT_COMPLETIONS` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `ProviderRegistry` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `get_provider_registry` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `ProviderInfo` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `ProviderFactory` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `OPENAI_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
+| `_PROVIDER_ALIASES` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.providers` |
 | `LLMClient` | `tinycua_sdk.agent.llm_client` | **Unchanged** |
 
 ### Convenience Namespace
@@ -175,11 +183,15 @@ from tinycua_sdk.providers import OpenAIResponsesClient, OpenAIChatCompletionsCl
 """Provider-specific LLM client implementations."""
 from tinycua_sdk.providers.providers import (
     DEFAULT_BASE_URL,
-    OPENAI_COMPATIBLE,
+    OPENAI_BASE_URL,
     OPENAI_CHAT_COMPLETIONS,
+    OPENAI_COMPATIBLE,
     OPENAI_RESPONSES,
+    _PROVIDER_ALIASES,
     get_provider_registry,
     normalize_base_url,
+    ProviderFactory,
+    ProviderInfo,
     ProviderRegistry,
     resolve_provider,
 )
@@ -187,11 +199,15 @@ from tinycua_sdk.providers.open_ai import OpenAIResponsesClient, OpenAIChatCompl
 
 __all__ = [
     "DEFAULT_BASE_URL",
+    "OPENAI_BASE_URL",
     "OPENAI_CHAT_COMPLETIONS",
     "OPENAI_COMPATIBLE",
     "OPENAI_RESPONSES",
+    "_PROVIDER_ALIASES",
     "OpenAIResponsesClient",
     "OpenAIChatCompletionsClient",
+    "ProviderFactory",
+    "ProviderInfo",
     "ProviderRegistry",
     "get_provider_registry",
     "normalize_base_url",

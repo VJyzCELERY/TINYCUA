@@ -98,11 +98,6 @@ def test_old_core_providers_path_removed():
     import importlib.util
     spec = importlib.util.find_spec("tinycua_sdk.core.providers")
     assert spec is None, "core.providers module should not exist — it was deleted"
-
-
-def test_full_test_suite_passes():
-    """AC-005: All existing tests pass after reorganization."""
-    # Verified by running: uv run pytest tests/unit/
 ```
 
 ### Key Test Scenarios
@@ -112,7 +107,7 @@ def test_full_test_suite_passes():
 - [ ] **Scenario 3**: Convenience namespace `tinycua_sdk.providers` re-exports key symbols
 - [ ] **Scenario 4**: `LLMClient` ABC still resolves from `tinycua_sdk.agent.llm_client`
 - [ ] **Scenario 5**: Old `core/providers.py` module raises `ImportError` (deleted)
-- [ ] **Scenario 6**: Full existing test suite passes with only import-path changes
+- [ ] **Scenario 6**: Full existing test suite passes — verified manually via `uv run pytest tests/unit/ -x --tb=short` (see Manual Verification)
 
 ## Verification Plan
 
@@ -127,6 +122,7 @@ def test_full_test_suite_passes():
 - [ ] Run: `uv run python -c "from tinycua_sdk.providers.open_ai import OpenAIResponsesClient; print('new path OK')"`
 - [ ] Run: `uv run python -c "from tinycua_sdk.agent.llm_client import OpenAIResponsesClient" 2>&1 | grep -q ImportError && echo 'old path correctly removed'`
 - [ ] Run: `uv run python -c "from tinycua_sdk.core.providers import resolve_provider" 2>&1 | grep -q ImportError && echo 'core.providers deleted'`
+- [ ] Verify full test suite passes: `uv run pytest tests/unit/ -x --tb=short` exits with code 0
 
 ### Performance Considerations
 
