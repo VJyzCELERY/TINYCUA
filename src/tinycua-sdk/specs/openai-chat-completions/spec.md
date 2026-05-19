@@ -30,7 +30,7 @@ Extend the TINYCUA SDK with an **OpenAI Chat Completions API** provider client s
 - Rebuilding the `openai` PyPI SDK (we delegate to the existing SDK)
 - Adding new provider types beyond OpenAI Chat Completions (Anthropic, Google, etc. are future work)
 - Modifying the `LLMClient` ABC or canonical event schema (Stage 2 fits into the existing contracts)
-- Changing the Agent Loop (`loop.py`) — the Chat Completions normalizer produces the same canonical events the loop already consumes
+- No Agent Loop schema/consumer changes beyond preserving assistant `tool_calls` metadata for provider compatibility — `loop.py` is modified only to inject assistant `tool_calls` before tool-result messages so the Chat Completions API can validate tool results
 - Streaming-only features — non-streaming `chat()` is fully supported and returns the same `LLMResponse` shape
 - Supporting Azure OpenAI or other OpenAI-compatible endpoints — the Chat Completions client uses the `openai` SDK's existing `base_url` parameter which already supports custom endpoints; this is inherited, not a new feature
 
