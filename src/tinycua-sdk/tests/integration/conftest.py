@@ -213,9 +213,13 @@ def pytest_collection_modifyitems(config, items):
     Tool-choice probe is further gated to tests with the
     ``integration_tool_choice`` marker.
     """
-    live_items = [item for item in items if "integration" in item.keywords]
+    live_items = [
+        item for item in items
+        if item.get_closest_marker("integration") is not None
+    ]
     tool_choice_items = [
-        item for item in items if "integration_tool_choice" in item.keywords
+        item for item in items
+        if item.get_closest_marker("integration_tool_choice") is not None
     ]
 
     # Skip provider probes entirely when no live LLM tests are collected
@@ -234,14 +238,12 @@ def pytest_collection_modifyitems(config, items):
 
     if not reachable:
         skip_mark = pytest.mark.skip(reason="LLM server not reachable/unusable")
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_mark)
+        for item in live_items:
+            item.add_marker(skip_mark)
     elif not tool_choice_supported:
         skip_tc_mark = pytest.mark.skip(
             reason="LLM server does not support forced tool_choice — skipping "
             "tool-choice integration tests"
         )
-        for item in items:
-            if "integration_tool_choice" in item.keywords:
-                item.add_marker(skip_tc_mark)
+        for item in tool_choice_items:
+            item.add_marker(skip_tc_mark)
