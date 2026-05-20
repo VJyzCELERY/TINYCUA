@@ -507,6 +507,12 @@ class TestChatCompletionsAttachmentTranslation:
         assert result["type"] == "image_url"
         assert "data:image/png;base64," in result["image_url"]["url"]
 
+    def test_translate_content_part_file_none_raises_value_error(self):
+        """ContentPart with type='file' and file=None raises ValueError."""
+        part = ContentPart.model_construct(type="file", file=None)
+        with pytest.raises(ValueError, match="file"):
+            _translate_chat_content_part(part)
+
     # ── _translate_chat_user_message ──────────────────────────────────────
 
     def test_translate_user_message_plain_string_no_attachments(self):
@@ -553,6 +559,15 @@ class TestChatCompletionsAttachmentTranslation:
         assert content[0] == {"type": "text", "text": "Part A"}
         assert content[1]["type"] == "image_url"
         assert content[2] == {"type": "text", "text": "Part B"}
+
+    def test_translate_user_message_with_dict_content_part(self):
+        """Dict-form ContentPart items are coerced correctly."""
+        msg: dict[str, object] = {
+            "role": "user",
+            "content": [{"type": "text", "text": "hello from dict"}],
+        }
+        result = _translate_chat_user_message(msg)
+        assert result["content"] == [{"type": "text", "text": "hello from dict"}]
 
     def test_translate_user_message_content_parts_plus_attachments(self):
         """list[ContentPart] + attachments: content parts first, then attachments."""
