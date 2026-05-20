@@ -6,6 +6,7 @@ multimodal content parts (text or file) within canonical agent message types.
 """
 
 import base64
+import binascii
 import mimetypes
 import pathlib
 from typing import Literal
@@ -36,6 +37,23 @@ class FileAttachment(BaseModel):
     filename: str | None = None
     url: str | None = None
     file_id: str | None = None
+
+    @field_validator("data")
+    @classmethod
+    def _validate_data_is_base64(cls, v: str | None) -> str | None:
+        """Validate that when data is provided, it is valid base64-encoded.
+
+        Uses ``validate=True`` so that non-base64 characters and incorrect
+        padding raise a ``ValidationError``.  An empty string is valid
+        (it represents zero bytes).
+        """
+        if v is not None:
+            try:
+                base64.b64decode(v, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                msg = "data must be a valid base64-encoded string"
+                raise ValueError(msg) from exc
+        return v
 
     @model_validator(mode="after")
     def _validate_exactly_one_source(self) -> "FileAttachment":

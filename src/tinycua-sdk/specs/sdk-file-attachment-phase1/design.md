@@ -168,13 +168,13 @@ FileAttachment.from_url(
 
 ### Phase 1 — Canonical Models (this phase)
 
-- [ ] Create `tinycua_sdk/models/attachment.py` with `FileAttachment` and `ContentPart`
-- [ ] Add `FileAttachment.from_path()`, `from_bytes()`, `from_url()` factory methods
-- [ ] Update `tinycua_sdk/agent/events.py`: `UserMessage.content` → `str | list[ContentPart]`
-- [ ] Update `tinycua_sdk/agent/events.py`: `ToolResultMessage.content` → `str | list[ContentPart]`
-- [ ] Update `tinycua_sdk/models/__init__.py` to export new models
-- [ ] Write unit tests for model creation, serialization, and helper methods
-- [ ] Verify backward compatibility: all existing tests pass
+- [x] Create `tinycua_sdk/models/attachment.py` with `FileAttachment` and `ContentPart`
+- [x] Add `FileAttachment.from_path()`, `from_bytes()`, `from_url()` factory methods
+- [x] Update `tinycua_sdk/agent/events.py`: `UserMessage.content` → `str | list[ContentPart]`
+- [x] Update `tinycua_sdk/agent/events.py`: `ToolResultMessage.content` → `str | list[ContentPart]`
+- [x] Update `tinycua_sdk/models/__init__.py` to export new models
+- [x] Write unit tests for model creation, serialization, and helper methods
+- [x] Verify backward compatibility: all existing tests pass
 
 > **Note**: Phases 2-6 must NOT be implemented until Phase 1 is complete and reviewed.
 
