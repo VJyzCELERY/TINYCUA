@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Literal, TypedDict, Union
 
+from tinycua_sdk.models import ContentPart
+
 # ── Canonical SSE Events ────────────────────────────────────────────────────
 
 
@@ -212,10 +214,14 @@ class SystemMessage(TypedDict):
 
 
 class UserMessage(TypedDict):
-    """User message."""
+    """User message.
+
+    Content can be a plain string (legacy) or a list of multimodal content
+    parts (text + file attachments).
+    """
 
     role: Literal["user"]
-    content: str
+    content: str | list[ContentPart]
 
 
 class AssistantMessage(TypedDict):
@@ -226,11 +232,15 @@ class AssistantMessage(TypedDict):
 
 
 class ToolResultMessage(TypedDict):
-    """Tool result message."""
+    """Tool result message.
+
+    Content can be a plain string (legacy) or a list of multimodal content
+    parts (text + file attachments).
+    """
 
     role: Literal["tool_result"]
     call_id: str
-    content: str
+    content: str | list[ContentPart]
 
 
 LLMMessage = Union[SystemMessage, UserMessage, AssistantMessage, ToolResultMessage]
@@ -250,6 +260,7 @@ __all__ = [
     "AssistantMessage",
     # Canonical SSE Events
     "ContentDeltaEvent",
+    "ContentPart",
     "ContentDoneEvent",
     "ErrorEvent",
     # Union type

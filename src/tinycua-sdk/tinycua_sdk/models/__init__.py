@@ -1,5 +1,6 @@
 """Models package."""
 
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.models.request import Message, ResponseRequest, ToolDefinition
 from tinycua_sdk.models.response import (
     FunctionCall,
@@ -14,6 +15,8 @@ from tinycua_sdk.models.response import (
 from tinycua_sdk.models.result import RunResult, ToolCall
 
 __all__ = [
+    "ContentPart",
+    "FileAttachment",
     "Message",
     "ResponseRequest",
     "ToolDefinition",
