@@ -1,0 +1,204 @@
+# Design Document: SDK-wide File Attachment Support
+
+**Spec**: `src/tinycua-sdk/specs/sdk-file-attachment-phase1/spec.md`
+**Status**: Draft
+**Last Updated**: 2026-05-20
+
+---
+
+## Overview
+
+This design adds a canonical `FileAttachment` Pydantic model, a `ContentPart` discriminated-union model for multimodal messages, and updates the canonical `UserMessage` / `ToolResultMessage` TypedDicts to accept `list[ContentPart]` in addition to plain `str`. The design also includes ergonomic factory methods (`from_path`, `from_bytes`, `from_url`) for constructing file attachments. All changes live in `tinycua_sdk/models/` and `tinycua_sdk/agent/events.py`, with no changes to provider translation layers (deferred to Phase 2).
+
+---
+
+## Architecture
+
+### Component Overview
+
+```
+Caller Code
+    |
+    v
+FileAttachment.from_path() / from_bytes() / from_url()    ← New factory methods
+    |
+    v
+FileAttachment (Pydantic BaseModel)                       ← New model
+ContentPart (Pydantic discriminated union)                 ← New model
+    |
+    v
+UserMessage(content: str | list[ContentPart])              ← Modified TypedDict
+ToolResultMessage(content: str | list[ContentPart])        ← Modified TypedDict
+    |
+    v
+Provider translation (unchanged in Phase 1)                ← Phase 2+
+```
+
+### Affected Components
+
+| Component | Change Type | Notes |
+|-----------|-------------|-------|
+| `tinycua_sdk/models/attachment.py` | **New** | `FileAttachment` and `ContentPart` models |
+| `tinycua_sdk/models/__init__.py` | Modified | Export new models |
+| `tinycua_sdk/agent/events.py` | Modified | Update `UserMessage.content` and `ToolResultMessage.content` type unions |
+
+---
+
+## Data Model
+
+### New Entities
+
+```python
+# tinycua_sdk/models/attachment.py
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, field_validator
+
+
+class FileAttachment(BaseModel):
+    """Represents a file to be sent to an LLM provider."""
+
+    data: str | None = None        # base64-encoded file content
+    mime_type: str                  # MIME type (e.g., "image/jpeg")
+    filename: str | None = None     # original filename
+    url: str | None = None          # public URL to the file
+    file_id: str | None = None      # provider-assigned file ID (for caching)
+
+    @field_validator("data")
+    @classmethod
+    def _validate_data_or_url_or_file_id(cls, v, info):
+        """At least one of data, url, or file_id must be set."""
+        values = info.data
+        if not v and not values.get("url") and not values.get("file_id"):
+            raise ValueError("At least one of 'data', 'url', or 'file_id' must be provided")
+        return v
+
+    @classmethod
+    def from_path(cls, path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment:
+        """Read a file from disk, detect MIME type, base64-encode, and return a FileAttachment."""
+        ...
+
+    @classmethod
+    def from_bytes(cls, data: bytes, mime_type: str, filename: str | None = None) -> FileAttachment:
+        """Create a FileAttachment from raw bytes."""
+        ...
+
+    @classmethod
+    def from_url(cls, url: str, mime_type: str, filename: str | None = None) -> FileAttachment:
+        """Create a FileAttachment from a URL."""
+        ...
+
+
+class ContentPart(BaseModel):
+    """A part of a multimodal message."""
+
+    type: Literal["text", "file"]
+    text: str | None = None
+    file: FileAttachment | None = None
+```
+
+### Schema Changes
+
+- **`UserMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`
+- **`ToolResultMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`
+- No migration needed — existing `str`-only usage remains valid via the union type
+
+---
+
+## API / Interface Contracts
+
+### New / Modified Functions
+
+```python
+# FileAttachment factory methods
+FileAttachment.from_path(
+    path: str | Path,
+    mime_type: str | None = None,
+    stream: bool = False,
+) -> FileAttachment
+
+FileAttachment.from_bytes(
+    data: bytes,
+    mime_type: str,
+    filename: str | None = None,
+) -> FileAttachment
+
+FileAttachment.from_url(
+    url: str,
+    mime_type: str,
+    filename: str | None = None,
+) -> FileAttachment
+```
+
+### Error Handling
+
+| Error Case | Exception / Response | Notes |
+|------------|---------------------|-------|
+| File not found (`from_path`) | `FileNotFoundError` | Propagated from `open()` |
+| No data, url, or file_id provided | `ValueError("At least one of 'data', 'url', or 'file_id' must be provided")` | Pydantic validation |
+| Unknown MIME type (`from_path`) | Falls back to `"application/octet-stream"` | `mimetypes.guess_type` returns `None` |
+| File too large for streaming | Depends on `stream` parameter | Without streaming: loads fully into memory; with streaming: processes in chunks |
+
+---
+
+## Implementation Phases
+
+### Phase 1 — Canonical Models (this phase)
+
+- [ ] Create `tinycua_sdk/models/attachment.py` with `FileAttachment` and `ContentPart`
+- [ ] Add `FileAttachment.from_path()`, `from_bytes()`, `from_url()` factory methods
+- [ ] Update `tinycua_sdk/agent/events.py`: `UserMessage.content` → `str | list[ContentPart]`
+- [ ] Update `tinycua_sdk/agent/events.py`: `ToolResultMessage.content` → `str | list[ContentPart]`
+- [ ] Update `tinycua_sdk/models/__init__.py` to export new models
+- [ ] Write unit tests for model creation, serialization, and helper methods
+- [ ] Verify backward compatibility: all existing tests pass
+
+> **Note**: Phases 2-6 must NOT be implemented until Phase 1 is complete and reviewed.
+
+---
+
+## Technical Decisions
+
+1. **Decision**: Use Pydantic `BaseModel` for `FileAttachment` and `ContentPart` rather than TypedDicts or dataclasses
+   - **Reason**: Pydantic provides built-in validation, serialization, discriminated unions, and is already a project dependency
+   - **Alternatives Considered**: TypedDicts (no runtime validation), dataclasses (no built-in validation), msgspec (additional dependency)
+
+2. **Decision**: Use Pydantic's discriminated union via `type: Literal["text", "file"]` rather than a separate `TextPart`/`FilePart` class hierarchy
+   - **Reason**: Simpler API surface; single `ContentPart` class with discriminated `type` field is easier to use and understand than multiple concrete part classes
+   - **Alternatives Considered**: Separate `TextPart` and `FilePart` Pydantic models with `Annotated[Union[...], Discriminator]` — more type-safe but more complex for callers
+
+3. **Decision**: `from_path()` with `stream=True` uses an internal chunked base64 encoder but still returns a single `FileAttachment`
+   - **Reason**: Keeps the public API simple. A fully lazy streaming API (async generator of base64 chunks) is conceptually clean but adds complexity that can be deferred to Phase 5
+   - **Alternatives Considered**: Returning `AsyncIterator[FileAttachment]` or `AsyncIterator[str]` for streaming — adds caller complexity not yet justified
+
+4. **Decision**: ContentPart model lives in `attachment.py` alongside `FileAttachment` rather than in `events.py`
+   - **Reason**: Keeps events.py focused on TypedDict definitions. The `ContentPart` is a data model, not an event shape
+   - **Alternatives Considered**: Placing `ContentPart` in `events.py` — would mix model and event concerns
+
+---
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Breaking existing callers by changing `content` type | Low | High | Use `str | list[ContentPart]` union — all existing `str`-only code compiles and runs unchanged |
+| Large files causing OOM in `from_path(stream=False)` | Medium | Medium | Document that `stream=True` should be used for large files; implement chunked reading in streaming mode |
+| Discriminated union complexity in Pydantic v2 | Low | Medium | Pin to Pydantic v2 which has stable discriminated union support; add serialization round-trip tests |
+
+---
+
+## Open Questions
+
+1. **Should `ContentPart` be allowed inside tool results, or only in user messages?**
+   - **Current thinking**: Both `UserMessage` and `ToolResultMessage` should support `list[ContentPart]`, since a tool might return a file (e.g., a generated image) that the LLM should see in the next turn. The issue's Phase 6 confirms this.
+
+---
+
+## References
+
+- Spec: `specs/sdk-file-attachment-phase1/spec.md`
+- Related issue: [#46](https://github.com/VJyzCELERY/TINYCUA/issues/46) — Implementation: SDK-wide File Attachment Support
