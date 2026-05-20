@@ -1,6 +1,6 @@
 # Implementation: SDK-wide File Attachment Support — Phase 1
 
-Add canonical SDK models for file attachments and structured multimodal content, then widen canonical user/tool-result message types so callers can pass either plain strings or typed content parts without breaking existing usage.
+Add canonical SDK models for file attachments and structured multimodal content, then widen canonical user/tool-result message types so callers can pass plain strings, typed content parts, or plain strings with a separate attachments list — all without breaking existing usage.
 
 ## Context
 
@@ -152,11 +152,12 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 ### Key Test Scenarios
 
 - [ ] **Local file attachment in `UserMessage`**: proves `from_path()` encodes bytes, detects MIME type, preserves filename, and the canonical `UserMessage.content` union accepts `list[ContentPart]`.
+- [ ] **Basic message-level attachments**: proves `UserMessage` accepts `content: str` + `attachments: list[FileAttachment]` as a separate canonical shape.
 - [ ] **Bytes and URL helper serialization**: proves `from_bytes()`, `from_url()`, and Pydantic model dump/validate round trips work for attachment content.
 - [ ] **Tool result attachment content**: proves `ToolResultMessage.content` accepts structured parts for generated artifacts.
 - [ ] **Validation edge cases**: rejects attachments with no source (`data`, `url`, or `file_id`), rejects multi-source attachments (more than one of `data`, `url`, or `file_id`), and rejects content parts missing the field required by their `type`.
 - [ ] **Streaming parity**: proves `from_path(stream=True)` returns the same base64 payload as the non-streaming path while exercising the chunked code path.
-- [ ] **TypedDict annotation validation**: proves that `UserMessage.__annotations__["content"]` / `ToolResultMessage.__annotations__["content"]` resolve to `str | list[ContentPart]` via `typing.get_type_hints()` / `typing.get_args()`, ensuring the union type is correctly widened beyond runtime dict-assignment tests alone.
+- [ ] **TypedDict annotation validation**: proves that `UserMessage.__annotations__["content"]` / `ToolResultMessage.__annotations__["content"]` resolve to `str | list[ContentPart]` via `typing.get_type_hints()` / `typing.get_args()`, ensuring the union type is correctly widened beyond runtime dict-assignment tests alone. Also verifies that `UserMessage.__annotations__["attachments"]` and `ToolResultMessage.__annotations__["attachments"]` resolve to `list[FileAttachment]`.
 
 ## Verification Plan
 
@@ -208,8 +209,9 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 - **Implementation details**:
   - `UserMessage.content`: `str | list[ContentPart]`.
   - `ToolResultMessage.content`: `str | list[ContentPart]`.
+  - Both `UserMessage` and `ToolResultMessage` gain an optional `attachments: NotRequired[list[FileAttachment]]` field to support the basic message shape (`content: str` + `attachments: list[FileAttachment]`).
   - Leave `SystemMessage` and `AssistantMessage` unchanged for Phase 1.
-  - Add `ContentPart` to imports only; no provider translation behavior changes in this phase.
+  - Add `ContentPart` and `FileAttachment` to imports; `NotRequired` added for the optional attachments field. No provider translation behavior changes in this phase.
 
 ### Tests
 
@@ -257,12 +259,14 @@ class ContentPart(BaseModel):
 class UserMessage(TypedDict):
     role: Literal["user"]
     content: str | list[ContentPart]
+    attachments: NotRequired[list[FileAttachment]]
 
 
 class ToolResultMessage(TypedDict):
     role: Literal["tool_result"]
     call_id: str
     content: str | list[ContentPart]
+    attachments: NotRequired[list[FileAttachment]]
 ```
 
 ## API Changes

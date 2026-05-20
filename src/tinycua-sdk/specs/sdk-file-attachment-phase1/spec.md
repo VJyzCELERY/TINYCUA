@@ -65,6 +65,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 4. **Given** a `UserMessage` with `content: str`, **When** the message is serialized or translated, **Then** behavior is identical to the existing `str`-only path
 5. **Given** a `UserMessage` with `content: list[ContentPart]`, **When** the message is constructed and serialized, **Then** the `ContentPart` variants are preserved correctly through Pydantic serialization round-trips
 6. **Given** a `ToolResultMessage` with `content: list[ContentPart]`, **When** the message is constructed, **Then** file attachments in tool results are correctly carried through the canonical message types
+7. **Given** a `UserMessage` with `content: str` and `attachments: list[FileAttachment]`, **When** the message is constructed, **Then** the plain-text content and separate attachment list are both preserved, and the `attachments` field is typed as `list[FileAttachment]`
 
 ### Edge Cases
 
@@ -84,17 +85,18 @@ A developer building an AI agent wants to send an image file to a vision-capable
 - **FR-002**: System MUST define a `ContentPart` model with `type: "text" | "file"` and corresponding `text: str | None` and `file: FileAttachment | None` fields, where text parts require `text` to be set and file parts require `file` to be set, and variant fields are mutually exclusive
 - **FR-003**: `UserMessage.content` MUST accept `str | list[ContentPart]` (backward-compatible union)
 - **FR-004**: `ToolResultMessage.content` MUST accept `str | list[ContentPart]`
-- **FR-005**: System MUST provide `FileAttachment.from_path(path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment` that reads file, detects MIME type via `mimetypes` (caller-provided `mime_type` overrides detection), and base64-encodes the data. When `stream=True`, uses chunked input reading while still returning a materialized base64 string.
-- **FR-006**: System MUST provide `FileAttachment.from_bytes(data: bytes, mime_type: str, filename: str | None = None) -> FileAttachment` that base64-encodes the bytes
-- **FR-007**: System MUST provide `FileAttachment.from_url(url: str, mime_type: str, filename: str | None = None) -> FileAttachment` that stores the URL
-- **FR-008**: System MUST support `from_path()` with a `stream: bool` parameter that, when `True`, uses chunked input reading to avoid loading raw file bytes all at once, while materializing the final base64 string. True lazy/OOM-safe streaming is deferred to Phase 5.
-- **FR-009**: All existing `str`-based message handling MUST remain unchanged (backward compatibility)
+- **FR-005**: `UserMessage` MUST support an optional `attachments: list[FileAttachment]` field for the basic message shape (`content: str` + `attachments: list[FileAttachment]`). `ToolResultMessage.attachments` is deferred — only `UserMessage.attachments` is implemented and tested in Phase 1.
+- **FR-006**: System MUST provide `FileAttachment.from_path(path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment` that reads file, detects MIME type via `mimetypes` (caller-provided `mime_type` overrides detection), and base64-encodes the data. When `stream=True`, uses chunked input reading while still returning a materialized base64 string.
+- **FR-007**: System MUST provide `FileAttachment.from_bytes(data: bytes, mime_type: str, filename: str | None = None) -> FileAttachment` that base64-encodes the bytes
+- **FR-008**: System MUST provide `FileAttachment.from_url(url: str, mime_type: str, filename: str | None = None) -> FileAttachment` that stores the URL
+- **FR-009**: System MUST support `from_path()` with a `stream: bool` parameter that, when `True`, uses chunked input reading to avoid loading raw file bytes all at once, while materializing the final base64 string. True lazy/OOM-safe streaming is deferred to Phase 5.
+- **FR-010**: All existing `str`-based message handling MUST remain unchanged (backward compatibility)
 
 ### Key Entities
 
 - **FileAttachment**: Represents a file to be sent to an LLM provider. Contains base64-encoded data, MIME type, filename, URL, and/or provider file ID. Exactly one of `data`, `url`, or `file_id` must be present.
 - **ContentPart**: A tagged Pydantic model representing a single part of a multimodal message. Has two variants via `type: "text" | "file"`: `text` (with text content) and `file` (with a `FileAttachment`). Explicit validators enforce that each variant only contains its relevant fields.
-- **UserMessage**: A canonical input TypedDict representing a user message. Its `content` field accepts both simple strings and structured content parts.
+- **UserMessage**: A canonical input TypedDict representing a user message. Its `content` field accepts both simple strings and structured content parts, and an optional `attachments` field carries a flat list of file attachments alongside plain-text content.
 - **ToolResultMessage**: A canonical input TypedDict representing a tool result. Its `content` field similarly accepts both strings and content parts.
 
 ---
@@ -102,6 +104,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 ## Success Criteria
 
 - [x] **Canonical models accept file attachments**: A `UserMessage` with `list[ContentPart]` containing a file attachment is constructed, serialized, and deserialized correctly via Pydantic round-trip
+- [x] **Basic attachments shape works**: A `UserMessage` with `content: str` + `attachments: list[FileAttachment]` is constructed and the separate attachment list is preserved
 - [x] **Backward compatible**: All existing tests pass without modification — `str`-only messages unchanged
 - [x] **Helper methods work**: `FileAttachment.from_path()`, `from_bytes()`, `from_url()` produce correct attachments
 - [x] **MIME detection works**: `from_path()` correctly detects MIME types for common file formats (JPEG, PNG, PDF, MP3, MP4)
@@ -120,6 +123,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 - `test_file_attachment_from_url()` — URL storage, MIME type
 - `test_content_part_model()` — text part, file part, variant validation, serialization
 - `test_user_message_content_union()` — `content: str` works, `content: list[ContentPart]` works
+- `test_user_message_string_with_separate_attachments()` — `content: str` + `attachments: list[FileAttachment]` shape works
 - `test_tool_result_message_content_union()` — `content: str` works, `content: list[ContentPart]` works
 
 ### Integration Tests
@@ -140,6 +144,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 | ContentPart model | DONE | |
 | UserMessage.content union | DONE | |
 | ToolResultMessage.content union | DONE | |
+| UserMessage.attachments | DONE | |
 | from_path() helper | DONE | |
 | from_bytes() helper | DONE | |
 | from_url() helper | DONE | |

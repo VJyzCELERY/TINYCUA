@@ -20,6 +20,10 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
 - [x] Update canonical schema tests for structured `UserMessage` and `ToolResultMessage` content, preserving existing string tests <!-- id: 3 -->
   - [x] Add annotation-inspection tests using `typing.get_type_hints()` and `typing.get_args()` to verify `UserMessage.__annotations__["content"]` resolves to `str | list[ContentPart]`
   - [x] Add annotation-inspection tests verifying `ToolResultMessage.__annotations__["content"]` resolves to `str | list[ContentPart]`
+- [x] Add tests for message-level attachments shape <!-- id: 3b -->
+  - [x] Add tests for `UserMessage` with `content: str` + `attachments: list[FileAttachment]`
+  - [x] Add tests for `ToolResultMessage` with `content: str` + `attachments: list[FileAttachment]`
+  - [x] Add annotation-inspection tests for `UserMessage.__annotations__["attachments"]` and `ToolResultMessage.__annotations__["attachments"]`
 
 ## Implementation Phase
 
@@ -41,9 +45,11 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
   - [x] Import `ContentPart` and `FileAttachment`
   - [x] Add both names to `__all__`
 - [x] Widen canonical event message content types in `src/tinycua-sdk/tinycua_sdk/agent/events.py` <!-- id: 8 -->
-  - [x] Import `ContentPart`
+  - [x] Import `ContentPart` and `FileAttachment`, add `NotRequired` import
   - [x] Change `UserMessage.content` to `str | list[ContentPart]`
   - [x] Change `ToolResultMessage.content` to `str | list[ContentPart]`
+  - [x] Add `attachments: NotRequired[list[FileAttachment]]` to `UserMessage`
+  - [x] Add `attachments: NotRequired[list[FileAttachment]]` to `ToolResultMessage`
   - [x] Leave provider translation and other message types unchanged for Phase 1
 
 ## Testing Phase

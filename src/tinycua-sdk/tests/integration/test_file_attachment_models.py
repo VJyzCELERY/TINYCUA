@@ -100,3 +100,22 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 
     assert streamed.data == regular.data
     assert streamed.data == base64.b64encode(payload).decode("ascii")
+
+
+def test_user_message_string_with_separate_attachments():
+    """UserMessage accepts content: str plus an attachments list."""
+    attachment = FileAttachment.from_url(
+        "https://example.com/file.pdf",
+        mime_type="application/pdf",
+        filename="file.pdf",
+    )
+    message: UserMessage = {
+        "role": "user",
+        "content": "Please summarize this",
+        "attachments": [attachment],
+    }
+
+    assert message["content"] == "Please summarize this"
+    assert len(message["attachments"]) == 1
+    assert message["attachments"][0].url == "https://example.com/file.pdf"
+    assert message["attachments"][0].filename == "file.pdf"

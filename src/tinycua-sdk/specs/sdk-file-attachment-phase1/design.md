@@ -121,8 +121,8 @@ class ContentPart(BaseModel):
 
 ### Schema Changes
 
-- **`UserMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`
-- **`ToolResultMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`
+- **`UserMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`; optional `attachments: list[FileAttachment]` field added for the basic message shape (`content: str` + `attachments: list[FileAttachment]`)
+- **`ToolResultMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`; optional `attachments: list[FileAttachment]` field added (deferred — explicitly documented but not integration-tested in Phase 1)
 - No migration needed — existing `str`-only usage remains valid via the union type
 
 ---
@@ -190,15 +190,19 @@ FileAttachment.from_url(
    - **Reason**: Simpler API surface; single `ContentPart` class with tagged `type` field and validators is easier to use and understand than multiple concrete part classes
    - **Alternatives Considered**: Discriminated union via `Annotated[Union[TextPart, FilePart], Field(discriminator="type")]` — more type-safe but more complex for callers and adds schema complexity
 
-3. **Decision**: `from_path()` with `stream=True` uses an internal chunked base64 encoder but still returns a single `FileAttachment`
+3. **Decision**: `UserMessage` and `ToolResultMessage` expose an optional `attachments: NotRequired[list[FileAttachment]]` field in addition to the `content` union
+   - **Reason**: Supports the basic message shape (`content: str` + `attachments: list[FileAttachment]`) without requiring callers to use `ContentPart` for simple text-only messages. This is the canonical boundary for provider translation: providers that accept message-level attachment lists can source from this field.
+   - **Alternatives Considered**: Only `list[ContentPart]` — forces callers to wrap every message in ContentPart types even for simple text content. Allowing a separate attachments list alongside plain `str` content provides a simpler, more ergonomic entry point.
+
+4. **Decision**: `from_path()` with `stream=True` uses an internal chunked base64 encoder but still returns a single `FileAttachment`
    - **Reason**: Keeps the public API simple. A fully lazy streaming API (async generator of base64 chunks) is conceptually clean but adds complexity that can be deferred to Phase 5
    - **Alternatives Considered**: Returning `AsyncIterator[FileAttachment]` or `AsyncIterator[str]` for streaming — adds caller complexity not yet justified
 
-4. **Decision**: `FileAttachment` source fields (`data`, `url`, `file_id`) are mutually exclusive — exactly one must be provided; multi-source attachments are rejected with `ValidationError`
+5. **Decision**: `FileAttachment` source fields (`data`, `url`, `file_id`) are mutually exclusive — exactly one must be provided; multi-source attachments are rejected with `ValidationError`
    - **Reason**: A canonical model should have a single, unambiguous source of file content. Allowing multiple source fields forces provider translation (Phase 2+) to guess which one wins, leading to inconsistent behavior. If multi-source support is needed later, it can be added with explicit precedence rules as a non-breaking extension.
    - **Alternatives Considered**: Allowing multi-source and documenting precedence order — adds complexity without a clear use case for Phase 1.
 
-5. **Decision**: ContentPart model lives in `attachment.py` alongside `FileAttachment` rather than in `events.py`
+6. **Decision**: ContentPart model lives in `attachment.py` alongside `FileAttachment` rather than in `events.py`
    - **Reason**: Keeps events.py focused on TypedDict definitions. The `ContentPart` is a data model, not an event shape
    - **Alternatives Considered**: Placing `ContentPart` in `events.py` — would mix model and event concerns
 
