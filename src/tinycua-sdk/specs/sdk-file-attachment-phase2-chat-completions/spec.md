@@ -60,6 +60,7 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 4. **Given** a URL-backed image attachment, **When** it is translated for Chat Completions, **Then** the image part uses that URL without requiring a download or upload.
 5. **Given** an existing string-only user message, **When** it is translated for Chat Completions, **Then** the translated payload remains the same as before this phase.
 6. **Given** an unsupported attachment source such as `file_id` without URL or inline data, **When** it is translated for Chat Completions, **Then** the provider fails clearly before making the request.
+7. **Given** a user message whose `content` is `list[ContentPart]` and whose `attachments` is non-empty, **When** it is translated for Chat Completions, **Then** the provider request contains the explicit content parts in order followed by message-level attachment parts in the order supplied.
 
 ### Edge Cases
 
@@ -81,12 +82,13 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 - **FR-003**: Text `ContentPart` values MUST translate to Chat Completions text content parts.
 - **FR-004**: File `ContentPart` values backed by image data or image URLs MUST translate to Chat Completions image content parts.
 - **FR-005**: Message-level attachments MUST be normalized as file content parts appended after the message text.
-- **FR-006**: Base64-backed image attachments MUST translate to provider-visible data URLs that include the attachment MIME type.
-- **FR-007**: URL-backed image attachments MUST translate to provider-visible image URLs without SDK-side upload.
-- **FR-008**: The existing plain string message path MUST remain backward-compatible when no attachments are present.
-- **FR-009**: Unsupported attachment sources or MIME types MUST produce a clear error before the provider API request is made.
-- **FR-010**: Unit tests MUST cover both canonical attachment forms, inline data, URLs, multiple attachments, ordering, and backward-compatible string messages.
-- **FR-011**: Integration coverage MUST verify that a Chat Completions request can carry an image attachment to a vision-capable model, with network-dependent execution guarded by environment configuration.
+- **FR-006**: When both `content: list[ContentPart]` and non-empty `attachments` are present, message-level attachments MUST append after the explicit content parts, preserving caller order within each group.
+- **FR-007**: Base64-backed image attachments MUST translate to provider-visible data URLs that include the attachment MIME type.
+- **FR-008**: URL-backed image attachments MUST translate to provider-visible image URLs without SDK-side upload.
+- **FR-009**: The existing plain string message path MUST remain backward-compatible when no attachments are present.
+- **FR-010**: Unsupported attachment sources or MIME types MUST produce a clear error before the provider API request is made.
+- **FR-011**: Unit tests MUST cover both canonical attachment forms, inline data, URLs, multiple attachments, ordering, backward-compatible string messages, and the combined `content: list[ContentPart]` plus `attachments` case.
+- **FR-012**: Integration coverage MUST verify that a Chat Completions request can carry an image attachment to a vision-capable model, with network-dependent execution guarded by environment configuration.
 
 ### Key Entities
 
@@ -104,6 +106,7 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 - [ ] **Inline image data works**: Base64-backed image attachments become valid data URLs in Chat Completions payloads.
 - [ ] **Image URLs work**: URL-backed image attachments remain URLs in Chat Completions payloads.
 - [ ] **Ordering is preserved**: Explicit multipart content and multiple attachments retain caller-specified order.
+- [ ] **Mixed input ordering is preserved**: When both `list[ContentPart]` and `attachments` are present, explicit content parts appear first followed by message-level attachment parts, with caller order preserved within each group.
 - [ ] **Backward compatibility holds**: Existing string-only Chat Completions payload tests continue to pass unchanged.
 - [ ] **Unsupported inputs fail clearly**: `file_id`-only or unsupported non-image attachments are rejected before the request is sent.
 - [ ] **Integration path is covered**: A guarded integration test documents and verifies image attachment use with a vision-capable Chat Completions model.
@@ -118,6 +121,7 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 - Test `_translate_chat_messages()` with `content: str` and `attachments: list[FileAttachment]`.
 - Test URL-backed image attachment translation.
 - Test multiple attachments and explicit multipart ordering.
+- Test combined `content: list[ContentPart]` with non-empty `attachments` appends message-level attachments after explicit content parts in caller order.
 - Test string-only user messages remain translated as plain strings.
 - Test unsupported MIME types and `file_id`-only attachments fail clearly.
 - Test tool-result translation remains unchanged for string content.

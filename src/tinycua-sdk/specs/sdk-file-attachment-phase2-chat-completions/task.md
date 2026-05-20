@@ -6,22 +6,22 @@ Implementation tasks for Phase 2 Chat Completions file attachment translation. C
 
 - [ ] Write unit tests for `_translate_chat_attachment()` — data-backed, URL-backed, file_id-only (ValueError), non-image MIME (ValueError) <!-- id: 0 -->
 - [ ] Write unit tests for `_translate_chat_content_part()` — text part, file part delegation <!-- id: 1 -->
-- [ ] Write unit tests for `_translate_chat_user_message()` — plain string (backward compat), string + attachments, list[ContentPart], empty attachments, multiple attachments with ordering <!-- id: 2 -->
+- [ ] Write unit tests for `_translate_chat_user_message()` — plain string (backward compat), string + attachments, list[ContentPart], list[ContentPart] + attachments (content parts first, attachment parts appended), empty attachments, multiple attachments with ordering <!-- id: 2 -->
 - [ ] Write unit tests for `_translate_chat_messages()` end-to-end — multipart user message with system/assistant/tool_result messages, string-only messages for other roles unchanged <!-- id: 3 -->
-- [ ] Run unit tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
+- [ ] Add guarded integration test (FR-011) in `tests/integration/test_openai_chat_completions_provider.py` that exercises `chat()` with a vision-capable model, gated by `resolve_integration_llm_config()` and `@pytest.mark.integration` — this MUST be RED before any source code change <!-- id: 4 -->
+- [ ] Run unit tests and integration test — expect RED (failures) since no implementation yet <!-- id: 5 -->
 
 ## Implementation Phase
 
-- [ ] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py` <!-- id: 5 -->
-- [ ] Implement `_translate_chat_attachment()` — data URL construction, URL pass-through, file_id ValueError, non-image MIME ValueError <!-- id: 6 -->
-- [ ] Implement `_translate_chat_content_part()` — text → text part, file → delegate to `_translate_chat_attachment()` <!-- id: 7 -->
-- [ ] Implement `_translate_chat_user_message()` — string-only passthrough, string + attachments → text + image parts, list[ContentPart] → translated parts, strip attachments key <!-- id: 8 -->
-- [ ] Wire `_translate_chat_user_message()` into `OpenAIChatCompletionsClient._translate_chat_messages()` for user-role messages in the `else` branch <!-- id: 9 -->
+- [ ] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py` <!-- id: 6 -->
+- [ ] Implement `_translate_chat_attachment()` — data URL construction, URL pass-through, file_id ValueError, non-image MIME ValueError <!-- id: 7 -->
+- [ ] Implement `_translate_chat_content_part()` — text → text part, file → delegate to `_translate_chat_attachment()` <!-- id: 8 -->
+- [ ] Implement `_translate_chat_user_message()` — string-only passthrough, string + attachments → text + image parts, list[ContentPart] → translated parts, strip attachments key <!-- id: 9 -->
+- [ ] Wire `_translate_chat_user_message()` into `OpenAIChatCompletionsClient._translate_chat_messages()` for user-role messages in the `else` branch <!-- id: 10 -->
 
 ## Testing Phase
 
-- [ ] Run unit tests — expect GREEN (all pass) <!-- id: 10 -->
-- [ ] Add guarded integration test for image attachment in `tests/integration/test_openai_chat_completions_provider.py` <!-- id: 11 -->
+- [ ] Run unit tests — expect GREEN (all pass) <!-- id: 11 -->
 - [ ] Run full unit test suite: `cd src/tinycua-sdk && uv run pytest tests/unit/` <!-- id: 12 -->
 - [ ] Run integration test suite (auto-skipped without server): `cd src/tinycua-sdk && uv run pytest tests/integration/` <!-- id: 13 -->
 

@@ -13,7 +13,12 @@ Extend the existing `OpenAIChatCompletionsClient` message translation path so th
 
 ### Configuration
 
-- **None** — this feature has no configuration dependencies. All changes are in existing subproject code with existing test infrastructure.
+- **Required**: Local Chat Completions-compatible LLM server. See `src/tinycua-sdk/.env.example` for the expected local development config:
+  - `TINYCUA_PROVIDER=openai-chat-completions`
+  - `TINYCUA_MODEL=qwen/qwen3.5-9b`
+  - `TINYCUA_BASE_URL=http://localhost:1234/v1`
+- **Guarded tests** resolve these values via `resolve_integration_llm_config()` and `resolve_integration_api_key()` in `tests/integration/conftest.py`, auto-skipping when the server is unreachable.
+- **Unit tests** use explicit local config values (`provider="openai-chat-completions"`, `model_name="qwen/qwen3.5-9b"`) and do not require a running server.
 
 ### Running Services
 
@@ -41,45 +46,80 @@ Integration tests that require a live LLM server are already gated behind enviro
 
 ## Success Criteria — Integration Tests (TDD First)
 
+### Guarded Integration Acceptance Test (must be RED before any source change)
+
 ```python
 # Test file: tests/integration/test_openai_chat_completions_provider.py
 
-def test_openai_chat_completions_attachment_translates_image():
-    """A user message with an image FileAttachment is translated into a Chat
-    Completions payload containing an image_url content part."""
-    # Arrange
-    client = OpenAIChatCompletionsClient(LanguageModel(provider="openai-chat-completions", model_name="gpt-4o-mini"))
+@pytest.mark.integration
+def test_openai_chat_completions_attachment_sends_image():
+    """A user message with an image FileAttachment is sent through the Chat
+    Completions provider and receives a non-empty assistant response.
+
+    This is the FR-011 acceptance test. It exercises the full provider request
+    path (chat()) and is guarded by environment configuration so it auto-skips
+    when no LLM server is reachable.
+    """
+    # Arrange — resolve LLM config and API key from environment
+    config = resolve_integration_llm_config()
+    api_key = resolve_integration_api_key()
+    client = OpenAIChatCompletionsClient(config, api_key=api_key)
+    image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
+    message = UserMessage(
+        role="user",
+        content="Describe this image in one sentence.",
+        attachments=[image_attachment],
+    )
+
+    # Act — send the actual provider request through chat()
+    response = client.chat(messages=[message])
+
+    # Assert — a non-empty assistant response was received
+    assert response.content is not None
+    assert len(response.content) > 0
+    assert isinstance(response.content, str)
+```
+
+### Payload-Capture Unit Test (exercises chat() with a mocked client)
+
+```python
+# Test file: tests/unit/test_openai_chat_client.py
+
+def test_openai_chat_completions_attachment_produces_multimodal_payload():
+    """A user message with image attachments produces a multimodal Chat
+    Completions request payload through chat()."""
+    # Arrange — mock the underlying OpenAI client to capture the payload
+    client = OpenAIChatCompletionsClient(
+        LanguageModel(provider="openai-chat-completions", model_name="qwen/qwen3.5-9b"),
+        api_key="test-key",
+    )
     image_data = base64.b64encode(b"\x89PNG\r\n\x1a\n...").decode("ascii")
     attachment = FileAttachment(data=image_data, mime_type="image/png")
-    message = UserMessage(role="user", content="Describe this image", attachments=[attachment])
+    message = UserMessage(
+        role="user",
+        content="Describe this image",
+        attachments=[attachment],
+    )
+    captured_payload = None
 
-    # Act
-    messages = client._translate_chat_messages([message])
+    def capture_create(**kwargs):
+        nonlocal captured_payload
+        captured_payload = kwargs
+        return mock_chat_completion_response()
 
-    # Assert — translated payload is a list with one user message dict
-    assert len(messages) == 1
-    user_msg = messages[0]
-    assert user_msg["role"] == "user"
-    content = user_msg["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "text", "text": "Describe this image"}
-    assert content[1]["type"] == "image_url"
-    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    with mock.patch.object(client.client.chat.completions, "create", capture_create):
+        client.chat(messages=[message])
 
-
-def test_openai_chat_completions_url_attachment_remains_url():
-    """A URL-backed FileAttachment passes the URL through without download."""
-    # Arrange
-    client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-4o-mini"))
-    attachment = FileAttachment.from_url("https://example.com/photo.jpg", mime_type="image/jpeg")
-    message = UserMessage(role="user", content="What is this?", attachments=[attachment])
-
-    # Act
-    messages = client._translate_chat_messages([message])
-
-    # Assert
-    assert messages[0]["content"][1]["image_url"]["url"] == "https://example.com/photo.jpg"
+    # Assert — the provider payload contains multimodal content
+    assert captured_payload is not None
+    user_msg_content = captured_payload["messages"][0]["content"]
+    assert isinstance(user_msg_content, list)
+    assert user_msg_content[0] == {"type": "text", "text": "Describe this image"}
+    assert user_msg_content[1]["type"] == "image_url"
+    assert user_msg_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 ```
+
+The guarded integration test must be written and expected to run RED (failures) **before any source code changes begin**. The payload-capture unit test may serve as TDD guidance but the primary acceptance gate is the integration test exercising `chat()`.
 
 ### Key Test Scenarios
 
@@ -90,7 +130,8 @@ def test_openai_chat_completions_url_attachment_remains_url():
 - **Scenario 5**: String-only user messages remain plain strings — proves backward compatibility
 - **Scenario 6**: `file_id`-only attachment and non-image MIME types raise `ValueError` — proves clear rejection of unsupported inputs
 - **Scenario 7**: Multiple attachments and multipart content preserve caller-specified order — proves ordering invariants
-- **Scenario 8**: Tool-result and system/assistant messages remain unchanged — proves no regression
+- **Scenario 8**: Combined `content: list[ContentPart]` with non-empty `attachments` appends message-level attachments after explicit content parts in caller order — proves mixed-input ordering contract
+- **Scenario 9**: Tool-result and system/assistant messages remain unchanged — proves no regression
 
 ## Verification Plan
 
@@ -128,7 +169,8 @@ def test_openai_chat_completions_url_attachment_remains_url():
 - **`_translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]`**: Returns a Chat Completions user message dict.
   - If `msg["content"]` is a string and `attachments` is absent or empty: returns `msg` unchanged (backward compatible)
   - If `msg["content"]` is a string and `attachments` is non-empty: returns `{"role": "user", "content": [text_part, ...attachment_parts]}`
-  - If `msg["content"]` is a list of `ContentPart`: returns `{"role": "user", "content": [...translated_parts]}`
+  - If `msg["content"]` is a list of `ContentPart` and `attachments` is absent or empty: returns `{"role": "user", "content": [...translated_parts]}`
+  - If `msg["content"]` is a list of `ContentPart` and `attachments` is non-empty: appends message-level attachment parts after the translated content parts, preserving caller order within each group
   - Strips `attachments` key from the translated output (not a valid Chat Completions field)
 
 ### Chat Completions Client
@@ -155,6 +197,7 @@ def test_openai_chat_completions_url_attachment_remains_url():
   - Test `_translate_chat_user_message()` with `list[ContentPart]` — preserves order
   - Test `_translate_chat_user_message()` with empty attachments list — same as no attachments
   - Test `_translate_chat_user_message()` with multiple attachments — order preserved
+  - Test `_translate_chat_user_message()` with `list[ContentPart]` plus non-empty `attachments` — content parts first, then attachment parts, caller order preserved within each group
   - Test `_translate_chat_messages()` integration: multipart user message with system and assistant messages
   - Test string-only messages for other roles remain unchanged
 

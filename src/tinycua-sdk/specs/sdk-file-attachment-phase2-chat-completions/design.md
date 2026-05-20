@@ -131,7 +131,9 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
 
     Plain string content without attachments remains unchanged.
     Structured content and/or attachments are normalized to a provider-native
-    content list.
+    content list. When both list[ContentPart] content and non-empty attachments
+    are present, message-level attachments are appended after the explicit
+    content parts in caller order.
     """
 
 
@@ -152,6 +154,7 @@ These helpers may live as private module-level functions or private static metho
 | `{"role": "user", "content": "hello"}` | `{"role": "user", "content": "hello"}` |
 | `{"role": "user", "content": "describe", "attachments": [img]}` | `{"role": "user", "content": [{"type": "text", "text": "describe"}, image_part]}` |
 | `{"role": "user", "content": [ContentPart(type="text", ...), ContentPart(type="file", ...)]}` | `{"role": "user", "content": [text_part, image_part]}` |
+| `{"role": "user", "content": [ContentPart(type="text", ...)], "attachments": [img]}` | `{"role": "user", "content": [text_part, image_part]}` — message-level attachments append after explicit content parts |
 | `FileAttachment(data=..., mime_type="image/png")` | `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}` |
 | `FileAttachment(url="https://...", mime_type="image/jpeg")` | `{"type": "image_url", "image_url": {"url": "https://..."}}` |
 
