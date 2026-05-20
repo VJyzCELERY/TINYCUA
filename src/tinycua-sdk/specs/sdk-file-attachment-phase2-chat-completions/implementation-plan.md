@@ -17,7 +17,7 @@ Extend the existing `OpenAIChatCompletionsClient` message translation path so th
   - `TINYCUA_PROVIDER=openai-chat-completions`
   - `TINYCUA_MODEL=qwen/qwen3.5-9b`
   - `TINYCUA_BASE_URL=http://localhost:1234/v1`
-- **Guarded tests** resolve these values via `resolve_integration_llm_config()` and `resolve_integration_api_key()` in `tests/integration/conftest.py`, auto-skipping when the server is unreachable.
+- **Guarded tests** resolve these values via `resolve_integration_llm_config()` in `tests/integration/conftest.py` (which returns both the LLM config and API key), auto-skipping when the server is unreachable.
 - **Unit tests** use explicit local config values (`provider="openai-chat-completions"`, `model_name="qwen/qwen3.5-9b"`) and do not require a running server.
 
 ### Running Services
@@ -66,8 +66,7 @@ def test_openai_chat_completions_attachment_sends_image():
     """
     # Arrange — resolve LLM config and API key from environment
     config = resolve_integration_llm_config()
-    api_key = resolve_integration_api_key()
-    client = OpenAIChatCompletionsClient(config, api_key=api_key)
+    client = OpenAIChatCompletionsClient(config, api_key=config.api_key)
     image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
     message = UserMessage(
         role="user",
@@ -136,6 +135,7 @@ The guarded integration test must be written and expected to run RED (failures) 
 - **Scenario 7**: Multiple attachments and multipart content preserve caller-specified order — proves ordering invariants
 - **Scenario 8**: Combined `content: list[ContentPart]` with non-empty `attachments` appends message-level attachments after explicit content parts in caller order — proves mixed-input ordering contract
 - **Scenario 9**: Tool-result and system/assistant messages remain unchanged — proves no regression
+- **Scenario 10**: Empty `list[ContentPart]` raises `ValueError` — proves early rejection of empty content before translation
 
 ## Verification Plan
 
@@ -173,7 +173,8 @@ The guarded integration test must be written and expected to run RED (failures) 
 - **`_translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]`**: Returns a Chat Completions user message dict.
   - If `msg["content"]` is a string and `attachments` is absent or empty: returns `msg` unchanged (backward compatible)
   - If `msg["content"]` is a string and `attachments` is non-empty: returns `{"role": "user", "content": [text_part, ...attachment_parts]}`
-  - If `msg["content"]` is a list of `ContentPart` and `attachments` is absent or empty: returns `{"role": "user", "content": [...translated_parts]}`
+  - If `msg["content"]` is an empty list: raises `ValueError` — at least one content part is required
+  - If `msg["content"]` is a non-empty list of `ContentPart` and `attachments` is absent or empty: returns `{"role": "user", "content": [...translated_parts]}`
   - If `msg["content"]` is a list of `ContentPart` and `attachments` is non-empty: appends message-level attachment parts after the translated content parts, preserving caller order within each group
   - Strips `attachments` key from the translated output (not a valid Chat Completions field)
 

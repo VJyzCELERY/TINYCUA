@@ -173,13 +173,14 @@ For `content: str` plus attachments, the translated text part is omitted only wh
 | Non-image MIME type | `ValueError` | Reject before provider request; arbitrary file support is deferred |
 | Malformed `ContentPart` | Existing Pydantic validation error | Model construction should normally catch this before translation |
 | Missing file on disk | Existing `FileNotFoundError` | Raised by `FileAttachment.from_path()` before translation |
+| Empty ContentPart list | `ValueError` | At least one content part is required for a meaningful user message |
 | OpenAI rejects multimodal payload | Existing provider error translation | `_handle_provider_error()` wraps SDK errors as before |
 
 ---
 
-## Implementation Phases
+## Implementation Steps
 
-### Phase 1 — Tests First
+### Step 1 — Tests First
 
 - [ ] Add unit tests for explicit `list[ContentPart]` translation to Chat Completions `text` and `image_url` parts.
 - [ ] Add unit tests for `content: str` plus `attachments` translation.
@@ -188,20 +189,20 @@ For `content: str` plus attachments, the translated text part is omitted only wh
 - [ ] Add unit tests for unsupported MIME types and `file_id`-only attachments.
 - [ ] Add or update a guarded integration test for sending an image attachment through the Chat Completions provider.
 
-### Phase 2 — Translation Helpers
+### Step 2 — Translation Helpers
 
 - [ ] Import or reference `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py`.
 - [ ] Implement a private attachment-to-image-content helper.
 - [ ] Implement a private content-part translation helper.
 - [ ] Implement a private user-message translation helper that combines string content and message-level attachments.
 
-### Phase 3 — Wire Into Chat Completions Client
+### Step 3 — Wire Into Chat Completions Client
 
 - [ ] Call the new user-message translation helper from `_translate_chat_messages()` for `role="user"` messages.
 - [ ] Preserve existing assistant `tool_calls` pass-through and tool-result injection behavior.
 - [ ] Preserve existing string-only payload output for messages without attachments.
 
-### Phase 4 — Verification
+### Step 4 — Verification
 
 - [ ] Run Chat Completions unit tests.
 - [ ] Run relevant integration tests with network tests skipped by default.

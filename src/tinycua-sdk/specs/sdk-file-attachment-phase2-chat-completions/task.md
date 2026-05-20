@@ -6,7 +6,7 @@ Implementation tasks for Phase 2 Chat Completions file attachment translation. C
 
 - [ ] Write unit tests for `_translate_chat_attachment()` — data-backed, URL-backed, file_id-only (ValueError), non-image MIME (ValueError) <!-- id: 0 -->
 - [ ] Write unit tests for `_translate_chat_content_part()` — text part, file part delegation <!-- id: 1 -->
-- [ ] Write unit tests for `_translate_chat_user_message()` — plain string (backward compat), string + attachments, list[ContentPart], list[ContentPart] + attachments (content parts first, attachment parts appended), empty attachments, multiple attachments with ordering <!-- id: 2 -->
+- [ ] Write unit tests for `_translate_chat_user_message()` — plain string (backward compat), string + attachments, list[ContentPart], list[ContentPart] + attachments (content parts first, attachment parts appended), empty attachments, multiple attachments with ordering, empty list[ContentPart] raises ValueError <!-- id: 2 -->
 - [ ] Write unit tests for `_translate_chat_messages()` end-to-end — multipart user message with system/assistant/tool_result messages, string-only messages for other roles unchanged <!-- id: 3 -->
 - [ ] Create test fixture `tests/fixtures/test_image.png` — a minimal 1x1 valid PNG file for the guarded integration test <!-- id: 4 -->
 - [ ] Add guarded integration test (FR-011) in `tests/integration/test_openai_chat_completions_provider.py` that exercises `chat()` with a vision-capable model, gated by `resolve_integration_llm_config()` and `@pytest.mark.integration` — this MUST be RED before any source code change <!-- id: 5 -->
