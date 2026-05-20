@@ -24,7 +24,7 @@ def _patch_sdk_client(monkeypatch):
     automatically create ``OpenAIResponsesClient`` instances whose
     ``_get_client()`` returns the shared mock, without making real HTTP calls.
     """
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
 
     mock_sdk = MagicMock()
     mock_sdk.responses = MagicMock()
@@ -64,7 +64,7 @@ def mock_llm_client():
     inspect ``call_args``, ``call_count``, etc. to verify what was sent to
     the LLM.
     """
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
 
     mock_sdk = MagicMock()
     mock_sdk.responses = MagicMock()
@@ -107,9 +107,9 @@ def mock_llm_with_tool_calls():
        ``{"query": "quantum"}``.  Tests that use it **must** register a
        tool named ``search`` with a ``query: str`` parameter, or the
        tool lookup will silently fail with ``{"error": "Unknown tool:
-       search"}``.
-    """
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+        search"}``.
+     """
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
 
     mock_sdk = MagicMock()
     mock_sdk.responses = MagicMock()
@@ -194,7 +194,7 @@ def mock_llm_with_failing_tool_call():
     ``RuntimeError("Tool failed")`` — allowing tests to verify that tool
     exceptions propagate correctly through the execution loop.
     """
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
 
     mock_sdk = MagicMock()
     mock_sdk.responses = MagicMock()

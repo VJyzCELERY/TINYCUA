@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from tinycua_sdk.agent.events import UserMessage
-from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.providers import get_provider_registry
+from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from tinycua_sdk.providers.registry import get_provider_registry
 
 
 @pytest.mark.asyncio

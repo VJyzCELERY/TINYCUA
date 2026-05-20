@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
 
-from tinycua_sdk.core.providers import resolve_provider
+from tinycua_sdk.providers.utility import resolve_provider
 
 
 class LanguageModel(BaseModel):

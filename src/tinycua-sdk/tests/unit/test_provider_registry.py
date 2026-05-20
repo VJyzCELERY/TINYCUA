@@ -9,7 +9,8 @@ import pytest
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderNotSupportedError
-from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
+from tinycua_sdk.providers.registry import ProviderRegistry
+from tinycua_sdk.providers.utility import ProviderInfo
 
 
 class _MinimalClient(LLMClient):
@@ -140,7 +141,7 @@ class TestProviderRegistry:
 
     def test_openai_chat_completions_resolves(self, registry: ProviderRegistry) -> None:
         """provider='openai-chat-completions' creates the right client."""
-        from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient
+        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
 
         def factory(cfg: LanguageModel) -> LLMClient:
             return OpenAIChatCompletionsClient(cfg)
