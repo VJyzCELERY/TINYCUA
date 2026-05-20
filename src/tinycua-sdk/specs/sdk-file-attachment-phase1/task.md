@@ -12,7 +12,7 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
   - [ ] Cover `from_path(stream=True)` parity with non-streaming output
 - [ ] Run integration-boundary tests — expect RED because models are not implemented yet: `cd src/tinycua-sdk && uv run pytest tests/integration/test_file_attachment_models.py` <!-- id: 1 -->
 - [ ] Write focused unit tests in `src/tinycua-sdk/tests/unit/test_file_attachment.py` <!-- id: 2 -->
-  - [ ] Test `FileAttachment` direct construction, source-field validation, and `file_id`-only cached references
+  - [ ] Test `FileAttachment` direct construction, source-field mutex (exactly one of `data`/`url`/`file_id`), and `file_id`-only cached references
   - [ ] Test `from_path()` success, missing file propagation, MIME detection, MIME fallback, and filename preservation
   - [ ] Test `from_bytes()` encoding and required MIME type
   - [ ] Test `from_url()` URL storage and optional filename

@@ -1,7 +1,7 @@
 # Design Document: SDK-wide File Attachment Support
 
 **Spec**: `src/tinycua-sdk/specs/sdk-file-attachment-phase1/spec.md`
-**Status**: Draft
+**Status**: Complete
 **Last Updated**: 2026-05-20
 
 ---
@@ -69,10 +69,14 @@ class FileAttachment(BaseModel):
     file_id: str | None = None      # provider-assigned file ID (for caching)
 
     @model_validator(mode="after")
-    def _validate_data_or_url_or_file_id(self):
-        """At least one of data, url, or file_id must be set."""
-        if not self.data and not self.url and not self.file_id:
+    def _validate_source_fields(self):
+        """Exactly one of data, url, or file_id must be set."""
+        sources = [self.data, self.url, self.file_id]
+        provided = [s for s in sources if s is not None]
+        if len(provided) == 0:
             raise ValueError("At least one of 'data', 'url', or 'file_id' must be provided")
+        if len(provided) > 1:
+            raise ValueError("Only one of 'data', 'url', or 'file_id' may be provided")
         return self
 
     @classmethod
@@ -154,6 +158,7 @@ FileAttachment.from_url(
 |------------|---------------------|-------|
 | File not found (`from_path`) | `FileNotFoundError` | Propagated from `open()` |
 | No data, url, or file_id provided | `ValueError("At least one of 'data', 'url', or 'file_id' must be provided")` | Pydantic validation |
+| Multiple source fields provided (data+url, data+file_id, url+file_id) | `ValueError("Only one of 'data', 'url', or 'file_id' may be provided")` | Pydantic validation — source fields are mutually exclusive |
 | Unknown MIME type (`from_path`) | Falls back to `"application/octet-stream"` | `mimetypes.guess_type` returns `None` |
 | File too large for streaming | Depends on `stream` parameter | Without streaming: loads fully into memory; with streaming: processes in chunks |
 
@@ -189,7 +194,11 @@ FileAttachment.from_url(
    - **Reason**: Keeps the public API simple. A fully lazy streaming API (async generator of base64 chunks) is conceptually clean but adds complexity that can be deferred to Phase 5
    - **Alternatives Considered**: Returning `AsyncIterator[FileAttachment]` or `AsyncIterator[str]` for streaming — adds caller complexity not yet justified
 
-4. **Decision**: ContentPart model lives in `attachment.py` alongside `FileAttachment` rather than in `events.py`
+4. **Decision**: `FileAttachment` source fields (`data`, `url`, `file_id`) are mutually exclusive — exactly one must be provided; multi-source attachments are rejected with `ValidationError`
+   - **Reason**: A canonical model should have a single, unambiguous source of file content. Allowing multiple source fields forces provider translation (Phase 2+) to guess which one wins, leading to inconsistent behavior. If multi-source support is needed later, it can be added with explicit precedence rules as a non-breaking extension.
+   - **Alternatives Considered**: Allowing multi-source and documenting precedence order — adds complexity without a clear use case for Phase 1.
+
+5. **Decision**: ContentPart model lives in `attachment.py` alongside `FileAttachment` rather than in `events.py`
    - **Reason**: Keeps events.py focused on TypedDict definitions. The `ContentPart` is a data model, not an event shape
    - **Alternatives Considered**: Placing `ContentPart` in `events.py` — would mix model and event concerns
 

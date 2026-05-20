@@ -117,6 +117,13 @@ def test_invalid_content_part_and_empty_attachment_are_rejected():
         FileAttachment(mime_type="image/png")
 
     with pytest.raises(ValidationError):
+        FileAttachment(
+            mime_type="image/png",
+            data="base64data",
+            url="https://example.com/img.png",
+        )
+
+    with pytest.raises(ValidationError):
         ContentPart(type="text")
 
     with pytest.raises(ValidationError):
@@ -147,7 +154,7 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 - [ ] **Local file attachment in `UserMessage`**: proves `from_path()` encodes bytes, detects MIME type, preserves filename, and the canonical `UserMessage.content` union accepts `list[ContentPart]`.
 - [ ] **Bytes and URL helper serialization**: proves `from_bytes()`, `from_url()`, and Pydantic model dump/validate round trips work for attachment content.
 - [ ] **Tool result attachment content**: proves `ToolResultMessage.content` accepts structured parts for generated artifacts.
-- [ ] **Validation edge cases**: rejects attachments with no source (`data`, `url`, or `file_id`) and content parts missing the field required by their `type`.
+- [ ] **Validation edge cases**: rejects attachments with no source (`data`, `url`, or `file_id`), rejects multi-source attachments (more than one of `data`, `url`, or `file_id`), and rejects content parts missing the field required by their `type`.
 - [ ] **Streaming parity**: proves `from_path(stream=True)` returns the same base64 payload as the non-streaming path while exercising the chunked code path.
 - [ ] **TypedDict annotation validation**: proves that `UserMessage.__annotations__["content"]` / `ToolResultMessage.__annotations__["content"]` resolve to `str | list[ContentPart]` via `typing.get_type_hints()` / `typing.get_args()`, ensuring the union type is correctly widened beyond runtime dict-assignment tests alone.
 
@@ -180,7 +187,7 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 - **Rationale**: Provides the canonical file and multimodal content abstractions required by the spec.
 - **Implementation details**:
   - `FileAttachment` fields: `data: str | None = None`, `mime_type: str`, `filename: str | None = None`, `url: str | None = None`, `file_id: str | None = None`.
-  - Use a Pydantic v2 `@model_validator(mode="after")` rather than a single-field validator so the “at least one of data/url/file_id” invariant is evaluated after all fields are populated.
+  - Use a Pydantic v2 `@model_validator(mode="after")` to enforce that exactly one of `data`, `url`, or `file_id` is provided. Reject empty attachments (no source) _and_ multi-source attachments (more than one of `data`, `url`, or `file_id`).
   - `from_bytes()` base64-encodes bytes with `base64.b64encode(...).decode("ascii")`.
   - `from_url()` stores URL, MIME type, and optional filename without fetching remote content.
   - `from_path()` accepts `str | Path`, preserves `Path.name`, uses caller-provided MIME type when present, otherwise falls back from `mimetypes.guess_type()` to `application/octet-stream`, and raises `FileNotFoundError` naturally for missing paths.

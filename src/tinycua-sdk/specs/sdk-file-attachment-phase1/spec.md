@@ -1,6 +1,6 @@
 # Feature Specification: SDK-wide File Attachment Support
 
-**Status**: Draft
+**Status**: Complete
 **Created**: 2026-05-20
 **Last Updated**: 2026-05-20
 **Subproject(s) Affected**: tinycua-sdk
@@ -72,7 +72,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 - How does the system handle unsupported or unknown MIME types?
 - What is the behavior when `file_id` is provided but `data` is not (cached file reference)?
 - How are very large files handled — can `from_path()` stream or must it load fully?
-- What happens when both `data` and `url` are provided on a `FileAttachment`?
+- Source fields `data`, `url`, and `file_id` are mutually exclusive — providing more than one raises a `ValidationError`
 
 ---
 
@@ -92,7 +92,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 
 ### Key Entities
 
-- **FileAttachment**: Represents a file to be sent to an LLM provider. Contains base64-encoded data, MIME type, filename, URL, and/or provider file ID. At least one of `data`, `url`, or `file_id` must be present.
+- **FileAttachment**: Represents a file to be sent to an LLM provider. Contains base64-encoded data, MIME type, filename, URL, and/or provider file ID. Exactly one of `data`, `url`, or `file_id` must be present.
 - **ContentPart**: A tagged Pydantic model representing a single part of a multimodal message. Has two variants via `type: "text" | "file"`: `text` (with text content) and `file` (with a `FileAttachment`). Explicit validators enforce that each variant only contains its relevant fields.
 - **UserMessage**: A canonical input TypedDict representing a user message. Its `content` field accepts both simple strings and structured content parts.
 - **ToolResultMessage**: A canonical input TypedDict representing a tool result. Its `content` field similarly accepts both strings and content parts.
