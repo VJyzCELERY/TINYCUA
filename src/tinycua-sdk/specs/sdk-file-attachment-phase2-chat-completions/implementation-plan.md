@@ -30,7 +30,11 @@ Integration tests that require a live LLM server are already gated behind enviro
 
 ### Data / Fixtures
 
-- **None** — no database or seed data needed.
+- **Test fixture image**: `tests/fixtures/test_image.png` — a minimal 1x1 PNG image used by the guarded integration test. Create with:
+    ```bash
+    mkdir -p tests/fixtures
+    python -c "import struct; import zlib; open('tests/fixtures/test_image.png','wb').write(b'\\x89PNG\\r\\n\\x1a\\n' + struct.pack('>I',13) + b'IHDR' + struct.pack('>IIBBBBB',1,1,8,2,0,0,0) + struct.pack('>I',zlib.crc32(b'IHDR'+struct.pack('>IIBBBBB',1,1,8,2,0,0,0))&0xffffffff) + struct.pack('>I',len(zlib.compress(b'\\x00\\xff\\x00\\xff'))) + b'IDAT' + zlib.compress(b'\\x00\\xff\\x00\\xff') + struct.pack('>I',zlib.crc32(b'IDAT'+zlib.compress(b'\\x00\\xff\\x00\\xff'))&0xffffffff) + struct.pack('>I',0) + b'IEND' + struct.pack('>I',zlib.crc32(b'IEND')&0xffffffff))"
+    ```
 
 ### Access / Permissions
 

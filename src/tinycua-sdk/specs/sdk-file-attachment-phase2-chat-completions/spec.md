@@ -64,7 +64,7 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 
 ### Edge Cases
 
-- Empty `content: list[ContentPart]` should translate to an empty provider content list only if accepted by the existing validation boundary; otherwise it should fail consistently with canonical model validation.
+- Empty `content: list[ContentPart]` MUST be rejected with a `ValueError` before translation, consistent with the principle that at least one content part is required for a meaningful user message.
 - Empty `attachments` should behave the same as omitted `attachments`.
 - Multiple attachments should appear in the same order supplied by the caller.
 - Mixed text and file `ContentPart` values should preserve caller-defined order.

@@ -8,34 +8,35 @@ Implementation tasks for Phase 2 Chat Completions file attachment translation. C
 - [ ] Write unit tests for `_translate_chat_content_part()` — text part, file part delegation <!-- id: 1 -->
 - [ ] Write unit tests for `_translate_chat_user_message()` — plain string (backward compat), string + attachments, list[ContentPart], list[ContentPart] + attachments (content parts first, attachment parts appended), empty attachments, multiple attachments with ordering <!-- id: 2 -->
 - [ ] Write unit tests for `_translate_chat_messages()` end-to-end — multipart user message with system/assistant/tool_result messages, string-only messages for other roles unchanged <!-- id: 3 -->
-- [ ] Add guarded integration test (FR-011) in `tests/integration/test_openai_chat_completions_provider.py` that exercises `chat()` with a vision-capable model, gated by `resolve_integration_llm_config()` and `@pytest.mark.integration` — this MUST be RED before any source code change <!-- id: 4 -->
-- [ ] Run unit tests and integration test — expect RED (failures) since no implementation yet <!-- id: 5 -->
+- [ ] Create test fixture `tests/fixtures/test_image.png` — a minimal 1x1 valid PNG file for the guarded integration test <!-- id: 4 -->
+- [ ] Add guarded integration test (FR-011) in `tests/integration/test_openai_chat_completions_provider.py` that exercises `chat()` with a vision-capable model, gated by `resolve_integration_llm_config()` and `@pytest.mark.integration` — this MUST be RED before any source code change <!-- id: 5 -->
+- [ ] Run unit tests and integration test — expect RED (failures) since no implementation yet <!-- id: 6 -->
 
 ## Implementation Phase
 
-- [ ] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py` <!-- id: 6 -->
-- [ ] Implement `_translate_chat_attachment()` — data URL construction, URL pass-through, file_id ValueError, non-image MIME ValueError <!-- id: 7 -->
-- [ ] Implement `_translate_chat_content_part()` — text → text part, file → delegate to `_translate_chat_attachment()` <!-- id: 8 -->
-- [ ] Implement `_translate_chat_user_message()` — string-only passthrough, string + attachments → text + image parts, list[ContentPart] → translated parts, strip attachments key <!-- id: 9 -->
-- [ ] Wire `_translate_chat_user_message()` into `OpenAIChatCompletionsClient._translate_chat_messages()` for user-role messages in the `else` branch <!-- id: 10 -->
+- [ ] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py` <!-- id: 7 -->
+- [ ] Implement `_translate_chat_attachment()` — data URL construction, URL pass-through, file_id ValueError, non-image MIME ValueError <!-- id: 8 -->
+- [ ] Implement `_translate_chat_content_part()` — text → text part, file → delegate to `_translate_chat_attachment()` <!-- id: 9 -->
+- [ ] Implement `_translate_chat_user_message()` — string-only passthrough, string + attachments → text + image parts, list[ContentPart] → translated parts, strip attachments key <!-- id: 10 -->
+- [ ] Wire `_translate_chat_user_message()` into `OpenAIChatCompletionsClient._translate_chat_messages()` for user-role messages in the `else` branch <!-- id: 11 -->
 
 ## Testing Phase
 
-- [ ] Run unit tests — expect GREEN (all pass) <!-- id: 11 -->
-- [ ] Run full unit test suite: `cd src/tinycua-sdk && uv run pytest tests/unit/` <!-- id: 12 -->
-- [ ] Run integration test suite (auto-skipped without server): `cd src/tinycua-sdk && uv run pytest tests/integration/` <!-- id: 13 -->
+- [ ] Run unit tests — expect GREEN (all pass) <!-- id: 12 -->
+- [ ] Run full unit test suite: `cd src/tinycua-sdk && uv run pytest tests/unit/` <!-- id: 13 -->
+- [ ] Run integration test suite (auto-skipped without server): `cd src/tinycua-sdk && uv run pytest tests/integration/` <!-- id: 14 -->
 
 ## Verification Phase
 
-- [ ] Verify string-only Chat Completions payloads remain unchanged (existing tests cover this) <!-- id: 14 -->
-- [ ] Verify tool-result injection logic still works (existing tests cover this) <!-- id: 15 -->
-- [ ] Verify backward compatibility — no `attachments` key in translated output <!-- id: 16 -->
+- [ ] Verify string-only Chat Completions payloads remain unchanged (existing tests cover this) <!-- id: 15 -->
+- [ ] Verify tool-result injection logic still works (existing tests cover this) <!-- id: 16 -->
+- [ ] Verify backward compatibility — no `attachments` key in translated output <!-- id: 17 -->
 
 ## Review and Merge
 
-- [ ] Run `/review-report` on the branch <!-- id: 17 -->
-- [ ] Address review feedback <!-- id: 18 -->
-- [ ] Create pull request <!-- id: 19 -->
+- [ ] Run `/review-report` on the branch <!-- id: 18 -->
+- [ ] Address review feedback <!-- id: 19 -->
+- [ ] Create pull request <!-- id: 20 -->
 
 ---
 
