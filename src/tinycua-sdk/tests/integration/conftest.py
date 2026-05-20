@@ -61,7 +61,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "integration_tool_choice: marks tests requiring forced tool_choice support "
-        "(auto-skipped when provider rejects the payload)",
+        "(auto-skipped when provider rejects the payload or model does not call a tool)",
     )
 
 
@@ -77,14 +77,20 @@ def _build_auth_headers(api_key: str | None = None) -> dict[str, str]:
 def _forced_tool_choice(provider: str, name: str) -> str | dict:
     """Return a provider-compatible forced tool_choice value.
 
-    Returns ``"required"`` for all providers.  LM Studio / local providers
-    reject the object form ``{"type": "function", "function": {"name": name}}``,
-    and ``"required"`` is sufficient for single-tool test scenarios regardless
-    of provider (OpenAI, LM Studio, etc.).
+    - openai-chat-completions → ``{"type": "function", "function": {"name": name}}``
+      (the correct OpenAI Chat Completions API format for forcing a specific tool)
+    - openai-responses / other → ``"required"`` (the only form LM Studio / local
+      providers accept for the Responses endpoint; Chat Completions object form
+      is typically rejected)
 
-    If a project needs to force a specific named tool for a particular provider,
-    add a ``local_compat`` parameter (see review finding ISSUE-002).
+    The ``_probe_tool_choice`` function sends this value to the live server and
+    also verifies the response body contains actual ``tool_calls``, so the
+    ``integration_tool_choice`` marker gates tests correctly: if the server
+    rejects the payload OR accepts it but the model does not call a tool, the
+    probe fails and tests are skipped.
     """
+    if provider == "openai-chat-completions":
+        return {"type": "function", "function": {"name": name}}
     return "required"
 
 
@@ -190,7 +196,15 @@ def _probe_tool_choice(base_url: str, model: str, headers: dict, provider: str) 
     """Check whether the provider supports forced ``tool_choice``.
 
     Uses the provider-appropriate endpoint and payload shape.
-    Returns True only when the provider accepts the payload (HTTP 2xx).
+    Returns True only when the provider accepts the payload (HTTP 2xx)
+    **and** the response body contains actual ``tool_calls`` entries
+    (i.e. the model honoured the forced tool_choice).
+
+    This two-level check prevents false positives where the API accepts
+    a ``tool_choice`` value syntactically but the underlying model does
+    not actually call a tool (observed with LM Studio / local Qwen when
+    ``tool_choice="required"`` is accepted at the HTTP level but the
+    model returns a plain response).
     """
     try:
         endpoint = _probe_endpoint(provider)
@@ -200,10 +214,29 @@ def _probe_tool_choice(base_url: str, model: str, headers: dict, provider: str) 
             f"{base_url}{endpoint}",
             headers=headers,
             json=payload,
-            timeout=15,
+            timeout=30,
         )
         resp.raise_for_status()
-        return True
+
+        # Level 2: verify the model actually called a tool.
+        # A syntactically valid 200 response with no tool_calls means the
+        # provider/model does not truly honour forced tool_choice.
+        body = resp.json()
+        if provider == "openai-chat-completions":
+            choices = body.get("choices", [])
+            if choices:
+                msg = choices[0].get("message", {})
+                if msg.get("tool_calls"):
+                    return True
+            return False
+
+        # openai-responses endpoint response structure
+        output = body.get("output", [])
+        for item in output:
+            if item.get("type") == "function_call" or item.get("tool_calls"):
+                return True
+        return False
+
     except Exception:
         return False
 
