@@ -8,31 +8,23 @@ All tests are marked @pytest.mark.integration and are auto-skipped by
 the integration conftest when no LLM server is reachable.
 """
 
-import os
 import pytest
 
 from tinycua_sdk import Agent, LanguageModel, Skill, tool
+from tests.integration.conftest import resolve_integration_llm_config
 
 
 def _build_language_model() -> LanguageModel:
-    """Build LanguageModel from environment variables.
+    """Build LanguageModel from environment variables using shared config.
 
-    Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
+    Uses the centralized resolver from conftest.py for consistent fallback.
     """
+    cfg = resolve_integration_llm_config()
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
-        model_name=os.environ.get(
-            "TINYCUA_MODEL",
-            os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
-        ),
-        base_url=os.environ.get(
-            "TINYCUA_BASE_URL",
-            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        ),
-        api_key=os.environ.get(
-            "TINYCUA_API_KEY",
-            os.environ.get("LLM_API_KEY", "dummy"),
-        ),
+        provider=cfg.provider,
+        model_name=cfg.model,
+        base_url=cfg.base_url,
+        api_key=cfg.api_key,
     )
 
 
