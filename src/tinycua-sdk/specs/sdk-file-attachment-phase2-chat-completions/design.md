@@ -28,9 +28,14 @@ UserMessage
     v
 OpenAIChatCompletionsClient._translate_chat_messages()
     |
-    ├─ _translate_chat_message_content()
-    │    ├─ text part -> {"type": "text", "text": ...}
-    │    └─ file part -> {"type": "image_url", "image_url": {"url": ...}}
+    ├─ _translate_chat_user_message(msg)
+    │    ├─ string-only content → pass through unchanged
+    │    ├─ _translate_chat_content_part(part) for each ContentPart
+    │    │    ├─ text part -> {"type": "text", "text": ...}
+    │    │    └─ file part -> _translate_chat_attachment(attachment)
+    │    └─ _translate_chat_attachment(attachment) for each message-level attachment
+    │         ├─ data-backed -> {"type": "image_url", "image_url": {"url": "data:..."}}
+    │         └─ URL-backed -> {"type": "image_url", "image_url": {"url": "https://..."}}
     |
     v
 Chat Completions payload
