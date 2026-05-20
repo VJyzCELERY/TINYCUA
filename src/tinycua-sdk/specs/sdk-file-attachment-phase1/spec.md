@@ -101,12 +101,12 @@ A developer building an AI agent wants to send an image file to a vision-capable
 
 ## Success Criteria
 
-- [ ] **Canonical models accept file attachments**: A `UserMessage` with `list[ContentPart]` containing a file attachment is constructed, serialized, and deserialized correctly via Pydantic round-trip
-- [ ] **Backward compatible**: All existing tests pass without modification — `str`-only messages unchanged
-- [ ] **Helper methods work**: `FileAttachment.from_path()`, `from_bytes()`, `from_url()` produce correct attachments
-- [ ] **MIME detection works**: `from_path()` correctly detects MIME types for common file formats (JPEG, PNG, PDF, MP3, MP4)
-- [ ] **Streaming parity**: `from_path(stream=True)` produces base64 output identical to the non-streaming path, verified via chunked reading
-- [ ] **ContentPart serialization**: `ContentPart` models serialize/deserialize correctly via Pydantic
+- [x] **Canonical models accept file attachments**: A `UserMessage` with `list[ContentPart]` containing a file attachment is constructed, serialized, and deserialized correctly via Pydantic round-trip
+- [x] **Backward compatible**: All existing tests pass without modification — `str`-only messages unchanged
+- [x] **Helper methods work**: `FileAttachment.from_path()`, `from_bytes()`, `from_url()` produce correct attachments
+- [x] **MIME detection works**: `from_path()` correctly detects MIME types for common file formats (JPEG, PNG, PDF, MP3, MP4)
+- [x] **Streaming parity**: `from_path(stream=True)` produces base64 output identical to the non-streaming path, verified via chunked reading
+- [x] **ContentPart serialization**: `ContentPart` models serialize/deserialize correctly via Pydantic
 
 ---
 
@@ -136,14 +136,14 @@ A developer building an AI agent wants to send an image file to a vision-capable
 
 | Item | Status | Notes |
 |------|--------|-------|
-| FileAttachment model | TODO | |
-| ContentPart model | TODO | |
-| UserMessage.content union | TODO | |
-| ToolResultMessage.content union | TODO | |
-| from_path() helper | TODO | |
-| from_bytes() helper | TODO | |
-| from_url() helper | TODO | |
-| Unit tests | TODO | |
+| FileAttachment model | DONE | |
+| ContentPart model | DONE | |
+| UserMessage.content union | DONE | |
+| ToolResultMessage.content union | DONE | |
+| from_path() helper | DONE | |
+| from_bytes() helper | DONE | |
+| from_url() helper | DONE | |
+| Unit tests | DONE | |
 
 ---
 

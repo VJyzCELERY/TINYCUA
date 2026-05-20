@@ -64,14 +64,14 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua-sdk/specs/sdk-file-attachment-phase1/spec.md` status tracker from TODO to DONE for completed Phase 1 items if implementation is completed <!-- id: 19 -->
+- [x] Update `src/tinycua-sdk/specs/sdk-file-attachment-phase1/spec.md` status tracker from TODO to DONE for completed Phase 1 items if implementation is completed <!-- id: 19 -->
 - [x] ~~Update `src/tinycua-sdk/specs/sdk-file-attachment-phase1/design.md` if implementation needs a documented validator detail such as `model_validator` instead of `field_validator` <!-- id: 20 -->~~ _(Already applied — design.md now uses `@model_validator(mode="after")`)_
-- [ ] Update SDK README or docs only if the public import path needs to be advertised in this phase <!-- id: 21 -->
+- [x] ~~Update SDK README or docs only if the public import path needs to be advertised in this phase~~ <!-- id: 21 --> _(Not required — Phase 1 is model-only; public import path unchanged for existing callers)_
 
 ## Review and Merge
 
 - [ ] Review changed files for Phase 1 scope control: models, exports, event types, and tests only <!-- id: 22 -->
-- [ ] Address review feedback <!-- id: 23 -->
+- [x] Address review feedback <!-- id: 23 -->
 - [ ] Merge via the project PR workflow after CI/review approval <!-- id: 24 -->
 
 ---
