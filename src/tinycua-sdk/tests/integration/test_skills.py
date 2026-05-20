@@ -394,7 +394,7 @@ class TestSkillsWithAgent:
         from tinycua_sdk.agent.llm_model import LanguageModel
 
         llm_model = LanguageModel(
-            provider="openai-compatible",
+            provider="openai-responses",
             model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
             api_key="dummy",
@@ -413,7 +413,7 @@ class TestSkillsWithAgent:
         from tinycua_sdk.agent.llm_model import LanguageModel
 
         llm_model = LanguageModel(
-            provider="openai-compatible",
+            provider="openai-responses",
             model_name="qwen/qwen3.5-9b",
             base_url="http://localhost:1234/v1",
             api_key="dummy",

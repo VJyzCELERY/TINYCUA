@@ -34,7 +34,7 @@ class TestInt04AgentWithSkills:
         assert len(response) > 0
 
         call_kwargs = mock_llm_client.call_args[1]
-        messages =         call_kwargs["json"]["input"]
+        messages =         call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "[python_expert]" in system_msg["content"]
         assert "PEP 8" in system_msg["content"]
@@ -55,7 +55,7 @@ class TestInt04AgentWithSkills:
         assert len(response) > 0
 
         call_kwargs = mock_llm_client.call_args[1]
-        messages =         call_kwargs["json"]["input"]
+        messages =         call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "[s1]" in system_msg["content"]
         assert "[s2]" in system_msg["content"]
@@ -80,7 +80,7 @@ class TestInt04AgentWithSkills:
         assert len(response) > 0
 
         call_kwargs = mock_llm_client.call_args[1]
-        messages =         call_kwargs["json"]["input"]
+        messages =         call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "[documentarian]" in system_msg["content"]
         assert "Google-style docstrings" in system_msg["content"]
@@ -107,7 +107,7 @@ class TestInt04AgentWithSkills:
         assert len(response) > 0
 
         call_kwargs = mock_llm_client.call_args[1]
-        messages =         call_kwargs["json"]["input"]
+        messages =         call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "[python_expert]" in system_msg["content"]
         assert "[documentarian]" in system_msg["content"]
@@ -141,7 +141,7 @@ class TestInt04AgentWithSkills:
         assert len(response) > 0
 
         call_kwargs = mock_llm_client.call_args[1]
-        messages =         call_kwargs["json"]["input"]
+        messages =         call_kwargs["input"]
         system_msg = next(m for m in messages if m["role"] == "system")
         assert "[skill_x]" in system_msg["content"]
         assert "[skill_y]" in system_msg["content"]

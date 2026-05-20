@@ -126,7 +126,7 @@ class TestAgentRun:
                 yield {
                     "type": "response.output_text.delta",
                     "delta": "Hello",
-                    "item_id": "",
+                    "index": 0,
                 }
 
             return _gen()

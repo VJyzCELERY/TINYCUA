@@ -13,7 +13,7 @@ class TestAgentCreation:
             "instructions": "Test agent",
             "llm_model": {
                 "model_name": "gpt-4",
-                "provider": "openai",
+                "provider": "openai-responses",
             },
         }
         agent = Agent.from_config(config)
@@ -58,7 +58,7 @@ class TestAgentConstructor:
             name="greeter",
             instructions="You are a friendly greeter.",
             llm_model=LanguageModel(
-                provider="openai-compatible",
+                provider="openai-responses",
                 model_name="qwen/qwen3.5-9b",
                 base_url="http://localhost:1234/v1",
                 api_key="dummy",

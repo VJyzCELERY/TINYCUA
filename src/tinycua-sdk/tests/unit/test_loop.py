@@ -574,14 +574,21 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_time",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                         "arguments": "{}",
                     }
                 else:
@@ -657,19 +664,26 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_weather",
                     }
                     yield {
-                        "type": "tool_call.arguments.delta",
+                        "type": "response.function_call_arguments.delta",
                         "id": "call_1",
                         "arguments": '{"cit',
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
+                        "arguments": '{"city": "Tokyo"}',
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_weather",
                         "arguments": '{"city": "Tokyo"}',
                     }
                 else:
@@ -720,19 +734,26 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "fc_1",
                         "call_id": "call_1",
                         "name": "get_weather",
                     }
                     yield {
-                        "type": "tool_call.arguments.delta",
+                        "type": "response.function_call_arguments.delta",
                         "id": "fc_1",
                         "arguments": '{"cit',
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "fc_1",
+                        "arguments": '{"city": "Tokyo"}',
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "fc_1",
+                        "call_id": "call_1",
+                        "name": "get_weather",
                         "arguments": '{"city": "Tokyo"}',
                     }
                 else:
@@ -771,14 +792,21 @@ class TestBaseLoopRunStream:
         async def fake_stream(messages, tools, stream=False):
             async def _gen():
                 yield {
-                    "type": "tool_call.started",
+                    "type": "response.output_item.added",
                     "id": "call_1",
                     "call_id": "call_1",
                     "name": "dummy_tool",
                 }
                 yield {
-                    "type": "tool_call.arguments.done",
+                    "type": "response.function_call_arguments.done",
                     "id": "call_1",
+                    "arguments": "{}",
+                }
+                yield {
+                    "type": "tool_call.ready",
+                    "id": "call_1",
+                    "call_id": "call_1",
+                    "name": "dummy_tool",
                     "arguments": "{}",
                 }
 
@@ -882,14 +910,21 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_time",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
                         "arguments": "{}",
                     }
                     yield {
@@ -942,18 +977,26 @@ class TestBaseLoopRunStream:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_time",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
                         "arguments": "{}",
                     }
                     yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "get_time",
+                        "arguments": "{}",
+                    }
+                    yield {
                         "type": "response.completed",
+                        "finish_reason": "tool_calls",
                         "response": {
                             "id": "r1",
                             "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
@@ -982,7 +1025,7 @@ class TestBaseLoopRunStream:
         completed_events = [e for e in events if e["type"] == "response.completed"]
         usage_events = [e for e in events if e["type"] == "response.usage"]
 
-        assert len(completed_events) == 2  # provider forwarded + SDK synthetic
+        assert len(completed_events) == 1  # only the final SDK synthetic
         assert len(usage_events) == 2  # iter2 raw + cumulative summary
 
         cumulative = usage_events[-1]
@@ -1119,14 +1162,21 @@ class TestBaseLoopRunStreamInProgress:
                 call_count += 1
                 if call_count == 1:
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "dummy_tool",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
+                        "arguments": "{}",
+                    }
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": "call_1",
+                        "call_id": "call_1",
+                        "name": "dummy_tool",
                         "arguments": "{}",
                     }
                 else:

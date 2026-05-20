@@ -75,8 +75,8 @@ class TestGuardrailPropagation:
         assert call_count == 2
         assert any(
             isinstance(m, dict)
-            and m.get("type") == "function_call_output"
-            and "Dangerous tool blocked" in m.get("output", "")
+            and m.get("role") == "tool_result"
+            and "Dangerous tool blocked" in m.get("content", "")
             for m in (second_call_messages or [])
         )
         assert "denied" in result.lower() or "blocked" in result.lower()

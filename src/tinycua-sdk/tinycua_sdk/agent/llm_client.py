@@ -1,295 +1,149 @@
-"""LLM client ABC and OpenAI-compatible implementation."""
+"""LLM client ABC — abstract base for all provider clients.
+
+This module defines the canonical ``LLMClient`` abstract base class
+with a concrete ``chat()`` method that performs shared validation
+and delegates to the abstract ``_chat_impl()``.
+
+Provider-specific client implementations have been moved to
+``tinycua_sdk.providers.open_ai``.
+"""
 
 from __future__ import annotations
 
-import json
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING
 
-import httpx
+from tinycua_sdk.agent.events import LLMEvent, LLMResponse, RawSseEvent
 
-from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.providers import normalize_base_url
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator
+
+    from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
+
+def _yield_events(
+    events: list[LLMEvent],
+    raw_event_obj: RawSseEvent | None,
+    raw_events: bool,
+) -> Iterator[LLMEvent | tuple[LLMEvent | None, RawSseEvent | None]]:
+    """Yield canonical events, optionally paired with raw event.
+
+    Pairing rules (applied when ``raw_events=True``):
+
+    - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
+    - **Canonical-only** (synthetic event): ``(canonical_event, None)``
+    - **One-to-one** (one raw → one canonical): ``(canonical_event, raw_event)``
+    - **One-to-many** (one raw → N canonicals): first gets
+      ``(canonical, raw)``, subsequent get ``(canonical, None)``
+
+    Args:
+        events: List of canonical events from the normalizer.
+        raw_event_obj: Raw SSE event object for pairing.
+        raw_events: When True, yield ``(canonical, raw)`` tuples.
+
+    Yields:
+        Canonical ``LLMEvent`` items, or ``(LLMEvent | None, RawSseEvent | None)``
+        tuples when ``raw_events=True``.
+    """
+    if not events and raw_events:
+        yield (None, raw_event_obj)
+    else:
+        for i, event in enumerate(events):
+            if raw_events:
+                yield (event, raw_event_obj if i == 0 else None)
+            else:
+                yield event
 
 
 class LLMClient(ABC):
-    """Abstract base for LLM API clients."""
+    """Abstract base for LLM API clients with canonical event contract.
+
+    Subclasses must implement ``_chat_impl()`` and ``close()``.
+    The concrete ``chat()`` method validates shared constraints
+    (e.g. ``raw_events=True`` requires ``stream=True``) then delegates
+    to ``_chat_impl()``.
+
+    Tool-call state machine (canonical event flow)::
+
+        tool_call.started  →  tool_call.arguments.delta*  →  tool_call.arguments.done  →  tool_call.ready
+
+    """
 
     @abstractmethod
-    async def chat(
+    async def _chat_impl(
         self,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
+        messages: list[LLMMessage],
+        tools: list[LLMToolSpec] | None = None,
         stream: bool = False,
-    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
-        """Send chat request and return normalized response.
+        raw_events: bool = False,
+    ) -> (
+        LLMResponse
+        | AsyncIterator[LLMEvent]
+        | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]
+    ):
+        """Provider-specific chat implementation.
 
         Args:
-            messages: List of message dicts.
-            tools: Optional list of tool schemas.
-            model_config: Language model configuration.
-            stream: When True, return an async iterator of SSE chunk events.
+            messages: Canonical message list.
+            tools: Optional list of tool specs.
+            stream: When True, return an async iterator of stream events.
+            raw_events: When True *and* stream=True, yield ``(canonical, raw)``
+                tuples instead of bare ``LLMEvent`` items. Providers that
+                do not support raw events ignore this flag.
 
         Returns:
-            Normalized response dict when stream=False, or an async iterator
-            of event dicts when stream=True.
+            Non-streaming: ``LLMResponse``.
+            Streaming with ``raw_events=False``: ``AsyncIterator[LLMEvent]``.
+            Streaming with ``raw_events=True``: ``AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]``.
         """
 
+    async def chat(
+        self,
+        messages: list[LLMMessage],
+        tools: list[LLMToolSpec] | None = None,
+        *,
+        stream: bool = False,
+        raw_events: bool = False,
+    ) -> (
+        LLMResponse
+        | AsyncIterator[LLMEvent]
+        | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]
+    ):
+        """Send a chat request with shared validation.
+
+        Validates that ``raw_events=True`` requires ``stream=True``,
+        then delegates to ``_chat_impl()``.
+
+        .. note::
+            When ``raw_events=True``, the yielded ``(canonical, raw)`` tuples
+            follow these pairing rules:
+
+            - **Raw-only** (no canonical equivalent): ``(None, raw_event)``
+            - **Canonical-only** (synthetic event): ``(canonical_event, None)``
+            - **One-to-one**: ``(canonical_event, raw_event)``
+            - **One-to-many**: first gets ``(canonical, raw)``, subsequent
+              get ``(canonical, None)``
+
+            Consumers MUST handle ``None`` in either slot.
+
+        Args:
+            messages: Canonical message list.
+            tools: Optional list of tool specs.
+            stream: When True, return an async iterator of stream events.
+            raw_events: When True *and* stream=True, yield ``(canonical, raw)``
+                tuples from ``_chat_impl()``.
+
+        Returns:
+            Non-streaming: ``LLMResponse``.
+            Streaming: ``AsyncIterator[LLMEvent]`` or paired tuples.
+        """
+        if raw_events and not stream:
+            msg = "raw_events=True requires stream=True"
+            raise ValueError(msg)
+        return await self._chat_impl(messages, tools, stream=stream, raw_events=raw_events)
+
+    @abstractmethod
     async def close(self) -> None:
         """Close and release any resources held by the client."""
 
 
-class OpenAICompatibleClient(LLMClient):
-    """Client for OpenAI-compatible endpoints using httpx."""
-
-    def __init__(self) -> None:
-        self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
-
-    def _client_key(self, model_config: LanguageModel) -> tuple[str, str]:
-        api_key = model_config.api_key.get_secret_value()
-        base_url = normalize_base_url(model_config.base_url, model_config.provider)
-        return (base_url, api_key)
-
-    def _get_client(self, model_config: LanguageModel) -> httpx.AsyncClient:
-        key = self._client_key(model_config)
-        if key not in self._clients:
-            api_key = key[1]
-            headers: dict[str, str] = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
-            self._clients[key] = httpx.AsyncClient(
-                base_url=key[0], headers=headers, timeout=60.0
-            )
-        return self._clients[key]
-
-    async def close(self) -> None:
-        """Close all cached HTTP clients and clear the cache."""
-        for client in self._clients.values():
-            await client.aclose()
-        self._clients.clear()
-
-    @staticmethod
-    def _build_payload(
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
-    ) -> dict[str, Any]:
-        """Build the chat completion payload shared by sync and streaming paths.
-
-        Args:
-            messages: List of message dicts.
-            tools: Optional list of tool schemas.
-            model_config: Language model configuration.
-
-        Returns:
-            Complete payload dict ready for the LLM API request.
-        """
-        payload: dict[str, Any] = {
-            "model": model_config.model_name,
-            "input": messages,
-        }
-
-        _FIELD_MAP = {
-            "max_tokens": "max_output_tokens",
-        }
-        for field in (
-            "temperature",
-            "max_tokens",
-            "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "stop",
-            "seed",
-            "response_format",
-            "tool_choice",
-            "logprobs",
-            "top_logprobs",
-            "user",
-        ):
-            value = getattr(model_config, field)
-            if value is not None:
-                payload[_FIELD_MAP.get(field, field)] = value
-
-        if tools:
-            payload["tools"] = tools
-            if "tool_choice" not in payload:
-                payload["tool_choice"] = "auto"
-
-        return payload
-
-    async def chat(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
-        stream: bool = False,
-    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
-        """Send a chat completion request.
-
-        Args:
-            messages: List of message dicts.
-            tools: Optional list of tool schemas.
-            model_config: Language model configuration.
-            stream: When True, return an async generator of SSE chunk events.
-
-        Returns:
-            Normalized response dict when stream=False, or an async iterator
-            of event dicts when stream=True.
-        """
-        if not stream:
-            return await self._chat_sync(messages, tools, model_config)
-        return self._chat_stream(messages, tools, model_config)
-
-    async def _chat_sync(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
-    ) -> dict[str, Any]:
-        """Non-streaming Responses API call.
-
-        Args:
-            messages: List of message dicts.
-            tools: Optional list of tool schemas.
-            model_config: Language model configuration.
-
-        Returns:
-            Normalized response dict with content, tool_calls, and usage.
-        """
-        client = self._get_client(model_config)
-
-        payload = self._build_payload(messages, tools, model_config)
-
-        try:
-            response = await client.post("/responses", json=payload)
-        except httpx.RequestError as e:
-            raise RuntimeError(
-                f"Failed to connect to LLM at {model_config.base_url}: {e}"
-            ) from e
-        response.raise_for_status()
-        data = response.json()
-
-        content = None
-        tool_calls = None
-        for item in data.get("output", []):
-            if item.get("type") == "message":
-                text_parts = [
-                    p.get("text", "")
-                    for p in item.get("content", [])
-                    if p.get("type") == "output_text"
-                ]
-                content = "".join(text_parts) or None
-            elif item.get("type") == "function_call":
-                if tool_calls is None:
-                    tool_calls = []
-                tool_calls.append(
-                    {
-                        "id": item.get("id", ""),
-                        "call_id": item.get("call_id", ""),
-                        "name": item.get("name", ""),
-                        "arguments": item.get("arguments", "{}"),
-                    }
-                )
-
-        return {
-            "content": content,
-            "tool_calls": tool_calls,
-            "usage": data.get("usage"),
-        }
-
-    @staticmethod
-    def _normalize_responses_event(
-        event: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Normalize a raw Responses API stream event into an SDK event.
-
-        Converts provider-specific event names to canonical SDK stream
-        event types so that ``BaseLoop`` and custom loops are decoupled
-        from the upstream provider's SSE dialect.
-
-        Args:
-            event: Raw Responses API stream event dict.
-
-        Returns:
-            Normalized SDK stream event dict.
-        """
-        event_type = event.get("type", "")
-
-        if event_type == "response.output_item.added":
-            item = event.get("item", {})
-            if item.get("type") == "function_call":
-                return {
-                    "type": "tool_call.started",
-                    "id": item.get("id", ""),
-                    "call_id": item.get("call_id", ""),
-                    "name": item.get("name", ""),
-                }
-            return event
-
-        if event_type == "response.function_call_arguments.delta":
-            return {
-                "type": "tool_call.arguments.delta",
-                "id": event.get("item_id", ""),
-                "arguments": event.get("delta", ""),
-            }
-
-        if event_type == "response.function_call_arguments.done":
-            return {
-                "type": "tool_call.arguments.done",
-                "id": event.get("item_id", ""),
-                "arguments": event.get("arguments", ""),
-            }
-
-        # All other events pass through unchanged
-        return event
-
-    async def _chat_stream(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model_config: LanguageModel,
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Streaming Responses API via SSE.
-
-        Args:
-            messages: List of message dicts.
-            tools: Optional list of tool schemas.
-            model_config: Language model configuration.
-
-        Yields:
-            Normalized SDK stream event dicts.
-        """
-        client = self._get_client(model_config)
-
-        req_payload = self._build_payload(messages, tools, model_config)
-        req_payload["stream"] = True
-
-        async with client.stream("POST", "/responses", json=req_payload) as response:
-            response.raise_for_status()
-            buffer: str = ""
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if line.startswith("data:"):
-                    data_chunk = line[5:].strip()
-                    if data_chunk == "[DONE]":
-                        continue
-                    if buffer:
-                        buffer += "\n" + data_chunk
-                    else:
-                        buffer = data_chunk
-                    try:
-                        data = json.loads(buffer)
-                    except json.JSONDecodeError:
-                        continue
-                    yield self._normalize_responses_event(data)
-                    buffer = ""
-                elif not line and buffer:
-                    yield self._normalize_responses_event(json.loads(buffer))
-                    buffer = ""
-            if buffer:
-                yield self._normalize_responses_event(json.loads(buffer))
-
-
-__all__ = ["LLMClient", "OpenAICompatibleClient"]
+__all__ = ["LLMClient"]
