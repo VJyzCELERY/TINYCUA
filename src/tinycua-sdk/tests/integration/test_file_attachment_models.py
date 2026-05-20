@@ -119,3 +119,21 @@ def test_user_message_string_with_separate_attachments():
     assert len(message["attachments"]) == 1
     assert message["attachments"][0].url == "https://example.com/file.pdf"
     assert message["attachments"][0].filename == "file.pdf"
+
+
+def test_tool_result_message_string_with_separate_attachments():
+    """ToolResultMessage accepts content: str plus an attachments list."""
+    attachment = FileAttachment.from_bytes(
+        b"generated", mime_type="application/octet-stream", filename="output.bin"
+    )
+    message: ToolResultMessage = {
+        "role": "tool_result",
+        "call_id": "call_3",
+        "content": "Task completed",
+        "attachments": [attachment],
+    }
+
+    assert message["content"] == "Task completed"
+    assert len(message["attachments"]) == 1
+    assert message["attachments"][0].filename == "output.bin"
+    assert message["attachments"][0].data is not None

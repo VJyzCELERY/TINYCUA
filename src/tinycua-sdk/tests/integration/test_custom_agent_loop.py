@@ -26,7 +26,10 @@ import pytest
 
 from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
 from tinycua_sdk.agent.executor import ToolExecutor
-from tests.integration.conftest import resolve_integration_llm_config
+from tests.integration.conftest import (
+    _forced_tool_choice,
+    resolve_integration_llm_config,
+)
 
 
 # =============================================================================
@@ -302,7 +305,7 @@ async def test_custom_loop_uses_public_helpers():
 
     llm_model = _build_language_model()
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+        update={"tool_choice": _forced_tool_choice(llm_model.provider, "get_weather")},
     )
     loop = CustomToolLoop()
     agent = Agent(
@@ -428,7 +431,7 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     llm_model = _build_language_model()
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+        update={"tool_choice": _forced_tool_choice(llm_model.provider, "get_weather")},
     )
     loop = CustomStreamingLoop()
     agent = Agent(llm_model=llm_model_with_tc, tools=[get_weather], loop=loop)

@@ -85,7 +85,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 - **FR-002**: System MUST define a `ContentPart` model with `type: "text" | "file"` and corresponding `text: str | None` and `file: FileAttachment | None` fields, where text parts require `text` to be set and file parts require `file` to be set, and variant fields are mutually exclusive
 - **FR-003**: `UserMessage.content` MUST accept `str | list[ContentPart]` (backward-compatible union)
 - **FR-004**: `ToolResultMessage.content` MUST accept `str | list[ContentPart]`
-- **FR-005**: `UserMessage` MUST support an optional `attachments: list[FileAttachment]` field for the basic message shape (`content: str` + `attachments: list[FileAttachment]`). `ToolResultMessage.attachments` is deferred — only `UserMessage.attachments` is implemented and tested in Phase 1.
+- **FR-005**: `UserMessage` and `ToolResultMessage` MUST support an optional `attachments: list[FileAttachment]` field for the basic message shape (`content: str` + `attachments: list[FileAttachment]`).
 - **FR-006**: System MUST provide `FileAttachment.from_path(path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment` that reads file, detects MIME type via `mimetypes` (caller-provided `mime_type` overrides detection), and base64-encodes the data. When `stream=True`, uses chunked input reading while still returning a materialized base64 string.
 - **FR-007**: System MUST provide `FileAttachment.from_bytes(data: bytes, mime_type: str, filename: str | None = None) -> FileAttachment` that base64-encodes the bytes
 - **FR-008**: System MUST provide `FileAttachment.from_url(url: str, mime_type: str, filename: str | None = None) -> FileAttachment` that stores the URL
@@ -145,6 +145,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 | UserMessage.content union | DONE | |
 | ToolResultMessage.content union | DONE | |
 | UserMessage.attachments | DONE | |
+| ToolResultMessage.attachments | DONE | |
 | from_path() helper | DONE | |
 | from_bytes() helper | DONE | |
 | from_url() helper | DONE | |

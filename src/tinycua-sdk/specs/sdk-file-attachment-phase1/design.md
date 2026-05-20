@@ -122,7 +122,7 @@ class ContentPart(BaseModel):
 ### Schema Changes
 
 - **`UserMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`; optional `attachments: list[FileAttachment]` field added for the basic message shape (`content: str` + `attachments: list[FileAttachment]`)
-- **`ToolResultMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`; optional `attachments: list[FileAttachment]` field added (deferred — explicitly documented but not integration-tested in Phase 1)
+- **`ToolResultMessage` in `events.py`**: `content` field changes from `str` to `str | list[ContentPart]`; optional `attachments: list[FileAttachment]` field added
 - No migration needed — existing `str`-only usage remains valid via the union type
 
 ---

@@ -74,6 +74,82 @@ def _build_auth_headers(api_key: str | None = None) -> dict[str, str]:
     return headers
 
 
+def _forced_tool_choice(provider: str, name: str) -> str | dict:
+    """Return a provider-compatible forced tool_choice value.
+
+    - openai-chat-completions → ``{"type": "function", "function": {"name": name}}``
+    - openai-responses / other → ``"required"`` (LM Studio / local providers
+      typically reject the object form)
+    """
+    if provider == "openai-chat-completions":
+        return {"type": "function", "function": {"name": name}}
+    return "required"
+
+
+def _probe_payload(provider: str, model: str, include_tools: bool = False) -> dict:
+    """Build a provider-native probe payload.
+
+    Returns a minimal payload dict with provider-correct field names
+    (e.g. ``max_tokens`` for chat completions, ``max_output_tokens`` for
+    responses) and message/tools shapes.  When *include_tools* is true the
+    payload includes a single tool and the appropriate tool_choice value.
+    """
+    endpoint = _probe_endpoint(provider)
+    is_chat = endpoint == "/chat/completions"
+
+    payload: dict[str, object] = {
+        "model": model,
+        "max_output_tokens": 1,
+        "stream": False,
+    }
+    if is_chat:
+        payload["max_tokens"] = payload.pop("max_output_tokens")
+        payload["messages"] = [{"role": "user", "content": "hi"}]
+    else:
+        payload["input"] = [{"role": "user", "content": "hi"}]
+
+    if include_tools:
+        if is_chat:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "Get weather for a city.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "city": {"type": "string", "description": "City name"}
+                            },
+                            "required": ["city"],
+                        },
+                    },
+                }
+            ]
+        else:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "name": "get_weather",
+                    "description": "Get weather for a city.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string", "description": "City name"}
+                        },
+                        "required": ["city"],
+                    },
+                }
+            ]
+        payload["tool_choice"] = _forced_tool_choice(provider, "get_weather")
+        if is_chat:
+            payload["messages"] = [{"role": "user", "content": "what is the weather?"}]
+        else:
+            payload["input"] = [{"role": "user", "content": "what is the weather?"}]
+
+    return payload
+
+
 def _probe_endpoint(provider: str) -> str:
     """Return the probe endpoint path for the given provider.
 
@@ -88,20 +164,13 @@ def _probe_endpoint(provider: str) -> str:
 def _probe_server(base_url: str, model: str, headers: dict, provider: str) -> bool:
     """Check whether the LLM server is reachable and responds to basic requests.
 
-    Uses the provider-appropriate endpoint instead of hardcoding /responses.
+    Uses the provider-appropriate endpoint and payload shape instead of
+    hardcoding /responses with Responses-only fields.
     """
     try:
         httpx.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
         endpoint = _probe_endpoint(provider)
-        payload: dict = {
-            "model": model,
-            "max_output_tokens": 1,
-            "stream": False,
-        }
-        if provider == "openai-chat-completions":
-            payload["messages"] = [{"role": "user", "content": "hi"}]
-        else:
-            payload["input"] = [{"role": "user", "content": "hi"}]
+        payload = _probe_payload(provider, model, include_tools=False)
 
         resp = httpx.post(
             f"{base_url}{endpoint}",
@@ -123,30 +192,7 @@ def _probe_tool_choice(base_url: str, model: str, headers: dict, provider: str) 
     """
     try:
         endpoint = _probe_endpoint(provider)
-        payload: dict = {
-            "model": model,
-            "max_output_tokens": 1,
-            "stream": False,
-            "tools": [
-                {
-                    "type": "function",
-                    "name": "get_weather",
-                    "description": "Get weather for a city.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "city": {"type": "string", "description": "City name"}
-                        },
-                        "required": ["city"],
-                    },
-                }
-            ],
-            "tool_choice": {"type": "function", "name": "get_weather"},
-        }
-        if provider == "openai-chat-completions":
-            payload["messages"] = [{"role": "user", "content": "what is the weather?"}]
-        else:
-            payload["input"] = [{"role": "user", "content": "what is the weather?"}]
+        payload = _probe_payload(provider, model, include_tools=True)
 
         resp = httpx.post(
             f"{base_url}{endpoint}",
