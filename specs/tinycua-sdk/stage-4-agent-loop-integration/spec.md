@@ -55,10 +55,13 @@ A developer creates an agent using `BaseLoop` for standard tool-calling executio
 
 ## Success Criteria
 
-- [ ] `BaseLoop` processes tool calls from both streaming and non-streaming LLM responses
-- [ ] Custom loop subclasses can override `run()` and call all public helpers
-- [ ] Cancellation is observed promptly before each tool call and before each stream chunk read
-- [ ] All unit and integration tests for loops pass (`test_loop.py`, `test_loop_custom.py`, `test_custom_agent_loop.py`)
+- [x] `BaseLoop` processes tool calls from both streaming and non-streaming LLM responses
+- [x] Custom loop subclasses can override `run()` and call all public helpers
+- [x] Cancellation is observed promptly before each tool call and before each stream chunk read
+- [x] All unit and integration tests for loops pass (`test_loop.py`, `test_loop_custom.py`, `test_custom_agent_loop.py`)
+
+Note: Live LLM integration cases in `test_custom_agent_loop.py` are marked
+`integration` and auto-skip when no compatible local LLM endpoint is reachable.
 
 ---
 
