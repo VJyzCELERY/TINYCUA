@@ -7,9 +7,9 @@ tool-call accumulation, error mapping, and raw-events pairing.
 import base64
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from tinycua_sdk.agent.events import LLMResponse, UserMessage
+from tinycua_sdk.agent.events import LLMResponse
 from tinycua_sdk.providers.open_ai import (
     OpenAIChatCompletionsClient,
     _translate_chat_attachment,
@@ -615,6 +615,20 @@ class TestChatCompletionsAttachmentTranslation:
         msg: dict[str, object] = {"role": "user", "content": []}
         with pytest.raises(ValueError, match="content"):
             _translate_chat_user_message(msg)
+
+    def test_translate_user_message_empty_string_with_attachments(self):
+        """Empty string content with attachments omits text part."""
+        encoded = base64.b64encode(b"img").decode("ascii")
+        attachment = FileAttachment(data=encoded, mime_type="image/png")
+        msg: dict[str, object] = {
+            "role": "user",
+            "content": "",
+            "attachments": [attachment],
+        }
+        result = _translate_chat_user_message(msg)
+        content = result["content"]
+        assert len(content) == 1
+        assert content[0]["type"] == "image_url"
 
 
 class TestChatCompletionsAttachmentIntegration:

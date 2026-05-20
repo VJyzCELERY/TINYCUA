@@ -36,7 +36,7 @@ from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.utility import normalize_base_url
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterator
+    from collections.abc import AsyncIterator
 
     from openai import AsyncOpenAI
 
@@ -189,6 +189,8 @@ def _translate_chat_content_part(part: ContentPart) -> dict[str, Any]:
         return {"type": "text", "text": part.text}
 
     if part.type == "file":
+        if part.file is None:
+            raise ValueError("ContentPart with type='file' must have a non-None file")
         return _translate_chat_attachment(part.file)
 
     raise ValueError(f"Unknown ContentPart type: {part.type!r}")
@@ -234,8 +236,9 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
             result = {k: v for k, v in msg.items() if k != "attachments"}
             return result
 
-        # String + attachments: text part first, then image parts
-        parts.append({"type": "text", "text": content})
+        # String + attachments: text part first (omitted if empty), then image parts
+        if content:
+            parts.append({"type": "text", "text": content})
         for att in attachments:
             parts.append(_translate_chat_attachment(att))
         result["content"] = parts
@@ -975,7 +978,7 @@ class OpenAIChatCompletionsClient(LLMClient):
             else:
                 # Wire user message translation for ContentPart and attachments
                 if isinstance(msg, dict) and msg.get("role") == "user":
-                    result.append(_translate_chat_user_message(msg))
+                    result.append(_translate_chat_user_message(msg))  # type: ignore[arg-type]
                 else:
                     result.append(msg)  # type: ignore[arg-type]
                 i += 1

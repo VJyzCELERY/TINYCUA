@@ -166,21 +166,37 @@ async def test_openai_chat_completions_attachment_sends_image():
     )
 
     # Also set environment variables so _get_client() works
+    old_provider = os.environ.get("TINYCUA_PROVIDER")
+    old_model = os.environ.get("TINYCUA_MODEL")
+    old_base_url = os.environ.get("TINYCUA_BASE_URL")
+    old_api_key = os.environ.get("TINYCUA_API_KEY")
     os.environ["TINYCUA_PROVIDER"] = "openai-chat-completions"
     os.environ["TINYCUA_MODEL"] = config.model
     os.environ["TINYCUA_BASE_URL"] = config.base_url
     os.environ["TINYCUA_API_KEY"] = config.api_key
 
-    client = OpenAIChatCompletionsClient(model)
-    image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
-    message = UserMessage(
-        role="user",
-        content="Describe this image in one sentence.",
-        attachments=[image_attachment],
-    )
+    try:
+        client = OpenAIChatCompletionsClient(model)
+        image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
+        message = UserMessage(
+            role="user",
+            content="Describe this image in one sentence.",
+            attachments=[image_attachment],
+        )
 
-    response = await client.chat(messages=[message])
+        response = await client.chat(messages=[message])
 
-    assert response["content"] is not None
-    assert len(response["content"]) > 0
-    assert isinstance(response["content"], str)
+        assert response["content"] is not None
+        assert len(response["content"]) > 0
+        assert isinstance(response["content"], str)
+    finally:
+        for key, old_val in (
+            ("TINYCUA_PROVIDER", old_provider),
+            ("TINYCUA_MODEL", old_model),
+            ("TINYCUA_BASE_URL", old_base_url),
+            ("TINYCUA_API_KEY", old_api_key),
+        ):
+            if old_val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_val
