@@ -1,0 +1,356 @@
+# Implementation: Reorganize Client Module — Extract Provider Implementations
+
+Extract provider-specific LLM client implementations (`OpenAIResponsesClient`, `OpenAIChatCompletionsClient`) and provider resolution utilities (`ProviderRegistry`, `resolve_provider`, `normalize_base_url`, constants) from `agent/llm_client.py` and `core/providers.py` into a dedicated `tinycua_sdk/providers/` package, with `core/providers.py` split into three focused sub-modules: `providers/constants.py`, `providers/registry.py`, `providers/utility.py`.
+
+## Context
+
+- **Spec Reference**: `./spec.md`
+- **Design Reference**: `./design.md`
+- **Priority**: P1 (structural prerequisite for adding new providers like Anthropic)
+- **Estimated Effort**: M
+
+## Environment Pre-requisites
+
+> No special environment setup is needed — this is a pure reorganization with no behavioral changes.
+
+### Configuration
+
+- [x] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+- [x] **None** — no external services needed
+
+### Data / Fixtures
+
+- [x] **None** — no data or fixtures needed
+
+### Access / Permissions
+
+- [x] **None** — no special access required
+
+### Developer Tooling
+
+- [x] **None** — no special tooling required
+
+---
+
+## Success Criteria — Import Sanity Tests (TDD First)
+
+Define the import sanity tests (unit-level smoke tests) that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+```python
+# File: tests/unit/test_import_sanity.py (NEW — smoke tests)
+"""Reorganization smoke tests: verify new import paths resolve correctly."""
+
+
+def test_new_providers_package_importable():
+    """FR-001: The providers package is importable."""
+    import tinycua_sdk.providers  # noqa: F401
+
+
+def test_openai_responses_client_new_path():
+    """FR-002/AC-001: OpenAIResponsesClient importable from providers."""
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
+    assert OpenAIResponsesClient is not None
+
+
+def test_openai_chat_completions_client_new_path():
+    """OpenAIChatCompletionsClient importable from providers."""
+    from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
+    assert OpenAIChatCompletionsClient is not None
+
+
+def test_provider_utilities_new_path():
+    """FR-004/AC-004: resolve_provider, normalize_base_url from providers.utility."""
+    from tinycua_sdk.providers.utility import resolve_provider, normalize_base_url
+    assert callable(resolve_provider)
+    assert callable(normalize_base_url)
+
+
+def test_provider_registry_new_path():
+    """FR-004: ProviderRegistry importable from providers.registry."""
+    from tinycua_sdk.providers.registry import ProviderRegistry
+    assert ProviderRegistry is not None
+
+
+def test_convenience_namespace():
+    """AC-004: Convenience re-exports via tinycua_sdk.providers."""
+    from tinycua_sdk.providers import (
+        DEFAULT_BASE_URL,
+        OPENAI_COMPATIBLE,
+        OpenAIResponsesClient,
+        OpenAIChatCompletionsClient,
+        resolve_provider,
+        normalize_base_url,
+        ProviderRegistry,
+        get_provider_registry,
+    )
+    assert callable(resolve_provider)
+
+
+def test_llm_client_abc_still_in_agent():
+    """AC-003: LLMClient ABC still resolves from agent.llm_client."""
+    from tinycua_sdk.agent.llm_client import LLMClient
+    assert LLMClient is not None
+```
+
+### Key Test Scenarios
+
+- [ ] **Scenario 1**: New import paths resolve — both `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` importable from `tinycua_sdk.providers.open_ai`
+- [ ] **Scenario 2**: Provider registry utilities importable from `tinycua_sdk.providers.registry`; utilities from `tinycua_sdk.providers.utility`; constants from `tinycua_sdk.providers.constants`
+- [ ] **Scenario 3**: Convenience namespace `tinycua_sdk.providers` re-exports key symbols
+- [ ] **Scenario 4**: `LLMClient` ABC still resolves from `tinycua_sdk.agent.llm_client`
+- [ ] **Scenario 5**: Full existing test suite passes — verified manually via `uv run pytest tests/unit/ -x --tb=short` (see Manual Verification)
+
+## Verification Plan
+
+### Automated Tests
+
+- [ ] Import sanity smoke tests (defined above) — these must pass for implementation to be complete
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest tests/unit/`
+
+### Manual Verification
+
+- [ ] Verify full test suite passes: `uv run pytest tests/unit/ -x --tb=short` exits with code 0
+
+### Performance Considerations
+
+- [ ] **N/A** — pure file reorganization, no runtime performance impact
+
+## Proposed Changes
+
+### `tinycua_sdk/providers/` Package (NEW)
+
+#### [NEW] `tinycua_sdk/providers/__init__.py`
+
+- **[Description]**: Package init with convenience re-exports of all public symbols from `providers.open_ai`, `providers.constants`, `providers.registry`, and `providers.utility`
+- **[Rationale]**: Provides ergonomic imports like `from tinycua_sdk.providers import OpenAIResponsesClient, resolve_provider, ProviderRegistry`
+- **[Contents]**: Re-exports `OpenAIResponsesClient`, `OpenAIChatCompletionsClient`, `resolve_provider`, `normalize_base_url`, `DEFAULT_BASE_URL`, `OPENAI_BASE_URL`, `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `ProviderRegistry`, `ProviderFactory`, `ProviderInfo`, `get_provider_registry`
+
+#### [NEW] `tinycua_sdk/providers/constants.py`
+
+- **[Description]**: Extracted from `tinycua_sdk/core/providers.py` — contains all constants
+- **[Contents]**: `OPENAI_COMPATIBLE`, `OPENAI_RESPONSES`, `OPENAI_CHAT_COMPLETIONS`, `DEFAULT_BASE_URL`, `OPENAI_BASE_URL`, `_PROVIDER_ALIASES` (private, not in `__all__`)
+- **[Dependencies]**: No internal SDK imports — only stdlib (straight copy)
+- **[Rationale]**: Separating constants from logic makes the dependency graph simpler and avoids circular imports
+
+#### [NEW] `tinycua_sdk/providers/registry.py`
+
+- **[Description]**: Extracted from `tinycua_sdk/core/providers.py` — contains the provider registry
+- **[Contents]**: `ProviderRegistry` class, `get_provider_registry()` function
+- **[Dependencies]**: Updates needed:
+  - `from tinycua_sdk.core.exceptions import ProviderConfigurationError` → unchanged
+  - `from tinycua_sdk.core.providers import OPENAI_COMPATIBLE` → `from tinycua_sdk.providers.constants import OPENAI_COMPATIBLE`
+  - `from tinycua_sdk.core.providers import normalize_base_url` → `from tinycua_sdk.providers.utility import normalize_base_url`
+- **[Rationale]**: The registry manages provider lifecycle decisions and is a cohesive unit
+
+#### [NEW] `tinycua_sdk/providers/utility.py`
+
+- **[Description]**: Extracted from `tinycua_sdk/core/providers.py` — contains resolution utilities and factory types
+- **[Contents]**: `resolve_provider()`, `normalize_base_url()`, `ProviderInfo`, `ProviderFactory`
+- **[Dependencies]**: Update deferred local imports inside factory functions (`_register_defaults()`) to import from `tinycua_sdk.providers.open_ai` instead of `tinycua_sdk.agent.llm_client`
+  - `tinycua_sdk.agent.llm_client.OpenAIResponsesClient` → `tinycua_sdk.providers.open_ai.OpenAIResponsesClient`
+  - `tinycua_sdk.agent.llm_client.OpenAIChatCompletionsClient` → `tinycua_sdk.providers.open_ai.OpenAIChatCompletionsClient`
+- **[Rationale]**: Keeps provider resolution and factory logic together; depends on `open_ai.py` so both must be created together in Phase 1
+
+#### [NEW] `tinycua_sdk/providers/open_ai.py`
+
+- **[Description]**: Contains `OpenAIResponsesClient` and `OpenAIChatCompletionsClient` (extracted from `agent/llm_client.py`) along with all supporting module-level utility functions, dataclasses, and constants:
+  - `OpenAIResponsesClient` class + all its methods
+  - `OpenAIChatCompletionsClient` class + all its methods
+  - Utility functions: `_normalize_responses_event`, `_normalize_content_event`, `_normalize_reasoning_event`, `_normalize_tool_event`, `_normalize_lifecycle_event`, `_translate_messages`, `_translate_tools`, `_build_payload`, `_normalize_chat_chunk`, `_normalize_chunk_content`, `_normalize_chunk_tool_calls`, `_normalize_chunk_finalize`, `_normalize_chunk_usage_only`, `_normalize_non_streaming_response` (Responses and Chat variants), `_handle_provider_error` (both variants), `_translate_chat_messages`, `_translate_chat_tools`
+  - Dataclasses: `ToolCallAccumulator`, `ChoiceAccumulator`, `_accumulator_to_chat_tool_calls`
+  - Constants: `_SUPPORTED_FIELDS`, `_FIELD_MAP`, `_CHAT_SUPPORTED_FIELDS`
+  - Imports updated from `tinycua_sdk.core.providers` → `tinycua_sdk.providers.utility`
+  - `_yield_events` is NOT moved — it stays in `llm_client.py` and is imported from there
+- **[Rationale]**: All provider-specific code lives in one place; the ABC stays in `agent/` to prevent circular dependencies
+
+### `tinycua_sdk/agent/llm_client.py` (MODIFY)
+
+#### [MODIFY] `tinycua_sdk/agent/llm_client.py`
+
+- **[Description]**: Remove `OpenAIResponsesClient`, `OpenAIChatCompletionsClient` classes and all their supporting code. Keep only `LLMClient` ABC, `_yield_events`, and core utility imports.
+- **[Removed classes/methods]**:
+  - `OpenAIResponsesClient` class (all methods)
+  - `OpenAIChatCompletionsClient` class (all methods)
+  - `_normalize_responses_event` and all sub-normalizer functions
+  - `_translate_messages`, `_translate_tools`
+  - `_normalize_chat_chunk` and sub-functions
+  - `_normalize_non_streaming_response` (both variants)
+  - `_handle_provider_error` (both variants)
+  - `_translate_chat_messages`, `_translate_chat_tools`
+  - `_build_chat_payload`, `_capture_tool_calls`
+  - `ToolCallAccumulator`, `ChoiceAccumulator`, `_accumulator_to_chat_tool_calls`
+  - `_SUPPORTED_FIELDS`, `_FIELD_MAP`, `_CHAT_SUPPORTED_FIELDS`
+  - `_build_request_kwargs` (Responses)
+- **[Removed imports]**: `from openai import AsyncOpenAI`, `from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError`, `from tinycua_sdk.core.providers import normalize_base_url`, `from dataclasses import dataclass, field`
+- **[Kept]**: `LLMClient` ABC, `_yield_events`, `__all__` updated to `["LLMClient"]`
+- **[Breaking changes]**: Old import paths for client classes removed — consumers must import from `tinycua_sdk.providers.open_ai`
+
+### `tinycua_sdk/core/providers.py` (DELETE)
+
+#### [DELETE] `tinycua_sdk/core/providers.py`
+
+- **[Description]**: Entire file is deleted — no re-export shim
+- **[Rationale]**: All content split across `tinycua_sdk/providers/constants.py`, `tinycua_sdk/providers/registry.py`, `tinycua_sdk/providers/utility.py`; no backward-compat debt as this is a pre-release SDK
+
+### Import Updates (Source)
+
+#### [MODIFY] `tinycua_sdk/agent/__init__.py`
+
+- **[Description]**: Change import of `OpenAIChatCompletionsClient`, `OpenAIResponsesClient` from `tinycua_sdk.agent.llm_client` to `tinycua_sdk.providers.open_ai`
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tinycua_sdk/agent/executor.py`
+
+- **[Description]**: Change import of `ProviderRegistry`, `get_provider_registry` from `tinycua_sdk.core.providers` to `tinycua_sdk.providers.registry`
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tinycua_sdk/agent/llm_model.py`
+
+- **[Description]**: Change import of `resolve_provider` from `tinycua_sdk.core.providers` to `tinycua_sdk.providers.utility`
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tinycua_sdk/core/__init__.py`
+
+- **[Description]**: Remove all imports from `tinycua_sdk.core.providers` (which is deleted). Keep only `tinycua_sdk.core.exceptions` imports.
+- **[Rationale]**: No re-export shim; consumers must import from `tinycua_sdk.providers` instead
+
+### Import Updates (Tests)
+
+#### [MODIFY] `tests/unit/test_llm_client.py`
+
+- **[Description]**: Change imports: `OpenAIResponsesClient` from `tinycua_sdk.agent.llm_client` → `tinycua_sdk.providers.open_ai`. `_normalize_responses_event` from `tinycua_sdk.agent.llm_client` → `tinycua_sdk.providers.open_ai`. `LLMClient` remains from `tinycua_sdk.agent.llm_client`; `_build_payload` from `tinycua_sdk.providers.open_ai`.
+- **[Rationale]**: Follows the new canonical import paths for moved symbols
+
+#### [MODIFY] `tests/unit/test_providers.py`
+
+- **[Description]**: Change imports of `resolve_provider`, `normalize_base_url`, `ProviderInfo`, `ProviderFactory` to `tinycua_sdk.providers.utility`; `ProviderRegistry`, `get_provider_registry` to `tinycua_sdk.providers.registry`; constants to `tinycua_sdk.providers.constants`. Determine the correct sub-module for each imported symbol.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/unit/test_provider_switching.py`
+
+- **[Description]**: Split imports from `tinycua_sdk.core.providers` across sub-modules: `ProviderInfo`, `ProviderFactory` from `providers.utility`; `ProviderRegistry`, `get_provider_registry` from `providers.registry`. `LLMClient` import remains from `tinycua_sdk.agent.llm_client`.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/unit/test_provider_registry.py`
+
+- **[Description]**: Change imports: `ProviderInfo` from `providers.utility`; `ProviderRegistry` from `providers.registry`. `LLMClient` import remains from `tinycua_sdk.agent.llm_client`.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/unit/test_openai_chat_client.py`
+
+- **[Description]**: Change import of `OpenAIChatCompletionsClient` from `tinycua_sdk.agent.llm_client` to `tinycua_sdk.providers.open_ai`
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/unit/test_executor_integration.py`
+
+- **[Description]**: Change imports: `ProviderInfo`, `ProviderRegistry` from `providers.utility` / `providers.registry` as appropriate. `LLMClient` import remains from `tinycua_sdk.agent.llm_client`.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/integration/test_provider_switching.py`
+
+- **[Description]**: Split imports from `tinycua_sdk.core.providers` across sub-modules: `ProviderInfo`, `ProviderFactory` from `providers.utility`; `ProviderRegistry`, `get_provider_registry` from `providers.registry`. `LLMClient` import remains from `tinycua_sdk.agent.llm_client`.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/integration/test_openai_chat_completions_provider.py`
+
+- **[Description]**: Change imports of `OpenAIChatCompletionsClient`, `OpenAIResponsesClient` from `tinycua_sdk.agent.llm_client` to `tinycua_sdk.providers.open_ai`. Change import of `get_provider_registry` from `tinycua_sdk.core.providers` to `tinycua_sdk.providers.registry`.
+- **[Rationale]**: Follows the new canonical import paths
+
+#### [MODIFY] `tests/integration/test_language_model.py`
+
+- **[Description]**: Change import of `resolve_provider` from `tinycua_sdk.core.providers` to `tinycua_sdk.providers.utility`
+- **[Rationale]**: Follows the new canonical import paths
+
+### `tinycua_sdk/core/__init__.py` (MODIFY)
+
+#### [MODIFY] `tinycua_sdk/core/__init__.py`
+
+- **[Description]**: Remove imports from `tinycua_sdk.core.providers`. Only `from tinycua_sdk.core.exceptions` remains.
+- **[Rationale]**: No backward-compat shims for deleted module
+
+## Architecture Changes
+
+| Component | Change Type | Description |
+|-----------|-------------|-------------|
+| `tinycua_sdk/providers/` | **New** | New package with `__init__.py`, `constants.py`, `registry.py`, `utility.py`, `open_ai.py` |
+| `tinycua_sdk/providers/constants.py` | **New** | Extracted from `core/providers.py` — constants only (straight copy) |
+| `tinycua_sdk/providers/registry.py` | **New** | Extracted from `core/providers.py` — `ProviderRegistry`, `get_provider_registry` |
+| `tinycua_sdk/providers/utility.py` | **New** | Extracted from `core/providers.py` — `resolve_provider`, `normalize_base_url`, `ProviderInfo`, `ProviderFactory` |
+| `tinycua_sdk/providers/open_ai.py` | **New** | Extracted from `agent/llm_client.py` (client classes + utilities) |
+| `tinycua_sdk/agent/llm_client.py` | **Modify** | Removed client classes and provider utilities; keeps `LLMClient` ABC + shared utilities |
+| `tinycua_sdk/core/providers.py` | **Delete** | Removed — content split across `providers/constants.py`, `providers/registry.py`, `providers/utility.py` |
+| `tinycua_sdk/core/__init__.py` | **Modify** | Removed provider re-exports |
+| Various source/tests | **Modify** | Updated import paths |
+
+## Data Model Changes
+
+No new types or modified interfaces. Pure file reorganization — all classes, functions, and constants retain their exact interface.
+
+## API Changes
+
+### New Import Paths
+
+| Symbol | Old Path | New Path |
+|--------|----------|----------|
+| `OpenAIResponsesClient` | `tinycua_sdk.agent.llm_client` | `tinycua_sdk.providers.open_ai` |
+| `OpenAIChatCompletionsClient` | `tinycua_sdk.agent.llm_client` | `tinycua_sdk.providers.open_ai` |
+| `OPENAI_COMPATIBLE` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `OPENAI_RESPONSES` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `OPENAI_CHAT_COMPLETIONS` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `DEFAULT_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `OPENAI_BASE_URL` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `_PROVIDER_ALIASES` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.constants` |
+| `ProviderRegistry` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.registry` |
+| `get_provider_registry` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.registry` |
+| `resolve_provider` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.utility` |
+| `normalize_base_url` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.utility` |
+| `ProviderFactory` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.utility` |
+| `ProviderInfo` | `tinycua_sdk.core.providers` | `tinycua_sdk.providers.utility` |
+| `LLMClient` | `tinycua_sdk.agent.llm_client` | **Unchanged** |
+
+### Convenience Namespace
+
+`tinycua_sdk.providers` re-exports key symbols from all sub-modules:
+```python
+from tinycua_sdk.providers import (
+    OpenAIResponsesClient, OpenAIChatCompletionsClient,
+    resolve_provider, normalize_base_url,
+    ProviderRegistry, get_provider_registry,
+    DEFAULT_BASE_URL, OPENAI_COMPATIBLE,
+)
+```
+
+### Error Handling
+
+| Error Case | Exception | Notes |
+|------------|-----------|-------|
+| Import from old `core.providers` | `ModuleNotFoundError` | File deleted — clear error on missing module |
+| Import `OpenAIResponsesClient` from `agent.llm_client` | `ImportError` | Symbol removed from module |
+
+## Dependencies
+
+### External Dependencies
+
+No new external dependencies. The `from openai import AsyncOpenAI` import moves from a `TYPE_CHECKING` guard in `agent/llm_client.py` to a local runtime import inside `_get_client()` in `providers/open_ai.py`.
+
+### Internal Dependencies
+
+- [ ] Depends on completion of prior SDK stabilization (no active dependencies — all changes are in `tinycua-sdk` only)
+- [ ] Blocks addition of future providers (e.g., Anthropic, Google Vertex)
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Missed import reference causes runtime `ImportError` | High | Full test suite run catches this; CI pipeline with coverage ensures all paths exercised |
+| Circular import between `providers/open_ai.py` and `providers/utility.py` | High | Deferred local imports used in factory functions; `normalize_base_url` imported at top level but does not depend on `open_ai.py` — verified DAG with no cycle |
+| Test file imports missed during update | Medium | Full test suite run (`uv run pytest tests/unit/`) catches any stale import paths |
+| `core/__init__.py` consumers break | Low (pre-release) | No backward-compat shims per spec; breaking change expected for pre-1.0 SDK |
+
+---
+
+*Generated from spec.md and design.md*
+*Last updated: 2026-05-19*

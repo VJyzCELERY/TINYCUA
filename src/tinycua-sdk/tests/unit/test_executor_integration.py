@@ -8,7 +8,8 @@ from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.events import UserMessage
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry
+from tinycua_sdk.providers.registry import ProviderRegistry
+from tinycua_sdk.providers.utility import ProviderInfo
 
 
 class _FakeExecutorClient(LLMClient):

@@ -8,7 +8,8 @@ from tinycua_sdk.agent.events import LLMEvent, LLMResponse, UserMessage
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.core.exceptions import ProviderNotSupportedError
-from tinycua_sdk.core.providers import ProviderInfo, ProviderRegistry, get_provider_registry
+from tinycua_sdk.providers.registry import ProviderRegistry, get_provider_registry
+from tinycua_sdk.providers.utility import ProviderInfo
 
 
 # ── Fake clients for contract-level testing (no provider SDK) ──────────────
@@ -191,7 +192,7 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
 async def test_default_registrations(default_registry: ProviderRegistry) -> None:
     """Given providers are auto-registered in the default singleton,
     create_client returns the correct client type for each."""
-    from tinycua_sdk.agent.llm_client import OpenAIChatCompletionsClient, OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
     assert default_registry.is_supported("openai-responses")
     assert default_registry.is_supported("openai-chat-completions")
@@ -230,7 +231,7 @@ def test_deprecated_providers_rejected_by_registry(
     assert any("deprecated" in rec.message.lower() for rec in caplog.records), (
         f"Expected deprecation warning for 'openai', got: {[rec.message for rec in caplog.records]}"
     )
-    from tinycua_sdk.agent.llm_client import OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
     assert isinstance(client, OpenAIResponsesClient)
 
     caplog.clear()

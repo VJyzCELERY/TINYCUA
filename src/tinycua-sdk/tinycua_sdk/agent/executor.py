@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, cast
 
 from tinycua_sdk.agent.llm_client import LLMClient
-from tinycua_sdk.core.providers import ProviderRegistry, get_provider_registry
+from tinycua_sdk.providers.registry import ProviderRegistry, get_provider_registry
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent

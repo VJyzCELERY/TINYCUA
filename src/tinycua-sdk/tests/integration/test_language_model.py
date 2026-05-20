@@ -8,7 +8,7 @@ import os
 import pytest
 
 from tinycua_sdk import LanguageModel
-from tinycua_sdk.core.providers import resolve_provider
+from tinycua_sdk.providers.utility import resolve_provider
 
 
 # Set environment variable for env-var substitution test
