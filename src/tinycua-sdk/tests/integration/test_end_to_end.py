@@ -8,31 +8,26 @@ All tests are marked @pytest.mark.integration and are auto-skipped by
 the integration conftest when no LLM server is reachable.
 """
 
-import os
 import pytest
 
 from tinycua_sdk import Agent, LanguageModel, Skill, tool
+from tests.integration.conftest import (
+    _forced_tool_choice,
+    resolve_integration_llm_config,
+)
 
 
 def _build_language_model() -> LanguageModel:
-    """Build LanguageModel from environment variables.
+    """Build LanguageModel from environment variables using shared config.
 
-    Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
+    Uses the centralized resolver from conftest.py for consistent fallback.
     """
+    cfg = resolve_integration_llm_config()
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
-        model_name=os.environ.get(
-            "TINYCUA_MODEL",
-            os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
-        ),
-        base_url=os.environ.get(
-            "TINYCUA_BASE_URL",
-            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        ),
-        api_key=os.environ.get(
-            "TINYCUA_API_KEY",
-            os.environ.get("LLM_API_KEY", "dummy"),
-        ),
+        provider=cfg.provider,
+        model_name=cfg.model,
+        base_url=cfg.base_url,
+        api_key=cfg.api_key,
     )
 
 
@@ -87,6 +82,7 @@ class TestEndToEnd:
         )
 
     @pytest.mark.integration
+    @pytest.mark.integration_tool_choice
     @pytest.mark.asyncio
     async def test_agent_run_with_skills_and_tools(self):
         """Agent.run() with skills + tools through the default BaseLoop.
@@ -95,14 +91,14 @@ class TestEndToEnd:
         instructions tell the model to always use the tool. The loop must:
         1. Include skill instructions in the system message
         2. Pass tool schemas to the LLM
-        3. The LLM should call the tool based on the skill instructions
+        3. The LLM should call the tool based on the forced tool_choice
         4. Execute the tool via ``ToolExecutor.execute()``
         5. Return a final response incorporating the tool result
 
-        This test uses a recorded-call pattern to assert deterministic SDK
-        behavior: it records tool invocations and checks that ``lookup_item``
-        was called with ``"magic_box"``, rather than relying on non-deterministic
-        LLM prose for the final assertion.
+        Uses ``@pytest.mark.integration_tool_choice`` so this test is
+        auto-skipped when the provider does not support forced tool_choice.
+        The LanguageModel uses ``_forced_tool_choice()`` to produce a
+        provider-compatible ``tool_choice`` value that works with LM Studio.
         """
         @tool
         def lookup_item(key: str) -> str:
@@ -131,10 +127,17 @@ class TestEndToEnd:
             return _original_invoke(**kwargs)
         lookup_item.invoke = _recorded_invoke  # type: ignore[method-assign]
 
+        # Use forced tool_choice so this test is deterministic —
+        # the model MUST call the tool regardless of its training.
+        llm_model = _build_language_model()
+        llm_model_with_tc = llm_model.model_copy(
+            update={"tool_choice": _forced_tool_choice(llm_model.provider, "lookup_item")},
+        )
+
         agent = Agent(
             name="e2e-skills-agent",
             instructions="You are a helpful assistant.",
-            llm_model=_build_language_model(),
+            llm_model=llm_model_with_tc,
             tools=[lookup_item],
             skills=[lookup_skill],
         )

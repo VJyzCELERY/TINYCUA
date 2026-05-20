@@ -6,7 +6,9 @@ canonical input message types, and related type aliases for the TINYCUA SDK.
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, NotRequired, TypedDict, Union
+
+from tinycua_sdk.models import ContentPart, FileAttachment
 
 # ── Canonical SSE Events ────────────────────────────────────────────────────
 
@@ -212,10 +214,16 @@ class SystemMessage(TypedDict):
 
 
 class UserMessage(TypedDict):
-    """User message."""
+    """User message.
+
+    Content can be a plain string (legacy), a list of multimodal content
+    parts (text + file attachments), or a string with a separate
+    attachments list.
+    """
 
     role: Literal["user"]
-    content: str
+    content: str | list[ContentPart]
+    attachments: NotRequired[list[FileAttachment]]
 
 
 class AssistantMessage(TypedDict):
@@ -226,11 +234,17 @@ class AssistantMessage(TypedDict):
 
 
 class ToolResultMessage(TypedDict):
-    """Tool result message."""
+    """Tool result message.
+
+    Content can be a plain string (legacy), a list of multimodal content
+    parts (text + file attachments), or a string with a separate
+    attachments list.
+    """
 
     role: Literal["tool_result"]
     call_id: str
-    content: str
+    content: str | list[ContentPart]
+    attachments: NotRequired[list[FileAttachment]]
 
 
 LLMMessage = Union[SystemMessage, UserMessage, AssistantMessage, ToolResultMessage]
@@ -250,6 +264,7 @@ __all__ = [
     "AssistantMessage",
     # Canonical SSE Events
     "ContentDeltaEvent",
+    "ContentPart",
     "ContentDoneEvent",
     "ErrorEvent",
     # Union type

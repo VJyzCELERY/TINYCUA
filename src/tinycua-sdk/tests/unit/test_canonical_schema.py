@@ -4,6 +4,8 @@ Validates TypedDict shapes, imports, and discriminated union narrowing
 by ``type`` field.
 """
 
+import typing
+
 from tinycua_sdk.agent.events import (
     AssistantMessage,
     ContentDeltaEvent,
@@ -25,6 +27,7 @@ from tinycua_sdk.agent.events import (
     ToolResultMessage,
     UserMessage,
 )
+from tinycua_sdk.models import ContentPart, FileAttachment
 
 
 class TestCanonicalEventShapes:
@@ -253,3 +256,107 @@ class TestLLMMessageNarrowing:
         assert msg["role"] == "tool_result"
         if msg["role"] == "tool_result":
             assert msg["call_id"] == "call_1"
+
+
+class TestWidenedMessageContent:
+    """UserMessage and ToolResultMessage now accept structured content parts."""
+
+    def test_user_message_accepts_string(self) -> None:
+        """UserMessage still accepts a plain string."""
+        msg: UserMessage = {"role": "user", "content": "Hello"}
+        assert msg["content"] == "Hello"
+
+    def test_user_message_accepts_content_parts(self) -> None:
+        """UserMessage now accepts list[ContentPart]."""
+        parts = [
+            ContentPart(type="text", text="What is this?"),
+            ContentPart(type="file", file=FileAttachment.from_url(
+                "https://example.com/img.png", "image/png"
+            )),
+        ]
+        msg: UserMessage = {"role": "user", "content": parts}
+        assert len(msg["content"]) == 2
+        assert msg["content"][0].text == "What is this?"
+        assert msg["content"][1].file is not None
+
+    def test_user_message_accepts_string_with_attachments(self) -> None:
+        """UserMessage accepts content: str plus optional attachments."""
+        attach = FileAttachment.from_url("https://example.com/img.png", "image/png")
+        msg: UserMessage = {
+            "role": "user",
+            "content": "Please summarize this",
+            "attachments": [attach],
+        }
+        assert msg["content"] == "Please summarize this"
+        assert len(msg["attachments"]) == 1
+        assert msg["attachments"][0].url == "https://example.com/img.png"
+
+    def test_tool_result_message_accepts_string(self) -> None:
+        """ToolResultMessage still accepts a plain string."""
+        msg: ToolResultMessage = {
+            "role": "tool_result",
+            "call_id": "call_1",
+            "content": '{"result": "ok"}',
+        }
+        assert msg["content"] == '{"result": "ok"}'
+
+    def test_tool_result_message_accepts_content_parts(self) -> None:
+        """ToolResultMessage now accepts list[ContentPart]."""
+        parts = [ContentPart(type="text", text="Done.")]
+        msg: ToolResultMessage = {
+            "role": "tool_result",
+            "call_id": "call_2",
+            "content": parts,
+        }
+        assert len(msg["content"]) == 1
+        assert msg["content"][0].text == "Done."
+
+    def test_tool_result_message_accepts_string_with_attachments(self) -> None:
+        """ToolResultMessage accepts content: str plus optional attachments."""
+        attach = FileAttachment.from_bytes(
+            b"generated", mime_type="application/octet-stream", filename="output.bin"
+        )
+        msg: ToolResultMessage = {
+            "role": "tool_result",
+            "call_id": "call_3",
+            "content": "Task completed",
+            "attachments": [attach],
+        }
+        assert msg["content"] == "Task completed"
+        assert len(msg["attachments"]) == 1
+        assert msg["attachments"][0].filename == "output.bin"
+
+    def test_user_message_content_type_hints_union(self) -> None:
+        """UserMessage.__annotations__['content'] resolves to str | list[ContentPart]."""
+        hints = typing.get_type_hints(UserMessage)
+        content_type = hints["content"]
+        args = typing.get_args(content_type)
+        assert str in args
+        assert list[ContentPart] in args
+
+    def test_user_message_attachments_type_hint(self) -> None:
+        """UserMessage.__annotations__['attachments'] resolves to list[FileAttachment]."""
+        hints = typing.get_type_hints(UserMessage)
+        assert "attachments" in hints, "UserMessage should expose optional attachments"
+        attach_type = hints["attachments"]
+        args = typing.get_args(attach_type)
+        assert FileAttachment in args
+
+    def test_tool_result_message_content_type_hints_union(self) -> None:
+        """ToolResultMessage.__annotations__['content'] resolves to str | list[ContentPart]."""
+        hints = typing.get_type_hints(ToolResultMessage)
+        content_type = hints["content"]
+        args = typing.get_args(content_type)
+        assert str in args
+        assert list[ContentPart] in args
+
+    def test_tool_result_message_attachments_type_hint(self) -> None:
+        """ToolResultMessage.__annotations__['attachments'] resolves to list[FileAttachment]."""
+        hints = typing.get_type_hints(ToolResultMessage)
+        assert "attachments" in hints, "ToolResultMessage should expose optional attachments"
+        attach_type = hints["attachments"]
+        args = typing.get_args(attach_type)
+        assert FileAttachment in args
+
+
+

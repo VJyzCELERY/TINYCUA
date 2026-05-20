@@ -22,11 +22,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import pytest
 
 from tinycua_sdk import Agent, BaseLoop, LanguageModel, tool
 from tinycua_sdk.agent.executor import ToolExecutor
+from tests.integration.conftest import (
+    _forced_tool_choice,
+    resolve_integration_llm_config,
+)
 
 
 # =============================================================================
@@ -95,21 +98,16 @@ async def test_custom_loop_can_use_max_iterations():
 
 
 def _build_language_model() -> LanguageModel:
-    """Build a LanguageModel from environment variables.
+    """Build a LanguageModel from environment variables using shared config.
 
-    Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
+    Uses the centralized resolver from conftest.py for consistent fallback.
     """
+    cfg = resolve_integration_llm_config()
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
-        base_url=os.environ.get(
-            "TINYCUA_BASE_URL",
-            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        ),
-        model_name=os.environ.get(
-            "TINYCUA_MODEL",
-            os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
-        ),
-        api_key=os.environ.get("TINYCUA_API_KEY", os.environ.get("LLM_API_KEY", "dummy")),
+        provider=cfg.provider,
+        base_url=cfg.base_url,
+        model_name=cfg.model,
+        api_key=cfg.api_key,
     )
 
 
@@ -307,7 +305,7 @@ async def test_custom_loop_uses_public_helpers():
 
     llm_model = _build_language_model()
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+        update={"tool_choice": _forced_tool_choice(llm_model.provider, "get_weather")},
     )
     loop = CustomToolLoop()
     agent = Agent(
@@ -433,7 +431,7 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     llm_model = _build_language_model()
     llm_model_with_tc = llm_model.model_copy(
-        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+        update={"tool_choice": _forced_tool_choice(llm_model.provider, "get_weather")},
     )
     loop = CustomStreamingLoop()
     agent = Agent(llm_model=llm_model_with_tc, tools=[get_weather], loop=loop)
