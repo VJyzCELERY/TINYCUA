@@ -22,7 +22,7 @@ class IntegrationLLMConfig:
     Resolution order: TINYCUA_* vars first, then LLM_* fallbacks.
     """
 
-    provider: str = "openai-responses"
+    provider: str = "openai-chat-completions"
     model: str = ""
     base_url: str = "http://localhost:1234/v1"
     api_key: str = "dummy"
@@ -36,7 +36,7 @@ def resolve_integration_llm_config() -> IntegrationLLMConfig:
     """
     return IntegrationLLMConfig(
         provider=os.environ.get(
-            "TINYCUA_PROVIDER", os.environ.get("LLM_PROVIDER", "openai-responses")
+            "TINYCUA_PROVIDER", os.environ.get("LLM_PROVIDER", "openai-chat-completions")
         ),
         model=os.environ.get(
             "TINYCUA_MODEL",
