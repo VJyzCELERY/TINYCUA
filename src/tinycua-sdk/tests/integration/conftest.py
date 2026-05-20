@@ -77,12 +77,14 @@ def _build_auth_headers(api_key: str | None = None) -> dict[str, str]:
 def _forced_tool_choice(provider: str, name: str) -> str | dict:
     """Return a provider-compatible forced tool_choice value.
 
-    - openai-chat-completions → ``{"type": "function", "function": {"name": name}}``
-    - openai-responses / other → ``"required"`` (LM Studio / local providers
-      typically reject the object form)
+    Returns ``"required"`` for all providers.  LM Studio / local providers
+    reject the object form ``{"type": "function", "function": {"name": name}}``,
+    and ``"required"`` is sufficient for single-tool test scenarios regardless
+    of provider (OpenAI, LM Studio, etc.).
+
+    If a project needs to force a specific named tool for a particular provider,
+    add a ``local_compat`` parameter (see review finding ISSUE-002).
     """
-    if provider == "openai-chat-completions":
-        return {"type": "function", "function": {"name": name}}
     return "required"
 
 
