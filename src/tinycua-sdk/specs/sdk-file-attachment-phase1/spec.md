@@ -55,7 +55,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 2. Construct a message with `ContentPart(type="text", text="What is in this image?")` and `ContentPart(type="file", file=attachment)`
 3. Pass the message to `Agent.run()` or directly to the LLM client
 4. The SDK constructs canonical content parts (provider-native translation is deferred to Phase 2+)
-5. The provider returns a text description of the image
+5. The canonical message containing content parts is serialized via Pydantic and accepted by `UserMessage` / `ToolResultMessage` TypedDicts
 
 ### Acceptance Scenarios
 
@@ -101,7 +101,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 
 ## Success Criteria
 
-- [ ] **User can send an image file inline**: `Agent.run()` with a `list[ContentPart]` containing a file attachment produces a vision-model response
+- [ ] **Canonical models accept file attachments**: A `UserMessage` with `list[ContentPart]` containing a file attachment is constructed, serialized, and deserialized correctly via Pydantic round-trip
 - [ ] **Backward compatible**: All existing tests pass without modification — `str`-only messages unchanged
 - [ ] **Helper methods work**: `FileAttachment.from_path()`, `from_bytes()`, `from_url()` produce correct attachments
 - [ ] **MIME detection works**: `from_path()` correctly detects MIME types for common file formats (JPEG, PNG, PDF, MP3, MP4)

@@ -100,11 +100,18 @@ class ContentPart(BaseModel):
 
     @model_validator(mode="after")
     def _validate_variant_fields(self):
-        """Text parts must have text set; file parts must have file set."""
-        if self.type == "text" and not self.text:
-            raise ValueError("ContentPart(type='text') must have text set")
-        if self.type == "file" and not self.file:
-            raise ValueError("ContentPart(type='file') must have file set")
+        """Text parts must have text set; file parts must have file set.
+        Incompatible fields for each variant are rejected."""
+        if self.type == "text":
+            if not self.text:
+                raise ValueError("ContentPart(type='text') must have text set")
+            if self.file is not None:
+                raise ValueError("ContentPart(type='text') must not have file set")
+        if self.type == "file":
+            if not self.file:
+                raise ValueError("ContentPart(type='file') must have file set")
+            if self.text is not None:
+                raise ValueError("ContentPart(type='file') must not have text set")
         return self
 ```
 

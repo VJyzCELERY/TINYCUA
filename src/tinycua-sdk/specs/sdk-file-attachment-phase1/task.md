@@ -34,7 +34,7 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
   - [ ] Support `type: Literal["text", "file"]`
   - [ ] Require `text` for text parts
   - [ ] Require `file` for file parts
-  - [ ] Reject incompatible fields for each variant if tests require strict discriminated behavior
+  - [ ] Reject incompatible fields for each variant: text parts must not have file set, file parts must not have text set
 - [ ] Export new models from `src/tinycua-sdk/tinycua_sdk/models/__init__.py` <!-- id: 7 -->
   - [ ] Import `ContentPart` and `FileAttachment`
   - [ ] Add both names to `__all__`
