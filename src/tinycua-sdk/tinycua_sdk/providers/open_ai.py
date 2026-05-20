@@ -32,6 +32,7 @@ from tinycua_sdk.agent.events import (
 )
 from tinycua_sdk.agent.llm_client import LLMClient, _yield_events
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.utility import normalize_base_url
 
 if TYPE_CHECKING:
@@ -125,6 +126,149 @@ _CHAT_SUPPORTED_FIELDS: set[str] = {
     "seed",
     "logprobs",
 }
+
+
+def _translate_chat_attachment(attachment: FileAttachment) -> dict[str, Any]:
+    """Translate a single FileAttachment to a Chat Completions content part.
+
+    Produces an ``image_url`` content part with either a data URL
+    (base64-encoded inline data) or a direct URL, depending on which
+    source field is set on the attachment.
+
+    Args:
+        attachment: A canonical ``FileAttachment``.
+
+    Returns:
+        A dict with ``type`` and ``image_url`` keys.
+
+    Raises:
+        ValueError: If the MIME type does not start with ``image/``, or if
+            only ``file_id`` is set (no upload/cache mapping in Phase 2).
+    """
+    if not attachment.mime_type.startswith("image/"):
+        raise ValueError(
+            f"Chat Completions provider only supports image attachments, "
+            f"got mime_type={attachment.mime_type!r}"
+        )
+
+    if attachment.data is not None:
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{attachment.mime_type};base64,{attachment.data}",
+            },
+        }
+
+    if attachment.url is not None:
+        return {
+            "type": "image_url",
+            "image_url": {"url": attachment.url},
+        }
+
+    # Only file_id is set — no upload/cache mapping in Phase 2
+    raise ValueError(
+        "Chat Completions provider does not support file_id-only "
+        "attachments (no upload/cache mapping in Phase 2)"
+    )
+
+
+def _translate_chat_content_part(part: ContentPart) -> dict[str, Any]:
+    """Translate a ``ContentPart`` to a Chat Completions content part dict.
+
+    - Text part (``type="text"``) → ``{"type": "text", "text": ...}``
+    - File part (``type="file"``) → delegates to
+      :func:`_translate_chat_attachment`.
+
+    Args:
+        part: A canonical ``ContentPart``.
+
+    Returns:
+        A dict with ``type`` and the appropriate content key.
+    """
+    if part.type == "text":
+        return {"type": "text", "text": part.text}
+
+    if part.type == "file":
+        return _translate_chat_attachment(part.file)
+
+    raise ValueError(f"Unknown ContentPart type: {part.type!r}")
+
+
+def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
+    """Translate a user message dict for the Chat Completions API.
+
+    Handles three input shapes:
+
+    1. Plain string content, no attachments → pass through unchanged
+       (backward compatible).
+    2. String content with non-empty ``attachments`` → text part followed
+       by image parts.
+    3. ``content: list[ContentPart]`` (with or without attachments) →
+       translated parts, with message-level attachments appended after
+       explicit content parts, preserving caller order within each group.
+
+    The ``attachments`` key is always stripped from the output (not a
+    valid Chat Completions field).
+
+    Args:
+        msg: A message dict with ``role``, ``content``, and optionally
+            ``attachments``.
+
+    Returns:
+        A translated message dict suitable for the Chat Completions API.
+
+    Raises:
+        ValueError: If ``content`` is an empty list (at least one content
+            part is required).
+    """
+    content = msg.get("content")
+    attachments: list[FileAttachment] = msg.get("attachments", []) or []
+
+    result: dict[str, Any] = {"role": "user"}
+    parts: list[dict[str, Any]] = []
+
+    # Case 1 & 2: content is a string
+    if isinstance(content, str):
+        if not attachments:
+            # Plain string, no attachments — strip attachments key from output
+            result = {k: v for k, v in msg.items() if k != "attachments"}
+            return result
+
+        # String + attachments: text part first, then image parts
+        parts.append({"type": "text", "text": content})
+        for att in attachments:
+            parts.append(_translate_chat_attachment(att))
+        result["content"] = parts
+        return result
+
+    # Case 3: content is a list of ContentPart
+    if isinstance(content, list):
+        if not content:
+            raise ValueError(
+                "User message content list cannot be empty "
+                "(at least one ContentPart is required)"
+            )
+
+        # First, translate each ContentPart
+        for item in content:
+            # item could be a ContentPart instance or a dict
+            if isinstance(item, ContentPart):
+                parts.append(_translate_chat_content_part(item))
+            elif isinstance(item, dict):
+                part = ContentPart(**item)
+                parts.append(_translate_chat_content_part(part))
+            else:
+                parts.append(item)  # pass through unknown shapes
+
+        # Then append message-level attachments after explicit content parts
+        for att in attachments:
+            parts.append(_translate_chat_attachment(att))
+
+        result["content"] = parts
+        return result
+
+    # Fallback: pass through unchanged
+    return dict(msg)
 
 
 def _translate_tools(tools: list[LLMToolSpec]) -> list[dict[str, Any]]:
@@ -829,7 +973,11 @@ class OpenAIChatCompletionsClient(LLMClient):
                         "content": tool_msg.get("content", ""),
                     })
             else:
-                result.append(msg)  # type: ignore[arg-type]
+                # Wire user message translation for ContentPart and attachments
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    result.append(_translate_chat_user_message(msg))
+                else:
+                    result.append(msg)  # type: ignore[arg-type]
                 i += 1
 
         return result

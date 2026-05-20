@@ -1,11 +1,13 @@
 """Integration tests for the OpenAI Chat Completions provider."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tinycua_sdk.agent.events import UserMessage
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.models.attachment import FileAttachment
 from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from tinycua_sdk.providers.registry import get_provider_registry
 
@@ -139,3 +141,46 @@ def _chunk(delta, finish_reason=None, usage=None):
     if usage is not None:
         data["usage"] = usage
     return MagicMock(model_dump=lambda: data)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_openai_chat_completions_attachment_sends_image():
+    """A user message with an image FileAttachment is sent through the Chat
+    Completions provider and receives a non-empty assistant response.
+
+    This is the FR-011 acceptance test. It exercises the full provider
+    request path (chat()) and is guarded by environment configuration so
+    it auto-skips when no LLM server is reachable.
+    """
+    from tests.integration.conftest import resolve_integration_llm_config
+
+    config = resolve_integration_llm_config()
+
+    # Build a LanguageModel with the resolved config
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name=config.model,
+        base_url=config.base_url,
+        api_key=config.api_key,
+    )
+
+    # Also set environment variables so _get_client() works
+    os.environ["TINYCUA_PROVIDER"] = "openai-chat-completions"
+    os.environ["TINYCUA_MODEL"] = config.model
+    os.environ["TINYCUA_BASE_URL"] = config.base_url
+    os.environ["TINYCUA_API_KEY"] = config.api_key
+
+    client = OpenAIChatCompletionsClient(model)
+    image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
+    message = UserMessage(
+        role="user",
+        content="Describe this image in one sentence.",
+        attachments=[image_attachment],
+    )
+
+    response = await client.chat(messages=[message])
+
+    assert response["content"] is not None
+    assert len(response["content"]) > 0
+    assert isinstance(response["content"], str)
