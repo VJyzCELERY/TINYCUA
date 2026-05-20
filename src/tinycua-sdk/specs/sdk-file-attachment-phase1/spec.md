@@ -33,15 +33,15 @@ Today the SDK supports only plain-text user messages (`content: str`). There is 
 - No custom file storage or persistence layer — files are provided inline (base64) or by URL; `file_id` caching is ephemeral per-session
 - No image analysis or processing — the SDK passes file data to the provider and returns the provider response as-is
 - No multi-modal output — only the LLM's text response is supported; provider file outputs (e.g. DALL-E image generation) are out of scope
-- Provider translation is not modified in this phase — `_translate_messages` remains unchanged. Phase 1 is model-only (canonical model construction, serialization, and message type widening).
+- Provider translation is not modified in this phase — the provider translation layer remains unchanged. Phase 1 is model-only (canonical model construction, serialization, and message type widening).
 
 ### Constraints
 
 - Backward compatibility: `content: str` must continue to work unchanged for all existing callers
-- The `UserMessage` and `ToolResultMessage` TypedDicts in `events.py` must accept both `str` and `list[ContentPart]`
-- In Phase 1, provider translation is out of scope — `_translate_messages` only passes through canonical content parts unchanged. Provider-native format mapping is deferred to Phase 2+.
-- The `FileAttachment` model must be a Pydantic `BaseModel` for validation and serialization
-- The `ContentPart` model must support tagged model validation on `type: "text" | "file"`, with explicit validators enforcing that text parts have `text` set and file parts have `file` set
+- The `UserMessage` and `ToolResultMessage` canonical message types must accept both `str` and `list[ContentPart]`
+- In Phase 1, provider translation is out of scope — the translation layer only passes through canonical content parts unchanged. Provider-native format mapping is deferred to Phase 2+.
+- The `FileAttachment` model must support validation and serialization of its fields
+- The `ContentPart` model must enforce that text parts set `text` and file parts set `file`, with mutually exclusive field validation per variant
 
 ---
 
@@ -81,10 +81,10 @@ A developer building an AI agent wants to send an image file to a vision-capable
 ### Functional Requirements
 
 - **FR-001**: System MUST define a `FileAttachment` model with fields: `data` (Optional base64 string), `mime_type`, `filename` (Optional), `url` (Optional), `file_id` (Optional)
-- **FR-002**: System MUST define a `ContentPart` model with `type: "text" | "file"` and corresponding `text: str | None` and `file: FileAttachment | None` fields, using a tagged Pydantic model with explicit validators that enforce text parts have `text` set and file parts have `file` set
+- **FR-002**: System MUST define a `ContentPart` model with `type: "text" | "file"` and corresponding `text: str | None` and `file: FileAttachment | None` fields, where text parts require `text` to be set and file parts require `file` to be set, and variant fields are mutually exclusive
 - **FR-003**: `UserMessage.content` MUST accept `str | list[ContentPart]` (backward-compatible union)
 - **FR-004**: `ToolResultMessage.content` MUST accept `str | list[ContentPart]`
-- **FR-005**: System MUST provide `FileAttachment.from_path(path: str | Path) -> FileAttachment` that reads file, detects MIME type via `mimetypes`, and base64-encodes the data
+- **FR-005**: System MUST provide `FileAttachment.from_path(path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment` that reads file, detects MIME type via `mimetypes` (caller-provided `mime_type` overrides detection), and base64-encodes the data. When `stream=True`, uses chunked input reading while still returning a materialized base64 string.
 - **FR-006**: System MUST provide `FileAttachment.from_bytes(data: bytes, mime_type: str, filename: str | None = None) -> FileAttachment` that base64-encodes the bytes
 - **FR-007**: System MUST provide `FileAttachment.from_url(url: str, mime_type: str, filename: str | None = None) -> FileAttachment` that stores the URL
 - **FR-008**: System MUST support `from_path()` with a `stream: bool` parameter that, when `True`, uses chunked input reading to avoid loading raw file bytes all at once, while materializing the final base64 string. True lazy/OOM-safe streaming is deferred to Phase 5.

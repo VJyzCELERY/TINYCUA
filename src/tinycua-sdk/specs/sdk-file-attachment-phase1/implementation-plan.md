@@ -14,7 +14,7 @@ Add canonical SDK models for file attachments and structured multimodal content,
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- N/A — this feature has no configuration dependencies
 
 ### Running Services
 
@@ -24,11 +24,11 @@ Add canonical SDK models for file attachments and structured multimodal content,
 
 ### Data / Fixtures
 
-- [ ] **None** — tests create local temporary files with pytest `tmp_path`
+- N/A — tests create local temporary files with pytest `tmp_path`
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- N/A — no special access required
 
 
 ### Developer Tooling
