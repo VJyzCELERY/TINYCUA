@@ -205,9 +205,11 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
        (backward compatible).
     2. String content with non-empty ``attachments`` → text part followed
        by image parts.
-    3. ``content: list[ContentPart]`` (with or without attachments) →
-       translated parts, with message-level attachments appended after
-       explicit content parts, preserving caller order within each group.
+    3. ``content: list[ContentPart | dict]`` (with or without
+       attachments) → translated parts, with message-level attachments
+       appended after explicit content parts, preserving caller order
+       within each group.  Dict items are coerced to ``ContentPart``
+       via keyword unpacking.
 
     The ``attachments`` key is always stripped from the output (not a
     valid Chat Completions field).
@@ -261,7 +263,10 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
                 part = ContentPart(**item)
                 parts.append(_translate_chat_content_part(part))
             else:
-                parts.append(item)  # pass through unknown shapes
+                raise ValueError(
+                    f"Unsupported content part type: expected ContentPart "
+                    f"or dict, got {type(item).__name__}"
+                )
 
         # Then append message-level attachments after explicit content parts
         for att in attachments:
@@ -270,8 +275,11 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
         result["content"] = parts
         return result
 
-    # Fallback: pass through unchanged
-    return dict(msg)
+    # Unsupported content type
+    raise ValueError(
+        f"Unsupported user message content type: expected str or list, "
+        f"got {type(content).__name__}"
+    )
 
 
 def _translate_tools(tools: list[LLMToolSpec]) -> list[dict[str, Any]]:
@@ -909,8 +917,10 @@ class OpenAIChatCompletionsClient(LLMClient):
     def _translate_chat_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
         """Translate canonical messages to Chat Completions ``messages``.
 
-        - ``SystemMessage``, ``UserMessage``, ``AssistantMessage`` pass
-          through unchanged.  Assistant messages that already carry
+        - ``SystemMessage`` and ``AssistantMessage`` pass through
+          unchanged.  ``UserMessage`` may be translated to multimodal
+          content when it carries ``list[ContentPart]`` content or
+          ``attachments``.  Assistant messages that already carry
           ``tool_calls`` (embedded by the agent loop) are kept as-is.
         - ``ToolResultMessage`` is converted to ``{role: "tool",
           tool_call_id, content}``.
