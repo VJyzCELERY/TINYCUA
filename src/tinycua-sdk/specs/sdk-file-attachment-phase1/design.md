@@ -8,7 +8,7 @@
 
 ## Overview
 
-This design adds a canonical `FileAttachment` Pydantic model, a `ContentPart` discriminated-union model for multimodal messages, and updates the canonical `UserMessage` / `ToolResultMessage` TypedDicts to accept `list[ContentPart]` in addition to plain `str`. The design also includes ergonomic factory methods (`from_path`, `from_bytes`, `from_url`) for constructing file attachments. All changes live in `tinycua_sdk/models/` and `tinycua_sdk/agent/events.py`, with no changes to provider translation layers (deferred to Phase 2).
+This design adds a canonical `FileAttachment` Pydantic model, a `ContentPart` tagged model with explicit validators for multimodal messages, and updates the canonical `UserMessage` / `ToolResultMessage` TypedDicts to accept `list[ContentPart]` in addition to plain `str`. The design also includes ergonomic factory methods (`from_path`, `from_bytes`, `from_url`) for constructing file attachments. All changes live in `tinycua_sdk/models/` and `tinycua_sdk/agent/events.py`, with no changes to provider translation layers (deferred to Phase 2).
 
 ---
 
@@ -24,7 +24,7 @@ FileAttachment.from_path() / from_bytes() / from_url()    ← New factory method
     |
     v
 FileAttachment (Pydantic BaseModel)                       ← New model
-ContentPart (Pydantic discriminated union)                 ← New model
+ContentPart (Pydantic tagged model with explicit validators) ← New model
     |
     v
 UserMessage(content: str | list[ContentPart])              ← Modified TypedDict
@@ -56,7 +56,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 
 
 class FileAttachment(BaseModel):
@@ -68,14 +68,12 @@ class FileAttachment(BaseModel):
     url: str | None = None          # public URL to the file
     file_id: str | None = None      # provider-assigned file ID (for caching)
 
-    @field_validator("data")
-    @classmethod
-    def _validate_data_or_url_or_file_id(cls, v, info):
+    @model_validator(mode="after")
+    def _validate_data_or_url_or_file_id(self):
         """At least one of data, url, or file_id must be set."""
-        values = info.data
-        if not v and not values.get("url") and not values.get("file_id"):
+        if not self.data and not self.url and not self.file_id:
             raise ValueError("At least one of 'data', 'url', or 'file_id' must be provided")
-        return v
+        return self
 
     @classmethod
     def from_path(cls, path: str | Path, mime_type: str | None = None, stream: bool = False) -> FileAttachment:
@@ -99,6 +97,15 @@ class ContentPart(BaseModel):
     type: Literal["text", "file"]
     text: str | None = None
     file: FileAttachment | None = None
+
+    @model_validator(mode="after")
+    def _validate_variant_fields(self):
+        """Text parts must have text set; file parts must have file set."""
+        if self.type == "text" and not self.text:
+            raise ValueError("ContentPart(type='text') must have text set")
+        if self.type == "file" and not self.file:
+            raise ValueError("ContentPart(type='file') must have file set")
+        return self
 ```
 
 ### Schema Changes
@@ -164,12 +171,12 @@ FileAttachment.from_url(
 ## Technical Decisions
 
 1. **Decision**: Use Pydantic `BaseModel` for `FileAttachment` and `ContentPart` rather than TypedDicts or dataclasses
-   - **Reason**: Pydantic provides built-in validation, serialization, discriminated unions, and is already a project dependency
+   - **Reason**: Pydantic provides built-in validation, serialization, tagged model support with validators, and is already a project dependency
    - **Alternatives Considered**: TypedDicts (no runtime validation), dataclasses (no built-in validation), msgspec (additional dependency)
 
-2. **Decision**: Use Pydantic's discriminated union via `type: Literal["text", "file"]` rather than a separate `TextPart`/`FilePart` class hierarchy
-   - **Reason**: Simpler API surface; single `ContentPart` class with discriminated `type` field is easier to use and understand than multiple concrete part classes
-   - **Alternatives Considered**: Separate `TextPart` and `FilePart` Pydantic models with `Annotated[Union[...], Discriminator]` — more type-safe but more complex for callers
+2. **Decision**: Use a single `ContentPart` model with `type: Literal["text", "file"]` and explicit `@model_validator` enforcement, rather than a Pydantic discriminated union (`Annotated[Union[TextPart, FilePart], Discriminator]`) or separate `TextPart`/`FilePart` class hierarchy
+   - **Reason**: Simpler API surface; single `ContentPart` class with tagged `type` field and validators is easier to use and understand than multiple concrete part classes
+   - **Alternatives Considered**: Discriminated union via `Annotated[Union[TextPart, FilePart], Field(discriminator="type")]` — more type-safe but more complex for callers and adds schema complexity
 
 3. **Decision**: `from_path()` with `stream=True` uses an internal chunked base64 encoder but still returns a single `FileAttachment`
    - **Reason**: Keeps the public API simple. A fully lazy streaming API (async generator of base64 chunks) is conceptually clean but adds complexity that can be deferred to Phase 5
@@ -187,7 +194,7 @@ FileAttachment.from_url(
 |------|-----------|--------|------------|
 | Breaking existing callers by changing `content` type | Low | High | Use `str | list[ContentPart]` union — all existing `str`-only code compiles and runs unchanged |
 | Large files causing OOM in `from_path(stream=False)` | Medium | Medium | Document that `stream=True` should be used for large files; implement chunked reading in streaming mode |
-| Discriminated union complexity in Pydantic v2 | Low | Medium | Pin to Pydantic v2 which has stable discriminated union support; add serialization round-trip tests |
+| Tagged model validation complexity in Pydantic v2 | Low | Medium | Pin to Pydantic v2 which has stable `@model_validator` support; add serialization round-trip tests |
 
 ---
 
