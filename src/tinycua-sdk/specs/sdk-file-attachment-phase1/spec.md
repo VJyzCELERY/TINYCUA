@@ -149,11 +149,7 @@ A developer building an AI agent wants to send an image file to a vision-capable
 
 ## Open Questions
 
-1. **Streaming API for from_path()**
-   - **Owner**: @unassigned
-   - **Target**: 2026-05-22
-   - **Status**: Discussion
-   - **Proposed Answer**: Use an internal chunked base64 encoder that yields encoded chunks without loading the full file. The outer API returns a single `FileAttachment` whose `data` field contains the full base64 — streaming is an implementation detail of `from_path(stream=True)`. A fully lazy streaming API (e.g., `AsyncIterator[str]` for base64 chunks) is deferred to Phase 5.
+*(No open questions — all previously discussed items have been decided; see **Technical Decisions** in `design.md`.)*
 
 ---
 

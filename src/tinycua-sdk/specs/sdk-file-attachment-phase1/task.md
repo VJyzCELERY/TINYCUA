@@ -18,6 +18,8 @@ Implementation tasks for SDK-wide File Attachment Support Phase 1. Check off ite
   - [ ] Test `from_url()` URL storage and optional filename
   - [ ] Test `ContentPart` text/file variants and serialization round trips
 - [ ] Update canonical schema tests for structured `UserMessage` and `ToolResultMessage` content, preserving existing string tests <!-- id: 3 -->
+  - [ ] Add annotation-inspection tests using `typing.get_type_hints()` and `typing.get_args()` to verify `UserMessage.__annotations__["content"]` resolves to `str | list[ContentPart]`
+  - [ ] Add annotation-inspection tests verifying `ToolResultMessage.__annotations__["content"]` resolves to `str | list[ContentPart]`
 
 ## Implementation Phase
 

@@ -149,6 +149,7 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 - [ ] **Tool result attachment content**: proves `ToolResultMessage.content` accepts structured parts for generated artifacts.
 - [ ] **Validation edge cases**: rejects attachments with no source (`data`, `url`, or `file_id`) and content parts missing the field required by their `type`.
 - [ ] **Streaming parity**: proves `from_path(stream=True)` returns the same base64 payload as the non-streaming path while exercising the chunked code path.
+- [ ] **TypedDict annotation validation**: proves that `UserMessage.__annotations__["content"]` / `ToolResultMessage.__annotations__["content"]` resolve to `str | list[ContentPart]` via `typing.get_type_hints()` / `typing.get_args()`, ensuring the union type is correctly widened beyond runtime dict-assignment tests alone.
 
 ## Verification Plan
 
@@ -217,8 +218,8 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
 
 #### [MODIFY] `src/tinycua-sdk/tests/unit/test_canonical_schema.py`
 
-- **Description**: Add tests that `UserMessage` and `ToolResultMessage` still accept plain strings and now accept `list[ContentPart]`.
-- **Rationale**: Protects backward compatibility while documenting the widened message contract.
+- **Description**: Add tests that `UserMessage` and `ToolResultMessage` still accept plain strings and now accept `list[ContentPart]`. MUST also include annotation-inspection tests using `typing.get_type_hints()` and `typing.get_args()` to verify that `UserMessage.__annotations__["content"]` and `ToolResultMessage.__annotations__["content"]` resolve to `str | list[ContentPart]`. This protects against silent regressions where the TypedDict definition is accidentally narrowed back to `str`.
+- **Rationale**: Protects backward compatibility while documenting the widened message contract. Annotation inspection catches type-level regressions that runtime dict-assignment tests cannot detect.
 
 ## Architecture Changes
 

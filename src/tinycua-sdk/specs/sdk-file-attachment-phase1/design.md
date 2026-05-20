@@ -207,8 +207,7 @@ FileAttachment.from_url(
 
 ## Open Questions
 
-1. **Should `ContentPart` be allowed inside tool results, or only in user messages?**
-   - **Current thinking**: Both `UserMessage` and `ToolResultMessage` should support `list[ContentPart]`, since a tool might return a file (e.g., a generated image) that the LLM should see in the next turn. The issue's Phase 6 confirms this.
+*(No open questions — all previously discussed items have been decided and captured in the Technical Decisions above.)*
 
 ---
 
