@@ -6,7 +6,11 @@ and Responses-specific field mapping utilities.
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
+
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 
 from tinycua_sdk.agent.events import (
     ContentDeltaEvent,
@@ -111,6 +115,227 @@ def _translate_messages(messages: list[LLMMessage]) -> list[dict[str, Any]]:
         else:
             result.append(msg)  # type: ignore[arg-type]
     return result
+
+
+# ── Responses API attachment translation helpers (Phase 3) ────────────────────
+
+
+def _make_upload_cache_key(attachment: FileAttachment) -> str:
+    """Generate a stable cache key from attachment data, MIME type, and filename.
+
+    Used for non-image data-backed attachments that need upload. The key
+    combines the base64 data payload, MIME type, and filename so different
+    files or same content with different names get distinct cache entries.
+
+    Args:
+        attachment: A data-backed ``FileAttachment`` with non-empty ``data``.
+
+    Returns:
+        A SHA-256 hex digest string.
+    """
+    data = attachment.data or ""
+    mime = attachment.mime_type
+    filename = attachment.filename or ""
+    raw = f"{data}|{mime}|{filename}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _translate_responses_attachment(
+    attachment: FileAttachment,
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
+    """Translate a single ``FileAttachment`` to a Responses content part.
+
+    Image attachments (``image/*`` MIME type) produce ``input_image``
+    content parts with ``detail="auto"``.  Non-image ``file_id``
+    attachments produce ``input_file`` references.  Non-image data-backed
+    attachments require upload (via ``_upload_fn``) and then produce
+    ``input_file`` with the returned file ID.  Non-image URL attachments
+    are rejected (deferred to Phase 5).
+
+    Args:
+        attachment: A canonical ``FileAttachment``.
+        _upload_fn: Optional async callable that uploads the file and
+            returns a provider ``file_id``. Required for non-image
+            data-backed attachments without a pre-existing ``file_id``.
+
+    Returns:
+        A dict with provider-native content part keys.
+
+    Raises:
+        ValueError: If the attachment source/MIME combination is unsupported.
+    """
+    # File with pre-existing file_id — use directly, no upload.
+    if attachment.file_id is not None:
+        return {"type": "input_file", "file_id": attachment.file_id}
+
+    is_image = attachment.mime_type.startswith("image/")
+
+    # Image with inline data → input_image with data URL.
+    if is_image and attachment.data is not None:
+        return {
+            "type": "input_image",
+            "image_url": f"data:{attachment.mime_type};base64,{attachment.data}",
+            "detail": "auto",
+        }
+
+    # Image with URL → input_image with URL reference.
+    if is_image and attachment.url is not None:
+        return {
+            "type": "input_image",
+            "image_url": attachment.url,
+            "detail": "auto",
+        }
+
+    # Non-image data-backed → upload required.
+    if attachment.data is not None:
+        if _upload_fn is None:
+            raise ValueError(
+                "Non-image data-backed attachment requires upload, "
+                "but no _upload_fn was provided"
+            )
+        file_id = await _upload_fn(attachment)
+        return {"type": "input_file", "file_id": file_id}
+
+    # Non-image URL → not supported in Phase 3.
+    if attachment.url is not None:
+        raise ValueError(
+            f"Non-image URL attachments are not supported in Phase 3 "
+            f"(got mime_type={attachment.mime_type!r}). "
+            f"URL download/fetch support is deferred to Phase 5."
+        )
+
+    raise ValueError(
+        "Attachment has no usable source (data, url, or file_id required)"
+    )
+
+
+async def _translate_responses_content_part(
+    part: ContentPart,
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
+    """Translate a ``ContentPart`` to a Responses content part dict.
+
+    - Text part (``type="text"``) → ``{"type": "input_text", "text": ...}``
+    - File part (``type="file"``) → delegates to
+      :func:`_translate_responses_attachment`.
+
+    Args:
+        part: A canonical ``ContentPart``.
+        _upload_fn: Optional async callable for uploads (passed through to
+            attachment translation).
+
+    Returns:
+        A dict with ``type`` and the appropriate content key.
+    """
+    if part.type == "text":
+        return {"type": "input_text", "text": part.text}
+
+    if part.type == "file":
+        if part.file is None:
+            raise ValueError("ContentPart with type='file' must have a non-None file")
+        return await _translate_responses_attachment(
+            part.file, _upload_fn=_upload_fn,
+        )
+
+    raise ValueError(f"Unknown ContentPart type: {part.type!r}")
+
+
+async def _translate_responses_user_message(
+    msg: dict[str, Any],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
+    """Translate a user message dict for the OpenAI Responses API.
+
+    Handles three input shapes:
+
+    1. Plain string content, no attachments → pass through unchanged
+       (backward compatible).
+    2. String content with non-empty ``attachments`` → text part followed
+       by file/image parts.
+    3. ``content: list[ContentPart | dict]`` (with or without
+       attachments) → translated parts, with message-level attachments
+       appended after explicit content parts, preserving caller order
+       within each group.
+
+    The ``attachments`` key is always stripped from the output (not a
+    valid Responses API field).
+
+    Args:
+        msg: A message dict with ``role``, ``content``, and optionally
+            ``attachments``.
+        _upload_fn: Optional async callable for uploads (passed through to
+            attachment translation).
+
+    Returns:
+        A translated message dict suitable for the Responses API.
+
+    Raises:
+        ValueError: If ``content`` is an empty list (at least one content
+            part is required).
+    """
+    content = msg.get("content")
+    attachments: list[FileAttachment] = msg.get("attachments", []) or []
+
+    result: dict[str, Any] = {"role": "user"}
+    parts: list[dict[str, Any]] = []
+
+    if isinstance(content, str):
+        if not attachments:
+            result = {k: v for k, v in msg.items() if k != "attachments"}
+            return result
+
+        if content:
+            parts.append({"type": "input_text", "text": content})
+        for att in attachments:
+            parts.append(
+                await _translate_responses_attachment(att, _upload_fn=_upload_fn),
+            )
+        result["content"] = parts
+        return result
+
+    if isinstance(content, list):
+        if not content:
+            raise ValueError(
+                "User message content list cannot be empty "
+                "(at least one ContentPart is required)"
+            )
+
+        for item in content:
+            if isinstance(item, ContentPart):
+                parts.append(
+                    await _translate_responses_content_part(
+                        item, _upload_fn=_upload_fn,
+                    ),
+                )
+            elif isinstance(item, dict):
+                coerced = ContentPart(**item)
+                parts.append(
+                    await _translate_responses_content_part(
+                        coerced, _upload_fn=_upload_fn,
+                    ),
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported content part type: expected ContentPart "
+                    f"or dict, got {type(item).__name__}"
+                )
+
+        for att in attachments:
+            parts.append(
+                await _translate_responses_attachment(att, _upload_fn=_upload_fn),
+            )
+
+        result["content"] = parts
+        return result
+
+    raise ValueError(
+        f"Unsupported user message content type: expected str or list, "
+        f"got {type(content).__name__}"
+    )
 
 
 def _build_payload(
@@ -479,6 +704,7 @@ class OpenAIResponsesClient(LLMClient):
         self._model_config = model_config
         self._client: AsyncOpenAI | None = None
         self._previous_response_id: str | None = None
+        self._file_id_cache: dict[str, str] = {}
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -545,6 +771,89 @@ class OpenAIResponsesClient(LLMClient):
                 kwargs["tool_choice"] = "auto"
 
         return kwargs
+
+    async def _ensure_uploaded_file_id(self, attachment: FileAttachment) -> str:
+        """Upload a file through the OpenAI API and return its ``file_id``.
+
+        Checks the per-session ``_file_id_cache`` first for a cached
+        file ID. On cache miss, uploads the file via the OpenAI SDK
+        ``files.create()`` endpoint, stores the returned file ID in the
+        cache, and returns it.
+
+        Only data-backed non-image attachments reach this method (image
+        attachments use inline data URLs and bypass upload). Pre-existing
+        ``file_id`` attachments also bypass this method.
+
+        Args:
+            attachment: A data-backed ``FileAttachment``.
+
+        Returns:
+            The OpenAI ``file_id`` string.
+
+        Raises:
+            ValueError: If the attachment has no ``data`` source.
+        """
+        if not attachment.data:
+            raise ValueError(
+                "_ensure_uploaded_file_id requires a data-backed attachment"
+            )
+        cache_key = _make_upload_cache_key(attachment)
+        if cache_key in self._file_id_cache:
+            return self._file_id_cache[cache_key]
+
+        import base64
+
+        client = self._get_client()
+        file_bytes = base64.b64decode(attachment.data)
+        from io import BytesIO
+
+        file_obj = BytesIO(file_bytes)
+        file_obj.name = attachment.filename or "file"
+        uploaded = await client.files.create(
+            file=file_obj,
+            purpose="user_data",
+        )
+        file_id: str = uploaded.id
+        self._file_id_cache[cache_key] = file_id
+        return file_id
+
+    async def _translate_responses_input(
+        self,
+        messages: list[LLMMessage],
+    ) -> list[dict[str, Any]]:
+        """Translate canonical messages to Responses API ``input`` items.
+
+        Uses :func:`_translate_responses_user_message` for user messages
+        that may carry attachments or ``ContentPart`` content, and the
+        module-level :func:`_translate_messages` for all other message
+        types (system, assistant, tool_result). This method is async
+        because attachment translation may involve file uploads.
+
+        Args:
+            messages: Canonical message list.
+
+        Returns:
+            Provider-native input items for the Responses API ``input`` array.
+        """
+        result: list[dict[str, Any]] = []
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                translated = await _translate_responses_user_message(
+                    msg,  # type: ignore[arg-type]
+                    _upload_fn=self._ensure_uploaded_file_id,
+                )
+                result.append(translated)
+            elif isinstance(msg, dict) and msg.get("role") == "tool_result":
+                result.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": msg.get("call_id", ""),
+                        "output": msg.get("content", ""),
+                    },
+                )
+            else:
+                result.append(msg)  # type: ignore[arg-type]
+        return result
 
     @staticmethod
     def _handle_provider_error(e: Exception, context: str = "OpenAI API") -> None:
@@ -622,7 +931,7 @@ class OpenAIResponsesClient(LLMClient):
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
     ) -> LLMResponse:
-        translated_input = _translate_messages(messages)
+        translated_input = await self._translate_responses_input(messages)
         kwargs = self._build_request_kwargs(translated_input, tools)
 
         try:
@@ -642,7 +951,7 @@ class OpenAIResponsesClient(LLMClient):
         tools: list[LLMToolSpec] | None,
         raw_events: bool = False,
     ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
-        translated_input = _translate_messages(messages)
+        translated_input = await self._translate_responses_input(messages)
         kwargs = self._build_request_kwargs(translated_input, tools)
         kwargs["stream"] = True
 
