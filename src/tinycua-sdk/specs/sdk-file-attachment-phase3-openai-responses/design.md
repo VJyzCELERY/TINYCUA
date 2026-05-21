@@ -196,7 +196,7 @@ If the OpenAI SDK upload method is async, translation helpers that can upload mu
 | `{"role": "user", "content": [ContentPart(type="text", ...)], "attachments": [file]}` | `{"role": "user", "content": [text_part, file_part]}` — message-level attachments append after explicit content parts |
 | `FileAttachment(data=..., mime_type="image/png")` | `input_image` with data URL and `detail="auto"`, or uploaded `input_file` reference if required by provider behavior |
 | `FileAttachment(url="https://...", mime_type="image/jpeg")` | `input_image` with URL and `detail="auto"` |
-| `FileAttachment(data=..., mime_type="application/pdf", filename="doc.pdf")` | `input_file` with inline file data or uploaded `file_id` reference |
+| `FileAttachment(data=..., mime_type="application/pdf", filename="doc.pdf")` | `input_file` with uploaded `file_id` reference — file is uploaded once through the provider, returned `file_id` is cached per session |
 | `FileAttachment(file_id="file_abc", mime_type="application/pdf")` | `input_file` with `file_id="file_abc"` |
 
 For `content: str` plus attachments, the translated text part is omitted only when the string is empty. Attachments still translate in order.
@@ -209,6 +209,26 @@ For `content: str` plus attachments, the translated text part is omitted only wh
 | Attachment cache key exists | Return cached `file_id` and do not upload |
 | Attachment cache key missing | Upload through OpenAI, cache returned `file_id`, and return it |
 | Upload fails | Raise the existing provider error wrapper or a clear `ValueError` before request creation when validation fails |
+
+### Upload Policy
+
+The following policy defines when a file attachment triggers an upload through the provider upload endpoint. The upload trigger is deterministic: images always use inline `input_image` shapes, while non-image file attachments with `data` or `url` sources always upload through the provider, with the returned `file_id` cached per session for reuse.
+
+| Attachment Source | MIME Type | Action |
+|-------------------|-----------|--------|
+| `file_id` | Any | Skip upload — use `input_file` with `file_id` directly |
+| `data` (base64) | `image/*` | No upload — use `input_image` with data URL and `detail="auto"` |
+| `url` | `image/*` | No upload — use `input_image` with URL and `detail="auto"` |
+| `data` (base64) | Non-image (e.g., `application/pdf`) | **Upload required** — upload once through provider, cache `file_id`, then use `input_file` with the cached `file_id` |
+| `url` | Non-image (e.g., `application/pdf`) | **Upload required** — upload once through provider, cache `file_id`, then use `input_file` with the cached `file_id` |
+
+This policy results in the following translation outcomes:
+
+- **`_translate_responses_attachment()`** for images: produces `input_image` content parts (inline, no upload).
+- **`_translate_responses_attachment()`** for non-image `data`/`url` attachments: calls `_ensure_uploaded_file_id()` and produces `input_file` content parts with the returned `file_id`.
+- **`_ensure_uploaded_file_id()`** is invoked only for non-image attachments with `data` or `url` sources. It checks the cache key first, uploads on miss, and returns the `file_id`.
+
+This makes FR-009 and FR-010 acceptance deterministic: a unit test that creates a non-image data-backed `FileAttachment` (e.g., `application/pdf` inline bytes) and passes it through translation twice will verify one upload call and reuse of the cached `file_id`.
 
 ### Error Handling
 
