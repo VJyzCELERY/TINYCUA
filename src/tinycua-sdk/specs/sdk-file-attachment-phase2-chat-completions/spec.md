@@ -146,6 +146,7 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 | Chat Completions attachment translation | TODO | Phase 2 implementation |
 | Unit tests | TODO | Must be written before source changes |
 | Integration test | TODO | Guarded by environment configuration |
+| Text-file attachment support | Deferred | Non-image files out of scope for Phase 2; scheduled for a future Responses/arbitrary-file phase |
 
 ---
 

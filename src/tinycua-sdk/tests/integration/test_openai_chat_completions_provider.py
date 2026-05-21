@@ -147,14 +147,30 @@ def _chunk(delta, finish_reason=None, usage=None):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_openai_chat_completions_attachment_sends_image():
-    """A user message with an image FileAttachment is sent through the Chat
-    Completions provider and receives a non-empty assistant response.
+    """A user message with a multi-color image FileAttachment is sent through
+    the Chat Completions provider and receives an assistant response.
 
     This is the FR-011 acceptance test. It exercises the full provider
     request path (chat()) and is guarded by environment configuration so
     it auto-skips when no LLM server is reachable.
+
+    The fixture is a 4x4 RGBA PNG with red, green, blue, and yellow
+    quadrants. Vision-capable models should identify some of these colors;
+    non-vision models that refuse the input should produce a refusal
+    keyword. Both paths pass deterministically.
     """
     from tests.integration.conftest import resolve_integration_llm_config
+
+    # Keywords that indicate a non-vision model rejected the image input
+    _NO_VISION_KEYWORDS = (
+        "unable",
+        "can't view",
+        "cannot view",
+        "no vision",
+        "image input not supported",
+    )
+    # Color keywords expected from the multi-color fixture
+    _COLOR_KEYWORDS = ("red", "green", "blue", "yellow")
 
     config = resolve_integration_llm_config()
 
@@ -181,15 +197,29 @@ async def test_openai_chat_completions_attachment_sends_image():
         image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
         message = UserMessage(
             role="user",
-            content="Describe this image in one sentence.",
+            content=(
+                "What colors do you see in the attached image? "
+                "List only the color names."
+            ),
             attachments=[image_attachment],
         )
 
         response = await client.chat(messages=[message])
 
         assert response["content"] is not None
-        assert len(response["content"]) > 0
         assert isinstance(response["content"], str)
+        assert len(response["content"]) > 0
+
+        lower = response["content"].lower()
+
+        no_vision = any(kw in lower for kw in _NO_VISION_KEYWORDS)
+        has_colors = any(kw in lower for kw in _COLOR_KEYWORDS)
+
+        assert no_vision or has_colors, (
+            f"Expected vision model color keywords {_COLOR_KEYWORDS} or "
+            f"non-vision refusal keywords {_NO_VISION_KEYWORDS}, "
+            f"got: {response['content']!r}"
+        )
     finally:
         for key, old_val in (
             ("TINYCUA_PROVIDER", old_provider),
