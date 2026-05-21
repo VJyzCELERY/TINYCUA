@@ -192,7 +192,8 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
 async def test_default_registrations(default_registry: ProviderRegistry) -> None:
     """Given providers are auto-registered in the default singleton,
     create_client returns the correct client type for each."""
-    from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
+    from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
     assert default_registry.is_supported("openai-responses")
     assert default_registry.is_supported("openai-chat-completions")
@@ -231,7 +232,7 @@ def test_deprecated_providers_rejected_by_registry(
     assert any("deprecated" in rec.message.lower() for rec in caplog.records), (
         f"Expected deprecation warning for 'openai', got: {[rec.message for rec in caplog.records]}"
     )
-    from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
+    from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
     assert isinstance(client, OpenAIResponsesClient)
 
     caplog.clear()

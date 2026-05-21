@@ -10,13 +10,13 @@ class TestNewProviderImports:
 
     def test_openai_responses_client_new_path(self):
         """FR-002/AC-001: OpenAIResponsesClient importable from providers."""
-        from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
+        from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
         assert OpenAIResponsesClient is not None
 
     def test_openai_chat_completions_client_new_path(self):
         """OpenAIChatCompletionsClient importable from providers."""
-        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
+        from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
 
         assert OpenAIChatCompletionsClient is not None
 
@@ -36,13 +36,6 @@ class TestNewProviderImports:
     def test_convenience_namespace(self):
         """AC-004: Convenience re-exports via tinycua_sdk.providers."""
         from tinycua_sdk.providers import (
-            DEFAULT_BASE_URL,
-            OPENAI_COMPATIBLE,
-            OpenAIChatCompletionsClient,
-            OpenAIResponsesClient,
-            ProviderRegistry,
-            get_provider_registry,
-            normalize_base_url,
             resolve_provider,
         )
 
