@@ -51,7 +51,7 @@ The current Chat Completions provider already has a dedicated translation path a
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua_sdk/providers/open_ai.py` | Modified | Extend `OpenAIChatCompletionsClient._translate_chat_messages()` and add helper functions for content/attachment translation |
+| `tinycua_sdk/providers/open_ai_chat_completions.py` | Modified | Extend `OpenAIChatCompletionsClient._translate_chat_messages()` and add helper functions for content/attachment translation |
 | `tinycua_sdk/models/attachment.py` | Reused | Existing `FileAttachment` and `ContentPart` models are consumed; no schema changes |
 | `tinycua_sdk/agent/events.py` | Reused | Existing `UserMessage.content` union and `attachments` field are consumed; no schema changes |
 | `tests/unit/test_openai_chat_client.py` | Modified | Add unit tests for Chat Completions file attachment payload translation |
@@ -191,7 +191,7 @@ For `content: str` plus attachments, the translated text part is omitted only wh
 
 ### Step 2 — Translation Helpers
 
-- [ ] Import or reference `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py`.
+- [ ] Import or reference `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai_chat_completions.py`.
 - [ ] Implement a private attachment-to-image-content helper.
 - [ ] Implement a private content-part translation helper.
 - [ ] Implement a private user-message translation helper that combines string content and message-level attachments.

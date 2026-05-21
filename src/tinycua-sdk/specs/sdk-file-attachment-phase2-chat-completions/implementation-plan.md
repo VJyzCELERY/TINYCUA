@@ -160,7 +160,7 @@ The guarded integration test must be written and expected to run RED (failures) 
 
 ### Translation Helpers
 
-#### [NEW] Private helper functions in `tinycua_sdk/providers/open_ai.py`
+#### [NEW] Private helper functions in `tinycua_sdk/providers/open_ai_chat_completions.py`
 
 - **`_translate_chat_attachment(attachment: FileAttachment) -> dict[str, Any]`**: Maps a single image `FileAttachment` to a Chat Completions `image_url` content part dict.
   - If `attachment.data` is set: returns `{"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{data}"}}`
@@ -180,7 +180,7 @@ The guarded integration test must be written and expected to run RED (failures) 
 
 ### Chat Completions Client
 
-#### [MODIFY] `tinycua_sdk/providers/open_ai.py` — `OpenAIChatCompletionsClient._translate_chat_messages()`
+#### [MODIFY] `tinycua_sdk/providers/open_ai_chat_completions.py` — `OpenAIChatCompletionsClient._translate_chat_messages()`
 
 - **Wire user-message translation**: After the existing `else: result.append(msg)` branch for non-special messages, check if `msg` has `role == "user"` and call `_translate_chat_user_message()` to handle `content: list[ContentPart]` and `attachments`. Plain string user messages without attachments pass through unchanged.
 - **Import `ContentPart` and `FileAttachment`**: Add imports from `tinycua_sdk.models` and `tinycua_sdk.agent.events`.
@@ -214,7 +214,7 @@ The guarded integration test must be written and expected to run RED (failures) 
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua_sdk/providers/open_ai.py` | Modify | Add 3 private translation helpers; modify `_translate_chat_messages()` to call them for user messages |
+| `tinycua_sdk/providers/open_ai_chat_completions.py` | Modify | Add 3 private translation helpers; modify `_translate_chat_messages()` to call them for user messages |
 | `tests/unit/test_openai_chat_client.py` | Modify | Add `TestChatCompletionsAttachmentTranslation` class with unit tests |
 | `tests/integration/test_openai_chat_completions_provider.py` | Modify | Add guarded image attachment integration test |
 

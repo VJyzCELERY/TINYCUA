@@ -14,7 +14,7 @@ Implementation tasks for Phase 2 Chat Completions file attachment translation. C
 
 ## Implementation Phase
 
-- [x] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai.py` <!-- id: 7 -->
+- [x] Import `ContentPart` and `FileAttachment` in `tinycua_sdk/providers/open_ai_chat_completions.py` <!-- id: 7 -->
 - [x] Implement `_translate_chat_attachment()` — data URL construction, URL pass-through, file_id ValueError, non-image MIME ValueError <!-- id: 8 -->
 - [x] Implement `_translate_chat_content_part()` — text → text part, file → delegate to `_translate_chat_attachment()` <!-- id: 9 -->
 - [x] Implement `_translate_chat_user_message()` — string-only passthrough, string + attachments → text + image parts, list[ContentPart] → translated parts, strip attachments key <!-- id: 10 -->
