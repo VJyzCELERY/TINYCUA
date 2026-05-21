@@ -101,15 +101,15 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 
 ## Success Criteria
 
-- [ ] **Explicit multipart content works**: A user message with `list[ContentPart]` containing text and an image attachment translates to provider-native text and image content parts.
-- [ ] **Basic attachments shape works**: A user message with `content: str` and `attachments` translates to provider-native text followed by image content parts.
-- [ ] **Inline image data works**: Base64-backed image attachments become valid data URLs in Chat Completions payloads.
-- [ ] **Image URLs work**: URL-backed image attachments remain URLs in Chat Completions payloads.
-- [ ] **Ordering is preserved**: Explicit multipart content and multiple attachments retain caller-specified order.
-- [ ] **Mixed input ordering is preserved**: When both `list[ContentPart]` and `attachments` are present, explicit content parts appear first followed by message-level attachment parts, with caller order preserved within each group.
-- [ ] **Backward compatibility holds**: Existing string-only Chat Completions payload tests continue to pass unchanged.
-- [ ] **Unsupported inputs fail clearly**: `file_id`-only or unsupported non-image attachments are rejected before the request is sent.
-- [ ] **Integration path is covered**: A guarded integration test documents and verifies image attachment use with a vision-capable Chat Completions model.
+- [x] **Explicit multipart content works**: A user message with `list[ContentPart]` containing text and an image attachment translates to provider-native text and image content parts.
+- [x] **Basic attachments shape works**: A user message with `content: str` and `attachments` translates to provider-native text followed by image content parts.
+- [x] **Inline image data works**: Base64-backed image attachments become valid data URLs in Chat Completions payloads.
+- [x] **Image URLs work**: URL-backed image attachments remain URLs in Chat Completions payloads.
+- [x] **Ordering is preserved**: Explicit multipart content and multiple attachments retain caller-specified order.
+- [x] **Mixed input ordering is preserved**: When both `list[ContentPart]` and `attachments` are present, explicit content parts appear first followed by message-level attachment parts, with caller order preserved within each group.
+- [x] **Backward compatibility holds**: Existing string-only Chat Completions payload tests continue to pass unchanged.
+- [x] **Unsupported inputs fail clearly**: `file_id`-only or unsupported non-image attachments are rejected before the request is sent.
+- [x] **Integration path is covered**: A guarded integration test documents and verifies image attachment use with a vision-capable Chat Completions model.
 
 ---
 
@@ -143,9 +143,9 @@ A developer builds an agent using `provider="openai-chat-completions"` and a vis
 | Item | Status | Notes |
 |------|--------|-------|
 | Spec & Design | Complete | Ready for implementation |
-| Chat Completions attachment translation | TODO | Phase 2 implementation |
-| Unit tests | TODO | Must be written before source changes |
-| Integration test | TODO | Guarded by environment configuration |
+| Chat Completions attachment translation | Complete | Phase 2 implementation |
+| Unit tests | Complete | Unit tests written and passing |
+| Integration test | Complete | Guarded by environment configuration |
 | Text-file attachment support | Deferred | Non-image files out of scope for Phase 2; scheduled for a future Responses/arbitrary-file phase |
 
 ---
