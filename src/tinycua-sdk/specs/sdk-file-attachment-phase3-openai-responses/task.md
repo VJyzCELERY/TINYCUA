@@ -5,7 +5,7 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 ## TDD Phase (Tests First)
 
 - [ ] Add unit tests for `_translate_responses_content_part()` — text ContentPart → `input_text`, file ContentPart → image/file input <!-- id: 0 -->
-- [ ] Add unit tests for `_translate_responses_attachment()` — data-backed image → `input_image` with data URL, URL-backed image → `input_image` with URL, `file_id`-backed → `input_file` with `file_id`, non-image data → `input_file` with `file_data` <!-- id: 1 -->
+- [ ] Add unit tests for `_translate_responses_attachment()` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id`-backed → `input_file` with `file_id`, non-image data → `input_file` with `file_data` <!-- id: 1 -->
 - [ ] Add unit tests for `_translate_responses_user_message()` — string-only passthrough, string + attachments → text + file parts, `list[ContentPart]` → content list, `list[ContentPart]` + attachments → content parts then attachment parts, empty list raises `ValueError`, empty attachments same as omitted <!-- id: 2 -->
 - [ ] Add unit tests for upload cache hit/miss — same attachment reuses cached `file_id`, new attachment uploads once, pre-existing `file_id` bypasses upload, cache key includes data/MIME/filename <!-- id: 3 -->
 - [ ] Add regression unit tests — string-only user messages unchanged, tool-result translation unchanged, `previous_response_id` behavior unchanged <!-- id: 4 -->
@@ -16,7 +16,7 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 
 - [ ] Import `ContentPart` and `FileAttachment` in `open_ai_responses.py` <!-- id: 7 -->
 - [ ] Implement `_translate_responses_content_part(part)` — text → `{"type": "input_text", ...}`, file → delegates to `_translate_responses_attachment` <!-- id: 8 -->
-- [ ] Implement `_translate_responses_attachment(attachment)` — data-backed image → `input_image` with data URL, URL-backed image → `input_image` with URL, `file_id` → `input_file` reference, non-image data → `input_file` with `file_data`, upload-required → upload and cache <!-- id: 9 -->
+- [ ] Implement `_translate_responses_attachment(attachment)` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id` → `input_file` reference, non-image data → `input_file` with `file_data`, upload-required → upload and cache <!-- id: 9 -->
 - [ ] Implement `_translate_responses_user_message(msg)` — handles string-only, string + attachments, `list[ContentPart]`, `list[ContentPart]` + attachments, dict coercion for ContentPart items <!-- id: 10 -->
 - [ ] Implement stable cache key generation — hash from source data/URL + MIME type + filename <!-- id: 11 -->
 - [ ] Add `_file_id_cache: dict[str, str]` to `OpenAIResponsesClient.__init__` <!-- id: 12 -->
@@ -41,7 +41,10 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 
 ## Documentation Phase
 
-- [ ] No documentation updates needed — feature is internal provider translation <!-- id: 25 -->
+- [ ] Update SDK provider docs/examples to show `content: str` + `attachments` usage for Responses provider <!-- id: 25 -->
+- [ ] Add SDK docs section for `list[ContentPart]` usage with Responses provider, including supported image/file sources <!-- id: 29 -->
+- [ ] Document Responses-specific image `detail` parameter (defaults to `"auto"`) and supported MIME types <!-- id: 30 -->
+- [ ] Document integration test configuration (requires `OPENAI_API_KEY` env var) in contributor guide <!-- id: 31 -->
 
 ## Review and Merge
 

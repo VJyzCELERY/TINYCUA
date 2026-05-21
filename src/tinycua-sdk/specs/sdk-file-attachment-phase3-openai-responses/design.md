@@ -109,6 +109,7 @@ The cache key is a stable provider-local hash derived from the attachment source
 {
     "type": "input_image",
     "image_url": "data:image/png;base64,<encoded>",
+    "detail": "auto",
 }
 
 # File content part backed by provider file ID
@@ -172,8 +173,10 @@ def _translate_responses_content_part(part: ContentPart) -> dict[str, Any]:
 async def _translate_responses_attachment(attachment: FileAttachment) -> dict[str, Any]:
     """Map a FileAttachment to a Responses image/file content part.
 
-    May upload the attachment and return a cached file_id reference when the
-    Responses API requires file upload for the attachment source/type.
+    Image attachments always include ``detail`` (default ``"auto"``) per the
+    Responses API contract. May upload the attachment and return a cached
+    file_id reference when the Responses API requires file upload for the
+    attachment source/type.
     """
 
 
@@ -191,8 +194,8 @@ If the OpenAI SDK upload method is async, translation helpers that can upload mu
 | `{"role": "user", "content": "describe", "attachments": [img]}` | `{"role": "user", "content": [{"type": "input_text", "text": "describe"}, image_or_file_part]}` |
 | `{"role": "user", "content": [ContentPart(type="text", ...), ContentPart(type="file", ...)]}` | `{"role": "user", "content": [text_part, image_or_file_part]}` |
 | `{"role": "user", "content": [ContentPart(type="text", ...)], "attachments": [file]}` | `{"role": "user", "content": [text_part, file_part]}` — message-level attachments append after explicit content parts |
-| `FileAttachment(data=..., mime_type="image/png")` | `input_image` with data URL, or uploaded `input_file` reference if required by provider behavior |
-| `FileAttachment(url="https://...", mime_type="image/jpeg")` | `input_image` using that URL |
+| `FileAttachment(data=..., mime_type="image/png")` | `input_image` with data URL and `detail="auto"`, or uploaded `input_file` reference if required by provider behavior |
+| `FileAttachment(url="https://...", mime_type="image/jpeg")` | `input_image` with URL and `detail="auto"` |
 | `FileAttachment(data=..., mime_type="application/pdf", filename="doc.pdf")` | `input_file` with inline file data or uploaded `file_id` reference |
 | `FileAttachment(file_id="file_abc", mime_type="application/pdf")` | `input_file` with `file_id="file_abc"` |
 

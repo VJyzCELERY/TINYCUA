@@ -41,6 +41,7 @@ Extend the `OpenAIResponsesClient` message translation path so canonical Phase 1
 # Test file: tests/integration/test_openai_responses_provider.py
 """Integration tests for OpenAI Responses file attachment translation."""
 
+import base64
 import os
 import pytest
 from tinycua_sdk.agent.events import UserMessage
@@ -65,7 +66,9 @@ async def test_responses_image_attachment_returns_non_empty_response():
     client = OpenAIResponsesClient(model)
     try:
         attachment = FileAttachment.from_bytes(
-            b"\x89PNG\r\n\x1a\n" + b"\x00" * 100,
+            base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            ),
             mime_type="image/png",
             filename="test_image.png",
         )
@@ -94,7 +97,9 @@ async def test_responses_content_part_image_returns_non_empty_response():
     client = OpenAIResponsesClient(model)
     try:
         attachment = FileAttachment.from_bytes(
-            b"\x89PNG\r\n\x1a\n" + b"\x00" * 100,
+            base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            ),
             mime_type="image/png",
             filename="test_image.png",
         )
@@ -144,7 +149,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
 #### MODIFY `tinycua_sdk/providers/open_ai_responses.py`
 
-- **Add Responses content/attachment translation helpers**: `_translate_responses_user_message()`, `_translate_responses_content_part()`, `_translate_responses_attachment()` — mirror the Chat Completions pattern but emit Responses-native shapes (`input_text`, `input_image`, `input_file`)
+- **Add Responses content/attachment translation helpers**: `_translate_responses_user_message()`, `_translate_responses_content_part()`, `_translate_responses_attachment()` — mirror the Chat Completions pattern but emit Responses-native shapes (`input_text`, `input_image` with `detail="auto"`, `input_file`)
 - **Add `_file_id_cache` to `OpenAIResponsesClient.__init__`**: `dict[str, str]` mapping stable content hashes to OpenAI file IDs
 - **Add `_ensure_uploaded_file_id()` async method**: Uploads a file if needed, caches and returns the `file_id`
 - **Modify `_chat_sync` and `_chat_stream`**: Use the new instance-aware translation that supports async upload
@@ -172,7 +177,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
 | `_translate_messages()` | Modify | Extend to handle `UserMessage` with `ContentPart` or `attachments` |
 | `_translate_responses_user_message()` | New | Normalize user messages with attachments/ContentPart to Responses content list |
 | `_translate_responses_content_part()` | New | Map `ContentPart` to Responses-native content part |
-| `_translate_responses_attachment()` | New (async) | Map `FileAttachment` to Responses image/file input, may upload |
+| `_translate_responses_attachment()` | New (async) | Map `FileAttachment` to Responses image/file input; image parts include `detail="auto"` per API contract, may upload |
 | `_ensure_uploaded_file_id()` | New (async) | Upload file if not cached, return `file_id` |
 | `tests/unit/test_llm_client.py` | Modify | Add Phase 3 attachment translation unit tests |
 | `tests/integration/test_openai_responses_provider.py` | New | Guarded integration tests for image attachment |
