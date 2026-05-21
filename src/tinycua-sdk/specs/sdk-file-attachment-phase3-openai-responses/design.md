@@ -31,12 +31,12 @@ OpenAIResponsesClient._build_request_kwargs()
     v
 OpenAIResponsesClient._translate_messages()
     |
-    ├─ _translate_responses_user_message(msg)
+    ├─ async _translate_responses_user_message(msg)
     │    ├─ string-only content -> pass through unchanged
-    │    ├─ _translate_responses_content_part(part) for each ContentPart
+    │    ├─ await _translate_responses_content_part(part) for each ContentPart
     │    │    ├─ text part -> {"type": "input_text", "text": ...}
-    │    │    └─ file part -> _translate_responses_attachment(attachment)
-    │    └─ _translate_responses_attachment(attachment) for message attachments
+    │    │    └─ file part -> await _translate_responses_attachment(attachment)
+    │    └─ await _translate_responses_attachment(attachment) for message attachments
     │         ├─ image data/URL -> image input part
     │         ├─ file_id -> file input reference
     │         └─ upload-required data -> upload once, cache file_id, return file input reference
@@ -118,15 +118,15 @@ The cache key is a stable provider-local hash derived from the attachment source
     "file_id": "file_abc123",
 }
 
-# File content part backed by inline file data when supported
+# File content part for non-image data — Phase 3 always uploads first
+# The upload endpoint returns a file_id, which becomes the content part reference.
 {
     "type": "input_file",
-    "filename": "document.pdf",
-    "file_data": "data:application/pdf;base64,<encoded>",
+    "file_id": "file_abc123",
 }
 ```
 
-The implementation should prefer the provider-native shape accepted by the installed OpenAI SDK version. If inline `input_file.file_data` is supported for the target MIME/source, it can be used directly. If a file must be uploaded first, the provider upload endpoint should return a `file_id`, which then becomes the content part reference.
+Phase 3 always uploads non-image data attachments before request creation via `_ensure_uploaded_file_id()`, and emits only `input_file` with the returned `file_id`. Inline `input_file.file_data` is not used in this phase — the upload endpoint returns a `file_id`, which then becomes the sole content part reference.
 
 ---
 
@@ -155,7 +155,7 @@ The existing module-level `_translate_messages()` can remain as a pure helper fo
 ### Translation Helper Contracts
 
 ```python
-def _translate_responses_user_message(msg: dict[str, Any]) -> dict[str, Any]:
+async def _translate_responses_user_message(msg: dict[str, Any]) -> dict[str, Any]:
     """Return a Responses user input message.
 
     Plain string content without attachments remains unchanged. Structured
@@ -163,11 +163,17 @@ def _translate_responses_user_message(msg: dict[str, Any]) -> dict[str, Any]:
     list. When both list[ContentPart] content and non-empty attachments are
     present, message-level attachments are appended after explicit content
     parts in caller order.
+
+    Async because it awaits attachment translation, which may upload files.
     """
 
 
-def _translate_responses_content_part(part: ContentPart) -> dict[str, Any]:
-    """Map one canonical ContentPart to one Responses content part."""
+async def _translate_responses_content_part(part: ContentPart) -> dict[str, Any]:
+    """Map one canonical ContentPart to one Responses content part.
+
+    Async because file content parts delegate to attachment translation,
+    which may upload files.
+    """
 
 
 async def _translate_responses_attachment(attachment: FileAttachment) -> dict[str, Any]:

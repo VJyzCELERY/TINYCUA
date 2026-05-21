@@ -175,8 +175,8 @@ async def test_responses_content_part_image_returns_non_empty_response():
 |-----------|-------------|-------------|
 | `OpenAIResponsesClient` | Modify | Add `_file_id_cache`, instance-aware message translation, upload helper |
 | `_translate_messages()` | Modify | Extend to handle `UserMessage` with `ContentPart` or `attachments` |
-| `_translate_responses_user_message()` | New | Normalize user messages with attachments/ContentPart to Responses content list |
-| `_translate_responses_content_part()` | New | Map `ContentPart` to Responses-native content part |
+| `_translate_responses_user_message()` | New (async) | Normalize user messages with attachments/ContentPart to Responses content list — awaits attachment translation |
+| `_translate_responses_content_part()` | New (async) | Map `ContentPart` to Responses-native content part — awaits attachment translation for file parts |
 | `_translate_responses_attachment()` | New (async) | Map `FileAttachment` to Responses image/file input; image parts include `detail="auto"` per API contract, may upload |
 | `_ensure_uploaded_file_id()` | New (async) | Upload file if not cached, return `file_id` |
 | `tests/unit/test_llm_client.py` | Modify | Add Phase 3 attachment translation unit tests |
