@@ -5,7 +5,7 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 ## TDD Phase (Tests First)
 
 - [ ] Add unit tests for `_translate_responses_content_part()` — text ContentPart → `input_text`, file ContentPart → image/file input <!-- id: 0 -->
-- [ ] Add unit tests for `_translate_responses_attachment()` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id`-backed → `input_file` with `file_id`, non-image data → `input_file` with `file_data` <!-- id: 1 -->
+- [ ] Add unit tests for `_translate_responses_attachment()` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id`-backed → `input_file` with `file_id`, non-image data → `input_file` with `file_id` (upload-required per upload policy) <!-- id: 1 -->
 - [ ] Add unit tests for `_translate_responses_user_message()` — string-only passthrough, string + attachments → text + file parts, `list[ContentPart]` → content list, `list[ContentPart]` + attachments → content parts then attachment parts, empty list raises `ValueError`, empty attachments same as omitted <!-- id: 2 -->
 - [ ] Add unit tests for upload cache hit/miss — a non-image data-backed FileAttachment (e.g., `application/pdf` inline bytes) triggers `_ensure_uploaded_file_id()` through `_translate_responses_attachment()`, same attachment reuses cached `file_id`, new attachment uploads once, pre-existing `file_id` bypasses upload, cache key includes data/MIME/filename <!-- id: 3 -->
 - [ ] Add regression unit tests — string-only user messages unchanged, tool-result translation unchanged, `previous_response_id` behavior unchanged <!-- id: 4 -->
