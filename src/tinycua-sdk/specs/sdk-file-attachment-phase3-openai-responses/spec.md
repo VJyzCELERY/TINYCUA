@@ -33,7 +33,7 @@ The provider must translate both canonical forms into Responses-native multimoda
 - No `Agent.run()` convenience parameter changes; Phase 4 owns user-facing run API expansion.
 - No tool-result attachment support beyond preserving current tool-result string output behavior; Phase 6 owns tool-result file flow.
 - No persistent file cache across process restarts or agent lifetimes; this phase only requires a per-session/provider-client cache.
-- No fully lazy large-file streaming API; broader streaming upload behavior remains Phase 5 unless needed by the provider upload endpoint.
+- No non-image URL attachment download/fetch; non-image URL attachments will be rejected with a clear `ValueError` in this phase (URL download/fetch support is deferred to Phase 5). URL-backed image attachments remain supported as inline references.
 
 ### Constraints
 

@@ -16,9 +16,9 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 
 - [ ] Import `ContentPart` and `FileAttachment` in `open_ai_responses.py` <!-- id: 7 -->
 - [ ] Implement `_translate_responses_content_part(part)` — text → `{"type": "input_text", ...}`, file → delegates to `_translate_responses_attachment` <!-- id: 8 -->
-- [ ] Implement `_translate_responses_attachment(attachment)` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id` → `input_file` reference, non-image data → `input_file` with `file_data`, upload-required → upload and cache <!-- id: 9 -->
+- [ ] Implement `_translate_responses_attachment(attachment)` — data-backed image → `input_image` with data URL and `detail="auto"`, URL-backed image → `input_image` with URL and `detail="auto"`, `file_id` → `input_file` reference, non-image data → call `_ensure_uploaded_file_id()`, then emit `input_file` with `file_id`, non-image url → reject with `ValueError` (deferred to Phase 5) <!-- id: 9 -->
 - [ ] Implement `_translate_responses_user_message(msg)` — handles string-only, string + attachments, `list[ContentPart]`, `list[ContentPart]` + attachments, dict coercion for ContentPart items <!-- id: 10 -->
-- [ ] Implement stable cache key generation — hash from source data/URL + MIME type + filename <!-- id: 11 -->
+- [ ] Implement stable cache key generation — hash from source data + MIME type + filename (non-image data attachments only) <!-- id: 11 -->
 - [ ] Add `_file_id_cache: dict[str, str]` to `OpenAIResponsesClient.__init__` <!-- id: 12 -->
 - [ ] Implement `_ensure_uploaded_file_id(attachment)` async method — check cache, upload if miss, store and return `file_id` <!-- id: 13 -->
 - [ ] Modify `_chat_sync` — use instance-aware translation with async upload support <!-- id: 14 -->

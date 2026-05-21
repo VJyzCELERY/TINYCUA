@@ -194,7 +194,7 @@ No changes to public canonical models (`FileAttachment`, `ContentPart`, `UserMes
 
 ## Upload Policy
 
-The upload trigger is deterministic for Phase 3: images always use inline `input_image` shapes (no upload), while non-image file attachments with `data` or `url` sources always upload through the provider upload endpoint, with the returned `file_id` cached per session and reused via `input_file` references. Pre-existing `file_id` attachments bypass upload entirely. This policy ensures the `_ensure_uploaded_file_id()` helper is exercised by any non-image data-backed attachment, making FR-009 and FR-010 acceptance deterministic and testable.
+The upload trigger is deterministic for Phase 3: images always use inline `input_image` shapes (no upload); non-image file attachments with `data` sources always upload through the provider upload endpoint, with the returned `file_id` cached per session and reused via `input_file` references; non-image URL attachments are rejected with a clear `ValueError` (URL download/fetch support is deferred to Phase 5). Pre-existing `file_id` attachments bypass upload entirely. This policy ensures the `_ensure_uploaded_file_id()` helper is exercised by any non-image data-backed attachment, making FR-009 and FR-010 acceptance deterministic and testable.
 
 ## API Changes
 

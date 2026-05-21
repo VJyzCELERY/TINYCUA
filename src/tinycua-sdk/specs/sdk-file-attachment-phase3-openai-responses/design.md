@@ -90,7 +90,7 @@ OpenAIResponsesClient:
     _file_id_cache: dict[str, str]
 ```
 
-The cache key is a stable provider-local hash derived from the attachment source and MIME metadata. For inline data, use the base64 payload plus MIME type. For URL-backed attachments that require upload, use URL plus MIME type. Attachments that already carry `file_id` bypass the cache.
+The cache key is a stable provider-local hash derived from the attachment source and MIME metadata. For inline data-backed non-image attachments, use the base64 payload plus MIME type plus filename. Non-image URL attachments are rejected in Phase 3 (deferred to Phase 5) and do not generate cache keys. Attachments that already carry `file_id` bypass the cache.
 
 ### Schema Changes
 
@@ -181,7 +181,10 @@ async def _translate_responses_attachment(attachment: FileAttachment) -> dict[st
 
 
 async def _ensure_uploaded_file_id(attachment: FileAttachment) -> str:
-    """Return an existing or newly uploaded OpenAI file_id for attachment."""
+    """Return an existing or newly uploaded OpenAI file_id for a data-backed attachment.
+
+    Raises ValueError for non-image URL attachments (deferred to Phase 5).
+    """
 ```
 
 If the OpenAI SDK upload method is async, translation helpers that can upload must also be async. That means `_build_payload()` can stay synchronous only for no-upload unit helpers, while the actual `chat()` request path should build kwargs through an async instance method before calling `client.responses.create()`.
@@ -212,7 +215,7 @@ For `content: str` plus attachments, the translated text part is omitted only wh
 
 ### Upload Policy
 
-The following policy defines when a file attachment triggers an upload through the provider upload endpoint. The upload trigger is deterministic: images always use inline `input_image` shapes, while non-image file attachments with `data` or `url` sources always upload through the provider, with the returned `file_id` cached per session for reuse.
+The following policy defines when a file attachment triggers an upload through the provider upload endpoint. The upload trigger is deterministic: images always use inline `input_image` shapes; non-image file attachments with `data` sources always upload through the provider, with the returned `file_id` cached per session for reuse; non-image URL attachments are rejected with a clear `ValueError` in this phase (URL download/fetch support is deferred to Phase 5).
 
 | Attachment Source | MIME Type | Action |
 |-------------------|-----------|--------|
@@ -220,13 +223,14 @@ The following policy defines when a file attachment triggers an upload through t
 | `data` (base64) | `image/*` | No upload — use `input_image` with data URL and `detail="auto"` |
 | `url` | `image/*` | No upload — use `input_image` with URL and `detail="auto"` |
 | `data` (base64) | Non-image (e.g., `application/pdf`) | **Upload required** — upload once through provider, cache `file_id`, then use `input_file` with the cached `file_id` |
-| `url` | Non-image (e.g., `application/pdf`) | **Upload required** — upload once through provider, cache `file_id`, then use `input_file` with the cached `file_id` |
+| `url` | Non-image (e.g., `application/pdf`) | **Reject** — raise `ValueError` (not supported in Phase 3; URL download/fetch deferred to Phase 5) |
 
 This policy results in the following translation outcomes:
 
 - **`_translate_responses_attachment()`** for images: produces `input_image` content parts (inline, no upload).
-- **`_translate_responses_attachment()`** for non-image `data`/`url` attachments: calls `_ensure_uploaded_file_id()` and produces `input_file` content parts with the returned `file_id`.
-- **`_ensure_uploaded_file_id()`** is invoked only for non-image attachments with `data` or `url` sources. It checks the cache key first, uploads on miss, and returns the `file_id`.
+- **`_translate_responses_attachment()`** for non-image `data` attachments: calls `_ensure_uploaded_file_id()` and produces `input_file` content parts with the returned `file_id`.
+- **`_translate_responses_attachment()`** for non-image `url` attachments: raises `ValueError` immediately (deferred to Phase 5).
+- **`_ensure_uploaded_file_id()`** is invoked only for non-image attachments with `data` sources. It checks the cache key first, uploads on miss, and returns the `file_id`.
 
 This makes FR-009 and FR-010 acceptance deterministic: a unit test that creates a non-image data-backed `FileAttachment` (e.g., `application/pdf` inline bytes) and passes it through translation twice will verify one upload call and reuse of the cached `file_id`.
 
@@ -239,6 +243,7 @@ This makes FR-009 and FR-010 acceptance deterministic: a unit test that creates 
 | File part without a file | `ValueError` | Defensive guard; model validation normally catches this |
 | Attachment has no usable source | Existing Pydantic validation error or `ValueError` | `FileAttachment` should require one source |
 | Provider cannot accept MIME/source combination | `ValueError` | Fail clearly before invalid request when detectable |
+| Non-image URL attachment | `ValueError` | Reject with a clear message; URL download/fetch deferred to Phase 5 |
 | Upload endpoint fails | Existing provider error translation | Preserve `ProviderApiError` / `ProviderAuthError` handling style |
 | OpenAI rejects multimodal payload | Existing provider error translation | Keep current `_handle_provider_error()` behavior |
 
