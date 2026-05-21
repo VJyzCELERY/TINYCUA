@@ -12,7 +12,7 @@ from tinycua_sdk.agent.events import (
     ResponseInProgressEvent,
 )
 from tinycua_sdk.agent.llm_client import LLMClient
-from tinycua_sdk.providers.open_ai import (
+from tinycua_sdk.providers.open_ai_responses import (
     OpenAIResponsesClient,
     _build_payload,
     _normalize_responses_event,

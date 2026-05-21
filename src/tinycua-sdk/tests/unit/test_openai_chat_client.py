@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from tinycua_sdk.agent.events import LLMResponse
-from tinycua_sdk.providers.open_ai import (
+from tinycua_sdk.providers.open_ai_chat_completions import (
     OpenAIChatCompletionsClient,
     _translate_chat_attachment,
     _translate_chat_content_part,

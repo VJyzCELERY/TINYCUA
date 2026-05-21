@@ -163,7 +163,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     """
 
     def _openai_responses_factory(model_config: LanguageModel) -> Any:
-        from tinycua_sdk.providers.open_ai import OpenAIResponsesClient  # noqa: PLC0415
+        from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient  # noqa: PLC0415
 
         return OpenAIResponsesClient(model_config)
 
@@ -178,7 +178,7 @@ def _register_defaults(registry: ProviderRegistry) -> None:
     )
 
     def _openai_chat_completions_factory(model_config: LanguageModel) -> Any:
-        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient  # noqa: PLC0415
+        from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient  # noqa: PLC0415
 
         return OpenAIChatCompletionsClient(model_config)
 

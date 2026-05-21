@@ -30,7 +30,8 @@ from tinycua_sdk.agent.events import (
 )
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_client import LLMClient
-from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
+from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.agent.loop import BaseLoop
 

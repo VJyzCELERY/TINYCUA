@@ -141,7 +141,7 @@ class TestProviderRegistry:
 
     def test_openai_chat_completions_resolves(self, registry: ProviderRegistry) -> None:
         """provider='openai-chat-completions' creates the right client."""
-        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
+        from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
 
         def factory(cfg: LanguageModel) -> LLMClient:
             return OpenAIChatCompletionsClient(cfg)
