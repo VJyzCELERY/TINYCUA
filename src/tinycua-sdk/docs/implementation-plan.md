@@ -36,7 +36,7 @@ Extends `Agent.run()` to accept `str | list[ContentPart]` for the `query` parame
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Unit Tests (TDD First)
 
 ```python
 # Test file: tests/unit/test_agent_file_attachments.py
@@ -213,6 +213,8 @@ class TestAgentRunFileAttachments:
 - [x] **Scenario 6**: Invalid items in `file_attachments` (non-FileAttachment, None) raise `TypeError`
 - [x] **Scenario 7**: Streaming mode works with `file_attachments`
 - [x] **Scenario 8**: Message history is preserved when using `file_attachments`
+
+> **Phase 4 scope**: The tests above verify that `Agent.run` constructs canonical SDK messages correctly. Provider end-to-end verification (Chat Completions + Responses integration) is covered by prior phase tests in `tests/integration/`. The Phase 4 implementation is complete when these unit tests pass.
 
 ## Verification Plan
 

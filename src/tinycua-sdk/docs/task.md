@@ -4,6 +4,7 @@ Implementation tasks for the Agent file attachment convenience API. Check off it
 
 ## TDD Phase (Tests First)
 
+- [ ] Write unit test: `test_run_empty_query_with_file_attachments` — empty str query + file_attachments produces `content: ""` + `attachments` key <!-- id: 0a -->
 - [ ] Write unit test: `test_run_str_query_with_file_attachments` — str query + file_attachments produces `content: str` + `attachments` key shape <!-- id: 0 -->
 - [ ] Write unit test: `test_run_str_query_without_file_attachments` — backward compatible (unchanged message dict) <!-- id: 1 -->
 - [ ] Write unit test: `test_run_content_parts_query_without_attachments` — `list[ContentPart]` query uses parts directly <!-- id: 2 -->

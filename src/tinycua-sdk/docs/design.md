@@ -139,7 +139,7 @@ elif query is list[ContentPart]:
 | `file_attachments` contains non-`FileAttachment` item | `TypeError` | Raised at call time before message construction |
 | `query` is neither `str` nor `list[ContentPart]` | `TypeError` | Existing behavior, extended validation |
 | Empty `file_attachments=[]` | No-op | Treated same as `None` |
-| Empty `query=""` with `file_attachments` | Valid | Message contains only attachment parts (no text part for empty string) |
+| Empty `query=""` with `file_attachments` | Valid | Agent-level message: `content: ""` + `attachments` key. Providers may omit the empty text part in API-specific payloads. |
 | `stream` is not `bool` | `TypeError` | Existing behavior preserved |
 
 ---

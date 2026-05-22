@@ -44,14 +44,14 @@ The agent constructs the appropriate user message behind the scenes and routes i
 3. **Given** an agent, **When** `agent.run("Hello", file_attachments=[img1, img2])` is called, **Then** the resulting user message contains one text part and two file parts in order.
 4. **Given** an agent, **When** `agent.run("Hello", file_attachments=[img])` is called with `stream=True`, **Then** streaming works correctly and file attachments are included in the request.
 5. **Given** an agent, **When** `agent.run("Hello")` is called with no `file_attachments`, **Then** behavior is identical to the current implementation (backward compatible).
-6. **Given** an agent, **When** `agent.run("")` is called with only `file_attachments` and an empty string query, **Then** the message includes file attachments without a text part (or with an empty text part).
+6. **Given** an agent, **When** `agent.run("")` is called with only `file_attachments` and an empty string query, **Then** the message includes file attachments with an empty text part (`content: ""`).
 7. **Given** an agent and an existing message history, **When** `agent.run("Describe this", file_attachments=[img], messages=history)` is called, **Then** the history messages are preserved and the new user message with attachments is appended.
 
 ### Edge Cases
 
 - What happens when `file_attachments` is an empty list? → Treated the same as `None` (no attachments).
 - What happens when both `query: list[ContentPart]` and `file_attachments` are provided? → `file_attachments` are appended after the explicit content parts, preserving the order guarantee.
-- What happens when `query` is an empty string and `file_attachments` has items? → The message contains only file parts (no text part for empty string).
+- What happens when `query` is an empty string and `file_attachments` has items? → The agent-level message contains `content: ""` with the `attachments` key (empty text part). Providers may omit the empty text part when constructing API-specific payloads.
 - What happens with `None` in the `file_attachments` list? → Raised as `ValueError` or `TypeError` at validation time.
 
 ---
@@ -62,7 +62,7 @@ The agent constructs the appropriate user message behind the scenes and routes i
 
 - **FR-001**: `Agent.run()` MUST accept `query: str | list[ContentPart]` — the existing `str` type is extended to a union.
 - **FR-002**: `Agent.run()` MUST accept an optional `file_attachments: list[FileAttachment] | None = None` parameter.
-- **FR-003**: When `query` is `str` and `file_attachments` is provided, `Agent.run()` MUST construct a user message dict with `content: list[ContentPart]` containing a text part followed by file parts for each attachment.
+- **FR-003**: When `query` is `str` and `file_attachments` is provided, `Agent.run()` MUST construct a user message dict with `content: str` containing the query text and an `attachments` key containing the `file_attachments` list.
 - **FR-004**: When `query` is `str` and `file_attachments` is `None` or `[]`, `Agent.run()` MUST produce the same `{"role": "user", "content": query}` message as before (backward compatible).
 - **FR-005**: When `query` is `list[ContentPart]`, `Agent.run()` MUST use the content parts directly as the message `content`. If `file_attachments` is also provided, the attachments MUST be appended as additional `ContentPart(type="file", ...)` items after the explicit content parts.
 - **FR-006**: `Agent.run()` with `file_attachments` MUST work correctly in streaming mode (`stream=True`).
