@@ -22,16 +22,56 @@ class IntegrationLLMConfig:
     provider: str = "openai-chat-completions"
     model: str = ""
     base_url: str = "http://localhost:1234/v1"
-    api_key: str = "dummy"
+    api_key: str = ""
 
 
 def resolve_integration_llm_config() -> IntegrationLLMConfig:
-    """Resolve integration test LLM config from environment variables."""
+    """Resolve integration test LLM config from environment variables.
+
+    Resolution mirrors the runtime provider clients:
+    - Provider-specific env vars take precedence over LLM_* fallbacks.
+    - Base URL: provider-specific > LLM_BASE_URL > localhost default.
+    - API key: provider-specific only (no generic API key fallback).
+    - Model: provider-specific > LLM_MODEL > empty string default.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "")
+    if not provider:
+        # Auto-detect from provider-specific env vars
+        if os.environ.get("OPENAI_RESPONSES_MODEL") or os.environ.get(
+            "OPENAI_RESPONSES_API_KEY"
+        ):
+            provider = "openai-responses"
+        elif os.environ.get("OPENAI_CHAT_COMPLETIONS_MODEL") or os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_API_KEY"
+        ):
+            provider = "openai-chat-completions"
+        else:
+            provider = "openai-chat-completions"
+
+    if provider == "openai-responses":
+        model = os.environ.get(
+            "OPENAI_RESPONSES_MODEL", os.environ.get("LLM_MODEL", "")
+        )
+        base_url = os.environ.get(
+            "OPENAI_RESPONSES_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        )
+        api_key = os.environ.get("OPENAI_RESPONSES_API_KEY", "")
+    else:
+        model = os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_MODEL", os.environ.get("LLM_MODEL", "")
+        )
+        base_url = os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        )
+        api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY", "")
+
     return IntegrationLLMConfig(
-        provider=os.environ.get("LLM_PROVIDER", "openai-chat-completions"),
-        model=os.environ.get("LLM_MODEL", ""),
-        base_url=os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        api_key=os.environ.get("LLM_API_KEY", "dummy"),
+        provider=provider,
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
     )
 
 
@@ -48,11 +88,10 @@ def pytest_configure(config):
 
 
 def _build_auth_headers(api_key: str | None = None) -> dict[str, str]:
-    """Build auth headers matching OpenAICompatibleClient logic."""
-    key = api_key or os.environ.get("LLM_API_KEY", "")
+    """Build auth headers matching provider client logic."""
     headers: dict[str, str] = {}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     return headers
 
 

@@ -143,7 +143,7 @@ A developer builds an agent using the default `openai-responses` provider and a 
 
 - Add a guarded OpenAI Responses integration test that sends an image attachment to a vision-capable model using `FileAttachment.from_bytes()` or `FileAttachment.from_path()` and asserts a non-empty assistant response.
 - Ensure the integration test is skipped unless the required model configuration is present (either `OPENAI_RESPONSES_MODEL` or `LLM_MODEL` env var).
-- Integration test configuration uses per-provider env vars: `OPENAI_RESPONSES_BASE_URL`, `OPENAI_RESPONSES_API_KEY`, `OPENAI_RESPONSES_MODEL`, with fallback to `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`.
+- Integration test configuration uses per-provider env vars: `OPENAI_RESPONSES_BASE_URL`, `OPENAI_RESPONSES_API_KEY`, `OPENAI_RESPONSES_MODEL`, with fallback to `LLM_BASE_URL` / `LLM_MODEL`. API keys are per-provider only (no generic API key fallback).
 
 ### Manual Tests
 

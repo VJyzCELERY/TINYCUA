@@ -61,9 +61,10 @@ else:
                 load_dotenv(env_test_example)
 
 # Set environment variables for tests with defaults
+# LLM_BASE_URL and LLM_MODEL are shared fallbacks for all providers.
+# API keys are per-provider only (no generic API key fallback).
 os.environ.setdefault("LLM_BASE_URL", "http://localhost:1234/v1")
 os.environ.setdefault("LLM_MODEL", "qwen/qwen3.5-9b")
-os.environ.setdefault("LLM_API_KEY", "dummy")
 
 
 # =============================================================================
