@@ -70,6 +70,7 @@ with 16 GB VRAM (7B models); experimental CPU-offload path for 13B models with 3
 2. **Accelerate CPU offload for 13B** — simpler than DeepSpeed for single-node Phase 1.
 3. **safetensors** — safe serialization, compatible with HF ecosystem and GGUF converters.
 4. **JSONL datasets** — simple, streamable, human-readable.
-5. **Special tokens for tool calls** — deterministic parsing; avoids fragile free-text regex.
-6. **GGUF conversion via external wrapper** — keeps code minimal; converter scripts change
+5. **Train on all tokens (no response-only masking)** — the model learns full conversation structure (system prompts, user queries, tool results, assistant responses) rather than just assistant outputs. This is especially important for agentic behavior where tool results and reasoning traces all provide useful signal.
+6. **Special tokens for tool calls** — deterministic parsing; avoids fragile free-text regex.
+7. **GGUF conversion via external wrapper** — keeps code minimal; converter scripts change
    frequently and are best treated as a versioned external dependency.
