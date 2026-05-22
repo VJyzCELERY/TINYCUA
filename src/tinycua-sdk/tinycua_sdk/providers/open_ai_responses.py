@@ -7,6 +7,7 @@ and Responses-specific field mapping utilities.
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +36,7 @@ from tinycua_sdk.agent.events import (
 )
 from tinycua_sdk.agent.llm_client import LLMClient, _yield_events
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
+from tinycua_sdk.providers.constants import OPENAI_BASE_URL
 from tinycua_sdk.providers.utility import normalize_base_url
 
 if TYPE_CHECKING:
@@ -716,8 +718,22 @@ class OpenAIResponsesClient(LLMClient):
         if self._client is None:
             from openai import AsyncOpenAI
 
+            # Resolve API key: explicit > OPENAI_RESPONSES_API_KEY > LLM_API_KEY
             api_key = self._model_config.api_key.get_secret_value() if self._model_config.api_key else None
-            base_url = normalize_base_url(self._model_config.base_url, self._model_config.provider)
+            if not api_key:
+                api_key = os.environ.get("OPENAI_RESPONSES_API_KEY") or os.environ.get("LLM_API_KEY")
+
+            # Resolve base URL: explicit > OPENAI_RESPONSES_BASE_URL > TINYCUA_BASE_URL > LLM_BASE_URL > OpenAI default
+            base_url = self._model_config.base_url
+            if not base_url:
+                base_url = (
+                    os.environ.get("OPENAI_RESPONSES_BASE_URL")
+                    or os.environ.get("TINYCUA_BASE_URL")
+                    or os.environ.get("LLM_BASE_URL")
+                    or OPENAI_BASE_URL
+                )
+            base_url = normalize_base_url(base_url)
+
             self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         return self._client
 

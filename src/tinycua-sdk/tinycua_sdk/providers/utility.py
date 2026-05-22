@@ -7,7 +7,6 @@ lives here.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -16,13 +15,7 @@ if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_client import LLMClient
     from tinycua_sdk.agent.llm_model import LanguageModel
 
-from tinycua_sdk.providers.constants import (
-    DEFAULT_BASE_URL,
-    OPENAI_BASE_URL,
-    OPENAI_CHAT_COMPLETIONS,
-    OPENAI_RESPONSES,
-    _PROVIDER_ALIASES,
-)
+from tinycua_sdk.providers.constants import _PROVIDER_ALIASES
 
 logger = logging.getLogger(__name__)
 
@@ -56,37 +49,25 @@ def resolve_provider(provider: str) -> str:
     return canonical
 
 
-def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> str:
-    """Normalize a base URL.
+def normalize_base_url(url: str) -> str:
+    """Normalize a base URL by stripping trailing slash.
 
-    - If None/empty, checks ``TINYCUA_BASE_URL`` then ``LLM_BASE_URL`` env vars.
-    - Falls back to provider-specific defaults when no env var is set.
-    - Strips trailing slash to prevent double slashes.
-    - Does NOT append /v1 (user must provide full URL).
+    Pure URL normalizer — does NOT resolve environment variables or provider
+    defaults. Each provider client is responsible for its own resolution.
 
     Args:
-        url: Raw base URL.
-        provider: Provider name for provider-specific defaults.
+        url: Raw base URL (must not be None/empty).
 
     Returns:
-        Normalized base URL.
+        Normalized base URL with trailing slash removed.
 
     Example:
-        >>> normalize_base_url(None, "openai")
-        'https://api.openai.com/v1'
-        >>> normalize_base_url(None, "openai-responses")
-        'https://api.openai.com/v1'
-        >>> normalize_base_url(None, "openai-compatible")
+        >>> normalize_base_url("http://localhost:1234/v1/")
         'http://localhost:1234/v1'
+        >>> normalize_base_url("https://api.openai.com/v1")
+        'https://api.openai.com/v1'
 
     """
-    if not url:
-        env_url = os.environ.get("TINYCUA_BASE_URL") or os.environ.get("LLM_BASE_URL")
-        if env_url:
-            return env_url.rstrip("/")
-        if provider in (OPENAI_RESPONSES, OPENAI_CHAT_COMPLETIONS, "openai"):
-            return OPENAI_BASE_URL
-        return DEFAULT_BASE_URL
     return url.rstrip("/")
 
 

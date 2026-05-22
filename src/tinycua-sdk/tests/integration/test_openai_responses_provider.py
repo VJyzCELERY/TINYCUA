@@ -11,8 +11,9 @@ from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY not set; skipping Responses integration tests",
+    not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("TINYCUA_MODEL"),
+    reason="Neither OPENAI_RESPONSES_MODEL nor TINYCUA_MODEL set; "
+    "skipping Responses integration tests",
 )
 
 
@@ -20,10 +21,27 @@ pytestmark = pytest.mark.skipif(
 async def test_responses_image_attachment_returns_non_empty_response():
     """Sending an image attachment through the Responses provider yields a
     non-empty assistant response from a vision-capable model."""
+    from tests.integration.conftest import resolve_integration_llm_config
+
+    config = resolve_integration_llm_config()
     model = LanguageModel(
-        model_name=os.getenv("OPENAI_RESPONSES_MODEL", "gpt-4o-mini"),
         provider="openai-responses",
+        model_name=os.getenv("OPENAI_RESPONSES_MODEL", config.model),
+        base_url=config.base_url,
+        api_key=config.api_key,
     )
+
+    # Also set environment variables so _get_client() works if it
+    # resolves lazily (e.g. when base_url is None in a new session)
+    old_responses_base = os.environ.get("OPENAI_RESPONSES_BASE_URL")
+    old_responses_api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
+    old_tinycua_base = os.environ.get("TINYCUA_BASE_URL")
+    old_tinycua_api_key = os.environ.get("TINYCUA_API_KEY")
+    os.environ["OPENAI_RESPONSES_BASE_URL"] = config.base_url
+    os.environ["OPENAI_RESPONSES_API_KEY"] = config.api_key
+    os.environ["TINYCUA_BASE_URL"] = config.base_url
+    os.environ["TINYCUA_API_KEY"] = config.api_key
+
     client = OpenAIResponsesClient(model)
     try:
         attachment = FileAttachment.from_bytes(
@@ -45,16 +63,36 @@ async def test_responses_image_attachment_returns_non_empty_response():
         assert len(result["content"]) > 0
     finally:
         await client.close()
+        # Restore env vars (in case they were set by a parent fixture)
+        _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
+        _restore_env("OPENAI_RESPONSES_API_KEY", old_responses_api_key)
+        _restore_env("TINYCUA_BASE_URL", old_tinycua_base)
+        _restore_env("TINYCUA_API_KEY", old_tinycua_api_key)
 
 
 @pytest.mark.asyncio
 async def test_responses_content_part_image_returns_non_empty_response():
     """Sending a ContentPart image through the Responses provider yields a
     non-empty assistant response."""
+    from tests.integration.conftest import resolve_integration_llm_config
+
+    config = resolve_integration_llm_config()
     model = LanguageModel(
-        model_name=os.getenv("OPENAI_RESPONSES_MODEL", "gpt-4o-mini"),
         provider="openai-responses",
+        model_name=os.getenv("OPENAI_RESPONSES_MODEL", config.model),
+        base_url=config.base_url,
+        api_key=config.api_key,
     )
+
+    old_responses_base = os.environ.get("OPENAI_RESPONSES_BASE_URL")
+    old_responses_api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
+    old_tinycua_base = os.environ.get("TINYCUA_BASE_URL")
+    old_tinycua_api_key = os.environ.get("TINYCUA_API_KEY")
+    os.environ["OPENAI_RESPONSES_BASE_URL"] = config.base_url
+    os.environ["OPENAI_RESPONSES_API_KEY"] = config.api_key
+    os.environ["TINYCUA_BASE_URL"] = config.base_url
+    os.environ["TINYCUA_API_KEY"] = config.api_key
+
     client = OpenAIResponsesClient(model)
     try:
         attachment = FileAttachment.from_bytes(
@@ -76,3 +114,15 @@ async def test_responses_content_part_image_returns_non_empty_response():
         assert len(result["content"]) > 0
     finally:
         await client.close()
+        _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
+        _restore_env("OPENAI_RESPONSES_API_KEY", old_responses_api_key)
+        _restore_env("TINYCUA_BASE_URL", old_tinycua_base)
+        _restore_env("TINYCUA_API_KEY", old_tinycua_api_key)
+
+
+def _restore_env(key: str, old_val: str | None) -> None:
+    """Restore an env var to its previous value or delete it."""
+    if old_val is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = old_val
