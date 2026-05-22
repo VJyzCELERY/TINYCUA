@@ -4,6 +4,8 @@ Provides a centralized LLM config resolver and gateable provider probes.
 Probes only run when live LLM tests are actually collected (ISSUE-004).
 Model/provider resolution is consistent across conftest and tests (ISSUE-005).
 Readiness probes are provider-aware, using /responses or /chat/completions (ISSUE-006).
+Collection hook groups tests by ``@pytest.mark.provider(name)`` and probes each
+provider independently against its own env-var config (ISSUE-007).
 """
 
 from __future__ import annotations
@@ -17,39 +19,68 @@ import pytest
 
 @dataclass(frozen=True)
 class IntegrationLLMConfig:
-    """Centralized LLM configuration resolved from environment variables.
-
-    Resolution order: TINYCUA_* vars first, then LLM_* fallbacks.
-    """
+    """Centralized LLM configuration resolved from environment variables."""
 
     provider: str = "openai-chat-completions"
     model: str = ""
     base_url: str = "http://localhost:1234/v1"
-    api_key: str = "dummy"
+    api_key: str = ""
 
 
-def resolve_integration_llm_config() -> IntegrationLLMConfig:
+def resolve_integration_llm_config(
+    provider: str | None = None,
+) -> IntegrationLLMConfig:
     """Resolve integration test LLM config from environment variables.
 
-    Uses TINYCUA_* vars first, falls back to LLM_* vars for compatibility,
-    then to sensible defaults.
+    Args:
+        provider: Optional explicit provider name.
+            When provided, skip auto-detection and resolve only that
+            provider's env vars. When None (default), uses LLM_PROVIDER
+            env var or defaults to ``openai-chat-completions``.
+            Provider-specific integration tests (e.g. Responses API)
+            must force their provider explicitly.
+
+    Resolution mirrors the runtime provider clients:
+    - Provider-specific env vars take precedence over LLM_* fallbacks.
+    - Base URL: provider-specific > LLM_BASE_URL > localhost default.
+    - API key: provider-specific only (no generic API key fallback).
+    - Model: provider-specific > LLM_MODEL > empty string default.
     """
-    return IntegrationLLMConfig(
-        provider=os.environ.get(
-            "TINYCUA_PROVIDER", os.environ.get("LLM_PROVIDER", "openai-chat-completions")
-        ),
-        model=os.environ.get(
-            "TINYCUA_MODEL",
-            os.environ.get("LLM_MODEL", ""),
-        ),
-        base_url=os.environ.get(
-            "TINYCUA_BASE_URL",
+    if provider:
+        pass  # Use the explicitly provided provider
+    else:
+        provider = os.environ.get("LLM_PROVIDER", "")
+        if not provider:
+            # Default to openai-chat-completions when no explicit
+            # provider is specified.  Provider-specific integration
+            # tests must force their provider explicitly (e.g.
+            # resolve_integration_llm_config("openai-responses")).
+            provider = "openai-chat-completions"
+
+    if provider == "openai-responses":
+        model = os.environ.get(
+            "OPENAI_RESPONSES_MODEL", os.environ.get("LLM_MODEL", "")
+        )
+        base_url = os.environ.get(
+            "OPENAI_RESPONSES_BASE_URL",
             os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        ),
-        api_key=os.environ.get(
-            "TINYCUA_API_KEY",
-            os.environ.get("LLM_API_KEY", "dummy"),
-        ),
+        )
+        api_key = os.environ.get("OPENAI_RESPONSES_API_KEY", "")
+    else:
+        model = os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_MODEL", os.environ.get("LLM_MODEL", "")
+        )
+        base_url = os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        )
+        api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY", "")
+
+    return IntegrationLLMConfig(
+        provider=provider,
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
     )
 
 
@@ -63,14 +94,19 @@ def pytest_configure(config):
         "integration_tool_choice: marks tests requiring forced tool_choice support "
         "(auto-skipped when provider rejects the payload or model does not call a tool)",
     )
+    config.addinivalue_line(
+        "markers",
+        "provider(provider_name): declares which LLM provider a test uses "
+        "(e.g. openai-chat-completions, openai-responses). "
+        "Tests without this marker default to openai-chat-completions.",
+    )
 
 
 def _build_auth_headers(api_key: str | None = None) -> dict[str, str]:
-    """Build auth headers matching OpenAICompatibleClient logic."""
-    key = api_key or os.environ.get("LLM_API_KEY", "")
+    """Build auth headers matching provider client logic."""
     headers: dict[str, str] = {}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     return headers
 
 
@@ -241,8 +277,36 @@ def _probe_tool_choice(base_url: str, model: str, headers: dict, provider: str) 
         return False
 
 
+def _resolve_item_provider(item) -> str:
+    """Return the provider name for a collected test item.
+
+    Reads the ``provider`` marker argument. Tests without the marker
+    default to ``openai-chat-completions``.
+    """
+    provider_marker = item.get_closest_marker("provider")
+    if provider_marker and provider_marker.args:
+        return provider_marker.args[0]
+    return "openai-chat-completions"
+
+
+def _group_by_provider(items: list) -> dict[str, list]:
+    """Group collected test items by their declared provider."""
+    from collections import defaultdict
+
+    groups: dict[str, list] = defaultdict(list)
+    for item in items:
+        groups[_resolve_item_provider(item)].append(item)
+    return dict(groups)
+
+
 def pytest_collection_modifyitems(config, items):
     """Skip integration tests when LLM server is unreachable or incompatible.
+
+    Provider-aware collection probe: tests are grouped by their declared
+    provider (via ``@pytest.mark.provider(name)``). Each provider group is
+    probed independently against its own configuration so that
+    provider-specific environment variables (e.g. ``OPENAI_RESPONSES_*``)
+    correctly gate only that provider's tests.
 
     Only probes when live LLM tests (``integration`` marker) are collected.
     Tool-choice probe is further gated to tests with the
@@ -261,24 +325,32 @@ def pytest_collection_modifyitems(config, items):
     if not live_items:
         return
 
-    cfg = resolve_integration_llm_config()
-    headers = _build_auth_headers(cfg.api_key)
+    # Group items by their declared provider
+    provider_groups = _group_by_provider(live_items)
+    tc_groups = _group_by_provider(tool_choice_items)
 
-    reachable = _probe_server(cfg.base_url, cfg.model, headers, cfg.provider)
-    tool_choice_supported = (
-        reachable
-        and tool_choice_items
-        and _probe_tool_choice(cfg.base_url, cfg.model, headers, cfg.provider)
-    )
+    for provider, provider_items in provider_groups.items():
+        cfg = resolve_integration_llm_config(provider)
+        headers = _build_auth_headers(cfg.api_key)
 
-    if not reachable:
-        skip_mark = pytest.mark.skip(reason="LLM server not reachable/unusable")
-        for item in live_items:
-            item.add_marker(skip_mark)
-    elif not tool_choice_supported:
-        skip_tc_mark = pytest.mark.skip(
-            reason="LLM server does not support forced tool_choice — skipping "
-            "tool-choice integration tests"
+        reachable = _probe_server(cfg.base_url, cfg.model, headers, cfg.provider)
+        tc_items = tc_groups.get(provider, [])
+        tool_choice_supported = (
+            reachable
+            and tc_items
+            and _probe_tool_choice(cfg.base_url, cfg.model, headers, cfg.provider)
         )
-        for item in tool_choice_items:
-            item.add_marker(skip_tc_mark)
+
+        if not reachable:
+            skip_mark = pytest.mark.skip(
+                reason=f"LLM server not reachable/unusable for {provider}"
+            )
+            for item in provider_items:
+                item.add_marker(skip_mark)
+        elif not tool_choice_supported:
+            skip_tc_mark = pytest.mark.skip(
+                reason="LLM server does not support forced tool_choice — skipping "
+                "tool-choice integration tests"
+            )
+            for item in tc_items:
+                item.add_marker(skip_tc_mark)

@@ -145,6 +145,7 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 
 @pytest.mark.integration
+@pytest.mark.provider("openai-chat-completions")
 @pytest.mark.asyncio
 async def test_openai_chat_completions_attachment_sends_image():
     """A user message with a multi-color image FileAttachment is sent through
@@ -172,7 +173,7 @@ async def test_openai_chat_completions_attachment_sends_image():
     # Color keywords expected from the multi-color fixture
     _COLOR_KEYWORDS = ("red", "green", "blue", "yellow")
 
-    config = resolve_integration_llm_config()
+    config = resolve_integration_llm_config("openai-chat-completions")
 
     # Build a LanguageModel with the resolved config
     model = LanguageModel(
@@ -183,14 +184,10 @@ async def test_openai_chat_completions_attachment_sends_image():
     )
 
     # Also set environment variables so _get_client() works
-    old_provider = os.environ.get("TINYCUA_PROVIDER")
-    old_model = os.environ.get("TINYCUA_MODEL")
-    old_base_url = os.environ.get("TINYCUA_BASE_URL")
-    old_api_key = os.environ.get("TINYCUA_API_KEY")
-    os.environ["TINYCUA_PROVIDER"] = "openai-chat-completions"
-    os.environ["TINYCUA_MODEL"] = config.model
-    os.environ["TINYCUA_BASE_URL"] = config.base_url
-    os.environ["TINYCUA_API_KEY"] = config.api_key
+    old_base_url = os.environ.get("OPENAI_CHAT_COMPLETIONS_BASE_URL")
+    old_api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY")
+    os.environ["OPENAI_CHAT_COMPLETIONS_BASE_URL"] = config.base_url
+    os.environ["OPENAI_CHAT_COMPLETIONS_API_KEY"] = config.api_key
 
     try:
         client = OpenAIChatCompletionsClient(model)
@@ -221,13 +218,13 @@ async def test_openai_chat_completions_attachment_sends_image():
             f"got: {response['content']!r}"
         )
     finally:
-        for key, old_val in (
-            ("TINYCUA_PROVIDER", old_provider),
-            ("TINYCUA_MODEL", old_model),
-            ("TINYCUA_BASE_URL", old_base_url),
-            ("TINYCUA_API_KEY", old_api_key),
-        ):
-            if old_val is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = old_val
+        _restore_env("OPENAI_CHAT_COMPLETIONS_BASE_URL", old_base_url)
+        _restore_env("OPENAI_CHAT_COMPLETIONS_API_KEY", old_api_key)
+
+
+def _restore_env(key: str, old_val: str | None) -> None:
+    """Restore an env var to its previous value or delete it."""
+    if old_val is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = old_val

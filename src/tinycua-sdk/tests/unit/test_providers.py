@@ -2,7 +2,6 @@
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.providers.constants import DEFAULT_BASE_URL
 from tinycua_sdk.providers.utility import normalize_base_url, resolve_provider
 
 
@@ -34,10 +33,6 @@ class TestProviderResolution:
 class TestBaseUrlNormalization:
     """Tests for base URL normalization."""
 
-    def test_normalize_base_url_default(self):
-        """None should return DEFAULT_BASE_URL."""
-        assert normalize_base_url(None) == DEFAULT_BASE_URL
-
     def test_normalize_base_url_with_v1(self):
         """URL with /v1 should stay the same."""
         assert (
@@ -51,9 +46,16 @@ class TestBaseUrlNormalization:
             == "http://localhost:1234/v1"
         )
 
+    def test_normalize_base_url_multiple_trailing_slashes(self):
+        """Multiple trailing slashes should all be stripped."""
+        assert (
+            normalize_base_url("http://localhost:1234/v1///")
+            == "http://localhost:1234/v1"
+        )
+
     def test_normalize_base_url_empty_string(self):
-        """Empty string should return DEFAULT_BASE_URL."""
-        assert normalize_base_url("") == DEFAULT_BASE_URL
+        """Empty string should remain empty (pure normalizer)."""
+        assert normalize_base_url("") == ""
 
 
 class TestProviderDefaults:
