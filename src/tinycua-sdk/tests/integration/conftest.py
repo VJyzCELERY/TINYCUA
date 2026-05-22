@@ -33,8 +33,10 @@ def resolve_integration_llm_config(
     Args:
         provider: Optional explicit provider name.
             When provided, skip auto-detection and resolve only that
-            provider's env vars. When None (default), auto-detect from
-            LLM_PROVIDER env var or provider-specific env vars.
+            provider's env vars. When None (default), uses LLM_PROVIDER
+            env var or defaults to ``openai-chat-completions``.
+            Provider-specific integration tests (e.g. Responses API)
+            must force their provider explicitly.
 
     Resolution mirrors the runtime provider clients:
     - Provider-specific env vars take precedence over LLM_* fallbacks.
@@ -47,17 +49,11 @@ def resolve_integration_llm_config(
     else:
         provider = os.environ.get("LLM_PROVIDER", "")
         if not provider:
-            # Auto-detect from provider-specific env vars
-            if os.environ.get("OPENAI_RESPONSES_MODEL") or os.environ.get(
-                "OPENAI_RESPONSES_API_KEY"
-            ):
-                provider = "openai-responses"
-            elif os.environ.get("OPENAI_CHAT_COMPLETIONS_MODEL") or os.environ.get(
-                "OPENAI_CHAT_COMPLETIONS_API_KEY"
-            ):
-                provider = "openai-chat-completions"
-            else:
-                provider = "openai-chat-completions"
+            # Default to openai-chat-completions when no explicit
+            # provider is specified.  Provider-specific integration
+            # tests must force their provider explicitly (e.g.
+            # resolve_integration_llm_config("openai-responses")).
+            provider = "openai-chat-completions"
 
     if provider == "openai-responses":
         model = os.environ.get(
