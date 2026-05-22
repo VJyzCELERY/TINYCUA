@@ -27,6 +27,7 @@ export the resulting models to GGUF format for lightweight local inference.
 - **FR-010**: Configure all training parameters via CLI arguments.
 - **FR-011**: Inject special tool-call tokens and resize model embeddings before training.
 - **FR-012**: For vision-LMM mode, freeze the image encoder and apply LoRA to LLM components only.
+- **FR-013**: Train on all tokens in the sequence (not masked) to let the model learn full conversation structure, not just assistant responses.
 
 ---
 
