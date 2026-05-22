@@ -44,7 +44,7 @@ The provider must translate both canonical forms into Responses-native multimoda
 - Message-level attachments must be appended after explicit `content: list[ContentPart]` parts when both forms are supplied.
 - Existing tool-call, tool-result, `previous_response_id`, streaming, and raw event behavior must not regress.
 - Provider-specific unsupported attachment forms or MIME types must fail clearly before a provider request is made, unless the provider can safely accept them.
-- Each provider must resolve its own `base_url` and `api_key` from provider-specific environment variables, with `LLM_*` fallback, so callers can configure provider endpoints without modifying `LanguageModel` construction.
+- Each provider must resolve its own `base_url` from provider-specific environment variables with `LLM_BASE_URL` fallback, and its own `api_key` from provider-specific environment variables only (no generic `LLM_API_KEY` fallback), so callers can configure provider endpoints without modifying `LanguageModel` construction.
 
 ---
 
@@ -163,7 +163,7 @@ A developer builds an agent using the default `openai-responses` provider and a 
 | Per-session file ID cache | Done | `_file_id_cache` dict on `OpenAIResponsesClient` instance |
 | Unit tests | Done | `tests/unit/test_llm_client.py` — 64 pass |
 | Integration test | Done | `tests/integration/test_openai_responses_provider.py` — guarded by `OPENAI_RESPONSES_MODEL` / `LLM_MODEL` |
-| Per-provider env var resolution | Done | Each provider resolves its own `base_url`/`api_key` from provider-specific env vars (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) with `LLM_*` fallback |
+| Per-provider env var resolution | Done | Each provider resolves its own `base_url` from provider-specific env vars (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) with `LLM_BASE_URL` fallback; API keys are provider-specific only (no generic fallback) |
 | `normalize_base_url()` refactor | Done | Now a pure URL normalizer — no env resolution |
 | Persistent cache / large-file streaming | Deferred | Broader Phase 5 scope |
 

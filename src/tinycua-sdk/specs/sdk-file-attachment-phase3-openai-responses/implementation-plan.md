@@ -13,7 +13,7 @@ Extend the `OpenAIResponsesClient` message translation path so canonical Phase 1
 
 ### Configuration
 
-- [x] **Provider-specific env vars** — each provider resolves `base_url` and `api_key` from its own env vars (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) with `LLM_*` fallback
+- [x] **Provider-specific env vars** — each provider resolves `base_url` from its own env vars (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) with `LLM_BASE_URL` fallback; API keys are provider-specific only (no generic fallback)
 - [x] **`.env.example`** — documents `OPENAI_RESPONSES_BASE_URL`, `OPENAI_RESPONSES_API_KEY`, `OPENAI_RESPONSES_MODEL`, `OPENAI_CHAT_COMPLETIONS_BASE_URL`, `OPENAI_CHAT_COMPLETIONS_API_KEY`, `OPENAI_CHAT_COMPLETIONS_MODEL`
 - [x] **`.env.test.example`** — sets provider-specific vars to localhost defaults for local-LLM testing
 
@@ -179,7 +179,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
 | `OpenAIResponsesClient` | Modify | Add `_file_id_cache`, instance-aware message translation, upload helper |
 | `_translate_messages()` | Modify | Extend to handle `UserMessage` with `ContentPart` or `attachments` |
 | `normalize_base_url()` utility | Refactor | Pure URL normalizer — strip trailing slash only; env resolution moved to per-provider `_get_client()` |
-| `OpenAIResponsesClient._get_client()` | Modify | Resolve `base_url`/`api_key` from `OPENAI_RESPONSES_*` env vars with `LLM_*` fallback |
+| `OpenAIResponsesClient._get_client()` | Modify | Resolve `base_url` from `OPENAI_RESPONSES_*` env vars with `LLM_BASE_URL` fallback; API key is provider-specific only |
 | `OpenAIChatCompletionsClient._get_client()` | Modify | Match pattern — resolve from `OPENAI_CHAT_COMPLETIONS_*` env vars |
 | `_translate_responses_user_message()` | New (async) | Normalize user messages with attachments/ContentPart to Responses content list — awaits attachment translation |
 | `_translate_responses_content_part()` | New (async) | Map `ContentPart` to Responses-native content part — awaits attachment translation for file parts |
