@@ -7,6 +7,57 @@ will be added separately.
 
 ## Quick Start
 
+### Agent Convenience API — File Attachments
+
+The `Agent.run()` method accepts file attachments via the optional
+`file_attachments` parameter and supports multimodal `ContentPart` queries.
+`FileAttachment` and `ContentPart` are importable from the top-level
+`tinycua_sdk` namespace.
+
+```python
+from tinycua_sdk import Agent, FileAttachment, ContentPart
+
+agent = Agent(
+    name="vision-assistant",
+    instructions="You are a helpful assistant.",
+)
+
+# Attach a file to a text query
+attachment = FileAttachment.from_path("screenshot.png")
+response = await agent.run(
+    "Describe this image in detail.",
+    file_attachments=[attachment],
+)
+
+# Use ContentPart for explicit multimodal input
+parts = [
+    ContentPart(type="text", text="Compare these photos:"),
+    ContentPart(
+        type="file",
+        file=FileAttachment.from_path("photo1.jpg"),
+    ),
+    ContentPart(
+        type="file",
+        file=FileAttachment.from_path("photo2.jpg"),
+    ),
+]
+response = await agent.run(parts)
+
+# Streaming is also supported
+stream = await agent.run(
+    "Describe this",
+    file_attachments=[attachment],
+    stream=True,
+)
+async for event in stream:
+    print(event)
+```
+
+Message shapes produced internally:
+- `str` query + attachments → `{"role": "user", "content": str, "attachments": [FileAttachment]}`  
+- `list[ContentPart]` query → `{"role": "user", "content": [ContentPart]}`  
+- `list[ContentPart]` query + attachments → merged `{"role": "user", "content": merged_parts}`
+
 ### OpenAI Responses Provider — File & Image Attachments
 
 The `openai-responses` provider supports canonical `FileAttachment` objects

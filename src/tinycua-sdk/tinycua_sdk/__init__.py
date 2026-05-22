@@ -9,6 +9,7 @@ from tinycua_sdk.agent import (
     LanguageModel,
     LLMClient,
 )
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool, tool
@@ -19,6 +20,8 @@ __all__ = [
     "AgentExecutor",
     "AgentPolicy",
     "BaseLoop",
+    "ContentPart",
+    "FileAttachment",
     "LanguageModel",
     "LLMClient",
     "Skill",

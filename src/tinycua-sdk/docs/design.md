@@ -150,13 +150,13 @@ elif query is list[ContentPart]:
 
 ### Phase 1 — MVP
 
-- [ ] Extend `Agent.run()` signature with `file_attachments` parameter and `query: str | list[ContentPart]`
-- [ ] Implement message construction logic in `Agent.run()`
-- [ ] Add `FileAttachment` and `ContentPart` to `tinycua_sdk/__init__.py` public exports
-- [ ] Write unit tests for all message construction paths
-- [ ] Write unit tests for validation errors (invalid types in `file_attachments`)
-- [ ] Write unit tests for backward compatibility (existing `str` query, no attachments)
-- [ ] Verify streaming mode works with `file_attachments` via unit test
+- [x] Extend `Agent.run()` signature with `file_attachments` parameter and `query: str | list[ContentPart]`
+- [x] Implement message construction logic in `Agent.run()`
+- [x] Add `FileAttachment` and `ContentPart` to `tinycua_sdk/__init__.py` public exports
+- [x] Write unit tests for all message construction paths
+- [x] Write unit tests for validation errors (invalid types in `file_attachments`)
+- [x] Write unit tests for backward compatibility (existing `str` query, no attachments)
+- [x] Verify streaming mode works with `file_attachments` via unit test
 
 ### Phase 2 — Integration (post-MVP)
 

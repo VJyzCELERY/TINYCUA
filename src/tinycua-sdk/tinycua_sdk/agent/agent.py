@@ -13,6 +13,7 @@ from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.agent.loop import BaseLoop
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 
 if TYPE_CHECKING:
     from tinycua_sdk.security.approval import ApprovalWorkflow
@@ -116,29 +117,92 @@ class Agent(AgentExecutor):
 
     async def run(
         self,
-        query: str,
+        query: str | list[ContentPart],
         messages: list[dict] | None = None,
         instructions: str | None = None,
         stream: bool = False,
+        file_attachments: list[FileAttachment] | None = None,
     ) -> str | AsyncIterator[dict]:
-        """Run the agent with a query.
+        """Run the agent with a query, optionally including file attachments.
 
         Args:
-            query: The user query string.
+            query: The user query — either a plain string or a list of
+                ContentPart objects for multimodal input.
             messages: Optional message history to prepend.
             instructions: Optional instructions override.
-            stream: If True, returns an async iterator of SDK-normalized stream events.
+            stream: If True, returns an async iterator of SDK-normalized
+                stream events.
+            file_attachments: Optional list of FileAttachment objects to
+                include with the user message.
 
         Returns:
             Final response string when stream=False, or an async iterator
             of event dicts when streaming.
+
+        Raises:
+            TypeError: If query is neither str nor list[ContentPart], or if
+                file_attachments contains non-FileAttachment items.
         """
+        # Validate query type
+        if isinstance(query, str):
+            pass  # str queries are always valid
+        elif isinstance(query, list):
+            if not query:
+                raise TypeError(
+                    "query must not be an empty list; provide at least one "
+                    "ContentPart or use a string query with file_attachments."
+                )
+            for i, item in enumerate(query):
+                if not isinstance(item, ContentPart):
+                    raise TypeError(
+                        f"Each item in query list must be a ContentPart; "
+                        f"item at index {i} is {type(item).__name__}."
+                    )
+        else:
+            raise TypeError(
+                f"query must be str or list[ContentPart], "
+                f"got {type(query).__name__}."
+            )
+
+        # Validate file_attachments
+        if file_attachments is not None:
+            for i, att in enumerate(file_attachments):
+                if att is None or not isinstance(att, FileAttachment):
+                    raise TypeError(
+                        f"Each item in file_attachments must be a "
+                        f"FileAttachment; item at index {i} is "
+                        f"{type(att).__name__}."
+                    )
+
+        # Build user message dict
+        user_msg: dict[str, Any]
+        if isinstance(query, str):
+            if file_attachments:
+                user_msg = {
+                    "role": "user",
+                    "content": query,
+                    "attachments": file_attachments,
+                }
+            else:
+                user_msg = {"role": "user", "content": query}
+        else:
+            # query is list[ContentPart]
+            if file_attachments:
+                # Merge file_attachments as ContentPart(type="file") entries
+                file_parts = [
+                    ContentPart(type="file", file=a) for a in file_attachments
+                ]
+                merged = list(query) + file_parts
+                user_msg = {"role": "user", "content": merged}
+            else:
+                user_msg = {"role": "user", "content": query}
+
         if not isinstance(stream, bool):
             raise TypeError(
                 f"stream must be a bool, got {type(stream).__name__}"
             )
         loop = self.config.loop or BaseLoop()
-        msgs = (messages or []) + [{"role": "user", "content": query}]
+        msgs = (messages or []) + [user_msg]
         try:
             result = await loop.run(self, msgs, self.tools, instructions, stream=stream)
         finally:
