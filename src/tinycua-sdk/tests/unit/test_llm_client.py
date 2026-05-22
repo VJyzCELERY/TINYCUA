@@ -1115,6 +1115,35 @@ class TestUploadCache:
         key3 = _make_upload_cache_key(att3)
         assert key1 == key3
 
+    @pytest.mark.asyncio
+    async def test_empty_data_backed_attachment_uploads_instead_of_rejecting(
+        self, model,
+    ):
+        """Empty data-backed (zero-byte) attachment reaches upload, not ValueError.
+
+        Regression test for ISSUE-001: ``FileAttachment.from_bytes(b"", ...)``
+        produces ``data=""`` (a valid base64 of empty bytes).  The guard
+        should only reject ``data is None``, not falsey strings.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = OpenAIResponsesClient(model)
+        mock_openai = MagicMock()
+        mock_openai.files = MagicMock()
+        uploaded = MagicMock()
+        uploaded.id = "file_empty"
+        mock_openai.files.create = AsyncMock(return_value=uploaded)
+        client._client = mock_openai
+
+        attachment = FileAttachment.from_bytes(
+            b"",
+            mime_type="application/pdf",
+            filename="empty.pdf",
+        )
+        file_id = await client._ensure_uploaded_file_id(attachment)
+        assert file_id == "file_empty"
+        mock_openai.files.create.assert_awaited_once()
+
 
 class TestRegressionResponses:
     """Regression tests for Responses provider (task 4)."""

@@ -793,7 +793,7 @@ class OpenAIResponsesClient(LLMClient):
         Raises:
             ValueError: If the attachment has no ``data`` source.
         """
-        if not attachment.data:
+        if attachment.data is None:
             raise ValueError(
                 "_ensure_uploaded_file_id requires a data-backed attachment"
             )
