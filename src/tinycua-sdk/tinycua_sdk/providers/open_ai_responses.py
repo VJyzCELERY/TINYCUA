@@ -942,7 +942,7 @@ class OpenAIResponsesClient(LLMClient):
             kwargs = self._build_request_kwargs(translated_input, tools)
             client = self._get_client()
             response = await client.responses.create(**kwargs)
-        except ValueError:
+        except (ValueError, ProviderApiError, ProviderAuthError):
             raise
         except Exception as e:
             self._handle_provider_error(e)
@@ -964,7 +964,7 @@ class OpenAIResponsesClient(LLMClient):
             kwargs["stream"] = True
             client = self._get_client()
             stream = await client.responses.create(**kwargs)
-        except ValueError:
+        except (ValueError, ProviderApiError, ProviderAuthError):
             raise
         except Exception as e:
             self._handle_provider_error(e)

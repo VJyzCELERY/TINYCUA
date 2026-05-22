@@ -61,7 +61,7 @@ msg = {"role": "user", "content": parts}
 
 | Source | Image (`image/*`) | Non-image | Notes |
 |--------|--------------------|-----------|-------|
-| **data** (base64) | `input_image` — inline data URL, `detail="auto"` | `input_file` — auto-uploaded | Uploads are cached per-session |
+| **data** (base64) | `input_image` — inline data URL, `detail="auto"` | `input_file` — auto-uploaded | Non-image data uploads are cached per client session; image data is sent inline and is not uploaded. |
 | **url** | `input_image` — URL reference, `detail="auto"` | ❌ Rejected (`ValueError`) | Non-image URL download deferred to Phase 5 |
 | **file_id** | `input_image` — file_id, `detail="auto"` | `input_file` — file_id reference | No upload needed |
 
