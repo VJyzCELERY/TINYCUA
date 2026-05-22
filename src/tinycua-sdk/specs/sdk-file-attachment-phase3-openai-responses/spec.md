@@ -2,7 +2,7 @@
 
 **Status**: Complete
 **Created**: 2026-05-21
-**Last Updated**: 2026-05-21
+**Last Updated**: 2026-05-22
 **Subproject(s) Affected**: tinycua-sdk
 
 ---
@@ -108,17 +108,17 @@ A developer builds an agent using the default `openai-responses` provider and a 
 
 ## Success Criteria
 
-- [ ] **Explicit multipart content works**: A user message with `list[ContentPart]` containing text and file attachments translates to provider-native Responses content parts.
-- [ ] **Basic attachments shape works**: A user message with `content: str` and `attachments` translates to provider-native text followed by attachment content parts.
-- [ ] **Inline image data works**: Base64-backed image attachments become valid Responses image inputs.
-- [ ] **Image URLs work**: URL-backed image attachments remain URL references in Responses payloads.
-- [ ] **File IDs work**: Pre-existing or cached `file_id` values are reused without re-upload.
-- [ ] **Upload cache works**: Reusing the same upload-required attachment in one session uploads once and reuses the cached `file_id` later.
-- [ ] **Ordering is preserved**: Explicit multipart content and multiple attachments retain caller-specified order.
-- [ ] **Mixed input ordering is preserved**: When both `list[ContentPart]` and `attachments` are present, explicit content parts appear first followed by message-level attachment parts.
-- [ ] **Backward compatibility holds**: Existing string-only Responses payload tests continue to pass unchanged.
-- [ ] **Unsupported inputs fail clearly**: Invalid or unsupported attachment shapes are rejected before the request is sent.
-- [ ] **Integration path is covered**: A guarded integration test documents and verifies image attachment use with a vision-capable OpenAI Responses model.
+- [x] **Explicit multipart content works**: A user message with `list[ContentPart]` containing text and file attachments translates to provider-native Responses content parts.
+- [x] **Basic attachments shape works**: A user message with `content: str` and `attachments` translates to provider-native text followed by attachment content parts.
+- [x] **Inline image data works**: Base64-backed image attachments become valid Responses image inputs.
+- [x] **Image URLs work**: URL-backed image attachments remain URL references in Responses payloads.
+- [x] **File IDs work**: Pre-existing or cached `file_id` values are reused without re-upload.
+- [x] **Upload cache works**: Reusing the same upload-required attachment in one session uploads once and reuses the cached `file_id` later.
+- [x] **Ordering is preserved**: Explicit multipart content and multiple attachments retain caller-specified order.
+- [x] **Mixed input ordering is preserved**: When both `list[ContentPart]` and `attachments` are present, explicit content parts appear first followed by message-level attachment parts.
+- [x] **Backward compatibility holds**: Existing string-only Responses payload tests continue to pass unchanged.
+- [x] **Unsupported inputs fail clearly**: Invalid or unsupported attachment shapes are rejected before the request is sent.
+- [x] **Integration path is covered**: A guarded integration test documents and verifies image attachment use with a vision-capable OpenAI Responses model.
 
 ---
 
@@ -156,11 +156,11 @@ A developer builds an agent using the default `openai-responses` provider and a 
 | Item | Status | Notes |
 |------|--------|-------|
 | Spec & Design | Done | Ready for implementation |
-| Responses attachment translation | TODO | Phase 3 implementation |
-| File upload integration | TODO | Provider-specific upload path |
-| Per-session file ID cache | TODO | Cache scope limited to provider-client session |
-| Unit tests | TODO | Must be written before implementation |
-| Integration test | TODO | Guarded by environment configuration |
+| Responses attachment translation | Done | Implemented in `open_ai_responses.py:_translate_responses_user_message()` |
+| File upload integration | Done | Provider-specific upload path via `_ensure_uploaded_file_id()` in `open_ai_responses.py` |
+| Per-session file ID cache | Done | `_file_id_cache` dict on `OpenAIResponsesClient` instance |
+| Unit tests | Done | `tests/unit/test_llm_client.py` — 63 pass |
+| Integration test | Done | `tests/integration/test_openai_responses_provider.py` — guarded by `OPENAI_API_KEY` |
 | Persistent cache / large-file streaming | Deferred | Broader Phase 5 scope |
 
 ---
