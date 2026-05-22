@@ -15,25 +15,32 @@ uv run mypy tinycua_sdk/
 
 ## Integration Tests
 
-Integration tests for the OpenAI Responses provider require
-an `OPENAI_RESPONSES_API_KEY` environment variable. Integration
-tests for the OpenAI Chat Completions provider require an
-`OPENAI_CHAT_COMPLETIONS_API_KEY`. Copy the example
-env file and set your keys:
+Integration tests talk to a live LLM server. Provider-specific environment
+variables (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) take
+precedence over generic `LLM_*` fallbacks for base URL, model, and API key.
+
+API keys can be dummy values when using a local compatible server
+(e.g., LM Studio). Real API keys are only required when connecting to
+the actual OpenAI API.
+
+The committed template `.env.test.example` provides defaults (including
+dummy keys) and is auto-loaded by the test suite when no `.env.test` file
+exists. To override settings, copy and edit the template:
 
 ```bash
 cp .env.test.example .env.test
 ```
 
-Edit `.env.test` and set provider-specific API keys:
+Example overrides for local development:
 
 ```
-OPENAI_RESPONSES_API_KEY=sk-...
-OPENAI_CHAT_COMPLETIONS_API_KEY=sk-...
+OPENAI_RESPONSES_API_KEY=dummy
+OPENAI_CHAT_COMPLETIONS_API_KEY=dummy
 ```
 
-Tests are guarded and will skip automatically when the
-environment variable is not set:
+Integration tests are gated by provider reachability and model
+configuration — they skip automatically when the LLM server is
+unreachable or required model env vars are unset:
 
 ```bash
 uv run pytest tests/integration/

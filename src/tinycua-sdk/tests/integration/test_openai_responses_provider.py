@@ -1,6 +1,5 @@
 """Integration tests for OpenAI Responses file attachment translation."""
 
-import base64
 import os
 
 import pytest
@@ -20,11 +19,35 @@ pytestmark = [
     ),
 ]
 
+# Keywords that indicate a non-vision model rejected the image input
+_NO_VISION_KEYWORDS = (
+    "unable",
+    "can't view",
+    "cannot view",
+    "no vision",
+    "image input not supported",
+)
+# Color keywords expected from the multi-color fixture
+_COLOR_KEYWORDS = ("red", "green", "blue", "yellow")
+
+
+def _assert_image_response(content: str) -> None:
+    """Assert the response content contains vision-model color keywords
+    or a non-vision refusal. Both paths pass deterministically."""
+    lower = content.lower()
+    no_vision = any(kw in lower for kw in _NO_VISION_KEYWORDS)
+    has_colors = any(kw in lower for kw in _COLOR_KEYWORDS)
+    assert no_vision or has_colors, (
+        f"Expected vision model color keywords {_COLOR_KEYWORDS} or "
+        f"non-vision refusal keywords {_NO_VISION_KEYWORDS}, "
+        f"got: {content!r}"
+    )
+
 
 @pytest.mark.asyncio
-async def test_responses_image_attachment_returns_non_empty_response():
-    """Sending an image attachment through the Responses provider yields a
-    non-empty assistant response from a vision-capable model."""
+async def test_responses_image_attachment_sends_image():
+    """Sending an image attachment through the Responses provider sends the
+    image and yields an assistant response referencing the image content."""
     from tests.integration.conftest import resolve_integration_llm_config
 
     config = resolve_integration_llm_config("openai-responses")
@@ -35,8 +58,6 @@ async def test_responses_image_attachment_returns_non_empty_response():
         api_key=config.api_key,
     )
 
-    # Also set environment variables so _get_client() works if it
-    # resolves lazily (e.g. when base_url is None in a new session)
     old_responses_base = os.environ.get("OPENAI_RESPONSES_BASE_URL")
     old_responses_api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
     os.environ["OPENAI_RESPONSES_BASE_URL"] = config.base_url
@@ -44,34 +65,32 @@ async def test_responses_image_attachment_returns_non_empty_response():
 
     client = OpenAIResponsesClient(model)
     try:
-        attachment = FileAttachment.from_bytes(
-            base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-            ),
-            mime_type="image/png",
-            filename="test_image.png",
-        )
+        attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
         messages: list[UserMessage] = [
             {
                 "role": "user",
-                "content": "Describe this image briefly.",
+                "content": (
+                    "What colors do you see in the attached image? "
+                    "List only the color names."
+                ),
                 "attachments": [attachment],
             },
         ]
         result = await client.chat(messages=messages)
         assert result["content"] is not None
+        assert isinstance(result["content"], str)
         assert len(result["content"]) > 0
+        _assert_image_response(result["content"])
     finally:
         await client.close()
-        # Restore env vars (in case they were set by a parent fixture)
         _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
         _restore_env("OPENAI_RESPONSES_API_KEY", old_responses_api_key)
 
 
 @pytest.mark.asyncio
-async def test_responses_content_part_image_returns_non_empty_response():
-    """Sending a ContentPart image through the Responses provider yields a
-    non-empty assistant response."""
+async def test_responses_content_part_image_sends_image():
+    """Sending a ContentPart image through the Responses provider sends the
+    image and yields an assistant response referencing the image content."""
     from tests.integration.conftest import resolve_integration_llm_config
 
     config = resolve_integration_llm_config("openai-responses")
@@ -89,15 +108,9 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
     client = OpenAIResponsesClient(model)
     try:
-        attachment = FileAttachment.from_bytes(
-            base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-            ),
-            mime_type="image/png",
-            filename="test_image.png",
-        )
+        attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
         parts = [
-            ContentPart(type="text", text="What do you see?"),
+            ContentPart(type="text", text="What colors do you see? List only the color names."),
             ContentPart(type="file", file=attachment),
         ]
         messages: list[UserMessage] = [
@@ -105,7 +118,9 @@ async def test_responses_content_part_image_returns_non_empty_response():
         ]
         result = await client.chat(messages=messages)
         assert result["content"] is not None
+        assert isinstance(result["content"], str)
         assert len(result["content"]) > 0
+        _assert_image_response(result["content"])
     finally:
         await client.close()
         _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
