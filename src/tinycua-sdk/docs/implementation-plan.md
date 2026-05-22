@@ -161,11 +161,28 @@ class TestAgentRunFileAttachments:
             await agent.run("Hello", file_attachments=[None])
 
     @pytest.mark.asyncio
-    async def test_run_stream_with_file_attachments(self):
-        """Verify streaming works with file_attachments."""
+    async def test_run_invalid_query_type_raises_type_error(self):
+        """Verify TypeError when query is neither str nor list[ContentPart]."""
         agent = Agent(llm_model=LanguageModel())
+        with pytest.raises(TypeError, match="query"):
+            await agent.run(42)
+
+    @pytest.mark.asyncio
+    async def test_run_content_parts_query_rejects_non_content_part_items(self):
+        """Verify TypeError when list[ContentPart] query contains non-ContentPart items."""
+        agent = Agent(llm_model=LanguageModel())
+        with pytest.raises(TypeError, match="ContentPart"):
+            await agent.run(["not_a_content_part", "also_invalid"])
+
+    @pytest.mark.asyncio
+    async def test_run_stream_with_file_attachments(self):
+        """Verify streaming works with file_attachments and attachments reach the request."""
+        agent = Agent(llm_model=LanguageModel())
+        captured = {}
 
         async def fake_stream(messages, tools, stream=False):
+            captured["messages"] = messages
+            captured["stream"] = stream
             async def _gen():
                 yield {"type": "response.output_text.delta", "delta": "Hi", "index": 0}
 
@@ -177,6 +194,9 @@ class TestAgentRunFileAttachments:
         stream_iter = await agent.run("Describe", file_attachments=[img], stream=True)
         events = [e async for e in stream_iter]
         assert any(e["type"] == "response.output_text.delta" for e in events)
+        assert captured["stream"] is True
+        assert captured["messages"][-1]["content"] == "Describe"
+        assert captured["messages"][-1]["attachments"] == [img]
 
     @pytest.mark.asyncio
     async def test_run_preserves_message_history_with_attachments(self):
@@ -211,8 +231,10 @@ class TestAgentRunFileAttachments:
 - [x] **Scenario 4**: `list[ContentPart]` query + `file_attachments` merges into single list
 - [x] **Scenario 5**: Empty `file_attachments=[]` is treated same as `None` (no-op)
 - [x] **Scenario 6**: Invalid items in `file_attachments` (non-FileAttachment, None) raise `TypeError`
-- [x] **Scenario 7**: Streaming mode works with `file_attachments`
+- [x] **Scenario 7**: Streaming mode works with `file_attachments`, attachments reach the request path
 - [x] **Scenario 8**: Message history is preserved when using `file_attachments`
+- [x] **Scenario 9**: Invalid `query` type (neither `str` nor `list[ContentPart]`) raises `TypeError`
+- [x] **Scenario 10**: `list[ContentPart]` query containing non-`ContentPart` items raises `TypeError`
 
 > **Phase 4 scope**: The tests above verify that `Agent.run` constructs canonical SDK messages correctly. Provider end-to-end verification (Chat Completions + Responses integration) is covered by prior phase tests in `tests/integration/`. The Phase 4 implementation is complete when these unit tests pass.
 
@@ -221,7 +243,7 @@ class TestAgentRunFileAttachments:
 ### Automated Tests
 
 - [ ] Unit tests for `Agent.run()` message construction (all paths) — tests above
-- [ ] Unit tests for validation errors (`TypeError` for invalid `file_attachments` items)
+- [ ] Unit tests for validation errors (`TypeError` for invalid `file_attachments` items and invalid `query` types)
 - [ ] Unit tests for backward compatibility (existing `str` query calls unchanged)
 - [ ] Unit tests for streaming mode with `file_attachments`
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua-sdk && uv run pytest tests/unit/`
@@ -246,7 +268,7 @@ class TestAgentRunFileAttachments:
   - `str` query with attachments → `{"role": "user", "content": query, "attachments": file_attachments}`
   - `list[ContentPart]` query without attachments → `{"role": "user", "content": query}`
   - `list[ContentPart]` query with attachments → merged `{"role": "user", "content": merged_parts}`
-- **Add validation**: Raise `TypeError` for non-`FileAttachment` items or `None` in `file_attachments`
+- **Add validation**: Raise `TypeError` for non-`FileAttachment` items or `None` in `file_attachments`, and for invalid `query` types (non-str, non-list, or list items not `ContentPart`)
 - **Add import**: Import `ContentPart` and `FileAttachment` from `tinycua_sdk.models.attachment`
 - **Rationale**: This is the only entry point callers use; all message shaping happens here before passing to `BaseLoop.run()`
 

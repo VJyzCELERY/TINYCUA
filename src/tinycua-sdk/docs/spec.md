@@ -28,7 +28,7 @@
 A user wants to send an image to a vision model through the agent:
 
 ```python
-from tinycua_sdk import Agent, FileAttachment
+from tinycua_sdk import Agent, FileAttachment, LanguageModel
 
 agent = Agent(llm_model=LanguageModel(model_name="gpt-4o"))
 attachment = FileAttachment.from_path("photo.png")
