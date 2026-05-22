@@ -25,8 +25,16 @@ class IntegrationLLMConfig:
     api_key: str = ""
 
 
-def resolve_integration_llm_config() -> IntegrationLLMConfig:
+def resolve_integration_llm_config(
+    provider: str | None = None,
+) -> IntegrationLLMConfig:
     """Resolve integration test LLM config from environment variables.
+
+    Args:
+        provider: Optional explicit provider name.
+            When provided, skip auto-detection and resolve only that
+            provider's env vars. When None (default), auto-detect from
+            LLM_PROVIDER env var or provider-specific env vars.
 
     Resolution mirrors the runtime provider clients:
     - Provider-specific env vars take precedence over LLM_* fallbacks.
@@ -34,19 +42,22 @@ def resolve_integration_llm_config() -> IntegrationLLMConfig:
     - API key: provider-specific only (no generic API key fallback).
     - Model: provider-specific > LLM_MODEL > empty string default.
     """
-    provider = os.environ.get("LLM_PROVIDER", "")
-    if not provider:
-        # Auto-detect from provider-specific env vars
-        if os.environ.get("OPENAI_RESPONSES_MODEL") or os.environ.get(
-            "OPENAI_RESPONSES_API_KEY"
-        ):
-            provider = "openai-responses"
-        elif os.environ.get("OPENAI_CHAT_COMPLETIONS_MODEL") or os.environ.get(
-            "OPENAI_CHAT_COMPLETIONS_API_KEY"
-        ):
-            provider = "openai-chat-completions"
-        else:
-            provider = "openai-chat-completions"
+    if provider:
+        pass  # Use the explicitly provided provider
+    else:
+        provider = os.environ.get("LLM_PROVIDER", "")
+        if not provider:
+            # Auto-detect from provider-specific env vars
+            if os.environ.get("OPENAI_RESPONSES_MODEL") or os.environ.get(
+                "OPENAI_RESPONSES_API_KEY"
+            ):
+                provider = "openai-responses"
+            elif os.environ.get("OPENAI_CHAT_COMPLETIONS_MODEL") or os.environ.get(
+                "OPENAI_CHAT_COMPLETIONS_API_KEY"
+            ):
+                provider = "openai-chat-completions"
+            else:
+                provider = "openai-chat-completions"
 
     if provider == "openai-responses":
         model = os.environ.get(

@@ -172,7 +172,7 @@ async def test_openai_chat_completions_attachment_sends_image():
     # Color keywords expected from the multi-color fixture
     _COLOR_KEYWORDS = ("red", "green", "blue", "yellow")
 
-    config = resolve_integration_llm_config()
+    config = resolve_integration_llm_config("openai-chat-completions")
 
     # Build a LanguageModel with the resolved config
     model = LanguageModel(

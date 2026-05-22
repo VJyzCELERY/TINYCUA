@@ -10,11 +10,14 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
-pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("LLM_MODEL"),
-    reason="Neither OPENAI_RESPONSES_MODEL nor LLM_MODEL set; "
-    "skipping Responses integration tests",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("LLM_MODEL"),
+        reason="Neither OPENAI_RESPONSES_MODEL nor LLM_MODEL set; "
+        "skipping Responses integration tests",
+    ),
+]
 
 
 @pytest.mark.asyncio
@@ -23,7 +26,7 @@ async def test_responses_image_attachment_returns_non_empty_response():
     non-empty assistant response from a vision-capable model."""
     from tests.integration.conftest import resolve_integration_llm_config
 
-    config = resolve_integration_llm_config()
+    config = resolve_integration_llm_config("openai-responses")
     model = LanguageModel(
         provider="openai-responses",
         model_name=os.getenv("OPENAI_RESPONSES_MODEL", config.model),
@@ -70,7 +73,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
     non-empty assistant response."""
     from tests.integration.conftest import resolve_integration_llm_config
 
-    config = resolve_integration_llm_config()
+    config = resolve_integration_llm_config("openai-responses")
     model = LanguageModel(
         provider="openai-responses",
         model_name=os.getenv("OPENAI_RESPONSES_MODEL", config.model),
