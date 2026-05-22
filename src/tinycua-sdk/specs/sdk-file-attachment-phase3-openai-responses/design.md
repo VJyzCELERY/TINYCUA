@@ -225,7 +225,8 @@ The following policy defines when a file attachment triggers an upload through t
 
 | Attachment Source | MIME Type | Action |
 |-------------------|-----------|--------|
-| `file_id` | Any | Skip upload — use `input_file` with `file_id` directly |
+| `file_id` | `image/*` | Skip upload — use `input_image` with `file_id` directly and `detail="auto"` |
+| `file_id` | Non-image (e.g., `application/pdf`) | Skip upload — use `input_file` with `file_id` directly |
 | `data` (base64) | `image/*` | No upload — use `input_image` with data URL and `detail="auto"` |
 | `url` | `image/*` | No upload — use `input_image` with URL and `detail="auto"` |
 | `data` (base64) | Non-image (e.g., `application/pdf`) | **Upload required** — upload once through provider, cache `file_id`, then use `input_file` with the cached `file_id` |

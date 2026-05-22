@@ -43,14 +43,22 @@ if env_root.exists():
     load_dotenv(env_root)
 
 # Load environment from .env.test (user-specific, gitignored)
-# Falls back to .env.test.example (committed template)
-env_test = Path(__file__).parent / ".env.test"
+# Checks root-level then tests/-level; falls back to .env.test.example (committed template)
+env_test = Path(__file__).parents[1] / ".env.test"
 if env_test.exists():
     load_dotenv(env_test)
 else:
-    env_test_example = Path(__file__).parent / ".env.test.example"
-    if env_test_example.exists():
-        load_dotenv(env_test_example)
+    env_test = Path(__file__).parent / ".env.test"
+    if env_test.exists():
+        load_dotenv(env_test)
+    else:
+        env_test_example = Path(__file__).parents[1] / ".env.test.example"
+        if env_test_example.exists():
+            load_dotenv(env_test_example)
+        else:
+            env_test_example = Path(__file__).parent / ".env.test.example"
+            if env_test_example.exists():
+                load_dotenv(env_test_example)
 
 # Set environment variables for tests with defaults
 os.environ.setdefault("LLM_BASE_URL", "http://localhost:1234/v1")
