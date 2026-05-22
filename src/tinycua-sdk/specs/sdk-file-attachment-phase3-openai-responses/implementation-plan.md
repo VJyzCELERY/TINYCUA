@@ -27,7 +27,7 @@ Extend the `OpenAIResponsesClient` message translation path so canonical Phase 1
 
 ### Access / Permissions
 
-- [ ] **OpenAI API key** — required for integration tests only; guarded by `OPENAI_API_KEY` environment variable
+- [ ] **OpenAI API key** — required for integration tests only; guarded by `OPENAI_RESPONSES_API_KEY` environment variable
 
 ### Developer Tooling
 
@@ -52,8 +52,8 @@ from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 from tinycua_sdk.agent.llm_model import LanguageModel
 
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY not set; skipping Responses integration tests",
+    not os.getenv("OPENAI_RESPONSES_API_KEY"),
+    reason="OPENAI_RESPONSES_API_KEY not set; skipping Responses integration tests",
 )
 
 
@@ -163,7 +163,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
 #### NEW `tests/integration/test_openai_responses_provider.py`
 
-- **Guarded integration tests**: Image attachment via both canonical forms, skipped without `OPENAI_API_KEY`
+- **Guarded integration tests**: Image attachment via both canonical forms, skipped without `OPENAI_RESPONSES_API_KEY`
 - **Dependencies**: `OpenAIResponsesClient`, `FileAttachment`, `ContentPart`, `LanguageModel`
 
 #### MODIFY `tests/unit/test_llm_client.py`

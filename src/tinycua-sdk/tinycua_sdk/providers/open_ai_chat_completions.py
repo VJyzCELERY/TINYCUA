@@ -283,7 +283,10 @@ class OpenAIChatCompletionsClient(LLMClient):
                 )
             base_url = normalize_base_url(base_url)
 
-            self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            # Pass empty string (not None) to prevent the OpenAI SDK from
+            # falling back to the generic OPENAI_API_KEY environment variable.
+            # This enforces the provider-specific API-key contract.
+            self._client = AsyncOpenAI(api_key=api_key or "", base_url=base_url)
         return self._client
 
     async def close(self) -> None:
