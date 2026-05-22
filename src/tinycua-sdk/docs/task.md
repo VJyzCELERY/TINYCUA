@@ -14,6 +14,7 @@ Implementation tasks for the Agent file attachment convenience API. Check off it
 - [ ] Write unit test: `test_run_none_in_file_attachments_raises_type_error` — None items raise TypeError <!-- id: 6 -->
 - [ ] Write unit test: `test_run_invalid_query_type_raises_type_error` — non-str, non-list[ContentPart] query raises TypeError <!-- id: 6a -->
 - [ ] Write unit test: `test_run_content_parts_query_rejects_non_content_part_items` — list query with non-ContentPart items raises TypeError <!-- id: 6b -->
+- [ ] Write unit test: `test_run_empty_content_parts_query_raises_type_error` — empty `list[ContentPart]` query (`[]`) raises TypeError <!-- id: 6c -->
 - [ ] Write unit test: `test_run_stream_with_file_attachments` — streaming works with file_attachments <!-- id: 7 -->
 - [ ] Write unit test: `test_run_preserves_message_history_with_attachments` — message history preserved <!-- id: 8 -->
 - [ ] Run unit tests — expect RED (failures) since implementation doesn't exist yet <!-- id: 9 -->

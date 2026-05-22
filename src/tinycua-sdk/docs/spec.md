@@ -53,6 +53,7 @@ The agent constructs the appropriate user message behind the scenes and routes i
 - What happens when both `query: list[ContentPart]` and `file_attachments` are provided? → `file_attachments` are appended after the explicit content parts, preserving the order guarantee.
 - What happens when `query` is an empty string and `file_attachments` has items? → The agent-level message contains `content: ""` with the `attachments` key (empty text part). Providers may omit the empty text part when constructing API-specific payloads.
 - What happens with `None` in the `file_attachments` list? → Raised as `TypeError` at validation time.
+- What happens when `query` is an empty `list[ContentPart]` (i.e., `[]`)? → Rejected at `Agent.run()` with `TypeError`. An empty content-part list is semantically ambiguous and passes provider-level validation vacuously; rejecting it at the agent boundary produces a clear, consistent error that all callers can rely on.
 
 ---
 
@@ -69,7 +70,7 @@ The agent constructs the appropriate user message behind the scenes and routes i
 - **FR-007**: `Agent.run()` MUST validate that items in `file_attachments` are `FileAttachment` instances, raising `TypeError` for invalid items.
 - **FR-008**: The constructed user message MUST use one of two canonical shapes, depending on the query type:
   - **str query with attachments**: `{"role": "user", "content": query, "attachments": file_attachments}` where the `attachments` key is present only when `file_attachments` is non-empty.
-  - **[list[ContentPart] query with attachments**: `{"role": "user", "content": <merged list[ContentPart]>}` with **no** `attachments` key — file attachments are merged as additional `ContentPart(type="file", ...)` items into the content parts list.
+  - **list[ContentPart] query with attachments**: `{"role": "user", "content": <merged list[ContentPart]>}` with **no** `attachments` key — file attachments are merged as additional `ContentPart(type="file", ...)` items into the content parts list.
   - When `file_attachments` is `None` or `[]`, the attachments key is absent from the message dict (no attachments key is present), and for `list[ContentPart]` queries the content list is used as-is without appending file parts.
 
 ### Key Entities

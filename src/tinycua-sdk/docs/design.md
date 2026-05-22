@@ -139,6 +139,7 @@ elif query is list[ContentPart]:
 | `file_attachments` contains non-`FileAttachment` item | `TypeError` | Raised at call time before message construction |
 | `query` is neither `str` nor `list[ContentPart]` | `TypeError` | Rejects unsupported types (e.g., `int`, `dict`, `None`) |
 | `query` is `list[ContentPart]` containing non-`ContentPart` items | `TypeError` | Validates each item is a `ContentPart` instance before message construction |
+| Empty `query=[]` (empty `list[ContentPart]`) | `TypeError` | Rejected at call time — an empty ContentPart list is semantically ambiguous and passes provider validation vacuously. Rejecting at the agent boundary produces a clear, consistent error for all callers. |
 | Empty `file_attachments=[]` | No-op | Treated same as `None` |
 | Empty `query=""` with `file_attachments` | Valid | Agent-level message: `content: ""` + `attachments` key. Providers may omit the empty text part in API-specific payloads. |
 | `stream` is not `bool` | `TypeError` | Existing behavior preserved |

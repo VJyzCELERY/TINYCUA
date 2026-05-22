@@ -195,6 +195,13 @@ class TestAgentRunFileAttachments:
             await agent.run(["not_a_content_part", "also_invalid"])
 
     @pytest.mark.asyncio
+    async def test_run_empty_content_parts_query_raises_type_error(self):
+        """Verify TypeError when query is an empty list[ContentPart]."""
+        agent = Agent(llm_model=LanguageModel())
+        with pytest.raises(TypeError, match="query"):
+            await agent.run([])
+
+    @pytest.mark.asyncio
     async def test_run_stream_with_file_attachments(self):
         """Verify streaming works with file_attachments and attachments reach the request."""
         agent = Agent(llm_model=LanguageModel())
@@ -256,6 +263,7 @@ class TestAgentRunFileAttachments:
 - [x] **Scenario 9**: Message history is preserved when using `file_attachments`
 - [x] **Scenario 10**: Invalid `query` type (neither `str` nor `list[ContentPart]`) raises `TypeError`
 - [x] **Scenario 11**: `list[ContentPart]` query containing non-`ContentPart` items raises `TypeError`
+- [x] **Scenario 12**: Empty `list[ContentPart]` query (`[]`) raises `TypeError`
 
 > **Phase 4 scope**: The tests above verify that `Agent.run` constructs canonical SDK messages correctly. Provider end-to-end verification (Chat Completions + Responses integration) is covered by prior phase tests in `tests/integration/`. The Phase 4 implementation is complete when these unit tests pass.
 
