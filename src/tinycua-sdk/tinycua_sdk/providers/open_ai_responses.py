@@ -931,12 +931,13 @@ class OpenAIResponsesClient(LLMClient):
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
     ) -> LLMResponse:
-        translated_input = await self._translate_responses_input(messages)
-        kwargs = self._build_request_kwargs(translated_input, tools)
-
         try:
+            translated_input = await self._translate_responses_input(messages)
+            kwargs = self._build_request_kwargs(translated_input, tools)
             client = self._get_client()
             response = await client.responses.create(**kwargs)
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_provider_error(e)
 
@@ -951,13 +952,14 @@ class OpenAIResponsesClient(LLMClient):
         tools: list[LLMToolSpec] | None,
         raw_events: bool = False,
     ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
-        translated_input = await self._translate_responses_input(messages)
-        kwargs = self._build_request_kwargs(translated_input, tools)
-        kwargs["stream"] = True
-
         try:
+            translated_input = await self._translate_responses_input(messages)
+            kwargs = self._build_request_kwargs(translated_input, tools)
+            kwargs["stream"] = True
             client = self._get_client()
             stream = await client.responses.create(**kwargs)
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_provider_error(e)
 
