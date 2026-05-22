@@ -12,6 +12,7 @@ from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
 pytestmark = [
     pytest.mark.integration,
+    pytest.mark.provider("openai-responses"),
     pytest.mark.skipif(
         not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("LLM_MODEL"),
         reason="Neither OPENAI_RESPONSES_MODEL nor LLM_MODEL set; "

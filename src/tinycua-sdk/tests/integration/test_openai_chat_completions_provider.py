@@ -145,6 +145,7 @@ def _chunk(delta, finish_reason=None, usage=None):
 
 
 @pytest.mark.integration
+@pytest.mark.provider("openai-chat-completions")
 @pytest.mark.asyncio
 async def test_openai_chat_completions_attachment_sends_image():
     """A user message with a multi-color image FileAttachment is sent through
