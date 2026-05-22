@@ -166,11 +166,17 @@ async def _translate_responses_attachment(
     Raises:
         ValueError: If the attachment source/MIME combination is unsupported.
     """
+    is_image = attachment.mime_type.startswith("image/")
+
     # File with pre-existing file_id — use directly, no upload.
     if attachment.file_id is not None:
+        if is_image:
+            return {
+                "type": "input_image",
+                "file_id": attachment.file_id,
+                "detail": "auto",
+            }
         return {"type": "input_file", "file_id": attachment.file_id}
-
-    is_image = attachment.mime_type.startswith("image/")
 
     # Image with inline data → input_image with data URL.
     if is_image and attachment.data is not None:

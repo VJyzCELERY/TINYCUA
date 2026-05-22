@@ -737,6 +737,24 @@ class TestTranslateResponsesAttachment:
         assert result == {"type": "input_file", "file_id": "file_abc123"}
 
     @pytest.mark.asyncio
+    async def test_image_file_id_attachment_returns_input_image(self):
+        """Image file_id-backed attachment → input_image with detail=auto."""
+        from tinycua_sdk.providers.open_ai_responses import (
+            _translate_responses_attachment,
+        )
+
+        attachment = FileAttachment(
+            file_id="file_img123",
+            mime_type="image/png",
+        )
+        result = await _translate_responses_attachment(attachment)
+        assert result == {
+            "type": "input_image",
+            "file_id": "file_img123",
+            "detail": "auto",
+        }
+
+    @pytest.mark.asyncio
     async def test_non_image_data_uploads_and_returns_input_file(self):
         """Non-image data-backed attachment uploads once → input_file with file_id."""
         from tinycua_sdk.providers.open_ai_responses import (

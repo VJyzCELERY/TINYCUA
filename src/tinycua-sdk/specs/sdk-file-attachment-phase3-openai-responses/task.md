@@ -41,10 +41,10 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 
 ## Documentation Phase
 
-- [ ] Update SDK provider docs/examples to show `content: str` + `attachments` usage for Responses provider <!-- id: 25 -->
-- [ ] Add SDK docs section for `list[ContentPart]` usage with Responses provider, including supported image/file sources <!-- id: 29 -->
-- [ ] Document Responses-specific image `detail` parameter (defaults to `"auto"`) and supported MIME types <!-- id: 30 -->
-- [ ] Document integration test configuration (requires `OPENAI_API_KEY` env var) in contributor guide <!-- id: 31 -->
+- [x] Update SDK provider docs/examples to show `content: str` + `attachments` usage for Responses provider <!-- id: 25 -->
+- [x] Add SDK docs section for `list[ContentPart]` usage with Responses provider, including supported image/file sources <!-- id: 29 -->
+- [x] Document Responses-specific image `detail` parameter (defaults to `"auto"`) and supported MIME types <!-- id: 30 -->
+- [x] Document integration test configuration (requires `OPENAI_API_KEY` env var) in contributor guide <!-- id: 31 -->
 
 ## Review and Merge
 
