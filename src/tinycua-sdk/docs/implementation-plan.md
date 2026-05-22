@@ -71,6 +71,26 @@ class TestAgentRunFileAttachments:
         assert user_msg["attachments"] == [img]
 
     @pytest.mark.asyncio
+    async def test_run_empty_query_with_file_attachments(self):
+        """Verify empty str query + file_attachments produces content: '' + attachments key."""
+        agent = Agent(llm_model=LanguageModel())
+        captured = {}
+
+        class CapturingLoop(BaseLoop):
+            async def run(self, agent, messages, tools, override_instructions=None, **kwargs):
+                captured["messages"] = messages
+                return "ok"
+
+        agent.config.loop = CapturingLoop()
+        img = FileAttachment(data="iVBORw0KGgo=", mime_type="image/png")
+
+        await agent.run("", file_attachments=[img])
+        user_msg = captured["messages"][-1]
+        assert user_msg["role"] == "user"
+        assert user_msg["content"] == ""
+        assert user_msg["attachments"] == [img]
+
+    @pytest.mark.asyncio
     async def test_run_str_query_without_file_attachments(self):
         """Verify backward compatibility: str query with no attachments unchanged."""
         agent = Agent(llm_model=LanguageModel())
@@ -226,15 +246,16 @@ class TestAgentRunFileAttachments:
 ### Key Test Scenarios
 
 - [x] **Scenario 1**: `str` query + `file_attachments` produces `content: str` + `attachments` key shape
-- [x] **Scenario 2**: `str` query without `file_attachments` is backward compatible (identical message dict)
-- [x] **Scenario 3**: `list[ContentPart]` query uses parts directly, no `attachments` key
-- [x] **Scenario 4**: `list[ContentPart]` query + `file_attachments` merges into single list
-- [x] **Scenario 5**: Empty `file_attachments=[]` is treated same as `None` (no-op)
-- [x] **Scenario 6**: Invalid items in `file_attachments` (non-FileAttachment, None) raise `TypeError`
-- [x] **Scenario 7**: Streaming mode works with `file_attachments`, attachments reach the request path
-- [x] **Scenario 8**: Message history is preserved when using `file_attachments`
-- [x] **Scenario 9**: Invalid `query` type (neither `str` nor `list[ContentPart]`) raises `TypeError`
-- [x] **Scenario 10**: `list[ContentPart]` query containing non-`ContentPart` items raises `TypeError`
+- [x] **Scenario 2**: Empty `str` query (`""`) + `file_attachments` produces `content: ""` + `attachments` key shape
+- [x] **Scenario 3**: `str` query without `file_attachments` is backward compatible (identical message dict)
+- [x] **Scenario 4**: `list[ContentPart]` query uses parts directly, no `attachments` key
+- [x] **Scenario 5**: `list[ContentPart]` query + `file_attachments` merges into single list
+- [x] **Scenario 6**: Empty `file_attachments=[]` is treated same as `None` (no-op)
+- [x] **Scenario 7**: Invalid items in `file_attachments` (non-FileAttachment, None) raise `TypeError`
+- [x] **Scenario 8**: Streaming mode works with `file_attachments`, attachments reach the request path
+- [x] **Scenario 9**: Message history is preserved when using `file_attachments`
+- [x] **Scenario 10**: Invalid `query` type (neither `str` nor `list[ContentPart]`) raises `TypeError`
+- [x] **Scenario 11**: `list[ContentPart]` query containing non-`ContentPart` items raises `TypeError`
 
 > **Phase 4 scope**: The tests above verify that `Agent.run` constructs canonical SDK messages correctly. Provider end-to-end verification (Chat Completions + Responses integration) is covered by prior phase tests in `tests/integration/`. The Phase 4 implementation is complete when these unit tests pass.
 
