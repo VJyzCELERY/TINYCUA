@@ -2,7 +2,6 @@
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.providers.constants import DEFAULT_BASE_URL
 from tinycua_sdk.providers.utility import normalize_base_url, resolve_provider
 
 
