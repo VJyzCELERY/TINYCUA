@@ -302,7 +302,7 @@ class TestAgentRunFileAttachments:
 
 ### Documentation
 
-#### MODIFY `README.md` (or equivalent user-facing docs)
+#### MODIFY `src/tinycua-sdk/README.md`
 
 - **Add Agent convenience API examples**: Document the new `file_attachments` API so users can discover it without reading the spec or source code
 - **Required examples**:

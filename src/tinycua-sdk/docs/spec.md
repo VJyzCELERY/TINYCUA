@@ -1,6 +1,6 @@
 # Feature Specification: Agent Convenience API for File Attachments
 
-**Status**: Draft
+**Status**: Complete
 **Created**: 2026-05-22
 **Last Updated**: 2026-05-22
 **Subproject(s) Affected**: tinycua-sdk

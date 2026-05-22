@@ -1,7 +1,7 @@
 # Design Document: Agent Convenience API for File Attachments
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Complete
 **Last Updated**: 2026-05-22
 
 ---
