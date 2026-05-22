@@ -718,17 +718,16 @@ class OpenAIResponsesClient(LLMClient):
         if self._client is None:
             from openai import AsyncOpenAI
 
-            # Resolve API key: explicit > OPENAI_RESPONSES_API_KEY > LLM_API_KEY
+            # Resolve API key: explicit > OPENAI_RESPONSES_API_KEY
             api_key = self._model_config.api_key.get_secret_value() if self._model_config.api_key else None
             if not api_key:
-                api_key = os.environ.get("OPENAI_RESPONSES_API_KEY") or os.environ.get("LLM_API_KEY")
+                api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
 
-            # Resolve base URL: explicit > OPENAI_RESPONSES_BASE_URL > TINYCUA_BASE_URL > LLM_BASE_URL > OpenAI default
+            # Resolve base URL: explicit > OPENAI_RESPONSES_BASE_URL > LLM_BASE_URL > OpenAI default
             base_url = self._model_config.base_url
             if not base_url:
                 base_url = (
                     os.environ.get("OPENAI_RESPONSES_BASE_URL")
-                    or os.environ.get("TINYCUA_BASE_URL")
                     or os.environ.get("LLM_BASE_URL")
                     or OPENAI_BASE_URL
                 )

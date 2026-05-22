@@ -11,8 +11,8 @@ from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("TINYCUA_MODEL"),
-    reason="Neither OPENAI_RESPONSES_MODEL nor TINYCUA_MODEL set; "
+    not os.getenv("OPENAI_RESPONSES_MODEL") and not os.getenv("LLM_MODEL"),
+    reason="Neither OPENAI_RESPONSES_MODEL nor LLM_MODEL set; "
     "skipping Responses integration tests",
 )
 
@@ -35,12 +35,8 @@ async def test_responses_image_attachment_returns_non_empty_response():
     # resolves lazily (e.g. when base_url is None in a new session)
     old_responses_base = os.environ.get("OPENAI_RESPONSES_BASE_URL")
     old_responses_api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
-    old_tinycua_base = os.environ.get("TINYCUA_BASE_URL")
-    old_tinycua_api_key = os.environ.get("TINYCUA_API_KEY")
     os.environ["OPENAI_RESPONSES_BASE_URL"] = config.base_url
     os.environ["OPENAI_RESPONSES_API_KEY"] = config.api_key
-    os.environ["TINYCUA_BASE_URL"] = config.base_url
-    os.environ["TINYCUA_API_KEY"] = config.api_key
 
     client = OpenAIResponsesClient(model)
     try:
@@ -66,8 +62,6 @@ async def test_responses_image_attachment_returns_non_empty_response():
         # Restore env vars (in case they were set by a parent fixture)
         _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
         _restore_env("OPENAI_RESPONSES_API_KEY", old_responses_api_key)
-        _restore_env("TINYCUA_BASE_URL", old_tinycua_base)
-        _restore_env("TINYCUA_API_KEY", old_tinycua_api_key)
 
 
 @pytest.mark.asyncio
@@ -86,12 +80,8 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
     old_responses_base = os.environ.get("OPENAI_RESPONSES_BASE_URL")
     old_responses_api_key = os.environ.get("OPENAI_RESPONSES_API_KEY")
-    old_tinycua_base = os.environ.get("TINYCUA_BASE_URL")
-    old_tinycua_api_key = os.environ.get("TINYCUA_API_KEY")
     os.environ["OPENAI_RESPONSES_BASE_URL"] = config.base_url
     os.environ["OPENAI_RESPONSES_API_KEY"] = config.api_key
-    os.environ["TINYCUA_BASE_URL"] = config.base_url
-    os.environ["TINYCUA_API_KEY"] = config.api_key
 
     client = OpenAIResponsesClient(model)
     try:
@@ -116,8 +106,6 @@ async def test_responses_content_part_image_returns_non_empty_response():
         await client.close()
         _restore_env("OPENAI_RESPONSES_BASE_URL", old_responses_base)
         _restore_env("OPENAI_RESPONSES_API_KEY", old_responses_api_key)
-        _restore_env("TINYCUA_BASE_URL", old_tinycua_base)
-        _restore_env("TINYCUA_API_KEY", old_tinycua_api_key)
 
 
 def _restore_env(key: str, old_val: str | None) -> None:

@@ -17,10 +17,7 @@ import pytest
 
 @dataclass(frozen=True)
 class IntegrationLLMConfig:
-    """Centralized LLM configuration resolved from environment variables.
-
-    Resolution order: TINYCUA_* vars first, then LLM_* fallbacks.
-    """
+    """Centralized LLM configuration resolved from environment variables."""
 
     provider: str = "openai-chat-completions"
     model: str = ""
@@ -29,27 +26,12 @@ class IntegrationLLMConfig:
 
 
 def resolve_integration_llm_config() -> IntegrationLLMConfig:
-    """Resolve integration test LLM config from environment variables.
-
-    Uses TINYCUA_* vars first, falls back to LLM_* vars for compatibility,
-    then to sensible defaults.
-    """
+    """Resolve integration test LLM config from environment variables."""
     return IntegrationLLMConfig(
-        provider=os.environ.get(
-            "TINYCUA_PROVIDER", os.environ.get("LLM_PROVIDER", "openai-chat-completions")
-        ),
-        model=os.environ.get(
-            "TINYCUA_MODEL",
-            os.environ.get("LLM_MODEL", ""),
-        ),
-        base_url=os.environ.get(
-            "TINYCUA_BASE_URL",
-            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
-        ),
-        api_key=os.environ.get(
-            "TINYCUA_API_KEY",
-            os.environ.get("LLM_API_KEY", "dummy"),
-        ),
+        provider=os.environ.get("LLM_PROVIDER", "openai-chat-completions"),
+        model=os.environ.get("LLM_MODEL", ""),
+        base_url=os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        api_key=os.environ.get("LLM_API_KEY", "dummy"),
     )
 
 
