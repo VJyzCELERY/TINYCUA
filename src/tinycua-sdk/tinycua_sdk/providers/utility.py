@@ -7,6 +7,7 @@ lives here.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -58,7 +59,8 @@ def resolve_provider(provider: str) -> str:
 def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> str:
     """Normalize a base URL.
 
-    - If None/empty, returns provider-specific default.
+    - If None/empty, checks ``TINYCUA_BASE_URL`` then ``LLM_BASE_URL`` env vars.
+    - Falls back to provider-specific defaults when no env var is set.
     - Strips trailing slash to prevent double slashes.
     - Does NOT append /v1 (user must provide full URL).
 
@@ -79,6 +81,9 @@ def normalize_base_url(url: str | None, provider: str = "openai-compatible") -> 
 
     """
     if not url:
+        env_url = os.environ.get("TINYCUA_BASE_URL") or os.environ.get("LLM_BASE_URL")
+        if env_url:
+            return env_url.rstrip("/")
         if provider in (OPENAI_RESPONSES, OPENAI_CHAT_COMPLETIONS, "openai"):
             return OPENAI_BASE_URL
         return DEFAULT_BASE_URL
