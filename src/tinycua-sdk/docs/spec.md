@@ -52,7 +52,7 @@ The agent constructs the appropriate user message behind the scenes and routes i
 - What happens when `file_attachments` is an empty list? → Treated the same as `None` (no attachments).
 - What happens when both `query: list[ContentPart]` and `file_attachments` are provided? → `file_attachments` are appended after the explicit content parts, preserving the order guarantee.
 - What happens when `query` is an empty string and `file_attachments` has items? → The agent-level message contains `content: ""` with the `attachments` key (empty text part). Providers may omit the empty text part when constructing API-specific payloads.
-- What happens with `None` in the `file_attachments` list? → Raised as `ValueError` or `TypeError` at validation time.
+- What happens with `None` in the `file_attachments` list? → Raised as `TypeError` at validation time.
 
 ---
 
@@ -67,11 +67,14 @@ The agent constructs the appropriate user message behind the scenes and routes i
 - **FR-005**: When `query` is `list[ContentPart]`, `Agent.run()` MUST use the content parts directly as the message `content`. If `file_attachments` is also provided, the attachments MUST be appended as additional `ContentPart(type="file", ...)` items after the explicit content parts.
 - **FR-006**: `Agent.run()` with `file_attachments` MUST work correctly in streaming mode (`stream=True`).
 - **FR-007**: `Agent.run()` MUST validate that items in `file_attachments` are `FileAttachment` instances, raising `TypeError` for invalid items.
-- **FR-008**: The constructed user message MUST follow the canonical message shape `[{"role": "user", "content": <str | list[ContentPart]>, "attachments": <list[FileAttachment]>}]` where the `attachments` key is present only when `file_attachments` is provided and non-empty.
+- **FR-008**: The constructed user message MUST use one of two canonical shapes, depending on the query type:
+  - **str query with attachments**: `{"role": "user", "content": query, "attachments": file_attachments}` where the `attachments` key is present only when `file_attachments` is non-empty.
+  - **[list[ContentPart] query with attachments**: `{"role": "user", "content": <merged list[ContentPart]>}` with **no** `attachments` key — file attachments are merged as additional `ContentPart(type="file", ...)` items into the content parts list.
+  - When `file_attachments` is `None` or `[]`, the attachments key is absent from the message dict (no attachments key is present), and for `list[ContentPart]` queries the content list is used as-is without appending file parts.
 
 ### Key Entities
 
-- **UserMessage dict**: The internal message format: `{"role": "user", "content": str | list[ContentPart], "attachments": list[FileAttachment] | none}`. Provider translation layers already handle both `content: list[ContentPart]` and `content: str` + `attachments` shapes.
+- **UserMessage dict**: The internal message format uses one of two canonical shapes: either `{"role": "user", "content": str, "attachments": list[FileAttachment]}` (str query with attachments) or `{"role": "user", "content": list[ContentPart]}` (ContentPart list, with file attachments merged into the list — no separate `attachments` key). When `file_attachments` is `None` or `[]`, no `attachments` key is present. Provider translation layers already handle both `content: list[ContentPart]` and `content: str` + `attachments` shapes.
 - **FileAttachment**: The canonical model from `tinycua_sdk.models.attachment` (already exists from Phase 1).
 - **ContentPart**: The canonical multimodal content part model from `tinycua_sdk.models.attachment` (already exists from Phase 1).
 
@@ -99,7 +102,7 @@ The agent constructs the appropriate user message behind the scenes and routes i
 - `Agent.run()` with empty `file_attachments=[]`: verify no-op behavior.
 - `Agent.run()` with `stream=True` and `file_attachments`: verify streaming starts and completes.
 - `Agent.run()` with invalid `file_attachments` types: verify `TypeError` is raised.
-- `Agent.run()` with `None` items in `file_attachments`: verify `TypeError`/`ValueError` is raised.
+- `Agent.run()` with `None` items in `file_attachments`: verify `TypeError` is raised.
 
 ### Integration Tests
 

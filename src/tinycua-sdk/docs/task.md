@@ -65,6 +65,11 @@ Implementation tasks for the Agent file attachment convenience API. Check off it
 
 - [ ] Update `docs/spec.md` success criteria checkboxes if needed <!-- id: 19 -->
 - [ ] Update `docs/design.md` implementation phases checkboxes as completed <!-- id: 20 -->
+- [ ] Update `README.md` with new Agent convenience API examples <!-- id: 20a -->
+  - Show `from tinycua_sdk import Agent, FileAttachment, ContentPart`
+  - Show `agent.run("Describe this", file_attachments=[attachment])` usage
+  - Show optional `query: list[ContentPart]` usage
+  - Show streaming example or note that `stream=True` is supported
 
 ## Review and Merge
 

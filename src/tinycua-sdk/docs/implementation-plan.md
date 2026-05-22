@@ -300,6 +300,18 @@ class TestAgentRunFileAttachments:
 - **Add `FileAttachment` and `ContentPart` to public exports**: Add import and `__all__` entry so callers can do `from tinycua_sdk import FileAttachment, ContentPart`
 - **Rationale**: The spec's primary scenario shows `from tinycua_sdk import Agent, FileAttachment`; both must be importable from top-level
 
+### Documentation
+
+#### MODIFY `README.md` (or equivalent user-facing docs)
+
+- **Add Agent convenience API examples**: Document the new `file_attachments` API so users can discover it without reading the spec or source code
+- **Required examples**:
+  - `from tinycua_sdk import Agent, FileAttachment, ContentPart` — new top-level imports
+  - `agent.run("Describe this", file_attachments=[attachment])` — primary convenience pattern
+  - `agent.run(query=[ContentPart(type="text", text="..."), ContentPart(type="file", file=...)])` — optional `list[ContentPart]` usage
+  - `agent.run("Describe", file_attachments=[attachment], stream=True)` — streaming example or note that `stream=True` is supported
+- **Rationale**: This is a user-facing SDK API change. Without a documentation update, users must read the source code or internal spec to discover the new convenience API. The SDK README currently documents provider-level attachment message shapes, so updating it to show the higher-level Agent API is essential for discoverability.
+
 ### Test Suite
 
 #### NEW `tests/unit/test_agent_file_attachments.py`
@@ -313,6 +325,7 @@ class TestAgentRunFileAttachments:
 |-----------|-------------|-------------|
 | `Agent.run()` | Modify | Extended signature and message construction logic |
 | `tinycua_sdk/__init__.py` | Modify | Add `FileAttachment` and `ContentPart` to exports |
+| `README.md` | Modify | Add Agent convenience API examples for the new `file_attachments` parameter |
 | `test_agent_file_attachments.py` | New | Unit tests for file attachment convenience API |
 
 No changes to `BaseLoop`, `AgentExecutor`, or provider clients — they already support both message shapes.
