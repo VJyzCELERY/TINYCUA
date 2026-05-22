@@ -44,12 +44,16 @@ Implementation tasks for Phase 3 — translating canonical file attachments into
 - [x] Update SDK provider docs/examples to show `content: str` + `attachments` usage for Responses provider <!-- id: 25 -->
 - [x] Add SDK docs section for `list[ContentPart]` usage with Responses provider, including supported image/file sources <!-- id: 29 -->
 - [x] Document Responses-specific image `detail` parameter (defaults to `"auto"`) and supported MIME types <!-- id: 30 -->
-- [x] Document integration test configuration (requires `OPENAI_API_KEY` env var) in contributor guide <!-- id: 31 -->
+- [x] Document integration test configuration (requires `OPENAI_RESPONSES_MODEL` / `LLM_MODEL` env var) in contributor guide <!-- id: 31 -->
+- [x] Implement per-provider env var resolution for `base_url` and `api_key` in `_get_client()` — Responses uses `OPENAI_RESPONSES_*`, Chat Completions uses `OPENAI_CHAT_COMPLETIONS_*` <!-- id: 32 -->
+- [x] Refactor `normalize_base_url()` to pure URL normalizer (strip trailing slash only, no env I/O) <!-- id: 33 -->
+- [x] Update `.env.example` and `.env.test.example` with provider-specific env vars and local-LLM defaults <!-- id: 34 -->
+- [x] Remove deprecated `TINYCUA_PROVIDER`/`TINYCUA_MODEL`/`TINYCUA_BASE_URL`/`TINYCUA_API_KEY` env vars <!-- id: 35 -->
 
 ## Review and Merge
 
-- [ ] Create pull request (update existing PR #49) <!-- id: 26 -->
-- [ ] Address review feedback <!-- id: 27 -->
+- [x] Create pull request (update existing PR #49) <!-- id: 26 -->
+- [x] Address review feedback — ISSUE-001 (PR body count), ISSUE-002 (README cache note), ISSUE-003 (ProviderApiError preservation) <!-- id: 27 -->
 - [ ] Merge to `feat/SDK-file-attachment-support` branch <!-- id: 28 -->
 
 ---

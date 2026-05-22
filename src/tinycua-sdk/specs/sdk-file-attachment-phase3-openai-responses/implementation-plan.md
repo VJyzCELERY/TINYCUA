@@ -13,7 +13,9 @@ Extend the `OpenAIResponsesClient` message translation path so canonical Phase 1
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies beyond the existing OpenAI API key setup
+- [x] **Provider-specific env vars** — each provider resolves `base_url` and `api_key` from its own env vars (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`) with `LLM_*` fallback
+- [x] **`.env.example`** — documents `OPENAI_RESPONSES_BASE_URL`, `OPENAI_RESPONSES_API_KEY`, `OPENAI_RESPONSES_MODEL`, `OPENAI_CHAT_COMPLETIONS_BASE_URL`, `OPENAI_CHAT_COMPLETIONS_API_KEY`, `OPENAI_CHAT_COMPLETIONS_MODEL`
+- [x] **`.env.test.example`** — sets provider-specific vars to localhost defaults for local-LLM testing
 
 ### Running Services
 
@@ -127,7 +129,7 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — must pass for implementation to be complete (guarded by `OPENAI_API_KEY`)
+- [x] Integration tests (defined above) — guarded by `OPENAI_RESPONSES_MODEL` / `LLM_MODEL`; configured via `OPENAI_RESPONSES_*` env vars
 - [ ] Unit tests for `_translate_responses_user_message`, `_translate_responses_content_part`, `_translate_responses_attachment` — test all canonical-to-native mappings
 - [ ] Unit tests for upload cache hit/miss behavior with mocked OpenAI upload endpoint
 - [ ] Unit tests proving string-only messages, tool-result translation, and `previous_response_id` behavior are unchanged
@@ -137,7 +139,8 @@ async def test_responses_content_part_image_returns_non_empty_response():
 
 - [ ] Run `cd src/tinycua-sdk && uv run pytest tests/unit/test_llm_client.py` — all existing Responses tests pass
 - [ ] Run `cd src/tinycua-sdk && uv run pytest tests/unit/ -k "responses"` — new attachment tests pass
-- [ ] Run integration tests with API key: `cd src/tinycua-sdk && OPENAI_API_KEY=... uv run pytest tests/integration/test_openai_responses_provider.py`
+- [x] Run integration tests with local LLM or API key:  
+  `cd src/tinycua-sdk && OPENAI_RESPONSES_BASE_URL=http://localhost:1234/v1 OPENAI_RESPONSES_API_KEY=dummy OPENAI_RESPONSES_MODEL=qwen/qwen3.5-9b uv run pytest tests/integration/test_openai_responses_provider.py -v`
 
 ### Performance Considerations
 
@@ -175,6 +178,9 @@ async def test_responses_content_part_image_returns_non_empty_response():
 |-----------|-------------|-------------|
 | `OpenAIResponsesClient` | Modify | Add `_file_id_cache`, instance-aware message translation, upload helper |
 | `_translate_messages()` | Modify | Extend to handle `UserMessage` with `ContentPart` or `attachments` |
+| `normalize_base_url()` utility | Refactor | Pure URL normalizer — strip trailing slash only; env resolution moved to per-provider `_get_client()` |
+| `OpenAIResponsesClient._get_client()` | Modify | Resolve `base_url`/`api_key` from `OPENAI_RESPONSES_*` env vars with `LLM_*` fallback |
+| `OpenAIChatCompletionsClient._get_client()` | Modify | Match pattern — resolve from `OPENAI_CHAT_COMPLETIONS_*` env vars |
 | `_translate_responses_user_message()` | New (async) | Normalize user messages with attachments/ContentPart to Responses content list — awaits attachment translation |
 | `_translate_responses_content_part()` | New (async) | Map `ContentPart` to Responses-native content part — awaits attachment translation for file parts |
 | `_translate_responses_attachment()` | New (async) | Map `FileAttachment` to Responses image/file input; image parts include `detail="auto"` per API contract, may upload |

@@ -95,7 +95,8 @@ The cache key is a stable provider-local hash derived from the attachment source
 ### Schema Changes
 
 - No changes to canonical message schemas.
-- No changes to `LanguageModel`, `LLMResponse`, streaming events, or provider registry entries.
+- No changes to `LLMResponse`, streaming events, or provider registry entries.
+- `LanguageModel` remains a pure value object — `base_url: str | None = None` with no env resolution. Env var resolution happens per-provider in `_get_client()`.
 - Responses provider request content changes only when a user message contains `list[ContentPart]` or non-empty `attachments`.
 - Existing plain string messages remain translated as plain string `content` values.
 
@@ -302,6 +303,10 @@ This makes FR-009 and FR-010 acceptance deterministic: a unit test that creates 
 1. **Decision**: Keep attachment translation inside the OpenAI Responses provider module.
    **Reason**: The mapping is provider-specific and depends on OpenAI Responses input shapes and upload behavior.
    **Alternatives Considered**: A shared multimodal adapter across providers — rejected because Chat Completions and Responses already differ, and future providers may require different contracts.
+
+7. **Decision**: Per-provider env var resolution for `base_url` and `api_key` in `_get_client()`.
+   **Reason**: Each provider knows its own configuration env var names (`OPENAI_RESPONSES_*`, `OPENAI_CHAT_COMPLETIONS_*`). Keeping resolution inside each provider avoids coupling `LanguageModel` to provider-specific env var names and keeps `normalize_base_url()` as a pure URL normalizer.
+   **Alternatives Considered**: Having `LanguageModel` resolve env vars in a field validator — rejected because it couples the value object to provider-specific env var names. Having `normalize_base_url()` resolve env vars — rejected because it mixes normalization with environment I/O. The fallback chain is: explicit `base_url` → provider-specific env var → `LLM_BASE_URL` → provider default.
 
 2. **Decision**: Make the request path instance-aware for attachment translation.
    **Reason**: Upload/cache behavior needs provider-client state and the OpenAI SDK client; a pure module-level helper cannot safely own per-session cache state.
