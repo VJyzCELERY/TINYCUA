@@ -13,7 +13,7 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - Yes  
 - No
 
-2. What types of files do you use most frequently   
+2. What types of files do you use most frequently?   
 - [ ] *PDF*  
 - [ ] *Excel*  
 - [ ] *Word*  
@@ -24,11 +24,11 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - [ ] *RAR*  
 - [ ] Other file types:\_\_\_
 
-3. Have you ever experienced difficulties installing or using an application, or any other difficulties when using your computer/laptop? If yes, what difficulties have you encountered?   
+3. Have you ever encountered difficulties installing or using an application, or any other difficulties when using your computer/laptop? If yes, what difficulties have you encountered?   
 - [ ] Filling out online forms (e.g., registration forms, data input forms, Google Forms, etc.)   
 - [ ] Software setup  
 - [ ] Automation scripts  
-- [ ] I have not experienced any difficulties   
+- [ ] I have not encountered any difficulties   
 - [ ] Other difficulties :\_\_\_
 
 4. Have you ever used any of the AI agents below?   
@@ -44,10 +44,10 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - [ ] Never use any
 
 5. What do you like about those AI agents?  
-   Description:\_\_\_
+   Please describe:\_\_\_
 
 6. What do you dislike about those AI agents?   
-   Description:\_\_\_
+   Please describe:\_\_\_
 
 7. How important is it for you that the system can run scheduled tasks (Cron/Scheduled)?   
    *(Scale: Not important – Very important)* 
@@ -69,7 +69,7 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 12. How important is it for you that the system can send notifications while it is running and requires your confirmation, or when it has completed a task?   
     *(Scale: Not important – Very important)* 
 
-13. How important is it for you that the system can be more easily accessed through other applications such as Telegram, Discord, etc.?   
+13. How important is it for you that the system can integrate with messaging apps (Telegram, Discord, etc.)?   
     *(Scale: Not important – Very important)*
 
 14. Would you like the system to save backups of modified files after a session ends?   
@@ -78,6 +78,6 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - [ ] No, it is not necessary 
 
 15. Are there any other features you would like that have not been mentioned yet?   
-    Description:\_\_\_
+    Please describe:\_\_\_
 
     
