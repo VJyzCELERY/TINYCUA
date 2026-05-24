@@ -81,6 +81,16 @@ convention = "google"
 testpaths = ["tests"]
 addopts = "--strict-markers --basetemp=tmp/pytest --maxfail=2"
 asyncio_mode = "auto"
+filterwarnings = [
+    # ResourceWarnings from httpx / asyncio transport teardown are known-safe
+    # and not indicative of actual leaks (httpx/openai SDK internals).
+    # These appear during integration tests where the async httpx client
+    # is not explicitly closed (the test object goes out of scope before
+    # the underlying event loop is done shutting down).
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:unclosed transport.*_SelectorSocketTransport:ResourceWarning",
+    "ignore:unclosed.*socket.socket.*:ResourceWarning",
+]
 markers = [
     "integration: marks tests as integration tests (require external service running)",
     "lm_studio: marks tests that require local OpenAI-compatible server running",

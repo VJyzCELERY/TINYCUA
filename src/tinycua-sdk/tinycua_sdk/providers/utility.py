@@ -7,9 +7,8 @@ lives here.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_client import LLMClient
@@ -123,7 +122,29 @@ def is_text_mime(mime_type: str) -> bool:
 
 # ── Factory types ─────────────────────────────────────────────────────────────
 
-ProviderFactory = Callable[["LanguageModel", Any | None], "LLMClient"]
+class ProviderFactory(Protocol):
+    """Protocol for provider factory callables.
+
+    Factory functions must accept a ``LanguageModel`` configuration
+    and an optional keyword-only ``upload_session`` argument.
+    """
+
+    def __call__(
+        self,
+        model_config: "LanguageModel",
+        *,
+        upload_session: Any | None = None,
+    ) -> "LLMClient":
+        """Create an LLM client for the given model configuration.
+
+        Args:
+            model_config: The language model configuration to use.
+            upload_session: Optional upload session for file caching.
+
+        Returns:
+            An ``LLMClient`` instance configured for the provider.
+        """
+        ...
 
 
 @dataclass

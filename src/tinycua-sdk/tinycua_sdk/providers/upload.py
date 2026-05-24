@@ -1285,7 +1285,7 @@ async def _download_url_content(
             )
         original_backend = transport._pool._network_backend
         try:
-            transport._pool._network_backend = _PinnedNetworkBackend(
+            transport._pool._network_backend = _PinnedNetworkBackend(  # type: ignore[assignment]
                 ips,
                 original_backend,
             )
