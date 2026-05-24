@@ -13,12 +13,12 @@ Extends the SDK's file attachment system with Chat Completions upload + caching,
 
 ### Configuration
 
-- [ ] **.env file** — required variables:
+- [x] **.env file** — required variables:
   ```
   # OpenAI API (required for integration tests with real uploads)
   OPENAI_API_KEY=sk-xxx
   ```
-- [ ] **TINYCUA_CACHE_DIR** — optional env var fallback for persistent cache directory
+- [x] **TINYCUA_CACHE_DIR** — optional env var fallback for persistent cache directory
 
 ### Running Services
 
@@ -29,30 +29,30 @@ Extends the SDK's file attachment system with Chat Completions upload + caching,
 
 ### Data / Fixtures
 
-- [ ] **Test fixtures** — create test files in `tests/fixtures/`:
+- [x] **Test fixtures** — create test files in `tests/fixtures/`:
   - `test.pdf` — small PDF (< 1 KB) for upload tests
   - `test.txt` — small text file for non-image MIME tests
   - `large_test.bin` — generated 10+ MB file for streaming tests (generated on demand via `tmp_path`)
-- [ ] **pytest temp directory** — tests use the `tmp_path` fixture to keep temporary files within the repo boundary. Configure pytest to place `tmp_path` under `./tmp/` so files are always within the project root:
+- [x] **pytest temp directory** — tests use the `tmp_path` fixture to keep temporary files within the repo boundary. Configure pytest to place `tmp_path` under `./tmp/` so files are always within the project root:
   ```ini
   # pytest.ini or pyproject.toml [tool.pytest.ini_options]
   [pytest]
   basetemp = tmp/pytest
   ```
   Alternatively, set `TMPDIR=./tmp` in your environment before running tests.
-- [ ] **None** — no database migrations or seed data needed
+- [x] **None** — no database migrations or seed data needed
 
 ### Access / Permissions
 
-- [ ] **OpenAI API key** with file upload permissions
-- [ ] **None** — no VPN or firewall access required
+- [x] **OpenAI API key** with file upload permissions
+- [x] **None** — no VPN or firewall access required
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python >=3.12
-- [ ] **Package manager**: uv
-- [ ] **Subproject**: `cd src/tinycua-sdk && uv run`
-- [ ] **Additional CLI tools**: None
+- [x] **Runtime**: Python >=3.12
+- [x] **Package manager**: uv
+- [x] **Subproject**: `cd src/tinycua-sdk && uv run`
+- [x] **Additional CLI tools**: None
 
 ---
 
@@ -375,14 +375,14 @@ class TestStreamingUpload:
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Send a PDF through Chat Completions end-to-end — verifies non-image MIME types work with Chat Completions provider (primary gap from Phase 2).
-- [ ] **Scenario 2**: Same file cached and reused in one session — verifies `UploadSession` cache deduplication.
-- [ ] **Scenario 3**: Non-image URL attachment through Chat Completions provider — verifies download + upload pipeline for URLs.
-- [ ] **Scenario 4**: Non-image URL attachment through Responses provider — verifies download + inline `file_data` encoding pipeline for URLs (no upload endpoint / cache used).
-- [ ] **Scenario 5**: Persistent cache survives simulated restart — verifies disk-backed cache persistence.
-- [ ] **Scenario 6**: Large file (>10 MB) uploaded via streaming path through Chat Completions — verifies no OOM during streaming upload.
-- [ ] **Scenario 7**: Large file (>10 MB) uploaded via streaming path through Responses — verifies no OOM during streaming upload.
-- [ ] **Scenario 8**: Pre-existing `file_id` attachment passed through Chat Completions without re-upload — verifies FR-003 file_id bypass end-to-end.
+- [x] **Scenario 1**: Send a PDF through Chat Completions end-to-end — verifies non-image MIME types work with Chat Completions provider (primary gap from Phase 2).
+- [x] **Scenario 2**: Same file cached and reused in one session — verifies `UploadSession` cache deduplication.
+- [x] **Scenario 3**: Non-image URL attachment through Chat Completions provider — verifies download + upload pipeline for URLs.
+- [x] **Scenario 4**: Non-image URL attachment through Responses provider — verifies download + inline `file_data` encoding pipeline for URLs (no upload endpoint / cache used).
+- [x] **Scenario 5**: Persistent cache survives simulated restart — verifies disk-backed cache persistence.
+- [x] **Scenario 6**: Large file (>10 MB) uploaded via streaming path through Chat Completions — verifies no OOM during streaming upload.
+- [x] **Scenario 7**: Large file (>10 MB) uploaded via streaming path through Responses — verifies no OOM during streaming upload.
+- [x] **Scenario 8**: Pre-existing `file_id` attachment passed through Chat Completions without re-upload — verifies FR-003 file_id bypass end-to-end.
 
 ### Fake-Client Acceptance Test Scenarios (TDD Gate)
 
@@ -391,25 +391,25 @@ tests above, but use a locally-instrumented fake OpenAI client (mock transport)
 so they run in any environment without OpenAI credentials. They are the primary
 RED→GREEN TDD contract for CI/local development.
 
-- [ ] **Scenario A1**: Upload through repeated Chat Completions attachments — same file attached across repeated calls, verify exactly one upload occurs.
-- [ ] **Scenario A2**: Persistent cache — no re-upload on second session — cache populated in first session, second session uses cached file_id with zero uploads.
-- [ ] **Scenario A3**: File ID bypass (FR-003) — pre-existing file_id attachment passes through without re-upload.
-- [ ] **Scenario A4**: Non-image URL through Chat Completions — download + upload via fake HTTP response.
-- [ ] **Scenario A5**: Non-image URL through Responses — download + inline `file_data` encoding via fake HTTP response (no upload endpoint used).
-- [ ] **Scenario A6**: Streaming path — no full-file buffering — verify streaming upload does not buffer full file in memory. **Gated behind the Pre-Implementation Spike (OpenAI SDK streaming interface validation).** The precise memory-behavior assertions depend on the spike's determination of which upload mechanism the SDK supports.
+- [x] **Scenario A1**: Upload through repeated Chat Completions attachments — same file attached across repeated calls, verify exactly one upload occurs.
+- [x] **Scenario A2**: Persistent cache — no re-upload on second session — cache populated in first session, second session uses cached file_id with zero uploads.
+- [x] **Scenario A3**: File ID bypass (FR-003) — pre-existing file_id attachment passes through without re-upload.
+- [x] **Scenario A4**: Non-image URL through Chat Completions — download + upload via fake HTTP response.
+- [x] **Scenario A5**: Non-image URL through Responses — download + inline `file_data` encoding via fake HTTP response (no upload endpoint used).
+- [x] **Scenario A6**: Streaming path — no full-file buffering — verify streaming upload does not buffer full file in memory. **Gated behind the Pre-Implementation Spike (OpenAI SDK streaming interface validation).** The precise memory-behavior assertions depend on the spike's determination of which upload mechanism the SDK supports.
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] **Fake-client acceptance tests** (`tests/acceptance/test_cache_acceptance.py`) — TDD gate: must run RED before implementation, GREEN after:
+- [x] **Fake-client acceptance tests** (`tests/acceptance/test_cache_acceptance.py`) — TDD gate: must run RED before implementation, GREEN after:
   - `test_upload_through_repeated_chat_completions_attachments`
   - `test_persistent_cache_no_reupload_second_session`
   - `test_file_id_bypass_chat_completions`
   - `test_non_image_url_through_chat_completions`
   - `test_non_image_url_through_responses`
   - `test_streaming_path_no_full_buffer` — **gated behind Pre-Implementation Spike** (OpenAI SDK streaming interface validation); assertions depend on spike-determined upload mechanism
-- [ ] **Integration tests** (defined above) — these must pass for implementation to be complete (credential-gated):
+- [x] **Integration tests** (defined above) — these must pass for implementation to be complete (credential-gated):
   - `test_send_pdf_through_chat_completions`
   - `test_same_file_uploaded_once_chat_completions`
   - `test_url_attachment_through_responses`
@@ -417,14 +417,14 @@ RED→GREEN TDD contract for CI/local development.
   - `test_cache_survives_restart`
   - `test_large_file_streaming_upload`
   - `test_large_file_streaming_upload_responses`
-- [ ] **Unit tests** for:
+- [x] **Unit tests** for:
   - `UploadSession` — cache hit/miss, concurrent deduplication, content-based key dedup, URL-based key
   - `PersistentCacheStore` — write-read cycle, LRU eviction, corruption recovery, disk-full degradation, permission-error degradation
   - `StreamingFileAttachment` — chunk iteration correctness, streaming vs non-streaming parity
   - Chat Completions translation — non-image upload, file_id bypass, image MIME still inline
   - Responses translation — URL download, cache key change (no filename in key), existing behavior preserved
   - `_download_url_content()` — timeout enforcement, HTTP error handling, valid downloads
-- [ ] **Existing test suite** — confirm no regressions:
+- [x] **Existing test suite** — confirm no regressions:
   - `cd src/tinycua-sdk && uv run pytest tests/unit/` — all unit tests pass
   - `cd src/tinycua-sdk && uv run pytest tests/integration/` — existing integration tests pass
 
