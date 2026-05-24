@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +40,12 @@ class AgentConfig(BaseModel):
         default_factory=dict
     )
     approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None
+    # Phase 5 cache-streaming fields
+    cache_dir: str | None = None
+    cache_max_entries: int = Field(default=1000, ge=0)
+    session_cache_max_entries: int = Field(default=500, ge=0)
+    cache_namespace: str | None = None
+    upload_timeout: float = Field(default=30.0, gt=0)
 
     def to_config(self) -> dict[str, Any]:
         """Serialize agent config to dict.
@@ -63,6 +70,11 @@ class AgentConfig(BaseModel):
             "policy": self.policy.model_dump(),
             "metadata": self.metadata,
             "tool_permissions": self.tool_permissions,
+            "cache_dir": self.cache_dir,
+            "cache_max_entries": self.cache_max_entries,
+            "session_cache_max_entries": self.session_cache_max_entries,
+            "cache_namespace": self.cache_namespace,
+            "upload_timeout": self.upload_timeout,
         }
         return config
 
@@ -124,6 +136,11 @@ class AgentConfig(BaseModel):
             loop=data.get("loop"),
             tool_permissions=data.get("tool_permissions", {}),
             approval_workflow=data.get("approval_workflow"),
+            cache_dir=data.get("cache_dir") or os.environ.get("TINYCUA_CACHE_DIR"),
+            cache_max_entries=data.get("cache_max_entries", 1000),
+            session_cache_max_entries=data.get("session_cache_max_entries", 500),
+            cache_namespace=data.get("cache_namespace"),
+            upload_timeout=data.get("upload_timeout", 30.0),
         )
 
 

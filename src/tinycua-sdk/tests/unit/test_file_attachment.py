@@ -5,6 +5,7 @@ serialization round trips, and streaming parity.
 """
 
 import base64
+import hashlib
 
 import pytest
 from pydantic import ValidationError
@@ -303,24 +304,30 @@ class TestContentPart:
 class TestStreamingParity:
     """Streaming vs non-streaming from_path parity tests."""
 
-    def test_streaming_matches_non_streaming_small(self, tmp_path):
-        """Stream=True matches non-streaming output for small files."""
+    def test_streaming_returns_streaming_attachment(self, tmp_path):
+        """Stream=True returns StreamingFileAttachment with data=None."""
         file_path = tmp_path / "small.bin"
         file_path.write_bytes(b"small payload")
-        regular = FileAttachment.from_path(file_path)
         streamed = FileAttachment.from_path(file_path, stream=True)
-        assert streamed.data == regular.data
+        assert streamed.data is None
+        # Content is readable via hash
+        assert len(streamed.hash_content()) == 64  # SHA-256 hex
 
-    def test_streaming_matches_non_streaming_large(self, tmp_path):
-        """Stream=True matches non-streaming output for files larger than chunk."""
+    def test_streaming_hash_matches_non_streaming_content(self, tmp_path):
+        """Streaming hash matches SHA-256 of non-streaming decoded data."""
+        import hashlib
         file_path = tmp_path / "large.bin"
         payload = (b"ABCDEFGHIJ" * 1000) + b"tail"
         file_path.write_bytes(payload)
         regular = FileAttachment.from_path(file_path)
         streamed = FileAttachment.from_path(file_path, stream=True)
-        assert streamed.data == regular.data
+        # Hash of streamed content should match hash of regular decoded bytes
+        regular_hash = hashlib.sha256(
+            base64.b64decode(regular.data)  # type: ignore[arg-type]
+        ).hexdigest()
+        assert streamed.hash_content() == regular_hash
 
-    def test_streaming_with_custom_mime(self, tmp_path):
+    def test_streaming_preserves_mime_and_filename(self, tmp_path):
         """Stream=True preserves MIME type and filename."""
         file_path = tmp_path / "streamed.dat"
         file_path.write_bytes(b"x" * 100)
@@ -329,14 +336,15 @@ class TestStreamingParity:
         )
         assert attachment.mime_type == "application/x-custom"
         assert attachment.filename == "streamed.dat"
-        assert attachment.data == base64.b64encode(b"x" * 100).decode("ascii")
+        assert attachment.data is None  # Streaming contract
 
     def test_streaming_empty_file(self, tmp_path):
         """Stream=True handles empty files correctly."""
         file_path = tmp_path / "empty.bin"
         file_path.write_bytes(b"")
         attachment = FileAttachment.from_path(file_path, stream=True)
-        assert attachment.data == ""
+        assert attachment.data is None
+        assert attachment.hash_content() == hashlib.sha256(b"").hexdigest()
 
     def test_streaming_missing_file(self, tmp_path):
         """Stream=True raises FileNotFoundError for missing files."""

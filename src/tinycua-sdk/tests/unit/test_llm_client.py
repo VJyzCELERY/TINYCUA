@@ -650,8 +650,8 @@ class TestTranslateResponsesContentPart:
         assert result == {"type": "input_file", "file_id": "file_abc123"}
 
     @pytest.mark.asyncio
-    async def test_file_content_part_non_image_data_uploads(self):
-        """File ContentPart with non-image data-backed attachment triggers upload."""
+    async def test_file_content_part_non_image_data_inline(self):
+        """File ContentPart with non-image data → inline file_data (no upload)."""
         from tinycua_sdk.providers.open_ai_responses import (
             _translate_responses_content_part,
         )
@@ -663,16 +663,22 @@ class TestTranslateResponsesContentPart:
             filename="doc.pdf",
         )
         part = ContentPart(type="file", file=attachment)
-        upload_fn = _make_noop_upload_fn()
-        result = await _translate_responses_content_part(
-            part, _upload_fn=upload_fn,
-        )
-        assert result == {"type": "input_file", "file_id": "file_uploaded_1"}
-        upload_fn.assert_awaited_once_with(attachment)
+        # No _upload_fn needed — file_data is sent inline
+        result = await _translate_responses_content_part(part)
+        assert result["type"] == "input_file"
+        assert result["filename"] == "doc.pdf"
+        assert result["file_data"] == f"data:application/pdf;base64,{pdf_data}"
 
     @pytest.mark.asyncio
-    async def test_file_content_part_non_image_url_rejected(self):
-        """File ContentPart with non-image URL attachment raises ValueError."""
+    async def test_file_content_part_non_image_url_creates_inline_file_data(self):
+        """File ContentPart with non-image URL → inline file_data (Phase 5).
+
+        Non-image URL attachments are now supported: the content is
+        downloaded and sent inline as file_data, avoiding the /v1/files
+        upload path for local/OpenAI-compatible servers.
+        """
+        from unittest.mock import AsyncMock, patch
+
         from tinycua_sdk.providers.open_ai_responses import (
             _translate_responses_content_part,
         )
@@ -680,10 +686,17 @@ class TestTranslateResponsesContentPart:
         attachment = FileAttachment(
             url="https://example.com/doc.pdf",
             mime_type="application/pdf",
+            filename="doc.pdf",
         )
         part = ContentPart(type="file", file=attachment)
-        with pytest.raises(ValueError, match="Non-image URL"):
-            await _translate_responses_content_part(part)
+        with patch(
+            "tinycua_sdk.providers.upload._download_url_content",
+            AsyncMock(return_value=b"fake content"),
+        ):
+            result = await _translate_responses_content_part(part)
+        assert result["type"] == "input_file"
+        assert result["filename"] == "doc.pdf"
+        assert result["file_data"].startswith("data:application/pdf;base64,")
 
 
 class TestTranslateResponsesAttachment:
@@ -755,8 +768,8 @@ class TestTranslateResponsesAttachment:
         }
 
     @pytest.mark.asyncio
-    async def test_non_image_data_uploads_and_returns_input_file(self):
-        """Non-image data-backed attachment uploads once → input_file with file_id."""
+    async def test_non_image_data_inline_file_data(self):
+        """Non-image data → inline input_file with file_data + filename (no upload)."""
         from tinycua_sdk.providers.open_ai_responses import (
             _translate_responses_attachment,
         )
@@ -767,16 +780,45 @@ class TestTranslateResponsesAttachment:
             mime_type="application/pdf",
             filename="doc.pdf",
         )
-        upload_fn = _make_noop_upload_fn()
-        result = await _translate_responses_attachment(
-            attachment, _upload_fn=upload_fn,
-        )
-        assert result == {"type": "input_file", "file_id": "file_uploaded_1"}
-        upload_fn.assert_awaited_once_with(attachment)
+        # No _upload_fn needed — file_data sent inline
+        result = await _translate_responses_attachment(attachment)
+        assert result["type"] == "input_file"
+        assert result["filename"] == "doc.pdf"
+        assert result["file_data"] == f"data:application/pdf;base64,{pdf_data}"
 
     @pytest.mark.asyncio
-    async def test_non_image_url_attachment_rejected(self):
-        """Non-image URL attachment raises ValueError."""
+    async def test_non_image_txt_as_input_file_with_file_data(self):
+        """Text file sent as input_file with file_data when MIME is non-text.
+
+        Verifies that .txt files CAN be sent as input_file + file_data
+        (inline base64 content) instead of being decoded to input_text.
+        Use any MIME not recognized as text (e.g., application/octet-stream).
+        """
+        from tinycua_sdk.providers.open_ai_responses import (
+            _translate_responses_attachment,
+        )
+
+        txt_data = base64.b64encode(b"hello world from txt file").decode("ascii")
+        attachment = FileAttachment(
+            data=txt_data,
+            mime_type="application/octet-stream",
+            filename="readme.txt",
+        )
+        result = await _translate_responses_attachment(attachment)
+        # Should NOT be decoded to input_text (MIME is not text/*)
+        assert result["type"] == "input_file"
+        assert result["filename"] == "readme.txt"
+        assert result["file_data"] == f"data:application/octet-stream;base64,{txt_data}"
+
+    @pytest.mark.asyncio
+    async def test_non_image_url_attachment_downloads_inline(self):
+        """Non-image URL attachment → download → inline file_data (no _upload_fn).
+
+        Phase 5: Responses URL attachments are downloaded with SSRF
+        protection and sent inline via file_data, avoiding /v1/files.
+        """
+        from unittest.mock import AsyncMock, patch
+
         from tinycua_sdk.providers.open_ai_responses import (
             _translate_responses_attachment,
         )
@@ -785,8 +827,20 @@ class TestTranslateResponsesAttachment:
             url="https://example.com/doc.pdf",
             mime_type="application/pdf",
         )
-        with pytest.raises(ValueError, match="Non-image URL"):
-            await _translate_responses_attachment(attachment)
+        upload_fn = _make_noop_upload_fn()
+        with patch(
+            "tinycua_sdk.providers.upload._download_url_content",
+            AsyncMock(return_value=b"fake pdf bytes"),
+        ):
+            result = await _translate_responses_attachment(
+                attachment, _upload_fn=upload_fn,
+            )
+        assert result["type"] == "input_file"
+        assert "file_data" in result
+        assert "file_id" not in result, (
+            "URL attachments should use inline file_data, not file_id"
+        )
+        upload_fn.assert_not_awaited()
 
 
 class TestTranslateResponsesUserMessage:
@@ -1104,9 +1158,9 @@ class TestUploadCache:
         assert not upload_called
 
     @pytest.mark.asyncio
-    async def test_cache_key_includes_data_mime_and_filename(self, model):
-        """Cache key is derived from data, MIME type, and filename."""
-        from tinycua_sdk.providers.open_ai_responses import _make_upload_cache_key
+    async def test_cache_key_is_content_based(self, model):
+        """Cache key is derived from content and MIME type, not filename."""
+        from tinycua_sdk.providers.upload import _make_cache_key
 
         pdf_data = base64.b64encode(b"same-content").decode("ascii")
         att1 = FileAttachment(
@@ -1119,19 +1173,20 @@ class TestUploadCache:
             mime_type="application/pdf",
             filename="b.pdf",
         )
-        # Same data and mime, different filename → different cache keys
-        key1 = _make_upload_cache_key(att1)
-        key2 = _make_upload_cache_key(att2)
-        assert key1 != key2
+        # Same data and mime, different filename → same cache key
+        # (canonical content-based deduplication)
+        key1 = _make_cache_key(att1)
+        key2 = _make_cache_key(att2)
+        assert key1 == key2
 
-        # Same data, mime, filename → same cache key
+        # Different content → different cache key
         att3 = FileAttachment(
-            data=pdf_data,
+            data=base64.b64encode(b"different-content").decode("ascii"),
             mime_type="application/pdf",
             filename="a.pdf",
         )
-        key3 = _make_upload_cache_key(att3)
-        assert key1 == key3
+        key3 = _make_cache_key(att3)
+        assert key1 != key3
 
     @pytest.mark.asyncio
     async def test_empty_data_backed_attachment_uploads_instead_of_rejecting(

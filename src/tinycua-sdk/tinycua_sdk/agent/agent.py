@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal, Union
@@ -32,6 +33,11 @@ _CONFIG_ATTRS = frozenset(
         "metadata",
         "loop",
         "approval_workflow",
+        "cache_dir",
+        "cache_max_entries",
+        "session_cache_max_entries",
+        "cache_namespace",
+        "upload_timeout",
     }
 )
 
@@ -51,6 +57,11 @@ class Agent(AgentExecutor):
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
         approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None,
+        cache_dir: str | None = None,
+        cache_max_entries: int = 1000,
+        session_cache_max_entries: int = 500,
+        cache_namespace: str | None = None,
+        upload_timeout: float = 30.0,
     ):
         config = AgentConfig(
             name=name,
@@ -63,6 +74,11 @@ class Agent(AgentExecutor):
             loop=loop,
             tool_permissions=tool_permissions or {},
             approval_workflow=approval_workflow,
+            cache_dir=cache_dir or os.environ.get("TINYCUA_CACHE_DIR"),
+            cache_max_entries=cache_max_entries,
+            session_cache_max_entries=session_cache_max_entries,
+            cache_namespace=cache_namespace,
+            upload_timeout=upload_timeout,
         )
 
         super().__init__(config=config)
@@ -256,6 +272,11 @@ class Agent(AgentExecutor):
             loop=agent_config.loop,
             tool_permissions=agent_config.tool_permissions,
             approval_workflow=agent_config.approval_workflow,
+            cache_dir=agent_config.cache_dir,
+            cache_max_entries=agent_config.cache_max_entries,
+            session_cache_max_entries=agent_config.session_cache_max_entries,
+            cache_namespace=agent_config.cache_namespace,
+            upload_timeout=agent_config.upload_timeout,
         )
 
     def to_json(self, indent: int = 2, redact_sensitive: bool = True) -> str:

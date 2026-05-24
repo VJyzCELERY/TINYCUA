@@ -79,6 +79,7 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+basetemp = "tmp/pytest"
 addopts = "--strict-markers --disable-warnings --maxfail=2"
 asyncio_mode = "auto"
 markers = [

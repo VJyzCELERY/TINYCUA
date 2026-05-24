@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_client import LLMClient
@@ -50,7 +50,14 @@ def resolve_provider(provider: str) -> str:
 
 
 def normalize_base_url(url: str) -> str:
-    """Normalize a base URL by stripping trailing slash.
+    """Normalize a base URL for consistent cache scoping.
+
+    Raises:
+        ValueError: If ``url`` is empty.
+
+    Strips trailing slashes and lowercases scheme/host so that
+    equivalent endpoint spellings (e.g. ``HTTPS://API.OPENAI.COM/v1/``
+    and ``https://api.openai.com/v1``) produce the same hash.
 
     Pure URL normalizer — does NOT resolve environment variables or provider
     defaults. Each provider client is responsible for its own resolution.
@@ -59,21 +66,64 @@ def normalize_base_url(url: str) -> str:
         url: Raw base URL (must not be None/empty).
 
     Returns:
-        Normalized base URL with trailing slash removed.
+        Normalized base URL with trailing slash removed and scheme/host
+        lowercased.
 
     Example:
         >>> normalize_base_url("http://localhost:1234/v1/")
         'http://localhost:1234/v1'
         >>> normalize_base_url("https://api.openai.com/v1")
         'https://api.openai.com/v1'
+        >>> normalize_base_url("HTTPS://API.OPENAI.COM/v1/")
+        'https://api.openai.com/v1'
 
     """
-    return url.rstrip("/")
+    from urllib.parse import urlparse, urlunparse
+
+    if not url:
+        raise ValueError("base_url must not be empty")
+
+    url = url.rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme:
+        normalized = parsed._replace(
+            scheme=parsed.scheme.lower(),
+            netloc=parsed.netloc.lower(),
+        )
+        return urlunparse(normalized)
+    return url
+
+
+# ── MIME type helpers ─────────────────────────────────────────────────────────
+
+_TEXT_MIME_TYPES: set[str] = {
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/html",
+    "text/xml",
+    "application/json",
+    "application/xml",
+    "application/javascript",
+    "application/x-yaml",
+    "text/x-python",
+    "text/x-script.python",
+}
+
+
+def is_text_mime(mime_type: str) -> bool:
+    """Return True if the MIME type represents a text format.
+
+    Text files can be sent inline as ``{"type": "text", "text": "..."}``
+    instead of requiring upload via ``/v1/files``. This works with any
+    OpenAI-compatible provider (local servers, LM Studio, Ollama, etc.).
+    """
+    return mime_type in _TEXT_MIME_TYPES or mime_type.startswith("text/")
 
 
 # ── Factory types ─────────────────────────────────────────────────────────────
 
-ProviderFactory = Callable[["LanguageModel"], "LLMClient"]
+ProviderFactory = Callable[["LanguageModel", Any | None], "LLMClient"]
 
 
 @dataclass
@@ -97,6 +147,7 @@ class ProviderInfo:
 __all__ = [
     "ProviderFactory",
     "ProviderInfo",
+    "is_text_mime",
     "normalize_base_url",
     "resolve_provider",
 ]

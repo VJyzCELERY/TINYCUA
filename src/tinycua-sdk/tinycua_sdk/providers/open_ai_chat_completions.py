@@ -7,6 +7,7 @@ and Chat Completions-specific attachment translation helpers.
 from __future__ import annotations
 
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field as dataclass_field
 from typing import TYPE_CHECKING, Any
 
@@ -28,9 +29,9 @@ from tinycua_sdk.agent.events import (
 )
 from tinycua_sdk.agent.llm_client import LLMClient, _yield_events
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
-from tinycua_sdk.models.attachment import ContentPart, FileAttachment
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment, StreamingFileAttachment
 from tinycua_sdk.providers.constants import OPENAI_BASE_URL
-from tinycua_sdk.providers.utility import normalize_base_url
+from tinycua_sdk.providers.utility import is_text_mime, normalize_base_url
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -105,30 +106,40 @@ _CHAT_SUPPORTED_FIELDS: set[str] = {
 }
 
 
-def _translate_chat_attachment(attachment: FileAttachment) -> dict[str, Any]:
+async def _translate_chat_attachment(
+    attachment: FileAttachment,
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
     """Translate a single FileAttachment to a Chat Completions content part.
 
-    Produces an ``image_url`` content part with either a data URL
-    (base64-encoded inline data) or a direct URL, depending on which
-    source field is set on the attachment.
+    Image attachments (``image/*`` MIME type) produce ``image_url`` content
+    parts (inline data URL or direct URL). Non-image attachments with
+    ``data`` are uploaded via ``_upload_fn`` and produce ``file`` content
+    parts with the returned ``file_id``. Attachments with a pre-existing
+    ``file_id`` produce ``file`` content parts directly. Non-image URL
+    attachments raise ``ValueError`` (deferred to Phase 4).
 
     Args:
         attachment: A canonical ``FileAttachment``.
+        _upload_fn: Optional async callable for file uploads. Required
+            for non-image data-backed attachments.
 
     Returns:
-        A dict with ``type`` and ``image_url`` keys.
+        A dict with ``type`` and either ``image_url`` or ``file`` keys.
 
     Raises:
-        ValueError: If the MIME type does not start with ``image/``, or if
-            only ``file_id`` is set (no upload/cache mapping in Phase 2).
+        ValueError: If no valid translation path exists (e.g., non-image
+            URL attachment without download support).
     """
-    if not attachment.mime_type.startswith("image/"):
-        raise ValueError(
-            f"Chat Completions provider only supports image attachments, "
-            f"got mime_type={attachment.mime_type!r}"
-        )
+    is_image = attachment.mime_type.startswith("image/")
 
-    if attachment.data is not None:
+    # File with pre-existing file_id → file content part.
+    if attachment.file_id is not None:
+        return {"type": "file", "file": {"file_id": attachment.file_id}}
+
+    # Image with inline data → image_url with data URL.
+    if is_image and attachment.data is not None:
         return {
             "type": "image_url",
             "image_url": {
@@ -136,19 +147,62 @@ def _translate_chat_attachment(attachment: FileAttachment) -> dict[str, Any]:
             },
         }
 
-    if attachment.url is not None:
+    # Image with URL → image_url with URL reference.
+    if is_image and attachment.url is not None:
         return {
             "type": "image_url",
             "image_url": {"url": attachment.url},
         }
 
+    # Text-based content (plain text, markdown, code, JSON, CSV, HTML, XML) →
+    # decode and send inline as a text part. No upload needed.
+    if attachment.data is not None and is_text_mime(attachment.mime_type):
+        import base64 as _base64
+        text_content = _base64.b64decode(attachment.data).decode("utf-8")
+        return {"type": "text", "text": text_content}
+
+    # Streaming file attachment → upload with streaming content.
+    # Check before data/url checks since streaming attachments have
+    # data=None and url=None (content is read from _file_path on demand).
+    if isinstance(attachment, StreamingFileAttachment):
+        if _upload_fn is None:
+            raise ValueError(
+                "Streaming file attachment requires upload, "
+                "but no _upload_fn was provided"
+            )
+        file_id = await _upload_fn(attachment)
+        return {"type": "file", "file": {"file_id": file_id}}
+
+    # Non-image data-backed → upload required.
+    if attachment.data is not None:
+        if _upload_fn is None:
+            raise ValueError(
+                "Non-image data-backed attachment requires upload, "
+                "but no _upload_fn was provided"
+            )
+        file_id = await _upload_fn(attachment)
+        return {"type": "file", "file": {"file_id": file_id}}
+
+    # Non-image URL → download + upload via _upload_fn (Phase 4).
+    if attachment.url is not None:
+        if _upload_fn is None:
+            raise ValueError(
+                "Non-image URL attachment requires download+upload, "
+                "but no _upload_fn was provided"
+            )
+        file_id = await _upload_fn(attachment)
+        return {"type": "file", "file": {"file_id": file_id}}
+
     raise ValueError(
-        "Chat Completions provider does not support file_id-only "
-        "attachments (no upload/cache mapping in Phase 2)"
+        "Attachment has no usable source (data, url, or file_id required)"
     )
 
 
-def _translate_chat_content_part(part: ContentPart) -> dict[str, Any]:
+async def _translate_chat_content_part(
+    part: ContentPart,
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
     """Translate a ``ContentPart`` to a Chat Completions content part dict.
 
     - Text part (``type="text"``) → ``{"type": "text", "text": ...}``
@@ -157,6 +211,8 @@ def _translate_chat_content_part(part: ContentPart) -> dict[str, Any]:
 
     Args:
         part: A canonical ``ContentPart``.
+        _upload_fn: Optional async callable passed through to attachment
+            translation.
 
     Returns:
         A dict with ``type`` and the appropriate content key.
@@ -167,12 +223,18 @@ def _translate_chat_content_part(part: ContentPart) -> dict[str, Any]:
     if part.type == "file":
         if part.file is None:
             raise ValueError("ContentPart with type='file' must have a non-None file")
-        return _translate_chat_attachment(part.file)
+        return await _translate_chat_attachment(
+            part.file, _upload_fn=_upload_fn,
+        )
 
     raise ValueError(f"Unknown ContentPart type: {part.type!r}")
 
 
-def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
+async def _translate_chat_user_message(
+    msg: dict[str, Any],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> dict[str, Any]:
     """Translate a user message dict for the Chat Completions API.
 
     Handles three input shapes:
@@ -180,7 +242,7 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
     1. Plain string content, no attachments → pass through unchanged
        (backward compatible).
     2. String content with non-empty ``attachments`` → text part followed
-       by image parts.
+       by image/file parts.
     3. ``content: list[ContentPart | dict]`` (with or without
        attachments) → translated parts, with message-level attachments
        appended after explicit content parts, preserving caller order
@@ -193,6 +255,8 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
     Args:
         msg: A message dict with ``role``, ``content``, and optionally
             ``attachments``.
+        _upload_fn: Optional async callable passed through to attachment
+            translation for non-image file uploads.
 
     Returns:
         A translated message dict suitable for the Chat Completions API.
@@ -215,7 +279,7 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
         if content:
             parts.append({"type": "text", "text": content})
         for att in attachments:
-            parts.append(_translate_chat_attachment(att))
+            parts.append(await _translate_chat_attachment(att, _upload_fn=_upload_fn))
         result["content"] = parts
         return result
 
@@ -228,10 +292,10 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
 
         for item in content:
             if isinstance(item, ContentPart):
-                parts.append(_translate_chat_content_part(item))
+                parts.append(await _translate_chat_content_part(item, _upload_fn=_upload_fn))
             elif isinstance(item, dict):
                 part = ContentPart(**item)
-                parts.append(_translate_chat_content_part(part))
+                parts.append(await _translate_chat_content_part(part, _upload_fn=_upload_fn))
             else:
                 raise ValueError(
                     f"Unsupported content part type: expected ContentPart "
@@ -239,7 +303,7 @@ def _translate_chat_user_message(msg: dict[str, Any]) -> dict[str, Any]:
                 )
 
         for att in attachments:
-            parts.append(_translate_chat_attachment(att))
+            parts.append(await _translate_chat_attachment(att, _upload_fn=_upload_fn))
 
         result["content"] = parts
         return result
@@ -257,12 +321,26 @@ class OpenAIChatCompletionsClient(LLMClient):
     streaming. Translates Chat Completions delta chunks into the
     canonical event schema via ``ChoiceAccumulator`` /
     ``ToolCallAccumulator`` and ``_normalize_chat_chunk()``.
+
+    Accepts an optional ``UploadSession`` for file upload deduplication
+    and caching.
     """
 
-    def __init__(self, model_config: LanguageModel) -> None:
+    def __init__(
+        self,
+        model_config: LanguageModel,
+        upload_session: Any | None = None,  # UploadSession from providers.upload
+    ) -> None:
         self._model_config = model_config
         self._client: AsyncOpenAI | None = None
         self._prior_tool_calls: dict[str, dict[str, Any]] = {}
+
+        if upload_session is not None:
+            self._upload_session = upload_session
+        else:
+            from tinycua_sdk.providers.upload import UploadSession  # noqa: PLC0415
+
+            self._upload_session = UploadSession()
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -294,8 +372,15 @@ class OpenAIChatCompletionsClient(LLMClient):
         if self._client is not None:
             await self._client.close()
             self._client = None
+        if hasattr(self, "_upload_session"):
+            await self._upload_session.close()
 
-    def _translate_chat_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
+    async def _translate_chat_messages(
+        self,
+        messages: list[LLMMessage],
+        *,
+        _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+    ) -> list[dict[str, Any]]:
         """Translate canonical messages to Chat Completions ``messages``.
 
         - ``SystemMessage`` and ``AssistantMessage`` pass through
@@ -368,7 +453,7 @@ class OpenAIChatCompletionsClient(LLMClient):
                     })
             else:
                 if isinstance(msg, dict) and msg.get("role") == "user":
-                    result.append(_translate_chat_user_message(msg))  # type: ignore[arg-type]
+                    result.append(await _translate_chat_user_message(msg, _upload_fn=_upload_fn))  # type: ignore[arg-type]
                 else:
                     result.append(msg)  # type: ignore[arg-type]
                 i += 1
@@ -394,7 +479,7 @@ class OpenAIChatCompletionsClient(LLMClient):
             for t in tools
         ]
 
-    def _build_chat_payload(
+    async def _build_chat_payload(
         self,
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None = None,
@@ -405,7 +490,10 @@ class OpenAIChatCompletionsClient(LLMClient):
         ``max_output_tokens``), and passes ``response_format`` directly
         (not wrapped in ``text.format``).
         """
-        translated = self._translate_chat_messages(messages)
+        translated = await self._translate_chat_messages(
+            messages,
+            _upload_fn=self._ensure_uploaded_file_id,
+        )
         payload: dict[str, Any] = {
             "model": self._model_config.model_name,
             "messages": translated,
@@ -422,6 +510,23 @@ class OpenAIChatCompletionsClient(LLMClient):
                 payload["tool_choice"] = "auto"
 
         return payload
+
+    async def _ensure_uploaded_file_id(self, attachment: FileAttachment) -> str:
+        """Upload a file and return its provider ``file_id``.
+
+        Delegates to :class:`UploadSession.ensure_file_id` for cache
+        lookup, persistent cache integration, and concurrent upload
+        deduplication.
+
+        Args:
+            attachment: A ``FileAttachment`` to upload.
+
+        Returns:
+            The provider ``file_id`` string.
+        """
+        return await self._upload_session.ensure_file_id(
+            self._get_client(), attachment,
+        )
 
     @staticmethod
     def _normalize_chunk_usage_only(
@@ -689,12 +794,13 @@ class OpenAIChatCompletionsClient(LLMClient):
         messages: list[LLMMessage],
         tools: list[LLMToolSpec] | None,
     ) -> LLMResponse:
-        payload = self._build_chat_payload(messages, tools)
-        payload["stream"] = False
-
         try:
+            payload = await self._build_chat_payload(messages, tools)
+            payload["stream"] = False
             client = self._get_client()
             response = await client.chat.completions.create(**payload)
+        except (ValueError, ProviderApiError, ProviderAuthError):
+            raise
         except Exception as e:
             self._handle_provider_error(e)
 
@@ -728,13 +834,14 @@ class OpenAIChatCompletionsClient(LLMClient):
         tools: list[LLMToolSpec] | None,
         raw_events: bool = False,
     ) -> AsyncIterator[LLMEvent] | AsyncIterator[tuple[LLMEvent | None, RawSseEvent | None]]:
-        payload = self._build_chat_payload(messages, tools)
-        payload["stream"] = True
-        payload["stream_options"] = {"include_usage": True}
-
         try:
+            payload = await self._build_chat_payload(messages, tools)
+            payload["stream"] = True
+            payload["stream_options"] = {"include_usage": True}
             client = self._get_client()
             stream = await client.chat.completions.create(**payload)
+        except (ValueError, ProviderApiError, ProviderAuthError):
+            raise
         except Exception as e:
             self._handle_provider_error(e)
 
