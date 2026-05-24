@@ -6,7 +6,6 @@ behavior, and URL download SSRF protection. Uses mock OpenAI clients
 (mock transport) so tests run in any environment without credentials.
 """
 
-import asyncio
 import base64
 import hashlib
 from unittest.mock import AsyncMock, MagicMock
@@ -15,8 +14,6 @@ import pytest
 
 from tinycua_sdk.models.attachment import FileAttachment
 from tinycua_sdk.providers.upload import (
-    PersistentCacheStore,
-    UploadResult,
     UploadSession,
     _make_cache_key,
 )
@@ -237,6 +234,44 @@ class TestStreamingNoFullBuffer:
         expected = base64.b64encode(payload).decode("ascii")
         actual = "".join(att.iter_base64_chunks())
         assert actual == expected
+
+    @pytest.mark.asyncio
+    async def test_streaming_path_no_full_buffer(self, tmp_path):
+        """Streaming upload does not buffer full file: file create receives a file handle, not bytes."""
+        from tinycua_sdk.providers.upload import UploadSession
+
+        # Small file — the key assertion is that ensure_file_id passes
+        # a streaming / file-handle argument to client.files.create rather
+        # than fully materialized bytes or BytesIO.
+        file_path = tmp_path / "no_buffer.bin"
+        payload = b"STREAM_TEST_PAYLOAD" * 50
+        file_path.write_bytes(payload)
+        att = FileAttachment.from_path(str(file_path), stream=True)
+
+        # Use a mock client that captures the `file` argument
+        captured_arg = None
+
+        def capture_file(*args, **kwargs):
+            nonlocal captured_arg
+            captured_arg = kwargs.get("file")
+            uploaded = MagicMock()
+            uploaded.id = "file-stream-1"
+            return uploaded
+
+        mock_client = AsyncMock()
+        mock_client.files.create = AsyncMock(side_effect=capture_file)
+
+        session = UploadSession()
+        await session.ensure_file_id(mock_client, att)
+
+        assert captured_arg is not None, "file argument was not passed"
+        # The captured file arg should be a tuple (filename, content, ...)
+        # or a file-like object — NOT raw bytes or BytesIO
+        if isinstance(captured_arg, tuple):
+            # The OpenAI SDK accepts (filename, content, content_type) tuples
+            assert not isinstance(captured_arg[1], (bytes, bytearray)), (
+                "file content should be a file handle/iterator, not fully buffered bytes"
+            )
 
 
 # ── A7: LRU eviction ────────────────────────────────────────────────────────

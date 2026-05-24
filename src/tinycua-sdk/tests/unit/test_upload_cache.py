@@ -83,7 +83,6 @@ class TestMakeCacheKey:
         assert isinstance(att, StreamingFileAttachment)
         key = _make_cache_key(att)
         assert len(key) == 64
-        import hashlib
         assert all(c in "0123456789abcdef" for c in key)
 
 

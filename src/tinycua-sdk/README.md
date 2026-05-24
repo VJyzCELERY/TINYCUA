@@ -155,7 +155,7 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 agent = Agent(
     name="file-assistant",
     instructions="You are a helpful assistant.",
-    llm_model=LanguageModel(model="qwen/qwen-9b"),
+    llm_model=LanguageModel(model_name="qwen/qwen-9b"),
     cache_dir="./cache",                # Root directory for persistent cache
     cache_namespace="my-app",           # Isolate cache between accounts/projects
     cache_max_entries=1000,             # Max persistent cache entries

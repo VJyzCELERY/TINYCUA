@@ -154,18 +154,21 @@ class FileAttachment(BaseModel):
         path_obj = pathlib.Path(path)
         if not path_obj.exists():
             raise FileNotFoundError(f"File not found: {path_obj}")
-        resolved_mime = mime_type or mimetypes.guess_type(path_obj)[0] or "application/octet-stream"
+        # Resolve to an absolute path so that streaming operations are not
+        # affected by later changes to the process working directory.
+        resolved = path_obj.resolve()
+        resolved_mime = mime_type or mimetypes.guess_type(resolved)[0] or "application/octet-stream"
 
         if stream:
             streaming = StreamingFileAttachment(
                 data=None,
                 mime_type=resolved_mime,
-                filename=path_obj.name,
+                filename=resolved.name,
             )
-            object.__setattr__(streaming, "_file_path", path_obj)
+            object.__setattr__(streaming, "_file_path", resolved)
             return streaming
 
-        encoded = base64.b64encode(path_obj.read_bytes()).decode("ascii")
+        encoded = base64.b64encode(resolved.read_bytes()).decode("ascii")
         return cls(
             data=encoded,
             mime_type=resolved_mime,
