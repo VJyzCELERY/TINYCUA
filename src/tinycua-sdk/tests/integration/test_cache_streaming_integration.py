@@ -230,7 +230,9 @@ class TestPdfInlineResponses:
 
         pdf_data = _base64.b64encode(b"fake pdf").decode("ascii")
         attachment = FileAttachment(
-            data=pdf_data, mime_type="application/pdf", filename="test.pdf",
+            data=pdf_data,
+            mime_type="application/pdf",
+            filename="test.pdf",
         )
         result = await _translate_responses_attachment(attachment)
         assert result["type"] == "input_file"
@@ -255,15 +257,18 @@ class TestPdfUploadOrInlineBothProviders:
     async def test_chat_completions_pdf_upload(self):
         """Chat Completions: PDF upload → model response."""
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf",
+            str(_PDF_PATH),
+            mime_type="application/pdf",
         )
         agent = Agent(
             llm_model=LanguageModel(
-                provider="openai-chat-completions", model_name="gpt-4o",
+                provider="openai-chat-completions",
+                model_name="gpt-4o",
             ),
         )
         result = await agent.run(
-            "Summarize this document.", file_attachments=[attachment],
+            "Summarize this document.",
+            file_attachments=[attachment],
         )
         assert isinstance(result, str)
         assert result
@@ -272,15 +277,18 @@ class TestPdfUploadOrInlineBothProviders:
     async def test_responses_pdf_inline(self):
         """Responses: PDF data-backed → sent inline via file_data (no /v1/files)."""
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf",
+            str(_PDF_PATH),
+            mime_type="application/pdf",
         )
         agent = Agent(
             llm_model=LanguageModel(
-                provider="openai-responses", model_name="gpt-4o",
+                provider="openai-responses",
+                model_name="gpt-4o",
             ),
         )
         result = await agent.run(
-            "Summarize this document.", file_attachments=[attachment],
+            "Summarize this document.",
+            file_attachments=[attachment],
         )
         assert isinstance(result, str)
         assert result
@@ -290,19 +298,19 @@ class TestPdfUploadOrInlineBothProviders:
     async def test_same_file_uploaded_once_chat_completions(self):
         """Chat Completions: same PDF twice → one upload (cache dedup)."""
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf",
+            str(_PDF_PATH),
+            mime_type="application/pdf",
         )
         agent = Agent(
             llm_model=LanguageModel(
-                provider="openai-chat-completions", model_name="gpt-4o",
+                provider="openai-chat-completions",
+                model_name="gpt-4o",
             ),
         )
         await agent.run("First run", file_attachments=[attachment])
         await agent.run("Second run", file_attachments=[attachment])
 
-        upload_session = agent._llm_client._upload_session  # type: ignore[attr-defined]
-        assert upload_session is not None
-        assert upload_session.cache_size >= 1
+        assert agent.upload_cache_size >= 1
 
     @_requires_files_endpoint
     @pytest.mark.asyncio
@@ -314,18 +322,23 @@ class TestPdfUploadOrInlineBothProviders:
         inline via ``file_data`` with no /v1/files upload.
         """
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf", stream=True,
+            str(_PDF_PATH),
+            mime_type="application/pdf",
+            stream=True,
         )
         agent = Agent(
             llm_model=LanguageModel(
-                provider="openai-responses", model_name="gpt-4o",
+                provider="openai-responses",
+                model_name="gpt-4o",
             ),
         )
         result1 = await agent.run(
-            "Summarize this document.", file_attachments=[attachment],
+            "Summarize this document.",
+            file_attachments=[attachment],
         )
         result2 = await agent.run(
-            "Summarize again.", file_attachments=[attachment],
+            "Summarize again.",
+            file_attachments=[attachment],
         )
         assert isinstance(result1, str) and result1
         assert isinstance(result2, str) and result2
@@ -352,7 +365,8 @@ class TestFileIdBypassBothProviders:
         )
 
         attachment = FileAttachment(
-            file_id="file-pre-existing-id", mime_type="application/pdf",
+            file_id="file-pre-existing-id",
+            mime_type="application/pdf",
         )
         result = await _translate_chat_attachment(attachment)
         assert result == {"type": "file", "file": {"file_id": "file-pre-existing-id"}}
@@ -365,7 +379,8 @@ class TestFileIdBypassBothProviders:
         )
 
         attachment = FileAttachment(
-            file_id="file-pre-existing-id", mime_type="application/pdf",
+            file_id="file-pre-existing-id",
+            mime_type="application/pdf",
         )
         result = await _translate_responses_attachment(attachment)
         assert result == {"type": "input_file", "file_id": "file-pre-existing-id"}
@@ -383,13 +398,15 @@ class TestPersistentCacheBothProviders:
     async def test_cache_survives_chat_completions(self, tmp_path):
         """Chat Completions: cache persists across agent instances."""
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf",
+            str(_PDF_PATH),
+            mime_type="application/pdf",
         )
         cache_dir = str(tmp_path / "cache-cc")
 
         agent1 = Agent(
             llm_model=LanguageModel(
-                provider="openai-chat-completions", model_name="gpt-4o",
+                provider="openai-chat-completions",
+                model_name="gpt-4o",
             ),
             cache_dir=cache_dir,
         )
@@ -398,23 +415,29 @@ class TestPersistentCacheBothProviders:
 
         agent2 = Agent(
             llm_model=LanguageModel(
-                provider="openai-chat-completions", model_name="gpt-4o",
+                provider="openai-chat-completions",
+                model_name="gpt-4o",
             ),
             cache_dir=cache_dir,
         )
         result = await agent2.run(
-            "Use cached file", file_attachments=[attachment],
+            "Use cached file",
+            file_attachments=[attachment],
         )
         assert isinstance(result, str)
         assert result
 
         # Verify cache file exists
         import hashlib
+
         base_url = "https://api.openai.com/v1"
         base_url_hash = hashlib.sha256(base_url.encode()).hexdigest()
         cache_file = (
-            pathlib.Path(cache_dir) / "openai-chat-completions"
-            / base_url_hash / "default" / "cache.jsonl"
+            pathlib.Path(cache_dir)
+            / "openai-chat-completions"
+            / base_url_hash
+            / "default"
+            / "cache.jsonl"
         )
         assert cache_file.exists()
         await agent2.close()
@@ -429,18 +452,22 @@ class TestPersistentCacheBothProviders:
         inline via ``file_data``.
         """
         attachment = FileAttachment.from_path(
-            str(_PDF_PATH), mime_type="application/pdf", stream=True,
+            str(_PDF_PATH),
+            mime_type="application/pdf",
+            stream=True,
         )
         cache_dir = str(tmp_path / "cache-resp")
 
         agent1 = Agent(
             llm_model=LanguageModel(
-                provider="openai-responses", model_name="gpt-4o",
+                provider="openai-responses",
+                model_name="gpt-4o",
             ),
             cache_dir=cache_dir,
         )
         result1 = await agent1.run(
-            "Summarize this document.", file_attachments=[attachment],
+            "Summarize this document.",
+            file_attachments=[attachment],
         )
         assert isinstance(result1, str)
         assert result1
@@ -448,12 +475,14 @@ class TestPersistentCacheBothProviders:
 
         agent2 = Agent(
             llm_model=LanguageModel(
-                provider="openai-responses", model_name="gpt-4o",
+                provider="openai-responses",
+                model_name="gpt-4o",
             ),
             cache_dir=cache_dir,
         )
         result2 = await agent2.run(
-            "Summarize again.", file_attachments=[attachment],
+            "Summarize again.",
+            file_attachments=[attachment],
         )
         assert isinstance(result2, str)
         assert result2
@@ -522,7 +551,8 @@ class TestUrlAttachmentTranslation:
             filename="doc.pdf",
         )
         result = await _translate_chat_attachment(
-            attachment, _upload_fn=mock_upload,
+            attachment,
+            _upload_fn=mock_upload,
         )
 
         assert result == {"type": "file", "file": {"file_id": "file-from-url-123"}}
@@ -560,8 +590,7 @@ class TestUrlAttachmentTranslation:
             "type": "input_file",
             "filename": "report.pdf",
             "file_data": (
-                "data:application/pdf;base64,"
-                + "JVBERi0xLjQgZmFrZSBjb250ZW50"
+                "data:application/pdf;base64," + "JVBERi0xLjQgZmFrZSBjb250ZW50"
             ),
         }
 
@@ -592,7 +621,8 @@ class TestUrlAttachmentIntegration:
         )
         agent = Agent(
             llm_model=LanguageModel(
-                provider="openai-chat-completions", model_name="gpt-4o-mini",
+                provider="openai-chat-completions",
+                model_name="gpt-4o-mini",
             ),
         )
         result = await agent.run(

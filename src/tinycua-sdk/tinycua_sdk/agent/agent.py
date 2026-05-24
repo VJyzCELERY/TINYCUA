@@ -74,7 +74,11 @@ class Agent(AgentExecutor):
             loop=loop,
             tool_permissions=tool_permissions or {},
             approval_workflow=approval_workflow,
-            cache_dir=cache_dir or os.environ.get("TINYCUA_CACHE_DIR"),
+            cache_dir=(
+                cache_dir
+                if cache_dir is not None
+                else os.environ.get("TINYCUA_CACHE_DIR")
+            ),
             cache_max_entries=cache_max_entries,
             session_cache_max_entries=session_cache_max_entries,
             cache_namespace=cache_namespace,
@@ -102,6 +106,18 @@ class Agent(AgentExecutor):
     ) -> None:
         """Set tool permissions."""
         self.config.tool_permissions = value
+
+    @property
+    def upload_cache_size(self) -> int:
+        """Number of in-memory upload cache entries (for testing).
+
+        Returns:
+            The number of cached file-id entries in the upload session,
+            or 0 if no upload session has been created yet.
+        """
+        client = self._get_llm_client()
+        session = getattr(client, "_upload_session", None)
+        return session.cache_size if session else 0
 
     def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
         """Append one or more tools to the agent.
@@ -176,8 +192,7 @@ class Agent(AgentExecutor):
                     )
         else:
             raise TypeError(
-                f"query must be str or list[ContentPart], "
-                f"got {type(query).__name__}."
+                f"query must be str or list[ContentPart], got {type(query).__name__}."
             )
 
         # Validate file_attachments
@@ -214,9 +229,7 @@ class Agent(AgentExecutor):
                 user_msg = {"role": "user", "content": query}
 
         if not isinstance(stream, bool):
-            raise TypeError(
-                f"stream must be a bool, got {type(stream).__name__}"
-            )
+            raise TypeError(f"stream must be a bool, got {type(stream).__name__}")
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [user_msg]
         try:
@@ -228,10 +241,14 @@ class Agent(AgentExecutor):
 
         if not stream:
             return result
-        assert isinstance(result, AsyncIterator), "stream mode must return AsyncIterator"
+        assert isinstance(result, AsyncIterator), (
+            "stream mode must return AsyncIterator"
+        )
         return self._wrap_stream(result)
 
-    async def _wrap_stream(self, gen: AsyncIterator[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
+    async def _wrap_stream(
+        self, gen: AsyncIterator[dict[str, Any]]
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Pass through stream events and reset cancellation on completion."""
         try:
             async for event in gen:

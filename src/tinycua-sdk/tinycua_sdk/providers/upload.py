@@ -27,7 +27,6 @@ import httpx
 from tinycua_sdk.models.attachment import StreamingFileAttachment  # noqa: E402
 
 if TYPE_CHECKING:
-
     from openai import AsyncOpenAI
 
     from tinycua_sdk.models.attachment import FileAttachment
@@ -41,23 +40,23 @@ _MAX_REDIRECTS = 5
 
 # Prohibited IPv4 networks for SSRF protection.
 _BLOCKED_IPV4_NETWORKS = [
-    ipaddress.ip_network("0.0.0.0/8"),        # "This" network
-    ipaddress.ip_network("10.0.0.0/8"),       # Private
-    ipaddress.ip_network("127.0.0.0/8"),      # Loopback
-    ipaddress.ip_network("169.254.0.0/16"),   # Link-local
-    ipaddress.ip_network("172.16.0.0/12"),    # Private
-    ipaddress.ip_network("192.168.0.0/16"),   # Private
-    ipaddress.ip_network("224.0.0.0/4"),      # Multicast
-    ipaddress.ip_network("240.0.0.0/4"),      # Reserved (including 255.255.255.255)
+    ipaddress.ip_network("0.0.0.0/8"),  # "This" network
+    ipaddress.ip_network("10.0.0.0/8"),  # Private
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network("169.254.0.0/16"),  # Link-local
+    ipaddress.ip_network("172.16.0.0/12"),  # Private
+    ipaddress.ip_network("192.168.0.0/16"),  # Private
+    ipaddress.ip_network("224.0.0.0/4"),  # Multicast
+    ipaddress.ip_network("240.0.0.0/4"),  # Reserved (including 255.255.255.255)
 ]
 
 # Prohibited IPv6 networks for SSRF protection.
 _BLOCKED_IPV6_NETWORKS = [
-    ipaddress.ip_network("::1/128"),          # Loopback
-    ipaddress.ip_network("::/128"),           # Unspecified
-    ipaddress.ip_network("fe80::/10"),        # Link-local
-    ipaddress.ip_network("fc00::/7"),         # Unique local (private)
-    ipaddress.ip_network("ff00::/8"),         # Multicast
+    ipaddress.ip_network("::1/128"),  # Loopback
+    ipaddress.ip_network("::/128"),  # Unspecified
+    ipaddress.ip_network("fe80::/10"),  # Link-local
+    ipaddress.ip_network("fc00::/7"),  # Unique local (private)
+    ipaddress.ip_network("ff00::/8"),  # Multicast
 ]
 
 
@@ -223,15 +222,14 @@ class PersistentCacheStore:
         p = self._provider
         if p.startswith("/") or "\\" in p:
             raise ValueError(
-                f"provider cannot be an absolute path or contain "
-                f"backslashes: {p!r}"
+                f"provider cannot be an absolute path or contain backslashes: {p!r}"
             )
         name_component = pathlib.PurePosixPath(p)
-        if str(name_component) != name_component.name or name_component.name in (".", ".."):
-            raise ValueError(
-                f"provider must be a single path component, "
-                f"got: {p!r}"
-            )
+        if str(name_component) != name_component.name or name_component.name in (
+            ".",
+            "..",
+        ):
+            raise ValueError(f"provider must be a single path component, got: {p!r}")
 
     def _validate_namespace(self) -> None:
         """Validate that *cache_namespace* is a safe single path component.
@@ -250,10 +248,12 @@ class PersistentCacheStore:
                 f"backslashes: {ns!r}"
             )
         name_component = pathlib.PurePosixPath(ns)
-        if str(name_component) != name_component.name or name_component.name in (".", ".."):
+        if str(name_component) != name_component.name or name_component.name in (
+            ".",
+            "..",
+        ):
             raise ValueError(
-                f"cache_namespace must be a single path component, "
-                f"got: {ns!r}"
+                f"cache_namespace must be a single path component, got: {ns!r}"
             )
 
     def _load(self) -> None:
@@ -493,7 +493,10 @@ def _make_cache_key(
     # Compute canonical content hash from raw bytes, regardless of
     # streaming mode.  data-backed and streaming-backed attachments
     # produce the same hash for identical content.
-    if isinstance(attachment, StreamingFileAttachment) and attachment._file_path is not None:
+    if (
+        isinstance(attachment, StreamingFileAttachment)
+        and attachment._file_path is not None
+    ):
         raw_hash = attachment.hash_content()
     elif attachment.data is not None:
         raw_bytes = base64.b64decode(attachment.data)
@@ -543,9 +546,7 @@ class UploadSession:
             upload_timeout: Timeout for URL downloads.
         """
         if upload_timeout <= 0:
-            raise ValueError(
-                f"upload_timeout must be positive, got {upload_timeout}"
-            )
+            raise ValueError(f"upload_timeout must be positive, got {upload_timeout}")
         if session_cache_max_entries < 0:
             raise ValueError(
                 f"session_cache_max_entries must be >= 0, got {session_cache_max_entries}"
@@ -634,7 +635,10 @@ class UploadSession:
         # Use in-flight tracker for concurrent dedup.
         async def _do_upload() -> str:
             return await self._perform_upload(
-                client, attachment, cache_key, stream_fh=stream_fh,
+                client,
+                attachment,
+                cache_key,
+                stream_fh=stream_fh,
             )
 
         try:
@@ -670,14 +674,19 @@ class UploadSession:
             A ``(cache_key, stream_fh)`` tuple where *stream_fh* is an
             open binary file handle or ``None``.
         """
-        if isinstance(attachment, StreamingFileAttachment) and attachment._file_path is not None:
+        if (
+            isinstance(attachment, StreamingFileAttachment)
+            and attachment._file_path is not None
+        ):
             fh = open(str(attachment._file_path), "rb")  # noqa: SIM115
             try:
                 raw_hasher = hashlib.sha256()
                 for chunk in iter(lambda: fh.read(8192), b""):
                     raw_hasher.update(chunk)
                 fh.seek(0)
-                cache_key = _derive_cache_key(raw_hasher.hexdigest(), attachment.mime_type)
+                cache_key = _derive_cache_key(
+                    raw_hasher.hexdigest(), attachment.mime_type
+                )
             except Exception:
                 fh.close()
                 raise
@@ -798,17 +807,6 @@ class UploadSession:
                 )
             finally:
                 stream_fh.close()
-        elif isinstance(attachment, StreamingFileAttachment) and attachment._file_path is not None:
-            # Fallback: open the file for streaming (passes file
-            # object to avoid full-file buffering).
-            file_obj = open(str(attachment._file_path), "rb")  # noqa: SIM115
-            try:
-                uploaded = await client.files.create(
-                    file=file_obj,
-                    purpose="user_data",
-                )
-            finally:
-                file_obj.close()
         elif attachment.data is not None:
             file_bytes = base64.b64decode(attachment.data)
             file_obj = BytesIO(file_bytes)
@@ -818,9 +816,7 @@ class UploadSession:
                 purpose="user_data",
             )
         else:
-            raise ValueError(
-                "Cannot upload attachment: no data source available"
-            )
+            raise ValueError("Cannot upload attachment: no data source available")
 
         file_id: str = uploaded.id
         expires_val = getattr(uploaded, "expires_at", None)
@@ -935,7 +931,9 @@ class UploadSession:
 # ── URL Download ─────────────────────────────────────────────────────────────
 
 
-async def _validate_url_safety(url: str, timeout: float | None = None) -> frozenset[str]:
+async def _validate_url_safety(
+    url: str, timeout: float | None = None
+) -> frozenset[str]:
     """Validate that a URL does not target internal/private networks.
 
     Returns the set of validated IP addresses so callers can pin
@@ -992,13 +990,10 @@ async def _validate_url_safety(url: str, timeout: float | None = None) -> frozen
         )
     except asyncio.TimeoutError:
         raise ValueError(
-            f"DNS resolution timeout ({timeout}s) for hostname: "
-            f"{hostname!r}"
+            f"DNS resolution timeout ({timeout}s) for hostname: {hostname!r}"
         )
     except socket.gaierror as exc:
-        raise ValueError(
-            f"Failed to resolve hostname: {hostname!r}: {exc}"
-        ) from exc
+        raise ValueError(f"Failed to resolve hostname: {hostname!r}: {exc}") from exc
 
     validated_ips: set[str] = set()
     for info in addrinfo:
@@ -1041,16 +1036,11 @@ def _check_ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None
     if isinstance(ip, ipaddress.IPv4Address):
         for net in _BLOCKED_IPV4_NETWORKS:
             if ip in net:
-                raise ValueError(
-                    f"URL resolves to blocked IP address: {ip} (in {net})"
-                )
+                raise ValueError(f"URL resolves to blocked IP address: {ip} (in {net})")
     elif isinstance(ip, ipaddress.IPv6Address):
         for net in _BLOCKED_IPV6_NETWORKS:
             if ip in net:
-                raise ValueError(
-                    f"URL resolves to blocked IP address: {ip} (in {net})"
-                )
-
+                raise ValueError(f"URL resolves to blocked IP address: {ip} (in {net})")
 
 
 def _verify_connected_peer(
@@ -1088,15 +1078,13 @@ def _verify_connected_peer(
     extensions = getattr(response, "extensions", None)
     if not isinstance(extensions, dict):
         raise ValueError(
-            "response.extensions not available; "
-            "cannot verify connected peer"
+            "response.extensions not available; cannot verify connected peer"
         )
 
     network_stream = extensions.get("network_stream")
     if network_stream is None:
         raise ValueError(
-            "response.extensions has no network_stream; "
-            "cannot verify connected peer"
+            "response.extensions has no network_stream; cannot verify connected peer"
         )
 
     peername = network_stream.get_extra_info("peername")
@@ -1165,7 +1153,11 @@ class _PinnedNetworkBackend:
                     f"Validated IPs: {sorted(self._validated_ips)}"
                 )
             return await self._backend.connect_tcp(
-                host, port, timeout, local_address, socket_options,
+                host,
+                port,
+                timeout,
+                local_address,
+                socket_options,
             )
 
         # Resolve hostname and connect to a validated IP.
@@ -1181,19 +1173,20 @@ class _PinnedNetworkBackend:
             )
         except asyncio.TimeoutError:
             raise ValueError(
-                f"DNS resolution timeout ({timeout}s) for hostname: "
-                f"{host!r}"
+                f"DNS resolution timeout ({timeout}s) for hostname: {host!r}"
             )
         except socket.gaierror as exc:
-            raise ValueError(
-                f"Failed to resolve hostname {host!r}: {exc}"
-            ) from exc
+            raise ValueError(f"Failed to resolve hostname {host!r}: {exc}") from exc
 
         for _family, _type, _proto, _canonname, sa in addrinfo:
             ip = sa[0]
             if ip in self._validated_ips:
                 return await self._backend.connect_tcp(
-                    ip, port, timeout, local_address, socket_options,
+                    ip,
+                    port,
+                    timeout,
+                    local_address,
+                    socket_options,
                 )
 
         raise ValueError(
@@ -1279,7 +1272,9 @@ async def _download_url_content(
     # against the pinned httpx version in pyproject.toml (>=0.27.0) and
     # raises RuntimeError with a clear message if the internal API surface
     # changes — providing fail-closed SSRF protection.
-    def _make_client(ips: frozenset[str], remaining_timeout: float | None = None) -> httpx.AsyncClient:
+    def _make_client(
+        ips: frozenset[str], remaining_timeout: float | None = None
+    ) -> httpx.AsyncClient:
         transport = httpx.AsyncHTTPTransport(limits=limits)
         # Replace the internal network backend with a pinned one
         # that only allows connections to pre-validated IPs.
@@ -1291,14 +1286,19 @@ async def _download_url_content(
         original_backend = transport._pool._network_backend
         try:
             transport._pool._network_backend = _PinnedNetworkBackend(
-                ips, original_backend,
+                ips,
+                original_backend,
             )
         except AttributeError as exc:
             raise RuntimeError(
                 f"httpx version incompatible with SSRF IP-pinning: "
                 f"transport._pool has no _network_backend attribute ({exc})."
             )
-        client_timeout = httpx.Timeout(remaining_timeout) if remaining_timeout is not None else httpx.Timeout(timeout)
+        client_timeout = (
+            httpx.Timeout(remaining_timeout)
+            if remaining_timeout is not None
+            else httpx.Timeout(timeout)
+        )
         return httpx.AsyncClient(
             timeout=client_timeout,
             follow_redirects=False,
@@ -1352,7 +1352,11 @@ async def _download_url_content(
                         f"Location header"
                     )
                 next_url = urljoin(current_url, location)
-                remaining = max(deadline - time.monotonic(), 0.0) if deadline is not None else None
+                remaining = (
+                    max(deadline - time.monotonic(), 0.0)
+                    if deadline is not None
+                    else None
+                )
                 validated_ips = await _validate_url_safety(next_url, timeout=remaining)
                 current_url = next_url
                 # Close current client and re-create with updated IP set

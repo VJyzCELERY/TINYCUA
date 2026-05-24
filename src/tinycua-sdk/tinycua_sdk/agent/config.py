@@ -136,7 +136,11 @@ class AgentConfig(BaseModel):
             loop=data.get("loop"),
             tool_permissions=data.get("tool_permissions", {}),
             approval_workflow=data.get("approval_workflow"),
-            cache_dir=data.get("cache_dir") or os.environ.get("TINYCUA_CACHE_DIR"),
+            cache_dir=(
+                data.get("cache_dir")
+                if data.get("cache_dir") is not None
+                else os.environ.get("TINYCUA_CACHE_DIR")
+            ),
             cache_max_entries=data.get("cache_max_entries", 1000),
             session_cache_max_entries=data.get("session_cache_max_entries", 500),
             cache_namespace=data.get("cache_namespace"),
