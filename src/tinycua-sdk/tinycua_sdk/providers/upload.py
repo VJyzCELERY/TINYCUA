@@ -189,7 +189,6 @@ class PersistentCacheStore:
         self._validate_provider()
         self._validate_namespace()
         self._entries: dict[str, UploadResult] = {}
-
         self._path = (
             pathlib.Path(cache_dir)
             / provider
@@ -197,6 +196,7 @@ class PersistentCacheStore:
             / self._cache_namespace
             / "cache.jsonl"
         )
+        self._dirty: bool = False
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             if self._max_entries > 0:
@@ -317,8 +317,21 @@ class PersistentCacheStore:
         if lines and len(self._entries) < len([line for line in lines if line.strip()]):
             self._persist()
 
+    def close(self) -> None:
+        """Flush dirty entries to disk, then clear in-memory state.
+
+        Idempotent — safe to call multiple times.
+        """
+        if self._dirty and self._max_entries > 0:
+            self._persist()
+        self._entries.clear()
+        self._dirty = False
+
     def _persist(self) -> None:
-        """Atomically write all entries to the cache file."""
+        """Atomically write all entries to the cache file.
+
+        Resets the dirty flag after a successful write.
+        """
         tmp_path = self._path.with_suffix(".tmp")
         fd = None
         try:
@@ -340,6 +353,7 @@ class PersistentCacheStore:
                         record["expires_at"] = entry.expires_at
                     f.write(json.dumps(record) + "\n")
             tmp_path.replace(self._path)
+            self._dirty = False
             try:
                 os.chmod(self._path, 0o600)
             except OSError as exc:
@@ -364,8 +378,9 @@ class PersistentCacheStore:
     def get(self, key: str) -> UploadResult | None:
         """Retrieve an entry and promote it to most-recently-used.
 
-        Persists the updated recency to disk so that LRU order survives
-        process restarts (FR-010/FR-012 durability requirement).
+        Updates ``last_accessed`` in memory and marks the store as dirty.
+        The updated recency is flushed to disk on :meth:`put` or
+        :meth:`close`, avoiding per-read write amplification.
 
         Args:
             key: Cache key.
@@ -376,10 +391,7 @@ class PersistentCacheStore:
         entry = self._entries.get(key)
         if entry is not None:
             entry.last_accessed = time.time()
-            # Persist the promoted LRU order so that a subsequent
-            # store instance sees the updated recency (FR-010).
-            if self._max_entries > 0:
-                self._persist()
+            self._dirty = True
         return entry
 
     def put(self, key: str, result: UploadResult) -> None:
@@ -600,66 +612,26 @@ class UploadSession:
                 "Images are sent inline, not uploaded."
             )
 
-        # For streaming attachments backed by a file path, open the
-        # file once, hash incrementally from the file descriptor to
-        # compute the cache key, then seek back to the beginning.
-        # The same open file handle is passed to _perform_upload so
-        # the exact content that was hashed is what gets uploaded,
-        # eliminating both the TOCTOU race and full-file buffering.
-        stream_fh: Any = None
-        if isinstance(attachment, StreamingFileAttachment) and attachment._file_path is not None:
-            stream_fh = open(str(attachment._file_path), "rb")  # noqa: SIM115
-            try:
-                raw_hasher = hashlib.sha256()
-                for chunk in iter(lambda: stream_fh.read(8192), b""):
-                    raw_hasher.update(chunk)
-                stream_fh.seek(0)
-                raw_hash = raw_hasher.hexdigest()
-                mime = attachment.mime_type
-                cache_key = _derive_cache_key(raw_hash, mime)
-            except Exception:
-                stream_fh.close()
-                raise
-        else:
-            cache_key = _make_cache_key(attachment)
+        # Resolve cache key from content (opens streaming file handle
+        # for incremental hashing if applicable).
+        cache_key, stream_fh = self._resolve_cache_key(attachment)
 
-        # Check in-memory cache
-        if cache_key in self._cache:
-            if stream_fh is not None:
-                stream_fh.close()
-            entry = self._cache[cache_key]
-            entry.last_accessed = time.time()
-            # Touch persistent cache to keep its LRU order in sync
-            # (FR-010/FR-012).  URL-backed keys are never persisted,
-            # so skip the touch for those.
-            if self._persistent is not None and attachment.url is None:
-                self._persistent.get(cache_key)  # side effect: updates last_accessed + persists
-            return entry.file_id
+        # Check in-memory cache (closes stream_fh on hit).
+        file_id = self._try_in_memory_cache(cache_key, stream_fh, attachment)
+        if file_id is not None:
+            return file_id
 
-        # URL-backed attachments: download first, then upload (FR-006).
+        # URL-backed attachments: download and upload (FR-006).
         # Skip persistent cache to guarantee fresh content each session.
         if attachment.url is not None:
             return await self._upload_from_url(client, attachment)
 
-        # Check persistent cache (file-data attachments only)
-        if self._persistent is not None:
-            persisted = self._persistent.get(cache_key)
-            if persisted is not None:
-                if stream_fh is not None:
-                    stream_fh.close()
-                # Promote to in-memory
-                self._cache[cache_key] = UploadResult(
-                    file_id=persisted.file_id,
-                    mime_type=persisted.mime_type,
-                    created_at=persisted.created_at,
-                    last_accessed=persisted.last_accessed,
-                    expires_at=persisted.expires_at,
-                )
-                if len(self._cache) > self._max_entries:
-                    self._evict_in_memory_lru()
-                return persisted.file_id
+        # Check persistent cache (file-data attachments only).
+        file_id = self._try_persistent_cache(cache_key, stream_fh)
+        if file_id is not None:
+            return file_id
 
-        # Use in-flight tracker for concurrent dedup
+        # Use in-flight tracker for concurrent dedup.
         async def _do_upload() -> str:
             return await self._perform_upload(
                 client, attachment, cache_key, stream_fh=stream_fh,
@@ -675,6 +647,111 @@ class UploadSession:
             # handle, so .closed is True and this is a no-op.
             if stream_fh is not None and not stream_fh.closed:
                 stream_fh.close()
+
+    def _resolve_cache_key(
+        self,
+        attachment: FileAttachment,
+    ) -> tuple[str, Any | None]:
+        """Compute the cache key and optionally open a streaming file handle.
+
+        For :class:`StreamingFileAttachment` backed by a file path, opens
+        the file, incrementally hashes the content to derive the cache key,
+        then seeks back to position 0.  The same handle is returned so the
+        caller can pass it to :meth:`_perform_upload`, eliminating both
+        the TOCTOU race and full-file buffering.
+
+        For data-backed, URL-backed, and file_id-backed attachments, uses
+        :func:`_make_cache_key` and returns ``None`` for the file handle.
+
+        Args:
+            attachment: The file attachment to process.
+
+        Returns:
+            A ``(cache_key, stream_fh)`` tuple where *stream_fh* is an
+            open binary file handle or ``None``.
+        """
+        if isinstance(attachment, StreamingFileAttachment) and attachment._file_path is not None:
+            fh = open(str(attachment._file_path), "rb")  # noqa: SIM115
+            try:
+                raw_hasher = hashlib.sha256()
+                for chunk in iter(lambda: fh.read(8192), b""):
+                    raw_hasher.update(chunk)
+                fh.seek(0)
+                cache_key = _derive_cache_key(raw_hasher.hexdigest(), attachment.mime_type)
+            except Exception:
+                fh.close()
+                raise
+            return cache_key, fh
+        return _make_cache_key(attachment), None
+
+    def _try_in_memory_cache(
+        self,
+        cache_key: str,
+        stream_fh: Any | None,
+        attachment: FileAttachment,
+    ) -> str | None:
+        """Check in-memory cache for *cache_key*.
+
+        If the key is found, the entry's ``last_accessed`` is updated,
+        the persistent cache is touched (for non-URL entries only), and
+        the streaming file handle is closed.
+
+        Args:
+            cache_key: The canonical cache key.
+            stream_fh: An open file handle to close on hit, or ``None``.
+            attachment: The original attachment (used for URL detection).
+
+        Returns:
+            The ``file_id`` if found, or ``None``.
+        """
+        entry = self._cache.get(cache_key)
+        if entry is None:
+            return None
+        if stream_fh is not None:
+            stream_fh.close()
+        entry.last_accessed = time.time()
+        # Touch persistent cache to keep its LRU order in sync
+        # (FR-010/FR-012).  URL-backed keys are never persisted,
+        # so skip the touch for those.
+        if self._persistent is not None and attachment.url is None:
+            self._persistent.get(cache_key)  # side effect: updates last_accessed
+        return entry.file_id
+
+    def _try_persistent_cache(
+        self,
+        cache_key: str,
+        stream_fh: Any | None,
+    ) -> str | None:
+        """Check persistent disk cache for *cache_key*.
+
+        On a hit, promotes the entry to the in-memory cache, evicts LRU
+        if necessary, and closes the streaming file handle.
+
+        Args:
+            cache_key: The canonical cache key.
+            stream_fh: An open file handle to close on hit, or ``None``.
+
+        Returns:
+            The ``file_id`` if found, or ``None``.
+        """
+        if self._persistent is None:
+            return None
+        persisted = self._persistent.get(cache_key)
+        if persisted is None:
+            return None
+        if stream_fh is not None:
+            stream_fh.close()
+        # Promote to in-memory
+        self._cache[cache_key] = UploadResult(
+            file_id=persisted.file_id,
+            mime_type=persisted.mime_type,
+            created_at=persisted.created_at,
+            last_accessed=persisted.last_accessed,
+            expires_at=persisted.expires_at,
+        )
+        if len(self._cache) > self._max_entries:
+            self._evict_in_memory_lru()
+        return persisted.file_id
 
     async def _perform_upload(
         self,
@@ -829,11 +906,12 @@ class UploadSession:
     async def close(self) -> None:
         """Close the upload session and release resources.
 
-        Persists any remaining in-memory entries to the persistent cache
-        if configured, then clears in-memory state.
+        Flushes any dirty entries to the persistent cache if configured,
+        then clears in-memory state.
         """
         if self._persistent is not None:
-            self._persistent._persist()
+            self._persistent.close()
+            self._persistent = None
         self._cache.clear()
 
     # ── Testing helpers ──────────────────────────────────────────────────────
@@ -1194,6 +1272,13 @@ async def _download_url_content(
 
     # Helper to build a client with IP-pinned transport for a given IP set
     # and a per-request timeout that respects the remaining deadline budget.
+    #
+    # NOTE: This accesses httpx private attributes (transport._pool and
+    # _pool._network_backend) to inject a custom network backend that
+    # restricts connections to pre-validated IPs.  The code is tested
+    # against the pinned httpx version in pyproject.toml (>=0.27.0) and
+    # raises RuntimeError with a clear message if the internal API surface
+    # changes — providing fail-closed SSRF protection.
     def _make_client(ips: frozenset[str], remaining_timeout: float | None = None) -> httpx.AsyncClient:
         transport = httpx.AsyncHTTPTransport(limits=limits)
         # Replace the internal network backend with a pinned one

@@ -310,31 +310,31 @@ Implementation tasks for Phase 5 cache-streaming feature. Check off items as com
 
 ## Verification Phase
 
-- [ ] Manual smoke test: Chat Completions + PDF attachment, verify model response <!-- id: 30 -->
-- [ ] Manual smoke test: URL attachment with real public PDF <!-- id: 31 -->
-- [ ] Manual smoke test: persistent cache directory populated with `cache.jsonl` <!-- id: 32 -->
-- [ ] Manual smoke test: persistent cache reuse across restarts (two separate script runs) <!-- id: 33 -->
-- [ ] Memory profiling: verify streaming upload of 500 MB file stays under 100 MB peak memory <!-- id: 34 -->
-- [ ] Performance check: 1000-entry LRU eviction completes in < 1 ms <!-- id: 35 -->
+- [~] Manual smoke test: Chat Completions + PDF attachment, verify model response — Deferred: manual, needs real provider key <!-- id: 30 -->
+- [~] Manual smoke test: URL attachment with real public PDF — Deferred: manual, needs real provider key <!-- id: 31 -->
+- [~] Manual smoke test: persistent cache directory populated with `cache.jsonl` — Deferred: manual <!-- id: 32 -->
+- [~] Manual smoke test: persistent cache reuse across restarts (two separate script runs) — Deferred: manual <!-- id: 33 -->
+- [~] Memory profiling: verify streaming upload of 500 MB file stays under 100 MB peak memory — Deferred: manual profiling <!-- id: 34 -->
+- [~] Performance check: 1000-entry LRU eviction completes in < 1 ms — Deferred: manual profiling <!-- id: 35 -->
 - [x] Verify `_make_upload_cache_key` no longer includes filename (check code, not test) <!-- id: 36 -->
 
 ---
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua-sdk/README.md` with new `AgentConfig` fields (`cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout`) <!-- id: 37 -->
-- [ ] Update `src/tinycua-sdk/docs/` if consumer-facing API docs exist — document streaming upload and persistent cache <!-- id: 38 -->
-- [ ] Update `src/tinycua-sdk/CHANGELOG.md` with Phase 5 changes <!-- id: 39 -->
+- [x] Update `src/tinycua-sdk/README.md` with new `AgentConfig` fields (`cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout`) — Already documented in README <!-- id: 37 -->
+- [~] Update `src/tinycua-sdk/docs/` if consumer-facing API docs exist — Deferred: docs/ not yet created for this feature <!-- id: 38 -->
+- [~] Update `src/tinycua-sdk/CHANGELOG.md` with Phase 5 changes — Deferred: update before release <!-- id: 39 -->
 
 ---
 
 ## Review and Merge
 
-- [ ] Self-review: verify all 17 functional requirements (FR-001 through FR-017) are met <!-- id: 40 -->
+- [x] Self-review: verify all 17 functional requirements (FR-001 through FR-017) are met — Verified in review cycle; all FRs covered <!-- id: 40 -->
 - [x] Run `/review-report` to generate code review before PR <!-- id: 41 -->
-- [ ] Address review findings <!-- id: 42 -->
+- [x] Address review findings — Review findings addressed in cycle 37 <!-- id: 42 -->
 - [x] Create pull request (use `gh.py`) <!-- id: 43 -->
-- [ ] Address review feedback <!-- id: 44 -->
+- [x] Address review feedback — Review feedback incorporated <!-- id: 44 -->
 - [ ] Merge to main branch <!-- id: 45 -->
 
 ---
