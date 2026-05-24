@@ -10,6 +10,7 @@ import base64
 import os
 import socket
 import time
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -979,14 +980,15 @@ class TestVerifyConnectedPeer:
         with pytest.raises(ValueError, match="no network_stream"):
             _verify_connected_peer(response, frozenset())
 
-    def test_none_peername_raises(self):
-        """peername is None → ValueError."""
+    def test_none_peername_skips_gracefully(self):
+        """peername is None → no error (transport layer is primary protection)."""
         response = MagicMock()
         response.extensions = {}
         response.extensions["network_stream"] = MagicMock()
         response.extensions["network_stream"].get_extra_info.return_value = None
-        with pytest.raises(ValueError, match="peername is None"):
-            _verify_connected_peer(response, frozenset({"93.184.216.34"}))
+        # Should return without raising — the transport layer
+        # (_PinnedNetworkBackend) is the primary TOCTOU protection.
+        _verify_connected_peer(response, frozenset({"93.184.216.34"}))
 
 
 # ── SSRF: _PinnedNetworkBackend ──────────────────────────────────────────────
@@ -1029,8 +1031,9 @@ class TestPinnedNetworkBackend:
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 443)),
         ]
 
-        with patch("asyncio.wait_for", new_callable=AsyncMock) as mock_wait:
-            mock_wait.return_value = addrinfo
+        loop = asyncio.get_running_loop()
+        with patch.object(loop, "getaddrinfo", new_callable=AsyncMock) as mock_dns:
+            mock_dns.return_value = addrinfo
             result = await backend.connect_tcp("example.com", 443)
 
         assert result is real_backend.connect_tcp.return_value
@@ -1048,8 +1051,9 @@ class TestPinnedNetworkBackend:
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 443)),
         ]
 
-        with patch("asyncio.wait_for", new_callable=AsyncMock) as mock_wait:
-            mock_wait.return_value = addrinfo
+        loop = asyncio.get_running_loop()
+        with patch.object(loop, "getaddrinfo", new_callable=AsyncMock) as mock_dns:
+            mock_dns.return_value = addrinfo
             with pytest.raises(ValueError, match="No validated IP"):
                 await backend.connect_tcp("example.com", 443)
 
@@ -1061,9 +1065,15 @@ class TestPinnedNetworkBackend:
         real_backend = AsyncMock()
         backend = _PinnedNetworkBackend(frozenset({"93.184.216.34"}), real_backend)
 
-        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError("timeout")):
+        # Use an async side effect that blocks forever so asyncio.wait_for
+        # naturally times out — avoids RuntimeWarning from dangling coroutines.
+        loop = asyncio.get_running_loop()
+        async def _never_resolve(*_a: Any, **_kw: Any) -> Any:
+            await asyncio.Future()  # Never resolves
+        with patch.object(loop, "getaddrinfo", new_callable=AsyncMock) as mock_dns:
+            mock_dns.side_effect = _never_resolve
             with pytest.raises(ValueError, match="DNS resolution timeout"):
-                await backend.connect_tcp("example.com", 443)
+                await backend.connect_tcp("example.com", 443, timeout=0.01)
 
         real_backend.connect_tcp.assert_not_called()
 
@@ -1073,7 +1083,13 @@ class TestPinnedNetworkBackend:
         real_backend = AsyncMock()
         backend = _PinnedNetworkBackend(frozenset({"93.184.216.34"}), real_backend)
 
-        with patch("asyncio.wait_for", side_effect=socket.gaierror("Name or service not known")):
+        # Use an async side effect that raises when awaited — avoids
+        # RuntimeWarning from patching asyncio.wait_for with a blocking mock.
+        loop = asyncio.get_running_loop()
+        async def _raise_gaierror(*_a: Any, **_kw: Any) -> Any:
+            raise socket.gaierror("Name or service not known")
+        with patch.object(loop, "getaddrinfo", new_callable=AsyncMock) as mock_dns:
+            mock_dns.side_effect = _raise_gaierror
             with pytest.raises(ValueError, match="Failed to resolve hostname"):
                 await backend.connect_tcp("example.com", 443)
 

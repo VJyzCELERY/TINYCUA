@@ -181,7 +181,22 @@ async def _translate_responses_attachment(
             "detail": "auto",
         }
 
-    # Streaming attachment → upload via _upload_fn and return file_id.
+    # Streaming image attachment → construct data URL inline from
+    # base64 chunks to preserve existing image behavior (images are
+    # never uploaded). Handles stream=True local file images that
+    # have data=None and url=None.
+    if isinstance(attachment, StreamingFileAttachment) and is_image:
+        data_chunks: list[str] = []
+        for chunk in attachment.iter_base64_chunks():
+            data_chunks.append(chunk)
+        data = "".join(data_chunks)
+        return {
+            "type": "input_image",
+            "image_url": f"data:{attachment.mime_type};base64,{data}",
+            "detail": "auto",
+        }
+
+    # Streaming attachment (non-image) → upload via _upload_fn.
     if isinstance(attachment, StreamingFileAttachment):
         if _upload_fn is None:
             raise ValueError(
@@ -189,13 +204,6 @@ async def _translate_responses_attachment(
                 "to upload file content to the provider"
             )
         file_id = await _upload_fn(attachment)
-        # For images, return input_image; for non-images, return input_file.
-        if is_image:
-            return {
-                "type": "input_image",
-                "file_id": file_id,
-                "detail": "auto",
-            }
         return {
             "type": "input_file",
             "file_id": file_id,

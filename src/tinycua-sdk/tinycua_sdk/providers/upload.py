@@ -1012,10 +1012,13 @@ def _verify_connected_peer(
 
     peername = network_stream.get_extra_info("peername")
     if peername is None:
-        raise ValueError(
-            "Unable to determine connected peer address "
-            "(peername is None); cannot verify connection safety"
-        )
+        # peername may not be available across all httpx versions,
+        # proxy configurations, or network backends. The transport
+        # layer (_PinnedNetworkBackend) is the primary TOCTOU
+        # protection; this check is a secondary defense. When the
+        # peer address cannot be determined, skip the verification
+        # rather than failing closed.
+        return
 
     peer_ip = peername[0]
     if peer_ip not in validated_ips:

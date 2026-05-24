@@ -149,20 +149,18 @@ The `Agent` (or `UploadSession`) supports a disk-backed persistent cache that
 survives process restarts. Configure it via `AgentConfig`:
 
 ```python
-from tinycua_sdk import Agent, AgentConfig
-
-config = AgentConfig(
-    cache_dir="./cache",          # Root directory for persistent cache
-    cache_namespace="my-app",     # Isolate cache between accounts/projects
-    cache_max_entries=1000,       # Max persistent cache entries
-    session_cache_max_entries=500,# Max in-memory entries (per session)
-    upload_timeout=30.0,          # Timeout for URL downloads (seconds)
-)
+from tinycua_sdk import Agent
+from tinycua_sdk.agent.llm_model import LanguageModel
 
 agent = Agent(
     name="file-assistant",
     instructions="You are a helpful assistant.",
-    config=config,
+    llm_model=LanguageModel(model="qwen/qwen-9b"),
+    cache_dir="./cache",                # Root directory for persistent cache
+    cache_namespace="my-app",           # Isolate cache between accounts/projects
+    cache_max_entries=1000,             # Max persistent cache entries
+    session_cache_max_entries=500,      # Max in-memory entries (per session)
+    upload_timeout=30.0,                # Timeout for URL downloads (seconds)
 )
 ```
 

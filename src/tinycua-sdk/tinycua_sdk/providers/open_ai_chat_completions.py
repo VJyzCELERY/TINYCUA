@@ -154,6 +154,22 @@ async def _translate_chat_attachment(
             "image_url": {"url": attachment.url},
         }
 
+    # Streaming image attachment → construct data URL inline from
+    # base64 chunks to preserve existing image behavior (images are
+    # never uploaded). Handles stream=True local file images that
+    # have data=None and url=None.
+    if isinstance(attachment, StreamingFileAttachment) and is_image:
+        data_chunks: list[str] = []
+        for chunk in attachment.iter_base64_chunks():
+            data_chunks.append(chunk)
+        data = "".join(data_chunks)
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{attachment.mime_type};base64,{data}",
+            },
+        }
+
     # Text-based content (plain text, markdown, code, JSON, CSV, HTML, XML) →
     # decode and send inline as a text part. No upload needed.
     if attachment.data is not None and is_text_mime(attachment.mime_type):
@@ -161,7 +177,7 @@ async def _translate_chat_attachment(
         text_content = _base64.b64decode(attachment.data).decode("utf-8")
         return {"type": "text", "text": text_content}
 
-    # Streaming file attachment → upload with streaming content.
+    # Streaming file attachment (non-image) → upload with streaming content.
     # Check before data/url checks since streaming attachments have
     # data=None and url=None (content is read from _file_path on demand).
     if isinstance(attachment, StreamingFileAttachment):
