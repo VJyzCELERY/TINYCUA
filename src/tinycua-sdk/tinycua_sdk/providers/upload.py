@@ -629,6 +629,11 @@ class UploadSession:
                 stream_fh.close()
             entry = self._cache[cache_key]
             entry.last_accessed = time.time()
+            # Touch persistent cache to keep its LRU order in sync
+            # (FR-010/FR-012).  URL-backed keys are never persisted,
+            # so skip the touch for those.
+            if self._persistent is not None and attachment.url is None:
+                self._persistent.get(cache_key)  # side effect: updates last_accessed + persists
             return entry.file_id
 
         # URL-backed attachments: download first, then upload (FR-006).
@@ -983,18 +988,24 @@ def _verify_connected_peer(
     different address, the connection is only accepted if the peer
     matches the pre-validated set.
 
-    This verification is fail-closed: when ``network_stream`` or
-    ``peername`` cannot be determined, a ``ValueError`` is raised
-    instead of silently succeeding, because the peer cannot be
-    confirmed to be safe.
+    The primary TOCTOU protection is the transport-level pinning in
+    ``_PinnedNetworkBackend``; this function is a secondary defense.
+    When the peer address cannot be determined (``peername`` is
+    ``None``), the check is skipped (fail-open) rather than rejecting
+    the response, because ``peername`` may be unavailable across some
+    httpx versions, proxy configurations, or network backends.  If
+    ``extensions`` or ``network_stream`` is missing entirely, a
+    ``ValueError`` is raised because the transport layer itself is
+    not providing connection metadata.
 
     Args:
         response: An httpx response object.
         validated_ips: Set of IP addresses validated before the request.
 
     Raises:
-        ValueError: If the peer address cannot be determined or is not
-            in the validated set.
+        ValueError: If ``extensions`` or ``network_stream`` is missing
+            (transport metadata unavailable), or if the peer address
+            is not in the validated set.
     """
     extensions = getattr(response, "extensions", None)
     if not isinstance(extensions, dict):

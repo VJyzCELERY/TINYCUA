@@ -177,6 +177,15 @@ async def _translate_chat_attachment(
         text_content = _base64.b64decode(attachment.data).decode("utf-8")
         return {"type": "text", "text": text_content}
 
+    # Streaming file attachment with text MIME → read and inline as text.
+    # This must come before the generic streaming upload branch to
+    # satisfy FR-001b (text-based MIME types must be inlined, not
+    # uploaded).  Streaming attachments have data=None, so the
+    # data-based text check above does not catch them.
+    if isinstance(attachment, StreamingFileAttachment) and is_text_mime(attachment.mime_type):
+        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8")
+        return {"type": "text", "text": text_content}
+
     # Streaming file attachment (non-image) → upload with streaming content.
     # Check before data/url checks since streaming attachments have
     # data=None and url=None (content is read from _file_path on demand).

@@ -196,6 +196,13 @@ async def _translate_responses_attachment(
             "detail": "auto",
         }
 
+    # Streaming file attachment with text MIME → read and inline as
+    # input_text.  This must come before the generic streaming upload
+    # branch to satisfy FR-001b (text-based MIME types must be inlined).
+    if isinstance(attachment, StreamingFileAttachment) and is_text_mime(attachment.mime_type):
+        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8")
+        return {"type": "input_text", "text": text_content}
+
     # Streaming attachment (non-image) → upload via _upload_fn.
     if isinstance(attachment, StreamingFileAttachment):
         if _upload_fn is None:
