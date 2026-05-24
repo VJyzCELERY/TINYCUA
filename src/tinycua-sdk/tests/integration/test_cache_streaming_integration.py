@@ -242,8 +242,13 @@ class TestPdfInlineResponses:
 
 
 @pytest.mark.integration
-class TestPdfUploadBothProviders:
-    """Non-image PDF upload through both providers (needs /v1/files)."""
+class TestPdfUploadOrInlineBothProviders:
+    """Non-image PDF through both providers.
+
+    Chat Completions uploads via /v1/files (needs real endpoint).
+    Responses non-streaming sends data-backed files inline via file_data
+    (no /v1/files required), so it can run against local servers too.
+    """
 
     @_requires_files_endpoint
     @pytest.mark.asyncio
@@ -263,10 +268,9 @@ class TestPdfUploadBothProviders:
         assert isinstance(result, str)
         assert result
 
-    @_requires_files_endpoint
     @pytest.mark.asyncio
-    async def test_responses_pdf_upload(self):
-        """Responses: PDF upload → model response."""
+    async def test_responses_pdf_inline(self):
+        """Responses: PDF data-backed → sent inline via file_data (no /v1/files)."""
         attachment = FileAttachment.from_path(
             str(_PDF_PATH), mime_type="application/pdf",
         )
@@ -524,10 +528,54 @@ class TestUrlAttachmentTranslation:
         assert result == {"type": "file", "file": {"file_id": "file-from-url-123"}}
         mock_upload.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_responses_url_pdf_inline_translation(self):
+        """Responses: URL PDF → translation-level inline file_data format check.
+
+        This is a translation-helper unit check — it calls
+        ``_translate_responses_attachment`` directly with a mocked
+        download function to verify the expected content-part dict shape.
+        Full Agent.run()-level integration coverage is in
+        ``TestUrlAttachmentIntegration``.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from tinycua_sdk.models.attachment import FileAttachment
+        from tinycua_sdk.providers.open_ai_responses import (
+            _translate_responses_attachment,
+        )
+
+        with patch(
+            "tinycua_sdk.providers.upload._download_url_content",
+            AsyncMock(return_value=b"%PDF-1.4 fake content"),
+        ):
+            attachment = FileAttachment.from_url(
+                "https://example.com/report.pdf",
+                mime_type="application/pdf",
+                filename="report.pdf",
+            )
+            result = await _translate_responses_attachment(attachment)
+
+        assert result == {
+            "type": "input_file",
+            "filename": "report.pdf",
+            "file_data": (
+                "data:application/pdf;base64,"
+                + "JVBERi0xLjQgZmFrZSBjb250ZW50"
+            ),
+        }
+
 
 @pytest.mark.integration
 class TestUrlAttachmentIntegration:
-    """Full-path URL attachment tests (gated on external API availability)."""
+    """Full-path URL attachment tests.
+
+    Chat Completions tests exercise Agent.run() against a real
+    /v1/files endpoint (requires real OpenAI).  Responses tests
+    go through Agent.run() with mocked SDK client and download
+    function to verify the end-to-end message-building and
+    provider-invocation path without requiring network access.
+    """
 
     @_requires_files_endpoint
     @pytest.mark.asyncio
@@ -556,36 +604,62 @@ class TestUrlAttachmentIntegration:
 
     @pytest.mark.asyncio
     async def test_responses_url_pdf_inline_integration(self):
-        """Responses: URL PDF → downloaded → sent inline via file_data.
+        """Responses: URL PDF → Agent.run() → inline file_data path.
 
-        This test verifies the inline file_data code path for Responses
-        URL attachments by using a mock download function.  Real HTTP
-        download tests require an internet-accessible URL and are covered
-        by the Chat Completions test above.
+        Exercises the full Agent.run() path for Responses URL
+        attachments, including message building,
+        ``_translate_responses_input()``, configured timeout
+        threading, and provider invocation, without requiring real
+        HTTP / API calls (both SDK client and download function
+        are mocked).
         """
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import AsyncMock, MagicMock, patch
 
-        from tinycua_sdk.models.attachment import FileAttachment
         from tinycua_sdk.providers.open_ai_responses import (
-            _translate_responses_attachment,
+            OpenAIResponsesClient,
         )
 
-        with patch(
-            "tinycua_sdk.providers.upload._download_url_content",
-            AsyncMock(return_value=b"%PDF-1.4 fake content"),
+        # Build a mock SDK client that returns a fake response
+        mock_sdk = MagicMock()
+        mock_sdk.responses = MagicMock()
+        fake_response_data = {
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "This is a summary of the document.",
+                            "annotations": [],
+                        }
+                    ],
+                }
+            ],
+            "usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+        }
+        fake_resp = MagicMock()
+        fake_resp.model_dump.return_value = fake_response_data
+        mock_sdk.responses.create = AsyncMock(return_value=fake_resp)
+
+        with (
+            patch(
+                "tinycua_sdk.providers.upload._download_url_content",
+                AsyncMock(return_value=b"%PDF-1.4 fake content"),
+            ),
+            patch.object(OpenAIResponsesClient, "_get_client", lambda self: mock_sdk),
         ):
             attachment = FileAttachment.from_url(
                 "https://example.com/report.pdf",
                 mime_type="application/pdf",
                 filename="report.pdf",
             )
-            result = await _translate_responses_attachment(attachment)
+            agent = Agent(llm_model=LanguageModel(provider="openai-responses"))
+            result = await agent.run(
+                "Summarize this document.",
+                file_attachments=[attachment],
+            )
 
-        assert result == {
-            "type": "input_file",
-            "filename": "report.pdf",
-            "file_data": (
-                "data:application/pdf;base64,"
-                + "JVBERi0xLjQgZmFrZSBjb250ZW50"
-            ),
-        }
+        assert isinstance(result, str)
+        assert len(result) > 10
+        mock_sdk.responses.create.assert_called_once()

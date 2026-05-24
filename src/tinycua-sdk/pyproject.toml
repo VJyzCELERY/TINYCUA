@@ -79,8 +79,7 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-basetemp = "tmp/pytest"
-addopts = "--strict-markers --disable-warnings --maxfail=2"
+addopts = "--strict-markers --basetemp=tmp/pytest --disable-warnings --maxfail=2"
 asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (require external service running)",

@@ -187,7 +187,7 @@ url_attachment = FileAttachment(
 #### Provider Behavior Split
 
 - **Chat Completions (`openai-chat-completions`)**: Non-image files and URLs
-  are uploaded to `/v1/files` and referenced as `input_file` file IDs.
+  are uploaded to `/v1/files` and referenced as `{"type": "file", "file": {"file_id": ...}}` content parts.
 - **Responses (`openai-responses`)**: Non-image data and URL content are sent
   inline via `file_data` without uploading to `/v1/files`, enabling local
   servers (LM Studio, Ollama) that lack a files endpoint.
