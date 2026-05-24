@@ -189,7 +189,6 @@ class PersistentCacheStore:
         self._validate_provider()
         self._validate_namespace()
         self._entries: dict[str, UploadResult] = {}
-        self._persist_counter = 0
 
         self._path = (
             pathlib.Path(cache_dir)
@@ -365,6 +364,9 @@ class PersistentCacheStore:
     def get(self, key: str) -> UploadResult | None:
         """Retrieve an entry and promote it to most-recently-used.
 
+        Persists the updated recency to disk so that LRU order survives
+        process restarts (FR-010/FR-012 durability requirement).
+
         Args:
             key: Cache key.
 
@@ -374,10 +376,17 @@ class PersistentCacheStore:
         entry = self._entries.get(key)
         if entry is not None:
             entry.last_accessed = time.time()
+            # Persist the promoted LRU order so that a subsequent
+            # store instance sees the updated recency (FR-010).
+            if self._max_entries > 0:
+                self._persist()
         return entry
 
     def put(self, key: str, result: UploadResult) -> None:
         """Insert or update an entry, evicting LRU if over capacity.
+
+        Persists immediately after every insert/update so entries are
+        durable under normal operation (FR-010/FR-012).
 
         When *max_entries* is 0, this is a no-op (persistent caching
         disabled).
@@ -393,9 +402,7 @@ class PersistentCacheStore:
 
         while len(self._entries) > self._max_entries:
             self._evict_lru()
-        if self._persist_counter % 10 == 0:
-            self._persist()
-        self._persist_counter += 1
+        self._persist()
 
     def _evict_lru(self) -> None:
         """Evict the entry with the oldest ``last_accessed`` timestamp."""

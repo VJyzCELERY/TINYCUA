@@ -6,7 +6,6 @@ and Responses-specific field mapping utilities.
 
 from __future__ import annotations
 
-import hashlib
 import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any

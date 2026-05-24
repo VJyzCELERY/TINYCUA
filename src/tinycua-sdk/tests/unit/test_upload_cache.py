@@ -12,6 +12,7 @@ import socket
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from tinycua_sdk.models.attachment import FileAttachment, StreamingFileAttachment
@@ -470,17 +471,21 @@ class TestPersistentCacheStore:
         """PermissionError on cache dir init is caught, store operates in-memory only."""
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir(parents=True, mode=0o000)
-        store = PersistentCacheStore(
-            cache_dir=str(cache_dir),
-            provider="openai-responses",
-            base_url="https://api.openai.com/v1",
-            max_entries=10,
-        )
-        # Degraded gracefully: persistence disabled, in-memory store works
-        assert len(store) == 0
-        store._max_entries = 10  # Re-enable in-memory for this test
-        store.put("key1", UploadResult(file_id="file-1", mime_type="text/plain"))
-        assert store.get("key1") is not None
+        try:
+            store = PersistentCacheStore(
+                cache_dir=str(cache_dir),
+                provider="openai-responses",
+                base_url="https://api.openai.com/v1",
+                max_entries=10,
+            )
+            # Degraded gracefully: persistence disabled, in-memory store works
+            assert len(store) == 0
+            store._max_entries = 10  # Re-enable in-memory for this test
+            store.put("key1", UploadResult(file_id="file-1", mime_type="text/plain"))
+            assert store.get("key1") is not None
+        finally:
+            # Restore permissions so pytest can clean up the temp directory
+            cache_dir.chmod(0o755)
 
 
 # ── URL Download ─────────────────────────────────────────────────────────────
@@ -728,6 +733,108 @@ class TestDownloadUrlContent:
         ):
             with pytest.raises(ValueError, match="blocked IP"):
                 await _download_url_content("https://example.com/initial.pdf")
+
+    @pytest.mark.asyncio
+    async def test_timeout_exception_raises(self):
+        """httpx.TimeoutException is caught and re-raised as ValueError."""
+        validated_ips = frozenset({"93.184.216.34"})
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch(
+                "tinycua_sdk.providers.upload._validate_url_safety",
+                AsyncMock(return_value=validated_ips),
+            ),
+            patch(
+                "tinycua_sdk.providers.upload.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+        ):
+            with pytest.raises(ValueError, match="Timeout"):
+                await _download_url_content("https://example.com/file.pdf")
+
+    @pytest.mark.asyncio
+    async def test_connect_error_raises(self):
+        """httpx.ConnectError is caught and re-raised as ValueError."""
+        validated_ips = frozenset({"93.184.216.34"})
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch(
+                "tinycua_sdk.providers.upload._validate_url_safety",
+                AsyncMock(return_value=validated_ips),
+            ),
+            patch(
+                "tinycua_sdk.providers.upload.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+        ):
+            with pytest.raises(ValueError, match="Connection error"):
+                await _download_url_content("https://example.com/file.pdf")
+
+    @pytest.mark.asyncio
+    async def test_http_404_raises(self):
+        """HTTP 404 response is caught and re-raised as ValueError."""
+        validated_ips = frozenset({"93.184.216.34"})
+        mock_stream = MagicMock()
+        mock_stream.get_extra_info.return_value = ("93.184.216.34", 443)
+
+        response_404 = MagicMock()
+        response_404.status_code = 404
+        response_404.reason_phrase = "Not Found"
+        response_404.text = "Not found"
+        response_404.extensions = {"network_stream": mock_stream}
+
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=response_404)
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch(
+                "tinycua_sdk.providers.upload._validate_url_safety",
+                AsyncMock(return_value=validated_ips),
+            ),
+            patch(
+                "tinycua_sdk.providers.upload.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+        ):
+            with pytest.raises(ValueError, match="HTTP 404"):
+                await _download_url_content("https://example.com/file.pdf")
+
+    @pytest.mark.asyncio
+    async def test_http_500_raises(self):
+        """HTTP 500 response is caught and re-raised as ValueError."""
+        validated_ips = frozenset({"93.184.216.34"})
+        mock_stream = MagicMock()
+        mock_stream.get_extra_info.return_value = ("93.184.216.34", 443)
+
+        response_500 = MagicMock()
+        response_500.status_code = 500
+        response_500.reason_phrase = "Internal Server Error"
+        response_500.text = "Server error"
+        response_500.extensions = {"network_stream": mock_stream}
+
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=response_500)
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch(
+                "tinycua_sdk.providers.upload._validate_url_safety",
+                AsyncMock(return_value=validated_ips),
+            ),
+            patch(
+                "tinycua_sdk.providers.upload.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+        ):
+            with pytest.raises(ValueError, match="HTTP 500"):
+                await _download_url_content("https://example.com/file.pdf")
 
 
 # ── UploadSession with Persistent Cache ──────────────────────────────────────
