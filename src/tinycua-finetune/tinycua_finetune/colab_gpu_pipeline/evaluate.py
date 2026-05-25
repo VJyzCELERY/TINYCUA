@@ -6,7 +6,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 from unsloth import FastModel
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def extract_tool_calls(text):

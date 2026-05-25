@@ -2,6 +2,12 @@ import os
 
 
 def setup_wandb():
+    wandb_key = os.environ.get("WANDB_API_KEY")
+    if wandb_key:
+        import wandb
+        wandb.login(key=wandb_key)
+        print("Logged in to W&B successfully!")
+        return wandb_key
     try:
         from google.colab import userdata
         wandb_key = userdata.get("WANDB_API_KEY")
@@ -11,11 +17,18 @@ def setup_wandb():
             print("Logged in to W&B successfully!")
             return wandb_key
     except Exception:
-        print("WANDB_API_KEY not found. W&B logging will be disabled.")
+        pass
+    print("WANDB_API_KEY not found. W&B logging will be disabled.")
     return None
 
 
 def setup_huggingface():
+    hf_token = os.environ.get("HF_TOKEN")
+    if hf_token:
+        from huggingface_hub import login
+        login(token=hf_token)
+        print("Logged in to HuggingFace!")
+        return hf_token
     try:
         from google.colab import userdata
         hf_token = userdata.get("HF_TOKEN")
@@ -25,7 +38,8 @@ def setup_huggingface():
             print("Logged in to HuggingFace!")
             return hf_token
     except Exception:
-        print("HF_TOKEN not found. HF push will be disabled.")
+        pass
+    print("HF_TOKEN not found. HF push will be disabled.")
     return None
 
 

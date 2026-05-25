@@ -25,7 +25,7 @@ Modular Python implementation of the fine-tuning pipeline from `colab_gpu_pipeli
 ### Colab
 
 ```python
-from colab_gpu_pipeline.pipeline import run_test_pipeline
+from tinycua_finetune.colab_gpu_pipeline.pipeline import run_test_pipeline
 
 run_test_pipeline(install_first=True)
 ```
@@ -44,7 +44,7 @@ export HF_TOKEN=your_hf_token
 
 # 3. Run pipeline
 python -c "
-from colab_gpu_pipeline.pipeline import run_test_pipeline
+from tinycua_finetune.colab_gpu_pipeline.pipeline import run_test_pipeline
 run_test_pipeline(install_first=False, run_eval=True, push_adapter=True)
 "
 ```
@@ -52,7 +52,7 @@ run_test_pipeline(install_first=False, run_eval=True, push_adapter=True)
 ### Run Individual Steps
 
 ```python
-from colab_gpu_pipeline import (
+from tinycua_finetune.colab_gpu_pipeline import (
     detect_gpu,
     load_model_and_tokenizer,
     apply_lora,
@@ -65,7 +65,7 @@ from colab_gpu_pipeline import (
     push_lora_adapter,
     save_merged_and_gguf,
 )
-from colab_gpu_pipeline import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 detect_gpu()
 model, tokenizer = load_model_and_tokenizer()
@@ -82,7 +82,7 @@ run_training(trainer)
 ### Full Training (1 Epoch)
 
 ```python
-from colab_gpu_pipeline.pipeline import run_full_training
+from tinycua_finetune.colab_gpu_pipeline.pipeline import run_full_training
 
 run_full_training(model, tokenizer, dataset_final)
 ```

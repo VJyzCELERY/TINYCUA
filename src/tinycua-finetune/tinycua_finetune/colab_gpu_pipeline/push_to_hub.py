@@ -1,6 +1,6 @@
 from huggingface_hub import whoami, repo_exists
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def push_lora_adapter(model, tokenizer, hf_token):

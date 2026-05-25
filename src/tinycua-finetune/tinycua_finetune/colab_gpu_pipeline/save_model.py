@@ -6,7 +6,7 @@ from huggingface_hub import whoami
 from peft import PeftModel
 from unsloth import FastModel
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def save_merged_and_gguf(model=None, tokenizer=None, hf_token=None, lora_on_hub=False):
@@ -21,6 +21,10 @@ def save_merged_and_gguf(model=None, tokenizer=None, hf_token=None, lora_on_hub=
     merged_output = os.path.join(config.MERGED_BASE_PATH, config.MERGED_OUTPUT_NAME)
 
     if model is None or tokenizer is None:
+        if not lora_on_hub:
+            print("Model not in memory and lora_on_hub=False. Cannot reload adapter.")
+            print("Call with lora_on_hub=True to reload from HF Hub, or pass model/tokenizer directly.")
+            return
         print("Model not in memory. Reloading base model + adapter from HF Hub...")
         model, tokenizer = FastModel.from_pretrained(
             model_name=config.MODEL_NAME,

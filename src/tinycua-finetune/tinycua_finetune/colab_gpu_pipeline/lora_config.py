@@ -1,6 +1,6 @@
 from unsloth import FastModel
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def apply_lora(model, lora_rank=None, random_seed=None):

@@ -1,7 +1,7 @@
 from unsloth import FastModel
 import torch
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def load_model_and_tokenizer(

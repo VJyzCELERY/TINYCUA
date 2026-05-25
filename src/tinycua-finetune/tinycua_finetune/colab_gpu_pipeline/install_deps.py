@@ -17,12 +17,12 @@ def install_dependencies():
             "peft", "trl", "triton", "unsloth",
         ]
     else:
-        packages = ["unsloth"]
+        packages = ["unsloth", "datasets", "huggingface_hub>=0.34.0", "peft", "bitsandbytes", "accelerate", "wandb", "tqdm", "sentencepiece", "protobuf"]
 
     packages += ["transformers>=5.3.0", "trl>=0.22.2"]
 
     for pkg in packages:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", pkg, "-q"],
-            stdout=subdone.DEVNULL, stderr=subdone.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )

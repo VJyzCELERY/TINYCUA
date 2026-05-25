@@ -3,7 +3,7 @@ import os
 
 from trl import SFTTrainer, SFTConfig
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def setup_trainer(
@@ -79,7 +79,7 @@ def setup_trainer(
 
 def run_training(trainer, output_dir=None):
     if output_dir is None:
-        output_dir = config.OUTPUT_DIR
+        output_dir = trainer.args.output_dir
 
     print("=" * 50)
     print("Starting training...")

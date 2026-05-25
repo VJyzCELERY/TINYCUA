@@ -1,6 +1,6 @@
 from datasets import load_dataset
 
-from . import config
+from tinycua_finetune.colab_gpu_pipeline import config
 
 
 def load_raw_dataset(dataset_path=None, dataset_config=None):
