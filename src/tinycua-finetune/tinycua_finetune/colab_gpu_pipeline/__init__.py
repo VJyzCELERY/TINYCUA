@@ -6,6 +6,14 @@ from tinycua_finetune.colab_gpu_pipeline.lora_config import apply_lora
 from tinycua_finetune.colab_gpu_pipeline.dataset_loading import load_raw_dataset, preprocess_dataset
 from tinycua_finetune.colab_gpu_pipeline.apply_template import apply_template_to_dataset
 from tinycua_finetune.colab_gpu_pipeline.train import setup_trainer, run_training, setup_full_trainer
-from tinycua_finetune.colab_gpu_pipeline.evaluate import run_evaluation
+from tinycua_finetune.colab_gpu_pipeline.evaluate import (
+    run_evaluation,
+    evaluate_on_hermes,
+    evaluate_on_toolbench,
+    evaluate_selfcheck,
+    evaluate_text_similarity,
+    evaluate_mmlu_mini,
+    evaluate_mgsm_mini,
+)
 from tinycua_finetune.colab_gpu_pipeline.push_to_hub import push_lora_adapter
 from tinycua_finetune.colab_gpu_pipeline.save_model import save_merged_and_gguf

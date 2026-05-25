@@ -17,6 +17,12 @@ def run_test_pipeline(
     run_eval=True,
     push_adapter=True,
     save_model=True,
+    eval_toolbench=True,
+    eval_hermes=True,
+    eval_text_sim=True,
+    eval_selfcheck=True,
+    eval_mmlu=False,
+    eval_mgsm=False,
 ):
     if install_first:
         install_dependencies()
@@ -36,7 +42,22 @@ def run_test_pipeline(
     run_training(trainer)
 
     if run_eval:
-        run_evaluation(model, tokenizer, wandb_key=wandb_key)
+        run_evaluation(model, tokenizer, wandb_key=wandb_key,
+                       eval_toolbench=eval_toolbench,
+                       eval_hermes=eval_hermes,
+                       eval_text_sim=eval_text_sim,
+                       eval_selfcheck=eval_selfcheck,
+                       eval_mmlu=eval_mmlu,
+                       eval_mgsm=eval_mgsm,
+                       num_samples_toolbench=config.EVAL_NUM_SAMPLES_TOOLBENCH,
+                       num_samples_hermes=config.EVAL_NUM_SAMPLES_HERMES,
+                       num_samples_textsim=config.EVAL_NUM_SAMPLES_TEXTSIM,
+                       num_samples_selfcheck=config.EVAL_NUM_SAMPLES_SELFCHECK,
+                       num_selfcheck_generations=config.EVAL_NUM_SELFCHECK_GENERATIONS,
+                       num_mmlu_per_subject=config.EVAL_NUM_MMLU_PER_SUBJECT,
+                       num_mgsm=config.EVAL_NUM_MGSM,
+                       max_new_tokens=config.EVAL_MAX_NEW_TOKENS,
+                       )
 
     if push_adapter:
         push_lora_adapter(model, tokenizer, hf_token)

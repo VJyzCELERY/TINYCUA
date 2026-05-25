@@ -21,6 +21,8 @@ def install_dependencies():
 
     packages += ["transformers>=5.3.0", "trl>=0.22.2"]
 
+    packages += ["evaluate", "sacrebleu", "rouge_score", "bert_score", "nltk"]
+
     for pkg in packages:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", pkg, "-q"],
