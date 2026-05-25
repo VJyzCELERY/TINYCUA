@@ -80,11 +80,9 @@ class ChoiceAccumulator:
     content_parts: list[str] = dataclass_field(default_factory=list)
     tool_calls: dict[int, ToolCallAccumulator] = dataclass_field(default_factory=dict)
     finish_reason: str | None = None
-    usage: dict | None = None
     content_done_emitted: bool = False
     started_emitted: bool = False
     done_emitted: bool = False
-    ready_emitted: bool = False
     completion_deferred: bool = False
 
 
@@ -118,7 +116,8 @@ async def _translate_chat_attachment(
     ``data`` are uploaded via ``_upload_fn`` and produce ``file`` content
     parts with the returned ``file_id``. Attachments with a pre-existing
     ``file_id`` produce ``file`` content parts directly. Non-image URL
-    attachments raise ``ValueError`` (deferred to Phase 4).
+    attachments are downloaded and uploaded via ``/v1/files``, then
+    referenced by ``file_id``.
 
     Args:
         attachment: A canonical ``FileAttachment``.
@@ -174,7 +173,7 @@ async def _translate_chat_attachment(
     # decode and send inline as a text part. No upload needed.
     if attachment.data is not None and is_text_mime(attachment.mime_type):
         import base64 as _base64
-        text_content = _base64.b64decode(attachment.data).decode("utf-8")
+        text_content = _base64.b64decode(attachment.data).decode("utf-8", errors="replace")
         return {"type": "text", "text": text_content}
 
     # Streaming file attachment with text MIME → read and inline as text.
@@ -183,7 +182,7 @@ async def _translate_chat_attachment(
     # uploaded).  Streaming attachments have data=None, so the
     # data-based text check above does not catch them.
     if isinstance(attachment, StreamingFileAttachment) and is_text_mime(attachment.mime_type):
-        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8")
+        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8", errors="replace")
         return {"type": "text", "text": text_content}
 
     # Streaming file attachment (non-image) → upload with streaming content.
@@ -306,6 +305,8 @@ async def _translate_chat_user_message(
         for att in attachments:
             parts.append(await _translate_chat_attachment(att, _upload_fn=_upload_fn))
         result["content"] = parts
+        remaining = {k: v for k, v in msg.items() if k not in ("content", "attachments")}
+        result.update(remaining)
         return result
 
     if isinstance(content, list):
@@ -331,6 +332,8 @@ async def _translate_chat_user_message(
             parts.append(await _translate_chat_attachment(att, _upload_fn=_upload_fn))
 
         result["content"] = parts
+        remaining = {k: v for k, v in msg.items() if k not in ("content", "attachments")}
+        result.update(remaining)
         return result
 
     raise ValueError(
@@ -359,6 +362,11 @@ class OpenAIChatCompletionsClient(LLMClient):
         self._model_config = model_config
         self._client: AsyncOpenAI | None = None
         self._prior_tool_calls: dict[str, dict[str, Any]] = {}
+        # NOTE: _prior_tool_calls grows add-only across conversation turns.
+        # Tool call IDs from the OpenAI API are unique per call, so there is
+        # no collision risk, but long-running multi-turn agents will gradually
+        # accumulate entries. This is acceptable for typical short agent runs
+        # but may need pruning for very long sessions.
 
         if upload_session is not None:
             self._upload_session = upload_session
@@ -829,7 +837,15 @@ class OpenAIChatCompletionsClient(LLMClient):
         except Exception as e:
             self._handle_provider_error(e)
 
-        data = response.model_dump() if hasattr(response, "model_dump") else {}
+        if hasattr(response, "model_dump"):
+            data = response.model_dump()
+        elif hasattr(response, "dict"):
+            data = response.dict()
+        else:
+            raise RuntimeError(
+                f"Unexpected OpenAI SDK response type {type(response)}: "
+                "expected model_dump() or dict() method"
+            )
         self._capture_tool_calls(data)
         return self._normalize_non_streaming_response(data)
 
@@ -873,7 +889,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         acc = ChoiceAccumulator(index=0)
         try:
             async for chunk in stream:
-                data = chunk.model_dump() if hasattr(chunk, "model_dump") else {}
+                data = chunk.model_dump() if hasattr(chunk, "model_dump") else chunk.dict() if hasattr(chunk, "dict") else {}
                 events = self._normalize_chat_chunk(data, acc)
                 raw_event_obj = RawSseEvent(provider=self._model_config.provider, raw_event=chunk)
                 for item in _yield_events(events, raw_event_obj, raw_events):

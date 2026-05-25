@@ -200,7 +200,7 @@ async def _translate_responses_attachment(
     # input_text.  This must come before the generic streaming upload
     # branch to satisfy FR-001b (text-based MIME types must be inlined).
     if isinstance(attachment, StreamingFileAttachment) and is_text_mime(attachment.mime_type):
-        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8")
+        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8", errors="replace")
         return {"type": "input_text", "text": text_content}
 
     # Streaming attachment (non-image) → upload via _upload_fn.
@@ -222,7 +222,7 @@ async def _translate_responses_attachment(
     # text content for any OpenAI-compatible provider.
     if attachment.data is not None and is_text_mime(attachment.mime_type):
         import base64 as _base64
-        text_content = _base64.b64decode(attachment.data).decode("utf-8")
+        text_content = _base64.b64decode(attachment.data).decode("utf-8", errors="replace")
         return {"type": "input_text", "text": text_content}
 
     # Non-image data-backed → send inline via file_data as a data URL.
@@ -359,6 +359,8 @@ async def _translate_responses_user_message(
                 ),
             )
         result["content"] = parts
+        remaining = {k: v for k, v in msg.items() if k not in ("content", "attachments")}
+        result.update(remaining)
         return result
 
     if isinstance(content, list):
@@ -396,6 +398,8 @@ async def _translate_responses_user_message(
             )
 
         result["content"] = parts
+        remaining = {k: v for k, v in msg.items() if k not in ("content", "attachments")}
+        result.update(remaining)
         return result
 
     raise ValueError(
@@ -403,61 +407,6 @@ async def _translate_responses_user_message(
         f"got {type(content).__name__}"
     )
 
-
-def _build_payload(
-    messages: list[LLMMessage],
-    tools: list[LLMToolSpec] | None,
-    model_config: LanguageModel,
-    previous_response_id: str | None = None,
-) -> dict[str, Any]:
-    """Build the chat completion payload shared by sync and streaming paths.
-
-    Translates canonical inputs (messages and tool specs) into
-    OpenAI Responses API native request format before building the
-    payload dict. Only forwards fields listed in ``_SUPPORTED_FIELDS``.
-
-    Args:
-        messages: Canonical message list.
-        tools: Optional list of tool specs.
-        model_config: Language model configuration.
-        previous_response_id: The ``id`` of the preceding response when
-            continuing a conversation with tool-result inputs. Only
-            included in the payload when there are ``function_call_output``
-            items in the translated input.
-
-    Returns:
-        Complete payload dict ready for the LLM API request.
-    """
-    translated_messages = _translate_messages(messages)
-
-    payload: dict[str, Any] = {
-        "model": model_config.model_name,
-        "input": translated_messages,
-    }
-
-    if previous_response_id:
-        has_function_call_output = any(
-            item.get("type") == "function_call_output"
-            for item in translated_messages
-        )
-        if has_function_call_output:
-            payload["previous_response_id"] = previous_response_id
-
-    for field in _SUPPORTED_FIELDS:
-        value = getattr(model_config, field)
-        if value is not None:
-            mapped = _FIELD_MAP.get(field, field)
-            if mapped == "text":
-                payload[mapped] = {"format": value}
-            else:
-                payload[mapped] = value
-
-    if tools:
-        payload["tools"] = _translate_tools(tools)
-        if "tool_choice" not in payload:
-            payload["tool_choice"] = "auto"
-
-    return payload
 
 
 # ── Responses event normalization ─────────────────────────────────────────────
@@ -927,16 +876,8 @@ class OpenAIResponsesClient(LLMClient):
                     _download_fn=_download_url if hasattr(self, "_upload_session") else None,
                 )
                 result.append(translated)
-            elif isinstance(msg, dict) and msg.get("role") == "tool_result":
-                result.append(
-                    {
-                        "type": "function_call_output",
-                        "call_id": msg.get("call_id", ""),
-                        "output": msg.get("content", ""),
-                    },
-                )
             else:
-                result.append(msg)  # type: ignore[arg-type]
+                result.extend(_translate_messages([msg]))
         return result
 
     @staticmethod
@@ -1025,7 +966,15 @@ class OpenAIResponsesClient(LLMClient):
         except Exception as e:
             self._handle_provider_error(e)
 
-        data = response.model_dump() if hasattr(response, "model_dump") else {}
+        if hasattr(response, "model_dump"):
+            data = response.model_dump()
+        elif hasattr(response, "dict"):
+            data = response.dict()
+        else:
+            raise RuntimeError(
+                f"Unexpected OpenAI SDK response type {type(response)}: "
+                "expected model_dump() or dict() method"
+            )
         self._previous_response_id = data.get("id", None) or None
         data["model"] = data.get("model", self._model_config.model_name)
         return self._normalize_non_streaming_response(data)
@@ -1050,7 +999,7 @@ class OpenAIResponsesClient(LLMClient):
         tool_cache: dict[str, dict[str, str]] = {}
         try:
             async for event in stream:
-                data = event.model_dump() if hasattr(event, "model_dump") else {}
+                data = event.model_dump() if hasattr(event, "model_dump") else event.dict() if hasattr(event, "dict") else {}
                 if data.get("type") in ("response.created", "response.completed"):
                     nested = data.get("response", {})
                     self._previous_response_id = (

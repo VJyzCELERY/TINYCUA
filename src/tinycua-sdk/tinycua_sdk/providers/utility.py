@@ -116,8 +116,15 @@ def is_text_mime(mime_type: str) -> bool:
     Text files can be sent inline as ``{"type": "text", "text": "..."}``
     instead of requiring upload via ``/v1/files``. This works with any
     OpenAI-compatible provider (local servers, LM Studio, Ollama, etc.).
+
+    Strips charset parameters (e.g. ``"application/json; charset=utf-8"``)
+    before matching so that parameterized MIME types are correctly
+    classified as text.
     """
-    return mime_type in _TEXT_MIME_TYPES or mime_type.startswith("text/")
+    base = mime_type.split(";")[0].strip()
+    if base.startswith("text/"):
+        return True
+    return base in _TEXT_MIME_TYPES
 
 
 # ── Factory types ─────────────────────────────────────────────────────────────

@@ -19,8 +19,8 @@ from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
 from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 from tinycua_sdk.providers.open_ai_responses import (
     OpenAIResponsesClient,
-    _build_payload,
     _normalize_responses_event,
+    _translate_messages,
 )
 
 
@@ -35,22 +35,24 @@ class TestLLMClientABC:
 class TestPayloadUtilities:
     """Tests for module-level payload utility functions.
 
-    ``OpenAICompatibleClient`` has been removed; these utilities are now
-    module-level functions (``_build_payload``, ``_translate_messages``,
-    ``_translate_tools``).
+    ``_translate_messages`` translates tool_result to function_call_output
+    in the Responses API format.  ``_build_request_kwargs`` (instance method
+    on ``OpenAIResponsesClient``) builds the ``model``, ``input``, tools,
+    and field-mapped kwargs for ``responses.create()``.
     """
 
     def test_build_payload_translates_tool_result_messages(self):
         """ToolResultMessage is translated to function_call_output in the payload."""
         model = LanguageModel(model_name="gpt-4o-mini")
-
-        payload = _build_payload(
-            [
-                {"role": "user", "content": "hi"},
-                {"role": "tool_result", "call_id": "call_1", "content": "42"},
-            ],
+        messages = [
+            {"role": "user", "content": "hi"},
+            {"role": "tool_result", "call_id": "call_1", "content": "42"},
+        ]
+        translated = _translate_messages(messages)
+        client = OpenAIResponsesClient(model)
+        payload = client._build_request_kwargs(
+            translated,
             [{"name": "lookup", "description": "Lookup", "parameters": {"type": "object", "properties": {}}}],
-            model,
         )
 
         assert payload["tools"][0].get("type") == "function"
@@ -64,22 +66,21 @@ class TestPayloadUtilities:
     def test_build_payload_passes_through_regular_messages(self):
         """System, user, and assistant messages pass through unchanged."""
         model = LanguageModel(model_name="gpt-4o-mini")
-        payload = _build_payload(
-            [
-                {"role": "system", "content": "you are a bot"},
-                {"role": "user", "content": "hello"},
-                {"role": "assistant", "content": "hi there"},
-            ],
-            None,
-            model,
-        )
+        messages = [
+            {"role": "system", "content": "you are a bot"},
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi there"},
+        ]
+        translated = _translate_messages(messages)
+        client = OpenAIResponsesClient(model)
+        payload = client._build_request_kwargs(translated, None)
 
         assert any(i["role"] == "system" for i in payload["input"])
         assert any(i["role"] == "user" for i in payload["input"])
         assert any(i["role"] == "assistant" for i in payload["input"])
 
-    def test_build_payload_only_includes_responses_supported_fields(self):
-        """_build_payload excludes unsupported Responses API fields even when set."""
+    def test_build_request_kwargs_rejects_unsupported_fields(self):
+        """_build_request_kwargs raises ProviderApiError for unsupported fields."""
         model = LanguageModel(
             temperature=0.7,
             max_tokens=100,
@@ -91,18 +92,9 @@ class TestPayloadUtilities:
             logprobs=True,
             top_logprobs=3,
         )
-        payload = _build_payload(
-            [{"role": "user", "content": "hi"}], None, model,
-        )
-        assert payload.get("temperature") == 0.7
-        assert payload.get("max_output_tokens") == 100
-        assert payload.get("top_p") == 0.9
-        assert payload.get("top_logprobs") == 3
-        assert "frequency_penalty" not in payload
-        assert "presence_penalty" not in payload
-        assert "stop" not in payload
-        assert "seed" not in payload
-        assert "logprobs" not in payload
+        client = OpenAIResponsesClient(model)
+        with pytest.raises(ProviderApiError):
+            client._build_request_kwargs([{"role": "user", "content": "hi"}])
 
     def test_build_request_kwargs_includes_top_logprobs(self):
         """OpenAIResponsesClient._build_request_kwargs includes top_logprobs."""
@@ -1236,11 +1228,10 @@ class TestRegressionResponses:
     def test_string_only_message_via_build_payload_unchanged(self):
         """String-only messages produce same payload input as before Phase 3."""
         model = LanguageModel(model_name="gpt-4o-mini")
-        payload = _build_payload(
-            [{"role": "user", "content": "hello world"}],
-            None,
-            model,
-        )
+        messages = [{"role": "user", "content": "hello world"}]
+        translated = _translate_messages(messages)
+        client = OpenAIResponsesClient(model)
+        payload = client._build_request_kwargs(translated, None)
         assert any(
             item == {"role": "user", "content": "hello world"}
             for item in payload["input"]
@@ -1249,14 +1240,13 @@ class TestRegressionResponses:
     def test_tool_result_translation_unchanged(self):
         """ToolResultMessage translation produces function_call_output unchanged."""
         model = LanguageModel(model_name="gpt-4o-mini")
-        payload = _build_payload(
-            [
-                {"role": "user", "content": "hi"},
-                {"role": "tool_result", "call_id": "call_1", "content": "result"},
-            ],
-            None,
-            model,
-        )
+        messages = [
+            {"role": "user", "content": "hi"},
+            {"role": "tool_result", "call_id": "call_1", "content": "result"},
+        ]
+        translated = _translate_messages(messages)
+        client = OpenAIResponsesClient(model)
+        payload = client._build_request_kwargs(translated, None)
         assert any(
             item.get("type") == "function_call_output"
             and item.get("output") == "result"

@@ -1301,11 +1301,20 @@ async def _download_url_content(
                 f"httpx version incompatible with SSRF IP-pinning: "
                 f"transport._pool has no _network_backend attribute ({exc})."
             )
-        client_timeout = (
-            httpx.Timeout(remaining_timeout)
-            if remaining_timeout is not None
-            else httpx.Timeout(timeout)
-        )
+        if remaining_timeout is not None:
+            client_timeout = httpx.Timeout(
+                connect=min(remaining_timeout, 10.0),
+                read=remaining_timeout,
+                write=remaining_timeout,
+                pool=min(remaining_timeout, 5.0),
+            )
+        else:
+            client_timeout = httpx.Timeout(
+                connect=min(timeout, 10.0),
+                read=timeout,
+                write=timeout,
+                pool=min(timeout, 5.0),
+            )
         return httpx.AsyncClient(
             timeout=client_timeout,
             follow_redirects=False,

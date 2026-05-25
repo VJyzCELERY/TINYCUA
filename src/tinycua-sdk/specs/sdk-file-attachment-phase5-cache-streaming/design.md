@@ -42,7 +42,9 @@ Provider Client (OpenAIChatCompletionsClient / OpenAIResponsesClient)
   └─ _translate_responses_attachment(attachment)
       ├─ image/* data/url → inline input_image (unchanged)
       ├─ file_id → direct reference (unchanged, Phase 3)
-      ├─ non-image data → upload via UploadSession (refactored from _file_id_cache)
+      ├─ non-image data → inline via input_file + file_data (no upload)
+      ├─ non-image streaming → upload via UploadSession
+      ├─ non-image URL → download → inline via input_file + file_data (or upload for streaming mode)
       └─ non-image url → download → base64-encode → inline file_data (new)
 ```
 
@@ -208,12 +210,10 @@ class AgentConfig(BaseModel):
     "file": {"file_id": "file-abc123"},
 }
 
-# File reference via file_data (inline, small files only — may be used
-# if the provider supports it, otherwise upload-and-reference)
-{
-    "type": "file",
-    "file": {"file_data": "base64...", "filename": "doc.pdf"},
-}
+# NOTE: The Chat Completions API does NOT support inline ``file_data``
+# in content parts — all non-image, non-text files are uploaded via
+# ``/v1/files`` and referenced by ``file_id``. The ``file_data`` shape
+# below is only available in the Responses API.
 ```
 
 **Responses — new shape for URL downloads**:
@@ -312,7 +312,11 @@ def _translate_chat_attachment(
     | file_id        | any        | {"type":"file","file":{"file_id":...}}           |
     | data + image/* | inline     | {"type":"image_url","image_url":{"url":"data:..."}} |
     | url + image/*  | URL ref    | {"type":"image_url","image_url":{"url":"..."}}  |
+    | streaming img  | image/*    | {"type":"image_url","image_url":{"url":"data:..."}} |
+    | data + text/*  | text       | {"type":"text","text":"..."}                    |
+    | streaming text | text/*     | {"type":"text","text":"..."}                    |
     | data + non-img | upload     | {"type":"file","file":{"file_id":<cached>}}     |
+    | streaming non  | upload     | {"type":"file","file":{"file_id":<cached>}}     |
     | url + non-img  | dl+upload  | {"type":"file","file":{"file_id":<cached>}}     |
     
     Raises ValueError for unsupported MIME/source combinations.
@@ -336,7 +340,11 @@ async def _translate_responses_attachment(
     | file_id + non  | non-image  | {"type":"input_file","file_id":...}             |
     | data + img     | image/*    | {"type":"input_image","image_url":"data:...","detail":"auto"} |
     | url + img      | image/*    | {"type":"input_image","image_url":"...","detail":"auto"} |
+    | streaming img  | image/*    | {"type":"input_image","image_url":"data:...","detail":"auto"} |
+    | data + text    | text/*     | {"type":"input_text","text":"..."}              |
+    | streaming text | text/*     | {"type":"input_text","text":"..."}              |
     | data + non     | non-image  | Inline file_data → {"type":"input_file","file_id":null,"file_data":"data:<mime>;base64,<payload>"} |
+    | streaming non  | non-image  | Upload → {"type":"input_file","file_id":...}    |
     | url + non      | non-image  | Download → {"type":"input_file","file_data":"data:<mime>;base64,<payload>"} |
     """
 ```
@@ -447,58 +455,58 @@ class PersistentCacheStore:
 
 ### Phase 1 — UploadSession Extraction (Refactor)
 
-- [ ] Extract `_file_id_cache` and `_ensure_uploaded_file_id` from `OpenAIResponsesClient` into new `upload.py` module.
-- [ ] Create `UploadSession` class with `InMemoryCache`, `InFlightTracker`.
-- [ ] Change cache key from `{data}|{mime}|{filename}` to `{data}|{mime}` (content-based).
-- [ ] Wire `UploadSession` into `OpenAIResponsesClient` — existing tests must pass.
-- [ ] Verify existing Phase 3 Responses tests still pass.
+- [x] Extract `_file_id_cache` and `_ensure_uploaded_file_id` from `OpenAIResponsesClient` into new `upload.py` module.
+- [x] Create `UploadSession` class with `InMemoryCache`, `InFlightTracker`.
+- [x] Change cache key from `{data}|{mime}|{filename}` to `{data}|{mime}` (content-based).
+- [x] Wire `UploadSession` into `OpenAIResponsesClient` — existing tests must pass.
+- [x] Verify existing Phase 3 Responses tests still pass.
 
 ### Phase 2 — Chat Completions Upload + Cache
 
-- [ ] Add `_upload_fn` parameter to `_translate_chat_attachment` and `_translate_chat_user_message`.
-- [ ] Remove ValueError for non-image MIME types and file_id in Chat Completions — delegate to upload.
-- [ ] Wire `UploadSession` into `OpenAIChatCompletionsClient`.
-- [ ] Make `_translate_chat_messages` async (or pass upload fn through sync wrapper).
-- [ ] Add unit tests: upload, cache hit, cache miss, file_id bypass, content dedup.
+- [x] Add `_upload_fn` parameter to `_translate_chat_attachment` and `_translate_chat_user_message`.
+- [x] Remove ValueError for non-image MIME types and file_id in Chat Completions — delegate to upload.
+- [x] Wire `UploadSession` into `OpenAIChatCompletionsClient`.
+- [x] Make `_translate_chat_messages` async (or pass upload fn through sync wrapper).
+- [x] Add unit tests: upload, cache hit, cache miss, file_id bypass, content dedup.
 
 ### Phase 3 — Streaming Upload
 
-- [ ] Add `StreamingFileAttachment` subclass to `attachment.py`.
-- [ ] Update `FileAttachment.from_path(stream=True)` to return `StreamingFileAttachment`.
-- [ ] Add `iter_raw_chunks()` and `iter_base64_chunks()` to `StreamingFileAttachment`.
-- [ ] Update `UploadSession.ensure_file_id()` to support chunked upload via `client.files.create(file=chunked_reader)`.
-- [ ] Add unit tests: streaming parity, chunk boundary correctness, memory usage.
+- [x] Add `StreamingFileAttachment` subclass to `attachment.py`.
+- [x] Update `FileAttachment.from_path(stream=True)` to return `StreamingFileAttachment`.
+- [x] Add `iter_raw_chunks()` and `iter_base64_chunks()` to `StreamingFileAttachment`.
+- [x] Update `UploadSession.ensure_file_id()` to support chunked upload via `client.files.create(file=chunked_reader)`.
+- [x] Add unit tests: streaming parity, chunk boundary correctness, memory usage.
 
 ### Phase 4 — Non-Image URL Support
 
-- [ ] Add `_download_url_content()` utility to `upload.py`.
-- [ ] Update `_translate_chat_attachment` to handle non-image URL — download content, upload to provider, obtain `file_id`.
-- [ ] Update `_translate_responses_attachment` to handle non-image URL → download → base64-encode → inline `file_data` with `data:<mime>;base64,<payload>` prefix (was ValueError).
-- [ ] Add unit tests: URL download success, timeout, HTTP errors, cache for URL attachments.
-- [ ] Add integration test: real URL attachment through both providers.
+- [x] Add `_download_url_content()` utility to `upload.py`.
+- [x] Update `_translate_chat_attachment` to handle non-image URL — download content, upload to provider, obtain `file_id`.
+- [x] Update `_translate_responses_attachment` to handle non-image URL → download → base64-encode → inline `file_data` with `data:<mime>;base64,<payload>` prefix (was ValueError).
+- [x] Add unit tests: URL download success, timeout, HTTP errors, cache for URL attachments.
+- [x] Add integration test: real URL attachment through both providers.
 
 ### Phase 5 — Persistent Cache
 
-- [ ] Create `PersistentCacheStore` with JSONL-based storage.
-- [ ] Add `cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout` fields to `AgentConfig`.
-- [ ] Wire `PersistentCacheStore` into `UploadSession` when `cache_dir` is configured.
-- [ ] Implement LRU eviction.
-- [ ] Implement graceful degradation (corruption, disk full, permissions).
-- [ ] Add unit tests: write-read cycle, eviction, corruption recovery, degradation.
-- [ ] Add integration test: persistent cache reuse across simulated restarts.
+- [x] Create `PersistentCacheStore` with JSONL-based storage.
+- [x] Add `cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout` fields to `AgentConfig`.
+- [x] Wire `PersistentCacheStore` into `UploadSession` when `cache_dir` is configured.
+- [x] Implement LRU eviction.
+- [x] Implement graceful degradation (corruption, disk full, permissions).
+- [x] Add unit tests: write-read cycle, eviction, corruption recovery, degradation.
+- [x] Add integration test: persistent cache reuse across simulated restarts.
 
 ### Phase 6 — Provider Factory Wiring
 
-- [ ] Update `ProviderRegistry` factory to accept `UploadSession`.
-- [ ] Update `AgentExecutor._call_llm()` to create `UploadSession` (with optional persistent store) and pass to provider clients.
-- [ ] Update `AgentConfig` with `cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout`.
-- [ ] Verify end-to-end: `Agent.run()` with `file_attachments`, `cache_dir`, and large files.
+- [x] Update `ProviderRegistry` factory to accept `UploadSession`.
+- [x] Update `AgentExecutor._call_llm()` to create `UploadSession` (with optional persistent store) and pass to provider clients.
+- [x] Update `AgentConfig` with `cache_dir`, `cache_max_entries`, `session_cache_max_entries`, `cache_namespace`, `upload_timeout`.
+- [x] Verify end-to-end: `Agent.run()` with `file_attachments`, `cache_dir`, and large files.
 
 ### Phase 7 — Verification
 
-- [ ] Run full unit test suite for both providers.
-- [ ] Run integration tests with network-dependent tests guarded.
-- [ ] Run the broader tinycua-sdk test suite.
+- [x] Run full unit test suite for both providers.
+- [x] Run integration tests with network-dependent tests guarded.
+- [x] Run the broader tinycua-sdk test suite.
 - [ ] Manual smoke test: large file upload, URL attachment, persistent cache restart.
 
 ---

@@ -148,8 +148,8 @@ class FileAttachment(BaseModel):
             FileNotFoundError: If the path does not exist.
         """
         path_obj = pathlib.Path(path)
-        if not path_obj.exists():
-            raise FileNotFoundError(f"File not found: {path_obj}")
+        if not path_obj.is_file():
+            raise FileNotFoundError(f"Not a regular file: {path_obj}")
         # Resolve to an absolute path so that streaming operations are not
         # affected by later changes to the process working directory.
         resolved = path_obj.resolve()
@@ -298,6 +298,8 @@ class ContentPart(BaseModel):
     @classmethod
     def _text_not_empty_when_set(cls, v: str | None) -> str | None:
         """Allow text to be None or a non-empty string."""
+        if v is not None and v == "":
+            raise ValueError("text must not be empty when type='text'")
         return v
 
     @model_validator(mode="after")

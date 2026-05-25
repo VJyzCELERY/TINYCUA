@@ -98,7 +98,7 @@ Implementation tasks for Phase 5 cache-streaming feature. Check off items as com
   - [x] Add concurrent upload deduplication via `InFlightTracker`
 - [x] Refactor `OpenAIResponsesClient` to use `UploadSession` <!-- id: 5 -->
   - [x] Remove `self._file_id_cache` dict
-  - [x] Remove `self._ensure_uploaded_file_id()` method
+  - [x] Refactored `self._ensure_uploaded_file_id()` to delegate to `UploadSession.ensure_file_id()`
   - [x] Accept `UploadSession` in `__init__()` (optional, creates default if not provided)
   - [x] Wire `self._upload_session.ensure_file_id` as `_upload_fn`
   - [x] Update `_make_upload_cache_key()` to remove filename from hash
