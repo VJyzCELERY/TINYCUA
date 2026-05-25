@@ -74,11 +74,8 @@ class Agent(AgentExecutor):
             loop=loop,
             tool_permissions=tool_permissions or {},
             approval_workflow=approval_workflow,
-            cache_dir=(
-                cache_dir
-                if cache_dir is not None
-                else os.environ.get("TINYCUA_CACHE_DIR")
-            ),
+            # cache_dir env var fallback is handled by AgentConfig.from_config
+            cache_dir=cache_dir,
             cache_max_entries=cache_max_entries,
             session_cache_max_entries=session_cache_max_entries,
             cache_namespace=cache_namespace,

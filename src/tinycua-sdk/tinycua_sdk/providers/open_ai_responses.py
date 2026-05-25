@@ -873,7 +873,8 @@ class OpenAIResponsesClient(LLMClient):
                 translated = await _translate_responses_user_message(
                     msg,  # type: ignore[arg-type]
                     _upload_fn=self._ensure_uploaded_file_id,
-                    _download_fn=_download_url if hasattr(self, "_upload_session") else None,
+                    # _upload_session is always created in __init__
+                    _download_fn=_download_url,
                 )
                 result.append(translated)
             else:
