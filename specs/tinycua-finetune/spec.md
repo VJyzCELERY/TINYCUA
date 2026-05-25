@@ -2,7 +2,7 @@
 
 **Status**: In Progress
 **Created**: 2026-03-11
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-05-25
 **Subproject(s) Affected**: tinycua-finetune
 
 ---
@@ -29,6 +29,8 @@
   - Must produce standard HF-format checkpoints (safetensors) as an intermediate artifact.
   - Tool-call format must be compatible with TINYCUA tool manifest conventions so that
     generated data can later be consumed by tinycua-runner.
+  - Must provide a Colab-compatible GPU pipeline for cloud-based fine-tuning with free-tier
+    GPU access (target: Gemma 4B E4B-IT on T4/L4 GPU, 16 GB VRAM).
 
 ---
 
@@ -177,7 +179,7 @@ to a GGUF file they can load directly in llama.cpp or llama-cpp-python.
 | Tool manifest schema         | TODO        |                                            |
 | Preprocessor                | TODO        |                                            |
 | Dataset synthesizer         | TODO        |                                            |
-| Training engine (QLoRA)     | TODO        |                                            |
+| Training engine (QLoRA)     | In Progress | QLoRA via Colab GPU pipeline (Gemma 4B)   |
 | Training engine (offload)   | TODO        |                                            |
 | Adapter merge               | TODO        |                                            |
 | GGUF conversion wrapper     | TODO        |                                            |

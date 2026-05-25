@@ -2,7 +2,7 @@
 
 **Spec**: [specs/tinycua-finetune/spec.md](spec.md)
 **Status**: In Progress
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-05-25
 
 ---
 
@@ -67,13 +67,14 @@ GGUF file loadable by llama.cpp.
 
 | Component                    | Change Type | Notes                                              |
 |------------------------------|-------------|----------------------------------------------------|
+| `tinycua_finetune/colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb` | New | Colab GPU pipeline notebook for Gemma 4B E4B-IT |
 | `tinycua_finetune/preprocess.py`           | New         | JSONL loading, prompt formatting, tokenization     |
 | `tinycua_finetune/synthesize_dataset.py`   | New         | Tool manifest discovery, JSONL generation          |
 | `tinycua_finetune/train.py`                | New         | Training entry-point, QLoRA/LoRA/offload modes     |
 | `tinycua_finetune/convert_to_gguf.py`      | New         | Adapter merge + GGUF conversion wrapper            |
 | `data/examples/`                           | New         | Example tool manifests and JSONL training datasets |
 | `src/tinycua-finetune/Makefile`            | New         | Build targets for this subproject                  |
-| Root `Makefile`                            | Modified    | Add tinycua-finetune to all top-level targets      |
+| Root `Makefile`                            | Modified    | Add tinycua-finetune to top-level targets          |
 
 ---
 
@@ -258,6 +259,7 @@ python -m tinycua_finetune.convert_to_gguf \
 
 ### Phase 1 — MVP _(required for initial release)_
 
+- [x] `tinycua_finetune/colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb` — Colab GPU pipeline for Gemma 4B E4B-IT QLoRA fine-tuning (T4/L4 GPU)
 - [ ] `tinycua_finetune/preprocess.py` — JSONL loader, prompt formatter, tokenizer helper
 - [ ] `tinycua_finetune/synthesize_dataset.py` — manifest discovery + JSONL generator
 - [ ] `tinycua_finetune/train.py` — training entry-point (qlora, lora, offload modes)
