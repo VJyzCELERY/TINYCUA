@@ -19,15 +19,16 @@ export the resulting models to GGUF format for lightweight local inference.
 - **FR-002**: Support QLoRA fine-tuning (4-bit base + LoRA adapters via bitsandbytes).
 - **FR-003**: Support standard LoRA fine-tuning (float16 base + LoRA adapters).
 - **FR-004**: Support CPU-offload training via Accelerate for experimental 13B runs.
-- **FR-005**: Load training data from JSONL files (`id`, `instruction`, `tool_calls`, `output`).
-- **FR-006**: Synthesize JSONL training datasets from a local tool manifest directory.
-- **FR-007**: Save fine-tuned LoRA adapter weights in safetensors format.
-- **FR-008**: Merge LoRA adapters into the base model to produce a standalone HF checkpoint.
-- **FR-009**: Convert a merged HF checkpoint to GGUF format.
-- **FR-010**: Configure all training parameters via CLI arguments.
-- **FR-011**: Inject special tool-call tokens and resize model embeddings before training.
-- **FR-012**: For vision-LMM mode, freeze the image encoder and apply LoRA to LLM components only.
-- **FR-013**: Train on all tokens in the sequence (not masked) to let the model learn full conversation structure, not just assistant responses.
+- **FR-005**: Provide a Colab-compatible GPU pipeline for cloud-based fine-tuning (target: Gemma 4B E4B-IT on T4/L4 GPU, 16 GB VRAM).
+- **FR-006**: Load training data from JSONL files (`id`, `instruction`, `tool_calls`, `output`).
+- **FR-007**: Synthesize JSONL training datasets from a local tool manifest directory.
+- **FR-008**: Save fine-tuned LoRA adapter weights in safetensors format.
+- **FR-009**: Merge LoRA adapters into the base model to produce a standalone HF checkpoint.
+- **FR-010**: Convert a merged HF checkpoint to GGUF format.
+- **FR-011**: Configure all training parameters via CLI arguments.
+- **FR-012**: Inject special tool-call tokens and resize model embeddings before training.
+- **FR-013**: For vision-LMM mode, freeze the image encoder and apply LoRA to LLM components only.
+- **FR-014**: Train on all tokens in the sequence (not masked) to let the model learn full conversation structure, not just assistant responses.
 
 ---
 

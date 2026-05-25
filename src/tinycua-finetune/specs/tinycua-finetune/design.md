@@ -18,17 +18,17 @@ with 16 GB VRAM (7B models); experimental CPU-offload path for 13B models with 3
 ## Architecture
 
 ```
-[Tool Manifest Directory]
-         |
-         v
-[synthesize_dataset.py] ──> [JSONL Training Dataset]
-                                       |
-                              [preprocess.py]
-                                       |
-              [Base Model (HF, local)] |
-                       |               |
-                       v               v
-                 [train.py] <─────────'
+[Tool Manifest Directory]           [Colab GPU Pipeline]
+         |                          (colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb)
+         v                                   |
+[synthesize_dataset.py] ──> [JSONL Dataset]  |
+                                       |     |
+                              [preprocess.py] |
+                                       |     |
+              [Base Model (HF, local)] |     |
+                       |               |     |
+                       v               v     v
+                 [train.py] <─────────'     '
                  qlora | lora | offload
                        |
                        v
@@ -48,6 +48,7 @@ with 16 GB VRAM (7B models); experimental CPU-offload path for 13B models with 3
 
 ### Phase 1 — MVP
 
+- [x] `tinycua_finetune/colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb` — Colab GPU pipeline for Gemma 4B E4B-IT QLoRA fine-tuning
 - [ ] `tinycua_finetune/preprocess.py`
 - [ ] `tinycua_finetune/synthesize_dataset.py`
 - [ ] `tinycua_finetune/train.py`

@@ -11,12 +11,17 @@ Colab notebook for QLoRA fine-tuning of Gemma 4 E4B IT on agentic reasoning trac
 
 ## Proposed Changes
 
-### Colab Notebook
+### Colab Notebooks
 
 #### [NEW] `tinycua_finetune/colab-gpu-pipeline-finetune-gemma-e4b.ipynb`
 
 - **Description**: Full Colab-compatible notebook with 27 cells covering model loading, dataset preprocessing, chat template application, LoRA config, test training (20 steps), full training (1 epoch), ToolBench eval, and GGUF export.
-- **Key design decisions**:
+
+#### [NEW] `tinycua_finetune/colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb`
+
+- **Description**: Test/experimental variant of the Colab GPU pipeline for Gemma 4B E4B-IT. Provides a focused environment for iterative experimentation and debugging before finalizing the main pipeline.
+
+**Common key design decisions**:
   - Use `FastModel.from_pretrained` (not `FastLanguageModel`) — Gemma 4 is unsupported by the old API
   - Use `tokenizer.tokenizer` for raw tokenizer ops — `Gemma4Processor` wraps the real tokenizer
   - Merge `tool` role messages into preceding `assistant` content to maintain strict `user/assistant` alternation required by the Gemma 4 chat template
@@ -41,6 +46,7 @@ Colab notebook for QLoRA fine-tuning of Gemma 4 E4B IT on agentic reasoning trac
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | colab-gpu-pipeline-finetune-gemma-e4b.ipynb | New | Full fine-tuning notebook for Gemma 4 E4B |
+| colab_gpu_pipeline_finetune_gemma_e4b-test.ipynb | New | Test/experimental Colab pipeline variant |
 | spec.md | Modify | Added FR-013 |
 | design.md | Modify | Added training approach rationale |
 
@@ -69,4 +75,4 @@ Colab notebook for QLoRA fine-tuning of Gemma 4 E4B IT on agentic reasoning trac
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-05-22*
+*Last updated: 2026-05-25*
