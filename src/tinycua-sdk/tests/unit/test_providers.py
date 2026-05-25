@@ -1,5 +1,6 @@
 """Tests for provider configuration and validation."""
 
+import pytest
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.providers.utility import normalize_base_url, resolve_provider
@@ -54,8 +55,9 @@ class TestBaseUrlNormalization:
         )
 
     def test_normalize_base_url_empty_string(self):
-        """Empty string should remain empty (pure normalizer)."""
-        assert normalize_base_url("") == ""
+        """Empty string is rejected."""
+        with pytest.raises(ValueError, match="base_url must not be empty"):
+            normalize_base_url("")
 
 
 class TestProviderDefaults:

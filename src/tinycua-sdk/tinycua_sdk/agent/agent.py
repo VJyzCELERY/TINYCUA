@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal, Union
@@ -32,6 +33,11 @@ _CONFIG_ATTRS = frozenset(
         "metadata",
         "loop",
         "approval_workflow",
+        "cache_dir",
+        "cache_max_entries",
+        "session_cache_max_entries",
+        "cache_namespace",
+        "upload_timeout",
     }
 )
 
@@ -51,6 +57,11 @@ class Agent(AgentExecutor):
         loop: BaseLoop | None = None,
         tool_permissions: dict[str, Literal["allow", "ask", "deny"]] | None = None,
         approval_workflow: Union[ApprovalWorkflow, list[ApprovalWorkflow], None] = None,
+        cache_dir: str | None = None,
+        cache_max_entries: int = 1000,
+        session_cache_max_entries: int = 500,
+        cache_namespace: str | None = None,
+        upload_timeout: float = 30.0,
     ):
         config = AgentConfig(
             name=name,
@@ -63,6 +74,12 @@ class Agent(AgentExecutor):
             loop=loop,
             tool_permissions=tool_permissions or {},
             approval_workflow=approval_workflow,
+            # cache_dir env var fallback is handled by AgentConfig.from_config
+            cache_dir=cache_dir,
+            cache_max_entries=cache_max_entries,
+            session_cache_max_entries=session_cache_max_entries,
+            cache_namespace=cache_namespace,
+            upload_timeout=upload_timeout,
         )
 
         super().__init__(config=config)
@@ -86,6 +103,18 @@ class Agent(AgentExecutor):
     ) -> None:
         """Set tool permissions."""
         self.config.tool_permissions = value
+
+    @property
+    def upload_cache_size(self) -> int:
+        """Number of in-memory upload cache entries (for testing).
+
+        Returns:
+            The number of cached file-id entries in the upload session,
+            or 0 if no upload session has been created yet.
+        """
+        client = self._get_llm_client()
+        session = getattr(client, "_upload_session", None)
+        return session.cache_size if session else 0
 
     def add_tools(self, tool_or_list: Tool | list[Tool]) -> None:
         """Append one or more tools to the agent.
@@ -160,8 +189,7 @@ class Agent(AgentExecutor):
                     )
         else:
             raise TypeError(
-                f"query must be str or list[ContentPart], "
-                f"got {type(query).__name__}."
+                f"query must be str or list[ContentPart], got {type(query).__name__}."
             )
 
         # Validate file_attachments
@@ -198,9 +226,7 @@ class Agent(AgentExecutor):
                 user_msg = {"role": "user", "content": query}
 
         if not isinstance(stream, bool):
-            raise TypeError(
-                f"stream must be a bool, got {type(stream).__name__}"
-            )
+            raise TypeError(f"stream must be a bool, got {type(stream).__name__}")
         loop = self.config.loop or BaseLoop()
         msgs = (messages or []) + [user_msg]
         try:
@@ -212,10 +238,14 @@ class Agent(AgentExecutor):
 
         if not stream:
             return result
-        assert isinstance(result, AsyncIterator), "stream mode must return AsyncIterator"
+        assert isinstance(result, AsyncIterator), (
+            "stream mode must return AsyncIterator"
+        )
         return self._wrap_stream(result)
 
-    async def _wrap_stream(self, gen: AsyncIterator[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
+    async def _wrap_stream(
+        self, gen: AsyncIterator[dict[str, Any]]
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Pass through stream events and reset cancellation on completion."""
         try:
             async for event in gen:
@@ -256,6 +286,11 @@ class Agent(AgentExecutor):
             loop=agent_config.loop,
             tool_permissions=agent_config.tool_permissions,
             approval_workflow=agent_config.approval_workflow,
+            cache_dir=agent_config.cache_dir,
+            cache_max_entries=agent_config.cache_max_entries,
+            session_cache_max_entries=agent_config.session_cache_max_entries,
+            cache_namespace=agent_config.cache_namespace,
+            upload_timeout=agent_config.upload_timeout,
         )
 
     def to_json(self, indent: int = 2, redact_sensitive: bool = True) -> str:

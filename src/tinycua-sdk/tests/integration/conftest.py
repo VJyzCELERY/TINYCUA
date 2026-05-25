@@ -212,18 +212,19 @@ def _probe_server(base_url: str, model: str, headers: dict, provider: str) -> bo
     hardcoding /responses with Responses-only fields.
     """
     try:
-        httpx.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
-        endpoint = _probe_endpoint(provider)
-        payload = _probe_payload(provider, model, include_tools=False)
+        with httpx.Client() as client:
+            client.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
+            endpoint = _probe_endpoint(provider)
+            payload = _probe_payload(provider, model, include_tools=False)
 
-        resp = httpx.post(
-            f"{base_url}{endpoint}",
-            headers=headers,
-            json=payload,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return True
+            resp = client.post(
+                f"{base_url}{endpoint}",
+                headers=headers,
+                json=payload,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            return True
     except Exception:
         return False
 
@@ -246,32 +247,33 @@ def _probe_tool_choice(base_url: str, model: str, headers: dict, provider: str) 
         endpoint = _probe_endpoint(provider)
         payload = _probe_payload(provider, model, include_tools=True)
 
-        resp = httpx.post(
-            f"{base_url}{endpoint}",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-        resp.raise_for_status()
+        with httpx.Client() as client:
+            resp = client.post(
+                f"{base_url}{endpoint}",
+                headers=headers,
+                json=payload,
+                timeout=30,
+            )
+            resp.raise_for_status()
 
-        # Level 2: verify the model actually called a tool.
-        # A syntactically valid 200 response with no tool_calls means the
-        # provider/model does not truly honour forced tool_choice.
-        body = resp.json()
-        if provider == "openai-chat-completions":
-            choices = body.get("choices", [])
-            if choices:
-                msg = choices[0].get("message", {})
-                if msg.get("tool_calls"):
+            # Level 2: verify the model actually called a tool.
+            # A syntactically valid 200 response with no tool_calls means the
+            # provider/model does not truly honour forced tool_choice.
+            body = resp.json()
+            if provider == "openai-chat-completions":
+                choices = body.get("choices", [])
+                if choices:
+                    msg = choices[0].get("message", {})
+                    if msg.get("tool_calls"):
+                        return True
+                return False
+
+            # openai-responses endpoint response structure
+            output = body.get("output", [])
+            for item in output:
+                if item.get("type") == "function_call" or item.get("tool_calls"):
                     return True
             return False
-
-        # openai-responses endpoint response structure
-        output = body.get("output", [])
-        for item in output:
-            if item.get("type") == "function_call" or item.get("tool_calls"):
-                return True
-        return False
 
     except Exception:
         return False

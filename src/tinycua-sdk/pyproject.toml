@@ -5,7 +5,7 @@ description = "TINYCUA SDK - AI Agent Development Kit"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.27.0",
+    "httpx>=0.27.0,<0.29",
     "openai>=2.34,<3",
     "pydantic>=2.6.0",
     "python-ai-sdk>=0.0.3",
@@ -79,8 +79,18 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers --disable-warnings --maxfail=2"
+addopts = "--strict-markers --basetemp=tmp/pytest --maxfail=2"
 asyncio_mode = "auto"
+filterwarnings = [
+    # ResourceWarnings from httpx / asyncio transport teardown are known-safe
+    # and not indicative of actual leaks (httpx/openai SDK internals).
+    # These appear during integration tests where the async httpx client
+    # is not explicitly closed (the test object goes out of scope before
+    # the underlying event loop is done shutting down).
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:unclosed transport.*_SelectorSocketTransport:ResourceWarning",
+    "ignore:unclosed.*socket.socket.*:ResourceWarning",
+]
 markers = [
     "integration: marks tests as integration tests (require external service running)",
     "lm_studio: marks tests that require local OpenAI-compatible server running",

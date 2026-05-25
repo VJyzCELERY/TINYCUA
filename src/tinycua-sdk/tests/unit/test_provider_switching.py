@@ -103,13 +103,13 @@ async def test_registry_returns_correct_client_per_provider(registry: ProviderRe
     returned client's chat() response reflects the correct provider."""
     registry.register(
         "openai-responses",
-        lambda cfg: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="openai-responses", factory=lambda c: _FakeOpenaiCompatibleClient(), description="OpenAI Responses"),
+        lambda cfg, upload_session=None: _FakeOpenaiCompatibleClient(),
+        ProviderInfo(id="openai-responses", factory=lambda c, upload_session=None: _FakeOpenaiCompatibleClient(), description="OpenAI Responses"),
     )
     registry.register(
         "openai-compatible",
-        lambda cfg: _FakeOpenaiClient(),
-        ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiClient(), description="Compatible"),
+        lambda cfg, upload_session=None: _FakeOpenaiClient(),
+        ProviderInfo(id="openai-compatible", factory=lambda c, upload_session=None: _FakeOpenaiClient(), description="Compatible"),
     )
 
     model_a = LanguageModel(provider="openai-responses", model_name="alpha-model")
@@ -135,8 +135,8 @@ def test_unsupported_provider_raises_error(registry: ProviderRegistry) -> None:
     supported list."""
     registry.register(
         "supported-one",
-        lambda c: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="supported-one", factory=lambda c: _FakeOpenaiCompatibleClient(), description="S1"),
+        lambda c, upload_session=None: _FakeOpenaiCompatibleClient(),
+        ProviderInfo(id="supported-one", factory=lambda c, upload_session=None: _FakeOpenaiCompatibleClient(), description="S1"),
     )
 
     model = LanguageModel.model_construct(provider="openai", model_name="test")
@@ -153,13 +153,13 @@ def test_list_providers_returns_registered(registry: ProviderRegistry) -> None:
     """Given providers registered, list_providers includes all of them."""
     registry.register(
         "provider-alpha",
-        lambda c: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="provider-alpha", factory=lambda c: _FakeOpenaiCompatibleClient(), description="Provider 1"),
+        lambda c, upload_session=None: _FakeOpenaiCompatibleClient(),
+        ProviderInfo(id="provider-alpha", factory=lambda c, upload_session=None: _FakeOpenaiCompatibleClient(), description="Provider 1"),
     )
     registry.register(
         "provider-beta",
-        lambda c: _FakeOpenaiClient(),
-        ProviderInfo(id="provider-beta", factory=lambda c: _FakeOpenaiClient(), description="Provider 2"),
+        lambda c, upload_session=None: _FakeOpenaiClient(),
+        ProviderInfo(id="provider-beta", factory=lambda c, upload_session=None: _FakeOpenaiClient(), description="Provider 2"),
     )
 
     providers = registry.list_providers()
@@ -176,8 +176,8 @@ async def test_raw_events_requires_stream(registry: ProviderRegistry) -> None:
     """Given raw_events=True and stream=False, chat() raises ValueError."""
     registry.register(
         "openai-compatible",
-        lambda c: _FakeOpenaiCompatibleClient(),
-        ProviderInfo(id="openai-compatible", factory=lambda c: _FakeOpenaiCompatibleClient(), description="OpenAI Compatible"),
+        lambda c, upload_session=None: _FakeOpenaiCompatibleClient(),
+        ProviderInfo(id="openai-compatible", factory=lambda c, upload_session=None: _FakeOpenaiCompatibleClient(), description="OpenAI Compatible"),
     )
     client = registry.create_client(LanguageModel.model_construct(provider="openai-compatible", model_name="test"))
 

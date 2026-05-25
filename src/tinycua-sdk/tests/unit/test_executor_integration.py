@@ -2,6 +2,7 @@
 and respects LanguageModel.provider switching."""
 
 import pytest
+from typing import Any
 
 from tinycua_sdk.agent.config import AgentConfig
 from tinycua_sdk.agent.executor import AgentExecutor
@@ -39,7 +40,7 @@ class TestAgentExecutorRegistryIntegration:
         """_get_llm_client returns a client from the registry."""
         registry = ProviderRegistry()
 
-        def factory(cfg: LanguageModel) -> _FakeExecutorClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _FakeExecutorClient:
             return _FakeExecutorClient(tag="executor-test")
 
         registry.register(
@@ -63,7 +64,7 @@ class TestAgentExecutorRegistryIntegration:
 
         call_count = 0
 
-        def factory(cfg: LanguageModel) -> _FakeExecutorClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _FakeExecutorClient:
             nonlocal call_count
             call_count += 1
             return _FakeExecutorClient(tag=f"call-{call_count}")
@@ -93,7 +94,7 @@ class TestAgentExecutorCallLlm:
         """_call_llm returns LLMResponse via registry-resolved client."""
         registry = ProviderRegistry()
 
-        def factory(cfg: LanguageModel) -> _FakeExecutorClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _FakeExecutorClient:
             return _FakeExecutorClient(tag="llm-call-test")
 
         registry.register(

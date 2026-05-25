@@ -98,8 +98,11 @@ def test_from_path_streaming_matches_non_streaming_output(tmp_path):
         data_path, mime_type="application/octet-stream", stream=True
     )
 
-    assert streamed.data == regular.data
-    assert streamed.data == base64.b64encode(payload).decode("ascii")
+    # StreamingFileAttachment.data is always None by design —
+    # use iter_base64_chunks() to get the content.
+    assert streamed.data is None
+    assert "".join(streamed.iter_base64_chunks()) == regular.data
+    assert "".join(streamed.iter_base64_chunks()) == base64.b64encode(payload).decode("ascii")
 
 
 def test_user_message_string_with_separate_attachments():
