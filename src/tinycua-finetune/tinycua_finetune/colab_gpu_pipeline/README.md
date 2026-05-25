@@ -87,6 +87,43 @@ from colab_gpu_pipeline.pipeline import run_full_training
 run_full_training(model, tokenizer, dataset_final)
 ```
 
+## Required Tokens
+
+### 1. Hugging Face Token (HF_TOKEN)
+
+Required to download Gemma 4 (gated model) and push LoRA adapters.
+
+1. Go to https://huggingface.co/settings/tokens
+2. Create a new token with **write** permissions
+3. Accept the Gemma 4 license at https://huggingface.co/google/gemma-4-E4B
+4. Set the token:
+
+```bash
+export HF_TOKEN=hf_your_token_here
+```
+
+### 2. Weights & Biases Token (WANDB_API_KEY)
+
+Required for experiment tracking.
+
+1. Sign up at https://wandb.ai
+2. Go to https://wandb.ai/authorize
+3. Copy your API key
+4. Set the token:
+
+```bash
+export WANDB_API_KEY=your_wandb_api_key
+```
+
+### Colab Secrets (for Colab only)
+
+In Google Colab, store tokens via the **key icon** in the left sidebar:
+1. Click the key icon (Secrets)
+2. Add `HF_TOKEN` and `WANDB_API_KEY` with their values
+3. Enable **Notebook access** toggle for each
+
+---
+
 ## Local Environment Setup
 
 ### Requirements
