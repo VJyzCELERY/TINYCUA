@@ -335,7 +335,7 @@ Implementation tasks for Phase 5 cache-streaming feature. Check off items as com
 - [x] Address review findings — Review findings addressed in cycle 37 <!-- id: 42 -->
 - [x] Create pull request (use `gh.py`) <!-- id: 43 -->
 - [x] Address review feedback — Review feedback incorporated <!-- id: 44 -->
-- [ ] Merge to main branch <!-- id: 45 -->
+- [~] Merge to main branch <!-- id: 45 -->
 
 ---
 

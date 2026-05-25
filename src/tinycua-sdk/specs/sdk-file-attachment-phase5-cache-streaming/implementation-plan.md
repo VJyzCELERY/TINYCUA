@@ -430,17 +430,17 @@ RED→GREEN TDD contract for CI/local development.
 
 ### Manual Verification
 
-- [ ] Chat Completions provider sends a PDF — verify model response references the file
-- [ ] URL attachment with a real public PDF file — verify download, upload, and model response
-- [ ] Persistent cache directory is created and populated with `cache.jsonl` entries
-- [ ] Streaming upload of a 500 MB file does not cause OOM (memory profiling)
-- [ ] Empty file (0 bytes) uploads successfully through both providers
+- [~] Chat Completions provider sends a PDF — verify model response references the file
+- [~] URL attachment with a real public PDF file — verify download, upload, and model response
+- [~] Persistent cache directory is created and populated with `cache.jsonl` entries
+- [~] Streaming upload of a 500 MB file does not cause OOM (memory profiling)
+- [~] Empty file (0 bytes) uploads successfully through both providers
 
 ### Performance Considerations
 
-- [ ] Memory profiling: verify streaming upload of 500 MB file uses < 100 MB peak memory
-- [ ] Cache performance: 1000-entry LRU eviction completes in < 1 ms
-- [ ] Upload deduplication: concurrent uploads for same key produce exactly one `client.files.create()` call
+- [~] Memory profiling: verify streaming upload of 500 MB file uses < 100 MB peak memory
+- [~] Cache performance: 1000-entry LRU eviction completes in < 1 ms
+- [~] Upload deduplication: concurrent uploads for same key produce exactly one `client.files.create()` call
 
 ---
 
@@ -679,7 +679,7 @@ class AgentConfig(BaseModel):
 - [x] Depends on Phase 2 (Chat Completions translation) — stable
 - [x] Depends on Phase 3 (Responses cache + upload) — stable
 - [x] Depends on Phase 4 (Agent integration) — stable
-- [ ] Blocks future Phase 6 (tool-result file support)
+- [~] Blocks future Phase 6 (tool-result file support)
 
 ## Risks and Mitigations
 
