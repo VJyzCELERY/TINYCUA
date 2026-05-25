@@ -16,10 +16,6 @@ from typing import ClassVar, Iterator, Literal
 
 from pydantic import BaseModel, field_validator, model_validator
 
-# Chunk size for streaming file reads (divisible by 3 so each chunk
-# base64-encodes independently without padding issues at boundaries).
-_CHUNK_SIZE = 3 * 1024
-
 
 class FileAttachment(BaseModel):
     """Represents a file attachment within a multimodal content part.

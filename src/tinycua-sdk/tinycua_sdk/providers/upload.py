@@ -268,10 +268,10 @@ class PersistentCacheStore:
 
         try:
             lines = self._path.read_text().splitlines()
-        except PermissionError:
+        except (PermissionError, ValueError) as exc:
             logger.warning(
-                "Persistent cache permission denied: %s (continuing in-memory only)",
-                self._path,
+                "Persistent cache read failed: %s (continuing in-memory only)",
+                exc,
             )
             return
 
@@ -479,13 +479,17 @@ def _make_cache_key(
     different filenames produces the same cache key (canonical
     content-based deduplication).
 
+    .. warning::
+       For streaming attachments, calling this function directly will
+       read the entire file from disk to compute the content hash.
+       Prefer using :meth:`UploadSession.ensure_file_id` instead, which
+       opens the file once, hashes incrementally, seeks back, and
+       reuses the same handle for upload — avoiding a double read.
+
     .. note::
-       For streaming attachments, this function uses
-       :meth:`~StreamingFileAttachment.hash_content` which reads the file
-       in chunks (no full-file buffering).  The caller
-       (:meth:`UploadSession.ensure_file_id`) handles the TOCTOU race by
-       computing the cache key from the same open file handle that is
-       used for upload.
+       The internal caller (:meth:`UploadSession.ensure_file_id`) handles
+       the TOCTOU race by computing the cache key from the same open
+       file handle that is used for upload.
 
     Args:
         attachment: A canonical ``FileAttachment``.
@@ -569,19 +573,13 @@ class UploadSession:
         self._persistent: PersistentCacheStore | None = None
 
         if cache_dir and provider and base_url:
-            try:
-                self._persistent = PersistentCacheStore(
-                    cache_dir=cache_dir,
-                    provider=provider,
-                    base_url=base_url,
-                    max_entries=cache_max_entries,
-                    cache_namespace=cache_namespace,
-                )
-            except (OSError, PermissionError) as exc:
-                logger.warning(
-                    "Failed to initialize persistent cache: %s (continuing in-memory only)",
-                    exc,
-                )
+            self._persistent = PersistentCacheStore(
+                cache_dir=cache_dir,
+                provider=provider,
+                base_url=base_url,
+                max_entries=cache_max_entries,
+                cache_namespace=cache_namespace,
+            )
 
     async def ensure_file_id(
         self,
@@ -1370,7 +1368,6 @@ async def _download_url_content(
                 current_url = next_url
                 # Close current client and re-create with updated IP set
                 # and the remaining deadline budget
-                # TODO: Optimize by reusing transport infrastructure across redirect hops
                 await client.aclose()
                 client = _make_client(validated_ips, remaining)
                 continue
