@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from tinycua_sdk.agent.llm_client import LLMClient
     from tinycua_sdk.agent.llm_model import LanguageModel
+    from tinycua_sdk.models.attachment import FileAttachment
 
 from tinycua_sdk.providers.constants import _PROVIDER_ALIASES
 
@@ -130,6 +131,56 @@ def is_text_mime(mime_type: str) -> bool:
     return base in _TEXT_MIME_TYPES
 
 
+# ── Attachment materialization helpers ─────────────────────────────────────────
+
+
+def materialize_streaming_image(attachment: FileAttachment) -> str:
+    """Read all base64 chunks from a streaming image attachment.
+
+    Collects all base64-encoded chunks from the attachment and returns a
+    ``data:{mime_type};base64,{content}`` data URL string.  This avoids
+    duplicate chunk-reader logic in every provider translation function.
+
+    Args:
+        attachment: A ``StreamingFileAttachment`` with an image MIME type.
+            Must have been created with ``stream=True``.
+
+    Returns:
+        A data URL string suitable for inline image content parts.
+
+    Raises:
+        AttributeError: If ``attachment`` does not provide
+            ``iter_base64_chunks`` (not a streaming attachment).
+    """
+    data_chunks: list[str] = list(attachment.iter_base64_chunks())
+    data = "".join(data_chunks)
+    return f"data:{attachment.mime_type};base64,{data}"
+
+
+def materialize_streaming_text(attachment: FileAttachment) -> str:
+    """Read all raw chunks from a streaming text attachment.
+
+    Collects all raw bytes from the attachment and decodes them as UTF-8.
+    This avoids duplicate chunk-reader logic in every provider translation
+    function.
+
+    Args:
+        attachment: A ``StreamingFileAttachment`` with a text MIME type.
+            Must have been created with ``stream=True``.
+
+    Returns:
+        Decoded text content as a string.
+
+    Raises:
+        AttributeError: If ``attachment`` does not provide
+            ``iter_raw_chunks`` (not a streaming attachment).
+    """
+    return b"".join(attachment.iter_raw_chunks()).decode(
+        "utf-8",
+        errors="replace",
+    )
+
+
 # ── Factory types ─────────────────────────────────────────────────────────────
 
 class ProviderFactory(Protocol):
@@ -179,6 +230,8 @@ __all__ = [
     "ProviderFactory",
     "ProviderInfo",
     "is_text_mime",
+    "materialize_streaming_image",
+    "materialize_streaming_text",
     "normalize_base_url",
     "resolve_provider",
 ]

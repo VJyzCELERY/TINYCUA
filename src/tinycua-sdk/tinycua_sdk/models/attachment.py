@@ -192,6 +192,16 @@ class StreamingFileAttachment(FileAttachment):
     _file_path: pathlib.Path | None = PrivateAttr(default=None)
     _CHUNK_SIZE: ClassVar[int] = 3 * 1024
 
+    @property
+    def file_path(self) -> pathlib.Path | None:
+        """Return the resolved file path for streaming read, or None.
+
+        Public read-only accessor for the underlying ``_file_path``
+        PrivateAttr. This decouples external consumers from the internal
+        representation.
+        """
+        return self._file_path
+
     @model_validator(mode="after")
     def _validate_streaming_source(self) -> "StreamingFileAttachment":
         """Validate streaming attachment source contract.

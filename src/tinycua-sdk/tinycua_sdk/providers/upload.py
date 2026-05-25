@@ -508,7 +508,7 @@ def _make_cache_key(
     # produce the same hash for identical content.
     if (
         isinstance(attachment, StreamingFileAttachment)
-        and attachment._file_path is not None
+        and attachment.file_path is not None
     ):
         raw_hash = attachment.hash_content()
     elif attachment.data is not None:
@@ -683,9 +683,9 @@ class UploadSession:
         """
         if (
             isinstance(attachment, StreamingFileAttachment)
-            and attachment._file_path is not None
+            and attachment.file_path is not None
         ):
-            fh = open(str(attachment._file_path), "rb")  # noqa: SIM115
+            fh = open(str(attachment.file_path), "rb")  # noqa: SIM115
             try:
                 raw_hasher = hashlib.sha256()
                 for chunk in iter(lambda: fh.read(8192), b""):

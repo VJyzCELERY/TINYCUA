@@ -36,7 +36,12 @@ from tinycua_sdk.agent.events import (
 from tinycua_sdk.agent.llm_client import LLMClient, _yield_events
 from tinycua_sdk.core.exceptions import ProviderApiError, ProviderAuthError
 from tinycua_sdk.providers.constants import OPENAI_BASE_URL
-from tinycua_sdk.providers.utility import is_text_mime, normalize_base_url
+from tinycua_sdk.providers.utility import (
+    is_text_mime,
+    materialize_streaming_image,
+    materialize_streaming_text,
+    normalize_base_url,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -186,13 +191,10 @@ async def _translate_responses_attachment(
     # never uploaded). Handles stream=True local file images that
     # have data=None and url=None.
     if isinstance(attachment, StreamingFileAttachment) and is_image:
-        data_chunks: list[str] = []
-        for chunk in attachment.iter_base64_chunks():
-            data_chunks.append(chunk)
-        data = "".join(data_chunks)
+        data_url = materialize_streaming_image(attachment)
         return {
             "type": "input_image",
-            "image_url": f"data:{attachment.mime_type};base64,{data}",
+            "image_url": data_url,
             "detail": "auto",
         }
 
@@ -200,7 +202,7 @@ async def _translate_responses_attachment(
     # input_text.  This must come before the generic streaming upload
     # branch to satisfy FR-001b (text-based MIME types must be inlined).
     if isinstance(attachment, StreamingFileAttachment) and is_text_mime(attachment.mime_type):
-        text_content = b"".join(attachment.iter_raw_chunks()).decode("utf-8", errors="replace")
+        text_content = materialize_streaming_text(attachment)
         return {"type": "input_text", "text": text_content}
 
     # Streaming attachment (non-image) → upload via _upload_fn.
@@ -732,7 +734,25 @@ class OpenAIResponsesClient(LLMClient):
         else:
             from tinycua_sdk.providers.upload import UploadSession  # noqa: PLC0415
 
-            self._upload_session = UploadSession()
+            # Resolve provider from model config for cache scoping.
+            provider = self._model_config.provider
+
+            # Resolve base URL following the same priority as _get_client:
+            # explicit > OPENAI_RESPONSES_BASE_URL > LLM_BASE_URL > OpenAI default.
+            base_url = self._model_config.base_url
+            if not base_url:
+                base_url = (
+                    os.environ.get("OPENAI_RESPONSES_BASE_URL")
+                    or os.environ.get("LLM_BASE_URL")
+                    or OPENAI_BASE_URL
+                )
+            base_url = normalize_base_url(base_url)
+
+            self._upload_session = UploadSession(
+                provider=provider,
+                base_url=base_url,
+                cache_dir=os.environ.get("TINYCUA_CACHE_DIR"),
+            )
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
