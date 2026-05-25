@@ -14,7 +14,7 @@ import mimetypes
 import pathlib
 from typing import ClassVar, Iterator, Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, PrivateAttr, field_validator, model_validator
 
 
 class FileAttachment(BaseModel):
@@ -161,7 +161,7 @@ class FileAttachment(BaseModel):
                 mime_type=resolved_mime,
                 filename=resolved.name,
             )
-            object.__setattr__(streaming, "_file_path", resolved)
+            streaming._file_path = resolved
             return streaming
 
         encoded = base64.b64encode(resolved.read_bytes()).decode("ascii")
@@ -189,7 +189,7 @@ class StreamingFileAttachment(FileAttachment):
         _CHUNK_SIZE: Chunk size in bytes (divisible by 3 for base64 alignment).
     """
 
-    _file_path: pathlib.Path | None = None
+    _file_path: pathlib.Path | None = PrivateAttr(default=None)
     _CHUNK_SIZE: ClassVar[int] = 3 * 1024
 
     @model_validator(mode="after")

@@ -85,11 +85,14 @@ def normalize_base_url(url: str) -> str:
     url = url.rstrip("/")
     parsed = urlparse(url)
     if parsed.scheme:
-        normalized = parsed._replace(
-            scheme=parsed.scheme.lower(),
-            netloc=parsed.netloc.lower(),
-        )
-        return urlunparse(normalized)
+        return urlunparse((
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        ))
     return url
 
 
