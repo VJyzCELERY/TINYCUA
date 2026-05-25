@@ -42,6 +42,12 @@ _requires_files_endpoint = pytest.mark.skipif(
     reason="File upload needs real OpenAI /v1/files endpoint (not local server).",
 )
 
+_requires_input_file_endpoint = pytest.mark.skipif(
+    "localhost" in os.environ.get("LLM_BASE_URL", "")
+    or "localhost" in os.environ.get("OPENAI_RESPONSES_BASE_URL", ""),
+    reason="input_file content type not supported by local LLM servers.",
+)
+
 
 # ── Inline image (data URL) — both providers ─────────────────────────────────
 
@@ -273,6 +279,7 @@ class TestPdfUploadOrInlineBothProviders:
         assert isinstance(result, str)
         assert result
 
+    @_requires_input_file_endpoint
     @pytest.mark.asyncio
     async def test_responses_pdf_inline(self):
         """Responses: PDF data-backed → sent inline via file_data (no /v1/files)."""

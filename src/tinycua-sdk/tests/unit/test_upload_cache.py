@@ -1115,3 +1115,25 @@ class TestPinnedNetworkBackend:
         await backend.sleep(1.5)
 
         real_backend.sleep.assert_awaited_once_with(1.5)
+
+
+# ── SSRF: httpx version compatibility smoke test ─────────────────────────────
+
+
+def test_httpx_internal_api_accessible():
+    """Verify httpx internal attributes (_pool, _network_backend) are reachable.
+
+    The SSRF IP-pinning in _download_url_content patches
+    transport._pool._network_backend. If httpx renames or removes these
+    internal attributes, a RuntimeError is raised (fail-closed). This
+    smoke test catches such breakage before deploy.
+    """
+    transport = httpx.AsyncHTTPTransport()
+    assert hasattr(transport, "_pool"), (
+        "httpx.AsyncHTTPTransport has no _pool attribute "
+        "— SSRF IP-pinning will raise RuntimeError"
+    )
+    assert hasattr(transport._pool, "_network_backend"), (
+        "httpx transport._pool has no _network_backend attribute "
+        "— SSRF IP-pinning will raise RuntimeError"
+    )

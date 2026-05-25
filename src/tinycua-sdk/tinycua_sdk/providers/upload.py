@@ -382,6 +382,15 @@ class PersistentCacheStore:
         The updated recency is flushed to disk on :meth:`put` or
         :meth:`close`, avoiding per-read write amplification.
 
+        .. note::
+
+            If the process crashes or exits ungracefully between a
+            :meth:`get` and a subsequent :meth:`close`, the LRU promotion
+            is lost. On restart, entries load with their original
+            ``last_accessed`` timestamps from the last :meth:`put`.
+            File IDs remain valid — the worst case is an avoidable
+            re-upload.
+
         Args:
             key: Cache key.
 
@@ -1089,12 +1098,12 @@ def _verify_connected_peer(
 
     peername = network_stream.get_extra_info("peername")
     if peername is None:
-        # peername may not be available across all httpx versions,
-        # proxy configurations, or network backends. The transport
-        # layer (_PinnedNetworkBackend) is the primary TOCTOU
-        # protection; this check is a secondary defense. When the
-        # peer address cannot be determined, skip the verification
-        # rather than failing closed.
+        logger.warning(
+            "Cannot verify connected peer: peername unavailable. "
+            "The transport layer (_PinnedNetworkBackend) provides the "
+            "primary TOCTOU protection; this secondary check is "
+            "bypassed."
+        )
         return
 
     peer_ip = peername[0]
