@@ -42,7 +42,7 @@ A developer wants to understand how TINYCUA orchestrates its agents. They naviga
 - **FR-001**: An `README.md` index file MUST list all architecture docs with brief descriptions and links.
 - **FR-002**: One file per architecture component (agent, process, or analysis), named in kebab-case.
 - **FR-003**: Each agent doc MUST include sections for: Role, Inputs/Outputs, Internal Flow (Mermaid diagram), and Design Decisions.
-- **FR-004**: All cross-references between docs MUST use relative `[filename.md](filename.md)` links.
+- **FR-004**: All cross-references between docs MUST use relative `[display text](filename.md)` links.
 - **FR-005**: Decision record docs MUST be labeled as such to distinguish from agent specifications.
 
 ### Key Entities
