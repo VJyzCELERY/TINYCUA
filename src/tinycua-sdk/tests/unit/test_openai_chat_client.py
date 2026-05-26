@@ -771,6 +771,127 @@ class TestChatCompletionsAttachmentIntegration:
         assert result[2]["role"] == "assistant"
 
 
+class TestChatCompletionsToolResultTranslation:
+    """Chat Completions tool-result attachment translation tests."""
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_attachments_to_two_message_sequence(self):
+        """Chat Completions emits text-only tool msg + synthetic user msg."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIChatCompletionsClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "make_image",
+                            "arguments": "{}",
+                        },
+                    },
+                ],
+            },
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": "Generated image.",
+                "attachments": [attachment],
+            },
+        ]
+
+        translated = await client._translate_chat_messages(messages)
+
+        # Assistant tool_calls message preserved.
+        assistant_msgs = [
+            m for m in translated if m["role"] == "assistant"
+        ]
+        assert len(assistant_msgs) == 1
+        assert "tool_calls" in assistant_msgs[0]
+
+        # Text-only tool message with tool_call_id and text content only.
+        tool_msgs = [m for m in translated if m["role"] == "tool"]
+        assert len(tool_msgs) == 1
+        tool_msg = tool_msgs[0]
+        assert tool_msg["tool_call_id"] == "call_1"
+        assert tool_msg["content"] == "Generated image."
+        # Tool message must NOT contain image_url or file parts.
+        assert not isinstance(tool_msg["content"], list)
+
+        # Follow-up user message carries image attachment.
+        user_msgs = [m for m in translated if m["role"] == "user"]
+        assert len(user_msgs) == 1
+        user_msg = user_msgs[0]
+        assert user_msg["content"][0]["type"] == "image_url"
+
+
+    @pytest.mark.asyncio
+    async def test_chat_completions_tool_result_cache_reuse(self):
+        """Repeated tool-returned non-image files reuse existing upload cache."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tinycua_sdk.providers.upload import UploadSession
+
+        mock_sdk_client = MagicMock()
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "file-abc123"
+        mock_sdk_client.files = MagicMock()
+        mock_sdk_client.files.create = AsyncMock(
+            return_value=mock_uploaded_file,
+        )
+
+        attachment = FileAttachment.from_bytes(
+            b"file-content",
+            mime_type="application/pdf",
+            filename="report.pdf",
+        )
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "make_file",
+                            "arguments": "{}",
+                        },
+                    },
+                ],
+            },
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": "Here is the file.",
+                "attachments": [attachment],
+            },
+        ]
+
+        upload_session = UploadSession()
+        client = OpenAIChatCompletionsClient(
+            LanguageModel(model_name="gpt-test"),
+            upload_session=upload_session,
+        )
+
+        with patch.object(
+            client, "_get_client", return_value=mock_sdk_client,
+        ):
+            await client._build_chat_payload(messages)
+            assert mock_sdk_client.files.create.call_count == 1
+
+            # Second call should hit the cache — no additional upload.
+            await client._build_chat_payload(messages)
+            assert mock_sdk_client.files.create.call_count == 1
+
+
 def _mock_chunk(delta, finish_reason=None, usage=None):
     data = {
         "id": "chatcmpl_1",

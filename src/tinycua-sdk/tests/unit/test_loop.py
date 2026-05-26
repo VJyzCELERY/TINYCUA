@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 
 
 from tinycua_sdk import Agent, AgentPolicy, BaseLoop, LanguageModel, Skill, tool
+from tinycua_sdk.models.attachment import ContentPart, FileAttachment
 
 
 class _EmptyAsyncStream(AsyncIterator[dict]):
@@ -1252,3 +1253,79 @@ class TestLoopExecution:
         agent = Agent(llm_model=LanguageModel())
         response = await agent.run("Hello")
         assert response == "Mocked response"
+
+
+class TestNormalizeToolResult:
+    """Unit tests for normalize_tool_result helper."""
+
+    def test_normalize_structured_multipart_content(self):
+        """Rule 1: Non-empty list of ContentParts is treated as structured multipart."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        tool_result = {"content": [ContentPart(type="text", text="hello")]}
+        result = normalize_tool_result("call_1", tool_result)
+        assert result["role"] == "tool_result"
+        assert result["call_id"] == "call_1"
+        assert result["content"] == tool_result["content"]
+
+    def test_normalize_raw_dict_content_parts(self):
+        """Rule 1 (raw dicts): Raw dicts matching ContentPart shape are structured."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        tool_result = {"content": [{"type": "text", "text": "hello"}]}
+        result = normalize_tool_result("call_1", tool_result)
+        assert result["role"] == "tool_result"
+        assert result["call_id"] == "call_1"
+        assert result["content"] == tool_result["content"]
+
+    def test_normalize_string_with_attachments(self):
+        """Rule 2: String content plus attachments list yields structured message."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        attachment = FileAttachment.from_bytes(
+            b"data", mime_type="text/plain", filename="f.txt",
+        )
+        tool_result = {"content": "Generated file.", "attachments": [attachment]}
+        result = normalize_tool_result("call_1", tool_result)
+        assert result["content"] == "Generated file."
+        assert result["attachments"] == [attachment]
+
+    def test_normalize_pre_formed_canonical_message(self):
+        """Rule 3: Tool result with role='tool_result' is treated as canonical."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        tool_result = {
+            "role": "tool_result",
+            "call_id": "call_abc",
+            "content": "Canonical content.",
+        }
+        result = normalize_tool_result("call_1", tool_result)
+        assert result["role"] == "tool_result"
+        assert result["call_id"] == "call_1"
+        assert result["content"] == "Canonical content."
+
+    @pytest.mark.parametrize(
+        "legacy_value",
+        [
+            "plain string",
+            42,
+            {"arbitrary": "dict", "nested": {"key": "val"}},
+            None,
+        ],
+    )
+    def test_normalize_legacy_falls_back_to_string(self, legacy_value):
+        """Rule 4: Unrecognized tool result shapes fall back to str(tool_result)."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        result = normalize_tool_result("call_1", legacy_value)
+        assert result["content"] == str(legacy_value)
+        assert "attachments" not in result
+
+    @pytest.mark.parametrize("empty_content", [[], list()])
+    def test_normalize_rejects_empty_content_part_list(self, empty_content):
+        """Rule 5: Empty content list raises ValueError."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        tool_result = {"content": empty_content}
+        with pytest.raises(ValueError, match="empty"):
+            normalize_tool_result("call_1", tool_result)

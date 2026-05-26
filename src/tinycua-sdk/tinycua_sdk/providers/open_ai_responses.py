@@ -410,7 +410,98 @@ async def _translate_responses_user_message(
     )
 
 
+async def _translate_responses_tool_result(
+    msg: dict[str, Any],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+    _download_fn: Callable[[str], Awaitable[bytes]] | None = None,
+) -> dict[str, Any]:
+    """Translate a tool-result message to a Responses API ``function_call_output``.
 
+    Handles three shapes:
+
+    1. ``content: list[ContentPart | dict]`` — each part is translated
+       via :func:`_translate_responses_content_part`.
+    2. ``content: str`` with ``attachments: list[FileAttachment]`` — text
+       becomes ``input_text``, each attachment is translated via
+       :func:`_translate_responses_attachment`.
+    3. ``content: str`` (no attachments) — passes through as a plain
+       ``output`` string.
+
+    Args:
+        msg: A tool-result message dict with ``role``, ``call_id``,
+            ``content``, and optionally ``attachments``.
+        _upload_fn: Optional async callable for file uploads.
+        _download_fn: Optional async callable for URL download.
+
+    Returns:
+        A ``function_call_output`` dict for the Responses API ``input`` array.
+    """
+    content = msg.get("content")
+    call_id = msg.get("call_id", "")
+    attachments: list[FileAttachment] = msg.get("attachments", []) or []
+    output_parts: list[dict[str, Any]] = []
+
+    if isinstance(content, list):
+        # Structured multipart (ContentPart list or raw dicts).
+        for item in content:
+            if isinstance(item, ContentPart):
+                output_parts.append(
+                    await _translate_responses_content_part(
+                        item,
+                        _upload_fn=_upload_fn,
+                        _download_fn=_download_fn,
+                    ),
+                )
+            elif isinstance(item, dict):
+                part = ContentPart(**item)
+                output_parts.append(
+                    await _translate_responses_content_part(
+                        part,
+                        _upload_fn=_upload_fn,
+                        _download_fn=_download_fn,
+                    ),
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported tool-result content item type: "
+                    f"expected ContentPart or dict, got {type(item).__name__}"
+                )
+        # Append message-level attachments after explicit content parts.
+        for att in attachments:
+            output_parts.append(
+                await _translate_responses_attachment(
+                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                ),
+            )
+        return {
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": output_parts,
+        }
+
+    # String content (may have attachments).
+    if isinstance(content, str) and (attachments):
+        # Text first, then attachments.
+        output_parts.append({"type": "input_text", "text": content})
+        for att in attachments:
+            output_parts.append(
+                await _translate_responses_attachment(
+                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                ),
+            )
+        return {
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": output_parts,
+        }
+
+    # Plain string or unrecognized — pass through as simple output.
+    return {
+        "type": "function_call_output",
+        "call_id": call_id,
+        "output": str(content),
+    }
 # ── Responses event normalization ─────────────────────────────────────────────
 
 
@@ -865,10 +956,11 @@ class OpenAIResponsesClient(LLMClient):
         """Translate canonical messages to Responses API ``input`` items.
 
         Uses :func:`_translate_responses_user_message` for user messages
-        that may carry attachments or ``ContentPart`` content, and the
-        module-level :func:`_translate_messages` for all other message
-        types (system, assistant, tool_result). This method is async
-        because attachment translation may involve file uploads.
+        that may carry attachments or ``ContentPart`` content. Tool-result
+        messages with structured content (``list[ContentPart]`` or
+        ``attachments``) are translated through the async helpers so that
+        uploads/downloads can be awaited.  Plain string tool results
+        fall back to the module-level :func:`_translate_messages`.
 
         Args:
             messages: Canonical message list.
@@ -894,6 +986,13 @@ class OpenAIResponsesClient(LLMClient):
                     msg,  # type: ignore[arg-type]
                     _upload_fn=self._ensure_uploaded_file_id,
                     # _upload_session is always created in __init__
+                    _download_fn=_download_url,
+                )
+                result.append(translated)
+            elif isinstance(msg, dict) and msg.get("role") == "tool_result":
+                translated = await _translate_responses_tool_result(
+                    msg,  # type: ignore[arg-type]
+                    _upload_fn=self._ensure_uploaded_file_id,
                     _download_fn=_download_url,
                 )
                 result.append(translated)

@@ -342,6 +342,85 @@ async def _translate_chat_user_message(
     )
 
 
+async def _translate_chat_tool_result_batch(
+    batch: list[dict[str, Any]],
+    result: list[dict[str, Any]],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> None:
+    """Translate a batch of tool-result messages for Chat Completions.
+
+    For each tool-result message, emits a text-only ``role: "tool"``
+    message (Chat Completions only supports text content parts in tool
+    messages).  If the tool result contains file/image ``ContentPart``
+    items or message-level ``attachments``, a synthetic ``role: "user"``
+    message is appended using :func:`_translate_chat_user_message`.
+
+    Args:
+        batch: Contiguous tool-result message dicts.
+        result: Output list (mutated in place).
+        _upload_fn: Optional async upload callback for non-image files.
+    """
+    for tool_msg in batch:
+        tool_text, user_parts = _split_tool_result_content(tool_msg)
+
+        # Text-only tool message.
+        result.append({
+            "role": "tool",
+            "tool_call_id": tool_msg.get("call_id", ""),
+            "content": tool_text,
+        })
+
+        # Synthetic user message for file/image content parts
+        # and message-level attachments.
+        attachments: list[FileAttachment] = tool_msg.get("attachments", []) or []
+        if user_parts or attachments:
+            user_msg: dict[str, Any] = {"role": "user"}
+            user_msg["content"] = user_parts if user_parts else ""
+            if attachments:
+                user_msg["attachments"] = attachments
+            translated_user = await _translate_chat_user_message(
+                user_msg, _upload_fn=_upload_fn,
+            )
+            result.append(translated_user)
+
+
+def _split_tool_result_content(
+    tool_msg: dict[str, Any],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Split tool-result content into text and file/image parts.
+
+    Args:
+        tool_msg: A canonical ``tool_result`` message dict.
+
+    Returns:
+        A tuple of ``(tool_text, user_content_parts)``.
+    """
+    content = tool_msg.get("content", "")
+    tool_text = ""
+    user_content_parts: list[dict[str, Any]] = []
+
+    if isinstance(content, str):
+        return content, user_content_parts
+
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, ContentPart):
+                if part.type == "text" and part.text:
+                    tool_text += ("\n" if tool_text else "") + part.text
+                elif part.type == "file":
+                    user_content_parts.append(part.model_dump())
+            elif isinstance(part, dict):
+                if part.get("type") == "text":
+                    t = part.get("text", "")
+                    if t:
+                        tool_text += ("\n" if tool_text else "") + t
+                elif part.get("type") == "file":
+                    user_content_parts.append(part)
+
+    return tool_text, user_content_parts
+
+
 class OpenAIChatCompletionsClient(LLMClient):
     """OpenAI Chat Completions API provider client.
 
@@ -496,12 +575,9 @@ class OpenAIChatCompletionsClient(LLMClient):
                             "tool_calls": matched_calls,
                         })
 
-                for tool_msg in batch:
-                    result.append({
-                        "role": "tool",
-                        "tool_call_id": tool_msg.get("call_id", ""),
-                        "content": tool_msg.get("content", ""),
-                    })
+                await _translate_chat_tool_result_batch(
+                    batch, result, _upload_fn=_upload_fn,
+                )
             else:
                 if isinstance(msg, dict) and msg.get("role") == "user":
                     result.append(await _translate_chat_user_message(msg, _upload_fn=_upload_fn))  # type: ignore[arg-type]

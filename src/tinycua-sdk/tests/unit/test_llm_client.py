@@ -1319,3 +1319,67 @@ class TestRegressionResponses:
             item == {"role": "user", "content": "hello world"}
             for item in input_items
         )
+
+
+class TestResponsesToolResultTranslation:
+    """Responses API tool-result attachment translation tests."""
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_content_parts_to_function_call_output(self):
+        """Responses translates ContentPart list to function_call_output."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": [
+                    ContentPart(type="text", text="Generated image."),
+                    ContentPart(type="file", file=attachment),
+                ],
+            }
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        output = translated[0]
+        assert output["type"] == "function_call_output"
+        assert output["call_id"] == "call_1"
+        assert output["output"][0] == {
+            "type": "input_text", "text": "Generated image.",
+        }
+        assert output["output"][1]["type"] == "input_image"
+
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_attachments_async(self):
+        """Responses translates string+attachments tool result to function_call_output."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_2",
+                "content": "Here is the image.",
+                "attachments": [attachment],
+            },
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        output = translated[0]
+        assert output["type"] == "function_call_output"
+        assert output["call_id"] == "call_2"
+        # Text content should be in output.
+        assert output["output"][0]["type"] == "input_text"
+        assert output["output"][0]["text"] == "Here is the image."
+        # Image attachment should follow.
+        assert output["output"][1]["type"] == "input_image"

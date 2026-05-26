@@ -94,11 +94,7 @@ class BaseLoop:
                     "error": f"Failed to parse arguments for tool '{tool_name}': {e}",
                 }
                 tool_result_messages.append(
-                    {
-                        "role": "tool_result",
-                        "call_id": _resolve_call_id(tc),
-                        "content": str(tool_result),
-                    },
+                    normalize_tool_result(_resolve_call_id(tc), tool_result),
                 )
                 continue
 
@@ -117,11 +113,7 @@ class BaseLoop:
             tool_call_count += 1
 
             tool_result_messages.append(
-                {
-                    "role": "tool_result",
-                    "call_id": _resolve_call_id(tc),
-                    "content": str(tool_result),
-                },
+                normalize_tool_result(_resolve_call_id(tc), tool_result),
             )
 
         if executed_tool_calls:
@@ -596,11 +588,7 @@ class BaseLoop:
                     "error": f"Failed to parse arguments for tool '{tool_name}': {e}",
                 }
                 tool_result_messages.append(
-                    {
-                        "role": "tool_result",
-                        "call_id": _resolve_call_id(tc),
-                        "content": str(tool_result),
-                    },
+                    normalize_tool_result(_resolve_call_id(tc), tool_result),
                 )
                 continue
 
@@ -619,11 +607,7 @@ class BaseLoop:
             tool_call_count += 1
 
             tool_result_messages.append(
-                {
-                    "role": "tool_result",
-                    "call_id": _resolve_call_id(tc),
-                    "content": str(tool_result),
-                },
+                normalize_tool_result(_resolve_call_id(tc), tool_result),
             )
 
         if executed_tool_calls:
@@ -851,6 +835,73 @@ def _resolve_call_id(tc: dict[str, Any]) -> str:
         msg = "Tool call is missing both 'call_id' and 'id'"
         raise ValueError(msg)
     return call_id
+
+
+def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
+    """Normalize a tool return value to a canonical ``tool_result`` message.
+
+    Detection rules (checked in priority order):
+
+    1. **Structured multipart**: ``content`` is a non-empty
+       ``list[ContentPart | dict]`` — preserved as-is.
+    2. **String + attachments**: ``content`` is a ``str`` and
+       ``attachments`` is present — preserves message-level attachments.
+    3. **Canonical pre-formed**: ``role`` is ``"tool_result"`` — treated
+       as pre-formed; ``call_id`` is overridden with the loop-owned value.
+    4. **Legacy fallback**: All unrecognized shapes fall back to
+       ``str(tool_result)``.
+    5. **Empty rejection**: An empty ``content`` list raises ``ValueError``.
+
+    Args:
+        call_id: The resolved call identifier from the LLM tool call.
+        tool_result: The value returned by the tool's ``invoke()`` method.
+
+    Returns:
+        A canonical message dict with ``"role": "tool_result"``,
+        ``"call_id": call_id``, and ``"content"``.
+
+    Raises:
+        ValueError: If ``content`` is an empty list.
+    """
+    # Rule 1 + Rule 5: dict with "content" key that is a list
+    if isinstance(tool_result, dict) and "content" in tool_result:
+        content = tool_result["content"]
+        if isinstance(content, list):
+            if len(content) == 0:
+                raise ValueError(
+                    "Tool result content list is empty — at least one "
+                    "ContentPart is required."
+                )
+            # Rule 1: non-empty list → structured multipart
+            return {
+                "role": "tool_result",
+                "call_id": call_id,
+                "content": content,
+            }
+
+        # Rule 2: string content + attachments
+        if isinstance(content, str) and "attachments" in tool_result:
+            return {
+                "role": "tool_result",
+                "call_id": call_id,
+                "content": content,
+                "attachments": tool_result["attachments"],
+            }
+
+    # Rule 3: dict with "role": "tool_result" → canonical pre-formed
+    if isinstance(tool_result, dict) and tool_result.get("role") == "tool_result":
+        result = {"role": "tool_result", "call_id": call_id}
+        result["content"] = tool_result.get("content", "")
+        if "attachments" in tool_result:
+            result["attachments"] = tool_result["attachments"]
+        return result
+
+    # Rule 4: unrecognized shape → legacy fallback
+    return {
+        "role": "tool_result",
+        "call_id": call_id,
+        "content": str(tool_result),
+    }
 
 
 def _usage_int(value: Any) -> int:
