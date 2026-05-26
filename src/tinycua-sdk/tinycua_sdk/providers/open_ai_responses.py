@@ -415,18 +415,24 @@ async def _translate_responses_tool_result(
     *,
     _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
     _download_fn: Callable[[str], Awaitable[bytes]] | None = None,
-) -> dict[str, Any]:
-    """Translate a tool-result message to a Responses API ``function_call_output``.
+) -> list[dict[str, Any]]:
+    """Translate a tool-result message to Responses API input items.
+
+    Returns a **list** of input items because a single tool result may
+    require a ``function_call_output`` for the text portion plus one or
+    more synthetic ``user`` messages for file/image attachments.  This
+    mirrors the Chat Completions strategy of separating tool text from
+    file parts.
 
     Handles three shapes:
 
-    1. ``content: list[ContentPart | dict]`` — each part is translated
-       via :func:`_translate_responses_content_part`.
-    2. ``content: str`` with ``attachments: list[FileAttachment]`` — text
-       becomes ``input_text``, each attachment is translated via
-       :func:`_translate_responses_attachment`.
-    3. ``content: str`` (no attachments) — passes through as a plain
-       ``output`` string.
+    1. ``content: list[ContentPart | dict]`` — text parts become the
+       ``output`` string; file parts and ``attachments`` are deferred to
+       synthetic user messages.
+    2. ``content: str`` with ``attachments: list[FileAttachment]`` — a
+       simple ``function_call_output`` and a synthetic user message.
+    3. ``content: str`` (no attachments) — a simple ``function_call_output``
+       with a plain-string ``output``.
 
     Args:
         msg: A tool-result message dict with ``role``, ``call_id``,
@@ -435,73 +441,90 @@ async def _translate_responses_tool_result(
         _download_fn: Optional async callable for URL download.
 
     Returns:
-        A ``function_call_output`` dict for the Responses API ``input`` array.
+        A list of input item dicts for the Responses API ``input`` array.
     """
     content = msg.get("content")
     call_id = msg.get("call_id", "")
     attachments: list[FileAttachment] = msg.get("attachments", []) or []
-    output_parts: list[dict[str, Any]] = []
+    result: list[dict[str, Any]] = []
 
     if isinstance(content, list):
-        # Structured multipart (ContentPart list or raw dicts).
+        # Structured multipart — split text from file parts.
+        text_parts: list[str] = []
+        file_content_parts: list[ContentPart] = []
+
         for item in content:
             if isinstance(item, ContentPart):
-                output_parts.append(
-                    await _translate_responses_content_part(
-                        item,
-                        _upload_fn=_upload_fn,
-                        _download_fn=_download_fn,
-                    ),
-                )
+                if item.type == "text" and item.text:
+                    text_parts.append(item.text)
+                elif item.type == "file":
+                    file_content_parts.append(item)
             elif isinstance(item, dict):
                 part = ContentPart(**item)
-                output_parts.append(
-                    await _translate_responses_content_part(
-                        part,
-                        _upload_fn=_upload_fn,
-                        _download_fn=_download_fn,
-                    ),
-                )
+                if part.type == "text" and part.text:
+                    text_parts.append(part.text)
+                elif part.type == "file":
+                    file_content_parts.append(part)
             else:
                 raise ValueError(
                     f"Unsupported tool-result content item type: "
                     f"expected ContentPart or dict, got {type(item).__name__}"
                 )
-        # Append message-level attachments after explicit content parts.
-        for att in attachments:
-            output_parts.append(
-                await _translate_responses_attachment(
-                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
-                ),
-            )
-        return {
+
+        text_output = "\n".join(text_parts) if text_parts else ""
+        # Emit the function_call_output with the text aggregate.
+        result.append({
             "type": "function_call_output",
             "call_id": call_id,
-            "output": output_parts,
-        }
+            "output": text_output,
+        })
+
+        # Defer file content parts + message-level attachments to a
+        # synthetic user message.
+        if file_content_parts or attachments:
+            user_msg: dict[str, Any] = {"role": "user"}
+            if file_content_parts:
+                # Preserve original ContentPart objects so that
+                # StreamingFileAttachment internal state is not lost.
+                user_msg["content"] = file_content_parts
+            else:
+                user_msg["content"] = ""
+            if attachments:
+                user_msg["attachments"] = attachments
+            translated_user = await _translate_responses_user_message(
+                user_msg,
+                _upload_fn=_upload_fn,
+                _download_fn=_download_fn,
+            )
+            result.append(translated_user)
+
+        return result
 
     # String content (may have attachments).
     if isinstance(content, str) and (attachments):
-        # Text first, then attachments.
-        output_parts.append({"type": "input_text", "text": content})
-        for att in attachments:
-            output_parts.append(
-                await _translate_responses_attachment(
-                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
-                ),
-            )
-        return {
+        result.append({
             "type": "function_call_output",
             "call_id": call_id,
-            "output": output_parts,
-        }
+            "output": content,
+        })
+        user_msg: dict[str, Any] = {"role": "user"}
+        user_msg["content"] = ""
+        user_msg["attachments"] = attachments
+        translated_user = await _translate_responses_user_message(
+            user_msg,
+            _upload_fn=_upload_fn,
+            _download_fn=_download_fn,
+        )
+        result.append(translated_user)
+        return result
 
     # Plain string or unrecognized — pass through as simple output.
-    return {
+    result.append({
         "type": "function_call_output",
         "call_id": call_id,
         "output": str(content),
-    }
+    })
+    return result
 # ── Responses event normalization ─────────────────────────────────────────────
 
 
@@ -995,7 +1018,7 @@ class OpenAIResponsesClient(LLMClient):
                     _upload_fn=self._ensure_uploaded_file_id,
                     _download_fn=_download_url,
                 )
-                result.append(translated)
+                result.extend(translated)
             else:
                 result.extend(_translate_messages([msg]))
         return result

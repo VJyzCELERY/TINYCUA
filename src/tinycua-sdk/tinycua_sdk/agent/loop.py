@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, cast
 
 from tinycua_sdk.agent.executor import ToolExecutor
+from tinycua_sdk.models.attachment import ContentPart
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
@@ -873,14 +874,34 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
                     "ContentPart is required."
                 )
             # Rule 1: non-empty list → structured multipart
-            result: dict[str, Any] = {
-                "role": "tool_result",
-                "call_id": call_id,
-                "content": content,
-            }
-            if "attachments" in tool_result:
-                result["attachments"] = tool_result["attachments"]
-            return result
+            # Validate that every item is a ContentPart or a dict that
+            # can be coerced to one.  Fall back to legacy stringification
+            # if any item fails validation.
+            valid = True
+            for item in content:
+                if isinstance(item, ContentPart):
+                    continue
+                if isinstance(item, dict):
+                    try:
+                        ContentPart(**item)
+                    except Exception:
+                        valid = False
+                        break
+                else:
+                    valid = False
+                    break
+            if valid:
+                result: dict[str, Any] = {
+                    "role": "tool_result",
+                    "call_id": call_id,
+                    "content": content,
+                }
+                if "attachments" in tool_result:
+                    result["attachments"] = tool_result["attachments"]
+                return result
+            # Items failed ContentPart validation — fall through to
+            # string fallback below.  This preserves backward compatibility
+            # for legacy dict results with non-ContentPart list values.
 
         # Rule 2: string content + attachments
         if isinstance(content, str) and "attachments" in tool_result:

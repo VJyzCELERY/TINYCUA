@@ -413,7 +413,10 @@ def _split_tool_result_content(
                 if part.type == "text" and part.text:
                     tool_text += ("\n" if tool_text else "") + part.text
                 elif part.type == "file":
-                    user_content_parts.append(part.model_dump())
+                    # Preserve the original ContentPart object so that
+                    # StreamingFileAttachment internal state (e.g. _file_path)
+                    # is not lost during serialization.
+                    user_content_parts.append(part)
             elif isinstance(part, dict):
                 if part.get("type") == "text":
                     t = part.get("text", "")
