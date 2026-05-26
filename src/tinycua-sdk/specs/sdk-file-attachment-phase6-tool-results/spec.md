@@ -93,14 +93,14 @@ A developer registers a tool that creates an image file and returns a tool-resul
 
 ## Success Criteria
 
-- [ ] **Tool-generated image reaches the LLM**: A tool can return an image attachment and the next model request includes it in provider-native form.
-- [ ] **Explicit content parts work**: A tool result using `content: list[ContentPart]` is preserved and translated correctly.
-- [ ] **Basic attachments shape works**: A tool result using `content: str` plus `attachments: list[FileAttachment]` is preserved and translated correctly.
-- [ ] **Streaming loop works**: Tool-result file support behaves the same under `Agent.run(stream=True)` as under non-streaming execution.
-- [ ] **Chat Completions works**: Chat Completions provider translates tool-result attachments into a text-only tool message plus a synthetic user message without breaking tool-call ordering.
-- [ ] **Responses works**: Responses provider translates tool-result attachments into valid function-call output/input content.
-- [ ] **Backward compatibility holds**: Existing string-only tool result tests continue to pass.
-- [ ] **Cache and upload behavior reused**: Repeated tool-returned files reuse existing file ID cache behavior where provider translation requires upload.
+- [x] **Tool-generated image reaches the LLM**: A tool can return an image attachment and the next model request includes it in provider-native form.
+- [x] **Explicit content parts work**: A tool result using `content: list[ContentPart]` is preserved and translated correctly.
+- [x] **Basic attachments shape works**: A tool result using `content: str` plus `attachments: list[FileAttachment]` is preserved and translated correctly.
+- [x] **Streaming loop works**: Tool-result file support behaves the same under `Agent.run(stream=True)` as under non-streaming execution.
+- [x] **Chat Completions works**: Chat Completions provider translates tool-result attachments into a text-only tool message plus a synthetic user message without breaking tool-call ordering.
+- [x] **Responses works**: Responses provider translates tool-result attachments into valid function-call output/input content.
+- [x] **Backward compatibility holds**: Existing string-only tool result tests continue to pass.
+- [x] **Cache and upload behavior reused**: Repeated tool-returned files reuse existing file ID cache behavior where provider translation requires upload.
 
 ---
 

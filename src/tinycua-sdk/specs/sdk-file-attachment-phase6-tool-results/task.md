@@ -58,7 +58,7 @@ Implementation tasks for Phase 6 — Tool Result File Support. Check off items a
 
 ## Documentation Phase
 
-- [ ] Update tinycua-sdk docs or README to document tool-returned attachment support <!-- id: 22 -->
+- [x] Update tinycua-sdk docs or README to document tool-returned attachment support <!-- id: 22 -->
 - [ ] Update issue #46 checklist after implementation passes review <!-- id: 23 -->
 
 ## Review and Merge

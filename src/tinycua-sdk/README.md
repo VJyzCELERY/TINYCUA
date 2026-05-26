@@ -191,3 +191,49 @@ url_attachment = FileAttachment(
 - **Responses (`openai-responses`)**: Non-image data and URL content are sent
   inline via `file_data` without uploading to `/v1/files`, enabling local
   servers (LM Studio, Ollama) that lack a files endpoint.
+
+### Phase 6 — Tool-Result File Attachments
+
+Tools can return files (images, PDFs, text artifacts) back to the agent loop,
+and the LLM will receive those files on the next model turn. The SDK
+normalizes tool results into canonical `ToolResultMessage` shapes before
+provider translation, reusing the same `FileAttachment`, `ContentPart`, and
+upload/cache infrastructure from Phase 1–5.
+
+#### Supported Tool Return Shapes
+
+Your tool can return any of these shapes:
+
+```python
+# Shape 1: Explicit multipart content (text + files)
+return {
+    "content": [
+        ContentPart(type="text", text="Here is the generated image:"),
+        ContentPart(type="file", file=FileAttachment(data=b64bytes, mime_type="image/png")),
+    ],
+}
+
+# Shape 2: String content with attachments list
+return {
+    "content": "Analysis complete. See attached report.",
+    "attachments": [FileAttachment.from_path("report.pdf")],
+}
+
+# Shape 3: Legacy string/number/dict (backward compatible)
+return "Tool execution complete"  # becomes str(tool_result)
+```
+
+#### Provider Behavior for Tool Results
+
+- **Chat Completions**: Tool-result text content parts are placed in a
+  `role: "tool"` message. File/image attachments are placed in a subsequent
+  synthetic `role: "user"` message, preserving assistant `tool_calls`
+  ordering. This is required because Chat Completions only supports `text`
+  content parts in tool messages.
+- **Responses**: Tool results are translated directly into
+  `function_call_output` content with provider-native `input_text`,
+  `input_image`, and `input_file` parts — no synthetic user message needed.
+
+Tool-result attachments reuse the same file ID cache, streaming upload, and
+URL download infrastructure from Phase 5. Repeated tool-returned files with
+identical content avoid duplicate uploads.
