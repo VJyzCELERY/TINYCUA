@@ -350,17 +350,18 @@ async def _translate_chat_tool_result_batch(
 ) -> None:
     """Translate a batch of tool-result messages for Chat Completions.
 
-    For each tool-result message, emits a text-only ``role: "tool"``
-    message (Chat Completions only supports text content parts in tool
-    messages).  If the tool result contains file/image ``ContentPart``
-    items or message-level ``attachments``, a synthetic ``role: "user"``
-    message is appended using :func:`_translate_chat_user_message`.
+    Emits all required ``role: "tool"`` messages first (one per
+    ``call_id``, preserving the assistant tool-call batch), then appends
+    one or more synthetic ``role: "user"`` messages containing the
+    aggregated file/image parts and message-level ``attachments``.
 
     Args:
         batch: Contiguous tool-result message dicts.
         result: Output list (mutated in place).
         _upload_fn: Optional async upload callback for non-image files.
     """
+    # Phase 1: Emit all tool messages first.
+    user_msg_buffer: list[dict[str, Any]] = []
     for tool_msg in batch:
         tool_text, user_parts = _split_tool_result_content(tool_msg)
 
@@ -371,18 +372,21 @@ async def _translate_chat_tool_result_batch(
             "content": tool_text,
         })
 
-        # Synthetic user message for file/image content parts
-        # and message-level attachments.
+        # Collect file/image content parts for a deferred synthetic user message.
         attachments: list[FileAttachment] = tool_msg.get("attachments", []) or []
         if user_parts or attachments:
             user_msg: dict[str, Any] = {"role": "user"}
             user_msg["content"] = user_parts if user_parts else ""
             if attachments:
                 user_msg["attachments"] = attachments
-            translated_user = await _translate_chat_user_message(
-                user_msg, _upload_fn=_upload_fn,
-            )
-            result.append(translated_user)
+            user_msg_buffer.append(user_msg)
+
+    # Phase 2: Emit deferred synthetic user messages after all tool messages.
+    for user_msg in user_msg_buffer:
+        translated_user = await _translate_chat_user_message(
+            user_msg, _upload_fn=_upload_fn,
+        )
+        result.append(translated_user)
 
 
 def _split_tool_result_content(

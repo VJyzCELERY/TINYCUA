@@ -134,10 +134,10 @@ This table tracks implementation progress. Spec and design planning is Complete;
 | Item | Status | Notes |
 |------|--------|-------|
 | Spec & Design | Complete | Phase 6 planning initialized from issue #46 |
-| Agent loop normalization | TODO | Preserve structured tool results |
-| Chat Completions translation | TODO | Tool result multimodal content |
-| Responses translation | TODO | Function-call output with attachments |
-| Integration tests | TODO | Tool-generated image scenario |
+| Agent loop normalization | Complete | Structured tool results preserved with attachments |
+| Chat Completions translation | Complete | Tool result multimodal content with correct multi-tool ordering |
+| Responses translation | Complete | Function-call output with attachments |
+| Integration tests | Complete | Tool-generated image scenario covered |
 
 ---
 

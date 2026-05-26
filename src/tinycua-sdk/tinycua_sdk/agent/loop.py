@@ -873,11 +873,14 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
                     "ContentPart is required."
                 )
             # Rule 1: non-empty list → structured multipart
-            return {
+            result: dict[str, Any] = {
                 "role": "tool_result",
                 "call_id": call_id,
                 "content": content,
             }
+            if "attachments" in tool_result:
+                result["attachments"] = tool_result["attachments"]
+            return result
 
         # Rule 2: string content + attachments
         if isinstance(content, str) and "attachments" in tool_result:
