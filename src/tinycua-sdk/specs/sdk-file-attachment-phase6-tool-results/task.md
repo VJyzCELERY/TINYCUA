@@ -4,7 +4,7 @@ Implementation tasks for Phase 6 — Tool Result File Support. Check off items a
 
 ## Pre-Implementation Verification
 
-- [ ] Verify Responses API contract for `function_call_output.output`: confirm the API accepts ``output`` as a list of content parts (``input_text``, ``input_image``, ``input_file``) for tool function-call output messages. Check provider documentation as accepted per design.md contract resolution. <!-- id: 0 -->
+- [x] Verify Responses API contract for `function_call_output.output`: confirm the API accepts ``output`` as a list of content parts (``input_text``, ``input_image``, ``input_file``) for tool function-call output messages. Check provider documentation as accepted per design.md contract resolution. <!-- id: 0 -->
 
 ## TDD Phase (Tests First)
 

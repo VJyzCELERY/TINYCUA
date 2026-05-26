@@ -61,7 +61,7 @@ class RecordingAgent:
 
         self.policy = SimpleNamespace(max_tool_calls=5)
         self.is_cancelled = False
-        self._cancel_event = None
+        self._cancel_event = asyncio.Event()
         self.calls = []
         self._responses = [first_response, second_response]
         self.tool_permissions = {}
@@ -173,7 +173,7 @@ async def test_streaming_tool_result_file_reaches_second_llm_turn():
         second_response={"content": "The image is visible."},
     )
 
-    stream_result = BaseLoop(max_iterations=2).run(agent, [], [Tool()], stream=True)
+    stream_result = await BaseLoop(max_iterations=2).run(agent, [], [Tool()], stream=True)
     async for _ in stream_result:
         pass  # consume stream — assertions target agent.calls below
 
@@ -322,18 +322,16 @@ def test_normalize_rejects_empty_content_part_list(empty_content):
 ```python
 # Test file: tests/unit/test_openai_chat_client.py — cache reuse
 
+from unittest.mock import patch
+
 from tinycua_sdk.agent.llm_model import LanguageModel
+from tinycua_sdk.providers.upload import UploadSession
 
 
 @pytest.mark.asyncio
 async def test_chat_completions_tool_result_cache_reuse():
     """Repeated tool-returned non-image files reuse existing upload cache."""
     attachment = FileAttachment.from_bytes(b"file-content", filename="report.pdf")
-    upload_calls = []
-
-    async def _upload_fn(att):
-        upload_calls.append(att.filename)
-        return "file-abc123"
 
     messages = [
         {
@@ -349,18 +347,17 @@ async def test_chat_completions_tool_result_cache_reuse():
         },
     ]
 
-    client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-test"))
-    from unittest.mock import AsyncMock
+    upload_session = UploadSession()
+    client = OpenAIChatCompletionsClient(
+        LanguageModel(model_name="gpt-test"), upload_session=upload_session,
+    )
 
-    mock_upload_fn = AsyncMock(side_effect=_upload_fn)
-    assert not attachment.file_id
+    with patch.object(upload_session, "_perform_upload", return_value="file-abc123") as mock_upload:
+        await client._build_chat_payload(messages)
+        assert mock_upload.call_count == 1
 
-    await client._translate_chat_messages(messages, _upload_fn=mock_upload_fn)
-    assert mock_upload_fn.await_count == 1
-    assert attachment.file_id == "file-abc123"
-
-    await client._translate_chat_messages(messages, _upload_fn=mock_upload_fn)
-    assert mock_upload_fn.await_count == 1  # cache hit — no additional upload
+        await client._build_chat_payload(messages)
+        assert mock_upload.call_count == 1  # cache hit — no additional upload
 ```
 
 ### Key Test Scenarios
