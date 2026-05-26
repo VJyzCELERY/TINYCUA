@@ -71,7 +71,23 @@ class RecordingAgent:
         response = self._responses.pop(0)
         if stream:
             async def _gen():
-                yield response
+                for tc in response.get("tool_calls", []):
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": tc.get("id", ""),
+                        "name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", "{}"),
+                    }
+                if response.get("content"):
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": response["content"],
+                    }
+                yield {
+                    "type": "response.completed",
+                    "finish_reason": "tool_calls" if response.get("tool_calls") else "stop",
+                    "response": {"usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}},
+                }
             return _gen()
         return response
 
@@ -173,10 +189,13 @@ async def test_streaming_tool_result_file_reaches_second_llm_turn():
 # Note: These tests call the private _translate_chat_messages() method directly.
 # If its signature changes during implementation, update the tests accordingly.
 
+from tinycua_sdk.agent.llm_model import LanguageModel
+
+
 @pytest.mark.asyncio
 async def test_chat_completions_translates_tool_result_attachments_to_tool_content_parts():
     attachment = FileAttachment.from_bytes(b"img", mime_type="image/png", filename="img.png")
-    client = OpenAIChatCompletionsClient(api_key="test", model="gpt-test")
+    client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-test"))
     messages = [
         {
             "role": "assistant",
@@ -206,10 +225,13 @@ async def test_chat_completions_translates_tool_result_attachments_to_tool_conte
 # Note: These tests call the private _translate_responses_input() method directly.
 # If its signature changes during implementation, update the tests accordingly.
 
+from tinycua_sdk.agent.llm_model import LanguageModel
+
+
 @pytest.mark.asyncio
 async def test_responses_translates_tool_result_content_parts_to_function_call_output():
     attachment = FileAttachment.from_bytes(b"img", mime_type="image/png", filename="img.png")
-    client = OpenAIResponsesClient(api_key="test", model="gpt-test")
+    client = OpenAIResponsesClient(LanguageModel(model_name="gpt-test"))
     messages = [
         {
             "role": "tool_result",
@@ -300,6 +322,9 @@ def test_normalize_rejects_empty_content_part_list(empty_content):
 ```python
 # Test file: tests/unit/test_openai_chat_client.py — cache reuse
 
+from tinycua_sdk.agent.llm_model import LanguageModel
+
+
 @pytest.mark.asyncio
 async def test_chat_completions_tool_result_cache_reuse():
     """Repeated tool-returned non-image files reuse existing upload cache."""
@@ -324,7 +349,7 @@ async def test_chat_completions_tool_result_cache_reuse():
         },
     ]
 
-    client = OpenAIChatCompletionsClient(api_key="test", model="gpt-test")
+    client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-test"))
     from unittest.mock import AsyncMock
 
     mock_upload_fn = AsyncMock(side_effect=_upload_fn)

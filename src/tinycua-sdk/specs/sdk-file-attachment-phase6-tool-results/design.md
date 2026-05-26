@@ -100,9 +100,11 @@ Schema compatibility (detection rules, evaluated in order):
 
 1. If `content` is a non-empty list (of dicts or ContentParts), treat as structured multipart content (attachments optional).
 2. If `content` is a string AND `attachments` is a list-like attachment value, treat as structured with message-level attachments.
-3. If `role == "tool_result"`, treat as a pre-formed canonical message.
-4. If the tool result is not a recognized structured shape (including non-dict values like `None`, `list`, or custom objects), it remains legacy and is converted to `str(tool_result)`.
-5. The loop owns `role` and `call_id`; tool-provided `role`/`call_id` values are ignored or overwritten to preserve the actual tool-call linkage.
+3. If `role == "tool_result"`, treat as a pre-formed canonical message. This rule is evaluated after empty-content-list rejection — an empty content list raises ``ValueError`` regardless of role, including for ``role == "tool_result"``.
+4. If the tool result is not a recognized structured shape (including non-dict values like ``None``, ``list``, or custom objects), it remains legacy and is converted to ``str(tool_result)``.
+5. The loop owns ``role`` and ``call_id``; tool-provided ``role``/``call_id`` values are ignored or overwritten to preserve the actual tool-call linkage.
+
+**Empty list rejection**: Any tool result whose ``content`` is an empty list (``[]`` or ``list()``) raises a ``ValueError`` with a message identifying the empty content part list as invalid. This rejection is evaluated before any detection rules — empty lists raise ``ValueError`` regardless of whether ``role == "tool_result"`` or any other structured field is present.
 
 ---
 
@@ -180,13 +182,18 @@ async def _translate_responses_tool_result_message(
         {"type": "function_call_output", "call_id": call_id, "output": content}
 
     Structured content or attachments:
-        {"type": "function_call_output", "call_id": call_id, "output": [provider parts...]}
+        {"type": "function_call_output", "call_id": call_id, "output": [
+            provider content parts — Verified Responses API contract: the Responses
+            API accepts ``function_call_output.output`` as a list of content parts
+            (``input_text``, ``input_image``, ``input_file``), matching the same
+            multimodal output shapes used for user messages (see Phase 5).
+        ]}
     """
 ```
 
 This helper reuses `_translate_responses_content_part()` and `_translate_responses_attachment()` so Phase 5 text, file, URL, streaming, and cache behavior remains centralized.
 
-Note on parameter asymmetry: Chat Completions translation only requires `_upload_fn` because file content is converted to base64 data URIs or uploaded via the files API for `file_id` references. Responses translation additionally requires `_download_fn` because external URL content must be downloaded for embedding in `input_image`/`input_file` content parts, which do not support inline base64 data URIs.
+Note on parameter asymmetry: Chat Completions translation only requires `_upload_fn` because file content is converted to base64 data URIs or uploaded via the files API for `file_id` references. Responses translation additionally requires `_download_fn` for non-image URL attachments that become inline `input_file.file_data`. image URLs remain URL references (passed through as `input_image.image_url`) and do NOT require download; data-backed image/file attachments reuse existing inline paths from Phase 5, preserving the established behavior where only non-image URL content is downloaded for embedding.
 
 ### Error Handling
 
@@ -261,7 +268,7 @@ Note on parameter asymmetry: Chat Completions translation only requires `_upload
 | Provider APIs do not support multimodal tool outputs uniformly | Medium | High | Tests should validate current provider-native payload shape; unsupported provider errors surface clearly. |
 | Dict-returning legacy tools are mistakenly treated as structured | Medium | Medium | Structured detection requires explicit `content` plus valid attachment/content-part shape; otherwise fallback to string. |
 | Chat Completions tool message content arrays are rejected by some models | Medium | Medium | Keep plain string path unchanged; document/model errors surface as provider API errors. |
-| Responses `function_call_output.output` may require string-only output for some servers | Medium | High | Integration tests define expected behavior; if provider rejects list output, design fallback can serialize text plus file references while preserving provider capability notes. |
+| Responses `function_call_output.output` may require string-only output for some servers | — | — | Resolved — Verified Responses API contract confirms ``output`` supports a list of content parts (``input_text``, ``input_image``, ``input_file``) for ``function_call_output`` messages, matching the multimodal output shapes already used for user messages. No fallback needed. This was validated before implementation per the pre-implementation contract check added to task.md. |
 | Streaming loop diverges from sync loop | Low | High | Share the same normalization helper and test both paths. |
 | Upload cache regressions | Low | Medium | Reuse existing attachment translation and run Phase 5 cache tests. |
 
