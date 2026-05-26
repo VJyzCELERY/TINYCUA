@@ -59,18 +59,24 @@ class RecordingAgent:
     skills = []
 
     def __init__(self, first_response, second_response):
+        from collections import deque
         from types import SimpleNamespace
 
         self.policy = SimpleNamespace(max_tool_calls=5)
         self.is_cancelled = False
         self._cancel_event = asyncio.Event()
         self.calls = []
-        self._responses = [first_response, second_response]
+        self._responses = deque([first_response, second_response])
         self.tool_permissions = {}
 
     async def _call_llm(self, messages, tools, stream=False):
         self.calls.append(messages)
-        response = self._responses.pop(0)
+        try:
+            response = self._responses.popleft()
+        except IndexError:
+            raise AssertionError(
+                f"Unexpected LLM call #{len(self.calls)}: no response configured"
+            )
         if stream:
             async def _gen():
                 for tc in response.get("tool_calls", []):
@@ -188,8 +194,12 @@ async def test_streaming_tool_result_file_reaches_second_llm_turn():
 
 ```python
 # Test file: tests/unit/test_openai_chat_client.py
-# Note: These tests call the private _translate_chat_messages() method directly.
-# If its signature changes during implementation, update the tests accordingly.
+# Note: These tests call the private _translate_chat_messages() method directly
+# to verify exact provider payload shapes. If its signature changes during
+# implementation, update the tests accordingly. Where feasible, implementers
+# should prefer testing through public provider methods (e.g., streaming
+# completion entry points) and fall back to private translation methods only
+# when the public API obscures the payload shape being verified.
 
 from tinycua_sdk.agent.llm_model import LanguageModel
 
@@ -224,8 +234,12 @@ async def test_chat_completions_translates_tool_result_attachments_to_tool_conte
 
 ```python
 # Test file: tests/unit/test_llm_client.py
-# Note: These tests call the private _translate_responses_input() method directly.
-# If its signature changes during implementation, update the tests accordingly.
+# Note: These tests call the private _translate_responses_input() method directly
+# to verify exact provider payload shapes. If its signature changes during
+# implementation, update the tests accordingly. Where feasible, implementers
+# should prefer testing through public provider methods and fall back to
+# private translation methods only when the public API obscures the payload
+# shape being verified.
 
 from tinycua_sdk.agent.llm_model import LanguageModel
 
@@ -265,6 +279,20 @@ async def test_responses_translates_tool_result_content_parts_to_function_call_o
 def test_normalize_structured_multipart_content():
     """Rule 1: Non-empty list of ContentParts is treated as structured multipart."""
     tool_result = {"content": [ContentPart(type="text", text="hello")]}
+    result = normalize_tool_result("call_1", tool_result)
+    assert result["role"] == "tool_result"
+    assert result["call_id"] == "call_1"
+    assert result["content"] == tool_result["content"]
+
+
+def test_normalize_raw_dict_content_parts():
+    """Rule 1 (raw dicts): Raw dicts matching ContentPart shape are treated as structured.
+
+    Tools may return plain dicts matching the ContentPart shape without importing
+    the model module. The design contract supports ``content: list[ContentPart |
+    dict[str, Any]]`` to minimize import burden on tool authors.
+    """
+    tool_result = {"content": [{"type": "text", "text": "hello"}]}
     result = normalize_tool_result("call_1", tool_result)
     assert result["role"] == "tool_result"
     assert result["call_id"] == "call_1"
@@ -323,6 +351,10 @@ def test_normalize_rejects_empty_content_part_list(empty_content):
 
 ```python
 # Test file: tests/unit/test_openai_chat_client.py — cache reuse
+# Note: This test calls the private _build_chat_payload() method directly
+# to verify cache behavior on repeated calls. If the internal payload
+# construction changes during implementation, update accordingly.
+# Where feasible, prefer testing through public completion APIs.
 
 from unittest.mock import patch
 
