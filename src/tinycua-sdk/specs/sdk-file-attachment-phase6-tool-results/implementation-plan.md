@@ -44,6 +44,8 @@ Write these tests before implementation. They should fail on the current branch 
 # Test file: tests/integration/test_tool_result_attachments.py
 """Integration tests for tool-result file attachment handoff."""
 
+import asyncio
+
 import pytest
 
 from tinycua_sdk.agent.loop import BaseLoop
@@ -331,7 +333,11 @@ from tinycua_sdk.providers.upload import UploadSession
 @pytest.mark.asyncio
 async def test_chat_completions_tool_result_cache_reuse():
     """Repeated tool-returned non-image files reuse existing upload cache."""
-    attachment = FileAttachment.from_bytes(b"file-content", filename="report.pdf")
+    attachment = FileAttachment.from_bytes(
+        b"file-content",
+        mime_type="application/pdf",
+        filename="report.pdf",
+    )
 
     messages = [
         {

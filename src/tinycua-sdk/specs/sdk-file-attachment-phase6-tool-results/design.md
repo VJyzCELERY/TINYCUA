@@ -130,7 +130,7 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> NormalizedToolResul
 
     Supported structured inputs:
     - {"content": list[ContentPart | dict]}  # explicit multipart, no attachments
-    - {"content": str | list[ContentPart | dict], "attachments": list[FileAttachment | dict]}
+    - {"content": str | list[ContentPart | dict], "attachments": list[FileAttachment]}
     - {"role": "tool_result", "content": ..., "attachments"?: ...}
 
     Fallback:
@@ -268,7 +268,7 @@ Note on parameter asymmetry: Chat Completions translation only requires `_upload
 | Provider APIs do not support multimodal tool outputs uniformly | Medium | High | Tests should validate current provider-native payload shape; unsupported provider errors surface clearly. |
 | Dict-returning legacy tools are mistakenly treated as structured | Medium | Medium | Structured detection requires explicit `content` plus valid attachment/content-part shape; otherwise fallback to string. |
 | Chat Completions tool message content arrays are rejected by some models | Medium | Medium | Keep plain string path unchanged; document/model errors surface as provider API errors. |
-| Responses `function_call_output.output` may require string-only output for some servers | — | — | Resolved — Verified Responses API contract confirms ``output`` supports a list of content parts (``input_text``, ``input_image``, ``input_file``) for ``function_call_output`` messages, matching the multimodal output shapes already used for user messages. No fallback needed. This was validated before implementation per the pre-implementation contract check added to task.md. |
+| Responses `function_call_output.output` may require string-only output for some servers | — | — | Resolved — Verified Responses API contract confirms ``output`` supports a list of content parts (``input_text``, ``input_image``, ``input_file``) for ``function_call_output`` messages, matching the multimodal output shapes already used for user messages. No fallback needed. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint, ``function_call_output.output`` field description) on 2026-05-26. The API reference explicitly lists ``input_text``, ``input_image``, and ``input_file`` as valid content part types for the ``output`` array. This was validated before implementation per the pre-implementation contract check added to task.md. |
 | Streaming loop diverges from sync loop | Low | High | Share the same normalization helper and test both paths. |
 | Upload cache regressions | Low | Medium | Reuse existing attachment translation and run Phase 5 cache tests. |
 
