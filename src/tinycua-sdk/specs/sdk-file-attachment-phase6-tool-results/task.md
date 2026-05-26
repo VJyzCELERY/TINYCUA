@@ -30,8 +30,9 @@ Implementation tasks for Phase 6 — Tool Result File Support. Check off items a
   - [ ] Replace direct `str(tool_result)` construction in `process_stream_tool_calls()`
   - [ ] Confirm max-tool-call and cancellation behavior is unchanged
 - [ ] Implement Chat Completions structured tool-result translation <!-- id: 10 -->
-  - [ ] Add helper mirroring `_translate_chat_user_message()` for `tool_result`
+  - [ ] Emit two-message sequence: text-only `role: "tool"` + synthetic `role: "user"` for file/image parts
   - [ ] Preserve assistant `tool_calls` injection/order for tool-result batches
+  - [ ] Chat Completions only supports `text` content parts in tool messages — file/image parts must go in a user message
   - [ ] Reuse `_translate_chat_content_part()` and `_translate_chat_attachment()`
 - [ ] Implement Responses structured tool-result translation <!-- id: 11 -->
   - [ ] Add async helper for `function_call_output`
@@ -50,7 +51,7 @@ Implementation tasks for Phase 6 — Tool Result File Support. Check off items a
 
 ## Verification Phase
 
-- [ ] Verify provider-native payload shapes match documented API contract for multimodal tool messages: inspect payloads via `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py::test_chat_completions_translates_tool_result_attachments_to_tool_content_parts tests/unit/test_llm_client.py::test_responses_translates_tool_result_content_parts_to_function_call_output -vxs` <!-- id: 18 -->
+- [ ] Verify provider-native payload shapes match documented API contract for multimodal tool messages: inspect payloads via `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py::test_chat_completions_translates_tool_result_attachments_to_two_message_sequence tests/unit/test_llm_client.py::test_responses_translates_tool_result_content_parts_to_function_call_output -vxs` <!-- id: 18 -->
 - [ ] Verify legacy string/dict/exception tool results remain backward compatible: `cd src/tinycua-sdk && uv run pytest tests/unit/test_loop.py::test_normalize_legacy_falls_back_to_string -v` <!-- id: 19 -->
 - [ ] Run cache reuse test: verify repeated tool-returned non-image files reuse existing upload cache: `cd src/tinycua-sdk && uv run pytest tests/unit/test_openai_chat_client.py::test_chat_completions_tool_result_cache_reuse -v` <!-- id: 20 -->
 - [ ] Optional manual smoke test with a vision model and a tool-generated PNG <!-- id: 21 -->

@@ -53,7 +53,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 1. **Given** a tool returns `content: list[ContentPart]` containing text and a file, **When** the non-streaming agent loop executes the tool, **Then** the next LLM request receives a structured tool result that preserves the file attachment.
 2. **Given** a tool returns string content plus `attachments: list[FileAttachment]`, **When** the non-streaming agent loop executes the tool, **Then** the next LLM request receives the text plus translated file parts.
 3. **Given** a tool returns a file result while `Agent.run(stream=True)` is active, **When** the streaming loop processes the tool call, **Then** the same structured tool result is preserved for the next LLM stream iteration.
-4. **Given** the provider is OpenAI Chat Completions, **When** a tool result contains an image attachment, **Then** it is translated to provider-native multimodal content without breaking tool-call message ordering.
+4. **Given** the provider is OpenAI Chat Completions, **When** a tool result contains an image attachment, **Then** text content parts are translated into a text-only `role: "tool"` message, and file/image attachments are placed in a subsequent synthetic `role: "user"` message, preserving tool-call message ordering.
 5. **Given** the provider is OpenAI Responses, **When** a tool result contains an image or file attachment, **Then** it is translated to provider-native input content for the corresponding function-call output turn.
 6. **Given** a legacy tool returns any non-structured value, **When** the agent loop processes it, **Then** the tool result remains a string exactly as before.
 
@@ -75,7 +75,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 - **FR-002**: The agent loop MUST support tool return values that provide string content plus `attachments: list[FileAttachment]` without coercing the attachments into a string.
 - **FR-003**: The agent loop MUST support tool return values that provide `content: list[ContentPart]` without coercing those content parts into a string.
 - **FR-004**: Non-streaming and streaming tool-call processing MUST use the same canonical tool-result normalization behavior.
-- **FR-005**: OpenAI Chat Completions translation MUST translate tool-result `list[ContentPart]` and `attachments` into provider-native tool message content while preserving the assistant `tool_calls` message required by the API.
+- **FR-005**: OpenAI Chat Completions translation MUST translate tool-result `list[ContentPart]` and `attachments` into a provider-native two-message sequence: a text-only `role: "tool"` message carrying text content parts, followed by a synthetic `role: "user"` message carrying file/image content parts. The required assistant `tool_calls` message ordering MUST be preserved.
 - **FR-006**: OpenAI Responses translation MUST translate tool-result `list[ContentPart]` and `attachments` into provider-native function-call output content for the next turn.
 - **FR-007**: Provider translation MUST reuse existing attachment behavior for image, text, non-image, URL, streaming, and pre-existing `file_id` attachments.
 - **FR-008**: Legacy tool results that are plain strings, numbers, dicts without attachment fields, or exceptions MUST continue to produce string tool-result content.
@@ -97,7 +97,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 - [ ] **Explicit content parts work**: A tool result using `content: list[ContentPart]` is preserved and translated correctly.
 - [ ] **Basic attachments shape works**: A tool result using `content: str` plus `attachments: list[FileAttachment]` is preserved and translated correctly.
 - [ ] **Streaming loop works**: Tool-result file support behaves the same under `Agent.run(stream=True)` as under non-streaming execution.
-- [ ] **Chat Completions works**: Chat Completions provider translates tool-result attachments without breaking tool-call ordering.
+- [ ] **Chat Completions works**: Chat Completions provider translates tool-result attachments into a text-only tool message plus a synthetic user message without breaking tool-call ordering.
 - [ ] **Responses works**: Responses provider translates tool-result attachments into valid function-call output/input content.
 - [ ] **Backward compatibility holds**: Existing string-only tool result tests continue to pass.
 - [ ] **Cache and upload behavior reused**: Repeated tool-returned files reuse existing file ID cache behavior where provider translation requires upload.
@@ -112,14 +112,14 @@ A developer registers a tool that creates an image file and returns a tool-resul
 - Agent loop: structured tool return with `content: str` and `attachments` is appended without string coercion.
 - Agent loop: legacy string, dict, number, and exception results remain string-compatible.
 - Streaming loop: structured tool returns are preserved through the streaming tool-call processing path.
-- Chat Completions provider: tool-result attachments translate to provider-native tool message content and preserve `tool_call_id`.
+- Chat Completions provider: tool-result text content translates to a text-only tool message; file/image attachments translate to a synthetic user message following the tool message.
 - Responses provider: tool-result attachments translate to function-call output shape with multimodal content preserved.
 
 ### Integration Tests
 
 - End-to-end non-streaming agent run where a tool generates an image and the second LLM call receives the file attachment.
 - End-to-end streaming agent run where a tool generates an image and the second LLM stream receives the file attachment.
-- Provider-level integration using mocked OpenAI clients to assert the exact next-turn payload contains the translated attachment.
+- Provider-level integration using mocked OpenAI clients to assert the exact next-turn payload contains the translated attachment (text-only tool message + synthetic user message for Chat Completions; function-call output with multimodal parts for Responses).
 
 ### Manual Tests
 

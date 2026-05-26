@@ -31,7 +31,7 @@ working messages
   └─ {"role": "tool_result", "call_id": ..., "content": ..., "attachments"?: ...}
 
 Provider translation for next turn
-  ├─ Chat Completions: assistant tool_calls + tool message with translated multimodal content
+  ├─ Chat Completions: assistant tool_calls + text-only tool message + synthetic user message with attachments
   └─ Responses: function_call_output carrying translated multimodal output content
 ```
 
@@ -43,7 +43,7 @@ The normalization step is intentionally small: it detects the canonical shapes a
 |-----------|-------------|-------|
 | `tinycua_sdk/agent/loop.py` | Modified | Add shared tool-result normalization and use it from sync and streaming tool-call paths |
 | `tinycua_sdk/agent/events.py` | Modified | Ensure `ToolResultMessage` documentation reflects structured return support |
-| `tinycua_sdk/providers/open_ai_chat_completions.py` | Modified | Translate tool-result `ContentPart` and `attachments` into provider-native tool message content |
+| `tinycua_sdk/providers/open_ai_chat_completions.py` | Modified | Translate tool-result `ContentPart` and `attachments` into text-only tool message + synthetic user message (Chat Completions requires text-only tool content parts) |
 | `tinycua_sdk/providers/open_ai_responses.py` | Modified | Translate tool-result `ContentPart` and `attachments` into function-call output content |
 | `tests/unit/test_loop.py` | Modified | Add normalization tests for non-streaming tool results |
 | `tests/unit/test_loop_custom.py` | Modified | Ensure custom loop helper contract preserves structured tool results |
@@ -145,26 +145,39 @@ The function is exported from the agent loop module (no underscore prefix) to su
 
 ```python
 # Internal to open_ai_chat_completions.py — called from _translate_chat_messages()
-# when processing tool_result messages. Mirrors _translate_chat_user_message()
-# but emits role: "tool" and tool_call_id instead of role: "user".
+# when processing tool_result messages. Because the Chat Completions API only
+# supports `text` content parts in `role: "tool"` messages, this translator
+# emits a two-message sequence:
+#
+#   1. A text-only `role: "tool"` message carrying text content parts and the
+#      required `tool_call_id`.
+#   2. A follow-up synthetic `role: "user"` message carrying file/image content
+#      parts translated from ContentPart file items and message-level attachments.
+#
+# If the tool result has no file/image parts, only the text-only tool message is
+# emitted. The assistant `tool_calls` message ordering is preserved throughout.
 
-async def _translate_chat_tool_result_message(
-    msg: dict[str, Any],
+async def _translate_chat_tool_result_batch(
+    msgs: list[dict[str, Any]],
     *,
     _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     """
-    Translate canonical ToolResultMessage to Chat Completions tool message.
+    Translate canonical ToolResultMessages to Chat Completions message sequence.
 
     Plain string content, no attachments:
-        {"role": "tool", "tool_call_id": call_id, "content": content}
+        [{"role": "tool", "tool_call_id": call_id, "content": content}]
 
-    Structured content or attachments:
-        {"role": "tool", "tool_call_id": call_id, "content": [provider parts...]}
+    Text ContentPart only, no file attachments:
+        [{"role": "tool", "tool_call_id": call_id, "content": [{"type": "text", "text": ...}]}]
+
+    Mixed text + file content or message-level attachments:
+        [{"role": "tool", "tool_call_id": call_id, "content": [{"type": "text", "text": ...}]},
+         {"role": "user", "content": [{"type": "image_url", "image_url": ...}, ...]}]
     """
 ```
 
-The helper mirrors `_translate_chat_user_message()` but emits `role: "tool"` and `tool_call_id` instead of `role: "user"`. It must strip canonical-only fields such as `attachments` after translation.
+Rationale: The OpenAI Chat Completions API schema explicitly states "For tool messages, only type `text` is supported" in the `ChatCompletionRequestToolMessage.content` field. Placing file/image content parts in a user message is the provider-compatible way to make generated attachments available for the next model turn while preserving required `assistant tool_calls` → `tool` response ordering.
 
 ### Responses Tool Result Translation
 
@@ -267,7 +280,7 @@ Note on parameter asymmetry: Chat Completions translation only requires `_upload
 |------|-----------|--------|------------|
 | Provider APIs do not support multimodal tool outputs uniformly | Medium | High | Tests should validate current provider-native payload shape; unsupported provider errors surface clearly. |
 | Dict-returning legacy tools are mistakenly treated as structured | Medium | Medium | Structured detection requires explicit `content` plus valid attachment/content-part shape; otherwise fallback to string. |
-| Chat Completions tool message content arrays are rejected by some models | Medium | Medium | Keep plain string path unchanged; document/model errors surface as provider API errors. |
+| Chat Completions tool message content arrays do not support image/file parts | High | Medium | Use two-message approach: text-only tool message + synthetic user message for attachments; model errors surface as provider API errors. |
 | Responses `function_call_output.output` may require string-only output for some servers | — | — | Resolved — Verified Responses API contract confirms ``output`` supports a list of content parts (``input_text``, ``input_image``, ``input_file``) for ``function_call_output`` messages, matching the multimodal output shapes already used for user messages. No fallback needed. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint — source: https://platform.openai.com/docs/api-reference/responses/create, ``function_call_output.output`` field description) on 2026-05-26. The API reference explicitly lists ``input_text``, ``input_image``, and ``input_file`` as valid content part types for the ``output`` array. This was validated before implementation per the pre-implementation contract check added to task.md. |
 | Streaming loop diverges from sync loop | Low | High | Share the same normalization helper and test both paths. |
 | Upload cache regressions | Low | Medium | Reuse existing attachment translation and run Phase 5 cache tests. |

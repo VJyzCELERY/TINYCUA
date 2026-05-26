@@ -205,7 +205,12 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 
 
 @pytest.mark.asyncio
-async def test_chat_completions_translates_tool_result_attachments_to_tool_content_parts():
+async def test_chat_completions_translates_tool_result_attachments_to_two_message_sequence():
+    """Chat Completions tool-result attachments emit text-only tool msg + synthetic user msg.
+
+    The Chat Completions API only supports `text` content parts in `role: "tool"` messages.
+    File/image attachments must be placed in a follow-up `role: "user"` message.
+    """
     attachment = FileAttachment.from_bytes(b"img", mime_type="image/png", filename="img.png")
     client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-test"))
     messages = [
@@ -224,12 +229,29 @@ async def test_chat_completions_translates_tool_result_attachments_to_tool_conte
 
     translated = await client._translate_chat_messages(messages)
 
+    # Assistant tool_calls message preserved.
+    assistant_msgs = [m for m in translated if m["role"] == "assistant"]
+    assert len(assistant_msgs) == 1
+    assert "tool_calls" in assistant_msgs[0]
+
+    # Text-only tool message with tool_call_id and text content only.
     tool_msgs = [m for m in translated if m["role"] == "tool"]
     assert len(tool_msgs) == 1
     tool_msg = tool_msgs[0]
     assert tool_msg["tool_call_id"] == "call_1"
     assert tool_msg["content"][0] == {"type": "text", "text": "Generated image."}
-    assert tool_msg["content"][1]["type"] == "image_url"
+    # Tool message must NOT contain image_url or file parts.
+    for part in tool_msg["content"]:
+        assert part["type"] == "text", (
+            f"Unexpected part type {part['type']!r} in tool message — "
+            "Chat Completions only supports text content parts in tool messages"
+        )
+
+    # Follow-up user message carries image attachment.
+    user_msgs = [m for m in translated if m["role"] == "user"]
+    assert len(user_msgs) == 1
+    user_msg = user_msgs[0]
+    assert user_msg["content"][0]["type"] == "image_url"
 ```
 
 ```python
@@ -402,7 +424,7 @@ async def test_chat_completions_tool_result_cache_reuse():
 
 - [ ] **Non-streaming tool-generated file handoff**: proves the primary user flow works through the default agent loop.
 - [ ] **Streaming tool-generated file handoff**: proves streaming mode preserves the same structured tool result.
-- [ ] **Provider translation**: proves Chat Completions and Responses receive provider-native content parts rather than stringified attachments.
+- [ ] **Provider translation**: proves Chat Completions emits text-only tool message + synthetic user message, and Responses receives provider-native content parts rather than stringified attachments.
 - [ ] **Backward compatibility**: proves legacy string/dict/exception tool results still behave as before.
 - [ ] **Empty ContentPart rejection**: proves empty `list[ContentPart]` tool results raise a clear `ValueError`, matching user message behavior.
 - [ ] **Cache reuse for tool-result files**: proves repeated tool-returned non-image files hit the existing upload cache.
@@ -445,9 +467,9 @@ async def test_chat_completions_tool_result_cache_reuse():
 
 #### [MODIFY] `tinycua_sdk/providers/open_ai_chat_completions.py` → Task 10
 
-- **Add structured tool-result translator**: Mirror `_translate_chat_user_message()` for `role: tool_result`, outputting `role: tool` and `tool_call_id`.
-- **Wire into batch handling**: When `_translate_chat_messages()` processes tool-result batches, translate each tool result through the new helper instead of copying raw `content`.
-- **Rationale**: Preserves existing assistant `tool_calls` ordering while enabling multimodal tool output.
+- **Add structured tool-result translator**: Emit a two-message sequence — a text-only `role: "tool"` message for text content parts, followed by a synthetic `role: "user"` message for file/image parts. File/image content parts are NOT placed in tool messages (Chat Completions only supports `text` content parts in tool messages).
+- **Wire into batch handling**: When `_translate_chat_messages()` processes tool-result batches, translate each batch through the new helper, appending both the text-only tool message and any follow-up user message.
+- **Rationale**: Preserves existing assistant `tool_calls` ordering while making generated attachments available for the next model turn in a provider-compatible way.
 
 #### [MODIFY] `tinycua_sdk/providers/open_ai_responses.py` → Task 11
 
