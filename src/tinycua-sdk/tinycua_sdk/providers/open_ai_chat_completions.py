@@ -560,16 +560,23 @@ class OpenAIChatCompletionsClient(LLMClient):
                     else:
                         break
 
-                last_has_matching_tc = (
-                    result
-                    and result[-1].get("role") == "assistant"
-                    and "tool_calls" in result[-1]
+                # Compute current batch call IDs preserving order.
+                batch_call_ids = [
+                    m["call_id"]
+                    for m in batch
+                    if m.get("call_id")
+                ]
+                # Verify preceding assistant actually declares all those IDs.
+                previous_call_ids: set[str] = set()
+                if result and result[-1].get("role") == "assistant":
+                    for tc in result[-1].get("tool_calls", []):
+                        if isinstance(tc, dict) and tc.get("id"):
+                            previous_call_ids.add(tc["id"])
+                last_has_matching_tc = bool(
+                    batch_call_ids
+                    and set(batch_call_ids).issubset(previous_call_ids),
                 )
                 if not last_has_matching_tc:
-                    batch_call_ids = {
-                        m.get("call_id", "") for m in batch
-                        if m.get("call_id")
-                    }
                     matched_calls = [
                         self._prior_tool_calls[cid]
                         for cid in batch_call_ids
