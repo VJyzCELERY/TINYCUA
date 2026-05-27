@@ -239,13 +239,9 @@ async def test_chat_completions_translates_tool_result_attachments_to_two_messag
     assert len(tool_msgs) == 1
     tool_msg = tool_msgs[0]
     assert tool_msg["tool_call_id"] == "call_1"
-    assert tool_msg["content"][0] == {"type": "text", "text": "Generated image."}
+    assert tool_msg["content"] == "Generated image."
     # Tool message must NOT contain image_url or file parts.
-    for part in tool_msg["content"]:
-        assert part["type"] == "text", (
-            f"Unexpected part type {part['type']!r} in tool message — "
-            "Chat Completions only supports text content parts in tool messages"
-        )
+    assert not isinstance(tool_msg["content"], list)
 
     # Follow-up user message carries image attachment.
     user_msgs = [m for m in translated if m["role"] == "user"]
@@ -283,11 +279,17 @@ async def test_responses_translates_tool_result_content_parts_to_function_call_o
 
     translated = await client._translate_responses_input(messages)
 
-    output = translated[0]
-    assert output["type"] == "function_call_output"
-    assert output["call_id"] == "call_1"
-    assert output["output"][0] == {"type": "input_text", "text": "Generated image."}
-    assert output["output"][1]["type"] == "input_image"
+    # First item: function_call_output with plain-string output.
+    func_output = translated[0]
+    assert func_output["type"] == "function_call_output"
+    assert func_output["call_id"] == "call_1"
+    assert func_output["output"] == "Generated image."
+
+    # Second item: synthetic user message with image.
+    assert len(translated) == 2
+    user_msg = translated[1]
+    assert user_msg["role"] == "user"
+    assert user_msg["content"][0]["type"] == "input_image"
 ```
 
 ```python
