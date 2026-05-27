@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/query-analyst.md`
-> **See also:** [overview.md](overview.md), [context-retrieval.md](context-retrieval.md), [task-classification.md](task-classification.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-classification.md](task-classification.md)
 
 ---
 
@@ -14,7 +14,7 @@ The Query Analyst prepares the request for routing. It produces:
 1. a `Context Enhanced Query`, and
 2. a `Mode Decision`.
 
-Enhanced context retrieval is triggered by accumulated session context size, not by user query size.
+Enhanced context retrieval is triggered by accumulated session `Context` size, not by user query size.
 
 ---
 
@@ -23,36 +23,38 @@ Enhanced context retrieval is triggered by accumulated session context size, not
 **Input:**
 
 - `user_query`
-- `full_session_context`
-- `session_context_token_estimate`
+- `session.chat_history`
+- `session.context`
+- `session.context_token_estimate`
 
 **Output:**
 
 ```yaml
 context_enhanced_query: "..."
 mode_decision:
-  mode: passthrough | digestion_only | worker | uncertain
+  mode: primary_agent | worker | uncertain
   score: 0-10
   confidence: 0.0-1.0
   reasons:
     - "..."
-  direct_response_safety_reason: "..."
+  primary_agent_safety_reason: "..."
   decomposition_benefit: "..."
   uncertainty_reason: "..."
+  uncertain_next_action: ask_user | explore_more | null
 ```
 
 ---
 
 ## Retrieval Trigger
 
-Enhanced context retrieval starts only when accumulated session context reaches a configured token-size threshold.
+Enhanced context retrieval starts only when accumulated session `Context` approaches model context-window pressure.
 
 Rules:
 
-- If session context is small, use it directly.
+- If session `Context` is small, use it directly.
 - User query size does not trigger enhanced retrieval.
-- Every user-query/agent-response turn should be stored in a dynamically retrievable form.
-- Session context should accumulate over time and be compacted as needed.
+- Session `Chat_History` stores user/agent/internal-agent turns in JSON.
+- Session `Context` accumulates as structured markdown and is compacted as needed.
 
 See [context-retrieval.md](context-retrieval.md).
 
@@ -63,8 +65,8 @@ See [context-retrieval.md](context-retrieval.md).
 ```mermaid
 flowchart TD
     UQ{{"User Query"}}
-    FSC{{"Full Session Context"}}
-    SIZE{"Session context above threshold?"}
+    FSC{{"Session\nChat_History + Context"}}
+    SIZE{"Session Context near model limit?"}
     DIRECT["Use available context directly"]
     RETRIEVE["Enhanced Context Retrieval"]
     CEQ{{"Context Enhanced Query"}}
@@ -93,7 +95,7 @@ Scoring dimensions:
 - number of entities, files, or documents involved;
 - external tool need;
 - number of sequential steps;
-- amount of session context needed;
+- amount of session `Context` needed;
 - ambiguity;
 - hallucination risk if answered directly;
 - expected answer complexity.
@@ -106,9 +108,9 @@ See [task-classification.md](task-classification.md) for the full rubric.
 
 For Worker mode, the Query Analyst must explain the decomposition benefit.
 
-For Passthrough mode, it must explain why direct response is safe.
+For Primary Agent mode, it must explain why sending the Context Enhanced Query to the Primary Agent is safe. The Primary Agent can still invoke Information Digestion if it decides consolidated context is needed.
 
-For Uncertain mode, it must state what is uncertain and choose a safer follow-up path, such as additional analysis, digestion-only routing, or user clarification.
+For Uncertain mode, it must state what is uncertain and set `uncertain_next_action` to either `ask_user` or `explore_more`. Uncertainty should not be left open-ended because that makes the routing behavior nondeterministic.
 
 ---
 
@@ -116,7 +118,7 @@ For Uncertain mode, it must state what is uncertain and choose a safer follow-up
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Retrieval trigger | Session context size threshold | Large accumulated context increases irrelevant context exposure; user query size alone is not the issue |
-| Verdict shape | Mode decision | Supports passthrough, digestion-only, worker, and uncertain middle ground |
-| Classification style | Score-based with reasons | Prevents lazy overuse of Worker mode and unsafe passthrough |
+| Retrieval trigger | Session `Context` size threshold | Large accumulated context increases irrelevant context exposure; user query size alone is not the issue |
+| Verdict shape | Mode decision | Supports primary-agent routing, Worker routing, and explicit uncertainty handling |
+| Classification style | Score-based with reasons | Prevents lazy overuse of Worker mode and unsafe Primary Agent routing |
 | Retrieval framing | Precision-first, LLM-first | Avoids overfitting to conventional RAG and hard token budgets |

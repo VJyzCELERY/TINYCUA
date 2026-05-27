@@ -15,7 +15,7 @@ This document describes the top-level orchestration of TINYCUA and how its agent
 
 TINYCUA is not only decomposing work; it is decomposing **context exposure**.
 
-As session context grows, smaller language models are more likely to hallucinate because they must attend to, filter, and reason over more irrelevant information. TINYCUA's hypothesis is that precision improves when each internal agent receives only the context needed for its specific responsibility.
+As session `Context` grows, smaller language models are more likely to hallucinate because they must attend to, filter, and reason over more irrelevant information. TINYCUA's hypothesis is that precision improves when each internal agent receives only the context needed for its specific responsibility.
 
 Work decomposition is therefore a means to context decomposition.
 
@@ -25,12 +25,11 @@ Work decomposition is therefore a means to context decomposition.
 
 The Query Analyst produces a `Mode Decision`:
 
-- **Passthrough Mode:** Query Analyst → Information Passthrough → Primary Agent
-- **Digestion-Only Mode:** Query Analyst → Information Digestion → Primary Agent
+- **Primary Agent Mode:** Query Analyst → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated context before answering.
 - **Worker Mode:** Query Analyst → Information Digestion → TINYCUA Worker → Primary Agent
-- **Uncertain Mode:** Query Analyst performs additional analysis, uses digestion as a safer middle ground, or asks for clarification.
+- **Uncertain Mode:** Query Analyst must choose an explicit `uncertain_next_action`, such as exploring more or asking the user.
 
-Worker Mode is an internal sub-agent orchestration presented externally as one TINYCUA agent.
+Worker Mode is an internal specialized-agent orchestration presented externally as one TINYCUA agent.
 
 ```mermaid
 flowchart TD
@@ -39,18 +38,17 @@ flowchart TD
         CEQ{{"Context Enhanced Query"}}
         MD{{"Mode Decision"}}
         ROUTE{"Selected mode"}
-        IP["Information Passthrough\n(Non-Agent)"]
         ID["Information Digestion\n(Agent)"]
         DI{{"Digested Information"}}
-        AFTER_ID{"Digestion route"}
         TW["TINYCUA Worker\n(Sub-agent Orchestration)"]
         WR{{"Worker Result"}}
         PA["Primary Agent\n(Agent)"]
+        NEED_DIGEST{"Needs digestion?"}
         RESP{{"Response"}}
     end
 
     UQ{{"User Query"}}
-    FSC{{"Full Session Context"}}
+    FSC{{"Session\nChat_History + Context"}}
 
     UQ --> QA
     FSC --> QA
@@ -58,24 +56,22 @@ flowchart TD
     QA --> MD
     MD --> ROUTE
 
-    ROUTE -->|passthrough| IP
-    CEQ --> IP
-    IP --> PA
+    ROUTE -->|primary_agent| PA
+    CEQ --> PA
+    PA --> NEED_DIGEST
+    NEED_DIGEST -->|No| RESP
+    NEED_DIGEST -->|Yes| ID
 
-    ROUTE -->|digestion_only| ID
+    ROUTE -->|worker| ID
     CEQ --> ID
     FSC -. "when needed" .-> ID
     ID --> DI
-
-    ROUTE -->|worker| ID
-    DI --> AFTER_ID
-    AFTER_ID -->|digestion_only| PA
-    AFTER_ID -->|worker| TW
+    DI -->|primary_agent requested digestion| PA
+    DI -->|worker mode| TW
     TW --> WR
     WR --> PA
 
     ROUTE -->|uncertain| QA
-    PA --> RESP
 ```
 
 ---
@@ -99,7 +95,9 @@ The architecture should make state explicit so human-in-the-loop continuation ca
 
 Important objects:
 
-- Full Session Context
+- Session
+- Session Chat_History
+- Session Context
 - Context Enhanced Query
 - Mode Decision
 - Digested Information
@@ -119,9 +117,9 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Component | File | Type | Role |
 |-----------|------|------|------|
-| Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Retrieves context when session context is large and produces CEQ + Mode Decision |
+| Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Retrieves context when session `Context` is large and produces CEQ + Mode Decision |
 | Information Digestion | [information-digestion.md](information-digestion.md) | LLM Agent | Produces precision-oriented Digested Information |
-| Information Passthrough | [information-passthrough.md](information-passthrough.md) | Non-Agent | Forwards CEQ directly to Primary Agent |
+| Information Passthrough | [information-passthrough.md](information-passthrough.md) | Non-Agent | Historical/simple forwarding node for direct Primary Agent routing |
 | TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Analysis, Task Execution, and Task Reviewer sequentially |
 | Task Analysis | [task-analysis.md](task-analysis.md) | ReAct Agent | Creates the sequential task roadmap |
 | Task Execution | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
@@ -134,7 +132,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Agent | Loop Type | Tools | Notes |
 |-------|-----------|-------|-------|
-| Query Analyst | Context retrieval + classification | Enhanced Context Retrieval | Retrieval starts when accumulated session context crosses threshold |
+| Query Analyst | Context retrieval + classification | Enhanced Context Retrieval | Produces `primary_agent`, `worker`, or `uncertain` decision |
 | Information Digestion | Precision-oriented digestion | Optional retrieval/read tools | Removes distracting context and preserves task-critical information |
 | Task Analysis | Effort-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
 | Task Execution | ReAct | Task tools | Produces result + execution log |

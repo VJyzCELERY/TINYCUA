@@ -6,7 +6,7 @@
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
-This document defines when and how TINYCUA retrieves context from accumulated session history.
+This document defines when and how TINYCUA retrieves context from session `Chat_History` and `Context`.
 
 ---
 
@@ -18,36 +18,27 @@ Enhanced context retrieval is about precision, not token efficiency alone. The g
 
 ## Retrieval Trigger
 
-Enhanced context retrieval begins when accumulated session context reaches a configured token-size threshold.
+Enhanced context retrieval begins when accumulated session `Context` approaches model context-window pressure.
 
 Important rules:
 
 - User query size does **not** trigger enhanced context retrieval.
-- If the session context is still small, the system can use the context directly.
-- Every user-query/agent-response turn should be stored in a dynamically retrievable form.
-- Session context accumulates over time and should be compacted as needed.
+- If session `Context` is still small, the system can use it directly.
+- Session `Chat_History` should preserve user, agent, and internal-agent turns in JSON form.
+- Session `Context` should accumulate as structured markdown and be compacted as needed.
 
 ---
 
-## Session Storage
+## Session Model
 
-Each turn should be stored with enough structure for later retrieval.
+Session storage, compaction, and sub-session propagation are defined in [session-architecture.md](session-architecture.md).
 
-```yaml
-session_turn:
-  turn_id: turn_001
-  user_query: "..."
-  agent_response: "..."
-  timestamp: "..."
-  entities:
-    - "..."
-  topics:
-    - "..."
-  retrievable_notes:
-    - "..."
-```
+Important retrieval-facing rules:
 
-Compacted summaries may replace or supplement older raw turns as the session grows.
+- `Chat_History` is JSON and preserves turns.
+- `Context` is structured markdown and is what the model loads.
+- Compaction summarizes current `Context`, not raw `Chat_History` from scratch.
+- Sub sessions can preserve their own isolated `Context` while propagating their `Chat_History` into the primary session `Chat_History`.
 
 ---
 
@@ -56,10 +47,10 @@ Compacted summaries may replace or supplement older raw turns as the session gro
 ```mermaid
 flowchart TD
     UQ{{"User Query"}}
-    SIZE{"Session context above threshold?"}
+    SIZE{"Session Context near model limit?"}
     DIRECT["Use current context directly"]
     SEARCH["Generate search query / retrieval plan"]
-    STORE{{"Dynamic session store"}}
+    STORE{{"Session Chat_History + Context"}}
     CAND{{"Candidate context"}}
     JUDGE["LLM-first relevance judgment"]
     CEQ{{"Context Enhanced Query"}}
@@ -83,7 +74,7 @@ TINYCUA should avoid framing retrieval as conventional RAG where embedding searc
 Preferred direction:
 
 1. Generate one or more search queries from the current request.
-2. Search the dynamic session store by keyword, topic, entity, recency, or summary.
+2. Search session `Chat_History` and/or `Context` by keyword, topic, entity, recency, or summary.
 3. Use an LLM or fast LLM to judge relevance semantically.
 4. Produce a Context Enhanced Query containing only the context needed for routing or downstream processing.
 
@@ -93,7 +84,7 @@ Preferred direction:
 
 Enhanced Context Retrieval produces a Context Enhanced Query.
 
-Information Digestion can then use the Context Enhanced Query and the available session context to create Digested Information.
+Information Digestion can then use the Context Enhanced Query and the available session `Context` to create Digested Information.
 
 Task Analysis uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
 

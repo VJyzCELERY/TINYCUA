@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-execution.md`
-> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md)
 
 ---
 
@@ -11,7 +11,7 @@
 
 The Task Execution Agent executes one task from the sequential roadmap.
 
-It receives only the current task's information plus shallow roadmap awareness. It should not receive the full session context or full previous task details by default.
+It receives only the current task's information plus shallow roadmap awareness. It should not receive the full parent session `Context` or full previous task details by default.
 
 ---
 
@@ -35,6 +35,8 @@ shallow_task_list:
     name: "..."
 retry_context: "optional failure context from reviewer"
 ```
+
+Retries create a new Task Execution agent sub session. The previous failure is recorded in the task context/retry context so the new executor can continue with the relevant lesson without inheriting the full prior executor context.
 
 **Output:**
 
@@ -109,6 +111,8 @@ The execution log is evidence for Task Reviewer. It should include:
 - concise decision trace or reasoning summary.
 
 This avoids forcing the Reviewer to ingest the full raw execution session.
+
+If Task Execution asks the user for clarification, the user reply resumes the same Task Execution sub session. Clarification is not a terminal state.
 
 ---
 

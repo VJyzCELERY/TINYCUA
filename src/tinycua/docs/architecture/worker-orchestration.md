@@ -3,6 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/worker-orchestration.md`
+> **See also:** [session-architecture.md](session-architecture.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
@@ -12,7 +13,7 @@ This document defines the internal Worker orchestration used in Worker Mode.
 
 ## Role
 
-The TINYCUA Worker is an internal orchestration of sub-agents. Externally, the user can experience TINYCUA as a single agent, but internally Worker Mode coordinates:
+The TINYCUA Worker is an internal orchestration of specialized TINYCUA agents. Externally, the user can experience TINYCUA as a single agent, but internally Worker Mode coordinates:
 
 1. Task Analysis
 2. Task Execution
@@ -20,15 +21,20 @@ The TINYCUA Worker is an internal orchestration of sub-agents. Externally, the u
 
 The Worker exists to reduce hallucination by decomposing context exposure. Each internal agent receives only the context required for its role.
 
+These specialized Worker agents may use sub sessions for context isolation, but they are still part of the same TINYCUA agent. They are not the same concept as future explicit Sub Agents. See [session-architecture.md](session-architecture.md).
+
 ---
 
 ## Inputs / Outputs
 
-**Input:** `Digested Information` from Information Digestion.
+**Input:**
+
+- `Digested Information` from Information Digestion.
+- `Worker Config`, including `effort`.
 
 **Output:** `Worker Result` for the Primary Agent.
 
-The Worker does not expose the full internal sub-agent structure to the user unless it needs human clarification.
+The Worker does not expose the full internal specialized-agent structure to the user unless it needs human clarification.
 
 ---
 
@@ -54,10 +60,12 @@ flowchart TD
     RV["Task Reviewer Agent"]
     DEC{{"Reviewer Decision"}}
     NEXT{"Decision"}
-    UPDATE["Update future task contexts"]
-    RETRY["Retry current task"]
+    UPDATE["Consolidate unfinished/upcoming task contexts"]
+    REMAIN{"Remaining unfinished tasks?"}
+    RETRY["Create new Executor with failure recorded in task context"]
     REPLAN["Call Task Analysis to revise roadmap"]
     ASK["Ask user / pause continuation state"]
+    FAIL_TERM["Terminate Worker with failure summary"]
     AGG["Aggregate accepted results"]
     WR{{"Worker Result"}}
 
@@ -72,13 +80,16 @@ flowchart TD
     RV --> DEC
     DEC --> NEXT
     NEXT -->|accepted| UPDATE
-    UPDATE --> PICK
+    UPDATE --> REMAIN
+    REMAIN -->|Yes| PICK
+    REMAIN -->|No| AGG
     NEXT -->|retry| RETRY
     RETRY --> TE
     NEXT -->|replan| REPLAN
     REPLAN --> TA
     NEXT -->|escalate_user| ASK
-    NEXT -->|all tasks accepted| AGG
+    NEXT -->|consecutive failure threshold| FAIL_TERM
+    FAIL_TERM --> ASK
     AGG --> WR
 ```
 
@@ -86,7 +97,7 @@ flowchart TD
 
 ## Worker Effort
 
-Worker effort controls how much planning happens before execution.
+Worker effort is configuration that controls how much planning happens before execution.
 
 Effort uses planning-depth semantics: `none` means the Worker proceeds quickly with minimal upfront planning, while `high` means the Worker spends more time on thorough planning before execution.
 
@@ -99,11 +110,18 @@ Effort uses planning-depth semantics: `none` means the Worker proceeds quickly w
 
 Effort changes the amount of upfront Task Analysis. It does not change the sequential nature of the top-level task list.
 
+```yaml
+worker_config:
+  effort: none | low | medium | high
+```
+
 ---
 
 ## Human-in-the-Loop Continuation
 
 Clarification is not task completion. If an internal agent needs user input, the Worker should store continuation state and resume that same internal point after the user replies.
+
+Each specialized agent can have its own sub session with its own `Chat_History` and `Context`. Human-in-the-loop continuation resumes that existing sub session.
 
 Two signaling concepts are recommended:
 
@@ -119,6 +137,8 @@ This prevents a clarification turn from accidentally restarting the whole reques
 The Worker tracks a volatile universal consecutive-failure counter. If failures happen N times in a row, the Worker should ask the user and explain the current point of failure.
 
 If any task succeeds, the counter resets to zero.
+
+The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues. If the consecutive failure threshold is reached, the Worker terminates with a failure summary and asks the user what should happen next.
 
 ---
 

@@ -3,6 +3,7 @@
 > **Category:** Reference Spec
 
 > **File:** `architecture/state-objects.md`
+> **See also:** [session-architecture.md](session-architecture.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
@@ -21,40 +22,38 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 | Object | Producer | Consumer | Purpose |
 |--------|----------|----------|---------|
 | `User Query` | User | Query Analyst | Latest user instruction. Query size does not trigger enhanced retrieval by itself. |
-| `Full Session Context` | Session store | Query Analyst / Information Digestion | Accumulated chat history and session artifacts. Stored in a dynamically retrievable form. |
-| `Context Enhanced Query` | Query Analyst | Information Passthrough / Information Digestion | User query enriched with relevant session context when needed. |
-| `Mode Decision` | Query Analyst | Top-level router | Chooses `passthrough`, `digestion_only`, `worker`, or `uncertain`. |
+| `Session` | Session system | Query Analyst / Information Digestion / agents | Contains `Chat_History` and model-loaded `Context`. See [session-architecture.md](session-architecture.md). |
+| `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digestion | User query enriched with relevant session `Context` when needed. |
+| `Mode Decision` | Query Analyst | Top-level router | Chooses `primary_agent`, `worker`, or `uncertain`. |
 | `Digested Information` | Information Digestion | Task Analysis / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. |
+| `Worker Config` | System/user configuration | TINYCUA Worker / Task Analysis | Controls Worker behavior such as planning effort. |
 | `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. |
 | `Response` | Primary Agent | User | Final user-facing answer. |
 
 ---
 
-## Session Context Object
+## Session Object
 
-`Full Session Context` is accumulated over time. Every user-query/agent-response turn should be stored in a dynamically retrievable form.
-
-Suggested shape:
+Session internals are defined in [session-architecture.md](session-architecture.md). The core shape is:
 
 ```yaml
-full_session_context:
-  turns:
-    - turn_id: turn_001
-      user_query: "..."
-      agent_response: "..."
-      timestamp: "..."
-      retrievable_notes:
-        - "..."
-      entities:
-        - "..."
-  compacted_summaries:
-    - summary_id: summary_001
-      covers_turns: [turn_001, turn_002]
-      summary: "..."
-  token_estimate: 12000
+session:
+  session_id: session_001
+  owner_type: primary | tinycua_internal | future_sub_agent
+  owner_name: "Primary Agent"
+  chat_history: []   # JSON turn/message records
+  context: "structured markdown loaded by the model"
 ```
 
-Enhanced context retrieval starts when this accumulated context reaches a configured token-size threshold. If the session is still small, the system can use the available context directly.
+Important rules:
+
+- `Chat_History` is the preserved turn log and should be JSON.
+- `Context` is structured markdown and is what the model loads.
+- Enhanced context retrieval starts when session `Context` approaches model context-window pressure.
+- Sub sessions keep their own `Chat_History` and `Context`, but sub session `Chat_History` is propagated to primary session `Chat_History`.
+- Sub session `Context` is not automatically appended to primary session `Context`.
+
+Use `Session.Context` for model-loadable context and `Session.Chat_History` for preserved turns.
 
 ---
 
@@ -64,15 +63,36 @@ The Query Analyst produces a mode decision instead of a binary small/large verdi
 
 ```yaml
 mode_decision:
-  mode: passthrough | digestion_only | worker | uncertain
+  mode: primary_agent | worker | uncertain
   score: 0-10
   confidence: 0.0-1.0
   reasons:
     - "..."
-  direct_response_safety_reason: "..."      # required for passthrough
+  primary_agent_safety_reason: "..."        # required for primary_agent
   decomposition_benefit: "..."             # required for worker
   uncertainty_reason: "..."                # required for uncertain
+  uncertain_next_action: ask_user | explore_more | null
 ```
+
+`uncertain_next_action` is required when `mode` is `uncertain`. The goal is to avoid leaving uncertainty as an open-ended state.
+
+---
+
+## Worker Config Object
+
+Worker effort is configuration, similar to model reasoning effort.
+
+```yaml
+worker_config:
+  effort: none | low | medium | high
+```
+
+Effort uses planning-depth semantics:
+
+- `none`: move quickly with minimal upfront planning;
+- `low`: light upfront refinement;
+- `medium`: limited sequencing/overlap review;
+- `high`: thorough roadmap planning before execution.
 
 ---
 
@@ -94,6 +114,8 @@ task_list:
       confidence: 0.0-1.0
   current_task_id: task_001
 ```
+
+The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates should consolidate information; they may reduce or replace stale information rather than only append more text.
 
 ### Task Object
 
@@ -139,7 +161,7 @@ task_result:
 ```yaml
 reviewer_decision:
   task_id: task_001
-  status: accepted | retry | replan | needs_more_context | blocked_by_sequence | escalate_user | escalate_outer_loop
+  status: accepted | retry | replan | needs_more_context | escalate_user | escalate_outer_loop
   reason: "..."
   confidence: 0.0-1.0
   context_updates:
@@ -166,6 +188,6 @@ agent_state:
   consecutive_failure_count: 0
 ```
 
-Clarification is not a terminal state. Agents should use an `ask` / `question` mechanism when they need user input and a `terminate` signal when their work is actually complete.
+Clarification is not a terminal state. Agents should use an `ask` / `question` mechanism when they need user input and a `terminate` signal when their work is actually complete. Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.

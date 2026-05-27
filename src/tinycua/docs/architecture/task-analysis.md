@@ -17,7 +17,10 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 
 ## Inputs / Outputs
 
-**Input:** `Digested Information`
+**Input:**
+
+- `Digested Information`
+- `Worker Config` with `effort`
 
 **Output:** `Task List`
 
@@ -43,6 +46,8 @@ Required task fields:
 - `confidence`
 
 Avoid rigid visible fields such as `required_tools`, `expected_output`, `max_depth`, or dependencies.
+
+The `context` field should be structured markdown. It should remain small and focused. Updating context means consolidating information, not blindly appending more information.
 
 ---
 
@@ -99,6 +104,8 @@ Task Reviewer may ask Task Analysis to revise the roadmap when:
 - task ordering is wrong;
 - a result reveals missing context;
 - repeated failures suggest the roadmap is flawed.
+
+`needs_more_context` from the Reviewer is handled by Task Analysis. Task Analysis may revise the current task context, split the task, or ask the broader orchestration layer for renewed digestion when the existing digest is insufficient.
 
 The Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 

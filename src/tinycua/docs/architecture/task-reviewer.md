@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-reviewer.md`
-> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md)
 
 ---
 
@@ -47,7 +47,7 @@ The Reviewer should not receive a broad accumulated context dump by default. Acc
 ```yaml
 reviewer_decision:
   task_id: task_001
-  status: accepted | retry | replan | needs_more_context | blocked_by_sequence | escalate_user | escalate_outer_loop
+  status: accepted | retry | replan | needs_more_context | escalate_user | escalate_outer_loop
   reason: "..."
   confidence: 0.0-1.0
   context_updates:
@@ -69,9 +69,9 @@ flowchart TD
     CHECK["Validate schema and evidence"]
     REVIEW["Semantic review against success criteria"]
     ACCEPT{"Accept?"}
-    PROP["Propagate useful context to future tasks"]
+    PROP["Consolidate unfinished/upcoming task contexts"]
     RETRY{"Retry useful?"}
-    REPLAN{"Roadmap revision needed?"}
+    REPLAN{"Roadmap revision or more context needed?"}
     FAILS{"Consecutive failures over threshold?"}
     OUT{{"Reviewer Decision"}}
 
@@ -93,7 +93,7 @@ flowchart TD
 
 ## Context Propagation
 
-After accepting a task, the Reviewer decides which future tasks need context updates.
+After accepting a task, the Reviewer decides which unfinished or upcoming tasks need context updates.
 
 Recommended process:
 
@@ -102,7 +102,22 @@ Recommended process:
 3. Dynamically inspect only those task contexts.
 4. Write targeted context updates.
 
-This avoids dumping every previous task result into every future task.
+This avoids dumping every previous task result into every future task. Context updates are information consolidation: they may reduce, replace, or rewrite task context rather than only append new text.
+
+---
+
+## Status-to-Action Semantics
+
+| Status | Orchestration Action |
+|--------|----------------------|
+| `accepted` | Consolidate context for unfinished/upcoming tasks, then check whether any unfinished tasks remain. If none remain, aggregate Worker Result. |
+| `retry` | Create a new Task Execution agent for the same task with failure information recorded in the task context. Do not resume the old executor. |
+| `replan` | Call Task Analysis to revise the sequential roadmap. If the final task is decomposed into new tasks, the Worker continues. |
+| `needs_more_context` | Send the issue to Task Analysis. Task Analysis revises task context, splits the task, or requests renewed digestion through the outer orchestration layer. |
+| `escalate_user` | Pause the current agent sub session and ask the user for clarification. |
+| `escalate_outer_loop` | Terminate the current Worker path with a failure summary and let the parent/Primary Agent ask the user what should happen next. |
+
+The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
 
 ---
 

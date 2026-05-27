@@ -3,15 +3,17 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/information-digestion.md`
-> **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [context-retrieval.md](context-retrieval.md), [task-analysis.md](task-analysis.md)
+> **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-analysis.md](task-analysis.md)
 
 ---
 
 ## Role
 
-Information Digestion turns broad session information into precision-oriented `Digested Information`.
+Information Digestion turns broad session `Context` into precision-oriented `Digested Information`.
 
 It should preserve task-critical details and remove distracting context. The purpose is not merely token reduction; the purpose is reducing irrelevant context exposure.
+
+Information Digestion is a privileged narrowing boundary: it may inspect broad session `Context`, but downstream agents should receive only the consolidated output they need.
 
 ---
 
@@ -20,7 +22,9 @@ It should preserve task-critical details and remove distracting context. The pur
 **Input:**
 
 - `context_enhanced_query`
-- `full_session_context` when needed
+- session `Context` when needed
+- retrievable session `Chat_History` when needed
+- caller: `primary_agent` or `worker_route`
 
 **Output:**
 
@@ -52,7 +56,7 @@ digested_information:
 ```mermaid
 flowchart TD
     CEQ{{"Context Enhanced Query"}}
-    FSC{{"Full Session Context"}}
+    FSC{{"Session Context\n(+ retrievable Chat_History when needed)"}}
     FOCUS["Identify relevant topics/entities"]
     EXTRACT["Extract relevant context"]
     FILTER["Remove distracting context"]
@@ -75,7 +79,7 @@ flowchart TD
 
 In Worker Mode, Task Analysis uses Digested Information to create a sequential roadmap. Each task receives its own `context` field.
 
-In Digestion-Only Mode, the Primary Agent receives Digested Information directly and synthesizes the response without Worker decomposition.
+In Primary Agent Mode, the Primary Agent may invoke Information Digestion if the Context Enhanced Query needs broader context consolidation before response composition.
 
 ---
 
@@ -92,6 +96,7 @@ Task Analysis can adapt the plan if the digest suggests a better task roadmap. T
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
+| Boundary | Privileged narrowing boundary | Digestion can inspect broad context without leaking broad context downstream |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
 | Output support | Context candidates and known gaps | Helps Task Analysis create task-specific context |
 | Original query included? | No raw-query crutch by default | Downstream agents should work from CEQ/digest, not default to broad history |

@@ -11,7 +11,7 @@
 
 This is **not an agent**. It is a deterministic non-agent process that receives the **Context Enhanced Query** from the Query Analyst and forwards it directly to the Primary Agent without any transformation.
 
-Used in **Passthrough Mode** when the Query Analyst's Mode Decision selects `passthrough`.
+This is a historical/simple forwarding node. In the current routing model, the Query Analyst can route directly to the Primary Agent with a `primary_agent` decision. The Primary Agent then decides whether it needs Information Digestion.
 
 ---
 
@@ -41,5 +41,5 @@ flowchart TD
 - No LLM call
 - No transformation
 - No looping
-- Exists purely as a routing node for Passthrough Mode
+- Exists as a historical/simple routing node for direct Primary Agent routing
 - The Primary Agent may receive mode metadata from the router, but the Context Enhanced Query itself is forwarded unchanged
