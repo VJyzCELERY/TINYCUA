@@ -1426,3 +1426,31 @@ class TestResponsesToolResultTranslation:
         assert translated[1]["call_id"] == "call_2"
         assert translated[1]["output"] == "two"
         assert translated[2]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_text_mime_file_content_part_stays_in_synthetic_user_message(self):
+        """Text/plain file ContentPart is placed in synthetic user msg, not func_call_output."""
+        attachment = FileAttachment.from_bytes(
+            b"hello file",
+            mime_type="text/plain",
+            filename="note.txt",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        items = await client._translate_responses_input([
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": [
+                    ContentPart(type="text", text="summary"),
+                    ContentPart(type="file", file=attachment),
+                ],
+            }
+        ])
+        # Text-only content should be in function_call_output.output
+        assert items[0]["type"] == "function_call_output"
+        assert items[0]["output"] == "summary"
+        # Text/plain file should be in synthetic user message
+        assert len(items) == 2
+        assert items[1]["role"] == "user"
