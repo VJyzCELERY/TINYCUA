@@ -29,19 +29,8 @@ Enhanced context retrieval is triggered by accumulated session `Context` size, n
 
 **Output:**
 
-```yaml
-context_enhanced_query: "..."
-mode_decision:
-  mode: primary_agent | worker | uncertain
-  score: 0-10
-  confidence: 0.0-1.0
-  reasons:
-    - "..."
-  primary_agent_safety_reason: "..."
-  decomposition_benefit: "..."
-  uncertainty_reason: "..."
-  uncertain_next_action: ask_user | explore_more | null
-```
+- `Context Enhanced Query` (CEQ) — enriched user query. See [context-retrieval.md](context-retrieval.md) for retrieval flow.
+- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md). Key fields: `mode` (`primary_agent | worker | uncertain`), `score` (0-10), `confidence` (0.0-1.0), `uncertain_next_action` (`ask_user | explore | null`).
 
 ---
 
@@ -110,7 +99,10 @@ For Worker mode, the Query Analyst must explain the decomposition benefit.
 
 For Primary Agent mode, it must explain why sending the Context Enhanced Query to the Primary Agent is safe. The Primary Agent can still invoke Information Digestion if it decides consolidated context is needed.
 
-For Uncertain mode, it must state what is uncertain and set `uncertain_next_action` to either `ask_user` or `explore_more`. Uncertainty should not be left open-ended because that makes the routing behavior nondeterministic.
+For Uncertain mode, it must state what is uncertain and set `uncertain_next_action` to either `explore` or `ask_user`. Uncertainty should not be left open-ended because that makes the routing behavior nondeterministic.
+
+- `explore`: the Query Analyst invokes exploratory agents (e.g., the Information Digester) to gather missing context, then re-classifies the request.
+- `ask_user`: the Query Analyst pauses and requests clarification from the user.
 
 ---
 

@@ -14,12 +14,13 @@ This document defines the session model used by TINYCUA for chat history, model 
 
 A session is the unit that stores conversation history and the context loaded by a model.
 
-For now, a session has two primary parts:
+For now, a session has three primary parts:
 
 1. `Chat_History` — the preserved exchange/turn log.
 2. `Context` — the structured markdown context loaded by the model.
+3. `Execution_Log` — tool calls, observations, diffs, and decision trace from sub-session execution.
 
-Additional session fields can be added later, but these two are the required foundation.
+Additional session fields can be added later, but these three are the required foundation.
 
 ---
 
@@ -32,6 +33,7 @@ session:
   owner_name: "Primary Agent"
   chat_history: []
   context: "structured markdown"
+  execution_log: []  # tool calls, results, and diffs from sub-session execution
 ```
 
 `owner_type` distinguishes the primary user-facing session, TINYCUA internal specialized-agent sessions, and future explicit sub-agent sessions.
@@ -76,7 +78,7 @@ Minimum fields:
 
 - `message_id`
 - `session_id`
-- `type` — e.g. `User`, `Primary Agent`, `Query Analyst`, `Information Digestion`, `Task Analysis`, `Task Executor`, `Task Reviewer`
+- `type` — the agent or user name (e.g. `User`, `Primary Agent`, `Query Analyst`, `Information Digester`, `Task Analyzer`, `Task Executor`, `Task Reviewer`). This field stores the agent's name directly; there is no fixed enum to maintain — the agent's own documented name is the source of truth.
 - `message`
 - `timestamp`
 
@@ -113,6 +115,20 @@ Example:
 
 ---
 
+## Execution Log
+
+The Execution Log captures tool calls, observations, diffs, and decision traces generated during a sub-session's execution. It lives on the sub-session, not embedded within a Task Result.
+
+- Each sub-session has its own `execution_log`.
+- The Task Executor sub-session records actions, tool calls, observations, and diffs into its execution log.
+- Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
+- The Task Reviewer accesses the sub-session's execution log to evaluate task results.
+- Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
+
+See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
+
+---
+
 ## Context Compaction
 
 Compaction is triggered by model context-window pressure, not by user query size.
@@ -134,8 +150,8 @@ TINYCUA may propagate a primary session into internal sub sessions for specializ
 Examples:
 
 - Query Analyst session
-- Information Digestion session
-- Task Analysis session
+- Information Digester session
+- Task Analyzer session
 - Task Executor session
 - Task Reviewer session
 

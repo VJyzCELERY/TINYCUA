@@ -15,8 +15,8 @@ This document defines the internal Worker orchestration used in Worker Mode.
 
 The TINYCUA Worker is an internal orchestration of specialized TINYCUA agents. Externally, the user can experience TINYCUA as a single agent, but internally Worker Mode coordinates:
 
-1. Task Analysis
-2. Task Execution
+1. Task Analyzer
+2. Task Executor
 3. Task Reviewer
 
 The Worker exists to reduce hallucination by decomposing context exposure. Each internal agent receives only the context required for its role.
@@ -29,7 +29,7 @@ These specialized Worker agents may use sub sessions for context isolation, but 
 
 **Input:**
 
-- `Digested Information` from Information Digestion.
+- `Digested Information` from the Information Digester.
 - `Worker Config`, including `effort`.
 
 **Output:** `Worker Result` for the Primary Agent.
@@ -42,7 +42,7 @@ The Worker does not expose the full internal specialized-agent structure to the 
 
 The Worker executes a sequential task roadmap. The top-level task list is not a dependency graph and is not a parallel execution plan.
 
-If a task contains parallelizable work, that parallelization happens inside Task Execution for that task. The top-level Worker still advances through the roadmap sequentially.
+If a task contains parallelizable work, that parallelization happens inside the Task Executor for that task. The top-level Worker still advances through the roadmap sequentially.
 
 ---
 
@@ -51,19 +51,19 @@ If a task contains parallelizable work, that parallelization happens inside Task
 ```mermaid
 flowchart TD
     DI{{"Digested Information"}}
-    TA["Task Analysis Agent"]
+    TA["Task Analyzer"]
     TL{{"Sequential Task List"}}
     PICK["Pick current task"]
     TC{{"Task Context"}}
-    TE["Task Execution Agent"]
-    TRS{{"Task Result + Execution Log"}}
-    RV["Task Reviewer Agent"]
+    TE["Task Executor"]
+    TRS{{"Task Result"}}
+    RV["Task Reviewer"]
     DEC{{"Reviewer Decision"}}
     NEXT{"Decision"}
     UPDATE["Consolidate unfinished/upcoming task contexts"]
     REMAIN{"Remaining unfinished tasks?"}
     RETRY["Create new Executor with failure recorded in task context"]
-    REPLAN["Call Task Analysis to revise roadmap"]
+    REPLAN["Call Task Analyzer to revise roadmap / explore more context"]
     ASK["Ask user / pause continuation state"]
     FAIL_TERM["Terminate Worker with failure summary"]
     AGG["Aggregate accepted results"]
@@ -86,6 +86,7 @@ flowchart TD
     NEXT -->|retry| RETRY
     RETRY --> TE
     NEXT -->|replan| REPLAN
+    NEXT -->|needs_more_context| REPLAN
     REPLAN --> TA
     NEXT -->|escalate_user| ASK
     NEXT -->|consecutive failure threshold| FAIL_TERM
@@ -97,23 +98,9 @@ flowchart TD
 
 ## Worker Effort
 
-Worker effort is configuration that controls how much planning happens before execution.
+Worker effort is configuration that controls how much planning happens before execution. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics (`none | low | medium | high`).
 
-Effort uses planning-depth semantics: `none` means the Worker proceeds quickly with minimal upfront planning, while `high` means the Worker spends more time on thorough planning before execution.
-
-| Effort | Behavior |
-|--------|----------|
-| None | Create a lightweight roadmap and defer extra decomposition to reviewer-driven recovery. |
-| Low | Create an initial roadmap with minimal refinement. |
-| Medium | Create an initial roadmap and perform limited sequencing/overlap review. |
-| High | Spend more time decomposing and refining the roadmap before execution. |
-
-Effort changes the amount of upfront Task Analysis. It does not change the sequential nature of the top-level task list.
-
-```yaml
-worker_config:
-  effort: none | low | medium | high
-```
+Effort changes the amount of upfront task analysis by the Task Analyzer. It does not change the sequential nature of the top-level task list.
 
 ---
 

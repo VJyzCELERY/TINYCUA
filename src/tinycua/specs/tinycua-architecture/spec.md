@@ -1,6 +1,6 @@
 # Feature Specification: TINYCUA Architecture Documentation
 
-**Status**: In Progress
+**Status**: Implemented
 **Created**: 2026-05-26
 **Last Updated**: 2026-05-26
 **Subproject(s) Affected**: tinycua
@@ -57,12 +57,12 @@ A developer wants to understand how TINYCUA orchestrates its agents. They naviga
 
 ## Success Criteria
 
-- [ ] **Complete coverage**: Every architecture component has a corresponding doc file.
-- [ ] **README index exists**: `README.md` lists all docs with descriptions and working links.
-- [ ] **Cross-references resolve**: All "See also" links between docs point to valid filenames.
-- [ ] **Kebab-case naming**: All filenames use kebab-case.
-- [ ] **No broken links**: Every `[text](file.md)` reference resolves to an existing file.
-- [ ] **Self-contained docs**: Each doc is independently readable.
+- [x] **Complete coverage**: Every architecture component has a corresponding doc file.
+- [x] **README index exists**: `README.md` lists all docs with descriptions and working links.
+- [x] **Cross-references resolve**: All "See also" links between docs point to valid filenames.
+- [x] **Kebab-case naming**: All filenames use kebab-case.
+- [x] **No broken links**: Every `[text](file.md)` reference resolves to an existing file.
+- [x] **Self-contained docs**: Each doc is independently readable.
 
 ---
 
@@ -83,9 +83,9 @@ Not applicable — documentation-only change.
 
 ## Review Checklist
 
-- [ ] No implementation details
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

@@ -1,7 +1,7 @@
 # Design Document: TINYCUA Architecture Documentation
 
 **Spec**: ./spec.md
-**Status**: In Progress
+**Status**: Implemented
 **Last Updated**: 2026-05-26
 
 ---
@@ -29,9 +29,14 @@ All files use **kebab-case** (e.g., `query-analyst.md`, `task-execution.md`). Fi
 
 | Category | Description | Example |
 |----------|-------------|---------|
+| Architecture Overview | Top-level routing modes, agent reference, and architecture thesis | `overview.md` |
 | Agent Spec | Describes an LLM-powered agent (role, flow, tools, design decisions) | `query-analyst.md` |
-| Process Spec | Describes a deterministic non-agent component | `information-passthrough.md` |
+| Process Spec | Describes a deterministic non-agent component | `context-retrieval.md` |
 | Decision Record | Captures design tradeoffs and resolved decisions | `analysis-<topic>.md` |
+| Reference Spec | Documents shared data structures, state objects, or schemas | `state-objects.md` |
+| Design Note | Describes a design pattern, rubric, or guideline without being a formal decision record | `task-classification.md` |
+
+Additional categories may be introduced as the architecture evolves. These core categories are the minimum starting point.
 
 ### Fixed Files
 
@@ -41,7 +46,7 @@ All files use **kebab-case** (e.g., `query-analyst.md`, `task-execution.md`). Fi
 
 All internal links use relative `[display text](kebab-case-file.md)`:
 ```markdown
-> **See also:** [Overview](overview.md), [Information Digestion](information-digestion.md)
+> **See also:** [Overview](overview.md), [Information Digester](information-digestion.md)
 ```
 
 ---
@@ -63,11 +68,23 @@ Each agent spec doc includes:
 ```
 # TINYCUA Architecture
 
+## Architecture Overview
+| File | Description |
+| ...
+
 ## Agent Specifications
 | File | Description |
 | ...
 
-## Non-Agent Processes
+## Process Specifications
+| File | Description |
+| ...
+
+## Reference Specifications
+| File | Description |
+| ...
+
+## Design Notes
 | File | Description |
 | ...
 
@@ -76,16 +93,18 @@ Each agent spec doc includes:
 | ...
 ```
 
+The README sections map directly to the file categories above, with each section name matching its corresponding category. Additional sections may be added as new categories are introduced.
+
 ---
 
 ## Implementation Phases
 
 ### Phase 1 — MVP
 
-- [ ] Create `src/tinycua/docs/architecture/` directory
-- [ ] Create `README.md` index
-- [ ] Create doc files for each architecture component
-- [ ] Verify all cross-reference links resolve
+- [x] Create `src/tinycua/docs/architecture/` directory
+- [x] Create `README.md` index
+- [x] Create doc files for each architecture component
+- [x] Verify all cross-reference links resolve
 
 ---
 

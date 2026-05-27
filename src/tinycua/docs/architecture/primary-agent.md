@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/primary-agent.md`
-> **See also:** [overview.md](overview.md), [information-passthrough.md](information-passthrough.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md)
+> **See also:** [overview.md](overview.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md)
 
 ---
 

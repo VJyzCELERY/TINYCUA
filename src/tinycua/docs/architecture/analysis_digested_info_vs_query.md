@@ -4,6 +4,7 @@
 
 > **Category:** Decision Record
 
+> **See also:** [Information Digester](information-digestion.md), [Query Analyst](query-analyst.md), [Task Analysis](task-analysis.md)
 > **Last Updated:** 2026-05-27
 
 This decision record has been updated to match the current routing model.
@@ -25,11 +26,11 @@ Query Analyst
     └── Mode Decision
             ├── primary_agent → Primary Agent
             │       └── may invoke Information Digestion if CEQ needs consolidation
-            ├── worker → Information Digestion → TINYCUA Worker → Primary Agent
-            └── uncertain → uncertain_next_action: ask_user | explore_more
+            ├── worker → Information Digester → TINYCUA Worker → Primary Agent
+            └── uncertain → uncertain_next_action: ask_user | explore
 ```
 
-Information Digestion is therefore used in two situations:
+The Information Digester is therefore used in two situations:
 
 - before Worker Mode, where the Worker needs narrowed context before task decomposition;
 - when the Primary Agent decides the CEQ needs context consolidation before it can answer safely.
@@ -38,7 +39,7 @@ Information Digestion is therefore used in two situations:
 
 ## Question
 
-When the Worker's Task Analysis Agent receives `Digested Information`, should it also receive the original user query?
+When the Worker's Task Analyzer receives `Digested Information`, should it also receive the original user query?
 
 ---
 
@@ -47,14 +48,14 @@ When the Worker's Task Analysis Agent receives `Digested Information`, should it
 ### Option A: Digested Information Alone
 
 ```text
-CEQ → Information Digestion → Digested Information → Task Analysis
+CEQ → Information Digester → Digested Information → Task Analyzer
 ```
 
 Pros:
 
 - Single source of truth for Task Analysis.
 - Lower context exposure.
-- Forces Information Digestion to preserve intent and context correctly.
+- Forces the Information Digester to preserve intent and context correctly.
 
 Cons:
 
@@ -64,12 +65,12 @@ Cons:
 ### Option B: Digested Information + Original User Query
 
 ```text
-CEQ → Information Digestion → Digested Information + Original User Query → Task Analysis
+CEQ → Information Digester → Digested Information + Original User Query → Task Analyzer
 ```
 
 Pros:
 
-- Task Analysis can compare digest against the raw query.
+- The Task Analyzer can compare digest against the raw query.
 - The original query can act as an intent anchor.
 
 Cons:
@@ -82,20 +83,20 @@ Cons:
 ### Option C: Digested Information + Advisory Instructions
 
 ```text
-CEQ → Information Digestion → Digested Information + Advisory Instructions → Task Analysis
+CEQ → Information Digester → Digested Information + Advisory Instructions → Task Analyzer
 ```
 
 Pros:
 
 - Preserves intent in a structured, action-oriented form.
 - Avoids handing raw query text to the Worker.
-- Keeps Task Analysis focused on the consolidated context.
+- Keeps the Task Analyzer focused on the consolidated context.
 - Gives the Worker guidance without making instructions rigid.
 
 Cons:
 
-- Requires Information Digestion to produce a good instruction summary.
-- If instructions are over-specific, Task Analysis may need to adapt.
+- Requires the Information Digester to produce a good instruction summary.
+- If instructions are over-specific, the Task Analyzer may need to adapt.
 
 ---
 
@@ -103,22 +104,22 @@ Cons:
 
 Use **Option C: Digested Information + Advisory Instructions**.
 
-The Worker should not receive the original raw user query as a fallback. Task Analysis should receive the digest, key points, known gaps, context candidates, and advisory instructions produced by Information Digestion.
+The Worker should not receive the original raw user query as a fallback. The Task Analyzer should receive the digest, key points, known gaps, context candidates, and advisory instructions produced by the Information Digester.
 
 ---
 
 ## Rationale
 
-TINYCUA's architecture is based on reducing hallucination by reducing irrelevant context exposure. Passing the raw query to the Worker creates a shortcut that can cause Task Analysis to ignore the digest and reason from a broader, less curated input.
+TINYCUA's architecture is based on reducing hallucination by reducing irrelevant context exposure. Passing the raw query to the Worker creates a shortcut that can cause the Task Analyzer to ignore the digest and reason from a broader, less curated input.
 
-The CEQ already carries user intent into Information Digestion. Information Digestion is responsible for consolidating that intent with broad session `Context` and producing a narrowed output for downstream agents.
+The CEQ already carries user intent into the Information Digester. The Information Digester is responsible for consolidating that intent with broad session `Context` and producing a narrowed output for downstream agents.
 
 If the digest is insufficient, recovery should happen through orchestration:
 
-1. Task Execution fails, returns uncertainty, or produces low confidence output.
+1. The Task Executor fails, returns uncertainty, or produces low confidence output.
 2. Task Reviewer detects the issue.
-3. Reviewer returns `needs_more_context`, `replan`, `escalate_user`, or `escalate_outer_loop`.
-4. Task Analysis, renewed digestion, or user clarification handles the recovery.
+3. Reviewer returns `needs_more_context`, `replan`, or `escalate_user`.
+4. The Task Analyzer, renewed digestion, or user clarification handles the recovery.
 
 This keeps recovery explicit instead of silently expanding Worker context.
 
@@ -153,7 +154,7 @@ digested_information:
 
 | Question | Decision | Rationale |
 |----------|----------|-----------|
-| Should instructions be strict? | No, advisory only | Task Analysis needs flexibility to adapt. |
+| Should instructions be strict? | No, advisory only | The Task Analyzer needs flexibility to adapt. |
 | Should Worker receive the original raw query? | No | Raw query can defeat context decomposition. |
-| Who generates instructions? | Information Digestion | It sees both CEQ intent and broad session `Context`. |
+| Who generates instructions? | The Information Digester | It sees both CEQ intent and broad session `Context`. |
 | How does Worker recover if digest is insufficient? | Reviewer/orchestration path | Recovery should be explicit and controlled. |

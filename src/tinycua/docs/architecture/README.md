@@ -4,18 +4,29 @@ Architecture documentation for TINYCUA's agent orchestration, context flow, and 
 
 Start with [overview.md](overview.md) for the top-level picture.
 
+If you are new to TINYCUA's architecture, read in this order for a linear learning path:
+
+1. [overview.md](overview.md) — Architecture thesis, routing modes, and the big picture
+2. [session-architecture.md](session-architecture.md) — Session model: Chat_History, Context, execution log, sub-sessions, and compaction (foundational)
+3. [state-objects.md](state-objects.md) — Canonical shared data structures (reference as you read the other docs)
+4. [query-analyst.md](query-analyst.md) — How queries are enriched and routing decisions are made
+5. [context-retrieval.md](context-retrieval.md) — How context is retrieved when the session grows large
+6. [task-classification.md](task-classification.md) — The scoring rubric for routing decisions
+7. [information-digestion.md](information-digestion.md) — How broad session context is narrowed for precision
+8. [worker-orchestration.md](worker-orchestration.md) — Inside the Worker: how tasks are orchestrated sequentially
+9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap
+10. [task-execution.md](task-execution.md) — How individual tasks are executed with isolated context
+11. [task-reviewer.md](task-reviewer.md) — How results are reviewed and context is propagated between tasks
+12. [primary-agent.md](primary-agent.md) — How the final user-facing response is synthesized
+13. [analysis_digested_info_vs_query.md](analysis_digested_info_vs_query.md) — Design decision: digest vs. raw query
+
 ---
 
-## Core Architecture
+## Architecture Overview
 
 | File | Description |
 |------|-------------|
 | [overview.md](overview.md) | Top-level routing modes and architecture thesis: decomposing context exposure |
-| [session-architecture.md](session-architecture.md) | Session model: Chat_History, Context, sub sessions, and compaction |
-| [state-objects.md](state-objects.md) | Shared state/data objects used across architecture diagrams and specs |
-| [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analysis → Task Execution → Task Reviewer |
-
----
 
 ## Agent Specifications
 
@@ -28,17 +39,25 @@ Start with [overview.md](overview.md) for the top-level picture.
 | [task-execution.md](task-execution.md) | Inside Worker: executes one task with task-specific context |
 | [task-reviewer.md](task-reviewer.md) | Inside Worker: reviews task result, propagates context, and decides next transition |
 
----
-
-## Process and Design Notes
+## Process Specifications
 
 | File | Description |
 |------|-------------|
-| [information-passthrough.md](information-passthrough.md) | Historical/simple forwarder retained for direct Primary Agent routing reference |
+| [session-architecture.md](session-architecture.md) | Session model: Chat_History, Context, execution log, sub sessions, and compaction |
 | [context-retrieval.md](context-retrieval.md) | Enhanced context retrieval trigger, storage, and retrieval flow |
-| [task-classification.md](task-classification.md) | Score-based routing: primary-agent, worker, or uncertain |
+| [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analyzer → Task Executor → Task Reviewer |
 
----
+## Reference Specifications
+
+| File | Description |
+|------|-------------|
+| [state-objects.md](state-objects.md) | Shared state/data objects used across architecture diagrams and specs |
+
+## Design Notes
+
+| File | Description |
+|------|-------------|
+| [task-classification.md](task-classification.md) | Score-based routing: primary-agent, worker, or uncertain |
 
 ## Design Decision Records
 
