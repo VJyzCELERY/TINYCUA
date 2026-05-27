@@ -3,7 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/information-passthrough.md`
-> **See also:** [Overview.md](overview.md), [Query_Analyst.md](query-analyst.md), [Primary_Agent.md](primary-agent.md)
+> **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [primary-agent.md](primary-agent.md)
 
 ---
 
@@ -11,7 +11,7 @@
 
 This is **not an agent**. It is a deterministic non-agent process that receives the **Context Enhanced Query** from the Query Analyst and forwards it directly to the Primary Agent without any transformation.
 
-Used in **Passthrough Mode** when the Query Analyst determines the task is small.
+Used in **Passthrough Mode** when the Query Analyst's Mode Decision selects `passthrough`.
 
 ---
 
@@ -41,5 +41,5 @@ flowchart TD
 - No LLM call
 - No transformation
 - No looping
-- Exists purely as a routing node to keep the architecture diagram symmetric
-- The Primary Agent cannot distinguish between Passthrough and Worker mode from the input format alone — it just receives data
+- Exists purely as a routing node for Passthrough Mode
+- The Primary Agent may receive mode metadata from the router, but the Context Enhanced Query itself is forwarded unchanged

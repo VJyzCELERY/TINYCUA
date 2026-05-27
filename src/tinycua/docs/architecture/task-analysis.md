@@ -3,31 +3,66 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-analysis.md`
-> **See also:** [Overview.md](overview.md), [Information_Digestion.md](information-digestion.md), [Task_Execution.md](task-execution.md), [Task_Reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [state-objects.md](state-objects.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md)
 
 ---
 
 ## Role
 
-The Task Analysis Agent receives the **Digested Information** (which includes advisory instructions) from Information Digestion and breaks it down into a structured list of atomic tasks for the Worker to execute.
+The Task Analysis Agent receives `Digested Information` and creates a sequential task roadmap for the Worker.
 
-It can optionally call external tools if it needs more information to properly decompose the task.
+The roadmap is not a dependency graph and is not intended to be parallelized at the top level. If parallel work is useful, it belongs inside an individual task's execution strategy.
 
 ---
 
 ## Inputs / Outputs
 
-**Input:** `Digested Information` (from Information Digestion) — contains `digested_info`, `key_points`, `instructions` (advisory), `original_intent_summary`
+**Input:** `Digested Information`
 
-**Output:** `List of Tasks` — each task has:
-- `task_id`: unique identifier
-- `description`: what to do
-- `required_tools`: tools needed (if any)
-- `expected_output`: what success looks like
-- `max_depth`: how many sub-iterations allowed
-- `dependencies`: task IDs that must complete first
+**Output:** `Task List`
 
-**Tools:** (optional) `search_knowledge()`, `lookup_schema()`
+```yaml
+task_list:
+  tasks:
+    - task_id: task_001
+      name: "Short task name"
+      description: "What this task should accomplish"
+      context: "Only the context this task needs"
+      success_criteria:
+        - "Semantic condition for success"
+      confidence: 0.0-1.0
+```
+
+Required task fields:
+
+- `task_id`
+- `name`
+- `description`
+- `context`
+- `success_criteria`
+- `confidence`
+
+Avoid rigid visible fields such as `required_tools`, `expected_output`, `max_depth`, or dependencies.
+
+---
+
+## Long-Term Tasks vs Short-Term Todos
+
+Task Analysis produces long-term tasks: the sequential roadmap needed to satisfy the user request.
+
+Task Execution may create short-term todos while executing one task. Those todos belong in the execution log, not in the top-level roadmap.
+
+---
+
+## Eagerness-Controlled Decomposition
+
+Task Analysis may run one or more refinement passes depending on Worker eagerness.
+
+| Eagerness | Task Analysis Behavior |
+|-----------|------------------------|
+| High | Create an initial roadmap quickly and allow Reviewer recovery to refine later. |
+| Medium | Create the roadmap and perform limited overlap/sequencing review. |
+| Low | More thoroughly decompose and refine before execution begins. |
 
 ---
 
@@ -35,57 +70,36 @@ It can optionally call external tools if it needs more information to properly d
 
 ```mermaid
 flowchart TD
-    RECEIVE["Receive:\n- digested_info\n- instructions (advisory)"]
-    THINK["THINK:\nwhat subtasks are needed?\n(use instructions as guide)"]
-    DECOMPOSE["DECOMPOSE:\nbreak into atomic tasks"]
-    DEC_TOOL{"Need more\ninformation?"}
-    
-    ACT_TOOL["ACT: call info tool"]
-    OBSERVE["OBSERVE:\nreceive additional info"]
-    
-    STRUCTURE["STRUCTURE:\nordered task list\n(dependencies, priorities)"]
-    OUTPUT["OUTPUT:\n{list_of_tasks}"]
+    DI{{"Digested Information"}}
+    CREATE["Create initial sequential roadmap"]
+    EAGER{"Eagerness allows refinement?"}
+    REFINE["Optional per-task decomposition pass"]
+    REVIEW["Review overlap and sequencing"]
+    ASSIGN["Assign each task context"]
+    TL{{"Task List"}}
 
-    RECEIVE --> THINK
-    THINK --> DECOMPOSE
-    DECOMPOSE --> DEC_TOOL
-    
-    DEC_TOOL -->|"No"| STRUCTURE
-    STRUCTURE --> OUTPUT
-    
-    DEC_TOOL -->|"Yes"| ACT_TOOL
-    ACT_TOOL --> OBSERVE
-    OBSERVE --> THINK
+    DI --> CREATE
+    CREATE --> EAGER
+    EAGER -->|Yes| REFINE
+    EAGER -->|No| REVIEW
+    REFINE --> REVIEW
+    REVIEW --> ASSIGN
+    ASSIGN --> TL
 ```
 
 ---
 
-## How instructions are used
+## Replanning Requests
 
-The `instructions` from Information Digestion are **advisory** — the Task Analysis agent follows them as a guide but can adapt:
+Task Reviewer may ask Task Analysis to revise the roadmap when:
 
-```python
-class TaskAnalysis:
-    def decompose(self, digested_info, instructions):
-        # Use instructions as a starting point, not a strict command
-        if instructions and instructions.get("advisory", False):
-            # Guide decomposition, but validate against actual context
-            action = instructions.get("action", "analyze")
-            params = instructions.get("parameters", {})
-            
-            # Check if the instructions make sense given the digest
-            if self.validate_instructions(instructions, digested_info):
-                # Follow instructions
-                tasks = self.create_tasks_from_instructions(action, params)
-            else:
-                # Instructions don't match context — override
-                tasks = self.create_tasks_from_digest(digested_info)
-        else:
-            # No instructions — derive from digest alone
-            tasks = self.create_tasks_from_digest(digested_info)
-        
-        return self.structure_task_list(tasks)
-```
+- a task is too broad;
+- a task should be split;
+- task ordering is wrong;
+- a result reveals missing context;
+- repeated failures suggest the roadmap is flawed.
+
+The Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 
 ---
 
@@ -93,6 +107,7 @@ class TaskAnalysis:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Instructions are | **Advisory** (not strict) | Task Analysis may discover a better approach; SLMs need flexibility |
-| Loop type | ReAct (bounded) | May need to look up additional info before decomposing; max 3 iterations |
-| Output format | Structured task list | Each task has metadata (tools, deps, max_depth) for deterministic execution |
+| Roadmap shape | Sequential list | Keeps orchestration simple and avoids dependency-graph complexity |
+| Task schema | Lightweight | Reduces prompt overhead and rigidity |
+| Success definition | Semantic success criteria | Avoids overfitting to predicted exact outputs |
+| Decomposition depth | Eagerness-controlled | Allows faster or more cautious Worker behavior |

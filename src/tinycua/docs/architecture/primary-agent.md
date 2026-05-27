@@ -3,29 +3,43 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/primary-agent.md`
-> **See also:** [Overview.md](overview.md), [Information_Passthrough.md](information-passthrough.md), [Task_Reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [information-passthrough.md](information-passthrough.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md)
 
 ---
 
 ## Role
 
-The Primary Agent is the **final agent** that produces the user-facing response. It receives different inputs depending on the mode:
+The Primary Agent is the final agent that produces the user-facing response.
 
-- **Passthrough mode:** `Context Enhanced Query` (from Information Passthrough)
-- **Worker mode:** `Worker Result` (from TINYCUA Worker, which itself used the Digested Information)
+It may receive:
 
-The Primary Agent is a **standard ReAct agent** that can call tools to format, verify, or enrich the final response before delivering it to the user.
+- `Context Enhanced Query` from Passthrough Mode;
+- `Digested Information` from Digestion-Only Mode;
+- `Worker Result` from Worker Mode.
+
+---
+
+## Worker Mode Guardrail
+
+In Worker Mode, the Primary Agent should synthesize the Worker Result. It should not silently perform new research that bypasses Worker guarantees.
+
+If the Worker Result is insufficient, the Primary Agent should request recovery or escalation rather than inventing missing information or independently researching around the Worker.
 
 ---
 
 ## Inputs / Outputs
 
-**Input (Passthrough mode):** `Context Enhanced Query` — the query enriched with context by the Query Analyst
-**Input (Worker mode):** `Worker Result` — the aggregated output of all tasks executed by the TINYCUA Worker
+**Input:**
 
-**Output:** Final `Response` to the user
+```yaml
+primary_agent_input:
+  mode: passthrough | digestion_only | worker
+  context_enhanced_query: "optional"
+  digested_information: "optional"
+  worker_result: "optional"
+```
 
-**Tools:** (optional) `format_response()`, `verify_facts()`, `search_web()`
+**Output:** final user-facing `Response`.
 
 ---
 
@@ -33,26 +47,34 @@ The Primary Agent is a **standard ReAct agent** that can call tools to format, v
 
 ```mermaid
 flowchart TD
-    RECEIVE["Receive:\n- context_enhanced_query (Passthrough)\nor\n- worker_result (Worker mode)"]
-    THINK["THINK:\nwhat is the best response?"]
-    DEC_TOOL{"Need additional\ntools?"}
-    
-    ACT["ACT: call tool"]
-    OBSERVE["OBSERVE:\nreceive tool result"]
-    
-    COMPOSE["COMPOSE:\nfinal response"]
-    OUTPUT["OUTPUT:\n{response}"]
+    INPUT{{"Primary Agent Input"}}
+    CHECK["Check sufficiency"]
+    SUFFICIENT{"Enough information?"}
+    RECOVER["Request recovery / escalation"]
+    COMPOSE["Compose final response"]
+    VERIFY["Optional formatting / verification"]
+    RESP{{"Response"}}
 
-    RECEIVE --> THINK
-    THINK --> DEC_TOOL
-    
-    DEC_TOOL -->|"No"| COMPOSE
-    COMPOSE --> OUTPUT
-    
-    DEC_TOOL -->|"Yes"| ACT
-    ACT --> OBSERVE
-    OBSERVE --> THINK
+    INPUT --> CHECK
+    CHECK --> SUFFICIENT
+    SUFFICIENT -->|No| RECOVER
+    SUFFICIENT -->|Yes| COMPOSE
+    COMPOSE --> VERIFY
+    VERIFY --> RESP
 ```
+
+---
+
+## Tool Use Policy
+
+The Primary Agent may use tools for:
+
+- formatting;
+- consistency checks;
+- citation formatting;
+- final response verification against provided input.
+
+It should not use tools for new research in Worker Mode unless the Worker Result explicitly allows that recovery path.
 
 ---
 
@@ -60,6 +82,7 @@ flowchart TD
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Loop type | ReAct (bounded) | May need to verify facts or format output; bounded to prevent over-processing |
-| Tool access | Formatting/verification only | Not for new research — that should have been done by the Worker |
-| Input ambiguity | Same agent handles both modes | Primary Agent doesn't need to know which mode was used — it just processes what it receives |
+| Final role | Synthesis | Final response should be based on routed/accepted information |
+| Worker mode research | Restricted | Prevents bypassing Worker context controls |
+| Insufficient input | Escalate/recover | Avoids hallucinating missing details |
+| Modes handled | Passthrough, digestion-only, worker | Keeps one final response interface |

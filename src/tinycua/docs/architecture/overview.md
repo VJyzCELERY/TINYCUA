@@ -4,135 +4,150 @@
 
 > **File:** `architecture/overview.md`
 
-> **Last Updated:** 2026-05-25
+> **Last Updated:** 2026-05-27
 > **Status:** Draft
 
-This document describes the **top-level orchestration** of TINYCUA — the two-mode flow and how agents connect.
+This document describes the top-level orchestration of TINYCUA and how its agents connect.
 
 ---
 
-## Two-Mode Architecture
+## Architecture Thesis
 
-TINYCUA has exactly **two modes**, determined by the Query Analyst's verdict:
+TINYCUA is not only decomposing work; it is decomposing **context exposure**.
 
-- **Passthrough Mode** (small task): Query Analyst → Information Passthrough → Primary Agent
-- **Worker Mode** (large task): Query Analyst → Information Digestion → TINYCUA Worker → Primary Agent
+As session context grows, smaller language models are more likely to hallucinate because they must attend to, filter, and reason over more irrelevant information. TINYCUA's hypothesis is that precision improves when each internal agent receives only the context needed for its specific responsibility.
+
+Work decomposition is therefore a means to context decomposition.
+
+---
+
+## Routing Modes
+
+The Query Analyst produces a `Mode Decision`:
+
+- **Passthrough Mode:** Query Analyst → Information Passthrough → Primary Agent
+- **Digestion-Only Mode:** Query Analyst → Information Digestion → Primary Agent
+- **Worker Mode:** Query Analyst → Information Digestion → TINYCUA Worker → Primary Agent
+- **Uncertain Mode:** Query Analyst performs additional analysis, uses digestion as a safer middle ground, or asks for clarification.
+
+Worker Mode is an internal sub-agent orchestration presented externally as one TINYCUA agent.
 
 ```mermaid
 flowchart TD
     subgraph TINY["TINYCUA"]
-        QA["Query Analyst\n(Agent)\n\nsee Query_Analyst.md"]
-        VRD{{"Verdict"}}
+        QA["Query Analyst\n(Agent)"]
         CEQ{{"Context Enhanced Query"}}
-        DEC{"Is large task?"}
-        ID["Information Digestion\n(Agent)\n\nsee Information_Digestion.md"]
+        MD{{"Mode Decision"}}
+        ROUTE{"Selected mode"}
+        IP["Information Passthrough\n(Non-Agent)"]
+        ID["Information Digestion\n(Agent)"]
         DI{{"Digested Information"}}
-        TW["TINYCUA Worker\n(Agent Pipeline)\n\nsee Task_Analysis.md,\nTask_Execution.md,\nTask_Reviewer.md"]
+        AFTER_ID{"Digestion route"}
+        TW["TINYCUA Worker\n(Sub-agent Orchestration)"]
         WR{{"Worker Result"}}
-        IP["Information Passthrough\n(Non-Agent)\n\nsee Information_Passthrough.md"]
-        PA["Primary Agent\n(Agent)\n\nsee Primary_Agent.md"]
+        PA["Primary Agent\n(Agent)"]
         RESP{{"Response"}}
     end
 
-    UQ_EXT{{"User Query"}}
-    CTX_EXT{{"Context"}}
+    UQ{{"User Query"}}
+    FSC{{"Full Session Context"}}
 
-    UQ_EXT --> QA
-    CTX_EXT --> QA
-    QA --> VRD
+    UQ --> QA
+    FSC --> QA
     QA --> CEQ
-    
-    VRD --> DEC
-    
-    DEC -->|"Yes — large task"| ID
-    DEC -->|"No — small task"| IP
-    
-    CEQ --> ID
-    CTX_EXT -.->|"full session context"| ID
+    QA --> MD
+    MD --> ROUTE
+
+    ROUTE -->|passthrough| IP
     CEQ --> IP
-    
+    IP --> PA
+
+    ROUTE -->|digestion_only| ID
+    CEQ --> ID
+    FSC -. "when needed" .-> ID
     ID --> DI
-    DI --> TW
+
+    ROUTE -->|worker| ID
+    DI --> AFTER_ID
+    AFTER_ID -->|digestion_only| PA
+    AFTER_ID -->|worker| TW
     TW --> WR
     WR --> PA
-    
-    IP --> PA
-    
+
+    ROUTE -->|uncertain| QA
     PA --> RESP
 ```
 
 ---
 
-## Agent Reference
+## Worker Summary
 
-| Agent | File | Type | Role |
-|-------|------|------|------|
-| **Query Analyst** | [Query_Analyst.md](query-analyst.md) | ReAct Agent | Retrieves context, produces Verdict + CEQ |
-| **Information Digestion** | [Information_Digestion.md](information-digestion.md) | Linear LLM | Compresses CEQ + full context into digest + instructions |
-| **Information Passthrough** | [Information_Passthrough.md](information-passthrough.md) | Non-Agent | Forwards CEQ directly to Primary Agent |
-| **Task Analysis** (inside Worker) | [Task_Analysis.md](task-analysis.md) | ReAct Agent | Decomposes task into subtask list |
-| **Task Execution** (inside Worker) | [Task_Execution.md](task-execution.md) | ReAct Agent | Executes a single subtask with tools |
-| **Task Reviewer** (inside Worker) | [Task_Reviewer.md](task-reviewer.md) | Decision Agent | Reviews task result, updates context |
-| **Primary Agent** | [Primary_Agent.md](primary-agent.md) | ReAct Agent | Produces final user-facing response |
-| **Analysis: Digest vs Query** | [analysis_digested_info_vs_query.md](analysis_digested_info_vs_query.md) | Decision Record | Resolves whether Worker should receive original query alongside digest |
+The Worker is a sequential roadmap executor. It is not a parallel dependency scheduler.
+
+1. Task Analysis creates and optionally refines the sequential task list.
+2. Task Execution runs the current task using only that task's `context` plus shallow roadmap awareness.
+3. Task Reviewer accepts, retries, replans, escalates, and updates relevant future task contexts.
+4. Accepted task results are aggregated into the Worker Result.
+
+See [worker-orchestration.md](worker-orchestration.md) for the full Worker flow.
 
 ---
 
-## Data Flow Summary
+## Key State Objects
 
-```
-User Query + Context
-    │
-    ▼
-[Query Analyst]
-    ├── Verdict ──────────────────────────► "Is large task?" decision
-    └── Context Enhanced Query ─────┐
-                                    │
-                    ┌───────────────┴───────────────┐
-                    ▼                               ▼
-        [Information Digestion]         [Information Passthrough]
-                    │                               │
-                    ▼                               │
-        Digested Information +                      │
-        Advisory Instructions                       │
-                    │                               │
-                    ▼                               │
-        [TINYCUA Worker]                            │
-            Task Analysis →                         │
-            Task Execution →                        │
-            Task Reviewer                           │
-                    │                               │
-                    ▼                               │
-        Worker Result                               │
-                    └───────────┐ ┌─────────────────┘
-                                ▼ ▼
-                        [Primary Agent]
-                                │
-                                ▼
-                            Response
-```
+The architecture should make state explicit so human-in-the-loop continuation can resume the correct internal agent.
+
+Important objects:
+
+- Full Session Context
+- Context Enhanced Query
+- Mode Decision
+- Digested Information
+- Task List
+- Task Context
+- Task Result
+- Execution Log
+- Reviewer Decision
+- Worker Result
+- Agent State / Continuation State
+
+See [state-objects.md](state-objects.md) for object definitions.
+
+---
+
+## Agent Reference
+
+| Component | File | Type | Role |
+|-----------|------|------|------|
+| Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Retrieves context when session context is large and produces CEQ + Mode Decision |
+| Information Digestion | [information-digestion.md](information-digestion.md) | LLM Agent | Produces precision-oriented Digested Information |
+| Information Passthrough | [information-passthrough.md](information-passthrough.md) | Non-Agent | Forwards CEQ directly to Primary Agent |
+| TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Analysis, Task Execution, and Task Reviewer sequentially |
+| Task Analysis | [task-analysis.md](task-analysis.md) | ReAct Agent | Creates the sequential task roadmap |
+| Task Execution | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
+| Task Reviewer | [task-reviewer.md](task-reviewer.md) | Hybrid Decision Agent | Reviews results and updates future task contexts |
+| Primary Agent | [primary-agent.md](primary-agent.md) | ReAct Agent | Produces final user-facing response |
 
 ---
 
 ## Agent Loop Types
 
-| Agent | Loop Type | Tools | Default Max Iterations |
-|-------|-----------|-------|----------------------|
-| Query Analyst | Iterative context retrieval + ReAct (bounded) | `Enhanced Context Retrieval Tool` | 3 |
-| Information Digestion | Linear (no loop) | None (dual-input LLM call) | 1 |
-| Task Analysis | ReAct (bounded) | (optional) info/research tools | 3 |
-| Task Execution | ReAct (open-ended, bounded) | Various (search, read, code) | Per-task max |
-| Task Reviewer | Linear (decision) | None | 1 |
-| Primary Agent | ReAct (bounded) | (optional) format/verify tools | 3 |
+| Agent | Loop Type | Tools | Notes |
+|-------|-----------|-------|-------|
+| Query Analyst | Context retrieval + classification | Enhanced Context Retrieval | Retrieval starts when accumulated session context crosses threshold |
+| Information Digestion | Precision-oriented digestion | Optional retrieval/read tools | Removes distracting context and preserves task-critical information |
+| Task Analysis | Eagerness-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
+| Task Execution | ReAct | Task tools | Produces result + execution log |
+| Task Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
+| Primary Agent | Response composition | Formatting/verification tools | Should not bypass Worker guarantees with new research |
 
 ---
 
-## Color Legend (for all diagrams)
+## Color Legend (for diagrams)
 
-| Shape | Color | Meaning |
-|-------|-------|---------|
-| Hexagon ({{ }}) | Light green (#C8E79D) | **Data** — information, lists, results |
-| Rectangle ([ ]) | Light pink (#F4CCCC) | **Agent** — LLM-powered or intelligent component |
-| Rectangle ([ ]) | Light purple (#E6E0F0) | **Non-Agent Process** — deterministic logic |
-| Diamond ({ }) | Light orange (#FFE0B2) | **Decision** — branching/condition logic |
-| Dashed border | Various | **Internal loop boundary** |
+| Shape | Meaning |
+|-------|---------|
+| Hexagon (`{{ }}`) | Data/state object |
+| Rectangle (`[ ]`) | Agent or process |
+| Diamond (`{ }`) | Decision |
+| Dashed edge | Optional or limited context exposure |
