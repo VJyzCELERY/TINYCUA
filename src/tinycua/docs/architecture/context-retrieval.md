@@ -3,6 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/context-retrieval.md`
+> **See also:** [Session Architecture](session-architecture.md), [Query Analyst](query-analyst.md), [Information Digestion](information-digestion.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
@@ -86,7 +87,7 @@ Enhanced Context Retrieval produces a Context Enhanced Query.
 
 Information Digestion can then use the Context Enhanced Query and the available session `Context` to create Digested Information.
 
-Task Analysis uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
+The Task Analyzer uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
 
 ---
 

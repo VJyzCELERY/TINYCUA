@@ -9,6 +9,8 @@
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
 
+**This is the canonical source for all shared data structures.** Other docs reference these schemas rather than duplicating them, so changes to shared objects only need to happen here.
+
 ---
 
 ## Core Principle
@@ -22,11 +24,11 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 | Object | Producer | Consumer | Purpose |
 |--------|----------|----------|---------|
 | `User Query` | User | Query Analyst | Latest user instruction. Query size does not trigger enhanced retrieval by itself. |
-| `Session` | Session system | Query Analyst / Information Digestion / agents | Contains `Chat_History` and model-loaded `Context`. See [session-architecture.md](session-architecture.md). |
-| `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digestion | User query enriched with relevant session `Context` when needed. |
+| `Session` | Session system | Query Analyst / Information Digester / agents | Contains `Chat_History`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
+| `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with relevant session `Context` when needed. |
 | `Mode Decision` | Query Analyst | Top-level router | Chooses `primary_agent`, `worker`, or `uncertain`. |
-| `Digested Information` | Information Digestion | Task Analysis / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. |
-| `Worker Config` | System/user configuration | TINYCUA Worker / Task Analysis | Controls Worker behavior such as planning effort. |
+| `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. |
+| `Worker Config` | System/user configuration | TINYCUA Worker / Task Analyzer | Controls Worker behavior such as planning effort. |
 | `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. |
 | `Response` | Primary Agent | User | Final user-facing answer. |
 
@@ -43,6 +45,7 @@ session:
   owner_name: "Primary Agent"
   chat_history: []   # JSON turn/message records
   context: "structured markdown loaded by the model"
+  execution_log: []  # tool calls, results, and diffs generated during sub-session execution
 ```
 
 Important rules:
@@ -50,10 +53,38 @@ Important rules:
 - `Chat_History` is the preserved turn log and should be JSON.
 - `Context` is structured markdown and is what the model loads.
 - Enhanced context retrieval starts when session `Context` approaches model context-window pressure.
-- Sub sessions keep their own `Chat_History` and `Context`, but sub session `Chat_History` is propagated to primary session `Chat_History`.
+- Sub sessions keep their own `Chat_History`, `Context`, and `execution_log`, but sub session `Chat_History` is propagated to primary session `Chat_History`.
 - Sub session `Context` is not automatically appended to primary session `Context`.
+- Sub session `execution_log` is not automatically propagated to primary session `execution_log`.
 
-Use `Session.Context` for model-loadable context and `Session.Chat_History` for preserved turns.
+Use `Session.Context` for model-loadable context and `Session.Chat_History` for preserved turns. Use `Session.execution_log` for tool calls, results, and diffs from sub-session execution.
+
+---
+
+## Execution Log Object
+
+The Execution Log captures the actions taken during a sub-session's execution. It is stored on the sub-session, not embedded within a Task Result. This separation means the Reviewer can inspect the full execution log of a Task Executor's sub-session, and retries create new sub-sessions with fresh logs.
+
+```yaml
+execution_log:
+  short_term_todos:
+    - "..."
+  actions:
+    - action: "..."
+      observation: "..."
+      diff: "optional file change diff if applicable"
+  hitl_inputs:
+    - "..."
+  decision_trace: "..."
+```
+
+Key rules:
+
+- The Execution Log belongs to a sub-session, not to a specific task result.
+- Tool calls, observations, and diffs are recorded as part of the execution log.
+- Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
+- The Task Reviewer accesses the sub-session's execution log when evaluating a task.
+- Human-in-the-loop inputs are preserved in the execution log.
 
 ---
 
@@ -71,7 +102,7 @@ mode_decision:
   primary_agent_safety_reason: "..."        # required for primary_agent
   decomposition_benefit: "..."             # required for worker
   uncertainty_reason: "..."                # required for uncertain
-  uncertain_next_action: ask_user | explore_more | null
+  uncertain_next_action: ask_user | explore | null
 ```
 
 `uncertain_next_action` is required when `mode` is `uncertain`. The goal is to avoid leaving uncertainty as an open-ended state.
@@ -139,15 +170,6 @@ task_result:
   task_id: task_001
   status: completed | partial | failed | blocked | insufficient_context | incorrect_task_spec | tool_failure | out_of_scope
   result: "..."
-  execution_log:
-    short_term_todos:
-      - "..."
-    actions:
-      - action: "..."
-        observation: "..."
-    hitl_inputs:
-      - "..."
-    decision_trace: "..."
   discovered_sequence_issues:
     - "..."
   uncertainty_notes:
@@ -161,7 +183,7 @@ task_result:
 ```yaml
 reviewer_decision:
   task_id: task_001
-  status: accepted | retry | replan | needs_more_context | escalate_user | escalate_outer_loop
+  status: accepted | retry | replan | needs_more_context | escalate_user
   reason: "..."
   confidence: 0.0-1.0
   context_updates:

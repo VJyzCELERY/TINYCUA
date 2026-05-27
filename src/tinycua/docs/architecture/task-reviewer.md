@@ -36,7 +36,7 @@ Task Reviewer should be hybrid:
 - current task `context`;
 - task success criteria;
 - task result;
-- execution log / action trace;
+- sub-session execution log (tool calls, results, diffs from the Task Executor's sub-session);
 - shallow full task list;
 - dynamic access to individual task contexts when needed.
 
@@ -47,7 +47,7 @@ The Reviewer should not receive a broad accumulated context dump by default. Acc
 ```yaml
 reviewer_decision:
   task_id: task_001
-  status: accepted | retry | replan | needs_more_context | escalate_user | escalate_outer_loop
+  status: accepted | retry | replan | needs_more_context | escalate_user
   reason: "..."
   confidence: 0.0-1.0
   context_updates:
@@ -65,13 +65,13 @@ reviewer_decision:
 
 ```mermaid
 flowchart TD
-    INPUT{{"Task Result + Log"}}
+    INPUT{{"Task Result"}}
     CHECK["Validate schema and evidence"]
     REVIEW["Semantic review against success criteria"]
     ACCEPT{"Accept?"}
     PROP["Consolidate unfinished/upcoming task contexts"]
     RETRY{"Retry useful?"}
-    REPLAN{"Roadmap revision or more context needed?"}
+    REPLAN{"Roadmap revision or exploration needed?"}
     FAILS{"Consecutive failures over threshold?"}
     OUT{{"Reviewer Decision"}}
 
@@ -111,11 +111,10 @@ This avoids dumping every previous task result into every future task. Context u
 | Status | Orchestration Action |
 |--------|----------------------|
 | `accepted` | Consolidate context for unfinished/upcoming tasks, then check whether any unfinished tasks remain. If none remain, aggregate Worker Result. |
-| `retry` | Create a new Task Execution agent for the same task with failure information recorded in the task context. Do not resume the old executor. |
-| `replan` | Call Task Analysis to revise the sequential roadmap. If the final task is decomposed into new tasks, the Worker continues. |
-| `needs_more_context` | Send the issue to Task Analysis. Task Analysis revises task context, splits the task, or requests renewed digestion through the outer orchestration layer. |
+| `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. Do not resume the old executor. |
+| `replan` | Call the Task Analyzer to revise the sequential roadmap. If the final task is decomposed into new tasks, the Worker continues. |
+| `needs_more_context` | Trigger exploration: the Task Analyzer may revise task context, split the task, or request renewed digestion. This is the generic path for expanding the Worker's information scope. |
 | `escalate_user` | Pause the current agent sub session and ask the user for clarification. |
-| `escalate_outer_loop` | Terminate the current Worker path with a failure summary and let the parent/Primary Agent ask the user what should happen next. |
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
 
@@ -139,5 +138,5 @@ This is not only per-task. It protects the whole Worker from retry/replan loops.
 |----------|--------|-----------|
 | Reviewer style | Hybrid | Combines reliable validation with semantic judgment |
 | Context update | Targeted propagation | Preserves precision and avoids context pollution |
-| Replanning | Request Task Analysis | Keeps roadmap generation responsibility in Task Analysis |
+| Replanning | Request the Task Analyzer | Keeps roadmap generation responsibility in the Task Analyzer |
 | Failure escalation | Consecutive failure threshold | Prevents infinite retry loops and supports HITL recovery |

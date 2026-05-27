@@ -1,4 +1,4 @@
-# Task Analysis (Inside TINYCUA Worker)
+# Task Analyzer (Inside TINYCUA Worker)
 
 > **Category:** Agent Spec
 
@@ -9,7 +9,7 @@
 
 ## Role
 
-The Task Analysis Agent receives `Digested Information` and creates a sequential task roadmap for the Worker.
+The Task Analyzer receives `Digested Information` and creates a sequential task roadmap for the Worker.
 
 The roadmap is not a dependency graph and is not intended to be parallelized at the top level. If parallel work is useful, it belongs inside an individual task's execution strategy.
 
@@ -22,28 +22,7 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 - `Digested Information`
 - `Worker Config` with `effort`
 
-**Output:** `Task List`
-
-```yaml
-task_list:
-  tasks:
-    - task_id: task_001
-      name: "Short task name"
-      description: "What this task should accomplish"
-      context: "Only the context this task needs"
-      success_criteria:
-        - "Semantic condition for success"
-      confidence: 0.0-1.0
-```
-
-Required task fields:
-
-- `task_id`
-- `name`
-- `description`
-- `context`
-- `success_criteria`
-- `confidence`
+**Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
 
 Avoid rigid visible fields such as `required_tools`, `expected_output`, `max_depth`, or dependencies.
 
@@ -53,22 +32,15 @@ The `context` field should be structured markdown. It should remain small and fo
 
 ## Long-Term Tasks vs Short-Term Todos
 
-Task Analysis produces long-term tasks: the sequential roadmap needed to satisfy the user request.
+The Task Analyzer produces long-term tasks: the sequential roadmap needed to satisfy the user request.
 
-Task Execution may create short-term todos while executing one task. Those todos belong in the execution log, not in the top-level roadmap.
+The Task Executor may create short-term todos while executing one task. Those todos belong in the execution log, not in the top-level roadmap.
 
 ---
 
 ## Effort-Controlled Decomposition
 
-Task Analysis may run one or more refinement passes depending on Worker effort.
-
-| Effort | Task Analysis Behavior |
-|--------|------------------------|
-| None | Create an initial roadmap quickly and allow Reviewer recovery to refine later. |
-| Low | Create the roadmap with minimal upfront refinement. |
-| Medium | Create the roadmap and perform limited overlap/sequencing review. |
-| High | Thoroughly decompose and refine before execution begins. |
+The Task Analyzer may run one or more refinement passes depending on Worker effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics (`none | low | medium | high`).
 
 ---
 
@@ -97,7 +69,7 @@ flowchart TD
 
 ## Replanning Requests
 
-Task Reviewer may ask Task Analysis to revise the roadmap when:
+The Task Reviewer may ask the Task Analyzer to revise the roadmap when:
 
 - a task is too broad;
 - a task should be split;
@@ -105,7 +77,7 @@ Task Reviewer may ask Task Analysis to revise the roadmap when:
 - a result reveals missing context;
 - repeated failures suggest the roadmap is flawed.
 
-`needs_more_context` from the Reviewer is handled by Task Analysis. Task Analysis may revise the current task context, split the task, or ask the broader orchestration layer for renewed digestion when the existing digest is insufficient.
+`needs_more_context` from the Reviewer is handled by the Task Analyzer. The Task Analyzer may revise the current task context, split the task, or ask the broader orchestration layer for renewed digestion when the existing digest is insufficient.
 
 The Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 

@@ -3,6 +3,7 @@
 > **Category:** Design Note
 
 > **File:** `architecture/task-classification.md`
+> **See also:** [Query Analyst](query-analyst.md), [State Objects](state-objects.md), [Worker Orchestration](worker-orchestration.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
@@ -50,18 +51,7 @@ The exact thresholds are intentionally draft-level. The important rule is that t
 
 ## Output Shape
 
-```yaml
-mode_decision:
-  mode: primary_agent | worker | uncertain
-  score: 0-10
-  confidence: 0.0-1.0
-  reasons:
-    - "..."
-  primary_agent_safety_reason: "..."
-  decomposition_benefit: "..."
-  uncertainty_reason: "..."
-  uncertain_next_action: ask_user | explore_more | null
-```
+The Query Analyst produces a `Mode Decision` object. See [state-objects.md](state-objects.md) for the canonical schema and [query-analyst.md](query-analyst.md) for the agent's output contract.
 
 ---
 
@@ -82,8 +72,10 @@ For `primary_agent` mode:
 For `uncertain` mode:
 
 - state what is uncertain;
-- set `uncertain_next_action` to `ask_user` or `explore_more`;
-- avoid leaving uncertainty as an open-ended nondeterministic state.
+- set `uncertain_next_action` to `explore` or `ask_user`;
+- `explore`: the Query Analyst should attempt to resolve uncertainty on its own. It may invoke exploratory agents (e.g., the Information Digester can retrieve and narrow missing context, or a research-oriented agent can gather additional information). After exploration, re-classify the request;
+- `ask_user`: pause and request clarification from the user (human-in-the-loop);
+- avoid leaving uncertainty as an open-ended nondeterministic state — uncertainty should always resolve to a concrete action.
 
 ---
 
@@ -107,4 +99,4 @@ Examples:
 | “Summarize this short paragraph.” | `primary_agent` | Clear, bounded, low context risk. |
 | “Use our previous discussion to write a concise decision summary.” | `primary_agent` | Primary Agent can request Information Digestion if consolidated context is needed. |
 | “Compare these architecture options, update the docs, and identify follow-up changes.” | `worker` | Multiple sequential steps, doc updates, and review needed. |
-| “Do the thing we discussed before.” with large history | `uncertain` | Ambiguous reference requires `ask_user` or `explore_more` before routing. |
+| "Do the thing we discussed before." with large history | `uncertain` | Ambiguous reference requires `ask_user` or `explore` before routing. |
