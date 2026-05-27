@@ -880,8 +880,8 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
                 )
             # Rule 1: non-empty list → structured multipart
             # Validate that every item is a ContentPart or a dict that
-            # can be coerced to one.  Fall back to legacy stringification
-            # if any item fails validation.
+            # can be coerced to one.  Raise ValueError if any item fails
+            # validation (prevents silent data loss).
             valid = True
             for item in content:
                 if isinstance(item, ContentPart):
@@ -904,9 +904,14 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
                 if "attachments" in tool_result:
                     result["attachments"] = tool_result["attachments"]
                 return result
-            # Items failed ContentPart validation — fall through to
-            # string fallback below.  This preserves backward compatibility
-            # for legacy dict results with non-ContentPart list values.
+            # Items failed ContentPart validation — raise ValueError
+            # so the caller knows structured content was malformed
+            # rather than silently losing file/content-part data.
+            raise ValueError(
+                f"Tool result content list contains items that are not "
+                f"valid ContentPart instances: invalid items found in "
+                f"content list."
+            )
 
         # Rule 2: string content (with or without attachments)
         if isinstance(content, str):
@@ -926,15 +931,12 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
                 f"expected str or list[ContentPart], got "
                 f"{type(content).__name__}"
             )
-        # Falls through: content is a list whose items failed ContentPart
-        # validation — let Rule 3 or Rule 4 handle it below.
-
     # Rule 3: dict with "role": "tool_result" → canonical pre-formed
     if isinstance(tool_result, dict) and tool_result.get("role") == "tool_result":
         content = tool_result.get("content", "")
-        # Re-validate: if content is a (non-empty) list, items already
-        # failed ContentPart validation in Rule 1 — convert to string
-        # representation instead of passing the raw list through.
+        # Defensive: if content is somehow a non-empty list despite passing
+        # Rule 1 (e.g., a dict with role but without "content" key), convert
+        # to string representation rather than passing raw list through.
         if isinstance(content, list) and content:
             return {
                 "role": "tool_result",

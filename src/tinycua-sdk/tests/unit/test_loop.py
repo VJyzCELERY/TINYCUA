@@ -1330,11 +1330,10 @@ class TestNormalizeToolResult:
         with pytest.raises(ValueError, match="empty"):
             normalize_tool_result("call_1", tool_result)
 
-    def test_normalize_invalid_content_part_items_fall_back_to_string(self):
-        """Invalid ContentPart dict items fall through to legacy string fallback."""
+    def test_normalize_invalid_content_part_items_raise_value_error(self):
+        """Invalid ContentPart dict items raise ValueError instead of silently stringifying."""
         from tinycua_sdk.agent.loop import normalize_tool_result
 
         tool_result = {"content": [{"type": "unknown_type", "value": "x"}]}
-        result = normalize_tool_result("call_1", tool_result)
-        assert result["content"] == str(tool_result)
-        assert "attachments" not in result
+        with pytest.raises(ValueError, match="content list"):
+            normalize_tool_result("call_1", tool_result)
