@@ -54,7 +54,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 2. **Given** a tool returns string content plus `attachments: list[FileAttachment]`, **When** the non-streaming agent loop executes the tool, **Then** the next LLM request receives the text plus translated file parts.
 3. **Given** a tool returns a file result while `Agent.run(stream=True)` is active, **When** the streaming loop processes the tool call, **Then** the same structured tool result is preserved for the next LLM stream iteration.
 4. **Given** the provider is OpenAI Chat Completions, **When** a tool result contains an image attachment, **Then** text content parts are translated into a text-only `role: "tool"` message, and file/image attachments are placed in a subsequent synthetic `role: "user"` message, preserving tool-call message ordering.
-5. **Given** the provider is OpenAI Responses, **When** a tool result contains an image or file attachment, **Then** it is translated to provider-native input content for the corresponding function-call output turn.
+5. **Given** the provider is OpenAI Responses, **When** a tool result contains an image or file attachment, **Then** text content is translated into plain-string ``function_call_output.output``, and file/image content parts plus message-level attachments are placed in a subsequent synthetic ``role: "user"`` message as provider-native content parts. This is the compatibility strategy for LM Studio/OpenAI-compatible Responses providers that reject list-valued function-call outputs.
 6. **Given** a legacy tool returns any non-structured value, **When** the agent loop processes it, **Then** the tool result remains a string exactly as before.
 
 ### Edge Cases
@@ -76,7 +76,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 - **FR-003**: The agent loop MUST support tool return values that provide `content: list[ContentPart]` without coercing those content parts into a string.
 - **FR-004**: Non-streaming and streaming tool-call processing MUST use the same canonical tool-result normalization behavior.
 - **FR-005**: OpenAI Chat Completions translation MUST translate tool-result `list[ContentPart]` and `attachments` into a provider-native two-message sequence: a text-only `role: "tool"` message carrying text content parts, followed by a synthetic `role: "user"` message carrying file/image content parts. The required assistant `tool_calls` message ordering MUST be preserved.
-- **FR-006**: OpenAI Responses translation MUST translate tool-result `list[ContentPart]` and `attachments` into provider-native function-call output content for the next turn.
+- **FR-006**: OpenAI Responses translation MUST translate tool-result `list[ContentPart]` and `attachments` into a two-part sequence: text content remains in plain-string `function_call_output.output`, and file/image content parts plus message-level attachments are translated to provider-native content parts in a follow-up synthetic `role: "user"` message. This is the compatibility strategy for LM Studio/OpenAI-compatible Responses providers that reject list-valued function-call outputs.
 - **FR-007**: Provider translation MUST reuse existing attachment behavior for image, text, non-image, URL, streaming, and pre-existing `file_id` attachments.
 - **FR-008**: Legacy tool results that are plain strings, numbers, dicts without attachment fields, or exceptions MUST continue to produce string tool-result content.
 - **FR-009**: Unit tests MUST cover agent-loop normalization, provider translation for both canonical tool-result attachment forms, and backward compatibility.
@@ -113,7 +113,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 - Agent loop: legacy string, dict, number, and exception results remain string-compatible.
 - Streaming loop: structured tool returns are preserved through the streaming tool-call processing path.
 - Chat Completions provider: tool-result text content translates to a text-only tool message; file/image attachments translate to a synthetic user message following the tool message.
-- Responses provider: tool-result attachments translate to function-call output shape with multimodal content preserved.
+- Responses provider: tool-result text content translates to plain-string `function_call_output.output`; file/image attachments and message-level attachments translate to a synthetic `role: "user"` message with provider-native content parts.
 
 ### Integration Tests
 
@@ -136,7 +136,7 @@ This table tracks implementation progress. Spec and design planning is Complete;
 | Spec & Design | Complete | Phase 6 planning initialized from issue #46 |
 | Agent loop normalization | Complete | Structured tool results preserved with attachments |
 | Chat Completions translation | Complete | Tool result multimodal content with correct multi-tool ordering |
-| Responses translation | Complete | Function-call output with attachments |
+| Responses translation | Complete | Plain-string output + synthetic user for file/image content |
 | Integration tests | Complete | Tool-generated image scenario covered |
 
 ---

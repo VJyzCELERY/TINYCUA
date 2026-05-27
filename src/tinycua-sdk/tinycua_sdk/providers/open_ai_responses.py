@@ -457,10 +457,12 @@ async def _translate_responses_tool_result_message(
         # Structured multipart — split text and file/image parts.
         for item in content:
             if isinstance(item, ContentPart):
+                orig_type = item.type
                 translated = await _translate_responses_content_part(
                     item, _upload_fn=_upload_fn, _download_fn=_download_fn,
                 )
             elif isinstance(item, dict):
+                orig_type = item.get("type")
                 coerced = ContentPart(**item)
                 translated = await _translate_responses_content_part(
                     coerced, _upload_fn=_upload_fn, _download_fn=_download_fn,
@@ -471,7 +473,11 @@ async def _translate_responses_tool_result_message(
                     f"expected ContentPart or dict, got {type(item).__name__}"
                 )
 
-            if translated.get("type") == "input_text":
+            # Classify by original ContentPart type, not translated
+            # provider type: a text file attachment translates to
+            # input_text but is still a file ContentPart and must be
+            # placed in a synthetic user message.
+            if orig_type == "text":
                 text_parts.append(translated["text"])
             else:
                 file_parts.append(translated)

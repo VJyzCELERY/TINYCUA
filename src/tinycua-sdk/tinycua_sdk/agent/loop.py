@@ -908,9 +908,24 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
                 if "attachments" in tool_result:
                     result["attachments"] = tool_result["attachments"]
                 return result
-            # Items failed ContentPart validation — raise ValueError
-            # so the caller knows structured content was malformed
-            # rather than silently losing file/content-part data.
+            # Items failed ContentPart validation.
+            # For non-canonical dicts without attachments, stringify the
+            # entire dict for legacy FR-008 compatibility.  This covers
+            # legacy dicts with arbitrary list-valued content (e.g.,
+            # {"content": ["legacy item"], "metadata": {...}}) that are
+            # not explicitly structured tool results.
+            if (
+                tool_result.get("role") != "tool_result"
+                and "attachments" not in tool_result
+            ):
+                return {
+                    "role": "tool_result",
+                    "call_id": call_id,
+                    "content": str(tool_result),
+                }
+            # Canonical or attachment-bearing dicts with invalid list
+            # content — raise ValueError so the caller knows structured
+            # content was malformed rather than silently losing data.
             raise ValueError(
                 "Tool result content list contains items that are not "
                 "valid ContentPart instances: invalid items found in "

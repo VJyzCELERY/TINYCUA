@@ -1365,10 +1365,39 @@ class TestNormalizeToolResult:
         with pytest.raises(ValueError, match="empty"):
             normalize_tool_result("call_1", tool_result)
 
-    def test_normalize_invalid_content_part_items_raise_value_error(self):
-        """Invalid ContentPart dict items raise ValueError instead of silently stringifying."""
+    def test_normalize_legacy_list_content_dict_falls_back_to_string(self):
+        """FR-008 legacy dict with arbitrary list-valued content stringified.
+
+        A legacy dict like ``{"content": ["legacy item"], "metadata": {"id": 1}}``
+        that is not canonical (no ``role: "tool_result"``) and has no attachments
+        MUST fall back to ``str(tool_result)``, not raise ValueError.
+        """
         from tinycua_sdk.agent.loop import normalize_tool_result
 
-        tool_result = {"content": [{"type": "unknown_type", "value": "x"}]}
+        value = {"content": ["legacy item"], "metadata": {"id": 1}}
+        result = normalize_tool_result("call_1", value)
+        assert result["content"] == str(value)
+        assert "attachments" not in result
+
+    def test_normalize_invalid_content_part_in_canonical_dict_raises(self):
+        """Invalid ContentPart items in canonical/attachment dicts still raise ValueError."""
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        # Canonical dict with invalid list content
+        canonical = {
+            "role": "tool_result",
+            "content": [{"type": "unknown_type", "value": "x"}],
+        }
         with pytest.raises(ValueError, match="content list"):
-            normalize_tool_result("call_1", tool_result)
+            normalize_tool_result("call_1", canonical)
+
+        # Attachment-bearing dict with invalid list content
+        attachment = FileAttachment.from_bytes(
+            b"data", mime_type="image/png", filename="test.png",
+        )
+        with_attachments = {
+            "content": [{"type": "unknown_type", "value": "x"}],
+            "attachments": [attachment],
+        }
+        with pytest.raises(ValueError, match="content list"):
+            normalize_tool_result("call_1", with_attachments)
