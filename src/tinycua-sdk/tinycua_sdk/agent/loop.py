@@ -852,8 +852,11 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
     4. **Legacy fallback**: All unrecognized shapes fall back to
        ``str(tool_result)``.
     5. **Empty rejection**: An empty ``content`` list raises ``ValueError``.
-    6. **Invalid content type rejection**: A non-str, non-list ``content``
-       value inside a dict with a ``"content"`` key raises ``ValueError``.
+    6. **Scalar content handling**: A non-str, non-list ``content`` value
+       inside a dict with a ``"content"`` key: for non-canonical dicts
+       without attachments, falls back to ``str(tool_result)`` (FR-008
+       legacy compatibility); for canonical or attachment-bearing dicts,
+       raises ``ValueError``.
 
     Args:
         call_id: The resolved call identifier from the LLM tool call.
@@ -864,8 +867,9 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
         ``"call_id": call_id``, and ``"content"``.
 
     Raises:
-        ValueError: If ``content`` is an empty list, or if a dict
-            with a ``"content"`` key holds a non-str, non-list value.
+        ValueError: If ``content`` is an empty list, or if a canonical
+            or attachment-bearing dict holds a non-str, non-list
+            ``content`` value.
     """
     result: dict[str, Any]
 
@@ -937,8 +941,18 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
                 "content": str(tool_result),
             }
 
-        # Content is non-str and not a validated list — unsupported type.
+        # Content is non-str and not a validated list.
         if not isinstance(content, list):
+            # For non-canonical dicts without attachments, stringify the
+            # entire dict for legacy FR-008 compatibility.  This covers
+            # dicts with scalar content values (int, float, bool, None)
+            # that aren't explicitly structured tool results.
+            if tool_result.get("role") != "tool_result" and "attachments" not in tool_result:
+                return {
+                    "role": "tool_result",
+                    "call_id": call_id,
+                    "content": str(tool_result),
+                }
             raise ValueError(
                 f"Unsupported content type in tool_result dict: "
                 f"expected str or list[ContentPart], got "

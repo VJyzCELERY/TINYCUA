@@ -513,7 +513,7 @@ async def test_chat_completions_tool_result_cache_reuse():
 |-----------|-------------|-------------|
 | Agent loop | Modify | Shared normalization for structured tool return values |
 | Chat Completions provider | Modify | Multimodal tool-result content translation |
-| Responses provider | Modify | Async multimodal function-call output translation |
+| Responses provider | Modify | Async tool-result attachment translation (string output + synthetic user multimodal message) |
 | Tests | New/Modify | TDD coverage for loop, provider, and mocked integration flows |
 
 ## Data Model Changes

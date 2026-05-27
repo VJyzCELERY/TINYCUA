@@ -32,7 +32,7 @@ working messages
 
 Provider translation for next turn
   ├─ Chat Completions: assistant tool_calls + text-only tool message + synthetic user message with attachments
-  └─ Responses: function_call_output carrying translated multimodal output content
+  └─ Responses: string ``function_call_output`` with synthetic user multimodal message
 ```
 
 The normalization step is intentionally small: it detects the canonical shapes already promised by `ToolResultMessage`, validates enough to avoid accidental data loss, and falls back to the existing `str(tool_result)` behavior for all legacy values.
@@ -44,7 +44,7 @@ The normalization step is intentionally small: it detects the canonical shapes a
 | `tinycua_sdk/agent/loop.py` | Modified | Add shared tool-result normalization and use it from sync and streaming tool-call paths |
 | `tinycua_sdk/agent/events.py` | Not Modified | Existing contracts already support structured tool results |
 | `tinycua_sdk/providers/open_ai_chat_completions.py` | Modified | Translate tool-result `ContentPart` and `attachments` into text-only tool message + synthetic user message (Chat Completions requires text-only tool content parts) |
-| `tinycua_sdk/providers/open_ai_responses.py` | Modified | Translate tool-result `ContentPart` and `attachments` into function-call output content |
+| `tinycua_sdk/providers/open_ai_responses.py` | Modified | Translate tool-result `ContentPart` and `attachments` into string ``function_call_output`` + synthetic user multimodal message |
 | `tests/unit/test_loop.py` | Modified | Add normalization tests for non-streaming tool results |
 | `tests/unit/test_loop_custom.py` | Not Modified | Existing contracts already support structured tool results |
 | `tests/unit/test_openai_chat_client.py` | Modified | Add Chat Completions tool-result attachment translation tests |

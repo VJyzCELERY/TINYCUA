@@ -1305,6 +1305,26 @@ class TestNormalizeToolResult:
         assert result["content"] == str(value)
         assert "attachments" not in result
 
+    @pytest.mark.parametrize(
+        "scalar_content",
+        [42, 3.14, True, None],
+    )
+    def test_normalize_legacy_scalar_content_dict_falls_back_to_string(
+        self, scalar_content,
+    ):
+        """Legacy dict with scalar (non-string, non-list) content stringified.
+
+        FR-008: A legacy dict such as ``{"content": 42, "metadata": {...}}``
+        must be stringified as a whole, not raise ValueError.  Only canonical
+        or attachment-bearing dicts reject scalar content.
+        """
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        value = {"content": scalar_content, "metadata": {"id": 1}}
+        result = normalize_tool_result("call_1", value)
+        assert result["content"] == str(value)
+        assert "attachments" not in result
+
     def test_normalize_pre_formed_canonical_message(self):
         """Rule 3: Tool result with role='tool_result' is treated as canonical."""
         from tinycua_sdk.agent.loop import normalize_tool_result

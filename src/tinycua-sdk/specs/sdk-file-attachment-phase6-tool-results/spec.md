@@ -119,7 +119,7 @@ A developer registers a tool that creates an image file and returns a tool-resul
 
 - End-to-end non-streaming agent run where a tool generates an image and the second LLM call receives the file attachment.
 - End-to-end streaming agent run where a tool generates an image and the second LLM stream receives the file attachment.
-- Provider-level integration using mocked OpenAI clients to assert the exact next-turn payload contains the translated attachment (text-only tool message + synthetic user message for Chat Completions; function-call output with multimodal parts for Responses).
+- Provider-level integration using mocked OpenAI clients to assert the exact next-turn payload contains the translated attachment (text-only tool message + synthetic user message for Chat Completions; string ``function_call_output`` with synthetic user multimodal message for Responses).
 
 ### Manual Tests
 
