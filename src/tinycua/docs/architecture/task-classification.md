@@ -15,7 +15,7 @@ This document defines how the Query Analyst chooses the processing mode for a us
 Task classification decides how much orchestration is useful. It should prevent two failure modes:
 
 - classifying too many requests as Worker tasks, causing unnecessary overhead;
-- classifying complex requests as small, causing the Primary Agent to receive too much context and hallucinate.
+- routing complex requests to the Primary Agent when they need Worker decomposition.
 
 ---
 
@@ -23,10 +23,9 @@ Task classification decides how much orchestration is useful. It should prevent 
 
 | Mode | Use When |
 |------|----------|
-| `passthrough` | The request is clear, small, and safe for the Primary Agent to answer directly. |
-| `digestion_only` | The request needs context reduction but not a full Worker roadmap. |
+| `primary_agent` | The request can start with the Primary Agent. The Primary Agent may still invoke Information Digestion if it needs consolidated context. |
 | `worker` | The request needs sequential task decomposition and review. |
-| `uncertain` | The Query Analyst cannot confidently choose; run additional analysis or use digestion as a safer middle ground. |
+| `uncertain` | The Query Analyst cannot confidently choose and must select `uncertain_next_action`. |
 
 ---
 
@@ -40,7 +39,7 @@ Suggested dimensions:
 - number of entities, files, or documents involved;
 - whether external tools are likely needed;
 - number of sequential steps required;
-- amount of session context needed;
+- amount of session `Context` needed;
 - ambiguity level;
 - risk of hallucination if answered directly;
 - expected answer complexity.
@@ -53,14 +52,15 @@ The exact thresholds are intentionally draft-level. The important rule is that t
 
 ```yaml
 mode_decision:
-  mode: passthrough | digestion_only | worker | uncertain
+  mode: primary_agent | worker | uncertain
   score: 0-10
   confidence: 0.0-1.0
   reasons:
     - "..."
-  direct_response_safety_reason: "..."
+  primary_agent_safety_reason: "..."
   decomposition_benefit: "..."
   uncertainty_reason: "..."
+  uncertain_next_action: ask_user | explore_more | null
 ```
 
 ---
@@ -73,16 +73,17 @@ For `worker` mode:
 - identify why direct response is risky;
 - avoid Worker mode if no clear decomposition benefit exists.
 
-For `passthrough` mode:
+For `primary_agent` mode:
 
-- explain why direct response is safe;
-- identify why context exposure is not risky;
-- reject passthrough if the request requires many sequential steps.
+- explain why Primary Agent handling is safe;
+- identify why Worker decomposition is not required;
+- allow the Primary Agent to invoke Information Digestion if it needs context consolidation.
 
 For `uncertain` mode:
 
 - state what is uncertain;
-- prefer additional analysis or `digestion_only` over guessing.
+- set `uncertain_next_action` to `ask_user` or `explore_more`;
+- avoid leaving uncertainty as an open-ended nondeterministic state.
 
 ---
 
@@ -103,7 +104,7 @@ Examples:
 
 | Request | Likely Mode | Reason |
 |---------|-------------|--------|
-| “Summarize this short paragraph.” | `passthrough` | Clear, bounded, low context risk. |
-| “Use our previous discussion to write a concise decision summary.” | `digestion_only` | Needs context reduction but not multi-step execution. |
+| “Summarize this short paragraph.” | `primary_agent` | Clear, bounded, low context risk. |
+| “Use our previous discussion to write a concise decision summary.” | `primary_agent` | Primary Agent can request Information Digestion if consolidated context is needed. |
 | “Compare these architecture options, update the docs, and identify follow-up changes.” | `worker` | Multiple sequential steps, doc updates, and review needed. |
-| “Do the thing we discussed before.” with large history | `uncertain` or `digestion_only` | Ambiguous reference requires context recovery before routing. |
+| “Do the thing we discussed before.” with large history | `uncertain` | Ambiguous reference requires `ask_user` or `explore_more` before routing. |
