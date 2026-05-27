@@ -231,31 +231,31 @@ Note on parameter asymmetry: Chat Completions translation only requires `_upload
 
 ### Stage 1 — Tests First
 
-- [ ] Add failing integration test for non-streaming tool-generated image handoff.
-- [ ] Add failing integration test for streaming tool-generated image handoff.
-- [ ] Add failing unit tests for loop normalization of both canonical attachment forms.
-- [ ] Add failing provider translation tests for Chat Completions and Responses tool-result attachments.
+- [x] Add failing integration test for non-streaming tool-generated image handoff.
+- [x] Add failing integration test for streaming tool-generated image handoff.
+- [x] Add failing unit tests for loop normalization of both canonical attachment forms.
+- [x] Add failing provider translation tests for Chat Completions and Responses tool-result attachments.
 
 ### Stage 2 — Agent Loop Normalization
 
-- [ ] Add internal tool-result normalization helper.
-- [ ] Update `process_tool_calls()` to append normalized structured tool results.
-- [ ] Update `process_stream_tool_calls()` to append normalized structured tool results.
-- [ ] Preserve legacy string behavior for non-structured tool returns and errors.
+- [x] Add internal tool-result normalization helper.
+- [x] Update `process_tool_calls()` to append normalized structured tool results.
+- [x] Update `process_stream_tool_calls()` to append normalized structured tool results.
+- [x] Preserve legacy string behavior for non-structured tool returns and errors.
 
 ### Stage 3 — Provider Translation
 
-- [ ] Add Chat Completions helper for translating structured tool-result content.
-- [ ] Wire helper into `_translate_chat_messages()` for each tool-result message in a batch.
-- [ ] Add Responses helper for translating structured tool-result content.
-- [ ] Wire helper into `_translate_responses_input()` / `_translate_messages()` path without duplicating attachment logic.
+- [x] Add Chat Completions helper for translating structured tool-result content.
+- [x] Wire helper into `_translate_chat_messages()` for each tool-result message in a batch.
+- [x] Add Responses helper for translating structured tool-result content.
+- [x] Wire helper into `_translate_responses_input()` / `_translate_messages()` path without duplicating attachment logic.
 
 ### Stage 4 — Verification and Docs
 
-- [ ] Run focused unit and integration tests — all must pass.
-- [ ] Run full tinycua-sdk test suite.
-- [ ] Run Phase 5 upload/cache regression tests to confirm existing paths still work.
-- [ ] Update public docs or README snippets to document tool-returned attachment support.
+- [x] Run focused unit and integration tests — all must pass.
+- [x] Run full tinycua-sdk test suite.
+- [x] Run Phase 5 upload/cache regression tests to confirm existing paths still work.
+- [x] Update public docs or README snippets to document tool-returned attachment support.
 - [ ] Optional real-provider smoke test with a vision-capable model.
 
 ---

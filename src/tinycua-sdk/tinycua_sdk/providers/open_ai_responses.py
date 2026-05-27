@@ -455,6 +455,7 @@ async def _translate_responses_tool_result_message(
 
     if isinstance(content, list):
         # Structured multipart — split text and file/image parts.
+        orig_type: str = ""
         for item in content:
             if isinstance(item, ContentPart):
                 orig_type = item.type
@@ -462,7 +463,7 @@ async def _translate_responses_tool_result_message(
                     item, _upload_fn=_upload_fn, _download_fn=_download_fn,
                 )
             elif isinstance(item, dict):
-                orig_type = item.get("type")
+                orig_type = item.get("type", "")
                 coerced = ContentPart(**item)
                 translated = await _translate_responses_content_part(
                     coerced, _upload_fn=_upload_fn, _download_fn=_download_fn,
