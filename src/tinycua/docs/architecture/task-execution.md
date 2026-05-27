@@ -3,35 +3,60 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-execution.md`
-> **See also:** [Overview.md](overview.md), [Task_Analysis.md](task-analysis.md), [Task_Reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md)
 
 ---
 
 ## Role
 
-The Task Execution Agent takes a **single task** from the list produced by Task Analysis and executes it. This is the **most tool-intensive agent** — it calls external tools, processes results, and may iterate if the task requires multiple steps.
+The Task Execution Agent executes one task from the sequential roadmap.
 
-This is the **classic ReAct loop** — think → act → observe → repeat until done.
+It receives only the current task's information plus shallow roadmap awareness. It should not receive the full session context or full previous task details by default.
 
 ---
 
 ## Inputs / Outputs
 
-**Input:** Single task object:
-```json
-{
-  "task_id": "task_003",
-  "description": "Search for Paper A's methodology section",
-  "required_tools": ["search_web", "read_file"],
-  "expected_output": "Methodology description text",
-  "max_depth": 5,
-  "dependencies": []
-}
+**Input:**
+
+```yaml
+task:
+  task_id: task_001
+  name: "..."
+  description: "..."
+  context: "..."
+  success_criteria:
+    - "..."
+  confidence: 0.0-1.0
+shallow_task_list:
+  - task_id: task_001
+    name: "..."
+  - task_id: task_002
+    name: "..."
+retry_context: "optional failure context from reviewer"
 ```
 
-**Output:** Task result (structure varies by task type)
+**Output:**
 
-**Tools:** Various — `search_web()`, `read_file()`, `run_code()`, `search_knowledge()`, etc.
+```yaml
+task_result:
+  task_id: task_001
+  status: completed | partial | failed | blocked | insufficient_context | incorrect_task_spec | tool_failure | out_of_scope
+  result: "..."
+  execution_log:
+    short_term_todos:
+      - "..."
+    actions:
+      - action: "..."
+        observation: "..."
+    hitl_inputs:
+      - "..."
+    decision_trace: "..."
+  discovered_sequence_issues:
+    - "..."
+  uncertainty_notes:
+    - "..."
+```
 
 ---
 
@@ -39,61 +64,51 @@ This is the **classic ReAct loop** — think → act → observe → repeat unti
 
 ```mermaid
 flowchart TD
-    RECEIVE["Receive:\n- single task\n- context"]
-    THINK["THINK:\nhow to approach this task?"]
-    ACT["ACT: call tool or reason"]
-    OBSERVE["OBSERVE:\nreceive tool result"]
-    DEC_DONE{"Task complete?"}
-    COMPILE["COMPILE:\nfinalize task result"]
-    OUTPUT["OUTPUT:\n{task_result}"]
+    TASK{{"Current Task + Context"}}
+    THINK["Think: plan short-term todo/action"]
+    ACT["Act: use tool or reason"]
+    OBSERVE["Observe result"]
+    LOG["Update execution log"]
+    DONE{"Stop condition met?"}
+    RESULT{{"Task Result + Execution Log"}}
 
-    RECEIVE --> THINK
+    TASK --> THINK
     THINK --> ACT
     ACT --> OBSERVE
-    OBSERVE --> DEC_DONE
-    
-    DEC_DONE -->|"Yes"| COMPILE
-    COMPILE --> OUTPUT
-    
-    DEC_DONE -->|"No — need more"| THINK
+    OBSERVE --> LOG
+    LOG --> DONE
+    DONE -->|No| THINK
+    DONE -->|Yes| RESULT
 ```
 
 ---
 
-## Pseudo-code
+## Stop Conditions
 
-```python
-class TaskExecution:
-    """
-    Classic ReAct agent that executes a single task.
-    Bounded by max_depth to prevent infinite loops.
-    """
-    
-    def execute(self, task, context):
-        iteration = 0
-        max_iter = task.get("max_depth", 5)
-        result = None
-        
-        while iteration < max_iter:
-            # Think: determine next action
-            action = self.plan_next_action(task, context, result)
-            
-            if action["type"] == "tool_call":
-                # Act: call the tool
-                observation = self.call_tool(action["tool"], action["args"])
-                
-                # Observe: process result
-                context = self.update_context(context, observation)
-                result = observation
-                
-            elif action["type"] == "complete":
-                # Task is done
-                break
-            
-            iteration += 1
-        
-        return self.compile_result(task, context, result)
-```
+Task Execution should stop when:
+
+- success criteria are satisfied;
+- the task is out of scope;
+- a sequencing issue is discovered;
+- context is insufficient;
+- the task appears incorrectly specified;
+- a required tool/action fails;
+- uncertainty is too high and should be reviewed instead of guessed.
+
+If a later roadmap task appears to be needed first, Task Execution should return `blocked` with a sequencing explanation.
+
+---
+
+## Execution Log
+
+The execution log is evidence for Task Reviewer. It should include:
+
+- short-term todos generated during execution;
+- tool actions and observations;
+- human-in-the-loop user inputs;
+- concise decision trace or reasoning summary.
+
+This avoids forcing the Reviewer to ingest the full raw execution session.
 
 ---
 
@@ -101,6 +116,7 @@ class TaskExecution:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Loop type | ReAct (open-ended, bounded) | Classic tool-use loop; bounded by `max_depth` from task definition |
-| Tool access | Full toolset | This is where actual work happens — needs access to all external tools |
-| Stop condition | Task complete OR max_depth reached | Prevents infinite loops; failure at max_depth is caught by Reviewer |
+| Context scope | Current task context only | Prevents unrelated context from polluting execution |
+| Roadmap awareness | Shallow task list | Helps scope control without exposing future task details |
+| Output | Result + execution log | Gives Reviewer evidence for acceptance and context propagation |
+| Failure handling | Return explicit status | Reviewer decides retry, replan, escalation, or context update |

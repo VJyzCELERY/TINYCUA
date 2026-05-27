@@ -1,8 +1,18 @@
 # TINYCUA Architecture
 
-Architecture documentation for TINYCUA's agent orchestration, data flow, and component responsibilities.
+Architecture documentation for TINYCUA's agent orchestration, context flow, and component responsibilities.
 
 Start with [overview.md](overview.md) for the top-level picture.
+
+---
+
+## Core Architecture
+
+| File | Description |
+|------|-------------|
+| [overview.md](overview.md) | Top-level routing modes and architecture thesis: decomposing context exposure |
+| [state-objects.md](state-objects.md) | Shared state/data objects used across architecture diagrams and specs |
+| [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analysis → Task Execution → Task Reviewer |
 
 ---
 
@@ -10,21 +20,22 @@ Start with [overview.md](overview.md) for the top-level picture.
 
 | File | Description |
 |------|-------------|
-| [query-analyst.md](query-analyst.md) | Retrieves context from chat history, produces a Context Enhanced Query and a Verdict (large/small task) |
-| [information-digestion.md](information-digestion.md) | Compresses the CEQ + full session context into a digest with advisory instructions for the Worker |
-| [primary-agent.md](primary-agent.md) | Final agent that produces the user-facing response from either Passthrough or Worker output |
-| [task-analysis.md](task-analysis.md) | Inside the Worker: decomposes the digest into a structured list of atomic tasks |
-| [task-execution.md](task-execution.md) | Inside the Worker: classic ReAct agent that executes a single task with tools |
-| [task-reviewer.md](task-reviewer.md) | Inside the Worker: evaluates task results, accepts or requests re-execution |
+| [query-analyst.md](query-analyst.md) | Produces Context Enhanced Query and Mode Decision |
+| [information-digestion.md](information-digestion.md) | Produces precision-oriented Digested Information |
+| [primary-agent.md](primary-agent.md) | Final synthesis agent for Passthrough, Digestion-Only, and Worker modes |
+| [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap |
+| [task-execution.md](task-execution.md) | Inside Worker: executes one task with task-specific context |
+| [task-reviewer.md](task-reviewer.md) | Inside Worker: reviews task result, propagates context, and decides next transition |
 
 ---
 
-## Non-Agent Processes
+## Process and Design Notes
 
 | File | Description |
 |------|-------------|
-| [overview.md](overview.md) | Top-level orchestration: two-mode architecture, data flow, agent loop types |
-| [information-passthrough.md](information-passthrough.md) | Deterministic forwarder — passes CEQ directly to Primary Agent in Passthrough Mode |
+| [information-passthrough.md](information-passthrough.md) | Deterministic forwarder for Passthrough Mode |
+| [context-retrieval.md](context-retrieval.md) | Enhanced context retrieval trigger, storage, and retrieval flow |
+| [task-classification.md](task-classification.md) | Score-based routing: passthrough, digestion-only, worker, or uncertain |
 
 ---
 
