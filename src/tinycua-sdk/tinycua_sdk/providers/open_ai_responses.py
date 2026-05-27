@@ -985,6 +985,13 @@ class OpenAIResponsesClient(LLMClient):
         uploads/downloads can be awaited.  Plain string tool results
         fall back to the module-level :func:`_translate_messages`.
 
+        Contiguous ``tool_result`` messages are batched together: all
+        ``function_call_output`` items are emitted first (preserving
+        ``call_id`` order), followed by any deferred synthetic ``user``
+        messages carrying file/image attachment content.  This ensures
+        parallel tool-call results with attachments produce the correct
+        ordering expected by Responses-compatible providers.
+
         Args:
             messages: Canonical message list.
 
@@ -1003,7 +1010,10 @@ class OpenAIResponsesClient(LLMClient):
             )
 
         result: list[dict[str, Any]] = []
-        for msg in messages:
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+
             if isinstance(msg, dict) and msg.get("role") == "user":
                 user_msg = await _translate_responses_user_message(
                     msg,  # type: ignore[arg-type]
@@ -1012,15 +1022,41 @@ class OpenAIResponsesClient(LLMClient):
                     _download_fn=_download_url,
                 )
                 result.append(user_msg)
+                i += 1
             elif isinstance(msg, dict) and msg.get("role") == "tool_result":
-                tool_msg = await _translate_responses_tool_result_message(
-                    msg,  # type: ignore[arg-type]
-                    _upload_fn=self._ensure_uploaded_file_id,
-                    _download_fn=_download_url,
-                )
-                result.extend(tool_msg)
+                # Batch contiguous tool_result messages to preserve
+                # function_call_output ordering (all outputs first,
+                # then any synthetic user messages with attachments).
+                batch: list[dict] = []
+                while i < len(messages):
+                    m = messages[i]
+                    if isinstance(m, dict) and m.get("role") == "tool_result":
+                        batch.append(m)  # type: ignore[arg-type]
+                        i += 1
+                    else:
+                        break
+
+                func_outputs: list[dict[str, Any]] = []
+                deferred_users: list[dict[str, Any]] = []
+                for tool_msg in batch:
+                    translated = await _translate_responses_tool_result_message(
+                        tool_msg,  # type: ignore[arg-type]
+                        _upload_fn=self._ensure_uploaded_file_id,
+                        _download_fn=_download_url,
+                    )
+                    for item in translated:
+                        if item.get("role") == "user":
+                            deferred_users.append(item)
+                        else:
+                            func_outputs.append(item)
+
+                # Emit all function_call_outputs first, preserving call_id
+                # order, then any deferred synthetic user messages.
+                result.extend(func_outputs)
+                result.extend(deferred_users)
             else:
                 result.extend(_translate_messages([msg]))
+                i += 1
         return result
 
     @staticmethod

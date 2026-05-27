@@ -1390,3 +1390,39 @@ class TestResponsesToolResultTranslation:
         user_msg = translated[1]
         assert user_msg["role"] == "user"
         assert user_msg["content"][0]["type"] == "input_image"
+
+    @pytest.mark.asyncio
+    async def test_parallel_tool_results_outputs_before_attachments(self):
+        """All function_call_outputs emitted before synthetic user messages."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": "one",
+                "attachments": [attachment],
+            },
+            {
+                "role": "tool_result",
+                "call_id": "call_2",
+                "content": "two",
+            },
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        # Order must be: func_call_output(call_1), func_call_output(call_2), user
+        order = [item.get("type") or item.get("role") for item in translated]
+        assert order == ["function_call_output", "function_call_output", "user"], (
+            f"Expected [function_call_output, function_call_output, user], got {order}"
+        )
+        assert translated[0]["call_id"] == "call_1"
+        assert translated[0]["output"] == "one"
+        assert translated[1]["call_id"] == "call_2"
+        assert translated[1]["output"] == "two"
+        assert translated[2]["role"] == "user"
