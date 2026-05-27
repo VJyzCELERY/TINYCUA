@@ -391,7 +391,7 @@ async def _translate_chat_tool_result_batch(
 
 def _split_tool_result_content(
     tool_msg: dict[str, Any],
-) -> tuple[str, list[dict[str, Any]]]:
+) -> tuple[str, list[ContentPart | dict[str, Any]]]:
     """Split tool-result content into text and file/image parts.
 
     Args:
@@ -402,7 +402,7 @@ def _split_tool_result_content(
     """
     content = tool_msg.get("content", "")
     tool_text = ""
-    user_content_parts: list[dict[str, Any]] = []
+    user_content_parts: list[ContentPart | dict[str, Any]] = []
 
     if isinstance(content, str):
         return content, user_content_parts

@@ -830,6 +830,38 @@ class TestChatCompletionsToolResultTranslation:
         user_msg = user_msgs[0]
         assert user_msg["content"][0]["type"] == "image_url"
 
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_content_parts_to_two_message_sequence(self):
+        """Chat Completions translates ContentPart list to tool msg + synthetic user."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIChatCompletionsClient(LanguageModel(model_name="gpt-test"))
+        messages = [
+            {
+                "role": "assistant", "content": "",
+                "tool_calls": [
+                    {"id": "call_1", "type": "function",
+                     "function": {"name": "make_image", "arguments": "{}"}},
+                ],
+            },
+            {
+                "role": "tool_result", "call_id": "call_1",
+                "content": [
+                    ContentPart(type="text", text="Generated image."),
+                    ContentPart(type="file", file=attachment),
+                ],
+            },
+        ]
+        translated = await client._translate_chat_messages(messages)
+        # Tool message: text-only
+        tool_msgs = [m for m in translated if m["role"] == "tool"]
+        assert len(tool_msgs) == 1
+        assert tool_msgs[0]["content"] == "Generated image."
+        # Synthetic user message: carries image
+        user_msgs = [m for m in translated if m["role"] == "user"]
+        assert len(user_msgs) == 1
+        assert user_msgs[0]["content"][0]["type"] == "image_url"
 
     @pytest.mark.asyncio
     async def test_chat_completions_tool_result_cache_reuse(self):
@@ -890,6 +922,63 @@ class TestChatCompletionsToolResultTranslation:
             # Second call should hit the cache — no additional upload.
             await client._build_chat_payload(messages)
             assert mock_sdk_client.files.create.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_streaming_attachment(self, tmp_path):
+        """Tool result with StreamingFileAttachment translates correctly."""
+        # Minimal valid PNG (1x1 pixel, RGBA).
+        png_data = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
+            b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde'
+            b'\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05'
+            b'\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        png_path = tmp_path / "test.png"
+        png_path.write_bytes(png_data)
+
+        from tinycua_sdk.models.attachment import StreamingFileAttachment
+        attachment = FileAttachment.from_path(png_path, stream=True)
+        assert isinstance(attachment, StreamingFileAttachment)
+
+        client = OpenAIChatCompletionsClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "make_image",
+                            "arguments": "{}",
+                        },
+                    },
+                ],
+            },
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": "Here is a streaming image.",
+                "attachments": [attachment],
+            },
+        ]
+
+        translated = await client._translate_chat_messages(messages)
+
+        tool_msgs = [m for m in translated if m["role"] == "tool"]
+        assert len(tool_msgs) == 1
+        assert tool_msgs[0]["content"] == "Here is a streaming image."
+        assert not isinstance(tool_msgs[0]["content"], list)
+
+        user_msgs = [m for m in translated if m["role"] == "user"]
+        assert len(user_msgs) == 1
+        user_content = user_msgs[0]["content"]
+        assert isinstance(user_content, list)
+        assert user_content[0]["type"] == "image_url"
+        assert user_content[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
 def _mock_chunk(delta, finish_reason=None, usage=None):

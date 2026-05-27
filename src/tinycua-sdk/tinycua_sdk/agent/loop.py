@@ -838,20 +838,22 @@ def _resolve_call_id(tc: dict[str, Any]) -> str:
     return call_id
 
 
-def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
+def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # noqa: C901
     """Normalize a tool return value to a canonical ``tool_result`` message.
 
     Detection rules (checked in priority order):
 
     1. **Structured multipart**: ``content`` is a non-empty
        ``list[ContentPart | dict]`` — preserved as-is.
-    2. **String + attachments**: ``content`` is a ``str`` and
-       ``attachments`` is present — preserves message-level attachments.
+    2. **String content**: ``content`` is a ``str`` — returned as-is.
+       If ``attachments`` is also present they are preserved.
     3. **Canonical pre-formed**: ``role`` is ``"tool_result"`` — treated
        as pre-formed; ``call_id`` is overridden with the loop-owned value.
     4. **Legacy fallback**: All unrecognized shapes fall back to
        ``str(tool_result)``.
     5. **Empty rejection**: An empty ``content`` list raises ``ValueError``.
+    6. **Invalid content type rejection**: A non-str, non-list ``content``
+       value inside a dict with a ``"content"`` key raises ``ValueError``.
 
     Args:
         call_id: The resolved call identifier from the LLM tool call.
@@ -862,8 +864,11 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
         ``"call_id": call_id``, and ``"content"``.
 
     Raises:
-        ValueError: If ``content`` is an empty list.
+        ValueError: If ``content`` is an empty list, or if a dict
+            with a ``"content"`` key holds a non-str, non-list value.
     """
+    result: dict[str, Any]
+
     # Rule 1 + Rule 5: dict with "content" key that is a list
     if isinstance(tool_result, dict) and "content" in tool_result:
         content = tool_result["content"]
@@ -891,7 +896,7 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
                     valid = False
                     break
             if valid:
-                result: dict[str, Any] = {
+                result = {
                     "role": "tool_result",
                     "call_id": call_id,
                     "content": content,
@@ -903,19 +908,41 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:
             # string fallback below.  This preserves backward compatibility
             # for legacy dict results with non-ContentPart list values.
 
-        # Rule 2: string content + attachments
-        if isinstance(content, str) and "attachments" in tool_result:
-            return {
+        # Rule 2: string content (with or without attachments)
+        if isinstance(content, str):
+            result = {
                 "role": "tool_result",
                 "call_id": call_id,
                 "content": content,
-                "attachments": tool_result["attachments"],
             }
+            if "attachments" in tool_result:
+                result["attachments"] = tool_result["attachments"]
+            return result
+
+        # Content is non-str and not a validated list — unsupported type.
+        if not isinstance(content, list):
+            raise ValueError(
+                f"Unsupported content type in tool_result dict: "
+                f"expected str or list[ContentPart], got "
+                f"{type(content).__name__}"
+            )
+        # Falls through: content is a list whose items failed ContentPart
+        # validation — let Rule 3 or Rule 4 handle it below.
 
     # Rule 3: dict with "role": "tool_result" → canonical pre-formed
     if isinstance(tool_result, dict) and tool_result.get("role") == "tool_result":
+        content = tool_result.get("content", "")
+        # Re-validate: if content is a (non-empty) list, items already
+        # failed ContentPart validation in Rule 1 — convert to string
+        # representation instead of passing the raw list through.
+        if isinstance(content, list) and content:
+            return {
+                "role": "tool_result",
+                "call_id": call_id,
+                "content": str(tool_result),
+            }
         result = {"role": "tool_result", "call_id": call_id}
-        result["content"] = tool_result.get("content", "")
+        result["content"] = content
         if "attachments" in tool_result:
             result["attachments"] = tool_result["attachments"]
         return result

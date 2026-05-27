@@ -42,11 +42,11 @@ The normalization step is intentionally small: it detects the canonical shapes a
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua_sdk/agent/loop.py` | Modified | Add shared tool-result normalization and use it from sync and streaming tool-call paths |
-| `tinycua_sdk/agent/events.py` | Modified | Ensure `ToolResultMessage` documentation reflects structured return support |
+| `tinycua_sdk/agent/events.py` | Not Modified | Existing contracts already support structured tool results |
 | `tinycua_sdk/providers/open_ai_chat_completions.py` | Modified | Translate tool-result `ContentPart` and `attachments` into text-only tool message + synthetic user message (Chat Completions requires text-only tool content parts) |
 | `tinycua_sdk/providers/open_ai_responses.py` | Modified | Translate tool-result `ContentPart` and `attachments` into function-call output content |
 | `tests/unit/test_loop.py` | Modified | Add normalization tests for non-streaming tool results |
-| `tests/unit/test_loop_custom.py` | Modified | Ensure custom loop helper contract preserves structured tool results |
+| `tests/unit/test_loop_custom.py` | Not Modified | Existing contracts already support structured tool results |
 | `tests/unit/test_openai_chat_client.py` | Modified | Add Chat Completions tool-result attachment translation tests |
 | `tests/unit/test_llm_client.py` | Modified | Add Responses tool-result attachment translation tests |
 | `tests/integration/test_tool_result_attachments.py` | New | End-to-end mocked integration for tool-generated file handoff |
