@@ -84,17 +84,20 @@ flowchart TD
 
 ---
 
-## Worker Eagerness
+## Worker Effort
 
-Worker eagerness controls how much planning happens before execution.
+Worker effort controls how much planning happens before execution.
 
-| Eagerness | Behavior |
-|-----------|----------|
-| High | Create a lighter roadmap and defer extra decomposition to reviewer-driven recovery. |
+Effort uses planning-depth semantics: `none` means the Worker proceeds quickly with minimal upfront planning, while `high` means the Worker spends more time on thorough planning before execution.
+
+| Effort | Behavior |
+|--------|----------|
+| None | Create a lightweight roadmap and defer extra decomposition to reviewer-driven recovery. |
+| Low | Create an initial roadmap with minimal refinement. |
 | Medium | Create an initial roadmap and perform limited sequencing/overlap review. |
-| Low | Spend more time decomposing and refining the roadmap before execution. |
+| High | Spend more time decomposing and refining the roadmap before execution. |
 
-Eagerness changes the amount of upfront Task Analysis. It does not change the sequential nature of the top-level task list.
+Effort changes the amount of upfront Task Analysis. It does not change the sequential nature of the top-level task list.
 
 ---
 

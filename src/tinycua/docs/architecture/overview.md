@@ -136,7 +136,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 |-------|-----------|-------|-------|
 | Query Analyst | Context retrieval + classification | Enhanced Context Retrieval | Retrieval starts when accumulated session context crosses threshold |
 | Information Digestion | Precision-oriented digestion | Optional retrieval/read tools | Removes distracting context and preserves task-critical information |
-| Task Analysis | Eagerness-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
+| Task Analysis | Effort-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
 | Task Execution | ReAct | Task tools | Produces result + execution log |
 | Task Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
 | Primary Agent | Response composition | Formatting/verification tools | Should not bypass Worker guarantees with new research |
