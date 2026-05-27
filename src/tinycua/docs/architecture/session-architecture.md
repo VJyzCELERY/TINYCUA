@@ -143,9 +143,9 @@ This lets TINYCUA preserve exchange history while keeping model-loaded context m
 
 ---
 
-## Sub Sessions
+## Sub-Sessions
 
-TINYCUA may propagate a primary session into internal sub sessions for specialized processing.
+TINYCUA may propagate a primary session into internal sub-sessions for specialized processing.
 
 Examples:
 
@@ -155,27 +155,27 @@ Examples:
 - Task Executor session
 - Task Reviewer session
 
-Each sub session has its own `Chat_History` and `Context`.
+Each sub-session has its own `Chat_History` and `Context`.
 
 Important propagation rules:
 
-- Sub session `Chat_History` remains local to the sub session.
-- Sub session `Context` remains local to the sub session.
-- Sub session `Chat_History` is also appended to the primary session `Chat_History` so the parent history preserves communication between internal agents.
-- Sub session `Context` is **not** automatically added to primary session `Context`.
+- Sub-session `Chat_History` remains local to the sub-session.
+- Sub-session `Context` remains local to the sub-session.
+- Sub-session `Chat_History` is also appended to the primary session `Chat_History` so the parent history preserves communication between internal agents.
+- Sub-session `Context` is **not** automatically added to primary session `Context`.
 - Parent session `Context` should only receive consolidated information when the architecture explicitly decides to update it.
 
 This preserves context isolation while still preserving an auditable history of internal communication.
 
 ---
 
-## Sub Sessions Are Not Future Sub Agents
+## Sub-Sessions Are Not Future Sub Agents
 
 TINYCUA is sub-agentic internally, but not every specialized TINYCUA component is a future standalone Sub Agent.
 
-The sub session system exists to manage context isolation between specialized parts of the same TINYCUA agent. Query Analyst, Task Analysis, Task Execution, and Task Reviewer can have separate sessions, but they are still internal parts of TINYCUA.
+The sub-session system exists to manage context isolation between specialized parts of the same TINYCUA agent. Query Analyst, Task Analysis, Task Execution, and Task Reviewer can have separate sessions, but they are still internal parts of TINYCUA.
 
-Future explicit Sub Agents will be a separate concept. A future Sub Agent session is not necessarily just a sub session of the parent TINYCUA session.
+Future explicit Sub Agents will be a separate concept. A future Sub Agent session is not necessarily just a sub-session of the parent TINYCUA session.
 
 ---
 

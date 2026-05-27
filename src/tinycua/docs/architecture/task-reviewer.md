@@ -73,6 +73,7 @@ flowchart TD
     RETRY{"Retry useful?"}
     REPLAN{"Roadmap revision or exploration needed?"}
     FAILS{"Consecutive failures over threshold?"}
+    ESCALATE["escalate_user"]
     OUT{{"Reviewer Decision"}}
 
     INPUT --> CHECK
@@ -86,7 +87,8 @@ flowchart TD
     REPLAN -->|Yes| OUT
     REPLAN -->|No| FAILS
     FAILS -->|Yes| OUT
-    FAILS -->|No| OUT
+    FAILS -->|No| ESCALATE
+    ESCALATE --> OUT
 ```
 
 ---
@@ -114,7 +116,7 @@ This avoids dumping every previous task result into every future task. Context u
 | `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. Do not resume the old executor. |
 | `replan` | Call the Task Analyzer to revise the sequential roadmap. If the final task is decomposed into new tasks, the Worker continues. |
 | `needs_more_context` | Trigger exploration: the Task Analyzer may revise task context, split the task, or request renewed digestion. This is the generic path for expanding the Worker's information scope. |
-| `escalate_user` | Pause the current agent sub session and ask the user for clarification. |
+| `escalate_user` | Pause the current agent sub-session and ask the user for clarification. |
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
 

@@ -39,7 +39,7 @@ Important retrieval-facing rules:
 - `Chat_History` is JSON and preserves turns.
 - `Context` is structured markdown and is what the model loads.
 - Compaction summarizes current `Context`, not raw `Chat_History` from scratch.
-- Sub sessions can preserve their own isolated `Context` while propagating their `Chat_History` into the primary session `Chat_History`.
+- Sub-sessions can preserve their own isolated `Context` while propagating their `Chat_History` into the primary session `Chat_History`.
 
 ---
 

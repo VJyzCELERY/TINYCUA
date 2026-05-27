@@ -21,7 +21,7 @@ The TINYCUA Worker is an internal orchestration of specialized TINYCUA agents. E
 
 The Worker exists to reduce hallucination by decomposing context exposure. Each internal agent receives only the context required for its role.
 
-These specialized Worker agents may use sub sessions for context isolation, but they are still part of the same TINYCUA agent. They are not the same concept as future explicit Sub Agents. See [session-architecture.md](session-architecture.md).
+These specialized Worker agents may use sub-sessions for context isolation, but they are still part of the same TINYCUA agent. They are not the same concept as future explicit Sub Agents. See [session-architecture.md](session-architecture.md).
 
 ---
 
@@ -108,7 +108,7 @@ Effort changes the amount of upfront task analysis by the Task Analyzer. It does
 
 Clarification is not task completion. If an internal agent needs user input, the Worker should store continuation state and resume that same internal point after the user replies.
 
-Each specialized agent can have its own sub session with its own `Chat_History` and `Context`. Human-in-the-loop continuation resumes that existing sub session.
+Each specialized agent can have its own sub-session with its own `Chat_History` and `Context`. Human-in-the-loop continuation resumes that existing sub-session.
 
 Two signaling concepts are recommended:
 

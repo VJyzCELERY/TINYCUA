@@ -127,26 +127,7 @@ This keeps recovery explicit instead of silently expanding Worker context.
 
 ## Current Digestion Output Shape
 
-```yaml
-digested_information:
-  digested_info: "compressed relevant context"
-  key_points:
-    - "..."
-  context_candidates:
-    - "candidate context for downstream task contexts"
-  entity_map:
-    entity_name: "relevant details"
-  relevance_notes:
-    - "why selected context matters"
-  known_gaps:
-    - "information that may be missing"
-  instructions:
-    action: "..."
-    constraints:
-      - "..."
-    advisory: true
-  original_intent_summary: "..."
-```
+The canonical Digested Information schema is defined in [information-digestion.md](information-digestion.md).
 
 ---
 
