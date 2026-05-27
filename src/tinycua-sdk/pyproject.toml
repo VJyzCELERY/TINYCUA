@@ -81,6 +81,7 @@ convention = "google"
 testpaths = ["tests"]
 addopts = "--strict-markers --basetemp=tmp/pytest --maxfail=2"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     # ResourceWarnings from httpx / asyncio transport teardown are known-safe
     # and not indicative of actual leaks (httpx/openai SDK internals).

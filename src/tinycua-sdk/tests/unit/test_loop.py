@@ -1290,6 +1290,21 @@ class TestNormalizeToolResult:
         assert result["content"] == "Generated file."
         assert result["attachments"] == [attachment]
 
+    def test_normalize_legacy_content_dict_without_attachments_falls_back_to_string(
+        self,
+    ):
+        """Legacy dict with string content but no attachments/canonical marker.
+
+        FR-008: A legacy dict such as ``{"content": "kept", "metadata": {...}}``
+        must be stringified as a whole, not have its extra keys dropped.
+        """
+        from tinycua_sdk.agent.loop import normalize_tool_result
+
+        value = {"content": "kept", "metadata": {"id": 1}}
+        result = normalize_tool_result("call_1", value)
+        assert result["content"] == str(value)
+        assert "attachments" not in result
+
     def test_normalize_pre_formed_canonical_message(self):
         """Rule 3: Tool result with role='tool_result' is treated as canonical."""
         from tinycua_sdk.agent.loop import normalize_tool_result

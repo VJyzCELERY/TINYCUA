@@ -915,14 +915,27 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
 
         # Rule 2: string content (with or without attachments)
         if isinstance(content, str):
-            result = {
+            # Only take the structured path when the dict is canonical
+            # (role == "tool_result") or when attachments are present
+            # (FR-008).  Legacy dicts with a plain string "content" key
+            # but no attachment or canonical marker fall back to the
+            # full str() representation to preserve all fields.
+            if tool_result.get("role") == "tool_result" or "attachments" in tool_result:
+                result = {
+                    "role": "tool_result",
+                    "call_id": call_id,
+                    "content": content,
+                }
+                if "attachments" in tool_result:
+                    result["attachments"] = tool_result["attachments"]
+                return result
+            # Legacy content-bearing dict with no canonical marker or
+            # attachments — stringify entire dict for FR-008 compatibility.
+            return {
                 "role": "tool_result",
                 "call_id": call_id,
-                "content": content,
+                "content": str(tool_result),
             }
-            if "attachments" in tool_result:
-                result["attachments"] = tool_result["attachments"]
-            return result
 
         # Content is non-str and not a validated list — unsupported type.
         if not isinstance(content, list):
