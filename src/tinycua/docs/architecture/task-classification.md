@@ -86,14 +86,16 @@ For `uncertain` mode:
 
 ---
 
-## Relationship to Worker Eagerness
+## Relationship to Worker Effort
 
-Worker mode decides whether to use the Worker. Worker eagerness decides how much upfront decomposition the Worker performs before execution.
+Worker mode decides whether to use the Worker. Worker effort decides how much upfront decomposition the Worker performs before execution.
+
+Effort uses planning-depth semantics: `none` means move quickly with minimal upfront planning, while `high` means perform thorough planning before execution.
 
 Examples:
 
-- `worker` + high eagerness: create a lightweight roadmap and refine during review.
-- `worker` + low eagerness: refine the roadmap more before execution begins.
+- `worker` + `effort: none`: create a lightweight roadmap and refine during review.
+- `worker` + `effort: high`: refine the roadmap thoroughly before execution begins.
 
 ---
 

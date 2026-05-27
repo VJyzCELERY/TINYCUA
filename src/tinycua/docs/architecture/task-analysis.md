@@ -54,15 +54,16 @@ Task Execution may create short-term todos while executing one task. Those todos
 
 ---
 
-## Eagerness-Controlled Decomposition
+## Effort-Controlled Decomposition
 
-Task Analysis may run one or more refinement passes depending on Worker eagerness.
+Task Analysis may run one or more refinement passes depending on Worker effort.
 
-| Eagerness | Task Analysis Behavior |
-|-----------|------------------------|
-| High | Create an initial roadmap quickly and allow Reviewer recovery to refine later. |
+| Effort | Task Analysis Behavior |
+|--------|------------------------|
+| None | Create an initial roadmap quickly and allow Reviewer recovery to refine later. |
+| Low | Create the roadmap with minimal upfront refinement. |
 | Medium | Create the roadmap and perform limited overlap/sequencing review. |
-| Low | More thoroughly decompose and refine before execution begins. |
+| High | Thoroughly decompose and refine before execution begins. |
 
 ---
 
@@ -72,16 +73,16 @@ Task Analysis may run one or more refinement passes depending on Worker eagernes
 flowchart TD
     DI{{"Digested Information"}}
     CREATE["Create initial sequential roadmap"]
-    EAGER{"Eagerness allows refinement?"}
+    EFFORT{"Effort allows refinement?"}
     REFINE["Optional per-task decomposition pass"]
     REVIEW["Review overlap and sequencing"]
     ASSIGN["Assign each task context"]
     TL{{"Task List"}}
 
     DI --> CREATE
-    CREATE --> EAGER
-    EAGER -->|Yes| REFINE
-    EAGER -->|No| REVIEW
+    CREATE --> EFFORT
+    EFFORT -->|Yes| REFINE
+    EFFORT -->|No| REVIEW
     REFINE --> REVIEW
     REVIEW --> ASSIGN
     ASSIGN --> TL
@@ -110,4 +111,4 @@ The Reviewer should request replanning rather than directly rewriting the decomp
 | Roadmap shape | Sequential list | Keeps orchestration simple and avoids dependency-graph complexity |
 | Task schema | Lightweight | Reduces prompt overhead and rigidity |
 | Success definition | Semantic success criteria | Avoids overfitting to predicted exact outputs |
-| Decomposition depth | Eagerness-controlled | Allows faster or more cautious Worker behavior |
+| Decomposition depth | Effort-controlled | Allows faster or more thorough Worker behavior |
