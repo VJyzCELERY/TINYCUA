@@ -230,9 +230,11 @@ return "Tool execution complete"  # becomes str(tool_result)
   synthetic `role: "user"` message, preserving assistant `tool_calls`
   ordering. This is required because Chat Completions only supports `text`
   content parts in tool messages.
-- **Responses**: Tool results are translated directly into
-  `function_call_output` content with provider-native `input_text`,
-  `input_image`, and `input_file` parts — no synthetic user message needed.
+- **Responses**: Tool-result text content is placed in a plain-string
+  `function_call_output.output`. File/image content parts are carried in a
+  follow-up synthetic `role: "user"` message for compatibility with
+  LM Studio and other OpenAI-compatible Responses providers that do not
+  accept list-valued `function_call_output.output`.
 
 Tool-result attachments reuse the same file ID cache, streaming upload, and
 URL download infrastructure from Phase 5. Repeated tool-returned files with

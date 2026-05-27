@@ -4,7 +4,7 @@ Implementation tasks for Phase 6 — Tool Result File Support. Check off items a
 
 ## Pre-Implementation Verification
 
-- [x] Verify Responses API contract for `function_call_output.output`: confirm the API accepts ``output`` as a list of content parts (``input_text``, ``input_image``, ``input_file``) for tool function-call output messages. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint, source: https://platform.openai.com/docs/api-reference/responses/create) on 2026-05-26 — the ``function_call_output.output`` field description lists ``input_text``, ``input_image``, and ``input_file`` as accepted content part types for the ``output`` array. <!-- id: 0 -->
+- [x] Verify Responses API contract for `function_call_output.output`: confirm the API accepts ``output`` as a list of content parts (``input_text``, ``input_image``, ``input_file``) for tool function-call output messages. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint, source: https://platform.openai.com/docs/api-reference/responses/create) on 2026-05-26 — the ``function_call_output.output`` field description lists ``input_text``, ``input_image``, and ``input_file`` as accepted content part types for the ``output`` array. **Implementation note**: For provider compatibility (LM Studio and other OpenAI-compatible Responses servers), the SDK emits a plain-string ``output`` with file/image parts carried in a follow-up synthetic ``role: "user"`` message rather than using the list-valued ``output`` shape. <!-- id: 0 -->
 
 ## TDD Phase (Tests First)
 

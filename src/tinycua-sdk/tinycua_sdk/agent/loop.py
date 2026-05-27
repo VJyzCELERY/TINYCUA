@@ -908,9 +908,9 @@ def normalize_tool_result(call_id: str, tool_result: Any) -> dict[str, Any]:  # 
             # so the caller knows structured content was malformed
             # rather than silently losing file/content-part data.
             raise ValueError(
-                f"Tool result content list contains items that are not "
-                f"valid ContentPart instances: invalid items found in "
-                f"content list."
+                "Tool result content list contains items that are not "
+                "valid ContentPart instances: invalid items found in "
+                "content list."
             )
 
         # Rule 2: string content (with or without attachments)

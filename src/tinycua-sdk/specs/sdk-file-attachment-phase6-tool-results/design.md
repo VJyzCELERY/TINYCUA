@@ -187,20 +187,26 @@ async def _translate_responses_tool_result_message(
     *,
     _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
     _download_fn: Callable[[str], Awaitable[bytes]] | None = None,
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     """
-    Translate canonical ToolResultMessage to Responses function_call_output.
+    Translate canonical ToolResultMessage to Responses API input items.
+
+    Returns a list containing one ``function_call_output`` item with a
+    plain-string ``output``, followed by an optional synthetic ``user``
+    message carrying any file/image content parts.
 
     Plain string content, no attachments:
-        {"type": "function_call_output", "call_id": call_id, "output": content}
+        [{"type": "function_call_output", "call_id": call_id, "output": content}]
 
     Structured content or attachments:
-        {"type": "function_call_output", "call_id": call_id, "output": [
-            provider content parts — Verified Responses API contract: the Responses
-            API accepts ``function_call_output.output`` as a list of content parts
-            (``input_text``, ``input_image``, ``input_file``), matching the same
-            multimodal output shapes used for user messages (see Phase 5).
-        ]}
+        [{"type": "function_call_output", "call_id": call_id, "output": "..."},
+         {"role": "user", "content": [provider content parts]}]
+
+    Note: Although the Responses API contract accepts ``function_call_output.output``
+    as a list of multipart content (``input_text``, ``input_image``, ``input_file``),
+    the implementation uses a plain-string output with a synthetic user message
+    for file/image parts. This separation ensures compatibility with providers
+    (like LM Studio) that reject list-valued ``function_call_output.output``.
     """
 ```
 
@@ -281,7 +287,7 @@ Note on parameter asymmetry: Chat Completions translation only requires `_upload
 | Provider APIs do not support multimodal tool outputs uniformly | Medium | High | Tests should validate current provider-native payload shape; unsupported provider errors surface clearly. |
 | Dict-returning legacy tools are mistakenly treated as structured | Medium | Medium | Structured detection requires explicit `content` plus valid attachment/content-part shape; otherwise fallback to string. |
 | Chat Completions tool message content arrays do not support image/file parts | High | Medium | Use two-message approach: text-only tool message + synthetic user message for attachments; model errors surface as provider API errors. |
-| Responses `function_call_output.output` may require string-only output for some servers | — | — | Resolved — Verified Responses API contract confirms ``output`` supports a list of content parts (``input_text``, ``input_image``, ``input_file``) for ``function_call_output`` messages, matching the multimodal output shapes already used for user messages. No fallback needed. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint — source: https://platform.openai.com/docs/api-reference/responses/create, ``function_call_output.output`` field description) on 2026-05-26. The API reference explicitly lists ``input_text``, ``input_image``, and ``input_file`` as valid content part types for the ``output`` array. This was validated before implementation per the pre-implementation contract check added to task.md. |
+| Responses `function_call_output.output` may require string-only output for some servers | Medium | Low | Mitigated — The implementation uses a plain-string ``output`` with a synthetic ``role: "user"`` message for file/image parts. Although the OpenAI Responses API contract supports list-valued ``output``, providers like LM Studio may reject it. The plain-string approach ensures maximum compatibility while still delivering all structured content. **Validation evidence**: Checked against the OpenAI Responses API reference documentation (Create a Response endpoint — source: https://platform.openai.com/docs/api-reference/responses/create, ``function_call_output.output`` field description) on 2026-05-26. The API reference lists ``input_text``, ``input_image``, and ``input_file`` as valid content part types for the ``output`` array, but the SDK uses the compatible fallback for broader provider support. |
 | Streaming loop diverges from sync loop | Low | High | Share the same normalization helper and test both paths. |
 | Upload cache regressions | Low | Medium | Reuse existing attachment translation and run Phase 5 cache tests. |
 
