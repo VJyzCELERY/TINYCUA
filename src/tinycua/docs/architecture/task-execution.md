@@ -36,7 +36,7 @@ shallow_task_list:
 retry_context: "optional failure context from reviewer"
 ```
 
-Retries create a new Task Executor sub session. The previous failure is recorded in the task context/retry context so the new executor can continue with the relevant lesson without inheriting the full prior executor context.
+Retries create a new Task Executor sub-session. The previous failure is recorded in the task context/retry context so the new executor can continue with the relevant lesson without inheriting the full prior executor context.
 
 **Output:**
 
@@ -111,7 +111,7 @@ The execution log should include:
 
 See [session-architecture.md](session-architecture.md) and [state-objects.md](state-objects.md) for the Execution Log schema and session-level storage rules.
 
-If the Task Executor asks the user for clarification, the user reply resumes the same Task Executor sub session. Clarification is not a terminal state.
+If the Task Executor asks the user for clarification, the user reply resumes the same Task Executor sub-session. Clarification is not a terminal state.
 
 ---
 
