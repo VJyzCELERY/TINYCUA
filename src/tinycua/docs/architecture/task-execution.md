@@ -62,9 +62,9 @@ flowchart TD
 
 Task Execution should stop when:
 
-- success criteria are met (`completed`);
-- a structural issue is discovered (out of scope, sequencing, specification);
-- the executor cannot proceed (insufficient context, tool failure, high uncertainty).
+- success criteria are met;
+- a structural issue is discovered;
+- the executor cannot proceed.
 
 If a later roadmap task appears to be needed first, Task Execution should return `blocked` with a sequencing explanation.
 
