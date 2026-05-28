@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# Data files
+*.db
+
 # Python-related files
 __pycache__/
 *.ruff_cache/
@@ -29,9 +32,8 @@ coverage.xml
 *.coverage
 htmlcov/
 
+
 # Local development artifacts
-.agents/reviews/
-reviews/
 dev/
 *.local
 
@@ -39,5 +41,7 @@ dev/
 */research/*
 *dev/*
 *.github/*
+/.worktrees/
+/reviews/
 
-*.db
+

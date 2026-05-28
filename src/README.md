@@ -5,7 +5,7 @@ The `src/` folder contains subprojects that are modular components of TINYCUA. E
 
 ### Subprojects
 1. **tinycua-backend** - Backend services and core API functionality.
-2. **tinycua-runner** - Execution engine and workflow orchestration.
+2. **tinycua** - Main Application for interacting with AI Agent and User Interface.
 3. **tinycua-sdk** - Developer SDK and integration libraries.
 
 ### Adding a New Subproject
