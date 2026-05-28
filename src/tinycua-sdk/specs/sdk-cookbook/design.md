@@ -76,7 +76,6 @@ Provider deep dives are placed after the user has practical experience with file
 |-----------|-------------|-------|
 | `src/tinycua-sdk/docs/cookbook/` | New | Root cookbook directory |
 | `src/tinycua-sdk/docs/cookbook/index.md` | New | Table of contents |
-| `src/tinycua-sdk/docs/cookbook/MAINTENANCE.md` | New | Maintenance guidelines for cookbook contributors |
 | `src/tinycua-sdk/docs/cookbook/onboarding/` | New | 3 pages — getting started |
 | `src/tinycua-sdk/docs/cookbook/core-concepts/` | New | 4 pages — fundamentals |
 | `src/tinycua-sdk/docs/cookbook/agent-extensions/` | New | 3 pages — tools, skills, permissions |
@@ -238,17 +237,15 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Code snippets go stale as SDK API evolves | Medium | Medium | Follow the maintenance checklist in `MAINTENANCE.md`. Snippets use only public, stable APIs. When API changes, update affected pages as part of the same PR that changes the API. |
+| Code snippets go stale as SDK API evolves | Medium | Medium | Snippets use only public, stable APIs. When API changes, update affected pages as part of the same PR that changes the API. |
 | Cookbook grows beyond linear reading (too many pages) | Low | Medium | Cap at ~20 pages. New features get appended only if they introduce a genuinely new concept. Variations go in existing pages. |
 | Snippet won't run due to missing dependency | Low | High | Every snippet must be manually verified before merging. Pin dependency versions in prose only as needed. |
 | Linear ordering becomes wrong after SDK adds new concepts | Low | Low | New pages can be inserted into phase folders; the index.md defines reading order, not filenames. Update the dependency graph in this design doc. |
 | Different provider patterns confuse beginners | Medium | Medium | Page 04 (`language-models-and-providers.md`) explicitly teaches the two paths. Later pages show both patterns briefly and refer back to 04 for full explanation. |
 
-## Maintenance
+---
 
-See [`MAINTENANCE.md`](../docs/cookbook/MAINTENANCE.md) for:
-- When to add/update/remove pages (based on SDK changes)
-- Page template and code snippet standards
-- Review checklist for new or updated pages
-- Breaking change protocol
-- What NOT to add to the cookbook
+## References
+
+- Spec: `./spec.md` — relative path from this design.md to its spec.md (they live in the same directory)
+- Related designs: None.
