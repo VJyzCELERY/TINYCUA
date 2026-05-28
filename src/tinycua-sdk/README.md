@@ -2,10 +2,15 @@
 
 Developer SDK for TINYCUA.
 
-Historical SDK docs and specs have been removed. Replacement cookbook-style docs
-will be added separately.
+## Cookbook
 
-## Quick Start
+Guided, basic-to-advanced walkthrough of all SDK capabilities. Start with the
+[index](./docs/cookbook/index.md) for a complete learning path covering agents,
+configuration, tools, skills, streaming, file handling, providers, execution
+loops, and error handling — with runnable code examples for both local (LM Studio)
+and remote (OpenAI) providers.
+
+### Quick Start
 
 ### Agent Convenience API — File Attachments
 
