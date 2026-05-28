@@ -38,13 +38,13 @@ This command reads a review report from `$1`, extracts each finding, and posts t
     BASE_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
     HEAD_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
     ```
-  6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
-     - **Inline-capable**: has a valid `file:line` that exists in the current diff → will be posted as an inline comment
-     - **Non-inline**: targets PR metadata (title, body, etc.) or the line no longer exists in the diff → full details MUST be preserved in the review body findings section
+   6. **Classify findings**: For each finding, try to map the **Location** to the current diff:
+      - **Inline-capable (OPEN only)**: finding status is OPEN **and** has a valid `file:line` that exists in the current diff → will be posted as an inline comment
+      - **Non-inline or ADDRESSED**: finding status is ADDRESSED **or** targets PR metadata (title, body, etc.) **or** the line no longer exists in the diff → full details MUST be preserved in the review body findings section (no inline comment)
   7. **Build inline comments**: For each inline-capable finding, build an inline comment with `path`, `line`, `side`, and `body`. Every `body` field and the entire review body is **markdown** — use fenced code blocks for commands, bullet lists, bold, etc. Issue IDs should follow `{TEXT}-{NUMBER}` format (e.g. `F-001`, `MED-001`, `ISSUE-001`) — keep them short and consistent within this review. The inline body MUST start with `**[<issue-id>]** - **[<priority>]** - <short description>` (e.g., `**F-001** - **HIGH** - Serialization Plan Reuses Non-Serializable Agent Config`).
   8. **Post the review** with a single review body and inline comments:
      - Build the review body using `.agents/templates/review-body-snippet.md`
-     - The body lists ALL findings — inline findings are marked "Details inline", non-inline findings include full Why/Suggestion/How to Validate
+      - The body lists ALL findings — OPEN inline-able findings are marked "Details inline" (full details in the separate inline comment); ADDRESSED findings include **Status**: ✅ Addressed / **Resolution**: <what was done> and full Why/Suggestion/How to Validate; non-inline findings include full Why/Suggestion/How to Validate directly in the body
      - Post everything in one go with all inline comments and the body
 
     ```bash

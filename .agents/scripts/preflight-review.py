@@ -318,21 +318,17 @@ def implement_preflight_autodetect() -> int:
                        "--json", "number", "--jq", ".[0].number"])
         if pr_data:
             pr_number = pr_data.strip()
-            owner_repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
-            # Get unresolved comments via gh api for individual URLs
-            import subprocess as _sp
-            cp = _sp.run(
-                ["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}/comments",
-                 "--jq", '.[] | select(.position != null and .in_reply_to_id == null) | {id, path, line, user: .user.login, body: .body}'],
+            # Delegate to gh.py --urls-only for proper filtered comment list
+            cp = subprocess.run(
+                ["uv", "run", "python", ".agents/scripts/gh.py", "fetch", "comments", pr_number, "--urls-only"],
                 capture_output=True, text=True)
             out = cp.stdout.strip()
             if out:
                 for line in out.splitlines():
                     try:
-                        c = json.loads(line)
-                        cid = c.get("id", "")
-                        if cid:
-                            url = f"https://github.com/{owner_repo}/pull/{pr_number}#discussion_r{cid}"
+                        entry = json.loads(line)
+                        url = entry.get("url", "")
+                        if url:
                             pr_reviews.append({
                                 "url": url,
                                 "fetch_cmd": f"uv run python .agents/scripts/gh.py fetch url {url}",
