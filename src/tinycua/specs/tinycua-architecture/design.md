@@ -96,7 +96,7 @@ Where applicable, process specs should also include:
 | File | Description |
 | ...
 
-## Design Decision Records
+## Decision Records
 | File | Description |
 | ...
 ```

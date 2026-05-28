@@ -26,8 +26,6 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 
 **Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
 
-Avoid rigid visible fields such as `required_tools`, `expected_output`, `max_depth`, or dependencies.
-
 The `context` field should be structured markdown. It should remain small and focused. Updating context means consolidating information, not blindly appending more information.
 
 ---

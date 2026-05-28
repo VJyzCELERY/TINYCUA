@@ -120,7 +120,7 @@ Worker effort is configuration, similar to model reasoning effort.
 
 ```yaml
 worker_config:
-  effort: none | high   # Additional intermediate levels (low, medium) are implementation calibration detail
+  effort: none | high   # Additional intermediate levels are implementation calibration detail
 ```
 
 Effort controls how much planning happens before execution.
