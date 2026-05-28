@@ -1,9 +1,7 @@
 # TINYCUA Architecture Overview
 
 > **Category:** Architecture Overview
-
 > **File:** `architecture/overview.md`
-
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 > **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md)

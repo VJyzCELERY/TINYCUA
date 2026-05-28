@@ -144,7 +144,12 @@ worker_config:
   effort: none | low | medium | high
 ```
 
-Effort controls how much planning happens before execution, from `none` (minimal) to `high` (thorough).
+Effort controls how much planning happens before execution.
+
+- `none` — minimal upfront planning; refine during execution.
+- `low` — light planning; identify main tasks, defer detail.
+- `medium` — balanced planning; decompose key tasks.
+- `high` — thorough planning; full decomposition before execution.
 
 ---
 

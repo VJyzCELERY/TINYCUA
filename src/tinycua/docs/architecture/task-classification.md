@@ -62,6 +62,6 @@ The classifier must guard against three failure modes:
 
 Worker mode decides whether to use the Worker. Worker effort decides how much upfront decomposition the Worker performs before execution.
 
-Effort uses planning-depth semantics: `none` means move quickly with minimal upfront planning, while `high` means perform thorough planning before execution.
+Effort uses planning-depth semantics modeled on LLM reasoning effort: `none` (minimal upfront planning), `low` (light planning), `medium` (balanced), and `high` (thorough upfront planning). See [state-objects.md](state-objects.md) for the full effort-level schema and definitions.
 
 ---

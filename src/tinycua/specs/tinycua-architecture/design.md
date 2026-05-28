@@ -61,14 +61,14 @@ Each agent spec doc includes:
 - `## Inputs / Outputs` section
 - `## Internal Flow` section (Mermaid diagram)
 - `## Design Decisions` table
-- `> **See also:**` cross-reference footer
+- `> **See also:**` cross-reference line (last field in header block)
 
 ### Process Doc Structure
 
 Each process spec doc includes at minimum:
 - `>` header with file path reference
 - `## Role` section
-- `> **See also:**` cross-reference footer
+- `> **See also:**` cross-reference line (last field in header block)
 
 Where applicable, process specs should also include:
 - `## Internal Flow` section (Mermaid diagram)
