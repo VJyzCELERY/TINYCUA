@@ -77,7 +77,7 @@ The Task Reviewer may ask the Task Analyzer to revise the roadmap when:
 - a result reveals missing context;
 - repeated failures suggest the roadmap is flawed.
 
-`needs_more_context` from the Reviewer is handled by the Task Analyzer. The Task Analyzer may revise the current task context, split the task, or ask the broader orchestration layer for renewed digestion when the existing digest is insufficient.
+Replanning requests from the Reviewer are handled by the Task Analyzer. The Task Analyzer may revise the current task context or split the task.
 
 The Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 

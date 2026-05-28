@@ -156,9 +156,8 @@ Each sub-session has its own `Chat_History` and `Context`.
 
 Important propagation rules:
 
-- Sub-session `Chat_History` remains local to the sub-session.
-- Sub-session `Context` remains local to the sub-session.
-- Sub-session `Chat_History` is also appended to the primary session `Chat_History` so the parent history preserves communication between internal agents.
+- The primary session tracks sub-session `Chat_History` — it is appended to the primary session's `Chat_History` so the parent preserves an auditable record of internal communication.
+- Sub-sessions are not aware of the parent session; each sub-session manages only its own `Chat_History` and `Context`.
 - Sub-session `Context` is **not** automatically added to primary session `Context`.
 - Parent session `Context` should only receive consolidated information when the architecture explicitly decides to update it.
 

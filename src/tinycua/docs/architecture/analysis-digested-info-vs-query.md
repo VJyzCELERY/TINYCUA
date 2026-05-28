@@ -118,8 +118,8 @@ If the digest is insufficient, recovery should happen through orchestration:
 
 1. The Task Executor fails, returns uncertainty, or produces low confidence output.
 2. Task Reviewer detects the issue.
-3. Reviewer returns `needs_more_context`, `replan`, or `escalate_user`.
-4. The Task Analyzer, renewed digestion, or user clarification handles the recovery.
+3. Reviewer returns `replan` or `escalate_user`.
+4. The Task Analyzer or user clarification handles the recovery.
 
 This keeps recovery explicit instead of silently expanding Worker context.
 
