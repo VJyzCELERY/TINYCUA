@@ -1,6 +1,7 @@
 # Decision Record: Should Digested Information be paired with the Original User Query?
 
 > **Category:** Decision Record
+
 > **File:** `architecture/analysis-digested-info-vs-query.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft

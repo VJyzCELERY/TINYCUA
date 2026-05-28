@@ -5,7 +5,7 @@
 > **File:** `architecture/task-execution.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
 
 ---
 
@@ -21,37 +21,15 @@ It receives only the current task's information plus shallow roadmap awareness. 
 
 **Input:**
 
-```yaml
-task:
-  task_id: task_001
-  name: "..."
-  description: "..."
-  context: "..."
-  success_criteria:
-    - "..."
-  confidence: 0.0-1.0
-shallow_task_list:
-  - task_id: task_001
-    name: "..."
-  - task_id: task_002
-    name: "..."
-retry_context: "optional failure context from reviewer"
-```
+- Current `task` from the Task List — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
+- `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
+- `retry_context` — optional failure context from the Task Reviewer on retry.
 
 Retries create a new Task Executor sub-session. The previous failure is recorded in the task context/retry context so the new executor can continue with the relevant lesson without inheriting the full prior executor context.
 
 **Output:**
 
-```yaml
-task_result:
-  task_id: task_001
-  status: completed | failed | blocked
-  result: "..."
-  discovered_sequence_issues:
-    - "..."
-  uncertainty_notes:
-    - "..."
-```
+- `Task Result` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `status` (`completed | failed | blocked`), `result`, `discovered_sequence_issues`, `uncertainty_notes`.
 
 Execution actions (tool calls, observations, decision trace) are recorded in the sub-session's `execution_log` — see [session-architecture.md](session-architecture.md). The Task Result points back to its sub-session but does not embed the full execution log.
 

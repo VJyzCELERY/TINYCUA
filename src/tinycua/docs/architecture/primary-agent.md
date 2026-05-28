@@ -37,13 +37,10 @@ If the user continues discussing, the Primary Agent can answer conversationally.
 
 **Input:**
 
-```yaml
-primary_agent_input:
-  mode: primary_agent | worker
-  context_enhanced_query: "optional"
-  digested_information: "optional"
-  worker_result: "optional"
-```
+- `mode` — routing source: `primary_agent` or `worker`.
+- `context_enhanced_query` — optional CEQ from Primary Agent mode.
+- `digested_information` — optional Digested Information after invoking Information Digestion.
+- `worker_result` — optional Worker Result from Worker mode.
 
 **Output:** final user-facing `Response`.
 

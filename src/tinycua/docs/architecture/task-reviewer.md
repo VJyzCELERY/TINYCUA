@@ -5,7 +5,7 @@
 > **File:** `architecture/task-reviewer.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [state-objects.md](state-objects.md)
 
 ---
 
@@ -46,20 +46,7 @@ The Reviewer should not receive a broad accumulated context dump by default. Acc
 
 **Output:**
 
-```yaml
-reviewer_decision:
-  task_id: task_001
-  status: accepted | retry | replan | escalate_user
-  reason: "..."
-  confidence: 0.0-1.0
-  context_updates:
-    - target_task_id: task_004
-      update: "..."
-  retry_instructions: "..."
-  replan_request: "..."
-  failure_count_snapshot:
-    consecutive_failures: 0
-```
+- `Reviewer Decision` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `status` (`accepted | retry | replan | escalate_user`), `reason`, `confidence`, `context_updates` (targeted future task context modifications), `retry_instructions`, `replan_request`, `failure_count_snapshot`.
 
 ---
 

@@ -1,6 +1,7 @@
 # TINYCUA Architecture Overview
 
 > **Category:** Architecture Overview
+
 > **File:** `architecture/overview.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
