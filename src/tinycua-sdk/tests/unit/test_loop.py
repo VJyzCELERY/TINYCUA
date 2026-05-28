@@ -1,10 +1,20 @@
 """Tests for BaseLoop execution."""
 
 import asyncio
+from collections.abc import AsyncIterator
+
 import pytest
 from unittest.mock import AsyncMock
 
+
 from tinycua_sdk import Agent, AgentPolicy, BaseLoop, LanguageModel, Skill, tool
+
+
+class _EmptyAsyncStream(AsyncIterator[dict]):
+    """Async iterator that yields no items (empty stream)."""
+
+    async def __anext__(self):
+        raise StopAsyncIteration
 
 
 class TestBaseLoopBuildSystemMessage:
@@ -538,10 +548,7 @@ class TestBaseLoopRunStream:
         agent = Agent(llm_model=LanguageModel())
 
         async def fake_stream(messages, tools, stream=False):
-            async def _gen():
-                return
-                yield  # pragma: no cover
-            return _gen()
+            return _EmptyAsyncStream()
 
         agent._call_llm = fake_stream
         stream_iter = loop._run_stream(agent, [], [])

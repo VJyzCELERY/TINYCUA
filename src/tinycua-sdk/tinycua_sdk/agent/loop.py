@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import ToolExecutor
@@ -13,6 +14,19 @@ from tinycua_sdk.agent.executor import ToolExecutor
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
+
+
+@dataclass
+class _IterStreamState:
+    """Mutable state for a single ``_run_stream`` iteration.
+
+    Passed to helper methods that update fields in place.
+    """
+
+    inner_cancelled: bool = False
+    completed_by_provider: bool = False
+    provider_failed: bool = False
+    in_progress_emitted: bool = False
 
 
 class BaseLoop:
@@ -158,7 +172,7 @@ class BaseLoop:
             return last_assistant or "[max tool calls reached]"
         return last_assistant or "[max iterations reached]"
 
-    async def _run_stream(  # noqa: C901 — complexity reflects tool-call iteration branches
+    async def _run_stream(
         self,
         agent: Agent,
         messages: list[dict],
@@ -172,16 +186,10 @@ class BaseLoop:
         cumulative_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
         finish_reason = "completed"
-
-        completed_by_provider = False
-        provider_failed = False
-        in_progress_emitted = False
+        st = _IterStreamState()
 
         try:
             for _ in range(self.max_iterations):
-                completed_by_provider = False
-                provider_failed = False
-                in_progress_emitted = False
                 if agent.is_cancelled:
                     yield {"type": "response.created"}
                     yield {"type": "response.cancelled"}
@@ -202,82 +210,24 @@ class BaseLoop:
                         f"got {type(llm_stream).__name__}"
                     )
 
-                inner_cancelled = False
-                # Peek at first chunk to decide if SDK needs to inject response.created
-                first_chunk, first_cancelled = await self._read_stream_chunk(
-                    llm_stream, agent._cancel_event
-                )
-                if first_cancelled:
-                    if hasattr(llm_stream, "aclose"):
-                        await llm_stream.aclose()
-                    yield {"type": "response.created"}
-                    yield {"type": "response.cancelled"}
-                    inner_cancelled = True
-                elif first_chunk is None:
-                    yield {"type": "response.created"}
-                    yield {"type": "response.in_progress"}
-                    in_progress_emitted = True
-                elif first_chunk.get("type") == "response.created":
-                    yield first_chunk
-                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                elif first_chunk.get("type") == "response.completed":
-                    completed_by_provider = True
-                    yield {"type": "response.created"}
-                    yield first_chunk
-                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                elif first_chunk.get("type") in ("response.failed", "error"):
-                    provider_failed = True
-                    yield {"type": "response.created"}
-                    yield first_chunk
-                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                elif first_chunk.get("type") == "response.in_progress":
-                    yield {"type": "response.created"}
-                    yield first_chunk
-                    in_progress_emitted = True
-                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                else:
-                    yield {"type": "response.created"}
-                    yield {"type": "response.in_progress"}
-                    in_progress_emitted = True
-                    yield first_chunk
-                    self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+                st = _IterStreamState()
+                async for event in self._yield_first_chunk_events(
+                    llm_stream, agent, content_parts, tool_calls_buffer,
+                    cumulative_usage, usage_settled_ids, st,
+                ):
+                    yield event
 
-                if not inner_cancelled:
-                    async for chunk, _ in self._iter_llm_events(
-                        llm_stream, agent._cancel_event
+                if not st.inner_cancelled:
+                    async for event in self._yield_stream_body_events(
+                        llm_stream, agent, content_parts, tool_calls_buffer,
+                        cumulative_usage, usage_settled_ids, st,
                     ):
-                        if chunk is None:
-                            break
-                        # Track or inject response.in_progress
-                        if chunk.get("type") == "response.in_progress":
-                            in_progress_emitted = True
-                        elif chunk.get("type") in (
-                            "response.completed", "response.failed", "error"
-                        ):
-                            # Terminal events - do NOT inject response.in_progress
-                            pass
-                        elif not in_progress_emitted:
-                            # First non-terminal content chunk without
-                            # provider response.in_progress - inject it
-                            yield {"type": "response.in_progress"}
-                            in_progress_emitted = True
+                        yield event
 
-                        if chunk.get("type") == "response.completed":
-                            completed_by_provider = True
-                        elif chunk.get("type") in ("response.failed", "error"):
-                            provider_failed = True
-                        yield chunk
-                        self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
-                        if provider_failed:
-                            break
-                    if agent.is_cancelled:
-                        yield {"type": "response.cancelled"}
-                        inner_cancelled = True
-
-                if inner_cancelled:
+                if st.inner_cancelled:
                     break
 
-                if provider_failed:
+                if st.provider_failed:
                     break
 
                 combined_content = "".join(content_parts)
@@ -316,8 +266,107 @@ class BaseLoop:
             return
 
         yield {"type": "response.usage", "usage": dict(cumulative_usage)}
-        if not agent.is_cancelled and not completed_by_provider and not provider_failed:
+        if not agent.is_cancelled and not st.completed_by_provider and not st.provider_failed:
             yield {"type": "response.completed", "finish_reason": finish_reason}
+
+    async def _yield_first_chunk_events(
+        self,
+        llm_stream: AsyncIterator[dict[str, Any]],
+        agent: Agent,
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
+        st: _IterStreamState,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Read the first stream chunk and yield lifecycle events.
+
+        ``st`` is updated in place with the processing result.
+        """
+        first_chunk, first_cancelled = await self._read_stream_chunk(
+            llm_stream, agent._cancel_event
+        )
+        if first_cancelled:
+            if hasattr(llm_stream, "aclose"):
+                await llm_stream.aclose()
+            yield {"type": "response.created"}
+            yield {"type": "response.cancelled"}
+            st.inner_cancelled = True
+            return
+
+        if first_chunk is None:
+            yield {"type": "response.created"}
+            yield {"type": "response.in_progress"}
+            st.in_progress_emitted = True
+            return
+
+        chunk_type = first_chunk.get("type", "")
+
+        if chunk_type == "response.created":
+            yield first_chunk
+            self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+        elif chunk_type == "response.completed":
+            st.completed_by_provider = True
+            yield {"type": "response.created"}
+            yield first_chunk
+            self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+        elif chunk_type in ("response.failed", "error"):
+            st.provider_failed = True
+            yield {"type": "response.created"}
+            yield first_chunk
+            self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+        elif chunk_type == "response.in_progress":
+            yield {"type": "response.created"}
+            yield first_chunk
+            st.in_progress_emitted = True
+            self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+        else:
+            yield {"type": "response.created"}
+            yield {"type": "response.in_progress"}
+            st.in_progress_emitted = True
+            yield first_chunk
+            self._accumulate_chunk(first_chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+
+    async def _yield_stream_body_events(
+        self,
+        llm_stream: AsyncIterator[dict[str, Any]],
+        agent: Agent,
+        content_parts: list[str],
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        cumulative_usage: dict[str, int],
+        usage_settled_ids: set[str],
+        st: _IterStreamState,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Process remaining LLM stream events after the first chunk.
+
+        ``st`` is updated in place with the processing result.
+        """
+        async for chunk, _ in self._iter_llm_events(
+            llm_stream, agent._cancel_event
+        ):
+            if chunk is None:
+                break
+            if chunk.get("type") == "response.in_progress":
+                st.in_progress_emitted = True
+            elif chunk.get("type") in (
+                "response.completed", "response.failed", "error"
+            ):
+                pass
+            elif not st.in_progress_emitted:
+                yield {"type": "response.in_progress"}
+                st.in_progress_emitted = True
+
+            if chunk.get("type") == "response.completed":
+                st.completed_by_provider = True
+            elif chunk.get("type") in ("response.failed", "error"):
+                st.provider_failed = True
+            yield chunk
+            self._accumulate_chunk(chunk, content_parts, tool_calls_buffer, cumulative_usage, usage_settled_ids)
+            if st.provider_failed:
+                break
+        if agent.is_cancelled:
+            yield {"type": "response.cancelled"}
+            st.inner_cancelled = True
 
     async def _execute_tools_stream(
         self,
