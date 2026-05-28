@@ -6,7 +6,7 @@ Commit messages should be clear, meaningful, and follow a consistent structure t
 ## Commit Message Format
 Each commit message must include the following parts:
 ```
-(type): Commit message
+type(scope): Commit message
 
 [Optional Body]
 
@@ -21,19 +21,13 @@ Each commit message must include the following parts:
 
 ## Commit Types
 The following commit types must be used:
-- **(feat)**: Adding a new feature (e.g., implementing OAuth).
-- **(fix)**: Fixing a bug (e.g., resolving a crash).
-- **(chore)**: Non-functional updates (e.g., dependency upgrades).
-- **(docs)**: Documentation changes only.
-- **(test)**: Adding or modifying tests.
-- **(refactor)**: Refactoring code without adding new functionality.
-- **(style)**: Code formatting or style changes.
-- **fix**: A bug fix.
-- **docs**: Changes to documentation only.
-- **style**: Code style changes (formatting, missing semicolons, no code logic changes).
-- **refactor**: Code refactoring (neither a feature nor a fix).
-- **test**: Adding or correcting tests.
-- **chore**: Maintenance tasks (e.g., build process, tools, dependencies).
+- **feat**: Adding a new feature (e.g., implementing OAuth).
+- **fix**: Fixing a bug (e.g., resolving a crash).
+- **chore**: Non-functional updates (e.g., dependency upgrades).
+- **docs**: Documentation changes only.
+- **test**: Adding or modifying tests.
+- **refactor**: Refactoring code without adding new functionality.
+- **style**: Code formatting or style changes.
 
 ## Examples
 - **Example 1 (Feature)**:
@@ -62,11 +56,8 @@ The following commit types must be used:
 - Use the **imperative mood** for the description (e.g., "Add support" not "Added support").
 - Include references to issues using `Fixes #<issue-number>` in the footer, if applicable.
 
-## Tools to Enforce Rules
-- **Optional**: Use tools like `commitlint` to validate commit messages.
-- Example pre-commit hook:
-  ```bash
-  npx commitlint --edit $1
-  ```
+## Enforcement
+
+Commit naming is enforced during code review. Reviewers should verify that commit messages follow the `type(scope): message` format.
 
 ---

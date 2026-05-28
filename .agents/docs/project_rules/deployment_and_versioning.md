@@ -3,7 +3,7 @@
 ## Deployment Tags
 Use the following naming convention for deployment tagging:
 - Format: `service-name-v<version>`.
-- Example: `python_glaip_sdk-v1.0.0`.
+- Example: `python_library-v1.0.0`.
 
 ## Steps to Deploy
 1. Tag the release branch with the appropriate version.

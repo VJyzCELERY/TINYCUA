@@ -7,8 +7,8 @@ This document defines the rules and expectations for AI agents generating code f
 
 ## General Principles
 1. **Adopt Coding Standards**:
-   - Enforce coding standards as described in `docs/project_rules/coding_standards.md`.
-   - Incorporate logging practices as outlined in `docs/project_rules/logging_guidelines.md`.
+   - Enforce coding standards as described in `.agents/docs/project_rules/coding_standards.md`.
+   - Incorporate logging practices as outlined in `.agents/docs/project_rules/logging_guidelines.md`.
    - Use Ruff auto-fix capabilities to ensure immediate compliance.
    - Include detailed docstrings with descriptions, arguments, and examples for all generated functions and classes.
 
@@ -26,7 +26,7 @@ AI-generated commits must follow the repository's naming conventions as defined 
 
 ### Expected Commit Structure
 ```
-(type): Commit message
+type(scope): Commit message
 
 [Optional Body]
 
@@ -34,33 +34,34 @@ AI-generated commits must follow the repository's naming conventions as defined 
 ```
 
 ### Examples
-- **Feature Addition**: `(feat): Implement OAuth2.0 tokens`
-- **Bug Fix**: `(fix): Resolve crash in auth token refresh`
-- **Documentation**: `(docs): Add API setup guide to README`
+- **Feature Addition**: `feat(auth): implement OAuth2.0 tokens`
+- **Bug Fix**: `fix(auth): resolve crash in token refresh`
+- **Documentation**: `docs(readme): add API setup guide to README`
 - **Bug Fix**: `fix(logging): handle missing log configurations gracefully`
-- **Documentation**: `docs: update README with new installation guide`
+- **Documentation**: `docs(readme): update README with new installation guide`
 
 Ensure commit messages are meaningful, concise, and adhere to the [commit naming rules](../project_rules/commit_naming.md).
 
 ---
 
 ## Docstring Requirements
-Ensure all AI-generated functions and classes follow this format:
 
-### Example Format
+All AI-generated functions and classes must use **Google-style docstrings** as defined in `.agents/docs/agents/style.md`. The standard format is:
+
 ```python
-"""
-This function/class serves as a [brief purpose summary]. It works by [short explanation].
+def function_name(arg1: type, arg2: type) -> ReturnType:
+    """Brief description of what the function does.
 
-Args:
-    arg1 (type): Description.
-    arg2 (type): Description.
-    **kwargs: Description of supported optional keyword arguments.
+    Args:
+        arg1: Description of arg1.
+        arg2: Description of arg2.
 
-Examples:
-    # Example usage:
-    result = generated_function(arg1, arg2, kwarg_key=value)
-"""
+    Returns:
+        Description of the return value.
+
+    Raises:
+        ExceptionType: When and why this exception occurs.
+    """
 ```
 
 ---
@@ -78,13 +79,11 @@ Examples:
 Whenever code is added, removed, or significantly modified, the corresponding comprehensive documentation **must** be updated in parallel.
 
 **What to update:**
-- `docs/full-docs/tinycua-sdk/` — for SDK changes (new modules, API changes, removed features)
-- `docs/full-docs/tinycua/` — for CLI/TUI changes
-- `docs/full-docs/tinycua-backend/` — for backend changes
+- `docs/full-docs/<subproject>/` — for changes in each subproject (new modules, API changes, removed features)
 
 **Rules:**
 - New modules/classes/functions → add documentation to the relevant `.md` file
-- Removed features → remove all references from docs (check all 3 project directories)
+- Removed features → remove all references from docs (check all affected subproject directories)
 - Renamed files → update all doc references and code examples
 - Changed behavior → update explanations and code snippets
 - Always update `docs/full-docs/INDEX.md` if adding or removing documentation files

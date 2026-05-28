@@ -18,7 +18,7 @@ By default, Python applications built from this template write logs to:
 src/my-subproject/logs/application.log
 ```
 
-Check `docs/project_rules/logging_guidelines.md` for the configured log level and format.
+Check `.agents/docs/project_rules/logging_guidelines.md` for the configured log level and format.
 
 ---
 
@@ -72,19 +72,19 @@ logging.basicConfig(level=logging.DEBUG)
 
 Run a single failing test to isolate the issue:
 ```bash
-pytest tests/unit/test_payment.py::test_raises_on_invalid_order -v
+uv run pytest tests/unit/test_payment.py::test_raises_on_invalid_order -v
 ```
 
 Run with full output (no capture):
 ```bash
-pytest tests/ -s -v
+uv run pytest tests/ -s -v
 ```
 
 ### Check for Common Issues
 
 **Import errors:**
 ```bash
-python -c "from my_subproject.service import PaymentService"
+uv run python -c "from my_subproject.service import PaymentService"
 ```
 
 **Dependency issues:**
@@ -110,12 +110,12 @@ If `make test` fails unexpectedly:
 
 1. Run with `-s` to see all stdout/stderr output:
    ```bash
-   pytest tests/ -s
+   uv run pytest tests/ -s
    ```
 
 2. Run with `-x` to stop at first failure:
    ```bash
-   pytest tests/ -x -v
+   uv run pytest tests/ -x -v
    ```
 
 3. Print a specific variable inside a test using `capsys`:
@@ -143,5 +143,5 @@ If `make test` fails unexpectedly:
 
 ## References
 
-- `docs/project_rules/logging_guidelines.md` — logging configuration and standards
-- `docs/agents/testing.md` — test organization and debugging tests
+- `.agents/docs/project_rules/logging_guidelines.md` — logging configuration and standards
+- `.agents/docs/agents/testing.md` — test organization and debugging tests

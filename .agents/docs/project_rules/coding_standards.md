@@ -6,29 +6,13 @@
    - **Auto-Fix**: Ruff is configured to auto-fix all known issues (`fixable = ["ALL"]`).
    - **Absolute Imports**: Relative imports are disallowed (`ban-relative-imports = "all"`).
 
-2. **Testing Flexibility**:
-
-3. **Logging Practices**:
+2. **Logging Practices**:
    - Use `logging` for debugging and messaging across all subprojects.
-   - Follow centralized logging rules as detailed in `docs/project_rules/logging_guidelines.md`. 
-   - Test directories are exempt from docstring rules (`"**/tests/**" = ["D"]`).
+   - Follow centralized logging rules as detailed in `.agents/docs/project_rules/logging_guidelines.md`. 
+   - Test directories are exempt from docstring rules (see Ruff config in `.agents/docs/agents/style.md`).
 
 ---
 
 ## Docstring Guide
-### Examples
-```python
-"""
-This function converts temperature from Celsius to Fahrenheit.
 
-Args:
-    celsius (float): Temperature in Celsius.
-
-Examples:
-    # Convert 0°C to Fahrenheit
-    fahrenheit = to_fahrenheit(0)
-"""
-
-def to_fahrenheit(celsius: float) -> float:
-    return celsius * 9 / 5 + 32
-```
+Use Google-style docstrings for all public functions and classes (see `.agents/docs/agents/style.md` for the full format).

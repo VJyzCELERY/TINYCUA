@@ -1,6 +1,7 @@
-# Testing Guidelines
+# Testing Configuration Reference
 
-## Overview
+This file documents the **pytest configuration and coverage setup** for subprojects. For the developer testing **workflow and conventions**, see `.agents/docs/agents/testing.md`.
+
 Testing is managed using `pytest` across the MAIN-PROJECT and its subprojects, with mandatory test organization and coverage standards.
 
 ---
@@ -67,5 +68,5 @@ def test_app_runs():
    - Use `pytest-cov` for measuring coverage.
    - Example command:
      ```bash
-     pytest --cov=src --cov-report=html
+     uv run pytest --cov=src --cov-report=html
      ```
