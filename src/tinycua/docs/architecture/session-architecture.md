@@ -109,7 +109,7 @@ Required fields:
 - `type` — the agent or user name.
 - `message`
 
-Tool calls and tool results may be represented as messages or attached metadata. They should be preserved as much as practical, but large tool payloads may be truncated.
+Tool interactions are preserved in chat_history alongside user and agent messages for auditability. Storage representation is an implementation detail.
 
 ---
 

@@ -30,7 +30,7 @@ The Information Digester is a privileged narrowing boundary: it may inspect broa
 
 **Output:**
 
-Canonical schema is in [state-objects.md](state-objects.md). The digest is sent to downstream agents as structured text; storage format is an implementation detail. See [state-objects.md](state-objects.md) for the canonical output schema and section descriptions.
+The digest is sent to downstream agents as structured text; storage format is an implementation detail. Canonical output schema and section descriptions are in [state-objects.md](state-objects.md).
 
 ---
 

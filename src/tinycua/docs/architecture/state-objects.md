@@ -234,6 +234,6 @@ agent_state:
   consecutive_failures: 0
 ```
 
-Clarification is not a terminal state. Agents should use an `ask` / `question` mechanism when they need user input and a `terminate` signal when their work is actually complete. Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
+Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`waiting_for_user`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.

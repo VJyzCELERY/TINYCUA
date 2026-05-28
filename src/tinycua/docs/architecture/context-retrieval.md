@@ -49,7 +49,7 @@ Important retrieval-facing rules:
 
 ---
 
-## Retrieval Flow
+## Internal Flow
 
 ```mermaid
 flowchart TD
