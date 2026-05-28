@@ -1,102 +1,43 @@
 # Makefile for tinycua-sdk
 
-# Variables
-PYTHON ?= python3
-UV ?= uv
 SRC ?= tinycua_sdk
 
-.PHONY: install lint test test-unit test-integration test-all coverage complexity clean precommit-install check run
+.PHONY: install lint lint-fix test test-unit test-integration coverage complexity clean check precommit-install precommit
 
-# Install dependencies
 install:
-	$(UV) venv --clear
-	$(UV) pip install -e ".[dev]"
+	uv pip install -e ".[dev]"
 
-# Run SDK example (local mode)
-run:
-	$(PYTHON) examples/01_agent_basic.py
-
-# Install pre-commit hooks
 precommit-install:
-	$(UV) pip install -e ".[lint]"
-	pre-commit install
+	uv pip install -e ".[lint]"
+	uv run pre-commit install
 
-# Run all checks (lint + complexity)
-check:
-	@echo "=== Running Ruff Lint ==="
-	ruff check $(SRC)/
-	@echo ""
-	@echo "=== Running Ruff Format ==="
-	ruff format --check $(SRC)/
-	@echo ""
-	@echo "=== Running Cognitive Complexity ==="
-	@radon cc $(SRC)/ --min=A --max=15 -s; \
-	if [ $$? -eq 0 ]; then \
-		echo "No functions exceed complexity threshold (max=15)"; \
-	fi
-	@echo ""
-	@echo "=== All checks passed ==="
-
-# Run pre-commit hooks on all files
-precommit:
-	pre-commit run --all-files
-
-# Run linter (Ruff)
 lint:
-	ruff check $(SRC)/
-	ruff format --check $(SRC)/
+	uv run ruff check $(SRC)/
+	uv run ruff format --check $(SRC)/
 
-# Run linter with auto-fix
 lint-fix:
-	ruff check $(SRC)/ --fix
-	ruff format $(SRC)/
+	uv run ruff check $(SRC)/ --fix
+	uv run ruff format $(SRC)/
 
-# Run unit tests only
 test-unit:
-	pytest tests/unit/ -v --tb=short
+	uv run pytest tests/unit/ -v --tb=short
 
-# Run integration tests only
 test-integration:
-	pytest tests/integration/ -v --tb=short --log-cli-level=INFO
+	uv run pytest tests/integration/ -v --tb=short --log-cli-level=INFO
 
-# Run both unit and integration tests
 test:
-	@echo "=== Running Unit Tests ==="
-	pytest tests/unit/ -v --tb=short
-	@echo ""
-	@echo "=== Running Integration Tests ==="
-	pytest tests/integration/ -v --tb=short --log-cli-level=INFO
+	uv run pytest
 
-# Run all tests (alias for test)
-test-all: test
-
-# Run tests with coverage
 coverage:
-	pytest tests/unit/ --cov=$(SRC) --cov-report=html --cov-report=term-missing
+	uv run pytest tests/unit/ --cov=$(SRC) --cov-report=html --cov-report=term-missing
 
-# Run cognitive complexity analysis (radon)
 complexity:
-	radon cc $(SRC)/ --min=A --max=15
+	uv run radon cc $(SRC)/ --min=A --max=15
 
-# Clean up artifacts
+check: lint complexity
+
+precommit:
+	uv run pre-commit run --all-files
+
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage coverage.xml dist build *.egg-info htmlcov/
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-
-# Default target
-help:
-	@echo "Available targets:"
-	@echo "  install            - Install dependencies"
-	@echo "  precommit-install  - Install and configure pre-commit hooks"
-	@echo "  check             - Run all checks (lint + complexity)"
-	@echo "  precommit        - Run pre-commit hooks on all files"
-	@echo "  lint             - Run linter (ruff)"
-	@echo "  lint-fix         - Run linter with auto-fix"
-	@echo "  test-unit        - Run unit tests only"
-	@echo "  test-integration  - Run integration tests only"
-	@echo "  test             - Run both unit and integration tests"
-	@echo "  test-all         - Run all tests (alias for test)"
-	@echo "  coverage         - Run tests with coverage"
-	@echo "  complexity       - Run complexity analysis"
-	@echo "  clean            - Clean up artifacts"
