@@ -16,9 +16,14 @@ Manage git worktrees: create new worktrees for feature development, prune inacti
 ## Execution
 
 ### Create worktree
-1. Ask for branch name, verify it doesn't exist locally or remotely
-2. Run: `git worktree add .worktrees/<branch> <branch>`
-3. Verify the worktree was created successfully
+1. Ask for branch name (e.g., "feat/new-ui")
+2. Run:
+   ```bash
+   uv run python .agents/scripts/create-worktree.py <branch-name>
+   ```
+   The script handles everything: branch-exists check, main repo root detection, base branch detection, name sanitization, and creation. No need to pre-verify — the script will warn with `[ACTION]` instructions if something is wrong.
+3. Read output: `BRANCH=...`, `PATH=...`, `BASE=...`
+4. Report the results to the user — tell them the branch name, absolute path, and base branch
 
 ### Prune worktrees
 1. List all worktrees: `git worktree list`
@@ -31,6 +36,8 @@ Manage git worktrees: create new worktrees for feature development, prune inacti
 3. Remove pycache: `find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null`
 
 ## Common Pitfalls
-- Never create a worktree for a branch that already exists
+- The script handles branch-exists checks, name sanitization, and path resolution — do NOT pre-verify, just run it
+- The new branch is based on the **current branch**, not `main`. This ensures PRs target the correct parent
+- Worktree paths are always under `<main_repo_root>/.worktrees/` — never nested under another worktree
 - Only prune worktrees whose PRs are merged or abandoned
 - Always verify before destructive operations

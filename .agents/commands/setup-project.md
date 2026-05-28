@@ -105,6 +105,17 @@ Initialize a new `.agents/` directory or update an existing one with improvement
 | Reviews (`.agents/reviews/`) | Always preserved — project-specific |
 | Custom files (anything project-added) | Always preserved |
 
+## Required Context
+
+- Preflight: none
+- Skills: setup-project
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: yes (if target outside project root)
+
 ## Important
 
 - Template is authoritative for `.agents/` infrastructure files (commands, templates, docs)

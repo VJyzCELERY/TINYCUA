@@ -37,16 +37,17 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
 
 2. **Get current PR head** (for the commit range):
    ```bash
-   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
-   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+    HEAD_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+    BASE_SHA=$(uv run python .agents/scripts/gh.py cmd pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
    echo "Refreshing review at commit range: $BASE_SHA...$HEAD_SHA"
    ```
 
-3. **Fetch ALL active reviews from remote**:
+3. **Fetch active reviews from remote** (only non-minimized, non-resolved):
    ```bash
    uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/remote-reviews.md
    ```
    Read `./tmp/remote-reviews.md` — it contains every non-minimized review with inline comments, each with URLs.
+   **IMPORTANT**: Do NOT use `--all` flag. `--all` includes minimized/resolved comments which we don't need for consolidation.
 
 4. **Read the local review report** (if it exists under `./reviews/`):
    ```bash
@@ -61,9 +62,14 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    - The result is a single set of findings
 
 6. **Close all existing active comments**: Use `gh.py interact` on every URL from the remote fetch:
-   - Inline comments (`#discussion_r`) → resolve
-   - Review bodies (`#pullrequestreview`) → minimize as OUTDATED
-   - Skip any thread that has replies from humans (active discussion)
+    - Inline comments (`#discussion_r`) → reply documenting the consolidation, then resolve the thread
+    - Review bodies (`#pullrequestreview`) → minimize as OUTDATED
+    - Skip any thread that has replies from humans (active discussion)
+    ```bash
+    # Reply first, then resolve (same pattern as review-update)
+    uv run python .agents/scripts/gh.py interact reply "$URL" ./tmp/reply.md
+    uv run python .agents/scripts/gh.py interact resolve "$URL"
+    ```
 
 7. **Write the consolidated local report**: Save the deduplicated findings as `./reviews/REVIEW_{branch}_refreshed.md` using the REVIEW-template.md structure. Do NOT create a new file if one already exists — overwrite the existing one.
 
@@ -78,6 +84,17 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
    - For each finding, add or update `**PR Comment**: <url>` with the new inline comment URL
 
 ---
+
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-pr, review-core, gh
+- Rules: none
+- Templates: REVIEW-template.md
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: yes
+- Requires user confirmation: no
 
 ## Important
 

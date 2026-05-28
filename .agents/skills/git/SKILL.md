@@ -42,7 +42,7 @@ Safely rebase branches onto targets without duplicating commits, and clean up co
 3. If no unique commits, exit early
 4. Run: `git rebase <target>`
 5. If conflicts: analyze, present to user, apply their decision
-6. Force push: `git push --force origin <branch>`
+6. Force push: `git push --force-with-lease origin <branch>`
 
 ### Stacked Rebase
 Use when a branch is built on top of another local branch (not `main`).
@@ -51,12 +51,12 @@ Use when a branch is built on top of another local branch (not `main`).
 2. **Rebase parent first** (recurse if parent is also stacked):
    - Switch to parent worktree/branch
    - Rebase parent onto `main` (or its own parent)
-   - Force push parent
+    - Force push parent with `--force-with-lease`
 3. **Rebase this branch onto rebased parent**:
-   ```bash
-   git rebase <parent-branch>
-   ```
-4. **Force push**: `git push --force origin <branch>`
+    ```bash
+    git rebase <parent-branch>
+    ```
+4. **Force push**: `git push --force-with-lease origin <branch>`
 5. **Verify**: check `git log --oneline <parent-branch>..HEAD` shows only this branch's unique commits
 
 ### Commit cleanup

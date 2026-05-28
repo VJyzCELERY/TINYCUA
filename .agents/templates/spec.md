@@ -5,6 +5,8 @@
 **Last Updated**: YYYY-MM-DD
 **Subproject(s) Affected**: [e.g., my-subproject-backend, my-subproject-sdk]
 
+> **Spec and design are a pair**: You MUST also create `design.md` (using `.agents/templates/design.md`) in the same directory as this spec. A spec without a design is incomplete.
+
 ---
 
 ## Quick Guidelines
@@ -65,13 +67,13 @@ _Example of marking unclear requirements:_
 
 ---
 
-## Success Criteria _(mandatory)_
+## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
 Objective, measurable checks that prove the problem is solved.
 
-- **User can [action]**: [specific verifiable capability]
-- **System handles [scenario]**: [specific measurable behavior]
-- **Performance**: [if applicable — e.g., "response time < 200ms for 99th percentile"]
+- [ ] **User can [action]**: [specific verifiable capability]
+- [ ] **System handles [scenario]**: [specific measurable behavior]
+- [ ] **Performance**: [if applicable — e.g., "response time < 200ms for 99th percentile"]
 
 ---
 

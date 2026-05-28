@@ -13,6 +13,8 @@ import sys
 import subprocess
 from pathlib import Path
 
+import repo_guard
+
 
 def run(cmd):
     try:
@@ -27,7 +29,7 @@ def main():
         print("Usage: uv run python .agents/scripts/update-commit-range.py <review-file.md>", file=sys.stderr)
         sys.exit(1)
 
-    file_path = Path(sys.argv[1])
+    file_path = repo_guard.assert_inside_repo(sys.argv[1])
     if not file_path.exists():
         print(f"[FAIL] File not found: {file_path}", file=sys.stderr)
         sys.exit(1)
@@ -60,30 +62,38 @@ def main():
 
     new_range = f"{base_sha}...{head_sha}"
 
-    # Replace the Commit Range line — handle both short and full SHA formats
-    new_content = re.sub(
-        r'^\*\*Commit Range\*\*:\s*\S+',
-        f'**Commit Range**: {new_range}',
-        content,
+    # Check if already up to date — extract current commit range from file
+    existing = re.search(r'^\*\*Commit Range\*\*:\s*(\S+)', content, re.MULTILINE)
+    if existing and existing.group(1) == new_range:
+        print(f"[OK] Commit Range already up to date: {new_range}")
+        sys.exit(0)
+
+    # Remove all existing **Commit Range** lines (handles duplicates)
+    cleaned = re.sub(r'^\*\*Commit Range\*\*:\s*\S+\s*\n?', '', content, flags=re.MULTILINE)
+
+    # Find the right insertion point — after **Reviewer**, **Review Focus**, **Review Date**, or **Review Type**
+    inserted = re.sub(
+        r'^(\*\*Review(?:er|Focus| Date| Type).*\n)',
+        f'\\1**Commit Range**: {new_range}\n',
+        cleaned,
         count=1,
         flags=re.MULTILINE,
     )
 
-    if new_content == content:
-        print(f"[WARN] No '**Commit Range**' line found in {file_path}", file=sys.stderr)
-        # Add it after **Reviewer** or **Review Focus** line
-        new_content = re.sub(
-            r'^(\*\*Review(?:er|Focus| Date| Type).*\n)',
+    if inserted == cleaned:
+        # Fallback: insert at the top, after the title
+        inserted = re.sub(
+            r'^(# .*\n)',
             f'\\1**Commit Range**: {new_range}\n',
-            content,
+            cleaned,
             count=1,
-            flags=re.MULTILINE,
         )
-        if new_content == content:
-            print("[FAIL] Could not find a place to insert Commit Range", file=sys.stderr)
-            sys.exit(1)
 
-    file_path.write_text(new_content, encoding="utf-8")
+    if inserted == cleaned:
+        print("[FAIL] Could not find a place to insert Commit Range", file=sys.stderr)
+        sys.exit(1)
+
+    file_path.write_text(inserted, encoding="utf-8")
     print(f"[OK] Commit Range updated to {new_range} in {file_path}")
 
 

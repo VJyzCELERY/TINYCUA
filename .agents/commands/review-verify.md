@@ -32,7 +32,7 @@ If the log exists, read it and note:
 ## Pre-Flight: Capture current state
 
 > Load _common-preflight.md
-> Load skill: gh (for gh.py — used for PR replies and resolution)
+> Load skill: gh (for gh.py — used for PR context metadata)
 
 Run the preflight to get scope info (PR number, files changed, commit range). Staleness warnings can be ignored — this command always verifies against whatever HEAD currently is:
 
@@ -55,11 +55,10 @@ Then proceed with verification — do NOT stop for staleness warnings.
 3. **Capture current commit range**: Record the PR head at verification time:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
-   HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
-   BASE_SHA=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
-   COMMIT_RANGE="$BASE_SHA...$HEAD_SHA"
-   echo "Verifying at: $COMMIT_RANGE"
+   echo "Verifying PR #${PR_NUMBER}"
    ```
+   Do NOT fetch PR info with `| head -N` or other truncation — you need the full output.
+
 4. **Align Scope**: Check current branch and diff to identify stale findings (files outside current diff → INVALID)
 5. **Filter Findings**: If `$2` is provided, only verify those findings
 6. **Verify Each Finding**: For each OPEN finding:
@@ -68,10 +67,12 @@ Then proceed with verification — do NOT stop for staleness warnings.
      - Command succeeds → **ADDRESSED**
      - Stale/no longer relevant → **INVALID**
      - Still fails → **OPEN**
-    - Document evidence
-7. **Update the Review Report**: Append to Validation Log, update statuses. Also update the commit range:
-   - Run `uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"`
-8. **Save Changes**: Use Write to update the original review file
+   - Document evidence
+7. **MANDATORY — Update the Commit Range**: After verification, update the review report's Commit Range to the current HEAD so future staleness detection works correctly:
+   ```bash
+   uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"
+   ```
+   This is REQUIRED. Without this, staleness detection will always report stale on subsequent runs because the old commit range is never refreshed.
 
 ## Status Definitions
 
@@ -79,10 +80,22 @@ Then proceed with verification — do NOT stop for staleness warnings.
 - **INVALID**: No longer relevant — including stale findings outside current diff
 - **OPEN**: Issue still exists
 
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-core
+- Rules: 004-review-standards.md
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no (local-only)
+- Requires user confirmation: no
+
 ## Important
 
 - Run actual validation commands — don't just assume
 - Document evidence from command output
 - Do NOT rewrite finding content — only update statuses and validation log
-- If a finding has a PR Comment URL, always post a reply — this closes the feedback loop
-- Only resolve if ADDRESSED or INVALID — leave OPEN threads open
+- This command is **local-only** — it does NOT reply to PR comments or resolve threads on GitHub. Use `review-update` to push status changes to the remote PR.
+- **MUST update Commit Range** after verifying (step 7) — future staleness detection depends on it
+- **Do NOT truncate `gh.py` output** when gathering PR info — never pipe through `head`, `tail`, or similar. You need the full output to get all metadata including commit range and body.

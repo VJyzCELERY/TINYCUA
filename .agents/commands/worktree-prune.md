@@ -44,6 +44,17 @@ Scan all worktrees, check each for PR status, and remove stale ones.
 
 4. **Report summary**: List which worktrees were kept, removed, or need attention
 
+## Required Context
+
+- Preflight: none
+- Skills: worktree
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: yes
+- Mutates remote: yes (deletes remote branch)
+- Requires user confirmation: yes (per worktree)
+
 ## Important
 
 - Always skip the main worktree (the one outside `.worktrees/`)

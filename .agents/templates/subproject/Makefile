@@ -1,31 +1,27 @@
 # Makefile for sub-project-template
 
-# Variables
-PYTHON ?= python3
-
 .PHONY: install lint test coverage complexity clean
 
 # Install dependencies
 install:
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -r requirements.txt
+	uv sync
 
 # Run linter (Ruff)
 lint:
-	ruff .
+	uv run ruff check .
 
 # Run tests
 test:
-	pytest
+	uv run pytest
 
 # Run tests with coverage
 coverage:
-	pytest --cov=src --cov-report=html
+	uv run pytest --cov=src --cov-report=html
 
 # Run cognitive complexity analysis (radon)
 complexity:
-	radon cc . -a -nc
-	radon mi . -n B
+	uv run radon cc . -a -nc
+	uv run radon mi . -n B
 
 # Clean up artifacts
 clean:

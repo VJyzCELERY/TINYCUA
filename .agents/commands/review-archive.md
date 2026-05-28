@@ -65,6 +65,17 @@ Report:
 
 > Use _common-closing-gate.md before final response.
 
+## Required Context
+
+- Preflight: preflight-review.py
+- Skills: review-archive
+- Rules: none
+- Templates: none
+- Mutates files: yes
+- Mutates git history: no
+- Mutates remote: no
+- Requires user confirmation: no
+
 ## Important
 - Only archive reviews where findings are ADDRESSED, INVALID, or DEFERRED — never with OPEN findings
 - The log is append-only — never modify existing entries

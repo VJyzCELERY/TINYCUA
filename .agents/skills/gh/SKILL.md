@@ -11,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Manage GitHub PRs and reviews. All write operations go through `.agents/scripts/gh.py`. Only use raw `gh api` as fallback.
+Manage GitHub PRs and reviews. All write operations go through `.agents/scripts/gh.py`. Only use `gh.py cmd api` as fallback.
 
 ## Golden Rule: Use gh.py for ALL PR Operations
 
@@ -89,8 +89,8 @@ uv run python .agents/scripts/gh.py cmd repo view --json name,description
 - **Always use gh.py first** — even for read operations. Only fall back to raw `gh` CLI if gh.py doesn't have the subcommand
 - **Retry on transient/syntax errors** — if gh.py fails with a syntax/transient error, retry once after a 2-second pause before falling back to raw `gh`
 - **Check gh.py --help** before using raw `gh` — the operation you need may already be covered
-- **`gh pr diff` is OK** — gh.py doesn't have a diff subcommand yet
-- **Unknown commands** — if gh.py doesn't support an operation, it tells you to use raw `gh` CLI. Just run the command it shows.
+- **Use `gh.py cmd` for all `gh` operations** — e.g., `uv run python .agents/scripts/gh.py cmd pr diff "$PR_NUMBER"` instead of the equivalent raw `gh` command
+- **Unknown commands** — run `uv run python .agents/scripts/gh.py cmd ...` to pass through any `gh` operation
 - **`side: "RIGHT"`** for new version, **`side: "LEFT"`** for old version
-- **Validate JSON** before posting: `cat ./tmp/file.json | python -m json.tool`
+- **Validate JSON** before posting: `cat ./tmp/file.json | uv run python -m json.tool`
 - Write temp files under `./tmp/` — it's gitignored
