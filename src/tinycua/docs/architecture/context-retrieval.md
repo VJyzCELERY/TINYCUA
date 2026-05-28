@@ -17,6 +17,21 @@ The Enhanced Context Retrieval process determines when and how to retrieve relev
 
 ---
 
+## Inputs / Outputs
+
+**Input:**
+
+- `user_query`
+- Session `chat_history` (JSON turn log)
+- Session `Context` (structured markdown)
+- Context-window pressure trigger (accumulated `Context` size relative to model limit)
+
+**Output:**
+
+- `Context Enhanced Query` (CEQ) — user query enriched with relevant session context. Consumed by downstream routing and processing agents.
+
+---
+
 ## Core Principle
 
 Enhanced context retrieval is about precision, not token efficiency alone. The goal is to reduce irrelevant context exposure so agents reason over the context most relevant to their current role.
@@ -90,8 +105,4 @@ Information Digestion can then use the Context Enhanced Query and the available 
 
 The Task Analyzer uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
 
----
 
-## What This Document Does Not Define Yet
-
-This version intentionally avoids defining formal retrieval metrics. Metrics can be added later after the architecture stabilizes.

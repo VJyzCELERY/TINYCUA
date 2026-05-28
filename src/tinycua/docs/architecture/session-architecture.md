@@ -25,6 +25,22 @@ Additional session fields can be added later, but these three are the required f
 
 ---
 
+## Inputs / Outputs
+
+**Input:**
+
+- User messages and agent responses (accumulate into `chat_history`)
+- Sub-session results (propagated per propagation rules)
+- Context compaction triggers (model context-window pressure)
+
+**Output:**
+
+- Session object with `chat_history`, `Context`, and `execution_log` — canonical schema in [state-objects.md](state-objects.md)
+- Session propagation rules (sub-session → primary session)
+- Context compaction rules
+
+---
+
 ## Internal Flow
 
 ```mermaid

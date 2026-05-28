@@ -101,7 +101,7 @@ Where applicable, process specs should also include:
 | ...
 ```
 
-The README sections map directly to the file categories above, with each section name matching its corresponding category. Additional sections may be added as new categories are introduced.
+The README sections map directly to the file categories above. Additional sections may be added as new categories are introduced.
 
 ---
 
