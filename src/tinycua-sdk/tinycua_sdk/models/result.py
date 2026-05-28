@@ -40,9 +40,3 @@ class RunResult:
         return self.usage.get("output_tokens", 0)
 
 
-@dataclass
-class PlanRunResult(RunResult):
-    """Result from a plan mode execution."""
-
-    plan: dict[str, Any] = field(default_factory=dict)
-    todo_items: list[dict[str, Any]] = field(default_factory=list)

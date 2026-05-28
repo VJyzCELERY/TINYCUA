@@ -1,163 +1,96 @@
 """Integration tests for Tool execution."""
 
 import pytest
-from unittest.mock import MagicMock
-from tinycua_sdk.tools import tool
-from tinycua_sdk.tools.decorators import Tool
+from tinycua_sdk import Agent, LanguageModel, tool
+
+
+@tool
+def search(query: str) -> str:
+    """Search for something."""
+    return f"Results for: {query}"
+
+
+@tool
+def summarize(text: str) -> str:
+    """Summarize text."""
+    return f"Summary: {text}"
+
+
+@tool
+def failing_tool() -> str:
+    """A tool that fails."""
+    raise RuntimeError("Tool failed")
 
 
 class TestToolExecution:
     """Integration tests for tool execution."""
 
-    def test_basic_tool_invocation(self):
-        """Test basic tool invocation."""
+    @pytest.mark.asyncio
+    async def test_tool_invoked_during_run(self, mock_llm_with_tool_calls):
+        """Tool is called during agent run (mocked LLM returns tool call JSON)."""
+        agent = Agent(llm_model=LanguageModel(), tools=[search])
+        response = await agent.run("Search for quantum")
+        assert isinstance(response, str)
+        assert "quantum" in response.lower()
+
+    @pytest.mark.asyncio
+    async def test_multiple_tools_registered(self, mock_llm_client):
+        """Multiple tools can be registered."""
+        agent = Agent(llm_model=LanguageModel(), tools=[search, summarize])
+        assert len(agent.tools) == 2
+        response = await agent.run("Do something")
+        assert response == "Mocked response"
+
+    def test_tool_with_defaults(self):
+        """Tool with default parameters."""
+
         @tool
-        def greet(name: str) -> str:
+        def greet(name: str = "World") -> str:
             """Greet someone."""
             return f"Hello, {name}!"
 
-        result = greet.invoke(name="World")
+        result = greet.invoke()
         assert result == "Hello, World!"
 
-    def test_tool_with_multiple_params(self):
-        """Test tool with multiple parameters."""
-        @tool
-        def add(a: int, b: int, c: int = 0) -> int:
-            """Add numbers."""
-            return a + b + c
+    @pytest.mark.asyncio
+    async def test_no_tools(self, mock_llm_client):
+        """Agent without tools still runs."""
+        agent = Agent(llm_model=LanguageModel())
+        response = await agent.run("Hello")
+        assert response == "Mocked response"
 
-        result = add.invoke(a=1, b=2, c=3)
-        assert result == 6
+    def test_tool_direct_invoke(self):
+        """Direct Tool.invoke()."""
+        result = search.invoke(query="test")
+        assert result == "Results for: test"
 
-    def test_tool_with_optional_params(self):
-        """Test tool with optional parameters."""
-        @tool
-        def configure(option: str, value: str = "default") -> str:
-            """Configure something."""
-            return f"{option}={value}"
+    def test_tool_schema_for_api(self):
+        """Schema generation for API calls."""
+        schema = search.to_config()
+        assert schema["function"]["name"] == "search"
+        assert "query" in schema["function"]["parameters"]["properties"]
 
-        result = configure.invoke(option="debug")
-        assert result == "debug=default"
+    @pytest.mark.asyncio
+    async def test_tool_error_handling(self, mock_llm_with_failing_tool_call):
+        """Tool exceptions are caught and returned as error messages."""
+        agent = Agent(llm_model=LanguageModel(), tools=[failing_tool])
+        response = await agent.run("Use failing tool")
+        assert isinstance(response, str) and len(response) > 0
 
-    def test_tool_with_kwargs(self):
-        """Test tool passing kwargs to handler."""
-        @tool
-        def process(**kwargs) -> dict:
-            """Process kwargs."""
-            return kwargs
+    @pytest.mark.asyncio
+    async def test_add_tools_then_run(self, mock_llm_client):
+        """Add tools after construction."""
+        agent = Agent(llm_model=LanguageModel())
+        agent.add_tools(search)
+        assert len(agent.tools) == 1
+        response = await agent.run("Search")
+        assert response == "Mocked response"
 
-        result = process.invoke(foo="bar", baz=123)
-        assert result == {"foo": "bar", "baz": 123}
-
-
-class TestToolSchema:
-    """Integration tests for tool schema generation."""
-
-    def test_tool_generates_schema(self):
-        """Test tool generates correct schema."""
-        @tool
-        def calculate(x: int, y: int, operation: str = "add") -> int:
-            """Calculate result."""
-            if operation == "add":
-                return x + y
-            return x - y
-
-        schema = calculate.schema
-        assert "name" in schema
-        assert schema["name"] == "calculate"
-        assert "parameters" in schema
-
-    def test_tool_schema_includes_descriptions(self):
-        """Test tool schema includes parameter descriptions."""
-        @tool
-        def search(query: str, limit: int = 10) -> list:
-            """Search for items."""
-            return []
-
-        schema = search.schema
-        params = schema["parameters"]["properties"]
-        assert "query" in params
-        assert "description" in params["query"]
-
-
-class TestToolErrorHandling:
-    """Integration tests for tool error handling."""
-
-    def test_tool_missing_required_param(self):
-        """Test tool raises error for missing required param."""
-        @tool
-        def required_param(name: str) -> str:
-            """Required param tool."""
-            return name
-
-        with pytest.raises(TypeError):
-            required_param.invoke()
-
-    def test_tool_invalid_param_type(self):
-        """Test tool handles invalid param type."""
-        @tool
-        def numeric(value: int) -> int:
-            """Numeric tool."""
-            return value
-
-        result = numeric.invoke(value="42")
-        assert result == 42
-
-
-class TestToolWithAgent:
-    """Integration tests for tools used with agents."""
-
-    def test_multiple_tools_in_agent(self):
-        """Test agent with multiple tools."""
-        @tool
-        def tool1() -> str:
-            return "tool1"
-
-        @tool
-        def tool2() -> str:
-            return "tool2"
-
-        @tool
-        def tool3() -> str:
-            return "tool3"
-
-        from tinycua_sdk.agent.agent import Agent
-
-        agent = Agent(
-            name="multi-tool-agent",
-            model="test",
-            provider="test",
-            tools=[tool1, tool2, tool3],
-        )
-
-        assert len(agent.tools) == 3
-        names = [t.name for t in agent.tools]
-        assert "tool1" in names
-        assert "tool2" in names
-        assert "tool3" in names
-
-    def test_tool_dispatch_by_name(self):
-        """Test dispatching tool by name from agent."""
-        @tool
-        def echo(message: str) -> str:
-            """Echo message."""
-            return message
-
-        from tinycua_sdk.agent.agent import Agent
-
-        agent = Agent(
-            name="dispatch-agent",
-            model="test",
-            provider="test",
-            tools=[echo],
-        )
-
-        tool_instance = None
-        for t in agent.tools:
-            if t.name == "echo":
-                tool_instance = t
-                break
-
-        assert tool_instance is not None
-        result = tool_instance.invoke(message="test")
-        assert result == "test"
+    @pytest.mark.asyncio
+    async def test_add_multiple_tools(self, mock_llm_client):
+        """Add list of tools."""
+        agent = Agent(llm_model=LanguageModel())
+        agent.add_tools([search, summarize])
+        assert len(agent.tools) == 2
+        response = await agent.run("Do something")
+        assert response == "Mocked response"

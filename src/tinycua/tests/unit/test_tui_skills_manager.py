@@ -73,10 +73,10 @@ class TestSkillInfo:
             name="test_skill",
             description="A test skill",
             category="testing",
-            path=Path("/tmp/test_skill"),
+            source="/tmp/test_skill",
         )
 
         assert info.name == "test_skill"
         assert info.description == "A test skill"
         assert info.category == "testing"
-        assert info.path == Path("/tmp/test_skill")
+        assert info.source == "/tmp/test_skill"

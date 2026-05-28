@@ -1,0 +1,2 @@
+[all] Mixed stream:
+<interleaved text and events streamed here>
