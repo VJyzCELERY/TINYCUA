@@ -342,6 +342,92 @@ async def _translate_chat_user_message(
     )
 
 
+async def _translate_chat_tool_result_batch(
+    batch: list[dict[str, Any]],
+    result: list[dict[str, Any]],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+) -> None:
+    """Translate a batch of tool-result messages for Chat Completions.
+
+    Emits all required ``role: "tool"`` messages first (one per
+    ``call_id``, preserving the assistant tool-call batch), then appends
+    one or more synthetic ``role: "user"`` messages containing the
+    aggregated file/image parts and message-level ``attachments``.
+
+    Args:
+        batch: Contiguous tool-result message dicts.
+        result: Output list (mutated in place).
+        _upload_fn: Optional async upload callback for non-image files.
+    """
+    # Phase 1: Emit all tool messages first.
+    user_msg_buffer: list[dict[str, Any]] = []
+    for tool_msg in batch:
+        tool_text, user_parts = _split_tool_result_content(tool_msg)
+
+        # Text-only tool message.
+        result.append({
+            "role": "tool",
+            "tool_call_id": tool_msg.get("call_id", ""),
+            "content": tool_text,
+        })
+
+        # Collect file/image content parts for a deferred synthetic user message.
+        attachments: list[FileAttachment] = tool_msg.get("attachments", []) or []
+        if user_parts or attachments:
+            user_msg: dict[str, Any] = {"role": "user"}
+            user_msg["content"] = user_parts if user_parts else ""
+            if attachments:
+                user_msg["attachments"] = attachments
+            user_msg_buffer.append(user_msg)
+
+    # Phase 2: Emit deferred synthetic user messages after all tool messages.
+    for user_msg in user_msg_buffer:
+        translated_user = await _translate_chat_user_message(
+            user_msg, _upload_fn=_upload_fn,
+        )
+        result.append(translated_user)
+
+
+def _split_tool_result_content(
+    tool_msg: dict[str, Any],
+) -> tuple[str, list[ContentPart | dict[str, Any]]]:
+    """Split tool-result content into text and file/image parts.
+
+    Args:
+        tool_msg: A canonical ``tool_result`` message dict.
+
+    Returns:
+        A tuple of ``(tool_text, user_content_parts)``.
+    """
+    content = tool_msg.get("content", "")
+    tool_text = ""
+    user_content_parts: list[ContentPart | dict[str, Any]] = []
+
+    if isinstance(content, str):
+        return content, user_content_parts
+
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, ContentPart):
+                if part.type == "text" and part.text:
+                    tool_text += ("\n" if tool_text else "") + part.text
+                elif part.type == "file":
+                    # Preserve the original ContentPart object so that
+                    # StreamingFileAttachment internal state (e.g. _file_path)
+                    # is not lost during serialization.
+                    user_content_parts.append(part)
+            elif isinstance(part, dict):
+                if part.get("type") == "text":
+                    t = part.get("text", "")
+                    if t:
+                        tool_text += ("\n" if tool_text else "") + t
+                elif part.get("type") == "file":
+                    user_content_parts.append(part)
+
+    return tool_text, user_content_parts
+
+
 class OpenAIChatCompletionsClient(LLMClient):
     """OpenAI Chat Completions API provider client.
 
@@ -474,16 +560,23 @@ class OpenAIChatCompletionsClient(LLMClient):
                     else:
                         break
 
-                last_has_matching_tc = (
-                    result
-                    and result[-1].get("role") == "assistant"
-                    and "tool_calls" in result[-1]
+                # Compute current batch call IDs preserving order.
+                batch_call_ids = [
+                    m["call_id"]
+                    for m in batch
+                    if m.get("call_id")
+                ]
+                # Verify preceding assistant actually declares all those IDs.
+                previous_call_ids: set[str] = set()
+                if result and result[-1].get("role") == "assistant":
+                    for tc in result[-1].get("tool_calls", []):
+                        if isinstance(tc, dict) and tc.get("id"):
+                            previous_call_ids.add(tc["id"])
+                last_has_matching_tc = bool(
+                    batch_call_ids
+                    and set(batch_call_ids).issubset(previous_call_ids),
                 )
                 if not last_has_matching_tc:
-                    batch_call_ids = {
-                        m.get("call_id", "") for m in batch
-                        if m.get("call_id")
-                    }
                     matched_calls = [
                         self._prior_tool_calls[cid]
                         for cid in batch_call_ids
@@ -496,12 +589,9 @@ class OpenAIChatCompletionsClient(LLMClient):
                             "tool_calls": matched_calls,
                         })
 
-                for tool_msg in batch:
-                    result.append({
-                        "role": "tool",
-                        "tool_call_id": tool_msg.get("call_id", ""),
-                        "content": tool_msg.get("content", ""),
-                    })
+                await _translate_chat_tool_result_batch(
+                    batch, result, _upload_fn=_upload_fn,
+                )
             else:
                 if isinstance(msg, dict) and msg.get("role") == "user":
                     result.append(await _translate_chat_user_message(msg, _upload_fn=_upload_fn))  # type: ignore[arg-type]

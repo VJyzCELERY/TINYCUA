@@ -1319,3 +1319,138 @@ class TestRegressionResponses:
             item == {"role": "user", "content": "hello world"}
             for item in input_items
         )
+
+
+class TestResponsesToolResultTranslation:
+    """Responses API tool-result attachment translation tests."""
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_content_parts_to_function_call_output(self):
+        """Responses translates ContentPart list to func_call_output + synthetic user."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": [
+                    ContentPart(type="text", text="Generated image."),
+                    ContentPart(type="file", file=attachment),
+                ],
+            }
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        # First item: function_call_output with plain-string output.
+        func_output = translated[0]
+        assert func_output["type"] == "function_call_output"
+        assert func_output["call_id"] == "call_1"
+        assert func_output["output"] == "Generated image."
+
+        # Second item: synthetic user message with image.
+        assert len(translated) == 2
+        user_msg = translated[1]
+        assert user_msg["role"] == "user"
+        assert user_msg["content"][0]["type"] == "input_image"
+
+
+    @pytest.mark.asyncio
+    async def test_translates_tool_result_attachments_async(self):
+        """Responses translates string+attachments to func_call_output + synthetic user."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_2",
+                "content": "Here is the image.",
+                "attachments": [attachment],
+            },
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        # First item: function_call_output with plain-string output.
+        func_output = translated[0]
+        assert func_output["type"] == "function_call_output"
+        assert func_output["call_id"] == "call_2"
+        assert func_output["output"] == "Here is the image."
+
+        # Second item: synthetic user message with image.
+        assert len(translated) == 2
+        user_msg = translated[1]
+        assert user_msg["role"] == "user"
+        assert user_msg["content"][0]["type"] == "input_image"
+
+    @pytest.mark.asyncio
+    async def test_parallel_tool_results_outputs_before_attachments(self):
+        """All function_call_outputs emitted before synthetic user messages."""
+        attachment = FileAttachment.from_bytes(
+            b"img", mime_type="image/png", filename="img.png",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        messages = [
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": "one",
+                "attachments": [attachment],
+            },
+            {
+                "role": "tool_result",
+                "call_id": "call_2",
+                "content": "two",
+            },
+        ]
+
+        translated = await client._translate_responses_input(messages)
+
+        # Order must be: func_call_output(call_1), func_call_output(call_2), user
+        order = [item.get("type") or item.get("role") for item in translated]
+        assert order == ["function_call_output", "function_call_output", "user"], (
+            f"Expected [function_call_output, function_call_output, user], got {order}"
+        )
+        assert translated[0]["call_id"] == "call_1"
+        assert translated[0]["output"] == "one"
+        assert translated[1]["call_id"] == "call_2"
+        assert translated[1]["output"] == "two"
+        assert translated[2]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_text_mime_file_content_part_stays_in_synthetic_user_message(self):
+        """Text/plain file ContentPart is placed in synthetic user msg, not func_call_output."""
+        attachment = FileAttachment.from_bytes(
+            b"hello file",
+            mime_type="text/plain",
+            filename="note.txt",
+        )
+        client = OpenAIResponsesClient(
+            LanguageModel(model_name="gpt-test"),
+        )
+        items = await client._translate_responses_input([
+            {
+                "role": "tool_result",
+                "call_id": "call_1",
+                "content": [
+                    ContentPart(type="text", text="summary"),
+                    ContentPart(type="file", file=attachment),
+                ],
+            }
+        ])
+        # Text-only content should be in function_call_output.output
+        assert items[0]["type"] == "function_call_output"
+        assert items[0]["output"] == "summary"
+        # Text/plain file should be in synthetic user message
+        assert len(items) == 2
+        assert items[1]["role"] == "user"

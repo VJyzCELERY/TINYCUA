@@ -410,7 +410,128 @@ async def _translate_responses_user_message(
     )
 
 
+async def _translate_responses_tool_result_message(
+    msg: dict[str, Any],
+    *,
+    _upload_fn: Callable[[FileAttachment], Awaitable[str]] | None = None,
+    _download_fn: Callable[[str], Awaitable[bytes]] | None = None,
+) -> list[dict[str, Any]]:
+    """Translate a canonical tool-result message to Responses API input items.
 
+    Returns a **list** (for consistency with the caller's ``extend()`` pattern)
+    that contains one ``function_call_output`` item with a plain-string
+    ``output``, followed by zero or more synthetic ``user`` messages carrying
+    any file/image content parts.  This separation ensures compatibility with
+    providers (like LM Studio) that reject list-valued
+    ``function_call_output.output``.
+
+    Handles three shapes:
+
+    1. ``content: list[ContentPart | dict]`` — text parts are joined into
+       ``function_call_output.output``; file/image parts become synthetic
+       ``user`` messages.
+    2. ``content: str`` with ``attachments: list[FileAttachment]`` —
+       text stays in ``function_call_output.output``; attachments become
+       synthetic ``user`` messages.
+    3. ``content: str`` (no attachments) — a simple
+       ``function_call_output`` with a plain-string ``output``.
+
+    Args:
+        msg: A tool-result message dict with ``role``, ``call_id``,
+            ``content``, and optionally ``attachments``.
+        _upload_fn: Optional async callable for file uploads.
+        _download_fn: Optional async callable for URL download.
+
+    Returns:
+        A list of one or more input item dicts for the Responses API
+        ``input`` array.
+    """
+    content = msg.get("content")
+    call_id = msg.get("call_id", "")
+    attachments: list[FileAttachment] = msg.get("attachments", []) or []
+    result: list[dict[str, Any]] = []
+    text_parts: list[str] = []
+    file_parts: list[dict[str, Any]] = []
+
+    if isinstance(content, list):
+        # Structured multipart — split text and file/image parts.
+        orig_type: str = ""
+        for item in content:
+            if isinstance(item, ContentPart):
+                orig_type = item.type
+                translated = await _translate_responses_content_part(
+                    item, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                )
+            elif isinstance(item, dict):
+                orig_type = item.get("type", "")
+                coerced = ContentPart(**item)
+                translated = await _translate_responses_content_part(
+                    coerced, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported tool-result content item type: "
+                    f"expected ContentPart or dict, got {type(item).__name__}"
+                )
+
+            # Classify by original ContentPart type, not translated
+            # provider type: a text file attachment translates to
+            # input_text but is still a file ContentPart and must be
+            # placed in a synthetic user message.
+            if orig_type == "text":
+                text_parts.append(translated["text"])
+            else:
+                file_parts.append(translated)
+
+        for att in attachments:
+            file_parts.append(
+                await _translate_responses_attachment(
+                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                ),
+            )
+
+        # Emit function_call_output with plain-string text output.
+        result.append({
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": "\n".join(text_parts) if text_parts else "",
+        })
+
+        # Emit synthetic user messages for file/image parts.
+        if file_parts:
+            result.append({"role": "user", "content": file_parts})
+
+        return result
+
+    # String content (may have attachments).
+    if isinstance(content, str) and (attachments):
+        for att in attachments:
+            file_parts.append(
+                await _translate_responses_attachment(
+                    att, _upload_fn=_upload_fn, _download_fn=_download_fn,
+                ),
+            )
+
+        # Emit function_call_output with plain-string output.
+        result.append({
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": content,
+        })
+
+        # Emit synthetic user message for attachments.
+        if file_parts:
+            result.append({"role": "user", "content": file_parts})
+
+        return result
+
+    # Plain string or unrecognized — pass through as simple output.
+    result.append({
+        "type": "function_call_output",
+        "call_id": call_id,
+        "output": str(content),
+    })
+    return result
 # ── Responses event normalization ─────────────────────────────────────────────
 
 
@@ -865,10 +986,18 @@ class OpenAIResponsesClient(LLMClient):
         """Translate canonical messages to Responses API ``input`` items.
 
         Uses :func:`_translate_responses_user_message` for user messages
-        that may carry attachments or ``ContentPart`` content, and the
-        module-level :func:`_translate_messages` for all other message
-        types (system, assistant, tool_result). This method is async
-        because attachment translation may involve file uploads.
+        that may carry attachments or ``ContentPart`` content. Tool-result
+        messages with structured content (``list[ContentPart]`` or
+        ``attachments``) are translated through the async helpers so that
+        uploads/downloads can be awaited.  Plain string tool results
+        fall back to the module-level :func:`_translate_messages`.
+
+        Contiguous ``tool_result`` messages are batched together: all
+        ``function_call_output`` items are emitted first (preserving
+        ``call_id`` order), followed by any deferred synthetic ``user``
+        messages carrying file/image attachment content.  This ensures
+        parallel tool-call results with attachments produce the correct
+        ordering expected by Responses-compatible providers.
 
         Args:
             messages: Canonical message list.
@@ -888,17 +1017,53 @@ class OpenAIResponsesClient(LLMClient):
             )
 
         result: list[dict[str, Any]] = []
-        for msg in messages:
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+
             if isinstance(msg, dict) and msg.get("role") == "user":
-                translated = await _translate_responses_user_message(
+                user_msg = await _translate_responses_user_message(
                     msg,  # type: ignore[arg-type]
                     _upload_fn=self._ensure_uploaded_file_id,
                     # _upload_session is always created in __init__
                     _download_fn=_download_url,
                 )
-                result.append(translated)
+                result.append(user_msg)
+                i += 1
+            elif isinstance(msg, dict) and msg.get("role") == "tool_result":
+                # Batch contiguous tool_result messages to preserve
+                # function_call_output ordering (all outputs first,
+                # then any synthetic user messages with attachments).
+                batch: list[dict] = []
+                while i < len(messages):
+                    m = messages[i]
+                    if isinstance(m, dict) and m.get("role") == "tool_result":
+                        batch.append(m)  # type: ignore[arg-type]
+                        i += 1
+                    else:
+                        break
+
+                func_outputs: list[dict[str, Any]] = []
+                deferred_users: list[dict[str, Any]] = []
+                for tool_msg in batch:
+                    translated = await _translate_responses_tool_result_message(
+                        tool_msg,  # type: ignore[arg-type]
+                        _upload_fn=self._ensure_uploaded_file_id,
+                        _download_fn=_download_url,
+                    )
+                    for item in translated:
+                        if item.get("role") == "user":
+                            deferred_users.append(item)
+                        else:
+                            func_outputs.append(item)
+
+                # Emit all function_call_outputs first, preserving call_id
+                # order, then any deferred synthetic user messages.
+                result.extend(func_outputs)
+                result.extend(deferred_users)
             else:
                 result.extend(_translate_messages([msg]))
+                i += 1
         return result
 
     @staticmethod
