@@ -3,7 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/worker-orchestration.md`
-> **See also:** [session-architecture.md](session-architecture.md)
+> **See also:** [session-architecture.md](session-architecture.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
@@ -107,7 +107,7 @@ Effort changes the amount of upfront task analysis by the Task Analyzer. It does
 
 Clarification is not task completion. If an internal agent needs user input, the Worker should store continuation state and resume that same internal point after the user replies.
 
-Each specialized agent can have its own sub-session with its own `Chat_History` and `Context`. Human-in-the-loop continuation resumes that existing sub-session.
+Each specialized agent can have its own sub-session with its own `chat_history` and `Context`. Human-in-the-loop continuation resumes that existing sub-session.
 
 Two signaling concepts are recommended:
 

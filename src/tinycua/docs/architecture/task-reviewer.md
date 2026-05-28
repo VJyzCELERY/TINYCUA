@@ -61,7 +61,7 @@ reviewer_decision:
 
 ---
 
-## Decision Flow
+## Internal Flow
 
 ```mermaid
 flowchart TD

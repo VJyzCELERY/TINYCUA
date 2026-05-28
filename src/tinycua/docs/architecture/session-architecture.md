@@ -16,7 +16,7 @@ A session is the unit that stores conversation history and the context loaded by
 
 For now, a session has three primary parts:
 
-1. `Chat_History` — the preserved exchange/turn log.
+1. `chat_history` — the preserved exchange/turn log.
 2. `Context` — the structured markdown context loaded by the model.
 3. `Execution_Log` — tool calls, observations, diffs, and decision trace from sub-session execution.
 
@@ -40,9 +40,9 @@ session:
 
 ---
 
-## Chat_History
+## chat_history
 
-`Chat_History` is the exchange/turn log between the user and agents. It should be stored as JSON so turns can be preserved and replayed structurally.
+`chat_history` is the exchange/turn log between the user and agents. It should be stored as JSON so turns can be preserved and replayed structurally.
 
 It should also preserve communication between TINYCUA internal agents, not only user-facing messages.
 
@@ -108,7 +108,7 @@ Example:
 - Context retrieval starts when accumulated session `Context` reaches model context-window pressure.
 ```
 
-`Context` is derived from `Chat_History`, compacted information, retrieved notes, and current task/session needs. It should stay focused on what the model needs for the current session.
+`Context` is derived from `chat_history`, compacted information, retrieved notes, and current task/session needs. It should stay focused on what the model needs for the current session.
 
 ---
 
@@ -130,11 +130,11 @@ See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
 
 Compaction is triggered by model context-window pressure, not by user query size.
 
-Compaction summarizes the current `Context`, not the raw `Chat_History` from scratch. After compaction:
+Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. After compaction:
 
 1. compacted information is placed near the beginning of `Context`;
 2. new relevant turns are appended after the compacted information;
-3. `Chat_History` remains the structural source of preserved turns as much as practical.
+3. `chat_history` remains the structural source of preserved turns as much as practical.
 
 This lets TINYCUA preserve exchange history while keeping model-loaded context manageable.
 
@@ -152,12 +152,12 @@ Examples:
 - Task Executor session
 - Task Reviewer session
 
-Each sub-session has its own `Chat_History` and `Context`.
+Each sub-session has its own `chat_history` and `Context`.
 
 Important propagation rules:
 
-- The primary session tracks sub-session `Chat_History` — it is appended to the primary session's `Chat_History` so the parent preserves an auditable record of internal communication.
-- Sub-sessions are not aware of the parent session; each sub-session manages only its own `Chat_History` and `Context`.
+- The primary session tracks sub-session `chat_history` — it is appended to the primary session's `chat_history` so the parent preserves an auditable record of internal communication.
+- Sub-sessions are not aware of the parent session; each sub-session manages only its own `chat_history` and `Context`.
 - Sub-session `Context` is **not** automatically added to primary session `Context`.
 - Parent session `Context` should only receive consolidated information when the architecture explicitly decides to update it.
 
@@ -177,8 +177,10 @@ Future explicit Sub Agents will be a separate concept. A future Sub Agent sessio
 
 ## Relationship to Enhanced Context Retrieval
 
-Enhanced Context Retrieval uses session `Context` and/or retrievable `Chat_History` records to construct a Context Enhanced Query.
+Enhanced Context Retrieval uses session `Context` and/or retrievable `chat_history` records to construct a Context Enhanced Query.
 
 The trigger is accumulated session `Context` size relative to model context-window pressure. User query size alone does not trigger enhanced retrieval.
 
 See [context-retrieval.md](context-retrieval.md).
+
+> **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md)
