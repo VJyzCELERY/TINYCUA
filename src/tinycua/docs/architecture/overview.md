@@ -48,7 +48,7 @@ flowchart TD
     end
 
     UQ{{"User Query"}}
-    FSC{{"Session\nChat_History + Context"}}
+    FSC{{"Session\nchat_history + Context"}}
 
     UQ --> QA
     FSC --> QA
@@ -96,7 +96,7 @@ The architecture should make state explicit so human-in-the-loop continuation ca
 Important objects:
 
 - Session
-- Session Chat_History
+- Session chat_history
 - Session Context
 - Context Enhanced Query
 - Mode Decision

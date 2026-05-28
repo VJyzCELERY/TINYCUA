@@ -24,7 +24,7 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 | Object | Producer | Consumer | Purpose |
 |--------|----------|----------|---------|
 | `User Query` | User | Query Analyst | Latest user instruction. Query size does not trigger enhanced retrieval by itself. |
-| `Session` | Session system | Query Analyst / Information Digester / agents | Contains `Chat_History`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
+| `Session` | Session system | Query Analyst / Information Digester / agents | Contains `chat_history`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
 | `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with relevant session `Context` when needed. |
 | `Mode Decision` | Query Analyst | Top-level router | Chooses `primary_agent`, `worker`, or `uncertain`. |
 | `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. Canonical schema below. |
@@ -50,14 +50,14 @@ session:
 
 Important rules:
 
-- `Chat_History` is the preserved turn log and should be JSON.
+- `chat_history` is the preserved turn log and should be JSON.
 - `Context` is structured markdown and is what the model loads.
 - Enhanced context retrieval starts when session `Context` approaches model context-window pressure.
-- Sub-sessions keep their own `Chat_History`, `Context`, and `execution_log`, but sub-session `Chat_History` is propagated to primary session `Chat_History`.
+- Sub-sessions keep their own `chat_history`, `Context`, and `execution_log`, but sub-session `chat_history` is propagated to primary session `chat_history`.
 - Sub-session `Context` is not automatically appended to primary session `Context`.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
 
-Use `Session.Context` for model-loadable context and `Session.Chat_History` for preserved turns. Use `Session.execution_log` for tool calls, results, and diffs from sub-session execution.
+Use `Session.Context` for model-loadable context and `Session.chat_history` for preserved turns. Use `Session.execution_log` for tool calls, results, and diffs from sub-session execution.
 
 ---
 

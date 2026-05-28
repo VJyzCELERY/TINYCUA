@@ -23,14 +23,12 @@ The Information Digester is a privileged narrowing boundary: it may inspect broa
 
 - `context_enhanced_query`
 - session `Context` when needed
-- retrievable session `Chat_History` when needed
+- retrievable session `chat_history` when needed
 - caller: `primary_agent` or `worker`
 
 **Output:**
 
-Canonical schema is in [state-objects.md](state-objects.md). The Information Digester produces YAML internally, but downstream agents receive the digest as **markdown**:
-
-The digest is sent to downstream agents as structured markdown. See [state-objects.md](state-objects.md) for the canonical output schema and section descriptions.
+Canonical schema is in [state-objects.md](state-objects.md). The digest is sent to downstream agents as structured markdown. See [state-objects.md](state-objects.md) for the canonical output schema (stored as YAML) and section descriptions.
 
 ---
 
@@ -39,7 +37,7 @@ The digest is sent to downstream agents as structured markdown. See [state-objec
 ```mermaid
 flowchart TD
     CEQ{{"Context Enhanced Query"}}
-    FSC{{"Session Context\n(+ retrievable Chat_History when needed)"}}
+    FSC{{"Session Context\n(+ retrievable chat_history when needed)"}}
     FOCUS["Identify relevant topics/entities"]
     EXTRACT["Extract relevant context"]
     FILTER["Remove distracting context"]

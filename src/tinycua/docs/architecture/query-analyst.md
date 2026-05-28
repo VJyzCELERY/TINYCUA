@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/query-analyst.md`
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-classification.md](task-classification.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [information-digestion.md](information-digestion.md), [task-classification.md](task-classification.md), [state-objects.md](state-objects.md)
 
 ---
 
@@ -42,7 +42,7 @@ Rules:
 
 - If session `Context` is small, use it directly.
 - User query size does not trigger enhanced retrieval.
-- Session `Chat_History` stores user/agent/internal-agent turns in JSON.
+- Session `chat_history` stores user/agent/internal-agent turns in JSON.
 - Session `Context` accumulates as structured markdown and is compacted as needed.
 
 See [context-retrieval.md](context-retrieval.md).
@@ -54,7 +54,7 @@ See [context-retrieval.md](context-retrieval.md).
 ```mermaid
 flowchart TD
     UQ{{"User Query"}}
-    FSC{{"Session\nChat_History + Context"}}
+    FSC{{"Session\nchat_history + Context"}}
     SIZE{"Session Context near model limit?"}
     DIRECT["Use available context directly"]
     RETRIEVE["Enhanced Context Retrieval"]

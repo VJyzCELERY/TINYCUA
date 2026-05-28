@@ -7,7 +7,13 @@
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 
-This document defines when and how TINYCUA retrieves context from session `Chat_History` and `Context`.
+This document defines when and how TINYCUA retrieves context from session `chat_history` and `Context`.
+
+---
+
+## Role
+
+The Enhanced Context Retrieval process determines when and how to retrieve relevant context from session `chat_history` and `Context` as the session grows large, producing a `Context Enhanced Query` used for subsequent routing and processing.
 
 ---
 
@@ -25,7 +31,7 @@ Important rules:
 
 - User query size does **not** trigger enhanced context retrieval.
 - If session `Context` is still small, the system can use it directly.
-- Session `Chat_History` should preserve user, agent, and internal-agent turns in JSON form.
+- Session `chat_history` should preserve user, agent, and internal-agent turns in JSON form.
 - Session `Context` should accumulate as structured markdown and be compacted as needed.
 
 ---
@@ -36,10 +42,10 @@ Session storage, compaction, and sub-session propagation are defined in [session
 
 Important retrieval-facing rules:
 
-- `Chat_History` is JSON and preserves turns.
+- `chat_history` is JSON and preserves turns.
 - `Context` is structured markdown and is what the model loads.
-- Compaction summarizes current `Context`, not raw `Chat_History` from scratch.
-- Sub-sessions can preserve their own isolated `Context` while propagating their `Chat_History` into the primary session `Chat_History`.
+- Compaction summarizes current `Context`, not raw `chat_history` from scratch.
+- Sub-sessions can preserve their own isolated `Context` while propagating their `chat_history` into the primary session `chat_history`.
 
 ---
 
@@ -51,7 +57,7 @@ flowchart TD
     SIZE{"Session Context near model limit?"}
     DIRECT["Use current context directly"]
     SEARCH["Generate search query / retrieval plan"]
-    STORE{{"Session Chat_History + Context"}}
+    STORE{{"Session chat_history + Context"}}
     CAND{{"Candidate context"}}
     JUDGE["LLM-first relevance judgment"]
     CEQ{{"Context Enhanced Query"}}
@@ -72,7 +78,7 @@ flowchart TD
 
 TINYCUA should avoid framing retrieval as conventional RAG where embedding search and hard token packing dominate the design.
 
-The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the current request, search session `Chat_History` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce a Context Enhanced Query containing only the context needed for routing or downstream processing. The Mermaid diagram above captures this flow without prescribing implementation details.
+The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the current request, search session `chat_history` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce a Context Enhanced Query containing only the context needed for routing or downstream processing. The Mermaid diagram above captures this flow without prescribing implementation details.
 
 ---
 

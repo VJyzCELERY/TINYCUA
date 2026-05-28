@@ -7,7 +7,7 @@ Start with [overview.md](overview.md) for the top-level picture.
 If you are new to TINYCUA's architecture, read in this order for a linear learning path:
 
 1. [overview.md](overview.md) — Architecture thesis, routing modes, and the big picture
-2. [session-architecture.md](session-architecture.md) — Session model: Chat_History, Context, execution log, sub-sessions, and compaction (foundational)
+2. [session-architecture.md](session-architecture.md) — Session model: chat_history, Context, execution log, sub-sessions, and compaction (foundational)
 3. [state-objects.md](state-objects.md) — Canonical shared data structures (reference as you read the other docs)
 4. [query-analyst.md](query-analyst.md) — How queries are enriched and routing decisions are made
 5. [context-retrieval.md](context-retrieval.md) — How context is retrieved when the session grows large
@@ -43,7 +43,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 
 | File | Description |
 |------|-------------|
-| [session-architecture.md](session-architecture.md) | Session model: Chat_History, Context, execution log, sub-sessions, and compaction |
+| [session-architecture.md](session-architecture.md) | Session model: chat_history, Context, execution log, sub-sessions, and compaction |
 | [context-retrieval.md](context-retrieval.md) | Enhanced context retrieval trigger, storage, and retrieval flow |
 | [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analyzer → Task Executor → Task Reviewer |
 
