@@ -18,6 +18,8 @@ This design describes the structure, page template, reading progression, and imp
 
 The cookbook is organized into six progressive phase folders. Files within each folder have descriptive names; the reading order is defined by the `index.md` table of contents.
 
+<!-- Implements FR-001 -->
+
 ```
 src/tinycua-sdk/docs/cookbook/
   index.md
@@ -50,22 +52,14 @@ src/tinycua-sdk/docs/cookbook/
 
 ### Reading Progression (Dependency Graph)
 
-```
-installation ──→ first-agent ──→ config ──→ language-models ──→ streaming ──→ file-attachments ──→ multimodal
-                                                                                        │
-                                                                                        ▼
-                                                creating-tools ──→ skills ──→ permissions    │
-                                                │                                         │
-                                                │    streaming-uploads ←── upload-cache ←─┘
-                                                │    │
-                                                ▼    ▼
-                                                tool-results (depends on file-attachments/multimodal + permissions/streaming-uploads)
-                                                │
-                                                ▼
-                                          chat-completions ──→ responses ──→ custom-providers
-                                                │
-                                                ▼
-                                          custom-loops ──→ stream-events ──→ error-handling
+```mermaid
+flowchart LR
+    installation-and-setup --> your-first-agent --> agent-configuration --> language-models-and-providers --> streaming-responses --> file-attachments --> multimodal-content
+    multimodal-content --> creating-tools --> skills-and-skill-registry --> tool-permissions-and-approval
+    multimodal-content --> streaming-file-uploads --> upload-cache-and-persistence
+    creating-tools & streaming-file-uploads --> tool-results-with-files
+    tool-results-with-files --> chat-completions-provider --> responses-provider --> custom-providers
+    chat-completions-provider --> custom-execution-loops --> canonical-stream-events --> error-handling
 ```
 
 Provider deep dives are placed after the user has practical experience with file attachments and tools, giving them context for understanding provider internals. The `custom-providers` page builds on `ProviderRegistry` already introduced in `language-models-and-providers`.
@@ -84,14 +78,18 @@ Provider deep dives are placed after the user has practical experience with file
 | `src/tinycua-sdk/docs/cookbook/execution-and-reference/` | New | 3 pages — loops, events, errors |
 | `src/tinycua-sdk/specs/sdk-cookbook/` | New | Spec and design docs |
 | `src/tinycua-sdk/README.md` | Modified | Add link to cookbook from README |
+| `src/tinycua-sdk/tests/test_cookbook_structure.py` | New | Structural validation test suite |
 
-No source code changes. No test changes. This is a documentation-only addition.
+No product source code changes. A new structural validation test file (`src/tinycua-sdk/tests/test_cookbook_structure.py`) is added.
 
 ---
 
 ## Data Model
+**N/A** — No data model changes. The cookbook uses the following page structure template.
 
 ### Page Structure (Template)
+
+<!-- Implements FR-002 -->
 
 Every cookbook page follows this structure:
 
@@ -125,6 +123,8 @@ from tinycua_sdk import ...
 
 ### Code Snippet Conventions
 
+<!-- Implements FR-003, FR-004, FR-009 -->
+
 - Every snippet is preceded by a sentence explaining what it does.
 - Imports are explicit at the top of each snippet (not hidden in a shared preamble).
 - Environment variables use `${VAR_NAME}` notation in prose and `os.environ.get("VAR")` in code.
@@ -141,7 +141,7 @@ model = LanguageModel(
     provider="openai-responses",
     model_name="gpt-4o-mini",
     base_url="https://api.openai.com/v1",
-    api_key=os.environ["OPENAI_API_KEY"],
+    api_key=os.environ.get("OPENAI_API_KEY"),
 )
 agent = Agent(name="my-agent", instructions="...", llm_model=model)
 ```
@@ -149,6 +149,7 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 ---
 
 ## API / Interface Contracts
+**N/A** — No API changes. The cookbook pages follow these content contracts.
 
 ### Page Naming Convention
 
@@ -158,6 +159,8 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 - The `index.md` file lives at the cookbook root, outside any phase folder.
 
 ### Cross-Page Linking Convention
+
+<!-- Implements FR-009 -->
 
 - Prerequisites sections use relative Markdown links: `[Page Title](../other-phase/slug.md)`.
 - The index page links every page grouped by phase folder with a one-line description.
@@ -173,6 +176,11 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 ---
 
 ## Implementation Phases
+
+### Phase 0 — Scaffolding & Index
+
+- [ ] Create directory structure: `docs/cookbook/` root and all six phase subdirectories (`onboarding/`, `core-concepts/`, `agent-extensions/`, `advanced-file-handling/`, `provider-deep-dives/`, `execution-and-reference/`)
+- [ ] Create `index.md` at the cookbook root listing all 19 pages grouped by phase with one-line descriptions
 
 ### Phase 1 — Onboarding (`onboarding/`)
 
@@ -207,9 +215,13 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 
 ### Phase 6 — Execution & Reference (`execution-and-reference/`)
 
-- [ ] **custom-execution-loops.md**: `BaseLoop` internals, `build_system_message`, `_run_sync` vs `_run_stream`, `process_tool_calls`, `last_assistant_content`, overriding `max_iterations`, creating custom loops
+- [ ] **custom-execution-loops.md**: `BaseLoop` internals, `build_system_message`, `_run_sync` vs `_run_stream`, `process_tool_calls`, `last_assistant_content`, overriding `max_iterations`, creating custom loops, `AgentExecutor`
 - [ ] **canonical-stream-events.md**: Complete reference of all 15 event types, tool call state machine diagram, event ordering guarantees, `LLMResponse` structure, `TokenUsage`, `ToolCallDict`
 - [ ] **error-handling.md**: `ProviderApiError`, `ProviderAuthError`, `ProviderNotSupportedError`, try/except patterns, retry with tenacity, cancellation handling
+
+### Phase 7 — README Update
+
+- [ ] Update `src/tinycua-sdk/README.md` — add link to cookbook (`docs/cookbook/index.md`)
 
 ---
 
@@ -241,7 +253,7 @@ agent = Agent(name="my-agent", instructions="...", llm_model=model)
 | Cookbook grows beyond linear reading (too many pages) | Low | Medium | Cap at ~20 pages. New features get appended only if they introduce a genuinely new concept. Variations go in existing pages. |
 | Snippet won't run due to missing dependency | Low | High | Every snippet must be manually verified before merging. Pin dependency versions in prose only as needed. |
 | Linear ordering becomes wrong after SDK adds new concepts | Low | Low | New pages can be inserted into phase folders; the index.md defines reading order, not filenames. Update the dependency graph in this design doc. |
-| Different provider patterns confuse beginners | Medium | Medium | Page 04 (`language-models-and-providers.md`) explicitly teaches the two paths. Later pages show both patterns briefly and refer back to 04 for full explanation. |
+| Different provider patterns confuse beginners | Medium | Medium | `language-models-and-providers.md` explicitly teaches the two paths. Later pages show both patterns briefly and refer back for full explanation. |
 
 ---
 

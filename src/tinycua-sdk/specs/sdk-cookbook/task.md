@@ -13,7 +13,7 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
 
 ## Implementation Phase
 
-### Phase 1 — Scaffolding & Index
+### Phase 0 — Scaffolding & Index
 
 - [ ] Create directory structure <!-- id: 2 -->
   - [ ] Create `src/tinycua-sdk/docs/cookbook/` root directory
@@ -24,21 +24,21 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] Links use relative paths: `[Page Title](./phase/slug.md)`
 - [ ] Run validation tests — expect structural tests pass (files exist), content tests still fail <!-- id: 4 -->
 
-### Phase 2 — Onboarding (`onboarding/`)
+### Phase 1 — Onboarding (`onboarding/`)
 
 - [ ] Write `onboarding/installation-and-setup.md` <!-- id: 5 -->
   - [ ] pip/uv install, environment variables, `.env` setup, verify installation
   - [ ] Dual provider patterns: local (LM Studio) and remote (OpenAI) configuration
-  - [ ] No hardcoded secrets — use `os.environ["OPENAI_API_KEY"]`
+  - [ ] No hardcoded secrets — use `os.environ.get("OPENAI_API_KEY")`
   - [ ] Follow page template: title, Prerequisites, Overview, tutorial sections, Common Pitfalls, Next Steps
 - [ ] Write `onboarding/your-first-agent.md` <!-- id: 6 -->
   - [ ] Import `Agent`, create with name/instructions, call `run()`, print response
   - [ ] Minimal imports — `from tinycua_sdk import Agent`
 - [ ] Write `onboarding/agent-configuration.md` <!-- id: 7 -->
   - [ ] `AgentConfig`, `AgentPolicy`, `from_config`/`to_config`, JSON/YAML serialization, `from_json_file`/`from_yaml_file`
-  - [ ] Showload/save patterns
+  - [ ] Show load/save patterns
 
-### Phase 3 — Core Concepts (`core-concepts/`)
+### Phase 2 — Core Concepts (`core-concepts/`)
 
 - [ ] Write `core-concepts/language-models-and-providers.md` <!-- id: 8 -->
   - [ ] `LanguageModel` fields, model resolution, provider selection, local vs remote, `to_dict`/`from_dict`, `api_key` env expansion
@@ -53,7 +53,7 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] `ContentPart` text/file types, building multimodal queries, mixing text and images
   - [ ] Provider behavior differences between chat-completions and responses
 
-### Phase 4 — Agent Extensions (`agent-extensions/`)
+### Phase 3 — Agent Extensions (`agent-extensions/`)
 
 - [ ] Write `agent-extensions/creating-tools.md` <!-- id: 12 -->
   - [ ] `@tool` decorator (bare and parameterized), `Tool.from_callable`, docstring parsing
@@ -65,7 +65,7 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] `tool_permissions` map (`allow`/`ask`/`deny`), `ApprovalWorkflow` ABC
   - [ ] `DefaultApprovalWorkflow`, custom workflow example, multi-workflow chaining
 
-### Phase 5 — Advanced File Handling (`advanced-file-handling/`)
+### Phase 4 — Advanced File Handling (`advanced-file-handling/`)
 
 - [ ] Write `advanced-file-handling/streaming-file-uploads.md` <!-- id: 15 -->
   - [ ] `FileAttachment.from_path(stream=True)`, `StreamingFileAttachment`, `iter_base64_chunks`
@@ -77,7 +77,7 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] Tools returning dicts with `content` + `attachments`, multipart content shapes
   - [ ] Tool result normalization across providers
 
-### Phase 6 — Provider Deep Dives (`provider-deep-dives/`)
+### Phase 5 — Provider Deep Dives (`provider-deep-dives/`)
 
 - [ ] Write `provider-deep-dives/chat-completions-provider.md` <!-- id: 18 -->
   - [ ] `OpenAIChatCompletionsClient`, message translation, tool-result synthetic user messages
@@ -89,7 +89,7 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] `ProviderRegistry.register`, `LLMClient` ABC, implementing `_chat_impl`, `close`
   - [ ] `ProviderFactory` protocol, alias resolution, `normalize_base_url`
 
-### Phase 7 — Execution & Reference (`execution-and-reference/`)
+### Phase 6 — Execution & Reference (`execution-and-reference/`)
 
 - [ ] Write `execution-and-reference/custom-execution-loops.md` <!-- id: 21 -->
   - [ ] `BaseLoop` internals, `build_system_message`, `_run_sync` vs `_run_stream`
@@ -134,9 +134,9 @@ Implementation tasks for the 19-page SDK cookbook under `src/tinycua-sdk/docs/co
   - [ ] Verify patterns are consistent with page 04 (language-models-and-providers)
 - [ ] Secrets audit <!-- id: 31 -->
   - [ ] Grep all cookbook files for API key patterns (`sk-`, bearer tokens, hardcoded secrets)
-  - [ ] Confirm all credentials use `os.environ["..."]` or `"$VAR_NAME"` placeholder notation
+  - [ ] Confirm all credentials use `os.environ.get("...", "placeholder")` or `"$VAR_NAME"` placeholder notation
 
-## Documentation Phase
+### Phase 7 — README Update
 
 - [ ] Update `src/tinycua-sdk/README.md` — add link to cookbook <!-- id: 32 -->
   - [ ] Add a "Cookbook" section or link in the README pointing to `docs/cookbook/index.md`
