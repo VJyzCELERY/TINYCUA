@@ -225,8 +225,7 @@ reviewer_decision:
       update: "..."
   retry_instructions: "..."
   replan_request: "..."
-  failure_count_snapshot:
-    consecutive_failures: 0
+  consecutive_failures: 0
 ```
 
 ---

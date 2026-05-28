@@ -32,7 +32,7 @@ Enhanced context retrieval is triggered by accumulated session `Context` size, n
 **Output:**
 
 - `Context Enhanced Query` (CEQ) — enriched user query. See [context-retrieval.md](context-retrieval.md) for retrieval flow.
-- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md). Key fields: `mode` (`primary_agent | worker | uncertain`), `score` (0-10), `confidence` (0.0-1.0), `uncertain_next_action` (`ask_user | explore | null`).
+- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md). Key fields: `mode` (`primary_agent | worker | uncertain`), `score`, `confidence`, `uncertain_next_action` (`ask_user | explore | null`).
 
 ---
 
