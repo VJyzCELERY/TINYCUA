@@ -136,7 +136,7 @@ Streaming attachments work identically regardless of provider. The attachment
 object is provider-agnostic — the SDK's internal upload layer handles chunked
 reading when it's time to send data to the API.
 
-Local (LM Studio) — construction only:
+Local (local LLM server) — construction only:
 
 ```python
 import os

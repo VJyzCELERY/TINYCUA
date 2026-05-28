@@ -43,7 +43,7 @@ agent = Agent(
 )
 ```
 
-Local (LM Studio) setup:
+Local (local LLM server) setup:
 
 ```python
 import os

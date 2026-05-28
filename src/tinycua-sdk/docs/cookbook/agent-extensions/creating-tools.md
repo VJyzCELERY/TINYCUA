@@ -232,7 +232,7 @@ def get_weather(city: str) -> str:
     return f"Weather in {city}: 22°C, sunny"
 
 
-# Local — LM Studio
+# Local — local LLM server
 model = LanguageModel(
     provider="openai-compatible",
     model_name="qwen/qwen3.5-9b",

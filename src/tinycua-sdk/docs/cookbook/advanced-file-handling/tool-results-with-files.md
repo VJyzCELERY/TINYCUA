@@ -187,7 +187,7 @@ This means the model sees the tool result as two consecutive messages: the
 
 ### Local Compatible (`openai-compatible`)
 
-Behavior depends on the local server's implementation. LM Studio and similar
+Behavior depends on the local server's implementation. Local LLM servers and similar
 servers typically follow Chat Completions conventions.
 
 ## Complete Example: All Shapes

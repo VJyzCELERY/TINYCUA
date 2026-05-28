@@ -355,7 +355,7 @@ exceptions are raised during execution.
 
 ## Error Scenarios: Local vs Remote
 
-### Local (LM Studio / openai-compatible)
+### Local (local LLM server / openai-compatible)
 
 ```python
 import os
@@ -387,7 +387,7 @@ except ProviderAuthError as e:
     print(f"Auth error: {e} — local servers usually don't need keys")
 except ProviderApiError as e:
     if e.status_code == 0 and "Connection" in e.message:
-        print("LM Studio not running — start the server on port 1234")
+        print("Local server not running — start the server on port 1234")
     else:
         print(f"API error: {e}")
 ```

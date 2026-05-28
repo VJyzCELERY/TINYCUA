@@ -605,10 +605,10 @@ def test_provider_patterns():
             continue
         content = page_path.read_text(encoding="utf-8")
 
-        # Check for local pattern: LM Studio, localhost, or openai-compatible
+        # Check for local pattern: local LLM server, localhost, or openai-compatible
         has_local = bool(
             re.search(
-                r"(lm.?studio|localhost:1234|openai.compatible|provider\s*=\s*[\"'](?:openai-compatible|lmstudio))",
+                r"(local\s+LLM\s+server|localhost:1234|openai.compatible|local\s+server)",
                 content,
                 re.IGNORECASE,
             )

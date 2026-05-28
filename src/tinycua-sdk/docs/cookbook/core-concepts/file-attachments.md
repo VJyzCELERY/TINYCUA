@@ -173,7 +173,7 @@ Set only `file_id` (leave `data`, `url`, and `filename` empty) to reuse a previo
 | File ID reuse | Yes | No | No |
 | Multiple files per query | Yes | Limited | Depends on local model |
 
-When targeting `openai-compatible` providers, file attachment support depends entirely on the local model running in LM Studio or Ollama. Vision-capable models like LLaVA or Llama 3.2 Vision support images; text-only models will ignore file attachments or return errors.
+When targeting `openai-compatible` providers, file attachment support depends entirely on the local model running on your server. Vision-capable models like LLaVA or Llama 3.2 Vision support images; text-only models will ignore file attachments or return errors.
 
 ## Common Pitfalls
 

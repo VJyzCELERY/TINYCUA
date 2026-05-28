@@ -1,7 +1,7 @@
 # TINYCUA SDK Cookbook
 
 A guided, basic-to-advanced walkthrough of all TINYCUA SDK capabilities. Each page is
-self-contained with runnable code examples supporting both local (LM Studio) and
+self-contained with runnable code examples supporting both local and
 remote (OpenAI) providers.
 
 Read through in order for a complete learning path, or jump to any page for a

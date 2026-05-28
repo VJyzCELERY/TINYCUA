@@ -7,7 +7,7 @@ Developer SDK for TINYCUA.
 Guided, basic-to-advanced walkthrough of all SDK capabilities. Start with the
 [index](./docs/cookbook/index.md) for a complete learning path covering agents,
 configuration, tools, skills, streaming, file handling, providers, execution
-loops, and error handling — with runnable code examples for both local (LM Studio)
+loops, and error handling — with runnable code examples for both local and
 and remote (OpenAI) providers.
 
 ### Quick Start
@@ -195,7 +195,7 @@ url_attachment = FileAttachment(
   are uploaded to `/v1/files` and referenced as `{"type": "file", "file": {"file_id": ...}}` content parts.
 - **Responses (`openai-responses`)**: Non-image data and URL content are sent
   inline via `file_data` without uploading to `/v1/files`, enabling local
-  servers (LM Studio, Ollama) that lack a files endpoint.
+  servers (local LLM servers, Ollama) that lack a files endpoint.
 
 ### Phase 6 — Tool-Result File Attachments
 
@@ -238,7 +238,7 @@ return "Tool execution complete"  # becomes str(tool_result)
 - **Responses**: Tool-result text content is placed in a plain-string
   `function_call_output.output`. File/image content parts are carried in a
   follow-up synthetic `role: "user"` message for compatibility with
-  LM Studio and other OpenAI-compatible Responses providers that do not
+  local LLM servers and other OpenAI-compatible Responses providers that do not
   accept list-valued `function_call_output.output`.
 
 Tool-result attachments reuse the same file ID cache, streaming upload, and

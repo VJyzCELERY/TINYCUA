@@ -17,7 +17,7 @@ providers, and run your first query.
 At minimum, an agent needs a **name** and **instructions** (system prompt).
 Everything else has sensible defaults.
 
-### Local Agent (LM Studio)
+### Local Agent (Local LLM Server)
 
 ```python
 import os

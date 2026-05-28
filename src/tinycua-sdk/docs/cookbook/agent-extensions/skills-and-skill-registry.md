@@ -171,7 +171,7 @@ print(missing)
 Skills are injected into the system prompt alongside the agent's
 `instructions`. Pass them at construction or call `add_skills` later:
 
-### Local (LM Studio)
+### Local (local LLM server)
 
 ```python
 import os

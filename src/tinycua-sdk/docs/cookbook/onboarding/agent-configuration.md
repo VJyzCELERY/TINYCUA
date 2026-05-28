@@ -38,7 +38,7 @@ config = AgentConfig(
 agent = Agent.from_config(config.to_config())
 ```
 
-For local development with LM Studio:
+For local development with a local LLM server:
 
 ```python
 from tinycua_sdk import Agent, AgentConfig, LanguageModel

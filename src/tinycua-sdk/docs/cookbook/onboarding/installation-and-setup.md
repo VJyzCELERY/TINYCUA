@@ -9,7 +9,7 @@ variables, and verifying that everything works.
 
 The SDK supports two provider paths:
 
-- **Local** — LM Studio running an OpenAI-compatible server at
+- **Local** — a local LLM server (e.g., Ollama, an OpenAI-compatible endpoint) at
   `http://localhost:1234/v1`. No API key needed.
 - **Remote** — OpenAI's API (Responses or Chat Completions endpoint). Requires
   an API key.
@@ -54,7 +54,7 @@ OPENAI_API_KEY=sk-your-key-here
 # ── Model selection (optional) ──
 LLM_MODEL=gpt-4o-mini
 
-# ── Local LM Studio (optional) ──
+# ── Local server (optional) ──
 # LLM_BASE_URL=http://localhost:1234/v1
 ```
 
@@ -85,7 +85,7 @@ os.environ["LLM_MODEL"] = "gpt-4o-mini"
 | `OPENAI_CHAT_COMPLETIONS_API_KEY` | Override key for Chat Completions |
 | `OPENAI_RESPONSES_MODEL` | Default model for Responses provider |
 | `OPENAI_CHAT_COMPLETIONS_MODEL` | Default model for Chat Completions |
-| `LLM_BASE_URL` | Base URL for the `openai-compatible` provider (e.g., LM Studio) |
+| `LLM_BASE_URL` | Base URL for the `openai-compatible` provider (e.g., local server) |
 
 ## Verify Installation
 
@@ -107,9 +107,9 @@ uv run python -c "import tinycua_sdk; print(tinycua_sdk.__version__)"
 
 ## Provider Setup Paths
 
-### Local — LM Studio
+### Local — Local LLM Server
 
-Start LM Studio, load a model (e.g., `qwen/qwen3.5-9b`), and enable the local
+Start your local server, load a model (e.g., `qwen/qwen3.5-9b`), and enable the local
 server on port `1234`. Then:
 
 ```python
@@ -200,8 +200,8 @@ agent = Agent(
 call `load_dotenv()` early, or set environment variables manually before
 importing SDK modules that read them.
 
-**LM Studio server not running**. If the local server is unreachable, the SDK
-raises a connection error. Verify LM Studio is running and the port matches your
+**Local server not running**. If the local server is unreachable, the SDK
+raises a connection error. Verify your server is running and the port matches your
 `base_url` (default `1234`).
 
 **Missing `api_key` for remote providers**. If `api_key` is `None` and

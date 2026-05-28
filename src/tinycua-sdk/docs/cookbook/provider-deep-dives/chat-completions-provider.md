@@ -6,7 +6,7 @@ you understand how tools return content and how multipart results flow through t
 ## Overview
 
 The `OpenAIChatCompletionsClient` provides access to OpenAI's Chat Completions
-API and any OpenAI-compatible endpoint (LM Studio, Ollama, self-hosted vLLM).
+API and any OpenAI-compatible endpoint (local LLM servers, Ollama, self-hosted vLLM).
 It translates the SDK's canonical message and tool formats into the Chat
 Completions wire format, handles multi-turn tool-call conversations, and
 normalizes streaming deltas into canonical events.
@@ -19,7 +19,7 @@ the client directly.
 
 Use `LanguageModel(provider="openai-chat-completions")` to route through this
 provider. The alias `"openai-compatible"` also resolves to it — ideal for local
-LM Studio and similar servers.
+local LLM servers and similar servers.
 
 ```python
 import os
@@ -40,7 +40,7 @@ agent = Agent(
 )
 ```
 
-For LM Studio, use the `openai-compatible` alias with your local server URL:
+For local LLM servers, use the `openai-compatible` alias with your local server URL:
 
 ```python
 import os

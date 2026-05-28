@@ -52,7 +52,7 @@ def list_files(directory: str) -> str:
     return "file1.txt, file2.txt"
 
 
-# Local — LM Studio
+# Local — local LLM server
 model = LanguageModel(
     provider="openai-compatible",
     model_name="qwen/qwen3.5-9b",

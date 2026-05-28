@@ -232,7 +232,7 @@ applies these alias mappings:
 | Alias | Canonical ID |
 |---|---|
 | `"openai"` | `"openai-responses"` |
-| `"lmstudio"` | `"openai-compatible"` |
+| `"lmstudio"` | `"openai-compatible"` | (local LLM server alias) |
 | `"ollama"` | `"openai-compatible"` |
 
 When you call `registry.register("my-alias", factory)`, the alias is resolved
@@ -245,7 +245,7 @@ registry = get_provider_registry()
 
 print(registry.is_supported("openai"))          # True (resolved to openai-responses)
 print(registry.is_supported("openai-responses")) # True
-print(registry.is_supported("lmstudio"))          # True (resolved to openai-compatible)
+print(registry.is_supported("lmstudio"))          # True (resolved to openai-compatible; local server alias)
 print(registry.is_supported("openai-compatible")) # True
 ```
 
