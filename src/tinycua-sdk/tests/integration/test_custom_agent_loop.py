@@ -166,7 +166,7 @@ async def test_integration_react_loop_real_llm():
                 tool_obj = next(t for t in tools if t.name == tc["name"])
                 arguments = json.loads(tc["arguments"])
                 result = await ToolExecutor.execute(tool_obj, arguments, agent)
-                call_id = tc.get("call_id", tc["id"])
+                call_id = tc.get("call_id") or tc.get("id")
                 messages.append({
                     "type": "function_call",
                     "call_id": call_id,
@@ -253,3 +253,234 @@ async def test_integration_model_override_real_llm():
     result = await agent.run("Say hello in one word.", stream=False)
     assert isinstance(result, str)
     assert len(result) > 0, f"Model returned empty content: {result!r}"
+
+
+@pytest.mark.integration
+@pytest.mark.integration_tool_choice
+@pytest.mark.asyncio
+async def test_custom_loop_uses_public_helpers():
+    """Custom loop using public helpers produces correct tool-calling result.
+
+    Tests the new ``build_system_message()``, ``process_tool_calls()``, and
+    ``last_assistant_content()`` public helpers against a real LLM endpoint.
+    The tool_choice on the LanguageModel forces the LLM to call the tool.
+    """
+    @tool
+    def get_weather(city: str) -> str:
+        """Get weather for a city."""
+        return f"Weather in {city}: sunny"
+
+    class CustomToolLoop(BaseLoop):
+        def __init__(self, **kwargs):
+            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
+            super().__init__(**kwargs)
+            self.called_build_system_message = False
+            self.called_process_tool_calls = False
+            self.called_last_assistant_content = False
+            self.last_working_messages: list[dict] = []
+
+        async def run(self, agent, messages, tools,
+                      override_instructions=None, stream=False):
+            system_msg = self.build_system_message(agent, override_instructions)
+            self.called_build_system_message = True
+            working = [system_msg] + list(messages)
+            tool_call_count = 0
+            llm_calls = 0
+
+            for _ in range(self.max_iterations):
+                if agent.is_cancelled:
+                    raise asyncio.CancelledError()
+
+                if llm_calls == 0 and self.initial_llm_model is not None:
+                    response = await agent._call_llm(working, tools, llm_model=self.initial_llm_model)
+                else:
+                    response = await agent._call_llm(working, tools)
+                llm_calls += 1
+                content = response.get("content")
+                tool_calls = response.get("tool_calls")
+
+                if tool_calls:
+                    tool_call_count, max_reached = await self.process_tool_calls(
+                        agent, tools, tool_calls, working, tool_call_count,
+                        assistant_content=content or "",
+                    )
+                    self.called_process_tool_calls = True
+                    if max_reached:
+                        self.last_working_messages = list(working)
+                        self.called_last_assistant_content = True
+                        return self.last_assistant_content(working) or "[max tool calls]"
+                else:
+                    if content:
+                        working.append({"role": "assistant", "content": content})
+                    self.last_working_messages = list(working)
+                    self.called_last_assistant_content = True
+                    return self.last_assistant_content(working) or ""
+
+            self.last_working_messages = list(working)
+            self.called_last_assistant_content = True
+            return self.last_assistant_content(working) or "[max iterations]"
+
+    llm_model = _build_language_model()
+    llm_model_with_tc = llm_model.model_copy(
+        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+    )
+    loop = CustomToolLoop(initial_llm_model=llm_model_with_tc)
+    agent = Agent(
+        llm_model=llm_model,
+        tools=[get_weather],
+        loop=loop,
+    )
+
+    result = await agent.run("What is the weather in Tokyo?")
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert "[max tool calls]" not in result
+    assert "[max iterations]" not in result
+
+    assert loop.called_build_system_message, "build_system_message was not called"
+    assert loop.called_process_tool_calls, "process_tool_calls was not called"
+    assert loop.called_last_assistant_content, "last_assistant_content was not called"
+
+    helper_call_msgs = [
+        m for m in loop.last_working_messages
+        if isinstance(m, dict) and m.get("type") == "function_call_output"
+    ]
+    assert len(helper_call_msgs) > 0, (
+        "No function_call_output messages found — helpers did not execute tool calls"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.integration_tool_choice
+@pytest.mark.asyncio
+async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
+    """Custom streaming loop using public helpers works end-to-end.
+
+    Tests the new ``process_stream_iteration()`` and
+    ``process_stream_tool_calls()`` public helpers against a real LLM.
+    """
+    @tool
+    def get_weather(city: str) -> str:
+        """Get weather for a city."""
+        return f"Weather in {city}: sunny"
+
+    class CustomStreamingLoop(BaseLoop):
+        def __init__(self, **kwargs):
+            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
+            super().__init__(**kwargs)
+            self.called_build_system_message = False
+            self.called_process_stream_iteration = False
+            self.called_process_stream_tool_calls = False
+            self.last_working_messages: list[dict] = []
+
+        async def run(self, agent, messages, tools,
+                      override_instructions=None, stream=False):
+            async def _stream():
+                system_msg = self.build_system_message(agent, override_instructions)
+                self.called_build_system_message = True
+                working = [system_msg] + list(messages)
+                tool_call_count = 0
+                cumulative_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                usage_settled_ids = set()
+                finish_reason = "completed"
+                cancelled = False
+                provider_failed = False
+                completed_by_provider = False
+                llm_calls = 0
+
+                try:
+                    for _ in range(self.max_iterations):
+                        if agent.is_cancelled:
+                            yield {"type": "response.cancelled"}
+                            cancelled = True
+                            break
+
+                        content_parts = []
+                        tool_calls_buffer = {}
+                        usage_settled_ids.clear()
+
+                        if llm_calls == 0 and self.initial_llm_model is not None:
+                            llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)
+                        else:
+                            llm_stream = await agent._call_llm(working, tools, stream=True)
+                        llm_calls += 1
+
+                        iteration_completed = False
+                        async for event in self.process_stream_iteration(
+                            llm_stream, agent, content_parts, tool_calls_buffer,
+                            cumulative_usage, usage_settled_ids,
+                        ):
+                            self.called_process_stream_iteration = True
+                            if event["type"] == "response.completed":
+                                iteration_completed = True
+                            if event["type"] == "response.cancelled":
+                                cancelled = True
+                            elif event["type"] in ("response.failed", "error"):
+                                provider_failed = True
+                            yield event
+                        completed_by_provider = iteration_completed
+
+                        if cancelled or provider_failed:
+                            break
+
+                        combined = "".join(content_parts)
+                        tool_calls_list = list(tool_calls_buffer.values())
+
+                        if tool_calls_list:
+                            tool_call_count, max_reached = await self.process_stream_tool_calls(
+                                agent, tools, tool_calls_list, working, tool_call_count,
+                                combined_content=combined,
+                            )
+                            self.called_process_stream_tool_calls = True
+                            if max_reached:
+                                finish_reason = "max_tool_calls"
+                                break
+                        else:
+                            working.append({"role": "assistant", "content": combined})
+                            break
+                    else:
+                        finish_reason = "max_iterations"
+                except Exception as e:
+                    self.last_working_messages = list(working)
+                    yield {"type": "response.failed", "error": {"message": str(e)}}
+                    return
+
+                self.last_working_messages = list(working)
+                yield {"type": "response.usage", "usage": dict(cumulative_usage)}
+                if not completed_by_provider and not provider_failed and not cancelled:
+                    yield {"type": "response.completed", "finish_reason": finish_reason}
+
+            return _stream()
+
+    llm_model = _build_language_model()
+    llm_model_with_tc = llm_model.model_copy(
+        update={"tool_choice": {"type": "function", "name": "get_weather"}},
+    )
+    loop = CustomStreamingLoop(initial_llm_model=llm_model_with_tc)
+    agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
+
+    stream = await agent.run("What is the weather in Tokyo?", stream=True)
+    events = [e async for e in stream]
+    event_types = [e["type"] for e in events]
+
+    assert "response.created" in event_types
+    assert "response.completed" in event_types
+    assert "response.failed" not in event_types, "Stream ended with failure"
+
+    completed_events = [e for e in events if e["type"] == "response.completed"]
+    if completed_events:
+        assert completed_events[-1].get("finish_reason") not in ("max_tool_calls", "max_iterations"), (
+            "Stream exited via max limit fallback instead of completing naturally"
+        )
+
+    assert loop.called_build_system_message, "build_system_message was not called"
+    assert loop.called_process_stream_iteration, "process_stream_iteration was not called"
+    assert loop.called_process_stream_tool_calls, "process_stream_tool_calls was not called"
+
+    helper_call_msgs = [
+        m for m in loop.last_working_messages
+        if isinstance(m, dict) and m.get("type") == "function_call_output"
+    ]
+    assert len(helper_call_msgs) > 0, (
+        "No function_call_output messages found — streaming helpers did not execute tool calls"
+    )

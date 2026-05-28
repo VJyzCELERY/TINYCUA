@@ -12,6 +12,9 @@ from tinycua_sdk.agent.events import (
     ResponseOutputTextDeltaEvent,
     ResponseToolCallDeltaEvent,
     ResponseUsageEvent,
+    ToolCallArgumentsDeltaEvent,
+    ToolCallArgumentsDoneEvent,
+    ToolCallStartedEvent,
 )
 from tinycua_sdk.agent.executor import AgentExecutor
 from tinycua_sdk.agent.llm_client import LLMClient, OpenAICompatibleClient
@@ -36,4 +39,7 @@ __all__ = [
     "ResponseOutputTextDeltaEvent",
     "ResponseToolCallDeltaEvent",
     "ResponseUsageEvent",
+    "ToolCallArgumentsDeltaEvent",
+    "ToolCallArgumentsDoneEvent",
+    "ToolCallStartedEvent",
 ]
