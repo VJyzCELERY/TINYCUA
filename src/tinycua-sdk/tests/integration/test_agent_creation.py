@@ -42,8 +42,15 @@ class TestAgentCreation:
 class TestAgentConstructor:
     """Test suite for Agent constructor-based creation patterns."""
 
-    def test_minimal_agent(self):
+    def test_minimal_agent(self, monkeypatch):
         """Target 2.1: Create a minimal Agent with no arguments."""
+        # Isolate env vars that affect model resolution so the test
+        # reliably asserts the hardcoded default regardless of global
+        # test environment configuration (e.g. .env.test.example).
+        monkeypatch.delenv("OPENAI_RESPONSES_MODEL", raising=False)
+        monkeypatch.delenv("OPENAI_CHAT_COMPLETIONS_MODEL", raising=False)
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+
         agent = Agent()
 
         assert agent.name == "assistant"

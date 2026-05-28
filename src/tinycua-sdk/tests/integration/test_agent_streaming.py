@@ -7,25 +7,26 @@ Covers 3 success criteria:
 """
 
 import asyncio
-import os
 from typing import AsyncIterator
 
 import httpx
 import pytest
 
 from tinycua_sdk import Agent, LanguageModel, tool
+from tests.integration.conftest import resolve_integration_llm_config
 
 
 @pytest.fixture
 def streaming_agent():
     """Create an agent that talks to the configured LLM server."""
+    cfg = resolve_integration_llm_config()
     return Agent(
         name="streaming_test",
         llm_model=LanguageModel(
-            provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
-            model_name=os.environ.get("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
-            base_url=os.environ.get("TINYCUA_BASE_URL", "http://localhost:1234/v1"),
-            api_key=os.environ.get("LLM_API_KEY", "dummy"),
+            provider=cfg.provider,
+            model_name=cfg.model,
+            base_url=cfg.base_url,
+            api_key=cfg.api_key,
         ),
     )
 

@@ -7,9 +7,17 @@ import os
 import re
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, SecretStr, field_validator, model_validator
 
 from tinycua_sdk.providers.utility import resolve_provider
+
+
+# Mapping from normalized provider to its model-name environment variable.
+_PROVIDER_MODEL_ENV: dict[str, str] = {
+    "openai-responses": "OPENAI_RESPONSES_MODEL",
+    "openai-chat-completions": "OPENAI_CHAT_COMPLETIONS_MODEL",
+}
+_HARDCODED_DEFAULT_MODEL = "gpt-4o-mini"
 
 
 class LanguageModel(BaseModel):
@@ -22,7 +30,7 @@ class LanguageModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     provider: str = "openai-responses"
-    model_name: str = "gpt-4o-mini"
+    model_name: str = ""
     base_url: str | None = None
     api_key: SecretStr = SecretStr("")
     temperature: float = 1.0
@@ -64,6 +72,26 @@ class LanguageModel(BaseModel):
 
         resolved = re.sub(r"\$\{(\w+)\}", _replacer, value)
         return SecretStr(resolved)
+
+    @model_validator(mode="after")
+    def _resolve_model_env(self) -> "LanguageModel":
+        """Resolve empty model_name from provider-specific env vars.
+
+        Priority: provider-specific model env var > LLM_MODEL > hardcoded default.
+        If model_name was explicitly set (non-empty), it is kept unchanged.
+        """
+        if self.model_name:
+            return self
+        model_env = _PROVIDER_MODEL_ENV.get(self.provider)
+        resolved: str = ""
+        if model_env:
+            resolved = os.environ.get(model_env, "")
+        if not resolved:
+            resolved = os.environ.get("LLM_MODEL", "")
+        if not resolved:
+            resolved = _HARDCODED_DEFAULT_MODEL
+        object.__setattr__(self, "model_name", resolved)
+        return self
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to plain dict, excluding None values."""

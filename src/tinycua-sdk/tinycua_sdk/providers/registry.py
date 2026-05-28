@@ -83,12 +83,17 @@ class ProviderRegistry:
 
         self._providers[provider_id] = replace(metadata, id=provider_id, factory=factory)
 
-    def create_client(self, model_config: LanguageModel) -> LLMClient:
+    def create_client(
+        self,
+        model_config: LanguageModel,
+        upload_session: Any = None,
+    ) -> LLMClient:
         """Create an ``LLMClient`` for the given model configuration.
 
         Args:
             model_config: Language model configuration with ``provider``
                 field identifying the desired provider.
+            upload_session: Optional ``UploadSession`` for file upload caching.
 
         Returns:
             An ``LLMClient`` instance configured for the provider.
@@ -101,7 +106,7 @@ class ProviderRegistry:
         if info is None:
             supported = list(self._providers.keys())
             raise ProviderNotSupportedError(provider_id, supported)
-        return info.factory(model_config)
+        return info.factory(model_config, upload_session=upload_session)
 
     def list_providers(self) -> list[ProviderInfo]:
         """List all registered providers.
@@ -162,10 +167,10 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         registry: The ``ProviderRegistry`` to register defaults in.
     """
 
-    def _openai_responses_factory(model_config: LanguageModel) -> Any:
-        from tinycua_sdk.providers.open_ai import OpenAIResponsesClient  # noqa: PLC0415
+    def _openai_responses_factory(model_config: LanguageModel, upload_session: Any = None) -> Any:
+        from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient  # noqa: PLC0415
 
-        return OpenAIResponsesClient(model_config)
+        return OpenAIResponsesClient(model_config, upload_session=upload_session)
 
     registry.register(
         OPENAI_RESPONSES,
@@ -177,10 +182,10 @@ def _register_defaults(registry: ProviderRegistry) -> None:
         ),
     )
 
-    def _openai_chat_completions_factory(model_config: LanguageModel) -> Any:
-        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient  # noqa: PLC0415
+    def _openai_chat_completions_factory(model_config: LanguageModel, upload_session: Any = None) -> Any:
+        from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient  # noqa: PLC0415
 
-        return OpenAIChatCompletionsClient(model_config)
+        return OpenAIChatCompletionsClient(model_config, upload_session=upload_session)
 
     registry.register(
         OPENAI_CHAT_COMPLETIONS,

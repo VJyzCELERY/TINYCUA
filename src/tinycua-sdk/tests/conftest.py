@@ -43,24 +43,28 @@ if env_root.exists():
     load_dotenv(env_root)
 
 # Load environment from .env.test (user-specific, gitignored)
-# Falls back to .env.test.example (committed template)
-env_test = Path(__file__).parent / ".env.test"
+# Checks root-level then tests/-level; falls back to .env.test.example (committed template)
+env_test = Path(__file__).parents[1] / ".env.test"
 if env_test.exists():
     load_dotenv(env_test)
 else:
-    env_test_example = Path(__file__).parent / ".env.test.example"
-    if env_test_example.exists():
-        load_dotenv(env_test_example)
+    env_test = Path(__file__).parent / ".env.test"
+    if env_test.exists():
+        load_dotenv(env_test)
+    else:
+        env_test_example = Path(__file__).parents[1] / ".env.test.example"
+        if env_test_example.exists():
+            load_dotenv(env_test_example)
+        else:
+            env_test_example = Path(__file__).parent / ".env.test.example"
+            if env_test_example.exists():
+                load_dotenv(env_test_example)
 
 # Set environment variables for tests with defaults
+# LLM_BASE_URL and LLM_MODEL are shared fallbacks for all providers.
+# API keys are per-provider only (no generic API key fallback).
 os.environ.setdefault("LLM_BASE_URL", "http://localhost:1234/v1")
 os.environ.setdefault("LLM_MODEL", "qwen/qwen3.5-9b")
-os.environ.setdefault("LLM_API_KEY", "dummy")
-
-# Backward compatibility: map LLM_* vars to TINYCUA_* names
-os.environ.setdefault("TINYCUA_PROVIDER", "openai-responses")
-os.environ.setdefault("TINYCUA_MODEL", os.environ["LLM_MODEL"])
-os.environ.setdefault("TINYCUA_BASE_URL", os.environ["LLM_BASE_URL"])
 
 
 # =============================================================================

@@ -1,12 +1,15 @@
 """Integration tests for the OpenAI Chat Completions provider."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tinycua_sdk.agent.events import UserMessage
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from tinycua_sdk.models.attachment import FileAttachment
+from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
+from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
 from tinycua_sdk.providers.registry import get_provider_registry
 
 
@@ -139,3 +142,89 @@ def _chunk(delta, finish_reason=None, usage=None):
     if usage is not None:
         data["usage"] = usage
     return MagicMock(model_dump=lambda: data)
+
+
+@pytest.mark.integration
+@pytest.mark.provider("openai-chat-completions")
+@pytest.mark.asyncio
+async def test_openai_chat_completions_attachment_sends_image():
+    """A user message with a multi-color image FileAttachment is sent through
+    the Chat Completions provider and receives an assistant response.
+
+    This is the FR-011 acceptance test. It exercises the full provider
+    request path (chat()) and is guarded by environment configuration so
+    it auto-skips when no LLM server is reachable.
+
+    The fixture is a 4x4 RGBA PNG with red, green, blue, and yellow
+    quadrants. Vision-capable models should identify some of these colors;
+    non-vision models that refuse the input should produce a refusal
+    keyword. Both paths pass deterministically.
+    """
+    from tests.integration.conftest import resolve_integration_llm_config
+
+    # Keywords that indicate a non-vision model rejected the image input
+    _NO_VISION_KEYWORDS = (
+        "unable",
+        "can't view",
+        "cannot view",
+        "no vision",
+        "image input not supported",
+    )
+    # Color keywords expected from the multi-color fixture
+    _COLOR_KEYWORDS = ("red", "green", "blue", "yellow")
+
+    config = resolve_integration_llm_config("openai-chat-completions")
+
+    # Build a LanguageModel with the resolved config
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name=config.model,
+        base_url=config.base_url,
+        api_key=config.api_key,
+    )
+
+    # Also set environment variables so _get_client() works
+    old_base_url = os.environ.get("OPENAI_CHAT_COMPLETIONS_BASE_URL")
+    old_api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY")
+    os.environ["OPENAI_CHAT_COMPLETIONS_BASE_URL"] = config.base_url
+    os.environ["OPENAI_CHAT_COMPLETIONS_API_KEY"] = config.api_key
+
+    try:
+        client = OpenAIChatCompletionsClient(model)
+        image_attachment = FileAttachment.from_path("tests/fixtures/test_image.png")
+        message = UserMessage(
+            role="user",
+            content=(
+                "What colors do you see in the attached image? "
+                "List only the color names."
+            ),
+            attachments=[image_attachment],
+        )
+
+        response = await client.chat(messages=[message])
+
+        assert response["content"] is not None
+        assert isinstance(response["content"], str)
+        assert len(response["content"]) > 0
+
+        lower = response["content"].lower()
+
+        no_vision = any(kw in lower for kw in _NO_VISION_KEYWORDS)
+        has_colors = any(kw in lower for kw in _COLOR_KEYWORDS)
+
+        assert no_vision or has_colors, (
+            f"Expected vision model color keywords {_COLOR_KEYWORDS} or "
+            f"non-vision refusal keywords {_NO_VISION_KEYWORDS}, "
+            f"got: {response['content']!r}"
+        )
+    finally:
+        _restore_env("OPENAI_CHAT_COMPLETIONS_BASE_URL", old_base_url)
+        _restore_env("OPENAI_CHAT_COMPLETIONS_API_KEY", old_api_key)
+
+
+def _restore_env(key: str, old_val: str | None) -> None:
+    """Restore an env var to its previous value or delete it."""
+    if old_val is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = old_val

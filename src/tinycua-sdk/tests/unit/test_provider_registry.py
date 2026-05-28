@@ -5,6 +5,7 @@ re-registration behavior, and error cases for unsupported providers.
 """
 
 import pytest
+from typing import Any
 
 from tinycua_sdk.agent.llm_client import LLMClient
 from tinycua_sdk.agent.llm_model import LanguageModel
@@ -36,7 +37,7 @@ class TestProviderRegistry:
     """ProviderRegistry core functionality."""
 
     def test_register_and_create_client(self, registry: ProviderRegistry) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(id="openai-compatible", factory=factory, description="Test")
         registry.register("openai-compatible", factory, info)
@@ -53,7 +54,7 @@ class TestProviderRegistry:
         assert "openai" in str(excinfo.value)
 
     def test_create_client_error_lists_supported(self, registry: ProviderRegistry) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(id="existing", factory=factory, description="Existing")
         registry.register("existing", factory, info)
@@ -65,7 +66,7 @@ class TestProviderRegistry:
         assert "existing" in str(excinfo.value)
 
     def test_is_supported_returns_true(self, registry: ProviderRegistry) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(id="my-provider", factory=factory, description="")
         registry.register("my-provider", factory, info)
@@ -79,7 +80,7 @@ class TestProviderRegistry:
         assert registry.list_providers() == []
 
     def test_list_providers_after_registration(self, registry: ProviderRegistry) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(id="openai-compatible", factory=factory, description="OpenAI Compatible")
         registry.register("openai-compatible", factory, info)
@@ -89,7 +90,7 @@ class TestProviderRegistry:
         assert providers[0].id == "openai-compatible"
 
     def test_reset_clears_all_providers(self, registry: ProviderRegistry) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         registry.register("openai-compatible", factory, ProviderInfo(id="openai-compatible", factory=factory, description=""))
 
@@ -98,9 +99,9 @@ class TestProviderRegistry:
         assert registry.is_supported("openai-compatible") is False
 
     def test_re_register_overwrites(self, registry: ProviderRegistry) -> None:
-        def factory_a(cfg: LanguageModel) -> _MinimalClient:
+        def factory_a(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
-        def factory_b(cfg: LanguageModel) -> _MinimalClient:
+        def factory_b(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         registry.register("openai-compatible", factory_a, ProviderInfo(id="openai-compatible", factory=factory_a, description="A"))
         registry.register("openai-compatible", factory_b, ProviderInfo(id="openai-compatible", factory=factory_b, description="B"))
@@ -113,7 +114,7 @@ class TestProviderRegistry:
         """Client receives the LanguageModel config at construction."""
         captured_configs: list[LanguageModel] = []
 
-        def capturing_factory(cfg: LanguageModel) -> LLMClient:
+        def capturing_factory(cfg: LanguageModel, upload_session: Any = None) -> LLMClient:
             captured_configs.append(cfg)
             return _MinimalClient()
 
@@ -129,7 +130,7 @@ class TestProviderRegistry:
 
     def test_list_providers_includes_all(self, registry: ProviderRegistry) -> None:
         """list_providers includes openai-chat-completions when registered."""
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         registry.register("openai-chat-completions", factory, ProviderInfo(id="openai-chat-completions", factory=factory, description="Chat"))
         registry.register("openai-responses", factory, ProviderInfo(id="openai-responses", factory=factory, description="Responses"))
@@ -141,9 +142,9 @@ class TestProviderRegistry:
 
     def test_openai_chat_completions_resolves(self, registry: ProviderRegistry) -> None:
         """provider='openai-chat-completions' creates the right client."""
-        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
+        from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
 
-        def factory(cfg: LanguageModel) -> LLMClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> LLMClient:
             return OpenAIChatCompletionsClient(cfg)
 
         registry.register("openai-chat-completions", factory, ProviderInfo(id="openai-chat-completions", factory=factory, description="Chat"))
@@ -157,7 +158,7 @@ class TestProviderInfo:
     """ProviderInfo dataclass behavior."""
 
     def test_provider_info_defaults(self) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(id="test", factory=factory)
         assert info.id == "test"
@@ -165,7 +166,7 @@ class TestProviderInfo:
         assert info.supported_models is None
 
     def test_provider_info_full(self) -> None:
-        def factory(cfg: LanguageModel) -> _MinimalClient:
+        def factory(cfg: LanguageModel, upload_session: Any = None) -> _MinimalClient:
             return _MinimalClient()
         info = ProviderInfo(
             id="full",
@@ -195,8 +196,8 @@ class TestRegistryFactoryPrecedence:
                 return LLMResponse(content='B', tool_calls=None, usage=None, finish_reason='stop', model='b')
             async def close(self): pass
 
-        def factory_a(cfg): return A()
-        def factory_b(cfg): return B()
+        def factory_a(cfg, upload_session=None): return A()
+        def factory_b(cfg, upload_session=None): return B()
 
         r = ProviderRegistry()
         r.register('openai-compatible', factory_a, ProviderInfo(id='openai-compatible', factory=factory_b, description='metadata'))
