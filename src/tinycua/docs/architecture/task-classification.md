@@ -3,7 +3,7 @@
 > **Category:** Design Note
 
 > **File:** `architecture/task-classification.md`
-> **See also:** [Query Analyst](query-analyst.md), [State Objects](state-objects.md), [Worker Orchestration](worker-orchestration.md)
+> **See also:** [query-analyst.md](query-analyst.md), [state-objects.md](state-objects.md), [worker-orchestration.md](worker-orchestration.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 

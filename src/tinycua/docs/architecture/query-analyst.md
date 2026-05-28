@@ -78,18 +78,7 @@ flowchart TD
 
 The Query Analyst should avoid a simple binary small/large verdict. It should use a score-based mode decision.
 
-Scoring dimensions:
-
-- number of user intents;
-- number of entities, files, or documents involved;
-- external tool need;
-- number of sequential steps;
-- amount of session `Context` needed;
-- ambiguity;
-- hallucination risk if answered directly;
-- expected answer complexity.
-
-See [task-classification.md](task-classification.md) for the full rubric.
+Scoring is multi-dimensional, using a rubric rather than a binary judgment. See [task-classification.md](task-classification.md) for the scoring dimensions and rubric.
 
 ---
 

@@ -99,9 +99,9 @@ mode_decision:
   confidence: 0.0-1.0
   reasons:
     - "..."
-  primary_agent_safety_reason: "..."        # required for primary_agent
-  decomposition_benefit: "..."             # required for worker
-  uncertainty_reason: "..."                # required for uncertain
+  primary_agent_safety_reason: "..."
+  decomposition_benefit: "..."
+  uncertainty_reason: "..."
   uncertain_next_action: ask_user | explore | null
 ```
 
@@ -179,12 +179,7 @@ worker_config:
   effort: none | low | medium | high
 ```
 
-Effort uses planning-depth semantics:
-
-- `none`: move quickly with minimal upfront planning;
-- `low`: light upfront refinement;
-- `medium`: limited sequencing/overlap review;
-- `high`: thorough roadmap planning before execution.
+Effort controls how much planning happens before execution, from `none` (minimal) to `high` (thorough).
 
 ---
 
