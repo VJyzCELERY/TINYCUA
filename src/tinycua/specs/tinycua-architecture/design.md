@@ -56,19 +56,17 @@ All internal links use relative `[display text](kebab-case-file.md)`:
 ### Doc File Structure
 
 Each agent spec doc includes:
-- `>` header with file path reference
+- `>` header block with `Category`, blank line, `File`, `Last Updated`, `Status`, and `See also` fields
 - `## Role` section
 - `## Inputs / Outputs` section
 - `## Internal Flow` section (Mermaid diagram)
 - `## Design Decisions` table
-- `> **See also:**` cross-reference line (last field in header block)
 
 ### Process Doc Structure
 
 Each process spec doc includes at minimum:
-- `>` header with file path reference
+- `>` header block with `Category`, blank line, `File`, `Last Updated`, `Status`, and `See also` fields
 - `## Role` section
-- `> **See also:**` cross-reference line (last field in header block)
 
 Where applicable, process specs should also include:
 - `## Internal Flow` section (Mermaid diagram)

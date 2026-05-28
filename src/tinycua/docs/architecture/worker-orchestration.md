@@ -109,10 +109,7 @@ Clarification is not task completion. If an internal agent needs user input, the
 
 Each specialized agent can have its own sub-session with its own `chat_history` and `Context`. Human-in-the-loop continuation resumes that existing sub-session.
 
-Two signaling concepts are recommended:
-
-- `ask` / `question`: agent needs user clarification and pauses.
-- `terminate`: agent has actually completed its assigned work.
+Clarification is not termination. The Worker distinguishes between pausing (awaiting user input) and terminating (work is complete). See [state-objects.md](state-objects.md) for the continuation state schema.
 
 This prevents a clarification turn from accidentally restarting the whole request from Query Analyst.
 

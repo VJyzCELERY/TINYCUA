@@ -117,28 +117,7 @@ Tool calls and tool results may be represented as messages or attached metadata.
 
 `Context` is the information loaded by the model. It should be structured markdown, not JSON.
 
-Example:
-
-```markdown
-# Session Context
-
-## Compacted Information
-
-- Previous discussion established that Worker tasks are sequential.
-- Task context should be structured markdown and consolidated over time.
-
-## Recent Turns
-
-- User asked to update session architecture.
-- Primary Agent planned a new session architecture document.
-
-## Known Constraints
-
-- User query size does not trigger enhanced context retrieval.
-- Context retrieval starts when accumulated session `Context` reaches model context-window pressure.
-```
-
-`Context` is derived from `chat_history`, compacted information, retrieved notes, and current task/session needs. It should stay focused on what the model needs for the current session.
+Context is derived from `chat_history`, compacted information, retrieved notes, and current task/session needs. It should stay focused on what the model needs for the current session. The exact section structure is an implementation detail.
 
 ---
 
@@ -172,15 +151,7 @@ This lets TINYCUA preserve exchange history while keeping model-loaded context m
 
 ## Sub-Sessions
 
-TINYCUA may propagate a primary session into internal sub-sessions for specialized processing.
-
-Examples:
-
-- Query Analyst session
-- Information Digester session
-- Task Analyzer session
-- Task Executor session
-- Task Reviewer session
+TINYCUA may propagate a primary session into internal sub-sessions for specialized processing. See the architecture overview for the current agent registry.
 
 Each sub-session has its own `chat_history` and `Context`.
 
