@@ -27,7 +27,7 @@ Enhanced context retrieval is triggered by accumulated session `Context` size, n
 - `user_query`
 - `session.chat_history`
 - `session.context`
-- `session.context_token_estimate`
+- context-window pressure assessment (session `Context` size relative to model limit)
 
 **Output:**
 

@@ -34,11 +34,11 @@ Task classification decides how much orchestration is useful. It should prevent 
 
 The Query Analyst should use a scoring rubric rather than a pure binary judgment. At the architecture level, the rubric should consider three high-level dimensions:
 
-- **Task complexity** — how many intents, entities, steps, and tools are involved;
+- **Task complexity** — the breadth of work implied by the request;
 - **Context dependency** — how much session `Context` is needed and how ambiguous the reference is;
 - **Safety and risk** — hallucination risk if answered directly and the complexity of the expected answer.
 
-The exact thresholds and sub-dimensions belong in implementation docs. The important architectural rule is that the classifier must explain its reasoning.
+The exact thresholds belong in implementation docs. The important architectural rule is that the classifier must explain its reasoning.
 
 ---
 

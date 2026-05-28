@@ -25,7 +25,7 @@ A developer wants to understand how TINYCUA orchestrates its agents. They naviga
 ### Acceptance Scenarios
 
 1. **Given** the architecture docs directory exists, **When** a reader opens `README.md`, **Then** they see an index linking to all architecture docs with brief descriptions.
-2. **Given** the architecture docs are in place, **When** reading any individual doc, **Then** the doc is self-contained with role, inputs/outputs, internal flow diagram, and design decisions.
+2. **Given** the architecture docs are in place, **When** reading any individual doc, **Then** the doc is self-contained and follows the category-specific structure defined in the design document.
 3. **Given** all docs are cross-referenced, **When** a reader follows a "See also" link, **Then** it resolves to another doc within the same directory.
 
 ### Edge Cases
