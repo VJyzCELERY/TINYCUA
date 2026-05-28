@@ -37,11 +37,12 @@ When instructions conflict, apply this precedence:
    - If exploring or asking questions, you don't need to load any rules yet — load them only when you're about to act.
 7. **Implementation always starts with spec, design, tests** — If asked to implement something, you MUST:
    a. Ask clarifying questions first: what is the feature called? which subproject does it belong to? if the subproject doesn't exist yet, propose creating it.
-   b. Create `spec.md` using `.agents/templates/spec.md`
-   c. Create `design.md` using `.agents/templates/design.md`
-   d. Write tests before code (test-first)
-   e. Load coding standards before writing any source code
-   f. Only then implement
+   b. **Load `007-spec-design-standards.md`** — This rule file contains agent instructions for writing specs and designs. The templates are OUTPUT structure only; the rules tell you HOW to write them.
+   c. Create `spec.md` using `.agents/templates/spec.md`
+   d. Create `design.md` using `.agents/templates/design.md`
+   e. Write tests before code (test-first)
+   f. Load coding standards before writing any source code
+   g. Only then implement
    This applies regardless of whether the user explicitly mentioned specs or not — it's the default workflow.
 8. **Use templates** — Before generating any document (PR body, spec, design, review, implementation plan, task list), check `.agents/templates/` first and follow the template structure. For PR bodies specifically, you MUST always use `.agents/templates/PR-body.md` — never write a PR body without filling in the template.
 9. **Run preflight scripts** — Commands reference preflight scripts in `.agents/scripts/`. Run them before executing the command. If a preflight fails, read the script manually to recover.
@@ -84,6 +85,7 @@ Rules live in `.agents/rules/` and are **loaded only when relevant** — not all
 | When you're about to... | Load these rules |
 |------------------------|-----------------|
 | Plan or design architecture | `001-agent-behavior.md`, `005-project-structure.md` |
+| Write specs or designs | `007-spec-design-standards.md` |
 | Write code | `002-code-standards.md` |
 | Write tests | `003-testing.md` |
 | Review code/docs/specs | `004-review-standards.md` |
