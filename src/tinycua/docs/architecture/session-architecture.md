@@ -106,7 +106,7 @@ chat_history:
 
 Required fields:
 
-- `type` — the agent or user name. This field stores the agent's name directly; there is no fixed enum to maintain — the agent's own documented name is the source of truth.
+- `type` — the agent or user name.
 - `message`
 
 Tool calls and tool results may be represented as messages or attached metadata. They should be preserved as much as practical, but large tool payloads may be truncated.
