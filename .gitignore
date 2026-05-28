@@ -1,0 +1,32 @@
+# General OS Files
+.DS_Store
+Thumbs.db
+
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+*.env
+.env
+
+# Config files with secrets (use config.example.yaml as template)
+*.yaml
+!config.example.yaml
+src/tinycua-backend/config.yaml
+src/tinycua-runner/config.yaml
+
+# Logs
+logs/
+*.log
+
+# Test outputs
+.pytest_cache/
+coverage.xml
+*.coverage
+htmlcov/
+
+*/research/*
+/dev/*
