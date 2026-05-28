@@ -72,12 +72,7 @@ flowchart TD
 
 TINYCUA should avoid framing retrieval as conventional RAG where embedding search and hard token packing dominate the design.
 
-Preferred direction:
-
-1. Generate one or more search queries from the current request.
-2. Search session `Chat_History` and/or `Context` by keyword, topic, entity, recency, or summary.
-3. Use an LLM or fast LLM to judge relevance semantically.
-4. Produce a Context Enhanced Query containing only the context needed for routing or downstream processing.
+The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the current request, search session `Chat_History` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce a Context Enhanced Query containing only the context needed for routing or downstream processing. The Mermaid diagram above captures this flow without prescribing implementation details.
 
 ---
 

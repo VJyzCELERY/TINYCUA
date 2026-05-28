@@ -28,26 +28,32 @@ The Information Digester is a privileged narrowing boundary: it may inspect broa
 
 **Output:**
 
-```yaml
-digested_information:
-  digested_info: "compressed relevant context"
-  key_points:
-    - "..."
-  context_candidates:
-    - "candidate context for downstream task contexts"
-  entity_map:
-    entity_name: "relevant details"
-  relevance_notes:
-    - "why selected context matters"
-  known_gaps:
-    - "information that may be missing"
-  instructions:
-    action: "..."
-    constraints:
-      - "..."
-    advisory: true
-  original_intent_summary: "..."
+Canonical schema is in [state-objects.md](state-objects.md). The Information Digester produces YAML internally, but downstream agents receive the digest as **markdown**:
+
+```markdown
+# Digested Information
+
+## Context Summary
+[compressed relevant context in markdown]
+
+## Key Points
+- [takeaway point 1]
+- [takeaway point 2]
+
+## Advisory Instructions
+[action-oriented guidance for the downstream agent]
+
+## Constraints
+- [guardrail 1]
+- [guardrail 2]
+
+## Known Gaps
+- [information that may be missing]
 ```
+
+The `## Context Summary` carries the main digest body as structured markdown. `## Key Points` is a concise takeaway list. `## Advisory Instructions` and `## Constraints` guide downstream agents without rigidly constraining them. `## Known Gaps` explicitly signals missing information so downstream agents know what they don't know.
+
+See [state-objects.md](state-objects.md) for the YAML storage schema and field-level rules.
 
 ---
 
@@ -98,5 +104,6 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 | Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
 | Boundary | Privileged narrowing boundary | Digestion can inspect broad context without leaking broad context downstream |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
-| Output support | Context candidates and known gaps | Helps the Task Analyzer create task-specific context |
-| Original query included? | No raw-query crutch by default | Downstream agents should work from CEQ/digest, not default to broad history |
+| Output format | Markdown sent to agents | LLMs process markdown more naturally than YAML; YAML used for structured storage only |
+| Original query included? | No raw-query crutch by default | Downstream agents should work from digest, not default to broad history |
+| Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |

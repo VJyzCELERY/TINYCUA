@@ -131,17 +131,6 @@ The Worker only terminates successfully when the final unfinished task is accept
 
 ## Worker Result
 
-The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
+The Worker Result aggregates accepted task outputs for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
 
-```yaml
-worker_result:
-  accepted_results:
-    - task_id: task_001
-      name: "..."
-      result: "..."
-  unresolved_items:
-    - "..."
-  reviewer_notes:
-    - "..."
-  confidence: 0.0-1.0
-```
+The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
