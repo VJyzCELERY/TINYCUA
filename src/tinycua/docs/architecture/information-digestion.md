@@ -3,6 +3,8 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/information-digestion.md`
+> **Last Updated:** 2026-05-27
+> **Status:** Draft
 > **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-analysis.md](task-analysis.md)
 
 ---

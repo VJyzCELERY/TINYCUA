@@ -24,6 +24,54 @@ Additional session fields can be added later, but these three are the required f
 
 ---
 
+## Internal Flow
+
+```mermaid
+flowchart TD
+    SESSION[["Session"]]
+    CH{{"chat_history\n(JSON turn log)"}}
+    CTX{{"Context\n(structured markdown)"}}
+    EXEC{{"execution_log"}}
+
+    SESSION --> CH
+    SESSION --> CTX
+    SESSION --> EXEC
+
+    ACCUM["Turns accumulate in chat_history\nContext accumulates as structured markdown"]
+    PRESSURE{"Context nears\nmodel-window pressure?"}
+
+    CH --> ACCUM
+    CTX --> ACCUM
+    ACCUM --> PRESSURE
+
+    COMPACT["Compact: summarize Context\nPreserve chat_history as-is"]
+    NEW_CTX{{"Compacted Context\n+ recent turns"}}
+
+    PRESSURE -->|Yes| COMPACT
+    COMPACT --> NEW_CTX
+    PRESSURE -->|No| CTX
+
+    SUB["Create sub-session\n(specialized agent)"]
+    SUB_CH{{"sub-session\nchat_history"}}
+    SUB_CTX{{"sub-session\nContext"}}
+    SUB_EXEC{{"sub-session\nexecution_log"}}
+
+    SESSION --> SUB
+    SUB --> SUB_CH
+    SUB --> SUB_CTX
+    SUB --> SUB_EXEC
+
+    PROP_CH["sub-session chat_history\n→ primary chat_history"]
+    NO_CTX["sub-session Context\n⊘ primary Context"]
+    NO_EXEC["sub-session execution_log\n⊘ primary execution_log"]
+
+    SUB_CH --> PROP_CH
+    SUB_CTX -.-> NO_CTX
+    SUB_EXEC -.-> NO_EXEC
+```
+
+---
+
 ## Session Object
 
 ```yaml

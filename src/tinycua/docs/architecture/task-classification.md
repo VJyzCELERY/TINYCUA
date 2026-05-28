@@ -50,25 +50,11 @@ The Query Analyst produces a `Mode Decision` object. See [state-objects.md](stat
 
 ## Anti-Laziness Safeguards
 
-For `worker` mode:
+The classifier must guard against three failure modes:
 
-- explain the decomposition benefit;
-- identify why direct response is risky;
-- avoid Worker mode if no clear decomposition benefit exists.
-
-For `primary_agent` mode:
-
-- explain why Primary Agent handling is safe;
-- identify why Worker decomposition is not required;
-- allow the Primary Agent to invoke Information Digestion if it needs context consolidation.
-
-For `uncertain` mode:
-
-- state what is uncertain;
-- set `uncertain_next_action` to `explore` or `ask_user`;
-- `explore`: the Query Analyst should attempt to resolve uncertainty on its own. It may invoke exploratory agents (e.g., the Information Digester can retrieve and narrow missing context, or a research-oriented agent can gather additional information). After exploration, re-classify the request;
-- `ask_user`: pause and request clarification from the user (human-in-the-loop);
-- avoid leaving uncertainty as an open-ended nondeterministic state — uncertainty should always resolve to a concrete action.
+- **Worker overuse**: `worker` mode requires a clear decomposition benefit and a stated reason why direct response is risky. Without both, the classifier should not select `worker`.
+- **Unsafe Primary Agent routing**: `primary_agent` mode requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed. The Primary Agent may still invoke Information Digestion if context consolidation is useful.
+- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` to `explore` or `ask_user` — never leave uncertainty as a nondeterministic state. `explore` resolves uncertainty by gathering more context (then re-classifies); `ask_user` pauses for human input.
 
 ---
 

@@ -3,6 +3,8 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-execution.md`
+> **Last Updated:** 2026-05-27
+> **Status:** Draft
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md)
 
 ---
@@ -82,13 +84,9 @@ flowchart TD
 
 Task Execution should stop when:
 
-- success criteria are satisfied;
-- the task is out of scope;
-- a sequencing issue is discovered;
-- context is insufficient;
-- the task appears incorrectly specified;
-- a required tool/action fails;
-- uncertainty is too high and should be reviewed instead of guessed.
+- success criteria are met (`completed`);
+- a structural issue is discovered (out of scope, sequencing, specification);
+- the executor cannot proceed (insufficient context, tool failure, high uncertainty).
 
 If a later roadmap task appears to be needed first, Task Execution should return `blocked` with a sequencing explanation.
 

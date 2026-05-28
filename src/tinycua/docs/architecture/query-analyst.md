@@ -3,6 +3,8 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/query-analyst.md`
+> **Last Updated:** 2026-05-27
+> **Status:** Draft
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [information-digestion.md](information-digestion.md), [task-classification.md](task-classification.md), [state-objects.md](state-objects.md)
 
 ---
@@ -84,14 +86,11 @@ Scoring is multi-dimensional, using a rubric rather than a binary judgment. See 
 
 ## Safeguards
 
-For Worker mode, the Query Analyst must explain the decomposition benefit.
+The Query Analyst must guard against three failure modes (see [task-classification.md](task-classification.md) for the full rubric):
 
-For Primary Agent mode, it must explain why sending the Context Enhanced Query to the Primary Agent is safe. The Primary Agent can still invoke Information Digestion if it decides consolidated context is needed.
-
-For Uncertain mode, it must state what is uncertain and set `uncertain_next_action` to either `explore` or `ask_user`. Uncertainty should not be left open-ended because that makes the routing behavior nondeterministic.
-
-- `explore`: the Query Analyst invokes exploratory agents (e.g., the Information Digester) to gather missing context, then re-classifies the request.
-- `ask_user`: the Query Analyst pauses and requests clarification from the user.
+- **Worker overuse**: `worker` mode must be justified by a clear decomposition benefit and a stated reason why direct response is risky.
+- **Unsafe Primary Agent routing**: `primary_agent` mode must be justified by a clear rationale for safe handling. The Primary Agent may still invoke Information Digestion if context consolidation is needed.
+- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` to `explore` (gather more context, then re-classify) or `ask_user` (pause for human input). Never leave uncertainty as a nondeterministic state.
 
 ---
 
