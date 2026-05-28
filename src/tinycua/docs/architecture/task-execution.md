@@ -43,7 +43,7 @@ Retries create a new Task Executor sub-session. The previous failure is recorded
 ```yaml
 task_result:
   task_id: task_001
-  status: completed | partial | failed | blocked | insufficient_context | incorrect_task_spec | tool_failure | out_of_scope
+  status: completed | failed | blocked
   result: "..."
   discovered_sequence_issues:
     - "..."

@@ -18,7 +18,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 10. [task-execution.md](task-execution.md) — How individual tasks are executed with isolated context
 11. [task-reviewer.md](task-reviewer.md) — How results are reviewed and context is propagated between tasks
 12. [primary-agent.md](primary-agent.md) — How the final user-facing response is synthesized
-13. [analysis_digested_info_vs_query.md](analysis_digested_info_vs_query.md) — Design decision: digest vs. raw query
+13. [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md) — Design decision: digest vs. raw query
 
 ---
 
@@ -63,4 +63,4 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 
 | File | Description |
 |------|-------------|
-| [analysis_digested_info_vs_query.md](analysis_digested_info_vs_query.md) | Analysis: should the Worker receive the original query alongside the digest? Resolves to digest + advisory instructions. |
+| [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md) | Analysis: should the Worker receive the original query alongside the digest? Resolves to digest + advisory instructions. |

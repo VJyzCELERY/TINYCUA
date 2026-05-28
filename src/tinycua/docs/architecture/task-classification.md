@@ -32,20 +32,13 @@ Task classification decides how much orchestration is useful. It should prevent 
 
 ## Scoring Dimensions
 
-The Query Analyst should use a scoring rubric rather than a pure binary judgment.
+The Query Analyst should use a scoring rubric rather than a pure binary judgment. At the architecture level, the rubric should consider three high-level dimensions:
 
-Suggested dimensions:
+- **Task complexity** — how many intents, entities, steps, and tools are involved;
+- **Context dependency** — how much session `Context` is needed and how ambiguous the reference is;
+- **Safety and risk** — hallucination risk if answered directly and the complexity of the expected answer.
 
-- number of user intents;
-- number of entities, files, or documents involved;
-- whether external tools are likely needed;
-- number of sequential steps required;
-- amount of session `Context` needed;
-- ambiguity level;
-- risk of hallucination if answered directly;
-- expected answer complexity.
-
-The exact thresholds are intentionally draft-level. The important rule is that the classifier must explain its reasoning.
+The exact thresholds and sub-dimensions belong in implementation docs. The important architectural rule is that the classifier must explain its reasoning.
 
 ---
 

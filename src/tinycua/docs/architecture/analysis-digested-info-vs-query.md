@@ -1,6 +1,6 @@
 # Decision Record: Should Digested Information be paired with the Original User Query?
 
-> **File:** `architecture/analysis_digested_info_vs_query.md`
+> **File:** `architecture/analysis-digested-info-vs-query.md`
 
 > **Category:** Decision Record
 
@@ -104,7 +104,7 @@ Cons:
 
 Use **Option C: Digested Information + Advisory Instructions**.
 
-The Worker should not receive the original raw user query as a fallback. The Task Analyzer should receive the digest, key points, known gaps, context candidates, and advisory instructions produced by the Information Digester.
+The Worker should not receive the original raw user query as a fallback. The Task Analyzer should receive the digest (context summary, key points, known gaps, and advisory instructions) produced by the Information Digester.
 
 ---
 
@@ -127,7 +127,7 @@ This keeps recovery explicit instead of silently expanding Worker context.
 
 ## Current Digestion Output Shape
 
-The canonical Digested Information schema is defined in [information-digestion.md](information-digestion.md).
+The canonical Digested Information schema is defined in [state-objects.md](state-objects.md).
 
 ---
 

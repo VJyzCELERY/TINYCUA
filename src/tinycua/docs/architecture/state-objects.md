@@ -9,7 +9,7 @@
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
 
-**This is the canonical source for all shared data structures.** Other docs reference these schemas rather than duplicating them, so changes to shared objects only need to happen here.
+**This is the canonical source for all cross-cutting shared data structures.** Component-specific schemas that are consumed by only one agent are documented in their own files, but any schema shared between two or more components lives here.
 
 ---
 
@@ -27,9 +27,9 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 | `Session` | Session system | Query Analyst / Information Digester / agents | Contains `Chat_History`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
 | `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with relevant session `Context` when needed. |
 | `Mode Decision` | Query Analyst | Top-level router | Chooses `primary_agent`, `worker`, or `uncertain`. |
-| `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. Canonical schema in [information-digestion.md](information-digestion.md). |
+| `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. Canonical schema below. |
 | `Worker Config` | System/user configuration | TINYCUA Worker / Task Analyzer | Controls Worker behavior such as planning effort. |
-| `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. Canonical schema in [worker-orchestration.md](worker-orchestration.md). |
+| `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. Canonical schema below. |
 | `Response` | Primary Agent | User | Final user-facing answer. |
 
 ---
@@ -109,6 +109,67 @@ mode_decision:
 
 ---
 
+## Digested Information Object
+
+The Information Digester produces `Digested Information` — a precision-oriented summary that narrows broad session `Context` for downstream agents. It is consumed by both the Task Analyzer (in Worker Mode) and the Primary Agent (when it invokes Information Digestion).
+
+### Storage Format (YAML)
+
+The system stores Digested Information as YAML for structured access:
+
+```yaml
+digested_information:
+  context_summary: "compressed relevant context (markdown)"
+  key_points:
+    - "takeaway point 1"
+    - "takeaway point 2"
+  advisory_instructions: "action-oriented guidance for the downstream agent"
+  constraints:
+    - "guardrail 1"
+    - "guardrail 2"
+  known_gaps:
+    - "information that may be missing"
+```
+
+### LLM-Facing Format (Markdown)
+
+When sent to a downstream agent (Task Analyzer or Primary Agent), the YAML is converted to markdown:
+
+```markdown
+# Digested Information
+
+## Context Summary
+[compressed relevant context in markdown]
+
+## Key Points
+- [takeaway point 1]
+- [takeaway point 2]
+
+## Advisory Instructions
+[action-oriented guidance for the downstream agent]
+
+## Constraints
+- [guardrail 1]
+- [guardrail 2]
+
+## Known Gaps
+- [information that may be missing]
+```
+
+Rendering guidance:
+- The `## Context Summary` section holds the main digest body — it is structured markdown, not raw YAML.
+- `## Key Points` is a concise list of the most important takeaways.
+- `## Advisory Instructions` guides the downstream agent's approach but is advisory, not rigid.
+- `## Constraints` are guardrails the downstream agent should respect.
+- `## Known Gaps` explicitly signals missing information so downstream agents know what they don't know.
+
+Key rules:
+- Context Summary and Key Points are required. Advisory Instructions, Constraints, and Known Gaps may be empty if not applicable.
+- The Information Digester is a privileged narrowing boundary: it may inspect broad session `Context`, but downstream agents receive only this consolidated output.
+- See [information-digestion.md](information-digestion.md) for the Information Digester's internal flow and design decisions.
+
+---
+
 ## Worker Config Object
 
 Worker effort is configuration, similar to model reasoning effort.
@@ -168,13 +229,34 @@ Avoid adding rigid per-task fields such as `required_tools`, `expected_output`, 
 ```yaml
 task_result:
   task_id: task_001
-  status: completed | partial | failed | blocked | insufficient_context | incorrect_task_spec | tool_failure | out_of_scope
+  status: completed | failed | blocked
   result: "..."
   discovered_sequence_issues:
     - "..."
   uncertainty_notes:
     - "..."
 ```
+
+---
+
+## Worker Result Object
+
+The Worker Result aggregates accepted task outputs for the Primary Agent to synthesize into a final response.
+
+```yaml
+worker_result:
+  accepted_results:
+    - task_id: task_001
+      name: "..."
+      result: "..."
+  unresolved_items:
+    - "..."
+  reviewer_notes:
+    - "..."
+  confidence: 0.0-1.0
+```
+
+The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees. See [worker-orchestration.md](worker-orchestration.md) for the Worker's internal flow.
 
 ---
 
