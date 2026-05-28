@@ -92,7 +92,7 @@ def main() -> int:
     )
     create_parser.add_argument(
         "--provider",
-        help="Override provider (e.g., openai, ollama)",
+        help="Override provider (e.g., openai, openai-compatible)",
     )
     create_parser.add_argument(
         "--tools",

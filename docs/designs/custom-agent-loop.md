@@ -245,9 +245,6 @@ class Agent:
                 **kwargs
             )
         
-        if self.is_guest and not force_local:
-            return await self._run_guest(user_input, **kwargs)
-        
         # Local execution with custom loop
         loop = self._load_loop()
         return await loop.run(
@@ -418,8 +415,7 @@ Loop code stored in agent config JSON:
 │ Agent.run()                                                │
 ├─────────────────────────────────────────────────────────────┤
 │ 1. Check is_deployed → _run_deployed()                     │
-│ 2. Check is_guest → _run_guest()                          │
-│ 3. Local: loop = _load_loop()                              │
+│ 2. Local: loop = _load_loop()                              │
 │    - If loop_code + loop_class → exec() and instantiate    │
 │    - Else → DefaultLoop(runner)                           │
 │ 4. loop.run(agent, user_input, plan_mode, trace, ...)     │

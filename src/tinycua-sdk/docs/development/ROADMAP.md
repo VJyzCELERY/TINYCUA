@@ -122,8 +122,7 @@ When adding new features:
 
 ### Test Markers
 - `@pytest.mark.unit` - Fast, no external dependencies
-- `@pytest.mark.integration` - Requires external service (LM Studio, backend)
-- `@pytest.mark.lm_studio` - Requires LM Studio running
+- `@pytest.mark.integration` - Requires external service (OpenAI-compatible endpoint, backend)
 - `@pytest.mark.backend` - Requires backend server
 - `@pytest.mark.remote_runner` - Requires remote runner server
 

@@ -14,7 +14,7 @@ Prerequisites:
 - PostgreSQL running (make docker-up)
 - Backend running (src/tinycua-backend)
 - Runner running (src/tinycua-runner)
-- LM Studio with model loaded
+- OpenAI-compatible server with model loaded
 
 Usage:
     python examples/11_deployed_loop.py
@@ -159,9 +159,9 @@ async def demo_deployment():
         Use the format_currency and calculate_tip helpers for currency formatting.
         Example: format_currency(100.50, 'USD') returns '$100.50'
         Example: calculate_tip(50, 15) returns (7.5, 57.5) for tip and total.""",
-        provider=os.getenv("TINYCUA_PROVIDER", "lmstudio"),
+        provider=os.getenv("TINYCUA_PROVIDER", "openai-compatible"),
         model=os.getenv("TINYCUA_MODEL", "qwen/qwen3.5-9b"),
-        base_url="http://127.0.0.1:1234",
+        base_url="http://127.0.0.1:1234/v1",
         loop=BudgetLoop(),
         backend_url=BACKEND_URL,
         backend_api_key=client.api_key,

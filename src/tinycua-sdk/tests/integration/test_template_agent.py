@@ -36,10 +36,10 @@ class TestFromTemplate:
     def test_from_template_with_overrides(self):
         """Customization via overrides works."""
         agent = Agent.from_template(
-            "coder", overrides={"model": "gpt-4o", "provider": "ollama"}
+            "coder", overrides={"model": "gpt-4o", "provider": "openai-compatible"}
         )
         assert agent.model == "gpt-4o"
-        assert agent.provider == "ollama"
+        assert agent.provider == "openai-compatible"
         # Original values preserved
         assert agent.name == "coder"
 

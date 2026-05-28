@@ -1,10 +1,10 @@
 """End-to-end integration tests for local agent execution.
 
 These tests require:
-- LM Studio running with qwen/qwen3.5-9b model loaded
-- LM Studio API accessible at http://localhost:1234/v1
+- An OpenAI-compatible endpoint running with qwen/qwen3.5-9b model loaded
+- API accessible at http://localhost:1234/v1
 
-Run with: pytest tests/integration/test_local_run.py -v -m lm_studio
+Run with: pytest tests/integration/test_local_run.py -v -m integration
 """
 
 import pytest
@@ -21,9 +21,9 @@ class TestLocalAgentRun:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
@@ -45,9 +45,9 @@ class TestLocalAgentRun:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[get_weather],
         )
@@ -75,9 +75,9 @@ class TestLocalAgentRun:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[calculator],
         )
@@ -99,9 +99,9 @@ class TestLocalAgentStream:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
         )
 
@@ -126,9 +126,9 @@ class TestLocalAgentStream:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[get_weather],
         )
@@ -174,9 +174,9 @@ class TestReactLoop:
 
         agent = Agent(
             name="react-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[get_weather, calculator],
             loop="react",
@@ -204,9 +204,9 @@ class TestDeployMode:
 
         agent = Agent(
             name="test-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[dummy_tool],
         )
@@ -236,8 +236,8 @@ class TestRunner:
         config = AgentConfig(
             name="test",
             model="qwen/qwen3.5-9b",
-            provider="lmstudio",
-            base_url="http://localhost:1234",
+            provider="openai-compatible",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[hello],
         )

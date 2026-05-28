@@ -15,9 +15,9 @@ class TestDefaultConfig:
     def test_default_config_has_expected_values(self):
         """Verify defaults match current Config class."""
         config = SDKConfig()
-        assert config.llm.provider == "lmstudio"
+        assert config.llm.provider == "openai-compatible"
         assert config.llm.model == "qwen/qwen3.5-9b"
-        assert config.llm.base_url == "http://localhost:1234"
+        assert config.llm.base_url == "http://localhost:1234/v1"
         assert config.llm.temperature == 1.0
         assert config.memory.database_url == "sqlite:///./tinycua.db"
         assert config.memory.embedding_dimension == 1536
@@ -74,8 +74,8 @@ class TestConfigFromEnv:
         config = SDKConfig.from_env()
         assert config.llm.model == "gpt-4"
         # Unset fields should use defaults
-        assert config.llm.provider == "lmstudio"
-        assert config.llm.base_url == "http://localhost:1234"
+        assert config.llm.provider == "openai-compatible"
+        assert config.llm.base_url == "http://localhost:1234/v1"
         assert config.backend_url == "http://localhost:8000"
         assert config.environment == "dev"
 
@@ -125,7 +125,7 @@ llm:
 
         assert config.llm.model == "custom-model"
         # Other fields should still have defaults
-        assert config.llm.provider == "lmstudio"
+        assert config.llm.provider == "openai-compatible"
         assert config.backend_url == "http://localhost:8000"
 
         os.unlink(f.name)

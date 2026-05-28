@@ -20,8 +20,8 @@ class TestAgentCreation:
         agent = Agent(
             name="test-agent",
             model="qwen/qwen3.5-9b",
-            provider="lmstudio",
-            base_url="http://localhost:1234",
+            provider="openai-compatible",
+            base_url="http://localhost:1234/v1",
             api_key="test-key",
             tools=[mock_tool],
             policy=policy,
@@ -31,7 +31,7 @@ class TestAgentCreation:
 
         assert agent.name == "test-agent"
         assert agent.model == "qwen/qwen3.5-9b"
-        assert agent.provider == "lmstudio"
+        assert agent.provider == "openai-compatible"
         assert len(agent.tools) == 1
 
     def test_create_agent_with_minimal_config(self):

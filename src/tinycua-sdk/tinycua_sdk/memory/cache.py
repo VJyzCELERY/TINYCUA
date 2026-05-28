@@ -1,4 +1,4 @@
-"""Anthropic-style prompt caching with TTL and size limits."""
+"""Prompt caching with TTL and size limits for OpenAI-compatible endpoints."""
 
 import hashlib
 import logging
@@ -24,7 +24,7 @@ class CacheEntry:
 
 
 class PromptCache:
-    """Anthropic-style prompt caching with TTL and size limits."""
+    """Prompt caching with TTL and size limits."""
 
     def __init__(
         self,

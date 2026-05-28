@@ -6,7 +6,7 @@ This example shows how to:
 3. Use memory with an Agent
 
 Prerequisites:
-- LM Studio running at http://localhost:1234
+- OpenAI-compatible server running at http://localhost:1234/v1
 - Model: qwen/qwen3.5-9b loaded
 """
 
@@ -133,23 +133,23 @@ async def example_memory_with_agent():
         agent = Agent(
             name="memory-agent",
             instructions="You have memory tools to remember and recall information.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],  # Add memory tools
         )
-        
+
         print(f"\nCreated agent: {agent.name}")
         print(f"Tools: {[t.name for t in agent.tools]}")
-        
+
         # Test agent run
         print("\nTesting agent run:")
         try:
             response = await agent.run("Say hello in 3 words.")
             print(f"Response: {response}")
         except Exception as e:
-            print(f"Error (expected if LM Studio not running): {e}")
+            print(f"Error (expected if local OpenAI-compatible server not running): {e}")
 
 
 # =============================================================================
@@ -200,9 +200,9 @@ async def example_memory_in_conversation():
         agent = Agent(
             name="convo-agent",
             instructions="You can use memory to remember things between messages.",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[remember, recall, list_memory],
         )

@@ -9,7 +9,7 @@
 
 ## Overview
 
-The TINYCUA SDK provides a unified interface for building AI agents with tool-calling capabilities. It supports both local execution (LM Studio, Ollama) and cloud providers (OpenAI).
+The TINYCUA SDK provides a unified interface for building AI agents with tool-calling capabilities. It supports both local execution via OpenAI-compatible endpoints and cloud providers (OpenAI).
 
 ---
 
@@ -100,8 +100,8 @@ The TINYCUA SDK provides a unified interface for building AI agents with tool-ca
 
 | Provider | Base URL | Default Model |
 |----------|----------|---------------|
-| LM Studio | http://localhost:1234/v1 | qwen/qwen3.5-9b |
-| Ollama | http://localhost:11434/v1 | llama3 |
+| OpenAI-compatible | http://localhost:1234/v1 | qwen/qwen3.5-9b |
+| OpenAI | https://api.openai.com/v1 | gpt-4o-mini |
 | OpenAI | https://api.openai.com/v1 | gpt-4o-mini |
 
 ---
@@ -130,7 +130,7 @@ The TINYCUA SDK provides a unified interface for building AI agents with tool-ca
 │  └── Sub-agents                                │
 │                                                 │
 │  Client                                        │
-│  └── ResponsesClient → LM Studio/Ollama/OpenAI │
+│  └── ResponsesClient → OpenAI-compatible/OpenAI │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -151,7 +151,7 @@ def get_weather(location: str) -> dict:
 
 agent = Agent(
     name="weather-assistant",
-    provider="lmstudio",
+    provider="openai-compatible",
     model="qwen/qwen3.5-9b",
     tools=[get_weather],
 )
@@ -169,7 +169,7 @@ async for token in agent.stream("Hello"):
 ```python
 agent = Agent(
     name="planner",
-    provider="lmstudio",
+    provider="openai-compatible",
     model="qwen/qwen3.5-9b",
     tools=[get_weather, calculator],
     plan_mode="plan",  # Analyzes → Executes → Aggregates
@@ -282,7 +282,7 @@ tinycua_sdk/
 - Memory tool operations
 
 ### Integration Tests
-- Full agent flow with LM Studio
+- Full agent flow with OpenAI-compatible endpoint
 - Plan mode execution
 - Deploy mode (when backend ready)
 

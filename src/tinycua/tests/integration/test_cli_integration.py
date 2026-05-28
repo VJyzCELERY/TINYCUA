@@ -138,9 +138,9 @@ class TestConfigLoadingInCLI:
         args = argparse.Namespace(input="test", file=None)
 
         mock_config = MagicMock()
-        mock_config.llm.provider = "ollama"
-        mock_config.llm.model = "llama3"
-        mock_config.llm.base_url = "http://localhost:11434"
+        mock_config.llm.provider = "openai-compatible"
+        mock_config.llm.model = "qwen/qwen3.5-9b"
+        mock_config.llm.base_url = "http://localhost:1234/v1"
         mock_config.llm.api_key.get_secret_value.return_value = ""
 
         mock_agent = AsyncMock()

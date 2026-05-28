@@ -9,14 +9,15 @@ This directory contains comprehensive integration tests for the TINYCUA SDK, bas
 1. **test_all.py** - Comprehensive test suite covering all major SDK functionality
 2. **test_01_basic_agent.py** - Tests based on `01_agent_basic.py` example
 3. **test_02_streaming.py** - Tests based on `02_agent_streaming.py` example
-4. **test_03_memory_session.py** - Tests based on `03_memory_and_session.py` example
-5. **test_05_agent_hierarchy.py** - Tests based on `05_agent_hierarchy.py` example
-6. **test_06_local_storage.py** - Tests based on `06_local_storage.py` example
+4. **test_memory_session.py** - Tests based on `03_memory_and_session.py` example
+5. **test_memory_operations.py** - Tests for MemorySession CRUD operations
+6. **test_05_agent_hierarchy.py** - Tests based on `05_agent_hierarchy.py` example
+7. **test_06_local_storage.py** - Tests based on `06_local_storage.py` example
 
 ## Prerequisites
+- **OpenAI-compatible endpoint** running at `http://localhost:1234/v1`
 
-- **LM Studio** running at `http://localhost:1234`
-- Model: `qwen/qwen3.5-9b` loaded in LM Studio
+- Model: `qwen/qwen3.5-9b` loaded
 - Python 3.10+
 - Test dependencies (installed via `pip install pytest pytest-asyncio`)
 
@@ -63,12 +64,17 @@ pytest tests/integration/ -n auto -v
 - Streaming with multiple tool calls
 - DONE event handling
 
-### Memory and Sessions (test_03_memory_session.py)
+### Memory and Sessions (test_memory_session.py)
 - Memory tools (remember, recall, list_memory)
 - Memory streaming
 - Cancel execution
 - Session persistence
 - Custom memory backend
+
+### Memory Operations (test_memory_operations.py)
+- MemorySession CRUD (add, get, list, search, delete, clear)
+- Session-scoped memory isolation
+- Memory types and metadata
 
 ### Agent Hierarchy (test_05_agent_hierarchy.py)
 - Agent hierarchy structure
@@ -101,13 +107,13 @@ pytest tests/integration/ -n auto -v
 
 ### Passing Tests
 All tests should pass if:
-- LM Studio is running at `http://localhost:1234`
-- The model `qwen/qwen3.5-9b` is loaded in LM Studio
+- OpenAI-compatible endpoint is running at `http://localhost:1234/v1`
+- The model `qwen/qwen3.5-9b` is loaded
 - All SDK dependencies are installed
 
 ### Failing Tests
 Some tests may skip if:
-- LM Studio is not running (streaming tests)
+- OpenAI-compatible endpoint is not running (streaming tests)
 - Backend is not available (deployment tests)
 - Network issues prevent API calls
 
@@ -136,7 +142,7 @@ The tests can be integrated into CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run Integration Tests
   run: |
-    # Start LM Studio (if needed)
+    # Start OpenAI-compatible endpoint (if needed)
     # Run tests
     python tests/run_integration_tests.py
 ```
@@ -153,15 +159,15 @@ To add new tests:
 
 ## Troubleshooting
 
-### Tests Fail to Connect to LM Studio
-- Ensure LM Studio is running
+### Tests Fail to Connect to OpenAI-compatible Endpoint
+- Ensure OpenAI-compatible endpoint is running
 - Check that the model is loaded
-- Verify the API URL is correct (`http://localhost:1234`)
+- Verify the API URL is correct (`http://localhost:1234/v1`)
 
 ### Tests Timeout
 - Increase timeout in `conftest.py`
 - Check network connectivity
-- Verify LM Studio is not overloaded
+- Verify OpenAI-compatible endpoint is not overloaded
 
 ### Tests Skip Unexpectedly
 - Review skip conditions in test code

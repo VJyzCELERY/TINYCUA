@@ -8,7 +8,7 @@ This example demonstrates:
 5. Automatic cleanup with try/finally
 
 Prerequisites:
-    - LM Studio must be running at http://localhost:1234
+    - OpenAI-compatible server must be running at http://localhost:1234/v1
     - Or update the provider/model/base_url to use another LLM
 
 Usage:
@@ -88,9 +88,9 @@ def main():
         print("\n7. Creating Agent with context tools...")
         agent = Agent(
             name="context-agent",
-            provider="lmstudio",
+            provider="openai-compatible",
             model="qwen/qwen3.5-9b",
-            base_url="http://localhost:1234",
+            base_url="http://localhost:1234/v1",
             api_key="dummy",
             tools=[grep_tool, summary_tool, recent_tool],
         )
@@ -98,7 +98,7 @@ def main():
         # Test: Ask about user's name (should use recent turns or grep)
         print("\n8. Testing: Agent asks 'What is my name?'")
         print("   (Agent should use context tools to find answer)")
-        print("   NOTE: Requires LM Studio running at http://localhost:1234")
+        print("   NOTE: Requires OpenAI-compatible server running at http://localhost:1234/v1")
 
         import asyncio
 
@@ -112,7 +112,7 @@ def main():
             print(f"   Response: {response[:200]}...")
         except Exception as e:
             print(f"   ERROR: {e}")
-            print("   Make sure LM Studio is running with the model loaded!")
+            print("   Make sure OpenAI-compatible server is running with the model loaded!")
             print("   Skipping agent tests - context tools work without LLM")
 
         print("\n" + "=" * 60)

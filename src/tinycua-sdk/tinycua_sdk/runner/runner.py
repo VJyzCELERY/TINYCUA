@@ -15,18 +15,12 @@ from tinycua_sdk.models.result import PlanRunResult
 from tinycua_sdk.models.response import StreamEvent, StreamEventType
 from tinycua_sdk.tools import Tool
 from tinycua_sdk.agent import Agent
+from tinycua_sdk.core.providers import DEFAULT_BASE_URL
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URLS = {
-    "lmstudio": "http://localhost:1234/v1",
-    "ollama": "http://localhost:11434/v1",
-    "openai": "https://api.openai.com/v1",
-}
-
 DEFAULT_MODELS = {
-    "lmstudio": "qwen/qwen3.5-9b",
-    "ollama": "llama3",
+    "openai-compatible": "qwen/qwen3.5-9b",
     "openai": "gpt-4o-mini",
 }
 
@@ -54,13 +48,8 @@ class Runner:
             self._cancel_event = cancel_event
             self.sub_agents = getattr(agent, "sub_agents", [])
 
-        # Resolve base URL
-        if self.config.base_url:
-            self.base_url = self.config.base_url
-        elif self.config.provider in DEFAULT_BASE_URLS:
-            self.base_url = DEFAULT_BASE_URLS[self.config.provider]
-        else:
-            self.base_url = "https://api.openai.com/v1"
+        # Resolve base URL from config (no internal /v1 appending)
+        self.base_url = self.config.base_url or DEFAULT_BASE_URL
 
         # Model
         self.model = self.config.model or DEFAULT_MODELS.get(

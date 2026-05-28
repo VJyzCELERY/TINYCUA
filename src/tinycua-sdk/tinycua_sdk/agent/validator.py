@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from tinycua_sdk.agent.config import AgentConfig
+from tinycua_sdk.core.providers import VALID_PROVIDERS
 
 
 class SeverityLevel(Enum):
@@ -26,13 +27,7 @@ class ValidationError:
 class AgentConfigValidator:
     """Validates agent configurations."""
 
-    KNOWN_PROVIDERS: set[str] = {
-        "openai",
-        "anthropic",
-        "google",
-        "ollama",
-        "local",
-    }
+    KNOWN_PROVIDERS: set[str] = set(VALID_PROVIDERS)
     KNOWN_MODELS: set[str] = {
         "gpt-5-nano",
         "gpt-4o-mini",

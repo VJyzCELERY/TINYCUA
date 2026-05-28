@@ -177,8 +177,8 @@ class TestApplyTemplateOverrides:
     def test_apply_overrides_provider(self):
         """Overriding provider works."""
         template = get_template("coder")
-        result = apply_template_overrides(template, {"provider": "ollama"})
-        assert result["provider"] == "ollama"
+        result = apply_template_overrides(template, {"provider": "openai-compatible"})
+        assert result["provider"] == "openai-compatible"
 
     def test_apply_overrides_system_prompt(self):
         """Overriding system_prompt works."""
@@ -192,7 +192,7 @@ class TestApplyTemplateOverrides:
         """Multiple overrides work together."""
         template = get_template("coder")
         result = apply_template_overrides(
-            template, {"model": "gpt-4o", "provider": "ollama"}
+            template, {"model": "gpt-4o", "provider": "openai-compatible"}
         )
         assert result["model"] == "gpt-4o"
-        assert result["provider"] == "ollama"
+        assert result["provider"] == "openai-compatible"

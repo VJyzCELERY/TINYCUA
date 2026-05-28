@@ -228,8 +228,8 @@ import json
 # Setup
 client = BackendClient(base_url="http://localhost:8000")
 agent = Agent(
-    provider="lmstudio",
-    base_url="http://localhost:1234",
+    provider="openai-compatible",
+    base_url="http://localhost:1234/v1",
     tools=[add_numbers, multiply],
     backend_url="http://localhost:8000",
     backend_api_key=client.api_key,
@@ -276,10 +276,6 @@ messages = await client.get_messages(session_id)
 for msg in messages:
     print(f"[{msg['role']}] {msg['content']}")
 ```
-
-## Guest Mode
-
-Guest mode remains unchanged - uses temporary in-memory sessions without persistence.
 
 ## Files to Modify
 

@@ -30,7 +30,7 @@ class TestSDKIntegration:
             result = await sdk_agent.run("Hello")
             assert result is not None
         except Exception:
-            pytest.skip("LM Studio or LLM not available")
+            pytest.skip("OpenAI-compatible server or LLM not available")
 
     @pytest.mark.asyncio
     async def test_tui_agent_execution(self, tui_app):

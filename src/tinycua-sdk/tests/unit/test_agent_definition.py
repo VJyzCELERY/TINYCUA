@@ -162,11 +162,6 @@ class TestAgentDefinition:
         agent = AgentDefinition(name="test")
         assert agent.is_deployed is False
 
-    def test_is_guest_false_by_default(self):
-        """Test is_guest is False by default."""
-        agent = AgentDefinition(name="test")
-        assert agent.is_guest is False
-
     def test_add_tool(self):
         """Test adding a single tool."""
 

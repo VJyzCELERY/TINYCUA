@@ -1,5 +1,8 @@
 """Tests for CUA tools (screen capture, mouse, keyboard)."""
 
+import importlib.util
+
+import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -101,52 +104,83 @@ class TestMouseTools:
 
     def test_mouse_move_stub_when_no_deps(self):
         """Test mouse move returns error when pyautogui unavailable."""
-        # Since pyautogui is now installed, we test that the tool works correctly
         from tinycua.agent.tools.cua.mouse import mouse_move
 
         # The tool should be a Tool object
         assert hasattr(mouse_move, "invoke")
 
-        # Invoke the tool - should work with actual pyautogui installed
+        # Invoke the tool - since pyautogui is not installed, uses stub
         result = mouse_move.invoke(x=100, y=200)
 
-        # Should return a dict with either success or error
+        # Should return an error dict from the stub
         assert isinstance(result, dict)
-        assert ("success" in result and "error" not in result) or ("error" in result)
+        assert "error" in result
+        assert "pyautogui" in result["error"]
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_mouse_move_success(self):
         """Test mouse move works with mocked pyautogui."""
-        with patch("pyautogui.moveTo") as mock_moveTo:
-            from tinycua.agent.tools.cua.mouse import mouse_move
+        with patch("tinycua.agent.tools.cua.mouse.pyautogui.moveTo") as mock_moveTo:
+            import importlib
+            import tinycua.agent.tools.cua.mouse as mouse_module
+            importlib.reload(mouse_module)
+            mouse_move = mouse_module.mouse_move
 
             result = mouse_move.invoke(x=100, y=200)
 
             assert result == {"success": True}
             mock_moveTo.assert_called_once_with(100, 200)
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_mouse_move_error(self):
         """Test mouse move handles errors."""
-        with patch("pyautogui.moveTo", side_effect=OSError("Invalid coordinates")):
-            from tinycua.agent.tools.cua.mouse import mouse_move
+        with patch(
+            "tinycua.agent.tools.cua.mouse.pyautogui.moveTo",
+            side_effect=OSError("Invalid coordinates"),
+        ):
+            import importlib
+            import tinycua.agent.tools.cua.mouse as mouse_module
+            importlib.reload(mouse_module)
+            mouse_move = mouse_module.mouse_move
 
             result = mouse_move.invoke(x=-1, y=-1)
 
             assert "error" in result
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_mouse_click_success(self):
         """Test mouse click works with mocked pyautogui."""
-        with patch("pyautogui.click") as mock_click:
-            from tinycua.agent.tools.cua.mouse import mouse_click
+        with patch("tinycua.agent.tools.cua.mouse.pyautogui.click") as mock_click:
+            import importlib
+            import tinycua.agent.tools.cua.mouse as mouse_module
+            importlib.reload(mouse_module)
+            mouse_click = mouse_module.mouse_click
 
             result = mouse_click.invoke(button="left")
 
             assert result == {"success": True}
             mock_click.assert_called_once_with(button="left")
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_mouse_click_right_button(self):
         """Test mouse right-click."""
-        with patch("pyautogui.click") as mock_click:
-            from tinycua.agent.tools.cua.mouse import mouse_click
+        with patch("tinycua.agent.tools.cua.mouse.pyautogui.click") as mock_click:
+            import importlib
+            import tinycua.agent.tools.cua.mouse as mouse_module
+            importlib.reload(mouse_module)
+            mouse_click = mouse_module.mouse_click
 
             result = mouse_click.invoke(button="right")
 
@@ -159,53 +193,84 @@ class TestKeyboardTools:
 
     def test_keyboard_type_stub_when_no_deps(self):
         """Test keyboard type returns error when pyautogui unavailable."""
-        # Since pyautogui is now installed, we test that the tool works correctly
         from tinycua.agent.tools.cua.keyboard import keyboard_type
 
         # The tool should be a Tool object
         assert hasattr(keyboard_type, "invoke")
 
-        # Invoke the tool - should work with actual pyautogui installed
+        # Invoke the tool - since pyautogui is not installed, uses stub
         result = keyboard_type.invoke(text="hello")
 
-        # Should return a dict with either success or error
+        # Should return an error dict from the stub
         assert isinstance(result, dict)
-        assert ("success" in result and "error" not in result) or ("error" in result)
+        assert "error" in result
+        assert "pyautogui" in result["error"]
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_keyboard_type_success(self):
         """Test keyboard type works with mocked pyautogui."""
-        with patch("pyautogui.typewrite") as mock_typewrite:
-            from tinycua.agent.tools.cua.keyboard import keyboard_type
+        with patch("tinycua.agent.tools.cua.keyboard.pyautogui.typewrite") as mock_typewrite:
+            import importlib
+            import tinycua.agent.tools.cua.keyboard as keyboard_module
+            importlib.reload(keyboard_module)
+            keyboard_type = keyboard_module.keyboard_type
 
             result = keyboard_type.invoke(text="hello world")
 
             assert result == {"success": True}
             mock_typewrite.assert_called_once_with("hello world")
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_keyboard_press_single_key(self):
         """Test keyboard press single key."""
-        with patch("pyautogui.press") as mock_press:
-            from tinycua.agent.tools.cua.keyboard import keyboard_press
+        with patch("tinycua.agent.tools.cua.keyboard.pyautogui.press") as mock_press:
+            import importlib
+            import tinycua.agent.tools.cua.keyboard as keyboard_module
+            importlib.reload(keyboard_module)
+            keyboard_press = keyboard_module.keyboard_press
 
             result = keyboard_press.invoke(key="enter")
 
             assert result == {"success": True}
             mock_press.assert_called_once_with("enter")
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_keyboard_press_combo(self):
         """Test keyboard press key combination."""
-        with patch("pyautogui.hotkey") as mock_hotkey:
-            from tinycua.agent.tools.cua.keyboard import keyboard_press
+        with patch("tinycua.agent.tools.cua.keyboard.pyautogui.hotkey") as mock_hotkey:
+            import importlib
+            import tinycua.agent.tools.cua.keyboard as keyboard_module
+            importlib.reload(keyboard_module)
+            keyboard_press = keyboard_module.keyboard_press
 
             result = keyboard_press.invoke(key="ctrl+c")
 
             assert result == {"success": True}
             mock_hotkey.assert_called_once_with("ctrl", "c")
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_keyboard_press_error(self):
         """Test keyboard press handles errors."""
-        with patch("pyautogui.press", side_effect=OSError("Key not found")):
-            from tinycua.agent.tools.cua.keyboard import keyboard_press
+        with patch(
+            "tinycua.agent.tools.cua.keyboard.pyautogui.press",
+            side_effect=OSError("Key not found"),
+        ):
+            import importlib
+            import tinycua.agent.tools.cua.keyboard as keyboard_module
+            importlib.reload(keyboard_module)
+            keyboard_press = keyboard_module.keyboard_press
 
             result = keyboard_press.invoke(key="nonexistent")
 
@@ -249,10 +314,17 @@ class TestCUAInit:
                             assert "keyboard_type" in cua_module.__all__
                             assert "keyboard_press" in cua_module.__all__
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("pyautogui") is None,
+        reason="pyautogui not installed",
+    )
     def test_cua_tool_schema_generation(self):
         """Test CUA tools have proper JSON Schema generation."""
         with patch("tinycua.agent.tools.cua.mouse.pyautogui"):
-            from tinycua.agent.tools.cua.mouse import mouse_move
+            import importlib
+            import tinycua.agent.tools.cua.mouse as mouse_module
+            importlib.reload(mouse_module)
+            mouse_move = mouse_module.mouse_move
 
             schema = mouse_move.parameters
             assert "properties" in schema

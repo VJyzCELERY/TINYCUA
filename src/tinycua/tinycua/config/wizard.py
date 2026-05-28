@@ -9,7 +9,6 @@ import os
 import platform
 import re
 import secrets
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +54,7 @@ def is_first_startup(config_dir: str | Path | None = None) -> bool:
 class SetupWizard:
     """Interactive setup wizard for first-time users."""
 
-    DEFAULT_LLM_PROVIDER = "lmstudio"
+    DEFAULT_LLM_PROVIDER = "openai-compatible"
     DEFAULT_LLM_MODEL = "qwen/qwen3.5-9b"
     DEFAULT_LLM_BASE_URL = "http://localhost:1234/v1"
 
@@ -190,8 +189,7 @@ class SetupWizard:
     def load_credentials(self) -> bool:
         """Load credentials from file if it exists.
 
-        Supports Fernet-encrypted credentials with a backward-compatible
-        base64 fallback that emits a deprecation warning.
+        Supports Fernet-encrypted credentials only.
 
         Returns:
             True if credentials were loaded, False otherwise.
@@ -216,22 +214,7 @@ class SetupWizard:
         except (InvalidToken, ValueError, TypeError, OSError):
             pass
 
-        # Fallback: backward-compatible base64 read
-        try:
-            data = base64.b64decode(encrypted)
-            creds = json.loads(data)
-            self.username = creds["username"]
-            self.email = creds["email"]
-            self.password = creds["password"]
-            warnings.warn(
-                "Loaded credentials using legacy base64 encoding. "
-                "Re-run the wizard to upgrade to Fernet encryption.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return True
-        except (ValueError, TypeError, OSError):
-            return False
+        return False
 
     def validate_account(
         self,
@@ -395,11 +378,11 @@ class SetupWizard:
                 conn.close()
 
 
-def is_lmstudio_available() -> bool:
-    """Check if LM Studio is running and available.
+def is_openai_compatible_available() -> bool:
+    """Check if an OpenAI-compatible endpoint is running and available.
 
     Returns:
-        True if LM Studio is available, False otherwise.
+        True if the endpoint is available, False otherwise.
     """
     try:
         import requests
@@ -508,7 +491,7 @@ def prompt_llm_configuration() -> dict[str, str]:
         Dictionary with provider, model, base_url, and api_key.
     """
     print("\n--- Configure LLM Provider ---")
-    print("Default: LM Studio at http://localhost:1234/v1")
+    print("Default: OpenAI-compatible endpoint at http://localhost:1234/v1")
     print("Default model: qwen/qwen3.5-9b")
     print()
 

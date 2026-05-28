@@ -43,7 +43,7 @@ This document defines the standard tools used across all subprojects in the TINY
 - **Markers**:
   - `@pytest.mark.unit` - Fast, no external dependencies
   - `@pytest.mark.integration` - Requires external service
-  - `@pytest.mark.lm_studio` - Requires LM Studio
+  - `@pytest.mark.integration` - Requires OpenAI-compatible endpoint
   - `@pytest.mark.backend` - Requires backend server
   - `@pytest.mark.remote_runner` - Requires remote runner
 - **Run**: `pytest` or `pytest -m integration`
@@ -162,7 +162,7 @@ When services are unavailable, integration tests should auto-skip:
 import pytest
 
 def pytest_collection_modifyitems(config, items):
-    skip_lm_studio = pytest.mark.skip(reason="LM Studio not available")
+    skip_integration = pytest.mark.skip(reason="OpenAI-compatible endpoint not available")
     for item in items:
         if "lm_studio" in item.keywords:
             item.add_marker(skip_lm_studio)
@@ -173,7 +173,7 @@ Or use `pytest.mark.skipif` with environment checks:
 ```python
 @pytest.mark.skipif(
     not is_lm_studio_available(),
-    reason="LM Studio not available"
+    reason="OpenAI-compatible endpoint not available"
 )
 async def test_with_lm_studio():
     ...

@@ -24,14 +24,14 @@ class TestMCPClient:
     async def test_connect_establishes_connection(self):
         """MCPClient.connect establishes connection."""
         client = MCPClient(server_url="http://localhost:3000")
-        with patch("tinycua_sdk.tools.mcp.httpx.AsyncClient") as mock_client:
+        with patch("tinycua_sdk.tools.mcp.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"tools": []}
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
-            
+            mock_client.request = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
             await client.connect()
             assert client.connected is True
 

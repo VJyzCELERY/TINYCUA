@@ -71,9 +71,31 @@ Examples:
 
 ---
 
+## Documentation Expectations
+
+### Comprehensive Docs (`docs/full-docs/`)
+
+Whenever code is added, removed, or significantly modified, the corresponding comprehensive documentation **must** be updated in parallel.
+
+**What to update:**
+- `docs/full-docs/tinycua-sdk/` — for SDK changes (new modules, API changes, removed features)
+- `docs/full-docs/tinycua/` — for CLI/TUI changes
+- `docs/full-docs/tinycua-backend/` — for backend changes
+
+**Rules:**
+- New modules/classes/functions → add documentation to the relevant `.md` file
+- Removed features → remove all references from docs (check all 3 project directories)
+- Renamed files → update all doc references and code examples
+- Changed behavior → update explanations and code snippets
+- Always update `docs/full-docs/INDEX.md` if adding or removing documentation files
+
+**Do not** leave stale references to removed code, deprecated APIs, or renamed files in the comprehensive docs.
+
+---
+
 ## Testing Expectations
 1. **Test Coverage**:
     - AI-generated code must include corresponding unit and integration tests.
-    - Tests must be generated under the appropriate subproject’s `tests/` folder.
+    - Tests must be generated under the appropriate subproject's `tests/` folder.
 2. **Documented Test Cases**:
     - Include examples of expected inputs and outputs in the docstrings.
