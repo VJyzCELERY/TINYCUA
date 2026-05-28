@@ -5,7 +5,7 @@
 > **File:** `architecture/state-objects.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [session-architecture.md](session-architecture.md)
+> **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [primary-agent.md](primary-agent.md)
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
 
@@ -65,26 +65,17 @@ Use `Session.Context` for model-loadable context and `Session.chat_history` for 
 
 The Execution Log captures the actions taken during a sub-session's execution. It is stored on the sub-session, not embedded within a Task Result. This separation means the Reviewer can inspect the full execution log of a Task Executor's sub-session, and retries create new sub-sessions with fresh logs.
 
-```yaml
-execution_log:
-  short_term_todos:
-    - "..."
-  actions:
-    - action: "..."
-      observation: "..."
-      diff: "optional file change diff if applicable"
-  hitl_inputs:
-    - "..."
-  decision_trace: "..."
-```
+The execution log should capture:
+
+- the sequence of actions taken and their outcomes;
+- human-in-the-loop inputs received during execution;
+- a concise decision trace or reasoning summary.
 
 Key rules:
 
 - The Execution Log belongs to a sub-session, not to a specific task result.
-- Tool calls, observations, and diffs are recorded as part of the execution log.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
 - The Task Reviewer accesses the sub-session's execution log when evaluating a task.
-- Human-in-the-loop inputs are preserved in the execution log.
 
 ---
 
@@ -110,9 +101,7 @@ mode_decision:
 
 ## Digested Information Object
 
-The Information Digester produces `Digested Information` — a precision-oriented summary that narrows broad session `Context` for downstream agents. It is consumed by both the Task Analyzer (in Worker Mode) and the Primary Agent (when it invokes Information Digestion).
-
-The system stores Digested Information as YAML for structured access. When sent to a downstream agent (Task Analyzer or Primary Agent), the YAML is serialized to markdown for the LLM prompt.
+The Information Digester produces `Digested Information` — a precision-oriented summary consumed by the Task Analyzer (Worker Mode) and the Primary Agent (when it invokes Information Digestion).
 
 ```yaml
 digested_information:
@@ -141,14 +130,12 @@ Worker effort is configuration, similar to model reasoning effort.
 
 ```yaml
 worker_config:
-  effort: none | low | medium | high
+  effort: none | high   # Additional intermediate levels (low, medium) are implementation calibration detail
 ```
 
 Effort controls how much planning happens before execution.
 
 - `none` — minimal upfront planning; refine during execution.
-- `low` — light planning; identify main tasks, defer detail.
-- `medium` — balanced planning; decompose key tasks.
 - `high` — thorough planning; full decomposition before execution.
 
 ---

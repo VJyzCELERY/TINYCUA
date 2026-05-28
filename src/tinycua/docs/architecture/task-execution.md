@@ -23,9 +23,9 @@ It receives only the current task's information plus shallow roadmap awareness. 
 
 - Current `task` from the Task List — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
 - `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
-- `retry_context` — optional failure context from the Task Reviewer on retry.
+- Failure context from the Task Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
-Retries create a new Task Executor sub-session. The previous failure is recorded in the task context/retry context so the new executor can continue with the relevant lesson without inheriting the full prior executor context.
+Retries create a new Task Executor sub-session. The new executor receives context about the previous failure so it can avoid repeating the same mistake, without inheriting the full prior execution context.
 
 **Output:**
 
@@ -77,13 +77,6 @@ Execution actions are captured in the Task Executor sub-session's `execution_log
 - The execution log is evidence for the Task Reviewer, who accesses the sub-session log.
 - Tool calls, observations, diffs (if file changes exist), and decision traces are recorded.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log — the old log is not carried forward.
-
-The execution log should include:
-
-- short-term todos generated during execution;
-- tool actions, observations, and diffs;
-- human-in-the-loop user inputs;
-- concise decision trace or reasoning summary.
 
 See [session-architecture.md](session-architecture.md) and [state-objects.md](state-objects.md) for the Execution Log schema and session-level storage rules.
 

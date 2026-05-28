@@ -5,7 +5,7 @@
 > **File:** `architecture/information-digestion.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-analysis.md](task-analysis.md)
+> **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md)
 
 ---
 
@@ -30,7 +30,7 @@ The Information Digester is a privileged narrowing boundary: it may inspect broa
 
 **Output:**
 
-Canonical schema is in [state-objects.md](state-objects.md). The digest is sent to downstream agents as structured markdown. See [state-objects.md](state-objects.md) for the canonical output schema (stored as YAML) and section descriptions.
+Canonical schema is in [state-objects.md](state-objects.md). The digest is sent to downstream agents as structured text; storage format is an implementation detail. See [state-objects.md](state-objects.md) for the canonical output schema and section descriptions.
 
 ---
 
@@ -81,6 +81,6 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 | Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
 | Boundary | Privileged narrowing boundary | Digestion can inspect broad context without leaking broad context downstream |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
-| Output format | Markdown sent to agents | LLMs process markdown more naturally than YAML; YAML used for structured storage only |
+| Output format | Text representation sent to agents | LLMs consume text naturally; storage format is an implementation detail |
 | Original query included? | No raw-query crutch by default | Downstream agents should work from digest, not default to broad history |
 | Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |
