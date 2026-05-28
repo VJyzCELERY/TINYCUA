@@ -86,7 +86,6 @@ flowchart TD
     NEXT -->|retry| RETRY
     RETRY --> TE
     NEXT -->|replan| REPLAN
-    NEXT -->|needs_more_context| REPLAN
     REPLAN --> TA
     NEXT -->|escalate_user| ASK
     NEXT -->|consecutive failure threshold| FAIL_TERM

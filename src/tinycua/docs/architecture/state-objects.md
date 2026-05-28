@@ -99,11 +99,10 @@ mode_decision:
   confidence: 0.0-1.0
   reasons:
     - "..."
-  primary_agent_safety_reason: "..."
-  decomposition_benefit: "..."
-  uncertainty_reason: "..."
   uncertain_next_action: ask_user | explore | null
 ```
+
+`reasons` must include a rationale appropriate to the chosen mode (e.g., safety rationale for `primary_agent`, decomposition benefit for `worker`, or uncertainty description for `uncertain`).
 
 `uncertain_next_action` is required when `mode` is `uncertain`. The goal is to avoid leaving uncertainty as an open-ended state.
 
@@ -113,9 +112,7 @@ mode_decision:
 
 The Information Digester produces `Digested Information` — a precision-oriented summary that narrows broad session `Context` for downstream agents. It is consumed by both the Task Analyzer (in Worker Mode) and the Primary Agent (when it invokes Information Digestion).
 
-### Storage Format (YAML)
-
-The system stores Digested Information as YAML for structured access:
+The system stores Digested Information as YAML for structured access. When sent to a downstream agent (Task Analyzer or Primary Agent), the YAML is serialized to markdown for the LLM prompt.
 
 ```yaml
 digested_information:
@@ -130,38 +127,6 @@ digested_information:
   known_gaps:
     - "information that may be missing"
 ```
-
-### LLM-Facing Format (Markdown)
-
-When sent to a downstream agent (Task Analyzer or Primary Agent), the YAML is converted to markdown:
-
-```markdown
-# Digested Information
-
-## Context Summary
-[compressed relevant context in markdown]
-
-## Key Points
-- [takeaway point 1]
-- [takeaway point 2]
-
-## Advisory Instructions
-[action-oriented guidance for the downstream agent]
-
-## Constraints
-- [guardrail 1]
-- [guardrail 2]
-
-## Known Gaps
-- [information that may be missing]
-```
-
-Rendering guidance:
-- The `## Context Summary` section holds the main digest body — it is structured markdown, not raw YAML.
-- `## Key Points` is a concise list of the most important takeaways.
-- `## Advisory Instructions` guides the downstream agent's approach but is advisory, not rigid.
-- `## Constraints` are guardrails the downstream agent should respect.
-- `## Known Gaps` explicitly signals missing information so downstream agents know what they don't know.
 
 Key rules:
 - Context Summary and Key Points are required. Advisory Instructions, Constraints, and Known Gaps may be empty if not applicable.
@@ -260,7 +225,7 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 ```yaml
 reviewer_decision:
   task_id: task_001
-  status: accepted | retry | replan | needs_more_context | escalate_user
+  status: accepted | retry | replan | escalate_user
   reason: "..."
   confidence: 0.0-1.0
   context_updates:
