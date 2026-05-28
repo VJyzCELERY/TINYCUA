@@ -194,7 +194,7 @@ Future explicit Sub Agents will be a separate concept. A future Sub Agent sessio
 
 ## Relationship to Enhanced Context Retrieval
 
-Enhanced Context Retrieval uses session `Context` and/or retrievable `chat_history` records to construct a Context Enhanced Query.
+Enhanced Context Retrieval is invoked by the Information Digester. It uses session `Context` and/or retrievable `chat_history` records to perform deep, precise retrieval of lower-level, finer-detail context.
 
 The trigger is accumulated session `Context` size relative to model context-window pressure. User query size alone does not trigger enhanced retrieval.
 

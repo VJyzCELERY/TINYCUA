@@ -11,12 +11,12 @@
 
 ## Role
 
-The Query Analyst prepares the request for routing. It produces:
+The Query Analyst prepares the request for routing with a fast, high-level scan. It produces:
 
-1. a `Context Enhanced Query`, and
+1. a `Context Enhanced Query` (high-level), and
 2. a `Mode Decision`.
 
-Enhanced context retrieval is triggered by accumulated session `Context` size, not by user query size.
+The Query Analyst scans session `Context` directly (no search tool needed). Deep, precise context retrieval is the responsibility of the Information Digester.
 
 ---
 
@@ -31,23 +31,23 @@ Enhanced context retrieval is triggered by accumulated session `Context` size, n
 
 **Output:**
 
-- `Context Enhanced Query` (CEQ) — enriched user query. See [context-retrieval.md](context-retrieval.md) for retrieval flow.
+- `Context Enhanced Query` (CEQ) — user query enriched with high-level session context. See [context-retrieval.md](context-retrieval.md) for the deep retrieval flow used by the Information Digester.
 - `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md). Key fields: `mode` (`primary_agent | worker | uncertain`), `score`, `confidence`, `uncertain_next_action` (`ask_user | explore | null`).
 
 ---
 
-## Retrieval Trigger
+## Context Scan
 
-Enhanced context retrieval starts only when accumulated session `Context` approaches model context-window pressure.
+The Query Analyst scans session context directly — it receives `session.context` and `session.chat_history` as inputs and performs a fast, high-level scan. No retrieval tool is used.
 
 Rules:
 
-- If session `Context` is small, use it directly.
-- User query size does not trigger enhanced retrieval.
+- The Query Analyst uses session `Context` as-is for a high-level overview.
+- User query size does not trigger deep retrieval (that is the Information Digester's responsibility).
 - Session `chat_history` stores user/agent/internal-agent turns in JSON.
 - Session `Context` accumulates as structured markdown and is compacted as needed.
 
-See [context-retrieval.md](context-retrieval.md).
+Deep context retrieval is defined in [context-retrieval.md](context-retrieval.md).
 
 ---
 
@@ -57,19 +57,14 @@ See [context-retrieval.md](context-retrieval.md).
 flowchart TD
     UQ{{"User Query"}}
     FSC{{"Session\nchat_history + Context"}}
-    SIZE{"Session Context near model limit?"}
-    DIRECT["Use available context directly"]
-    RETRIEVE["Enhanced Context Retrieval"]
-    CEQ{{"Context Enhanced Query"}}
+    SCAN["High-level context scan"]
+    CEQ{{"Context Enhanced Query\n(high-level)"}}
     CLASSIFY["Score request and choose mode"]
     MD{{"Mode Decision"}}
 
-    UQ --> SIZE
-    FSC --> SIZE
-    SIZE -->|No| DIRECT
-    SIZE -->|Yes| RETRIEVE
-    DIRECT --> CEQ
-    RETRIEVE --> CEQ
+    UQ --> SCAN
+    FSC --> SCAN
+    SCAN --> CEQ
     CEQ --> CLASSIFY
     CLASSIFY --> MD
 ```
@@ -94,7 +89,7 @@ The Query Analyst must guard against three failure modes: Worker overuse, unsafe
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Retrieval trigger | Session `Context` size threshold | Large accumulated context increases irrelevant context exposure; user query size alone is not the issue |
+| Context scan | Fast, high-level scan | Query Analyst must be fast; deep retrieval is the Information Digester's responsibility |
 | Verdict shape | Mode decision | Supports primary-agent routing, Worker routing, and explicit uncertainty handling |
 | Classification style | Score-based with reasons | Prevents lazy overuse of Worker mode and unsafe Primary Agent routing |
-| Retrieval framing | Precision-first, LLM-first | Avoids overfitting to conventional RAG and hard token budgets |
+| Enhancement approach | High-level, session-context direct scan | QA receives session context directly; no search tool needed — it scans what it already has |

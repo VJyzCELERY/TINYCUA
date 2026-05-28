@@ -25,8 +25,8 @@ Work decomposition is therefore a means to context decomposition.
 
 The Query Analyst produces a `Mode Decision`:
 
-- **Primary Agent Mode:** Query Analyst → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated context before answering.
-- **Worker Mode:** Query Analyst → Information Digester → TINYCUA Worker → Primary Agent
+- **Primary Agent Mode:** Query Analyst (high-level scan) → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated, precise context before answering.
+- **Worker Mode:** Query Analyst (high-level scan) → Information Digester (deep context retrieval) → TINYCUA Worker → Primary Agent
 - **Uncertain Mode:** Query Analyst must choose an explicit `uncertain_next_action`, such as exploring more or asking the user.
 
 Worker Mode is an internal specialized-agent orchestration presented externally as one TINYCUA agent.
@@ -34,11 +34,11 @@ Worker Mode is an internal specialized-agent orchestration presented externally 
 ```mermaid
 flowchart TD
     subgraph TINY["TINYCUA"]
-        QA["Query Analyst\n(Agent)"]
-        CEQ{{"Context Enhanced Query"}}
+        QA["Query Analyst\n(Agent — high-level scan)"]
+        CEQ{{"Context Enhanced Query\n(high-level)"}}
         MD{{"Mode Decision"}}
         ROUTE{"Selected mode"}
-        ID["Information Digester\n(Agent)"]
+        ID["Information Digester\n(Agent — deep retrieval + digestion)"]
         DI{{"Digested Information"}}
         TW["TINYCUA Worker\n(Sub-agent Orchestration)"]
         WR{{"Worker Result"}}
@@ -64,7 +64,7 @@ flowchart TD
 
     ROUTE -->|worker| ID
     CEQ --> ID
-    FSC -. "when needed" .-> ID
+    FSC -. "deep retrieval" .-> ID
     ID --> DI
     DI -->|primary_agent requested digestion| PA
     DI -->|worker mode| TW
@@ -115,8 +115,8 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Component | File | Type | Role |
 |-----------|------|------|------|
-| Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Retrieves context when session `Context` is large and produces CEQ + Mode Decision |
-| Information Digester | [information-digestion.md](information-digestion.md) | LLM Agent | Produces precision-oriented Digested Information |
+| Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Performs fast, high-level context scan and produces CEQ + Mode Decision |
+| Information Digester | [information-digestion.md](information-digestion.md) | LLM Agent | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Analyzer, Task Executor, and Task Reviewer sequentially |
 | Task Analyzer | [task-analysis.md](task-analysis.md) | ReAct Agent | Creates the sequential task roadmap |
 | Task Executor | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
@@ -129,8 +129,8 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Agent | Loop Type | Tools | Notes |
 |-------|-----------|-------|-------|
-| Query Analyst | Context retrieval + classification | Enhanced Context Retrieval | Produces `primary_agent`, `worker`, or `uncertain` decision |
-| Information Digester | Precision-oriented digestion | Optional retrieval/read tools | Removes distracting context and preserves task-critical information |
+| Query Analyst | High-level context scan + classification | None (scans session context directly) | Produces `primary_agent`, `worker`, or `uncertain` decision |
+| Information Digester | Precision-oriented digestion | Enhanced Context Retrieval | Deep, precise context retrieval; removes distracting context and preserves task-critical information |
 | Task Analyzer | Effort-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
 | Task Executor | ReAct | Task tools | Produces result + execution log |
 | Task Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |

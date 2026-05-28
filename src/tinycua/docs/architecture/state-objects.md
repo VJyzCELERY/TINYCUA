@@ -23,10 +23,10 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 
 | Object | Producer | Consumer | Purpose |
 |--------|----------|----------|---------|
-| `User Query` | User | Query Analyst | Latest user instruction. Query size does not trigger enhanced retrieval by itself. |
+| `User Query` | User | Query Analyst | Latest user instruction. |
 | `Session` | Session system | Query Analyst / Information Digester / agents | Contains `chat_history`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
-| `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with relevant session `Context` when needed. |
-| `Mode Decision` | Query Analyst | Top-level router | Chooses `primary_agent`, `worker`, or `uncertain`. |
+| `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with high-level session context during fast routing analysis. |
+| `Mode Decision` | Query Analyst | Routing (see [overview.md](overview.md)) | Chooses `primary_agent`, `worker`, or `uncertain` based on mode. |
 | `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. Canonical schema below. |
 | `Worker Config` | System/user configuration | TINYCUA Worker / Task Analyzer | Controls Worker behavior such as planning effort. |
 | `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. Canonical schema below. |
@@ -42,7 +42,7 @@ Important rules:
 
 - `chat_history` is the preserved turn log and should be JSON.
 - `Context` is structured markdown and is what the model loads.
-- Enhanced context retrieval starts when session `Context` approaches model context-window pressure.
+- Enhanced context retrieval is invoked by the Information Digester when session `Context` approaches model context-window pressure.
 - Sub-sessions keep their own `chat_history`, `Context`, and `execution_log`, but sub-session `chat_history` is propagated to primary session `chat_history`.
 - Sub-session `Context` is not automatically appended to primary session `Context`.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.

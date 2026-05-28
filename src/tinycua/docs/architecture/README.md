@@ -32,8 +32,8 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 
 | File | Description |
 |------|-------------|
-| [query-analyst.md](query-analyst.md) | Produces Context Enhanced Query and Mode Decision |
-| [information-digestion.md](information-digestion.md) | Produces precision-oriented Digested Information |
+| [query-analyst.md](query-analyst.md) | Produces high-level Context Enhanced Query and Mode Decision |
+| [information-digestion.md](information-digestion.md) | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | [primary-agent.md](primary-agent.md) | Final synthesis agent for Primary Agent and Worker modes |
 | [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap |
 | [task-execution.md](task-execution.md) | Inside Worker: executes one task with task-specific context |

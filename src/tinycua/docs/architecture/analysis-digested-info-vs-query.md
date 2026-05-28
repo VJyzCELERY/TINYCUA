@@ -13,20 +13,22 @@ This decision record has been updated to match the current routing model.
 
 ## Current Routing Context
 
-The Query Analyst produces:
+The Query Analyst performs a fast, high-level scan and produces:
 
-1. `Context Enhanced Query` (CEQ)
+1. `Context Enhanced Query` (CEQ) — high-level enrichment
 2. `Mode Decision`
+
+The Information Digester receives the CEQ and performs Enhanced Context Retrieval (deep, precise search of session data) to produce `Digested Information`.
 
 The current top-level routing model is:
 
 ```text
-Query Analyst
-    ├── Context Enhanced Query
+Query Analyst (high-level scan)
+    ├── Context Enhanced Query (high-level)
     └── Mode Decision
             ├── primary_agent → Primary Agent
-            │       └── may invoke Information Digestion if CEQ needs consolidation
-            ├── worker → Information Digester → TINYCUA Worker → Primary Agent
+            │       └── may invoke Information Digestion if CEQ needs precise consolidation
+            ├── worker → Information Digester (deep retrieval + digestion) → TINYCUA Worker → Primary Agent
             └── uncertain → uncertain_next_action: ask_user | explore
 ```
 

@@ -7,13 +7,13 @@
 > **Status:** Draft
 > **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 
-This document defines when and how TINYCUA retrieves context from session `chat_history` and `Context`.
+This document defines the deep, precision-oriented context retrieval process used by the Information Digester to compile fine-detail context from session `chat_history` and `Context`.
 
 ---
 
 ## Role
 
-The Enhanced Context Retrieval process determines when and how to retrieve relevant context from session `chat_history` and `Context` as the session grows large, producing a `Context Enhanced Query` used for subsequent routing and processing.
+The Enhanced Context Retrieval process is invoked by the Information Digester. It receives a `Context Enhanced Query` (high-level) as guidance and performs deep, precision-oriented search of session `chat_history` and `Context` to retrieve lower-level, finer-detail context. The retrieved context is then compiled by the Information Digester into `Digested Information`.
 
 ---
 
@@ -21,6 +21,7 @@ The Enhanced Context Retrieval process determines when and how to retrieve relev
 
 **Input:**
 
+- `context_enhanced_query` (high-level) — guidance for what to search for
 - `user_query`
 - Session `chat_history` (JSON turn log)
 - Session `Context` (structured markdown)
@@ -28,7 +29,7 @@ The Enhanced Context Retrieval process determines when and how to retrieve relev
 
 **Output:**
 
-- `Context Enhanced Query` (CEQ) — user query enriched with relevant session context. Consumed by downstream routing and processing agents.
+- **Retrieved context** — lower-level, finer-detail context retrieved from session data. Consumed by the Information Digester to produce `Digested Information`.
 
 ---
 
@@ -40,7 +41,7 @@ Enhanced context retrieval is about precision, not token efficiency alone. The g
 
 ## Retrieval Trigger
 
-Enhanced context retrieval begins when accumulated session `Context` approaches model context-window pressure.
+Enhanced Context Retrieval is invoked by the Information Digester. Deep search of session data is triggered when accumulated session `Context` approaches model context-window pressure; when `Context` is small, the system can use it directly without deep search.
 
 Important rules:
 
@@ -69,22 +70,24 @@ Important retrieval-facing rules:
 ```mermaid
 flowchart TD
     UQ{{"User Query"}}
+    CEQ_GUIDE{{"Context Enhanced Query\n(high-level guidance)"}}
     SIZE{"Session Context near model limit?"}
     DIRECT["Use current context directly"]
     SEARCH["Generate search query / retrieval plan"]
     STORE{{"Session chat_history + Context"}}
     CAND{{"Candidate context"}}
     JUDGE["LLM-first relevance judgment"]
-    CEQ{{"Context Enhanced Query"}}
+    RET_CTX{{"Retrieved Context\n(fine-detail, to Digester)"}}
 
     UQ --> SIZE
+    CEQ_GUIDE --> SIZE
     SIZE -->|No| DIRECT
-    DIRECT --> CEQ
+    DIRECT --> RET_CTX
     SIZE -->|Yes| SEARCH
     SEARCH --> STORE
     STORE --> CAND
     CAND --> JUDGE
-    JUDGE --> CEQ
+    JUDGE --> RET_CTX
 ```
 
 ---
@@ -93,15 +96,15 @@ flowchart TD
 
 TINYCUA should avoid framing retrieval as conventional RAG where embedding search and hard token packing dominate the design.
 
-The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the current request, search session `chat_history` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce a Context Enhanced Query containing only the context needed for routing or downstream processing. The Mermaid diagram above captures this flow without prescribing implementation details.
+The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the CEQ (high-level guidance), search session `chat_history` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce fine-detail retrieved context for the Information Digester to compile into `Digested Information`. The Mermaid diagram above captures this flow without prescribing implementation details.
 
 ---
 
 ## Relationship to Digestion and Task Context
 
-Enhanced Context Retrieval produces a Context Enhanced Query.
+Enhanced Context Retrieval is invoked by the Information Digester. It receives the Context Enhanced Query (high-level, from the Query Analyst) as guidance and retrieves deep, precise context from session `chat_history` and `Context`.
 
-Information Digestion can then use the Context Enhanced Query and the available session `Context` to create Digested Information.
+The Information Digester compiles this retrieved context with other inputs into `Digested Information`.
 
 The Task Analyzer uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
 
