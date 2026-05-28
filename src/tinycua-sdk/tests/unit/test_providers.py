@@ -44,11 +44,16 @@ class TestBaseUrlNormalization:
 
     def test_normalize_base_url_with_v1(self):
         """URL with /v1 should stay the same."""
-        assert normalize_base_url("http://localhost:1234/v1") == "http://localhost:1234/v1"
+        assert (
+            normalize_base_url("http://localhost:1234/v1") == "http://localhost:1234/v1"
+        )
 
     def test_normalize_base_url_strips_trailing_slash(self):
         """Trailing slash should be stripped."""
-        assert normalize_base_url("http://localhost:1234/v1/") == "http://localhost:1234/v1"
+        assert (
+            normalize_base_url("http://localhost:1234/v1/")
+            == "http://localhost:1234/v1"
+        )
 
     def test_normalize_base_url_empty_string(self):
         """Empty string should return DEFAULT_BASE_URL."""
@@ -65,7 +70,9 @@ class TestProviderDefaults:
 
     def test_provider_can_be_changed(self):
         """Provider can be changed to another valid provider."""
-        config = AgentConfig(name="test", llm_model=LanguageModel(provider="openai-compatible"))
+        config = AgentConfig(
+            name="test", llm_model=LanguageModel(provider="openai-compatible")
+        )
         assert config.llm_model.provider == "openai-compatible"
 
     def test_provider_with_base_url(self):

@@ -63,12 +63,11 @@ Implement the real LLM client (OpenAI-compatible via httpx), the full `BaseLoop.
 
 #### [MODIFY] Agent class — Add `run()` method
 
-- `async def run(query, messages=None, instructions=None, stream="off") -> str`:
-  - Raise `NotImplementedError` if `stream != "off"`.
+- `async def run(query, messages=None, instructions=None, stream: bool = False) -> str | AsyncIterator[dict]`:
   - Build `loop = self.config.loop or BaseLoop()`.
   - Build message list: `(messages or []) + [{"role": "user", "content": query}]`.
-  - Call `await loop.run(self, msgs, self.tools, instructions)`.
-  - Return result string.
+  - Call `await loop.run(self, msgs, self.tools, instructions, stream=stream)`.
+  - Return result string or async iterator.
 
 ### 6. Modify: AgentExecutor — Remove stub run()
 

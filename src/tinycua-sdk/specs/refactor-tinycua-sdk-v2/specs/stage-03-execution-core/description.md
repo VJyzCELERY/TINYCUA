@@ -19,7 +19,7 @@ Give the agent the ability to actually call an LLM and return a response. This i
 
 ## Targets (Test Scenarios)
 This stage includes 6 atomic test scenarios in `targets/`:
-- **01_run_returns_string.py** — Verify agent.run() returns a string with stream='off'
+- **01_run_returns_string.py** — Verify agent.run() returns a string when stream=False
 - **02_run_with_history.py** — Verify agent.run() respects prior message history
 - **03_instruction_override.py** — Verify runtime instruction override works
 - **04_cancellation.py** — Verify agent.cancel() stops an in-flight run

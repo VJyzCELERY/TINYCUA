@@ -1,2 +1,0 @@
-[token] Tokens:
-<counted numbers streamed here>

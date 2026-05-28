@@ -16,12 +16,20 @@ class TestSkillsIntegration:
     def test_add_multiple_skills(self):
         """Add list of skills."""
         agent = Agent(llm_model=LanguageModel())
-        agent.add_skills([Skill(name="a", description="", instructions=""), Skill(name="b", description="", instructions="")])
+        agent.add_skills(
+            [
+                Skill(name="a", description="", instructions=""),
+                Skill(name="b", description="", instructions=""),
+            ]
+        )
         assert len(agent.skills) == 2
 
     def test_skill_at_construction(self):
         """Skills passed at Agent construction."""
-        agent = Agent(llm_model=LanguageModel(), skills=[Skill(name="coder", description="", instructions="")])
+        agent = Agent(
+            llm_model=LanguageModel(),
+            skills=[Skill(name="coder", description="", instructions="")],
+        )
         assert len(agent.skills) == 1
 
     @pytest.mark.asyncio

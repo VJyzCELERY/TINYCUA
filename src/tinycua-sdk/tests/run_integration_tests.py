@@ -42,7 +42,9 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
     logger.info("Starting TINYCUA SDK Integration Tests")
-    logger.info(f"LLM endpoint: {os.getenv('TINYCUA_BASE_URL', 'http://localhost:1234/v1')}")
+    logger.info(
+        f"LLM endpoint: {os.getenv('TINYCUA_BASE_URL', 'http://localhost:1234/v1')}"
+    )
     logger.info(f"Model: {os.getenv('TINYCUA_MODEL', 'qwen/qwen3.5-9b')}")
     logger.info("=" * 70)
 

@@ -45,4 +45,5 @@ dev/
 */reviews/*
 reviews/
 tmp/
+.sisyphus/
 *.lock

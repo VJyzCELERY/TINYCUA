@@ -28,7 +28,11 @@ class TestAgentCreation:
             "llm_model": {},
             "tools": [
                 {"name": "search", "description": "Search tool", "parameters": {}},
-                {"name": "summarize", "description": "Summarize tool", "parameters": {}},
+                {
+                    "name": "summarize",
+                    "description": "Summarize tool",
+                    "parameters": {},
+                },
             ],
         }
         agent = Agent.from_config(config)

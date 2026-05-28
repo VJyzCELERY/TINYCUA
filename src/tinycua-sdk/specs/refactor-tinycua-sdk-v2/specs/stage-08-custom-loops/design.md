@@ -9,7 +9,7 @@ The previous codebase had a hook system (`add_pre_hook()`, `add_post_hook()`) th
 **Customization path:**
 ```python
 class MyLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         # Full control over execution
         # Can call agent._call_llm() when needed
         # Can modify messages
@@ -38,22 +38,22 @@ class BaseLoop:
         messages: list[dict],
         tools: list[Tool],
         override_instructions: str | None = None,
-        stream: str = "off",
+        stream: bool = False,
     ) -> str | AsyncIterator[dict]:
         """Default implementation.
 
-        When stream="off": returns str.
-        When stream!="off": returns AsyncIterator[dict].
+        When stream=False: returns str.
+        When stream=True: returns AsyncIterator[dict].
         """
-        if stream == "off":
+        if not stream:
             return await self._run_sync(agent, messages, tools, override_instructions)
-        return self._run_stream(agent, messages, tools, override_instructions, stream)
+        return self._run_stream(agent, messages, tools, override_instructions)
 
     async def _run_sync(self, agent, messages, tools, override_instructions):
         # Full implementation from Stage 3 + Stage 4 + Stage 5
         ...
 
-    async def _run_stream(self, agent, messages, tools, override_instructions, stream_mode):
+    async def _run_stream(self, agent, messages, tools, override_instructions):
         # Full implementation from Stage 5
         ...
 ```
@@ -67,15 +67,22 @@ async def _call_llm(
     self,
     messages: list[dict],
     tools: list[Tool] | None = None,
-) -> dict[str, Any]:
+    stream: bool = False,
+    llm_model: LanguageModel | None = None,
+) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
     """Protected helper for custom loops.
 
     Calls the LLM with the agent's configuration and returns
-    a normalized response dict.
+    a normalized response dict (sync) or an async iterator (stream).
+
+    When llm_model is provided, it overrides the agent's default model
+    so custom loops can temporarily change parameters (e.g., temperature)
+    without modifying the agent's configuration.
     """
     client = self._get_llm_client()
     tool_schemas = [t.to_config() for t in tools] if tools else None
-    return await client.chat(messages, tool_schemas, self.llm_model)
+    model = llm_model or self.llm_model
+    return await client.chat(messages, tool_schemas, model, stream=stream)
 ```
 
 **Why protected?**
@@ -88,6 +95,7 @@ async def _call_llm(
 ```python
 import json
 from tinycua_sdk import BaseLoop
+from tinycua_sdk.agent.executor import ToolExecutor
 
 class ReActLoop(BaseLoop):
     """ReAct-style loop: forces reasoning before acting."""
@@ -96,8 +104,8 @@ class ReActLoop(BaseLoop):
         super().__init__(max_iterations=max_iterations)
         self.format_hint = format_hint
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
-        if stream != "off":
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
+        if stream:
             raise NotImplementedError("ReActLoop does not support streaming yet")
 
         # Inject ReAct formatting hint
@@ -129,9 +137,24 @@ class ReActLoop(BaseLoop):
                     # Find and execute tool
                     for t in tools:
                         if t.name == tool_name:
-                            result = t.invoke(**arguments)
+                            result = await ToolExecutor.execute(t, arguments, agent)
                             messages.append({"role": "assistant", "content": content})
-                            messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                            call_id = call.get("call_id", call["id"])
+                            messages.append(
+                                {
+                                    "type": "function_call",
+                                    "call_id": call_id,
+                                    "name": call["name"],
+                                    "arguments": call.get("arguments", {}),
+                                }
+                            )
+                            messages.append(
+                                {
+                                    "type": "function_call_output",
+                                    "call_id": call_id,
+                                    "output": str(result),
+                                }
+                            )
                             break
                     else:
                         return f"Unknown tool: {tool_name}"
@@ -146,7 +169,9 @@ class ReActLoop(BaseLoop):
 ## Custom Loop Example: PlanThenExecuteLoop
 
 ```python
+import json
 from tinycua_sdk import BaseLoop
+from tinycua_sdk.agent.executor import ToolExecutor
 
 class PlanThenExecuteLoop(BaseLoop):
     """Two-phase loop: plan first, then execute."""
@@ -155,8 +180,8 @@ class PlanThenExecuteLoop(BaseLoop):
         super().__init__(max_iterations=max_iterations)
         self.plan_temperature = plan_temperature
 
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
-        if stream != "off":
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
+        if stream:
             raise NotImplementedError("PlanThenExecuteLoop does not support streaming yet")
 
         # Phase 1: Planning
@@ -165,13 +190,9 @@ class PlanThenExecuteLoop(BaseLoop):
             "content": "First, outline a step-by-step plan. Do not execute yet.",
         }]
 
-        # Temporarily lower temperature for planning
-        original_temp = agent.llm_model.temperature
-        # Note: modifying agent.llm_model directly won't work (frozen Pydantic model)
-        # Custom loops should create a copy if they need to modify model config
-        # For now, this example shows intent; actual implementation uses model_copy()
-
-        plan_response = await agent._call_llm(plan_messages)
+        # Use a model copy with lower temperature for planning phase
+        plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
+        plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
         plan = plan_response.get("content", "")
 
         # Phase 2: Execution
@@ -193,12 +214,27 @@ class PlanThenExecuteLoop(BaseLoop):
 
             # Handle tool calls (simplified)
             for tc in response["tool_calls"]:
-                tool_name = tc["function"]["name"]
-                arguments = json.loads(tc["function"]["arguments"])
+                tool_name = tc["name"]
+                arguments = json.loads(tc["arguments"])
                 for t in tools:
                     if t.name == tool_name:
-                        result = t.invoke(**arguments)
-                        exec_messages.append({"role": "tool", "content": str(result), "name": tool_name})
+                        result = await ToolExecutor.execute(t, arguments, agent)
+                        call_id = tc.get("call_id", tc["id"])
+                        exec_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": call_id,
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        )
+                        exec_messages.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": str(result),
+                            }
+                        )
                         break
 
         return "[max iterations reached]"
@@ -206,28 +242,15 @@ class PlanThenExecuteLoop(BaseLoop):
 
 ## Design Decision: Model Config Copying
 
-Since `LanguageModel` is frozen, custom loops that need to temporarily change model parameters (like temperature) must create a copy:
+Since `LanguageModel` is frozen, custom loops that need to temporarily change model parameters (like temperature) must create a copy and pass it through `_call_llm()`:
 
 ```python
-from pydantic import model_copy
-
 # Inside custom loop:
 plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
-# Use plan_model for the planning call
-# But agent._call_llm() uses agent.llm_model, so the loop needs to either:
-#   a) Call the LLM client directly (more control)
-#   b) Temporarily swap agent.llm_model (not recommended)
+plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
 ```
 
-For option (a), custom loops can import `OpenAICompatibleClient` and call it directly:
-```python
-from tinycua_sdk.agent.llm_client import OpenAICompatibleClient
-
-client = OpenAICompatibleClient()
-response = await client.chat(plan_messages, None, plan_model)
-```
-
-This is acceptable because custom loops are advanced use cases.
+The `llm_model` parameter on `_call_llm()` provides a stable override path so custom loops never need to import or call the LLM client directly. This keeps the protected helper contract consistent: all LLM calls go through `agent._call_llm()`, which remains the single extension point for accessing the LLM with custom model configuration.
 
 ## File Changes
 

@@ -6,7 +6,7 @@ from tinycua_sdk import Agent, LanguageModel, Skill
 
 BASE_URL = "http://localhost:1234/v1"
 API_KEY = "dummy"
-MODEL_NAME = "unsloth/qwen3.6-35b-a3b"
+MODEL_NAME = "qwen/qwen3.5-9b"
 
 
 async def main():
@@ -20,7 +20,7 @@ async def main():
         skills=[skill_a, skill_b],
     )
 
-    response = await a.run("Hello.", stream="off")
+    response = await a.run("Hello.", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 

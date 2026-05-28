@@ -37,9 +37,10 @@ async def main():
         llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"),
         tools=[shell_execute],
         approval_workflow=DangerousToolGuardrail(),
+        tool_permissions={"shell_execute": "ask"},
     )
 
-    response = await a.run("Run 'ls -la'", stream="off")
+    response = await a.run("Run 'ls -la'", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -80,9 +81,10 @@ async def main():
         llm_model=LanguageModel(base_url="http://localhost:1234/v1", api_key="dummy"),
         tools=[read_file],
         approval_workflow=LoggingGuardrail(),
+        tool_permissions={"read_file": "ask"},
     )
 
-    response = await a.run("Read README.md", stream="off")
+    response = await a.run("Read README.md", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -120,7 +122,7 @@ async def main():
     # Set deny permission (no guardrail needed)
     a.tool_permissions["shell_execute"] = "deny"
 
-    response = await a.run("Run 'rm -rf /'", stream="off")
+    response = await a.run("Run 'rm -rf /'", stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -166,7 +168,7 @@ async def main():
     # Set ask permission (triggers guardrail)
     a.tool_permissions["write_file"] = "ask"
 
-    response = await a.run('Write "hello" to /tmp/test.txt', stream="off")
+    response = await a.run('Write "hello" to /tmp/test.txt', stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
@@ -203,13 +205,13 @@ async def main():
 
     # First run: deny
     a.tool_permissions["shell_execute"] = "deny"
-    r1 = await a.run("Run 'echo hello'", stream="off")
+    r1 = await a.run("Run 'echo hello'", stream=False)
     assert isinstance(r1, str)
     print(f"[denied] Response: {r1}")
 
     # Second run: allow (runtime mutation)
     a.tool_permissions["shell_execute"] = "allow"
-    r2 = await a.run("Run 'echo hello'", stream="off")
+    r2 = await a.run("Run 'echo hello'", stream=False)
     assert isinstance(r2, str)
     print(f"[allowed] Response: {r2}")
 

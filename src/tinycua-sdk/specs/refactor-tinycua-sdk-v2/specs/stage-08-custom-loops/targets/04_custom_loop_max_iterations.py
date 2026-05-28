@@ -5,7 +5,7 @@ from tinycua_sdk import Agent, LanguageModel, BaseLoop
 
 
 class CountingLoop(BaseLoop):
-    async def run(self, agent, messages, tools, override_instructions=None, stream="off"):
+    async def run(self, agent, messages, tools, override_instructions=None, stream: bool = False):
         count = 0
         for _ in range(self.max_iterations):
             count += 1

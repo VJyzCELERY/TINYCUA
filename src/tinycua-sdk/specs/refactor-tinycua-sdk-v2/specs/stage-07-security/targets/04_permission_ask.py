@@ -27,7 +27,7 @@ async def main():
     # Set ask permission (triggers guardrail)
     a.tool_permissions["write_file"] = "ask"
 
-    response = await a.run('Write "hello" to /tmp/test.txt', stream="off")
+    response = await a.run('Write "hello" to /tmp/test.txt', stream=False)
     assert isinstance(response, str)
     print(f"Response: {response}")
 
