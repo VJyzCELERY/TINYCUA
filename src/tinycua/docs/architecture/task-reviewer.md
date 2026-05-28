@@ -46,7 +46,7 @@ The Reviewer should not receive a broad accumulated context dump by default. Acc
 
 **Output:**
 
-- `Reviewer Decision` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `status` (`accepted | retry | replan | escalate_user`), `reason`, `confidence`, `context_updates` (targeted future task context modifications), `retry_instructions`, `replan_request`, `failure_count_snapshot`.
+- `Reviewer Decision` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `status` (`accepted | retry | replan | escalate_user`), `reason`, `confidence`, `context_updates` (targeted future task context modifications), `retry_instructions`, `replan_request`, `consecutive_failures`.
 
 ---
 

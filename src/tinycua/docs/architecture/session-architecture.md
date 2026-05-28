@@ -123,10 +123,10 @@ Context is derived from `chat_history`, compacted information, retrieved notes, 
 
 ## Execution Log
 
-The Execution Log captures tool calls, observations, diffs, and decision traces generated during a sub-session's execution. It lives on the sub-session, not embedded within a Task Result.
+The Execution Log captures the actions taken and their outcomes during a sub-session's execution. It lives on the sub-session, not embedded within a Task Result.
 
 - Each sub-session has its own `execution_log`.
-- The Task Executor sub-session records actions, tool calls, observations, and diffs into its execution log.
+- The Task Executor sub-session records its actions and outcomes into its execution log.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
 - The Task Reviewer accesses the sub-session's execution log to evaluate task results.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
