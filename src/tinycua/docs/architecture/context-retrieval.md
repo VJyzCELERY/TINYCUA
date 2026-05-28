@@ -3,7 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/context-retrieval.md`
-> **See also:** [Session Architecture](session-architecture.md), [Query Analyst](query-analyst.md), [Information Digestion](information-digestion.md)
+> **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
 

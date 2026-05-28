@@ -4,7 +4,7 @@
 
 > **Category:** Decision Record
 
-> **See also:** [Information Digester](information-digestion.md), [Query Analyst](query-analyst.md), [Task Analysis](task-analysis.md)
+> **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md)
 > **Last Updated:** 2026-05-27
 
 This decision record has been updated to match the current routing model.

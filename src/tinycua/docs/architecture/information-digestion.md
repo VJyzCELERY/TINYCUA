@@ -30,30 +30,7 @@ The Information Digester is a privileged narrowing boundary: it may inspect broa
 
 Canonical schema is in [state-objects.md](state-objects.md). The Information Digester produces YAML internally, but downstream agents receive the digest as **markdown**:
 
-```markdown
-# Digested Information
-
-## Context Summary
-[compressed relevant context in markdown]
-
-## Key Points
-- [takeaway point 1]
-- [takeaway point 2]
-
-## Advisory Instructions
-[action-oriented guidance for the downstream agent]
-
-## Constraints
-- [guardrail 1]
-- [guardrail 2]
-
-## Known Gaps
-- [information that may be missing]
-```
-
-The `## Context Summary` carries the main digest body as structured markdown. `## Key Points` is a concise takeaway list. `## Advisory Instructions` and `## Constraints` guide downstream agents without rigidly constraining them. `## Known Gaps` explicitly signals missing information so downstream agents know what they don't know.
-
-See [state-objects.md](state-objects.md) for the YAML storage schema and field-level rules.
+The digest is sent to downstream agents as structured markdown. See [state-objects.md](state-objects.md) for the canonical output schema and section descriptions.
 
 ---
 

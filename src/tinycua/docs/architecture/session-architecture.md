@@ -76,11 +76,8 @@ Suggested shape:
 
 Minimum fields:
 
-- `message_id`
-- `session_id`
-- `type` — the agent or user name (e.g. `User`, `Primary Agent`, `Query Analyst`, `Information Digester`, `Task Analyzer`, `Task Executor`, `Task Reviewer`). This field stores the agent's name directly; there is no fixed enum to maintain — the agent's own documented name is the source of truth.
+- `type` — the agent or user name. This field stores the agent's name directly; there is no fixed enum to maintain — the agent's own documented name is the source of truth.
 - `message`
-- `timestamp`
 
 Tool calls and tool results may be represented as messages or attached metadata. They should be preserved as much as practical, but large tool payloads may be truncated.
 
