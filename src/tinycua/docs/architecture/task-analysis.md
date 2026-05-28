@@ -71,13 +71,11 @@ flowchart TD
 
 ## Replanning Requests
 
-The Task Reviewer may ask the Task Analyzer to revise the roadmap when:
+The Task Reviewer may ask the Task Analyzer to revise the roadmap when the current plan is insufficient. This covers three categories:
 
-- a task is too broad;
-- a task should be split;
-- task ordering is wrong;
-- a result reveals missing context;
-- repeated failures suggest the roadmap is flawed.
+- **granularity** — a task is too broad or should be split;
+- **structure** — task ordering is wrong or a completed task reveals missing context;
+- **systemic failure** — repeated failures indicate the roadmap itself is flawed.
 
 Replanning requests from the Reviewer are handled by the Task Analyzer. The Task Analyzer may revise the current task context or split the task.
 

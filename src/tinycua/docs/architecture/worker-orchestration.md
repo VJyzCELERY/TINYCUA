@@ -3,9 +3,9 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/worker-orchestration.md`
-> **See also:** [session-architecture.md](session-architecture.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [session-architecture.md](session-architecture.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
 
 This document defines the internal Worker orchestration used in Worker Mode.
 

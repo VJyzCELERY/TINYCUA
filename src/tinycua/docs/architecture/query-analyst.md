@@ -86,11 +86,7 @@ Scoring is multi-dimensional, using a rubric rather than a binary judgment. See 
 
 ## Safeguards
 
-The Query Analyst must guard against three failure modes (see [task-classification.md](task-classification.md) for the full rubric):
-
-- **Worker overuse**: `worker` mode must be justified by a clear decomposition benefit and a stated reason why direct response is risky.
-- **Unsafe Primary Agent routing**: `primary_agent` mode must be justified by a clear rationale for safe handling. The Primary Agent may still invoke Information Digestion if context consolidation is needed.
-- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` to `explore` (gather more context, then re-classify) or `ask_user` (pause for human input). Never leave uncertainty as a nondeterministic state.
+The Query Analyst must guard against three failure modes: Worker overuse, unsafe Primary Agent routing, and open-ended uncertainty. See [task-classification.md](task-classification.md) for the full safeguard rubric.
 
 ---
 

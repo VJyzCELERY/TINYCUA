@@ -5,6 +5,7 @@
 > **File:** `architecture/session-architecture.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md)
 
 This document defines the session model used by TINYCUA for chat history, model context, and internal context isolation.
 
@@ -94,35 +95,16 @@ session:
 
 It should also preserve communication between TINYCUA internal agents, not only user-facing messages.
 
-Suggested shape:
+Architectural shape:
 
-```json
-[
-  {
-    "message_id": "msg_001",
-    "session_id": "session_primary",
-    "type": "User",
-    "message": "Update the architecture docs.",
-    "timestamp": "2026-05-27T00:00:00Z"
-  },
-  {
-    "message_id": "msg_002",
-    "session_id": "session_query_analyst",
-    "type": "Query Analyst",
-    "message": "The request should route to Worker mode.",
-    "timestamp": "2026-05-27T00:00:01Z"
-  },
-  {
-    "message_id": "msg_003",
-    "session_id": "session_task_executor_task_001",
-    "type": "Task Executor",
-    "message": "Task 001 completed with result ...",
-    "timestamp": "2026-05-27T00:00:02Z"
-  }
-]
+```yaml
+chat_history:
+  - type: "<agent or user name>"
+    message: "<turn content>"
+  # Additional fields (id, timestamp, session) are implementation details.
 ```
 
-Minimum fields:
+Required fields:
 
 - `type` — the agent or user name. This field stores the agent's name directly; there is no fixed enum to maintain — the agent's own documented name is the source of truth.
 - `message`
@@ -230,5 +212,3 @@ Enhanced Context Retrieval uses session `Context` and/or retrievable `chat_histo
 The trigger is accumulated session `Context` size relative to model context-window pressure. User query size alone does not trigger enhanced retrieval.
 
 See [context-retrieval.md](context-retrieval.md).
-
-> **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md)

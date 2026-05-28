@@ -3,9 +3,9 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/context-retrieval.md`
-> **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 
 This document defines when and how TINYCUA retrieves context from session `chat_history` and `Context`.
 

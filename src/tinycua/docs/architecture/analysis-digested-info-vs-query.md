@@ -1,11 +1,12 @@
 # Decision Record: Should Digested Information be paired with the Original User Query?
 
-> **File:** `architecture/analysis-digested-info-vs-query.md`
-
 > **Category:** Decision Record
 
-> **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md)
+> **File:** `architecture/analysis-digested-info-vs-query.md`
+
 > **Last Updated:** 2026-05-27
+> **Status:** Draft
+> **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md)
 
 This decision record has been updated to match the current routing model.
 
