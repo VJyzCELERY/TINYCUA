@@ -76,8 +76,8 @@ The Query Analyst produces a mode decision instead of a binary small/large verdi
 ```yaml
 mode_decision:
   mode: primary_agent | worker | uncertain
-  score: "<numeric>"  # exact scale is implementation calibration (e.g., 0-10)
-  confidence: "<numeric>"  # exact scale is implementation calibration (e.g., 0.0-1.0)
+  score: "<numeric>"  # exact scale is implementation calibration
+  confidence: "<numeric>"  # exact scale is implementation calibration
   reasons:
     - "..."
   uncertain_next_action: ask_user | explore | null
@@ -145,7 +145,7 @@ task_list:
       context: "..."
       success_criteria:
         - "..."
-  confidence: "<numeric>"  # exact scale is implementation calibration (e.g., 0.0-1.0)
+  confidence: "<numeric>"  # exact scale is implementation calibration
 
   current_task_id: task_001
 ```
@@ -196,7 +196,7 @@ worker_result:
     - "..."
   reviewer_notes:
     - "..."
-  confidence: "<numeric>"  # exact scale is implementation calibration (e.g., 0.0-1.0)
+  confidence: "<numeric>"  # exact scale is implementation calibration
 ```
 
 The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees. See [worker-orchestration.md](worker-orchestration.md) for the Worker's internal flow.
@@ -210,7 +210,7 @@ reviewer_decision:
   task_id: task_001
   status: accepted | retry | replan | escalate_user
   reason: "..."
-  confidence: "<numeric>"  # exact scale is implementation calibration (e.g., 0.0-1.0)
+  confidence: "<numeric>"  # exact scale is implementation calibration
   context_updates:
     - target_task_id: task_004
       update: "..."

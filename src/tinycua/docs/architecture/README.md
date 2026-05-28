@@ -59,7 +59,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 |------|-------------|
 | [task-classification.md](task-classification.md) | Score-based routing: primary-agent, worker, or uncertain |
 
-## Design Decision Records
+## Decision Records
 
 | File | Description |
 |------|-------------|
