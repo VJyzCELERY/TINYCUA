@@ -2,6 +2,7 @@
 """GitHub PR and review helper script.
 
 Usage:
+    # PR / Review operations
     uv run python .agents/scripts/gh.py fetch pr <pr-or-url>          # Get PR details
     uv run python .agents/scripts/gh.py fetch comments <pr-or-url>    # Get PR comments/reviews
     uv run python .agents/scripts/gh.py fetch comments <pr-or-url> [--all]  # Get active inline comments/reviews (use --all for everything)
@@ -9,7 +10,7 @@ Usage:
     uv run python .agents/scripts/gh.py fetch repo                    # Get repo info (owner, language, etc.)
     uv run python .agents/scripts/gh.py fetch prs                     # List PRs (filters: --head, --state, --base, --limit)
     uv run python .agents/scripts/gh.py post review <pr> <body.md> [comments.json]
-    uv run python .agents/scripts/gh.py post comment <pr> <body.md>
+    uv run python .agents/scripts/gh.py post comment <pr-or-issue> <body.md>
     uv run python .agents/scripts/gh.py post inline <pr> <body.md> --path <file> --line <N>
     uv run python .agents/scripts/gh.py post reply <pr> <comment-id> <body.md>
     uv run python .agents/scripts/gh.py resolve <pr> <comment-id>
@@ -22,13 +23,21 @@ Usage:
     uv run python .agents/scripts/gh.py interact reply <url> <body.md>
     uv run python .agents/scripts/gh.py update body <pr> <body.md>
     uv run python .agents/scripts/gh.py update title <pr> <title>
+    uv run python .agents/scripts/gh.py update issue body <issue> <body.md>
+    uv run python .agents/scripts/gh.py update issue title <issue> <title>
     uv run python .agents/scripts/gh.py create <title> <body.md> --head <branch> [--base <branch>]
     
+    # Issue operations
+    uv run python .agents/scripts/gh.py fetch issue <num>             # Get issue details
+    uv run python .agents/scripts/gh.py fetch issues                  # List issues (filters: --state, --label, --assignee, --limit)
+    uv run python .agents/scripts/gh.py create-issue <title> <body.md> [--label <labels>] [--assignee <users>]
+    
+    # Utilities
     uv run python .agents/scripts/gh.py cmd <gh-args>              # Run any gh command with auto-formatted output
     uv run python .agents/scripts/gh.py fields [pr|prs|repo]       # List available JSON fields for --json
     
     If a command is not available, use `cmd` to run it raw:
-    uv run python .agents/scripts/gh.py cmd pr list --head main
+    uv run python .agents/scripts/gh.py cmd issue list
 
 <EOF_DESC>
 """
@@ -1533,8 +1542,38 @@ def cmd_fields(args):
         else:
             print("[FAIL] Could not fetch field list.", file=sys.stderr)
             sys.exit(1)
+    elif topic == "issue":
+        out, err, rc = run(["gh", "issue", "view", "0", "--json", "__invalid__"])
+        if "Available fields:" in err:
+            lines = err.splitlines()
+            in_fields = False
+            print("Available fields for `gh issue view --json`:")
+            for line in lines:
+                if "Available fields:" in line:
+                    in_fields = True
+                    continue
+                if in_fields and line.strip():
+                    print(f"  {line.strip()}")
+        else:
+            print("[FAIL] Could not fetch field list.", file=sys.stderr)
+            sys.exit(1)
+    elif topic == "issues":
+        out, err, rc = run(["gh", "issue", "list", "--json", "__invalid__"])
+        if "Available fields:" in err:
+            lines = err.splitlines()
+            in_fields = False
+            print("Available fields for `gh issue list --json`:")
+            for line in lines:
+                if "Available fields:" in line:
+                    in_fields = True
+                    continue
+                if in_fields and line.strip():
+                    print(f"  {line.strip()}")
+        else:
+            print("[FAIL] Could not fetch field list.", file=sys.stderr)
+            sys.exit(1)
     else:
-        print(f"[FAIL] Unknown topic: {topic}. Use: pr, prs, repo", file=sys.stderr)
+        print(f"[FAIL] Unknown topic: {topic}. Use: pr, prs, repo, issue, issues", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1558,10 +1597,157 @@ def cmd_cmd(args):
         print(out)
 
 
+# ─── Issue Commands ─────────────────────────────────────────────
+
+def cmd_fetch_issue(args):
+    """Fetch and display issue details."""
+    issue_num = args.issue_num
+    fields = args.fields or "number,title,state,author,body,createdAt,updatedAt,closedAt,labels,assignees,milestone,comments,url"
+    out, err, rc = run(["gh", "issue", "view", issue_num, "--json", fields])
+    if rc != 0:
+        print(f"[FAIL] Could not fetch issue #{issue_num}: {err}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        data = json.loads(out)
+        if args.fields:
+            print(json_to_md(data))
+            return
+
+        print(f"#{data['number']} — {data['title']}")
+        print("---")
+        print(f"State: {data['state'].upper()}")
+        print(f"Author: {data.get('author', {}).get('login', '?')}")
+        print(f"Created: {data.get('createdAt', '?')}")
+        print(f"Updated: {data.get('updatedAt', '?')}")
+        if data.get('closedAt'):
+            print(f"Closed: {data['closedAt']}")
+        if data.get('url'):
+            print(f"URL: {data['url']}")
+        labels = data.get('labels', [])
+        if labels:
+            print(f"Labels: {', '.join(l.get('name', '') for l in labels)}")
+        assignees = data.get('assignees', [])
+        if assignees:
+            print(f"Assignees: {', '.join(a.get('login', '') for a in assignees)}")
+        milestone = data.get('milestone')
+        if milestone:
+            print(f"Milestone: {milestone.get('title', '')}")
+        print(f"Comments: {data.get('comments', 0)}")
+        print("---")
+        body = data.get('body', '')
+        print("Body:")
+        if body:
+            print(body)
+        else:
+            print("(no body)")
+    except json.JSONDecodeError:
+        print(out)
+
+
+def cmd_fetch_issues(args):
+    """List issues with optional filters."""
+    cmd = ["gh", "issue", "list", "--json",
+           "number,title,state,author,createdAt,updatedAt,labels,assignees"]
+    if args.state:
+        cmd.extend(["--state", args.state])
+    if args.label:
+        cmd.extend(["--label", args.label])
+    if args.assignee:
+        cmd.extend(["--assignee", args.assignee])
+    if args.limit:
+        cmd.extend(["--limit", str(args.limit)])
+
+    out, err, rc = run(cmd)
+    if rc != 0:
+        print(f"[FAIL] Could not list issues: {err}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        issues = json.loads(out)
+        if not issues:
+            print("No issues found matching the given criteria.")
+            return
+        print(f"Issues matching: {len(issues)} result(s)")
+        print()
+        for issue in issues:
+            state_tag = issue["state"].upper()
+            labels_str = ""
+            labels = issue.get("labels", [])
+            if labels:
+                labels_str = f" [{', '.join(l.get('name', '') for l in labels)}]"
+            print(f"  #{issue['number']} ({state_tag}){labels_str} — {issue['title']}")
+            print(f"       by {issue['author']['login']} — Created: {issue['createdAt']}")
+    except json.JSONDecodeError:
+        print(out)
+
+
+def cmd_create_issue(args):
+    """Create a new GitHub issue."""
+    title = args.title
+    body_file = args.body_file
+
+    if not check_file(body_file):
+        sys.exit(1)
+
+    body = open(body_file).read()
+    data = {"title": title, "body": body}
+    if args.label:
+        data["labels"] = [l.strip() for l in args.label.split(",")]
+    if args.assignee:
+        data["assignees"] = [a.strip() for a in args.assignee.split(",")]
+
+    tf = TMP_DIR / f"gh-create-issue-{int(time.time())}.json"
+    with open(tf, "w") as f:
+        json.dump(data, f)
+
+    OWNER_REPO = get_owner_repo()
+    cmd = ["gh", "api", f"repos/{OWNER_REPO}/issues", "--method", "POST", "--input", str(tf)]
+    out, err, rc = run(cmd)
+    clean_temp(tf)
+    if rc != 0:
+        print(f"[FAIL] Issue creation failed: {err}", file=sys.stderr)
+        sys.exit(1)
+
+    clean_temp(body_file)
+    try:
+        issue_data = json.loads(out)
+        print(f"[OK] Issue created: {issue_data.get('html_url', '')}")
+        print(f"       #{issue_data.get('number', '')} — {issue_data.get('title', '')}")
+    except json.JSONDecodeError:
+        print(out)
+
+
+def cmd_update_issue_body(args):
+    """Update an issue body."""
+    issue_num = args.issue_num
+    body_file = args.body_file
+
+    if not check_file(body_file):
+        sys.exit(1)
+
+    out, err, rc = api("PATCH", f"issues/{issue_num}", {"body": open(body_file).read()})
+    if rc != 0:
+        print(f"[FAIL] Issue body update failed: {err}", file=sys.stderr)
+        sys.exit(1)
+
+    clean_temp(body_file)
+    print(f"[OK] Issue #{issue_num} body updated")
+
+
+def cmd_update_issue_title(args):
+    """Update an issue title."""
+    issue_num = args.issue_num
+    title = args.title
+    out, err, rc = api("PATCH", f"issues/{issue_num}", {"title": title})
+    if rc != 0:
+        print(f"[FAIL] Issue title update failed: {err}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[OK] Issue #{issue_num} title updated to: {title}")
+
+
 # ─── Argument Parser ─────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="GitHub PR and review helper")
+    parser = argparse.ArgumentParser(description="GitHub PR, review, and issue helper")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # fetch pr
@@ -1593,6 +1779,20 @@ def main():
 
     frepo = fetch_sub.add_parser("repo", help="Fetch repository information")
     frepo.set_defaults(func=cmd_fetch_repo)
+
+    fi = fetch_sub.add_parser("issue", help="Fetch issue details (curated output)")
+    fi.add_argument("issue_num", help="Issue number")
+    fi.add_argument("--json", dest="fields", type=str, default=None,
+                    help="Custom JSON fields (default: curated useful fields)")
+    fi.set_defaults(func=cmd_fetch_issue)
+
+    fis = fetch_sub.add_parser("issues", help="List issues with optional filters")
+    fis.add_argument("--state", type=str, default=None, choices=["open", "closed", "all"],
+                     help="Filter by state (default: open)")
+    fis.add_argument("--label", type=str, default=None, help="Filter by label name")
+    fis.add_argument("--assignee", type=str, default=None, help="Filter by assignee login")
+    fis.add_argument("--limit", type=int, default=None, help="Max results (default: 30)")
+    fis.set_defaults(func=cmd_fetch_issues)
 
 
     # post review
@@ -1653,7 +1853,7 @@ def main():
     bm.set_defaults(func=cmd_batch_close)
     
     # update body
-    p = sub.add_parser("update", help="Update PR")
+    p = sub.add_parser("update", help="Update PR or issue")
     update_sub = p.add_subparsers(dest="update_type", required=True)
     ub = update_sub.add_parser("body", help="Update PR body")
     ub.add_argument("pr_or_url", help="PR number or URL")
@@ -1663,11 +1863,23 @@ def main():
     ut.add_argument("pr_or_url", help="PR number or URL")
     ut.add_argument("title", help="New PR title")
     ut.set_defaults(func=cmd_update_title)
+
+    # Issue sub-commands under update
+    ui = update_sub.add_parser("issue", help="Update an issue")
+    issue_sub = ui.add_subparsers(dest="issue_update_type", required=True)
+    iub = issue_sub.add_parser("body", help="Update issue body")
+    iub.add_argument("issue_num", help="Issue number")
+    iub.add_argument("body_file", help="Path to markdown file with new body")
+    iub.set_defaults(func=cmd_update_issue_body)
+    iut = issue_sub.add_parser("title", help="Update issue title")
+    iut.add_argument("issue_num", help="Issue number")
+    iut.add_argument("title", help="New issue title")
+    iut.set_defaults(func=cmd_update_issue_title)
     
     # fields — list available JSON fields
     p = sub.add_parser("fields", help="List available JSON fields for gh commands")
-    p.add_argument("topic", nargs="?", default="pr", choices=["pr", "prs", "repo"],
-                   help="Topic: pr (default), prs, repo")
+    p.add_argument("topic", nargs="?", default="pr", choices=["pr", "prs", "repo", "issue", "issues"],
+                   help="Topic: pr (default), prs, repo, issue, issues")
     p.set_defaults(func=cmd_fields)
 
     # interact — URL-based interaction
@@ -1706,12 +1918,20 @@ def main():
     p.add_argument("--draft", action="store_true", help="Create as draft")
     p.set_defaults(func=cmd_create_pr)
 
+    # create issue
+    p = sub.add_parser("create-issue", help="Create an issue")
+    p.add_argument("title", help="Issue title")
+    p.add_argument("body_file", help="Path to markdown file with issue body")
+    p.add_argument("--label", type=str, default=None, help="Comma-separated labels to apply")
+    p.add_argument("--assignee", type=str, default=None, help="Comma-separated assignees")
+    p.set_defaults(func=cmd_create_issue)
+
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
         parser.print_help()
         sys.exit(0)
 
     # If the first arg after script isn't a known command, show fallback message
-    known = {"fetch", "post", "resolve", "minimize", "unminimize", "batch", "interact", "update", "create", "cmd", "fields"}
+    known = {"fetch", "post", "resolve", "minimize", "unminimize", "batch", "interact", "update", "create", "create-issue", "cmd", "fields"}
     if sys.argv[1] not in known:
         print(f"[INFO] 'gh.py {sys.argv[1]}' is not available yet. Use raw `gh` CLI directly:")
         print(f"       gh {' '.join(sys.argv[1:])}")
