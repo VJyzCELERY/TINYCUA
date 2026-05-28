@@ -3,9 +3,9 @@
 > **Category:** Reference Spec
 
 > **File:** `architecture/state-objects.md`
-> **See also:** [session-architecture.md](session-architecture.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [session-architecture.md](session-architecture.md)
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
 
@@ -245,7 +245,7 @@ Agent state determines whether the next user message resumes an internal agent o
 
 ```yaml
 agent_state:
-  active_agent: query_analyst | information_digestion | task_analysis | task_execution | task_reviewer | primary_agent
+  active_agent: "<agent name>"   # matches the documented name of any architecture agent
   active_task_id: task_001
   status: running | waiting_for_user | terminated
   resume_target: "..."

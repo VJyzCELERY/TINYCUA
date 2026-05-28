@@ -3,9 +3,9 @@
 > **Category:** Design Note
 
 > **File:** `architecture/task-classification.md`
-> **See also:** [query-analyst.md](query-analyst.md), [state-objects.md](state-objects.md), [worker-orchestration.md](worker-orchestration.md)
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [query-analyst.md](query-analyst.md), [state-objects.md](state-objects.md), [worker-orchestration.md](worker-orchestration.md)
 
 This document defines how the Query Analyst chooses the processing mode for a user request.
 
@@ -64,10 +64,10 @@ Worker mode decides whether to use the Worker. Worker effort decides how much up
 
 Effort uses planning-depth semantics: `none` means move quickly with minimal upfront planning, while `high` means perform thorough planning before execution.
 
-Examples:
+Effort levels define how much upfront decomposition the Task Analyzer performs:
 
-- `worker` + `effort: none`: create a lightweight roadmap and refine during review.
-- `worker` + `effort: high`: refine the roadmap thoroughly before execution begins.
+- `none` — minimal upfront planning; decomposition depth is refined during execution.
+- `high` — thorough upfront planning before execution begins.
 
 ---
 
