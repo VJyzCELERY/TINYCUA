@@ -42,7 +42,7 @@ The Task Executor may create short-term todos while executing one task. Those to
 
 ## Effort-Controlled Decomposition
 
-The Task Analyzer may run one or more refinement passes depending on Worker effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics (`none | low | medium | high`).
+The Task Analyzer may run one or more refinement passes depending on Worker effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
 ---
 

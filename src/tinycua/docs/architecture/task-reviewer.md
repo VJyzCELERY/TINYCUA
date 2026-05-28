@@ -105,11 +105,7 @@ The Worker only terminates successfully when the final unfinished task is accept
 
 ## Repeated Failure Behavior
 
-The Worker tracks a volatile universal consecutive-failure counter.
-
-- On failure: increment the counter.
-- On success: reset the counter to zero.
-- If failures happen N times in a row: ask the user and explain the point of failure.
+The Worker tracks a volatile universal consecutive-failure counter. Any task success resets the counter to zero. After N consecutive failures, the Worker escalates to the user with an explanation of the failure point.
 
 This is not only per-task. It protects the whole Worker from retry/replan loops.
 

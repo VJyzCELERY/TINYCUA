@@ -75,14 +75,7 @@ flowchart TD
 
 ## Tool Use Policy
 
-The Primary Agent may use tools for:
-
-- formatting;
-- consistency checks;
-- citation formatting;
-- final response verification against provided input.
-
-It should not use tools for new research in Worker Mode unless the Worker Result explicitly allows that recovery path.
+The Primary Agent may use tools for formatting and verification of the final response. It should not use tools for new research in Worker Mode unless the Worker Result explicitly allows that recovery path.
 
 If it decides a new action is needed, it should start a new top-level loop through Query Analyst instead of silently continuing inside the old Primary Agent turn.
 

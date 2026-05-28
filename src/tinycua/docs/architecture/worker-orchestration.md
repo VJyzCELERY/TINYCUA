@@ -97,7 +97,7 @@ flowchart TD
 
 ## Worker Effort
 
-Worker effort is configuration that controls how much planning happens before execution. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics (`none | low | medium | high`).
+Worker effort is configuration that controls how much planning happens before execution. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
 Effort changes the amount of upfront task analysis by the Task Analyzer. It does not change the sequential nature of the top-level task list.
 
@@ -120,11 +120,9 @@ This prevents a clarification turn from accidentally restarting the whole reques
 
 ## Repeated Failure Rule
 
-The Worker tracks a volatile universal consecutive-failure counter. If failures happen N times in a row, the Worker should ask the user and explain the current point of failure.
+The Worker terminates with a failure summary and asks the user for next steps when the consecutive-failure threshold is reached. See [task-reviewer.md](task-reviewer.md) for the counter mechanism and escalation rules.
 
-If any task succeeds, the counter resets to zero.
-
-The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues. If the consecutive failure threshold is reached, the Worker terminates with a failure summary and asks the user what should happen next.
+The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues.
 
 ---
 
