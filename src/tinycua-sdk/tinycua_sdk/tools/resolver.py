@@ -219,7 +219,7 @@ def topological_sort(tools: list[Any]) -> list[Any]:
     in_degree: dict[str, int] = {}
 
     for tool in tools:
-        deps = set(td.get("name", "") for td in tool._tool_dependencies)
+        deps = {td.get("name", "") for td in tool._tool_dependencies}
         graph[tool.name] = deps
         in_degree[tool.name] = len(deps)
 

@@ -1,9 +1,23 @@
-"""Context retrieval tools for agents."""
+"""Context retrieval tools for agents.
 
+.. deprecated::
+    This module has been moved to ``tinycua.agent.tools.context_tools``.
+    Import from ``tinycua_sdk.tools.context_tools`` will continue to work
+    but will emit a deprecation warning.
+"""
+
+import warnings
 import uuid
 from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
+
+warnings.warn(
+    "tinycua_sdk.tools.context_tools is deprecated. "
+    "Use tinycua.agent.tools.context_tools instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class ContextTools:
@@ -14,7 +28,8 @@ class ContextTools:
 
         Args:
             session_store: Optional SessionStore instance. If not provided,
-                          uses a default SQLite store at ./tinycua.db
+                uses get_session_store() which resolves the database URL
+                via SDKConfig -> environment -> default fallback.
             session_id: Optional session ID for context operations
 
         """
@@ -22,12 +37,16 @@ class ContextTools:
         self._session_id = session_id
 
     def _get_store(self):
-        """Get or create session store."""
-        if self._store is None:
-            from tinycua_sdk.storage import SessionStore
+        """Get or create session store using the factory function.
 
-            self._store = SessionStore("sqlite:///./tinycua.db")
-            self._store.create_tables()
+        Returns:
+            SessionStore instance, created via get_session_store() if not
+            already set.
+        """
+        if self._store is None:
+            from tinycua_sdk.storage.store import get_session_store
+
+            self._store = get_session_store()
         return self._store
 
     def _get_current_session_id(self) -> uuid.UUID | None:

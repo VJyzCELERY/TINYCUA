@@ -1,12 +1,24 @@
+# Example configuration file for tinycua-backend.
+# Copy this to config.yaml and fill in the values, or set the corresponding
+# environment variables.
+#
+# Environment variable mapping:
+#   RUNNER_TOKEN  -> runner.token
+#   JWT_SECRET    -> auth.jwt_secret (required)
+#   API_KEY       -> auth.api_key (optional)
 runner:
   url: "http://localhost:8001"
   token: "your-runner-token"
 
 database:
   url: "postgresql://tinycua:secret@localhost:5432/tinycua"
+  pool_size: 10
+  max_overflow: 20
+  pool_recycle: 3600
+  pool_pre_ping: true
 
 auth:
-  jwt_secret: "change-me-in-production"
+  jwt_secret: "your-jwt-secret-here"
   jwt_algorithm: "HS256"
   jwt_expiration_hours: 24
   api_key: ""  # Optional: global API key for system-wide access

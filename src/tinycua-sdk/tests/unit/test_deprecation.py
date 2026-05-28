@@ -1,66 +1,46 @@
-"""Tests for deprecation warnings on old import paths."""
+"""Tests for deprecation - verifying old import paths raise ImportError."""
 
+import sys
 import warnings
-
-import pytest
 
 
 class TestOldConfigDeprecation:
-    """Tests for old Config class deprecation."""
+    """Tests for old Config class deprecation - now raises ImportError."""
 
-    def test_old_config_class_emits_warning(self):
-        """Verify importing/using old Config emits DeprecationWarning."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            from tinycua_sdk.config import Config
+    def test_old_config_import_raises_import_error(self):
+        """Verify old Config import raises ImportError."""
+        # Clear any cached imports
+        modules_to_clear = [k for k in sys.modules if k.startswith("tinycua_sdk")]
+        for mod in modules_to_clear:
+            del sys.modules[mod]
 
-            # Trigger the warning by instantiating
-            Config()
-
-            deprecation_warnings = [
-                x for x in w if issubclass(x.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) >= 1
-            assert "deprecated" in str(deprecation_warnings[0].message).lower()
-
-    def test_configure_function_emits_warning(self):
-        """Verify calling configure() emits DeprecationWarning."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            from tinycua_sdk.config import configure
-
-            configure(backend_url="http://test.example.com")
-
-            deprecation_warnings = [
-                x for x in w if issubclass(x.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) >= 1
-            assert "deprecated" in str(deprecation_warnings[0].message).lower()
-
-    def test_old_config_still_works(self):
-        """Verify old Config class is still functional."""
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from tinycua_sdk.config import Config, configure
+            warnings.simplefilter("always")
+            try:
+                from tinycua_sdk.config import Config  # noqa: F401
+                assert False, "Expected ImportError but none was raised"
+            except ImportError as e:
+                assert "deprecated" in str(e).lower()
 
-            # Test configure
-            configure(
-                backend_url="http://test.example.com",
-                api_key="test-key",
-                provider="openai",
-                model="gpt-4",
-                base_url="http://api.openai.com",
-            )
+    def test_old_configure_import_raises_import_error(self):
+        """Verify old configure import raises ImportError."""
+        # Clear any cached imports
+        modules_to_clear = [k for k in sys.modules if k.startswith("tinycua_sdk")]
+        for mod in modules_to_clear:
+            del sys.modules[mod]
 
-            assert Config.BACKEND_URL == "http://test.example.com"
-            assert Config.API_KEY == "test-key"
-            assert Config.PROVIDER == "openai"
-            assert Config.MODEL == "gpt-4"
-            assert Config.BASE_URL == "http://api.openai.com"
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            try:
+                from tinycua_sdk.config import configure  # noqa: F401
+                assert False, "Expected ImportError but none was raised"
+            except ImportError as e:
+                assert "deprecated" in str(e).lower()
 
-            # Test from_env
-            config_dict = Config.from_env()
-            assert "provider" in config_dict
-            assert "model" in config_dict
-            assert "base_url" in config_dict
-            assert "api_key" in config_dict
+    def test_new_config_works(self):
+        """Verify new SDKConfig works correctly."""
+        from tinycua_sdk.core.config import SDKConfig
+
+        config = SDKConfig()
+        assert config is not None
+        assert config.backend_url == "http://localhost:8000"

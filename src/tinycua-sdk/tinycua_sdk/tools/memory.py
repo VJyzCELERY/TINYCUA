@@ -128,7 +128,7 @@ class RemoteMemoryBackend(MemoryBackend):
         try:
             response = httpx.get(f"{self.backend_url}/health", timeout=2)
             return response.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, OSError, ValueError):
             return False
 
     def get(self, key: str) -> tuple[str | None, bool]:
@@ -147,8 +147,8 @@ class RemoteMemoryBackend(MemoryBackend):
             elif response.status_code == 404:
                 return None, False
             return None, False
-        except Exception as e:
-            logger.warning(f"Remote memory unavailable, falling back: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote memory unavailable, falling back: %s", e)
             self._available = False
             raise
 
@@ -166,8 +166,8 @@ class RemoteMemoryBackend(MemoryBackend):
             if response.status_code in (200, 201):
                 return response.json()
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote memory unavailable, falling back: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote memory unavailable, falling back: %s", e)
             self._available = False
             raise
 
@@ -184,8 +184,8 @@ class RemoteMemoryBackend(MemoryBackend):
             if response.status_code in (200, 204):
                 return {"success": True, "key": key}
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote memory unavailable, falling back: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote memory unavailable, falling back: %s", e)
             self._available = False
             raise
 
@@ -203,8 +203,8 @@ class RemoteMemoryBackend(MemoryBackend):
                 data = response.json()
                 return data.get("keys", [])
             return []
-        except Exception as e:
-            logger.warning(f"Remote memory unavailable, falling back: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote memory unavailable, falling back: %s", e)
             self._available = False
             raise
 
@@ -221,8 +221,8 @@ class RemoteMemoryBackend(MemoryBackend):
             if response.status_code in (200, 204):
                 return {"success": True}
             return {"success": False, "error": f"Status {response.status_code}"}
-        except Exception as e:
-            logger.warning(f"Remote memory unavailable, falling back: {e}")
+        except (httpx.HTTPError, OSError, ValueError) as e:
+            logger.warning("Remote memory unavailable, falling back: %s", e)
             self._available = False
             raise
 
@@ -259,7 +259,7 @@ class HybridMemoryBackend(MemoryBackend):
         if backend_url:
             try:
                 self._remote = RemoteMemoryBackend(backend_url, api_key)
-            except Exception:
+            except (httpx.HTTPError, OSError, ValueError):
                 self._remote = None
 
     def _get_backend(self) -> MemoryBackend:
@@ -268,7 +268,7 @@ class HybridMemoryBackend(MemoryBackend):
             try:
                 self._remote.get("_health_check")
                 return self._remote
-            except Exception:
+            except (httpx.HTTPError, OSError, ValueError):
                 pass
         return self._local
 

@@ -23,6 +23,8 @@ Usage:
 import asyncio
 import os
 
+import httpx
+
 from tinycua_sdk.agent.loop import DefaultLoop
 from tinycua_sdk.clients import BackendClient
 
@@ -131,14 +133,16 @@ async def demo_deployment():
     import time
 
     email = f"demo_loop_{int(time.time())}@example.com"
-    password = "password123"
+    # WARNING: Do not use the default password in production.
+    # Set TINYCUA_PASSWORD environment variable to use a secure password.
+    password = os.environ.get("TINYCUA_PASSWORD", "changeme")
 
     try:
         await client.register(
             email=email, password=password, tenant_name="Loop Demo Tenant"
         )
         print(f"\n[✓] Registered: {email}")
-    except Exception:
+    except httpx.HTTPStatusError:
         print("\n[~] User exists, logging in...")
         await client.login(email=email, password=password)
         print(f"[✓] Logged in: {email}")
