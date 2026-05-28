@@ -64,18 +64,4 @@ Worker mode decides whether to use the Worker. Worker effort decides how much up
 
 Effort uses planning-depth semantics: `none` means move quickly with minimal upfront planning, while `high` means perform thorough planning before execution.
 
-Effort levels define how much upfront decomposition the Task Analyzer performs:
-
-- `none` — minimal upfront planning; decomposition depth is refined during execution.
-- `high` — thorough upfront planning before execution begins.
-
 ---
-
-## Examples
-
-| Request | Likely Mode | Reason |
-|---------|-------------|--------|
-| “Summarize this short paragraph.” | `primary_agent` | Clear, bounded, low context risk. |
-| “Use our previous discussion to write a concise decision summary.” | `primary_agent` | Primary Agent can request Information Digestion if consolidated context is needed. |
-| “Compare these architecture options, update the docs, and identify follow-up changes.” | `worker` | Multiple sequential steps, doc updates, and review needed. |
-| "Do the thing we discussed before." with large history | `uncertain` | Ambiguous reference requires `ask_user` or `explore` before routing. |

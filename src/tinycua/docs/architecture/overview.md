@@ -6,6 +6,7 @@
 
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
+> **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md)
 
 This document describes the top-level orchestration of TINYCUA and how its agents connect.
 
@@ -147,4 +148,4 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Diamond (`{ }`) | Decision |
 | Dashed edge | Optional or limited context exposure |
 
-> **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md)
+---

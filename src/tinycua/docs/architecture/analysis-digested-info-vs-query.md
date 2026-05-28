@@ -115,14 +115,7 @@ TINYCUA's architecture is based on reducing hallucination by reducing irrelevant
 
 The CEQ already carries user intent into the Information Digester. The Information Digester is responsible for consolidating that intent with broad session `Context` and producing a narrowed output for downstream agents.
 
-If the digest is insufficient, recovery should happen through orchestration:
-
-1. The Task Executor fails, returns uncertainty, or produces low confidence output.
-2. Task Reviewer detects the issue.
-3. Reviewer returns `replan` or `escalate_user`.
-4. The Task Analyzer or user clarification handles the recovery.
-
-This keeps recovery explicit instead of silently expanding Worker context.
+If the digest is insufficient, recovery should happen through orchestration, not by silently expanding Worker context. This keeps recovery explicit.
 
 ---
 
