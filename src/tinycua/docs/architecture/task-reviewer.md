@@ -3,6 +3,8 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-reviewer.md`
+> **Last Updated:** 2026-05-27
+> **Status:** Draft
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md)
 
 ---
@@ -96,13 +98,6 @@ flowchart TD
 ## Context Propagation
 
 After accepting a task, the Reviewer decides which unfinished or upcoming tasks need context updates.
-
-Recommended process:
-
-1. Inspect the shallow task list.
-2. Identify likely future tasks affected by the accepted result.
-3. Dynamically inspect only those task contexts.
-4. Write targeted context updates.
 
 This avoids dumping every previous task result into every future task. Context updates are information consolidation: they may reduce, replace, or rewrite task context rather than only append new text.
 

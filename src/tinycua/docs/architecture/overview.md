@@ -146,3 +146,5 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Rectangle (`[ ]`) | Agent or process |
 | Diamond (`{ }`) | Decision |
 | Dashed edge | Optional or limited context exposure |
+
+> **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md)

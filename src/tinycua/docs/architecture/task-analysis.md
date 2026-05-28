@@ -3,6 +3,8 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-analysis.md`
+> **Last Updated:** 2026-05-27
+> **Status:** Draft
 > **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [state-objects.md](state-objects.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md)
 
 ---
