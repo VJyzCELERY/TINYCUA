@@ -10,7 +10,7 @@ class TestLanguageModel:
         """LanguageModel has sensible defaults."""
         from tinycua_sdk import LanguageModel
 
-        llm = LanguageModel()
+        llm = LanguageModel(model_name="gpt-4o-mini")
         assert llm.provider == "openai-responses"
         assert llm.model_name == "gpt-4o-mini"
         assert llm.max_context == 128_000
@@ -86,3 +86,48 @@ class TestLanguageModel:
 
         llm = LanguageModel(system_prompt="You are a coding assistant.")
         assert llm.system_prompt == "You are a coding assistant."
+
+    def test_model_name_resolves_provider_env_var(self, monkeypatch):
+        """Empty model_name resolves from provider-specific env var."""
+        from tinycua_sdk import LanguageModel
+
+        monkeypatch.setenv("OPENAI_RESPONSES_MODEL", "env-model")
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        llm = LanguageModel()
+        assert llm.model_name == "env-model"
+
+    def test_model_name_falls_back_llm_model(self, monkeypatch):
+        """Empty model_name falls back to LLM_MODEL when no provider env var."""
+        from tinycua_sdk import LanguageModel
+
+        monkeypatch.delenv("OPENAI_RESPONSES_MODEL", raising=False)
+        monkeypatch.setenv("LLM_MODEL", "llm-fallback")
+        llm = LanguageModel()
+        assert llm.model_name == "llm-fallback"
+
+    def test_model_name_explicit_overrides_env(self, monkeypatch):
+        """Explicit model_name takes precedence over env vars."""
+        from tinycua_sdk import LanguageModel
+
+        monkeypatch.setenv("OPENAI_RESPONSES_MODEL", "env-model")
+        monkeypatch.setenv("LLM_MODEL", "llm-fallback")
+        llm = LanguageModel(model_name="explicit-model")
+        assert llm.model_name == "explicit-model"
+
+    def test_model_name_hardcoded_default(self, monkeypatch):
+        """Empty model_name with no env vars falls back to hardcoded default."""
+        from tinycua_sdk import LanguageModel
+
+        monkeypatch.delenv("OPENAI_RESPONSES_MODEL", raising=False)
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        llm = LanguageModel()
+        assert llm.model_name == "gpt-4o-mini"
+
+    def test_model_name_chat_completions_provider_env(self, monkeypatch):
+        """Chat Completions provider resolves from its own env var."""
+        from tinycua_sdk import LanguageModel
+
+        monkeypatch.setenv("OPENAI_CHAT_COMPLETIONS_MODEL", "chat-model")
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        llm = LanguageModel(provider="openai-chat-completions")
+        assert llm.model_name == "chat-model"

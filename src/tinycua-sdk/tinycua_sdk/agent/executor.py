@@ -93,8 +93,45 @@ class AgentExecutor:
 
     def _get_llm_client(self) -> LLMClient:
         if self._llm_client is None:
+            import os
+
+            from tinycua_sdk.providers.constants import (
+                OPENAI_BASE_URL,
+            )
+            from tinycua_sdk.providers.upload import UploadSession  # noqa: PLC0415
+            from tinycua_sdk.providers.utility import normalize_base_url
+
             registry = self._registry or get_provider_registry()
-            self._llm_client = registry.create_client(self.config.llm_model)
+
+            # Resolve base URL for cache scoping using the same
+            # resolution order as the provider clients.
+            model = self.config.llm_model
+            base_url = model.base_url
+            if not base_url:
+                provider_caps = model.provider.upper().replace("-", "_")
+                env_key = f"{provider_caps}_BASE_URL"
+                base_url = (
+                    os.environ.get(env_key)
+                    or os.environ.get("LLM_BASE_URL")
+                    or OPENAI_BASE_URL
+                )
+            base_url = normalize_base_url(base_url)
+
+            # Build UploadSession with optional persistent cache
+            upload_session = UploadSession(
+                provider=model.provider,
+                base_url=base_url,
+                cache_dir=self.config.cache_dir,
+                cache_max_entries=self.config.cache_max_entries,
+                session_cache_max_entries=self.config.session_cache_max_entries,
+                cache_namespace=self.config.cache_namespace,
+                upload_timeout=self.config.upload_timeout,
+            )
+
+            self._llm_client = registry.create_client(
+                self.config.llm_model,
+                upload_session=upload_session,
+            )
         return self._llm_client
 
     async def _call_llm(
