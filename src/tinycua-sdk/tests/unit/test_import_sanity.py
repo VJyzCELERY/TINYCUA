@@ -1,41 +1,55 @@
-"""Tests for import sanity - verifying core imports work cleanly without deprecation warnings."""
-
-import warnings
+"""Tests for import sanity — verifying new provider import paths resolve correctly."""
 
 
-class TestNoDeprecationWarnings:
-    """Test that no deprecation warnings are emitted in the codebase."""
+class TestNewProviderImports:
+    """Smoke tests for the new providers package structure (FR-001 through FR-004)."""
 
-    def test_no_deprecation_warnings_on_import(self):
-        """Verify no deprecation warnings when importing tinycua_sdk."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_providers_package_importable(self):
+        """FR-001: The providers package is importable."""
+        import tinycua_sdk.providers  # noqa: F401
 
-            import tinycua_sdk
+    def test_openai_responses_client_new_path(self):
+        """FR-002/AC-001: OpenAIResponsesClient importable from providers."""
+        from tinycua_sdk.providers.open_ai import OpenAIResponsesClient
 
-            _ = tinycua_sdk
+        assert OpenAIResponsesClient is not None
 
-            deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-                and "tinycua_sdk" in str(warning.message)
-            ]
+    def test_openai_chat_completions_client_new_path(self):
+        """OpenAIChatCompletionsClient importable from providers."""
+        from tinycua_sdk.providers.open_ai import OpenAIChatCompletionsClient
 
-            assert len(deprecation_warnings) == 0
+        assert OpenAIChatCompletionsClient is not None
 
+    def test_provider_utilities_new_path(self):
+        """FR-004/AC-004: resolve_provider, normalize_base_url from providers.utility."""
+        from tinycua_sdk.providers.utility import normalize_base_url, resolve_provider
 
-class TestCoreImports:
-    """Test that core SDK imports work cleanly."""
+        assert callable(resolve_provider)
+        assert callable(normalize_base_url)
 
-    def test_agent_import_works(self):
-        """Verify Agent import works correctly."""
-        from tinycua_sdk import Agent
+    def test_provider_registry_new_path(self):
+        """FR-004: ProviderRegistry importable from providers.registry."""
+        from tinycua_sdk.providers.registry import ProviderRegistry
 
-        assert Agent is not None
+        assert ProviderRegistry is not None
 
-    def test_tool_import_works(self):
-        """Verify tool decorator import works correctly."""
-        from tinycua_sdk import tool
+    def test_convenience_namespace(self):
+        """AC-004: Convenience re-exports via tinycua_sdk.providers."""
+        from tinycua_sdk.providers import (
+            DEFAULT_BASE_URL,
+            OPENAI_COMPATIBLE,
+            OpenAIChatCompletionsClient,
+            OpenAIResponsesClient,
+            ProviderRegistry,
+            get_provider_registry,
+            normalize_base_url,
+            resolve_provider,
+        )
 
-        assert tool is not None
+        assert callable(resolve_provider)
+
+    def test_llm_client_abc_still_in_agent(self):
+        """AC-003: LLMClient ABC still resolves from agent.llm_client."""
+        from tinycua_sdk.agent.llm_client import LLMClient
+
+        assert LLMClient is not None

@@ -44,7 +44,7 @@ class TestStreamingOn:
         raw_delta_event = {
             "type": "response.output_text.delta",
             "delta": "Hello",
-            "item_id": "1",
+            "index": 0,
         }
 
         async def mock_stream(messages, tools, stream=False):
@@ -69,7 +69,7 @@ class TestStreamingWithToolCalls:
 
     @pytest.mark.asyncio
     async def test_stream_tool_calls(self):
-        """Tool call events pass through in stream."""
+        """Tool call events pass through in stream; ready-gated execution works."""
 
         @tool
         def get_time() -> str:
@@ -80,20 +80,27 @@ class TestStreamingWithToolCalls:
         call_count = 0
 
         raw_tool_call_event = {
-            "type": "tool_call.started",
+            "type": "response.output_item.added",
             "id": "call_1",
             "call_id": "call_1",
             "name": "get_time",
         }
         raw_arguments_event = {
-            "type": "tool_call.arguments.done",
+            "type": "response.function_call_arguments.done",
             "id": "call_1",
+            "arguments": "{}",
+        }
+        raw_ready_event = {
+            "type": "tool_call.ready",
+            "id": "call_1",
+            "call_id": "call_1",
+            "name": "get_time",
             "arguments": "{}",
         }
         raw_text_event = {
             "type": "response.output_text.delta",
             "delta": "The time is 12:00.",
-            "item_id": "2",
+            "index": 0,
         }
 
         async def mock_stream(messages, tools, stream=False):
@@ -103,6 +110,7 @@ class TestStreamingWithToolCalls:
                 if call_count == 1:
                     yield dict(raw_tool_call_event)
                     yield dict(raw_arguments_event)
+                    yield dict(raw_ready_event)
                 else:
                     yield dict(raw_text_event)
 
@@ -113,8 +121,11 @@ class TestStreamingWithToolCalls:
         stream_iter = await agent.run("What time?", stream=True)
         events = [e async for e in stream_iter]
 
+        # Verify the LLM was called twice (tool call → execution → follow-up)
+        assert call_count == 2, f"Expected 2 LLM calls, got {call_count}"
+
         # Tool call events appear BEFORE tool execution resumes
-        tool_event_types = {"tool_call.started", "tool_call.arguments.done"}
+        tool_event_types = {"response.output_item.added", "response.function_call_arguments.done", "tool_call.ready"}
         tool_indices = [
             i for i, e in enumerate(events) if e["type"] in tool_event_types
         ]
@@ -124,6 +135,53 @@ class TestStreamingWithToolCalls:
         if tool_indices and text_indices:
             assert max(tool_indices) < min(text_indices)
         assert any(e["type"] == "response.completed" for e in events)
+        # Verify follow-up content exists after tool execution
+        assert any(e["type"] == "response.output_text.delta" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_arguments_done_without_ready_does_not_execute(self):
+        """arguments.done without tool_call.ready does NOT trigger tool execution."""
+
+        @tool
+        def get_time() -> str:
+            """Get the current time."""
+            return "12:00"
+
+        agent = Agent(llm_model=LanguageModel(), tools=[get_time])
+        call_count = 0
+
+        raw_tool_call_event = {
+            "type": "response.output_item.added",
+            "id": "call_1",
+            "call_id": "call_1",
+            "name": "get_time",
+        }
+        raw_arguments_event = {
+            "type": "response.function_call_arguments.done",
+            "id": "call_1",
+            "arguments": "{}",
+        }
+
+        async def mock_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    yield dict(raw_tool_call_event)
+                    yield dict(raw_arguments_event)
+                # No tool_call.ready → tool is NOT executed → no second call
+
+            return _gen()
+
+        agent._call_llm = mock_stream
+
+        stream_iter = await agent.run("What time?", stream=True)
+        events = [e async for e in stream_iter]
+
+        # Only one LLM call — tool was NOT executed
+        assert call_count == 1, f"Expected 1 LLM call (tool not executed), got {call_count}"
+        # No content delta since tool wasn't executed to produce follow-up content
+        assert not any(e["type"] == "response.output_text.delta" for e in events)
 
 
 class TestProviderFailure:

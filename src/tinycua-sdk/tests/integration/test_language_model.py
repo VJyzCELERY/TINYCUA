@@ -8,6 +8,7 @@ import os
 import pytest
 
 from tinycua_sdk import LanguageModel
+from tinycua_sdk.providers.utility import resolve_provider
 
 
 # Set environment variable for env-var substitution test
@@ -21,7 +22,7 @@ class TestLanguageModel:
         """Target 1.1: Create a minimal LanguageModel with defaults."""
         m = LanguageModel(model_name="qwen/qwen3.5-9b")
 
-        assert m.provider == "openai-compatible"
+        assert m.provider == "openai-responses"
         assert m.model_name == "qwen/qwen3.5-9b"
         assert m.temperature == 1.0
         assert m.max_tokens is None
@@ -29,7 +30,7 @@ class TestLanguageModel:
     def test_full_configuration(self):
         """Target 1.2: Create a LanguageModel with all OpenAI-compatible params."""
         m = LanguageModel(
-            provider="openai",
+            provider="openai-responses",
             model_name="gpt-4o",
             api_key="${OPENAI_API_KEY}",
             temperature=0.5,
@@ -41,7 +42,7 @@ class TestLanguageModel:
             system_prompt="You are terse.",
         )
 
-        assert m.provider == "openai"
+        assert m.provider == "openai-responses"
         assert m.model_name == "gpt-4o"
         assert m.temperature == 0.5
         assert m.max_tokens == 8192
@@ -111,11 +112,5 @@ class TestLanguageModel:
 
     def test_provider_normalization(self):
         """Verify provider normalization via resolve_provider."""
-        m = LanguageModel(model_name="test", provider="lmstudio")
-        assert m.provider == "openai-compatible"
-
-        m2 = LanguageModel(model_name="test", provider="ollama")
-        assert m2.provider == "openai-compatible"
-
-        m3 = LanguageModel(model_name="test", provider="openai")
-        assert m3.provider == "openai"
+        assert resolve_provider("lmstudio") == "openai-compatible"
+        assert resolve_provider("ollama") == "openai-compatible"

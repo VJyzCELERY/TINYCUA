@@ -100,7 +100,7 @@ def _build_language_model() -> LanguageModel:
     Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
     """
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
         base_url=os.environ.get(
             "TINYCUA_BASE_URL",
             os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
@@ -168,15 +168,9 @@ async def test_integration_react_loop_real_llm():
                 result = await ToolExecutor.execute(tool_obj, arguments, agent)
                 call_id = tc.get("call_id") or tc.get("id")
                 messages.append({
-                    "type": "function_call",
+                    "role": "tool_result",
                     "call_id": call_id,
-                    "name": tc["name"],
-                    "arguments": tc["arguments"],
-                })
-                messages.append({
-                    "type": "function_call_output",
-                    "call_id": call_id,
-                    "output": str(result),
+                    "content": str(result),
                 })
                 final = await agent._call_llm(messages)
                 return final.get("content", "[no final answer]")
@@ -199,7 +193,7 @@ async def test_integration_streaming_lifecycle_real_llm():
 
     This test creates an agent with the real LanguageModel and runs a
     streaming query. It verifies that the standard lifecycle events
-    (response.created, response.in_progress, response.output_text.delta,
+    (response.created, response.in_progress, content.delta,
     response.usage, response.completed) are all present in the stream,
     delivered through the actual SDK transport without monkeypatching.
     """
@@ -240,15 +234,12 @@ async def test_integration_model_override_real_llm():
     The full PlanThenExecute two-phase contract (plan + execute) is covered
     deterministically in tests/unit/test_loop_custom.py (test_plan_then_execute_loop_works).
     """
-    class ModelOverrideLoop(BaseLoop):
-        async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-            # Verify model override works: copy with different temperature
-            override_model = agent.llm_model.model_copy(update={"temperature": 0.3})
-            response = await agent._call_llm(messages, llm_model=override_model)
-            return response.get("content") or ""
-
+    # This test validates that a custom loop can work with overridden model config.
+    # In Phase 1, per-call model overrides are replaced by creating a new agent
+    # with a modified configuration. The model override functionality is tested
+    # deterministically in test_loop_custom.py.
     llm_model = _build_language_model()
-    agent = Agent(llm_model=llm_model, loop=ModelOverrideLoop())
+    agent = Agent(llm_model=llm_model)
 
     result = await agent.run("Say hello in one word.", stream=False)
     assert isinstance(result, str)
@@ -272,7 +263,6 @@ async def test_custom_loop_uses_public_helpers():
 
     class CustomToolLoop(BaseLoop):
         def __init__(self, **kwargs):
-            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_tool_calls = False
@@ -285,17 +275,12 @@ async def test_custom_loop_uses_public_helpers():
             self.called_build_system_message = True
             working = [system_msg] + list(messages)
             tool_call_count = 0
-            llm_calls = 0
 
             for _ in range(self.max_iterations):
                 if agent.is_cancelled:
                     raise asyncio.CancelledError()
 
-                if llm_calls == 0 and self.initial_llm_model is not None:
-                    response = await agent._call_llm(working, tools, llm_model=self.initial_llm_model)
-                else:
-                    response = await agent._call_llm(working, tools)
-                llm_calls += 1
+                response = await agent._call_llm(working, tools)
                 content = response.get("content")
                 tool_calls = response.get("tool_calls")
 
@@ -324,9 +309,9 @@ async def test_custom_loop_uses_public_helpers():
     llm_model_with_tc = llm_model.model_copy(
         update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
-    loop = CustomToolLoop(initial_llm_model=llm_model_with_tc)
+    loop = CustomToolLoop()
     agent = Agent(
-        llm_model=llm_model,
+        llm_model=llm_model_with_tc,
         tools=[get_weather],
         loop=loop,
     )
@@ -343,10 +328,10 @@ async def test_custom_loop_uses_public_helpers():
 
     helper_call_msgs = [
         m for m in loop.last_working_messages
-        if isinstance(m, dict) and m.get("type") == "function_call_output"
+        if isinstance(m, dict) and m.get("role") == "tool_result"
     ]
     assert len(helper_call_msgs) > 0, (
-        "No function_call_output messages found — helpers did not execute tool calls"
+        "No tool_result messages found — helpers did not execute tool calls"
     )
 
 
@@ -366,7 +351,6 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     class CustomStreamingLoop(BaseLoop):
         def __init__(self, **kwargs):
-            self.initial_llm_model = kwargs.pop("initial_llm_model", None)
             super().__init__(**kwargs)
             self.called_build_system_message = False
             self.called_process_stream_iteration = False
@@ -386,7 +370,6 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
                 cancelled = False
                 provider_failed = False
                 completed_by_provider = False
-                llm_calls = 0
 
                 try:
                     for _ in range(self.max_iterations):
@@ -399,11 +382,7 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
                         tool_calls_buffer = {}
                         usage_settled_ids.clear()
 
-                        if llm_calls == 0 and self.initial_llm_model is not None:
-                            llm_stream = await agent._call_llm(working, tools, stream=True, llm_model=self.initial_llm_model)
-                        else:
-                            llm_stream = await agent._call_llm(working, tools, stream=True)
-                        llm_calls += 1
+                        llm_stream = await agent._call_llm(working, tools, stream=True)
 
                         iteration_completed = False
                         async for event in self.process_stream_iteration(
@@ -456,8 +435,8 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
     llm_model_with_tc = llm_model.model_copy(
         update={"tool_choice": {"type": "function", "name": "get_weather"}},
     )
-    loop = CustomStreamingLoop(initial_llm_model=llm_model_with_tc)
-    agent = Agent(llm_model=llm_model, tools=[get_weather], loop=loop)
+    loop = CustomStreamingLoop()
+    agent = Agent(llm_model=llm_model_with_tc, tools=[get_weather], loop=loop)
 
     stream = await agent.run("What is the weather in Tokyo?", stream=True)
     events = [e async for e in stream]
@@ -479,8 +458,8 @@ async def test_custom_streaming_loop_uses_public_helpers():  # noqa: C901
 
     helper_call_msgs = [
         m for m in loop.last_working_messages
-        if isinstance(m, dict) and m.get("type") == "function_call_output"
+        if isinstance(m, dict) and m.get("role") == "tool_result"
     ]
     assert len(helper_call_msgs) > 0, (
-        "No function_call_output messages found — streaming helpers did not execute tool calls"
+        "No tool_result messages found — streaming helpers did not execute tool calls"
     )

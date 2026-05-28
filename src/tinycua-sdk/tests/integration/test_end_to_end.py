@@ -20,7 +20,7 @@ def _build_language_model() -> LanguageModel:
     Uses TINYCUA_* or LLM_* env vars, falling back to localhost defaults.
     """
     return LanguageModel(
-        provider=os.environ.get("TINYCUA_PROVIDER", "openai-compatible"),
+        provider=os.environ.get("TINYCUA_PROVIDER", "openai-responses"),
         model_name=os.environ.get(
             "TINYCUA_MODEL",
             os.environ.get("LLM_MODEL", "qwen/qwen3.5-9b"),
@@ -98,6 +98,11 @@ class TestEndToEnd:
         3. The LLM should call the tool based on the skill instructions
         4. Execute the tool via ``ToolExecutor.execute()``
         5. Return a final response incorporating the tool result
+
+        This test uses a recorded-call pattern to assert deterministic SDK
+        behavior: it records tool invocations and checks that ``lookup_item``
+        was called with ``"magic_box"``, rather than relying on non-deterministic
+        LLM prose for the final assertion.
         """
         @tool
         def lookup_item(key: str) -> str:
@@ -118,6 +123,14 @@ class TestEndToEnd:
             ),
         )
 
+        # Record tool invocations for deterministic assertion using Tool.invoke
+        tool_invocation_log: list[dict[str, str]] = []
+        _original_invoke = lookup_item.invoke
+        def _recorded_invoke(**kwargs: str) -> str:
+            tool_invocation_log.append(kwargs)
+            return _original_invoke(**kwargs)
+        lookup_item.invoke = _recorded_invoke  # type: ignore[method-assign]
+
         agent = Agent(
             name="e2e-skills-agent",
             instructions="You are a helpful assistant.",
@@ -130,8 +143,11 @@ class TestEndToEnd:
 
         assert isinstance(response, str)
         assert len(response) > 0
-        # The LLM cannot know "crystal-7" without calling the tool.
-        # If it appears in the response, the skill + tool pipeline worked.
-        assert "crystal-7" in response, (
-            f"Expected tool result 'crystal-7' in response, got: {response!r}"
+        # Assert deterministic SDK behavior: the tool must have been invoked
+        # with "magic_box" during the agent run.
+        assert any(
+            call.get("key") == "magic_box" for call in tool_invocation_log
+        ), (
+            f"Expected lookup_item to be called with 'magic_box', "
+            f"invocation log: {tool_invocation_log}"
         )

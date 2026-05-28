@@ -2,11 +2,8 @@
 
 from tinycua_sdk.agent.config import AgentConfig, AgentPolicy
 from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.core.providers import (
-    DEFAULT_BASE_URL,
-    resolve_provider,
-    normalize_base_url,
-)
+from tinycua_sdk.providers.constants import DEFAULT_BASE_URL
+from tinycua_sdk.providers.utility import normalize_base_url, resolve_provider
 
 
 class TestProviderResolution:
@@ -20,15 +17,14 @@ class TestProviderResolution:
         """ollama alias should resolve to openai-compatible."""
         assert resolve_provider("ollama") == "openai-compatible"
 
-    def test_openai_remains_openai(self):
-        """openai provider should remain openai."""
-        assert resolve_provider("openai") == "openai"
+    def test_openai_resolves_to_openai_responses(self):
+        """openai now resolves to openai-responses via new alias."""
+        assert resolve_provider("openai") == "openai-responses"
 
     def test_case_insensitive_resolution(self):
         """Provider resolution should be case-insensitive."""
         assert resolve_provider("LMSTUDIO") == "openai-compatible"
         assert resolve_provider("Ollama") == "openai-compatible"
-        assert resolve_provider("OpenAI") == "openai"
 
     def test_openai_compatible_unchanged(self):
         """openai-compatible should remain unchanged."""
@@ -63,23 +59,23 @@ class TestBaseUrlNormalization:
 class TestProviderDefaults:
     """Tests for default provider configuration."""
 
-    def test_default_provider_is_openai_compatible(self):
-        """Default provider should be openai-compatible."""
+    def test_default_provider_is_openai_responses(self):
+        """Default provider should be openai-responses (from LanguageModel default)."""
         config = AgentConfig(name="test", llm_model=LanguageModel())
-        assert config.llm_model.provider == "openai-compatible"
+        assert config.llm_model.provider == "openai-responses"
 
     def test_provider_can_be_changed(self):
-        """Provider can be changed to another valid provider."""
+        """Provider can be changed to openai-responses."""
         config = AgentConfig(
-            name="test", llm_model=LanguageModel(provider="openai-compatible")
+            name="test", llm_model=LanguageModel(provider="openai-responses")
         )
-        assert config.llm_model.provider == "openai-compatible"
+        assert config.llm_model.provider == "openai-responses"
 
     def test_provider_with_base_url(self):
         """Provider can be configured with custom base URL."""
         config = AgentConfig(
             name="test",
-            llm_model=LanguageModel(provider="local", base_url="http://localhost:8000"),
+            llm_model=LanguageModel(provider="openai-responses", base_url="http://localhost:8000"),
         )
         assert config.llm_model.base_url == "http://localhost:8000"
 
@@ -87,21 +83,13 @@ class TestProviderDefaults:
 class TestProviderConfiguration:
     """Tests for provider-specific configurations."""
 
-    def test_openai_compatible_provider_config(self):
-        """openai-compatible provider configuration."""
+    def test_openai_responses_provider_config(self):
+        """openai-responses provider configuration."""
         config = AgentConfig(
             name="test",
-            llm_model=LanguageModel(provider="openai-compatible"),
+            llm_model=LanguageModel(provider="openai-responses"),
         )
-        assert config.llm_model.provider == "openai-compatible"
-
-    def test_openai_provider_config(self):
-        """OpenAI provider configuration."""
-        config = AgentConfig(
-            name="test",
-            llm_model=LanguageModel(provider="openai"),
-        )
-        assert config.llm_model.provider == "openai"
+        assert config.llm_model.provider == "openai-responses"
 
 
 class TestProviderValidationIntegration:
@@ -114,9 +102,9 @@ class TestProviderValidationIntegration:
         )
         config = AgentConfig(
             name="full-agent",
-            llm_model=LanguageModel(provider="openai", model_name="gpt-4o"),
+            llm_model=LanguageModel(provider="openai-responses", model_name="gpt-4o"),
             policy=policy,
         )
-        assert config.llm_model.provider == "openai"
+        assert config.llm_model.provider == "openai-responses"
         assert config.llm_model.model_name == "gpt-4o"
         assert config.policy.max_tool_calls == 5

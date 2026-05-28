@@ -29,7 +29,7 @@ class TestCustomLoopContract:
     custom loops can:
     - Call agent._call_llm() directly
     - Execute ReAct-style tool loops
-    - Implement PlanThenExecute two-phase loops with model override
+    - Implement PlanThenExecute two-phase loops
     - Handle streaming lifecycle events
     """
 
@@ -43,7 +43,7 @@ class TestCustomLoopContract:
 
         agent = Agent(llm_model=LanguageModel(), loop=LLMLoop())
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             assert messages[-1] == {"role": "user", "content": "Say hi."}
             assert tools == []
             return {"content": "hi", "tool_calls": None, "usage": None}
@@ -70,15 +70,9 @@ class TestCustomLoopContract:
                     result = await ToolExecutor.execute(tool_obj, arguments, agent)
                     call_id = tc.get("call_id") or tc.get("id")
                     messages.append({
-                        "type": "function_call",
+                        "role": "tool_result",
                         "call_id": call_id,
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                    })
-                    messages.append({
-                        "type": "function_call_output",
-                        "call_id": call_id,
-                        "output": str(result),
+                        "content": str(result),
                     })
                     final = await agent._call_llm(messages)
                     return final.get("content", "")
@@ -87,7 +81,7 @@ class TestCustomLoopContract:
         agent = Agent(llm_model=LanguageModel(), tools=[weather], loop=ReActLoop())
         calls = []
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             calls.append((messages, tools))
             if len(calls) == 1:
                 return {
@@ -101,9 +95,9 @@ class TestCustomLoopContract:
         assert await agent.run("What is the weather in Tokyo?") == "It is sunny in Tokyo."
         second_messages = calls[1][0]
         assert any(
-            msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+            msg.get("role") == "tool_result" and msg.get("call_id") == "call_1"
             for msg in second_messages
-        ), "Expected function_call_output with call_id='call_1' in the follow-up call"
+        ), "Expected tool_result with call_id='call_1' in the follow-up call"
 
     @pytest.mark.asyncio
     async def test_plan_then_execute_loop_works(self):
@@ -114,9 +108,8 @@ class TestCustomLoopContract:
             return f"Results for {query}."
 
         class PlanThenExecuteLoop(BaseLoop):
-            def __init__(self, max_iterations=5, plan_temperature=0.3):
+            def __init__(self, max_iterations=5):
                 super().__init__(max_iterations=max_iterations)
-                self.plan_temperature = plan_temperature
 
             async def run(self, agent, messages, tools, override_instructions=None, stream=False):
                 # Phase 1: Planning
@@ -124,8 +117,7 @@ class TestCustomLoopContract:
                     "role": "system",
                     "content": "First, outline a step-by-step plan. Do not execute yet.",
                 }]
-                plan_model = agent.llm_model.model_copy(update={"temperature": self.plan_temperature})
-                plan_response = await agent._call_llm(plan_messages, llm_model=plan_model)
+                plan_response = await agent._call_llm(plan_messages)
                 plan = plan_response.get("content", "")
 
                 # Phase 2: Execution
@@ -153,15 +145,9 @@ class TestCustomLoopContract:
                                 result = await ToolExecutor.execute(t, arguments, agent)
                                 call_id = tc.get("call_id") or tc.get("id")
                                 exec_messages.append({
-                                    "type": "function_call",
+                                    "role": "tool_result",
                                     "call_id": call_id,
-                                    "name": tc["name"],
-                                    "arguments": tc["arguments"],
-                                })
-                                exec_messages.append({
-                                    "type": "function_call_output",
-                                    "call_id": call_id,
-                                    "output": str(result),
+                                    "content": str(result),
                                 })
                                 break
 
@@ -170,12 +156,10 @@ class TestCustomLoopContract:
         agent = Agent(llm_model=LanguageModel(), tools=[search], loop=PlanThenExecuteLoop(max_iterations=3))
         calls = []
 
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             calls.append((messages, tools))
             if len(calls) == 1:
-                # Phase 1: return a plan with model override assertion
-                assert llm_model is not None
-                assert llm_model.temperature == 0.3
+                # Phase 1: return a plan
                 return {"content": "Plan: 1. Search for Tokyo weather.", "tool_calls": None}
             if len(calls) == 2:
                 # Phase 2: execute tool
@@ -185,9 +169,9 @@ class TestCustomLoopContract:
                 }
             # Phase 2 follow-up: final answer
             assert any(
-                msg.get("type") == "function_call_output" and msg.get("call_id") == "call_1"
+                msg.get("role") == "tool_result" and msg.get("call_id") == "call_1"
                 for msg in messages
-            ), "Expected function_call_output with call_id='call_1' in PlanThenExecute follow-up"
+            ), "Expected tool_result with call_id='call_1' in PlanThenExecute follow-up"
             return {"content": "Tokyo has sunny weather.", "tool_calls": None}
 
         agent._call_llm = fake_call_llm
@@ -206,7 +190,7 @@ class TestCustomLoopContract:
         BaseLoop subclassing path specifically, while the other tests cover
         the default loop path and agent-level streaming.
         """
-        async def fake_call_llm(messages, tools=None, stream=False, llm_model=None):
+        async def fake_call_llm(messages, tools=None, stream=False):
             assert stream is True
 
             async def chunks() -> AsyncIterator[dict]:
@@ -303,12 +287,12 @@ class TestCustomPublicHelpers:
                 assert count == 1, f"Expected count=1, got {count}"
                 assert max_reached is False
                 assert len(working) >= 3
-                # Verify function_call_output was added
+                # Verify ToolResultMessage was added
                 has_output = any(
-                    m.get("type") == "function_call_output"
+                    m.get("role") == "tool_result"
                     for m in working
                 )
-                assert has_output, "No function_call_output found in working messages"
+                assert has_output, "No tool_result found in working messages"
                 return "ok"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
@@ -320,7 +304,7 @@ class TestCustomPublicHelpers:
 
     @pytest.mark.asyncio
     async def test_custom_loop_calls_process_tool_calls_with_assistant_content(self):
-        """process_tool_calls prepends assistant content before function_call."""
+        """process_tool_calls prepends assistant content before tool_result messages (provider-agnostic)."""
         @tool
         def get_time() -> str:
             return "12:00"
@@ -340,18 +324,20 @@ class TestCustomPublicHelpers:
                 )
                 assert count == 1
                 assert max_reached is False
-                # Verify assistant message was prepended before function_call
+                # Verify assistant message is prepended before tool_result messages
                 assistant_idx = next(
                     i for i, m in enumerate(working)
                     if m.get("role") == "assistant"
                 )
-                func_call_idx = next(
+                tool_result_idx = next(
                     i for i, m in enumerate(working)
-                    if m.get("type") == "function_call"
+                    if m.get("role") == "tool_result"
                 )
-                assert assistant_idx < func_call_idx, (
-                    "Assistant message should come before function_call"
+                assert assistant_idx < tool_result_idx, (
+                    "Assistant message should come before tool_result"
                 )
+                # No provider-native function_call entries should exist
+                assert not any(m.get("type") == "function_call" for m in working)
                 return "ok"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
@@ -450,13 +436,13 @@ class TestCustomPublicHelpers:
                           override_instructions=None, stream=False):
                 async def fake_llm_stream():
                     yield {
-                        "type": "tool_call.started",
+                        "type": "response.output_item.added",
                         "id": "call_1",
                         "call_id": "call_1",
                         "name": "get_time",
                     }
                     yield {
-                        "type": "tool_call.arguments.done",
+                        "type": "response.function_call_arguments.done",
                         "id": "call_1",
                         "arguments": "{}",
                     }
@@ -535,17 +521,15 @@ class TestCustomPublicHelpers:
                 )
                 assert count == 1
                 assert max_reached is False
-                assert len(working) >= 3
-                has_func_call = any(
-                    m.get("type") == "function_call"
-                    for m in working
-                )
+                assert len(working) >= 2
                 has_func_output = any(
-                    m.get("type") == "function_call_output"
+                    m.get("role") == "tool_result"
                     for m in working
                 )
-                assert has_func_call, "No function_call found"
-                assert has_func_output, "No function_call_output found"
+                # Provider-native function_call entries are removed — provider clients
+                # own their own continuation state.
+                assert not any(m.get("type") == "function_call" for m in working)
+                assert has_func_output, "No tool_result found in working messages"
                 return "executed"
 
         agent = Agent(llm_model=LanguageModel(), tools=[get_time])
