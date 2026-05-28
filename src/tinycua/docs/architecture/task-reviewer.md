@@ -38,7 +38,7 @@ Task Reviewer should be hybrid:
 - current task `context`;
 - task success criteria;
 - task result;
-- sub-session execution log (tool calls, results, diffs from the Task Executor's sub-session);
+- sub-session execution log (actions and outcomes from the Task Executor's sub-session);
 - shallow full task list;
 - dynamic access to individual task contexts when needed.
 

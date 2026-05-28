@@ -75,7 +75,7 @@ If a later roadmap task appears to be needed first, Task Execution should return
 Execution actions are captured in the Task Executor sub-session's `execution_log`, not embedded in the Task Result. This separation means:
 
 - The execution log is evidence for the Task Reviewer, who accesses the sub-session log.
-- Tool calls, observations, diffs (if file changes exist), and decision traces are recorded.
+- Actions, observations, changes, and decision traces are recorded.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log — the old log is not carried forward.
 
 See [session-architecture.md](session-architecture.md) and [state-objects.md](state-objects.md) for the Execution Log schema and session-level storage rules.

@@ -36,17 +36,7 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 
 ## Session Object
 
-Session internals are defined in [session-architecture.md](session-architecture.md). The core shape is:
-
-```yaml
-session:
-  session_id: session_001
-  owner_type: primary | tinycua_internal | future_sub_agent
-  owner_name: "Primary Agent"
-  chat_history: []   # JSON turn/message records
-  context: "structured markdown loaded by the model"
-  execution_log: []  # tool calls, results, and diffs generated during sub-session execution
-```
+The Session schema is defined in [session-architecture.md](session-architecture.md). The core fields are `session_id`, `owner_type`, `owner_name`, `chat_history` (JSON turn log), `context` (structured markdown), and `execution_log`.
 
 Important rules:
 
@@ -57,7 +47,7 @@ Important rules:
 - Sub-session `Context` is not automatically appended to primary session `Context`.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
 
-Use `Session.Context` for model-loadable context and `Session.chat_history` for preserved turns. Use `Session.execution_log` for tool calls, results, and diffs from sub-session execution.
+Use `Session.Context` for model-loadable context and `Session.chat_history` for preserved turns. Use `Session.execution_log` for actions and outcomes from sub-session execution.
 
 ---
 
@@ -241,7 +231,7 @@ agent_state:
   active_task_id: task_001
   status: running | waiting_for_user | terminated
   resume_target: "..."
-  consecutive_failure_count: 0
+  consecutive_failures: 0
 ```
 
 Clarification is not a terminal state. Agents should use an `ask` / `question` mechanism when they need user input and a `terminate` signal when their work is actually complete. Human-in-the-loop replies always continue through the existing agent session/context that asked the question.

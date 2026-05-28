@@ -19,7 +19,7 @@ For now, a session has three primary parts:
 
 1. `chat_history` — the preserved exchange/turn log.
 2. `Context` — the structured markdown context loaded by the model.
-3. `Execution_Log` — tool calls, observations, diffs, and decision trace from sub-session execution.
+3. `execution_log` — captures actions and outcomes from sub-session execution.
 
 Additional session fields can be added later, but these three are the required foundation.
 
@@ -82,7 +82,7 @@ session:
   owner_name: "Primary Agent"
   chat_history: []
   context: "structured markdown"
-  execution_log: []  # tool calls, results, and diffs from sub-session execution
+  execution_log: []  # actions and outcomes from sub-session execution
 ```
 
 `owner_type` distinguishes the primary user-facing session, TINYCUA internal specialized-agent sessions, and future explicit sub-agent sessions.
