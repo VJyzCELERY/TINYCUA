@@ -180,6 +180,7 @@ class EchoClient(LLMClient):
                 index=idx,
             )
 
+        # Only one text output block in this simple echo provider
         yield ContentDoneEvent(type="response.output_text.done", index=0)
         yield ResponseUsageEvent(type="response.usage", usage=ECHO_USAGE)
         yield ResponseCompletedEvent(

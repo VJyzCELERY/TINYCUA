@@ -12,7 +12,19 @@ remote (OpenAI) providers.
 
 ### Quick Start
 
-### Agent Convenience API — File Attachments
+```python
+import asyncio
+from tinycua_sdk import Agent
+
+agent = Agent(name="assistant", instructions="You are a helpful assistant.")
+response = asyncio.run(agent.run("Hello!"))
+print(response)
+```
+
+See the [cookbook](./docs/cookbook/index.md) for a complete walkthrough covering
+agents, tools, streaming, file handling, providers, and more.
+
+### File Attachments
 
 The `Agent.run()` method accepts file attachments via the optional
 `file_attachments` parameter and supports multimodal `ContentPart` queries.
@@ -20,6 +32,7 @@ The `Agent.run()` method accepts file attachments via the optional
 `tinycua_sdk` namespace.
 
 ```python
+import asyncio
 from tinycua_sdk import Agent, FileAttachment, ContentPart
 
 agent = Agent(
@@ -27,35 +40,40 @@ agent = Agent(
     instructions="You are a helpful assistant.",
 )
 
-# Attach a file to a text query
-attachment = FileAttachment.from_path("screenshot.png")
-response = await agent.run(
-    "Describe this image in detail.",
-    file_attachments=[attachment],
-)
+async def main():
+    # Attach a file to a text query
+    attachment = FileAttachment.from_path("screenshot.png")
+    response = await agent.run(
+        "Describe this image in detail.",
+        file_attachments=[attachment],
+    )
+    print(response)
 
-# Use ContentPart for explicit multimodal input
-parts = [
-    ContentPart(type="text", text="Compare these photos:"),
-    ContentPart(
-        type="file",
-        file=FileAttachment.from_path("photo1.jpg"),
-    ),
-    ContentPart(
-        type="file",
-        file=FileAttachment.from_path("photo2.jpg"),
-    ),
-]
-response = await agent.run(parts)
+    # Use ContentPart for explicit multimodal input
+    parts = [
+        ContentPart(type="text", text="Compare these photos:"),
+        ContentPart(
+            type="file",
+            file=FileAttachment.from_path("photo1.jpg"),
+        ),
+        ContentPart(
+            type="file",
+            file=FileAttachment.from_path("photo2.jpg"),
+        ),
+    ]
+    response = await agent.run(parts)
+    print(response)
 
-# Streaming is also supported
-stream = await agent.run(
-    "Describe this",
-    file_attachments=[attachment],
-    stream=True,
-)
-async for event in stream:
-    print(event)
+    # Streaming is also supported
+    stream = await agent.run(
+        "Describe this",
+        file_attachments=[attachment],
+        stream=True,
+    )
+    async for event in stream:
+        print(event)
+
+asyncio.run(main())
 ```
 
 Message shapes produced internally:

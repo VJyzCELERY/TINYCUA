@@ -154,7 +154,7 @@ agent = Agent(
     instructions="You are a helpful assistant.",
 )
 
-executor = AgentExecutor(config=agent._config)
+executor = AgentExecutor(config=agent.to_config())
 
 async with executor:
     pass
@@ -170,7 +170,7 @@ agent = Agent(
     instructions="You are a helpful assistant.",
 )
 
-async with AgentExecutor(config=agent._config) as executor:
+async with AgentExecutor(config=agent.to_config()) as executor:
     pass
 ```
 

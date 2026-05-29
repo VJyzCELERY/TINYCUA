@@ -194,46 +194,9 @@ includes `previous_response_id` in the request payload, linking the
 follow-up to the prior response.
 
 This means you don't need to manually track response IDs — the client
-handles it internally:
-
-```python
-from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
-
-messages_1: list[LLMMessage] = [
-    {"role": "user", "content": "Search for latest news about AI"},
-]
-
-tools: list[LLMToolSpec] = [
-    {
-        "name": "web_search",
-        "description": "Search the web",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-            },
-            "required": ["query"],
-        },
-    },
-]
-
-response_1 = await client.chat(messages_1, tools)
-
-messages_2: list[LLMMessage] = [
-    {"role": "user", "content": "Search for latest news about AI"},
-    {"role": "assistant", "content": None},
-    {
-        "role": "tool_result",
-        "call_id": "call_search_1",
-        "content": "Found 5 articles about AI advancements.",
-    },
-]
-
-response_2 = await client.chat(messages_2, tools)
-```
-
-In the second call, the client detected `function_call_output` items and
-included `previous_response_id` to maintain conversation continuity.
+handles it internally. In the example below, the second `client.chat()` call
+detects `function_call_output` items and includes `previous_response_id` to
+maintain conversation continuity:
 
 ```python
 import asyncio

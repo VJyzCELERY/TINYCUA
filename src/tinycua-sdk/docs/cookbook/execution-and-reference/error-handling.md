@@ -220,6 +220,9 @@ def is_retryable(exception: Exception) -> bool:
 )
 async def call_with_retry(agent, query: str) -> str:
     return await agent.run(query)
+
+# Usage:
+# result = asyncio.run(call_with_retry(agent, "What is AI?"))
 ```
 
 > **Note**: Tenacity 8.x+ natively supports `@retry` on async functions. For
@@ -246,6 +249,9 @@ async def call_with_manual_retry(agent, query: str) -> str:
             print(f"Attempt {attempt} failed [{e.status_code}]: {e}")
             await asyncio.sleep(delay)
     raise last_error
+
+# Usage:
+# result = asyncio.run(call_with_manual_retry(agent, "What is AI?"))
 ```
 
 ## Cancellation Handling
@@ -443,11 +449,15 @@ except ProviderApiError as e:
 
 ## Common Pitfalls
 
-**Relying on `OPENAI_API_KEY` for provider-specific clients**. The Chat
-Completions client reads `OPENAI_CHAT_COMPLETIONS_API_KEY`, and the
-Responses client reads `OPENAI_RESPONSES_API_KEY`. If you only set
-`OPENAI_API_KEY` without passing `api_key` explicitly, both clients will
-fail. Pass `api_key` explicitly to `LanguageModel()` to avoid this.
+**Confusing API key resolution at the client vs. LanguageModel level**.
+At the raw client level, the Chat Completions client reads
+`OPENAI_CHAT_COMPLETIONS_API_KEY` and the Responses client reads
+`OPENAI_RESPONSES_API_KEY` — neither falls back to `OPENAI_API_KEY` on its own.
+However, `LanguageModel` resolves `OPENAI_API_KEY` as a fallback *before*
+passing the key to the client (see [Language Models and
+Providers](../core-concepts/language-models-and-providers.md)). If you
+construct raw clients directly without `LanguageModel`, set the
+provider-specific env var or pass `api_key` explicitly.
 
 **Not catching `asyncio.CancelledError` in streaming loops**. If you wrap
 `agent.run(stream=True)` in a try/except, you must catch
