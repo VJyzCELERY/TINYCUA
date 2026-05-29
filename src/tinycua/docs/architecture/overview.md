@@ -48,10 +48,10 @@ flowchart TD
     end
 
     UQ{{"User Query"}}
-    FSC{{"Session\nchat_history + Context"}}
+    CTX{{"Session Context\n(structured markdown)"}}
 
     UQ --> QA
-    FSC --> QA
+    CTX --> QA
     QA --> CEQ
     QA --> MD
     MD --> ROUTE
@@ -64,7 +64,7 @@ flowchart TD
 
     ROUTE -->|worker| ID
     CEQ --> ID
-    FSC -. "exploration\nvia retrieval tool" .-> ID
+    CTX -. "exploration\nvia retrieval tool" .-> ID
     ID --> DI
     DI -->|primary_agent requested digestion| PA
     DI -->|worker mode| TW
@@ -96,7 +96,6 @@ The architecture should make state explicit so human-in-the-loop continuation ca
 Important objects:
 
 - Session
-- Session chat_history
 - Session Context
 - Context Enhanced Query
 - Mode Decision
