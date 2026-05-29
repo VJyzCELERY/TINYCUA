@@ -4,7 +4,7 @@
 
 > **File:** `architecture/state-objects.md`
 > **Last Updated:** 2026-05-27
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [primary-agent.md](primary-agent.md)
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
@@ -165,31 +165,21 @@ task_list:
           success_criteria:
             - "..."
         - task_id: task_002_2
-          name: "Deeply Nested Task (decomposed)"
+          name: "..."
           description: "..."
           context: "..."
-          success_criteria: []
-          tasks:  # further nested sub-list
-            - task_id: task_002_2_1
-              name: "..."
-              description: "..."
-              context: "..."
-              success_criteria:
-                - "..."
-            - task_id: task_002_2_2
-              name: "..."
-              description: "..."
-              context: "..."
-              success_criteria:
-                - "..."
+          success_criteria:
+            - "..."
   confidence: "<numeric>"  # exact scale is implementation calibration
 
   current_task_id: task_001
 ```
 
+Nesting can continue to arbitrary depth. The depth is controlled by the Worker's `effort` setting and how many passes the Task Creation loop performs. Deeper nesting follows the same container/leaf pattern — each additional level is a `tasks` sub-list within a container task. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
+
 The depth of nesting depends on the Worker's `effort` setting and how many passes the Task Creation loop is allowed. See [task-creation.md](task-creation.md) for the Task Creation loop and effort-controlled decomposition.
 
-The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates should consolidate information; they may reduce or replace stale information rather than only append more text.
+The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify a task's `context` field — they can replace or add to existing context. The architecture does not prescribe a specific consolidation strategy.
 
 ### Task Object
 

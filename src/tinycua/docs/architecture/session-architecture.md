@@ -4,7 +4,7 @@
 
 > **File:** `architecture/session-architecture.md`
 > **Last Updated:** 2026-05-27
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [information-digestion.md](information-digestion.md)
 
 This document defines the session model used by TINYCUA for chat history, model context, and internal context isolation.
@@ -107,7 +107,7 @@ session:
 
 ## chat_history
 
-`chat_history` is the exchange/turn log between the user and agents. It should be stored as JSON so turns can be preserved and replayed structurally.
+`chat_history` is the exchange/turn log between the user and agents. It should be stored as JSON.
 
 It should also preserve communication between TINYCUA internal agents, not only user-facing messages.
 

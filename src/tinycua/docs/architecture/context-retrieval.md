@@ -4,7 +4,7 @@
 
 > **File:** `architecture/context-retrieval.md`
 > **Last Updated:** 2026-05-29
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 
 This document defines Enhanced Context Retrieval — the search tool used by the Information Digester to explore the current Session `Context` as an external information source, without loading it directly into the Information Digester's own context window.

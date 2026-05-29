@@ -4,7 +4,7 @@
 
 > **File:** `architecture/task-assessor.md`
 > **Last Updated:** 2026-05-29
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [overview.md](overview.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 
 ---

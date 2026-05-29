@@ -4,7 +4,7 @@
 
 > **File:** `architecture/primary-agent.md`
 > **Last Updated:** 2026-05-27
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [overview.md](overview.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md)
 
 ---

@@ -4,7 +4,7 @@
 
 > **File:** `architecture/task-classification.md`
 > **Last Updated:** 2026-05-27
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [query-analyst.md](query-analyst.md), [state-objects.md](state-objects.md), [worker-orchestration.md](worker-orchestration.md)
 
 This document defines how the Query Analyst chooses the processing mode for a user request.

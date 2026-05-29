@@ -4,7 +4,7 @@
 
 > **File:** `architecture/analysis-digested-info-vs-query.md`
 > **Last Updated:** 2026-05-27
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md)
 
 This decision record has been updated to match the current routing model.

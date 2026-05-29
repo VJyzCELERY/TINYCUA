@@ -4,7 +4,7 @@
 
 > **File:** `architecture/information-digestion.md`
 > **Last Updated:** 2026-05-29
-> **Status:** Draft
+> **Status:** Implemented
 > **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [primary-agent.md](primary-agent.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md), [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md)
 
 ---
