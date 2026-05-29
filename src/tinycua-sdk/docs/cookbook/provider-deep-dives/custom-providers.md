@@ -209,8 +209,6 @@ registry.register(
 Use it like any built-in provider:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(

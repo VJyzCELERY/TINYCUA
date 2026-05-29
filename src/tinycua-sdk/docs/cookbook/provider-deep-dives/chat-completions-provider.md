@@ -43,8 +43,6 @@ agent = Agent(
 For local LLM servers, use the `openai-compatible` alias with your local server URL:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
@@ -83,8 +81,6 @@ client = OpenAIChatCompletionsClient(model_config)
 For a local one:
 
 ```python
-import os
-
 from tinycua_sdk import LanguageModel
 from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
 
