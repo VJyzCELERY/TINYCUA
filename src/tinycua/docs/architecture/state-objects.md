@@ -187,7 +187,7 @@ task_list:
   current_task_id: task_001
 ```
 
-The depth of nesting depends on the Worker's `effort` setting and how many passes the Task Creation loop is allowed. See [task-analysis.md](task-analysis.md) for the Task Creation loop and effort-controlled decomposition.
+The depth of nesting depends on the Worker's `effort` setting and how many passes the Task Creation loop is allowed. See [task-creation.md](task-creation.md) for the Task Creation loop and effort-controlled decomposition.
 
 The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates should consolidate information; they may reduce or replace stale information rather than only append more text.
 

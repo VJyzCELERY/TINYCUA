@@ -47,26 +47,9 @@ During execution, when the Result Reviewer needs to decompose a task, it calls t
 
 ## Task Tree Structure
 
-The output is a nested task tree — a `List of Tasks` can contain a `List of Tasks`:
+The Task Creation loop produces a nested task tree — a `List of Tasks` can contain a `List of Tasks`. The canonical schema with leaf tasks, container tasks, and the `tasks` sub-list field is defined in [state-objects.md](state-objects.md).
 
-```
-LIST_OF_TASK
-├── TASK1
-├── TASK2
-├── TASK3 (List of Tasks — container)
-│   ├── TASK3.1
-│   ├── TASK3.2
-│   └── TASK3.3 (List of Tasks — container)
-│       ├── TASK3.3.1
-│       └── TASK3.3.2
-└── TASK4
-```
-
-The depth of nesting depends on how many passes the `effort` setting allows. Each pass is one layer of decomposition.
-
-Only **leaf tasks** (tasks that do not themselves contain a `tasks` sub-list) are executed by the Task Executor. **Container tasks** exist for structure and organization — their `name` and `description` describe the container's purpose, but the actual work is defined by their child tasks.
-
-See [state-objects.md](state-objects.md) for the full nested `Task List` schema.
+Only **leaf tasks** (tasks without a `tasks` sub-list) are executed by the Task Executor. **Container tasks** exist for structure and organization — their `name` and `description` describe the container's purpose, but the actual work is defined by their child tasks.
 
 ---
 
