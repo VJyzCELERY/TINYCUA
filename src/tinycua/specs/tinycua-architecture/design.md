@@ -31,7 +31,8 @@ All files use **kebab-case** (e.g., `query-analyst.md`, `task-execution.md`). Fi
 |----------|-------------|---------|
 | Architecture Overview | Top-level routing modes, agent reference, and architecture thesis | `overview.md` |
 | Agent Spec | Describes an LLM-powered agent (role, flow, tools, design decisions) | `query-analyst.md` |
-| Process Spec | Describes a deterministic non-agent component | `context-retrieval.md` |
+| Process Spec | Describes a deterministic non-agent process or system (session model, orchestration) | `worker-orchestration.md` |
+| Tool Spec | Describes a tool available to agents (interface, retrieval flow, search contract) | `context-retrieval.md` |
 | Decision Record | Captures design tradeoffs and resolved decisions | `analysis-<topic>.md` |
 | Reference Spec | Documents shared data structures, state objects, or schemas | `state-objects.md` |
 | Design Note | Describes a design pattern, rubric, or guideline without being a formal decision record | `task-classification.md` |
@@ -69,6 +70,7 @@ Each process spec doc includes at minimum:
 - `## Role` section
 
 Where applicable, process specs should also include:
+- `## Inputs / Outputs` section (recommended — format may vary by component)
 - `## Internal Flow` section (Mermaid diagram)
 
 ### README Structure

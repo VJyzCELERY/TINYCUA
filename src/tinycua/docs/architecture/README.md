@@ -44,8 +44,13 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 | File | Description |
 |------|-------------|
 | [session-architecture.md](session-architecture.md) | Session model: chat_history, Context, execution log, sub-sessions, and compaction |
-| [context-retrieval.md](context-retrieval.md) | Enhanced context retrieval trigger, storage, and retrieval flow |
 | [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analyzer → Task Executor → Task Reviewer |
+
+## Tool Specifications
+
+| File | Description |
+|------|-------------|
+| [context-retrieval.md](context-retrieval.md) | Enhanced context retrieval trigger, storage, and retrieval flow |
 
 ## Reference Specifications
 
