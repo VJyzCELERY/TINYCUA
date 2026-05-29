@@ -171,7 +171,7 @@ task_list:
 
 Nesting can continue to arbitrary depth, controlled by the Worker's `effort` setting. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
 
-The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify a task's `context` field — they can replace or add to existing context. The architecture does not prescribe a specific consolidation strategy.
+The `context` field should be structured markdown. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify a task's `context` field — they can replace or add to existing context. The architecture does not prescribe a specific consolidation strategy.
 
 ### Task Object
 

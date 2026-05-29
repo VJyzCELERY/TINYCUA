@@ -74,13 +74,7 @@ flowchart TD
 
 ## Relationship to Task Creation
 
-The Task Assessor is invoked between passes of the Task Creation loop:
-
-1. Task Analyzer produces an initial task list.
-2. **Task Assessor** reviews the list and selects tasks to decompose.
-3. Task Creation iterates through selected tasks.
-4. For each selected task: the Task Analyzer is invoked fresh and produces a sub-list.
-5. If `effort` allows more passes: go back to step 2 with the now-expanded list.
+The Task Assessor is invoked between passes of the Task Creation loop. It reviews the current task list and selects which tasks deserve further decomposition. Task Creation then invokes the Task Analyzer on each selected task to produce sub-lists. If effort allows more passes, the loop repeats with the Task Assessor reviewing the now-expanded list.
 
 See [task-creation.md](task-creation.md) for the full Task Creation flow and effort-controlled pass limits.
 

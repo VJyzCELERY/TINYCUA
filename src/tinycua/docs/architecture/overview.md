@@ -131,10 +131,10 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Agent | Loop Type | Tools | Notes |
 |-------|-----------|-------|-------|
 | Query Analyst | High-level context scan + classification | None (scans session context directly) | Produces `primary_agent`, `worker`, or `uncertain` decision |
-| Information Digester | Precision-oriented exploration | Enhanced Context Retrieval (searches Session Context as external source) | Exploration agent; does not load full Session Context — searches it via retrieval tool. Removes distracting context and preserves task-critical information |
-| Task Creation | Iterative decomposition loop | None (orchestrates Task Analyzer) | Runs once at Worker start. Iterates through the task list and invokes the Task Analyzer fresh for each decomposition decision. Effort controls the number of passes (nesting depth) |
-| Task Assessor | Linear (single-pass selection) | None | Reviews the task list between Task Creation passes and selects which tasks to decompose. Selection only — decomposition is delegated to the Task Analyzer |
-| Task Analyzer | Linear (single-pass) | Optional info/research tools | Each invocation receives input and produces a task list — no internal loop. Multi-pass decomposition is handled by the Task Creation loop, not by the Task Analyzer internally. Produces a sequential roadmap, not a dependency graph |
+| Information Digester | Precision-oriented exploration | Enhanced Context Retrieval (searches Session Context as external source) | Searches Session Context via retrieval tool; produces precision-oriented Digested Information |
+| Task Creation | Iterative decomposition loop | None (orchestrates Task Analyzer) | Invokes Task Analyzer iteratively at Worker start; effort controls nesting depth |
+| Task Assessor | Linear (single-pass selection) | None | Selects which tasks to decompose between Task Creation passes; decomposition is delegated to the Task Analyzer |
+| Task Analyzer | Linear (single-pass) | Optional info/research tools | Single-pass roadmap generation from structured input; multi-pass decomposition is handled by the Task Creation loop |
 | Task Executor | ReAct | Task tools | Produces result + execution log |
 | Result Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
 | Primary Agent | Response composition | Formatting/verification tools | Should not bypass Worker guarantees with new research |

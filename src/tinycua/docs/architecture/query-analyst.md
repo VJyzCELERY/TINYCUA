@@ -43,8 +43,6 @@ Rules:
 
 - The Query Analyst uses session `Context` as-is for a high-level overview.
 - User query size does not trigger deep retrieval (that is the Information Digester's responsibility).
-- Session `chat_history` stores user/agent/internal-agent turns in JSON.
-- Session `Context` accumulates as structured markdown and is compacted as needed.
 
 Deep context retrieval is defined in [context-retrieval.md](context-retrieval.md).
 

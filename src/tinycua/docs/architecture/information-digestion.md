@@ -98,7 +98,6 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 | Deep retrieval location | Information Digester | Query Analyst stays fast with high-level scan; deep, precise exploration of Session `Context` belongs in the exploration stage |
 | Context access | Via Enhanced Context Retrieval tool | The Information Digester does not load the full Session `Context` directly — it searches it as an external source, keeping its own context window small |
 | Retrieval approach | Precision-first, LLM-judged | Generate search queries from identified gaps, search Session `Context`, use LLM to judge relevance semantically |
-| Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
-| Boundary | Privileged narrowing boundary | Digestion can explore broad context without leaking broad context downstream |
+| Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count. Digestion can explore broad context without leaking broad context downstream. |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
 | Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |
