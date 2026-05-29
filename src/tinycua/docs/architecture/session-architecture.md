@@ -5,7 +5,7 @@
 > **File:** `architecture/session-architecture.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md)
+> **See also:** [context-retrieval.md](context-retrieval.md), [state-objects.md](state-objects.md), [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [information-digestion.md](information-digestion.md)
 
 This document defines the session model used by TINYCUA for chat history, model context, and internal context isolation.
 
