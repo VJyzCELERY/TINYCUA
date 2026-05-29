@@ -204,5 +204,8 @@ and API cost.
 
 - **[Tool Results with Files](./tool-results-with-files.md)** — Return file
   attachments from tool calls and understand how providers handle them.
+
+## See Also
+
 - **[Streaming File Uploads](./streaming-file-uploads.md)** — Upload large
   files without buffering.

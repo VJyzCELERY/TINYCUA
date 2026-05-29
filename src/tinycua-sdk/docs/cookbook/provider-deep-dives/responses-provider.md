@@ -98,19 +98,26 @@ Once constructed, the client is ready. The following block demonstrates a live
 interaction using canonical messages:
 
 ```python
+import asyncio
+
 from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
 
-messages: list[LLMMessage] = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "What is the capital of Japan?"},
-]
 
-tools: list[LLMToolSpec] | None = None
+async def main():
+    messages: list[LLMMessage] = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is the capital of Japan?"},
+    ]
 
-response = await client.chat(messages, tools)
-print(f"Content: {response['content']}")
-print(f"Model: {response.get('model')}")
-print(f"Finish reason: {response.get('finish_reason')}")
+    tools: list[LLMToolSpec] | None = None
+
+    response = await client.chat(messages, tools)
+    print(f"Content: {response['content']}")
+    print(f"Model: {response.get('model')}")
+    print(f"Finish reason: {response.get('finish_reason')}")
+
+
+asyncio.run(main())
 ```
 
 ## Input Item Translation
@@ -228,55 +235,47 @@ response_2 = await client.chat(messages_2, tools)
 In the second call, the client detected `function_call_output` items and
 included `previous_response_id` to maintain conversation continuity.
 
-## Supported Fields
-
-| Field | Responses API param | Notes |
-|---|---|---|
-| `temperature` | `temperature` | 0.0–2.0 |
-| `max_tokens` | `max_output_tokens` | Renamed from `max_tokens` |
-| `top_p` | `top_p` | Nucleus sampling |
-| `response_format` | `text.format` | Mapped to nested `{"format": ...}` |
-| `tool_choice` | `tool_choice` | `"auto"`, `"none"`, `"required"` |
-| `top_logprobs` | `top_logprobs` | Number of top logprobs |
-| `user` | `user` | End-user identifier |
-
-### Unsupported Fields
-
-The following `LanguageModel` fields raise `ProviderApiError` if set to a
-non-default value. The Responses API does not support them:
-
-| Field | Default value (must match) |
-|---|---|
-| `frequency_penalty` | `0.0` |
-| `presence_penalty` | `0.0` |
-| `stop` | `None` |
-| `seed` | `None` |
-| `logprobs` | `False` |
-
-If you need these features, use the Chat Completions provider instead.
-
-## API Key Resolution
-
-The client resolves the API key in this order:
-
-1. **Explicit** — `LanguageModel(api_key=...)` passed at construction
-2. **`OPENAI_RESPONSES_API_KEY`** — environment variable
-3. Falls back to empty string — the OpenAI SDK will NOT fall back to `OPENAI_API_KEY`
-
 ```python
-import os
+import asyncio
 
-from tinycua_sdk import LanguageModel
-from tinycua_sdk.providers.open_ai_responses import OpenAIResponsesClient
+from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
 
-model_config = LanguageModel(
-    provider="openai-responses",
-    model_name="gpt-4o-mini",
-    base_url="https://api.openai.com/v1",
-    api_key=os.environ.get("OPENAI_RESPONSES_API_KEY"),
-)
 
-client = OpenAIResponsesClient(model_config)
+async def main():
+    messages_1: list[LLMMessage] = [
+        {"role": "user", "content": "Search for latest news about AI"},
+    ]
+
+    tools: list[LLMToolSpec] = [
+        {
+            "name": "web_search",
+            "description": "Search the web",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                },
+                "required": ["query"],
+            },
+        },
+    ]
+
+    response_1 = await client.chat(messages_1, tools)
+
+    messages_2: list[LLMMessage] = [
+        {"role": "user", "content": "Search for latest news about AI"},
+        {"role": "assistant", "content": None},
+        {
+            "role": "tool_result",
+            "call_id": "call_search_1",
+            "content": "Found 5 articles about AI advancements.",
+        },
+    ]
+
+    response_2 = await client.chat(messages_2, tools)
+
+
+asyncio.run(main())
 ```
 
 ## Streaming and Event Normalization
@@ -302,9 +301,11 @@ events from some models are normalized to `response.reasoning.delta`, and
 these features, switch to `openai-chat-completions`.
 
 **Confusing API key resolution**. The Responses client does NOT fall back
-to `OPENAI_API_KEY`. If you set `OPENAI_API_KEY` but the client can't
-find `OPENAI_RESPONSES_API_KEY` and you didn't pass `api_key` explicitly,
-calls will fail with an auth error.
+to `OPENAI_API_KEY`. However, `LanguageModel` resolves `OPENAI_API_KEY` as a
+fallback *before* passing the key to the client (see [Language Models and
+Providers](../core-concepts/language-models-and-providers.md)). If neither
+`OPENAI_RESPONSES_API_KEY` nor `OPENAI_API_KEY` is set, and no `api_key` is
+passed to `LanguageModel`, calls will fail with an auth error.
 
 **`previous_response_id` is automatic**. Unlike the Chat Completions
 provider, where you must manually inject tool-call history, the Responses

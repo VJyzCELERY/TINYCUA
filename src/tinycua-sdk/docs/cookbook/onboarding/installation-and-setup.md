@@ -1,6 +1,6 @@
 # Installation and Setup
 
-**Prerequisites**: Python 3.10 or later and a terminal.
+**Prerequisites**: Python 3.12 or later and a terminal.
 
 ## Overview
 

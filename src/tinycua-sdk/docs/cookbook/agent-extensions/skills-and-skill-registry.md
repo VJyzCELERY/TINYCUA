@@ -280,5 +280,8 @@ retrievable. Use unique names or a naming convention like
 
 - **[Tool Permissions and Approval](./tool-permissions-and-approval.md)** —
   Control which tools run automatically and which require user approval.
+
+## See Also
+
 - **[Creating Tools](./creating-tools.md)** — Define callable tools for your
   agent.

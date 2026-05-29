@@ -298,4 +298,7 @@ gateways (console prompts, external approvals) after non-blocking ones
 
 - **[Streaming File Uploads](../advanced-file-handling/streaming-file-uploads.md)** —
   Upload large files without buffering in memory.
+
+## See Also
+
 - **[Creating Tools](./creating-tools.md)** — Define the tools your agent calls.

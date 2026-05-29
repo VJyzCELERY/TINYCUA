@@ -102,19 +102,26 @@ demonstrates a live interaction — it builds canonical messages, configures
 tools, and sends a non-streaming chat request:
 
 ```python
+import asyncio
+
 from tinycua_sdk.agent.events import LLMMessage, LLMToolSpec
 
-messages: list[LLMMessage] = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "What is 15 + 27?"},
-]
 
-tools: list[LLMToolSpec] | None = None
+async def main():
+    messages: list[LLMMessage] = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is 15 + 27?"},
+    ]
 
-response = await client.chat(messages, tools)
-print(f"Content: {response['content']}")
-print(f"Model: {response.get('model')}")
-print(f"Finish reason: {response.get('finish_reason')}")
+    tools: list[LLMToolSpec] | None = None
+
+    response = await client.chat(messages, tools)
+    print(f"Content: {response['content']}")
+    print(f"Model: {response.get('model')}")
+    print(f"Finish reason: {response.get('finish_reason')}")
+
+
+asyncio.run(main())
 ```
 
 ## Message Translation
@@ -198,7 +205,12 @@ The client resolves the API key in this order:
 
 1. **Explicit** — `LanguageModel(api_key=...)` passed at construction
 2. **`OPENAI_CHAT_COMPLETIONS_API_KEY`** — environment variable (provider-specific)
-3. Falls back to empty string — the OpenAI SDK will NOT fall back to `OPENAI_API_KEY`
+3. Falls back to empty string
+
+> **Note**: When using `LanguageModel` at the agent level, `OPENAI_API_KEY` is
+> resolved as a fallback before the key is passed to the client (see
+> [Language Models and Providers](../core-concepts/language-models-and-providers.md)).
+> At the raw client level, only the explicit key or provider-specific env var is read.
 
 ## Base URL Resolution
 

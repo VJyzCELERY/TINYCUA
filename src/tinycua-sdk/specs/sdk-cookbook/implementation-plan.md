@@ -194,7 +194,7 @@ def test_standalone_snippets_run_without_errors():
 
 **Design Note — LLM-calling snippets**: The `test_standalone_snippets_run_without_errors` test only executes code blocks that start with an `import`/`from` statement (line 163 filter). To avoid timeouts and auth failures, standalone import-headed snippets must stop at object construction/configuration — they must not call `agent.run()`, `agent.stream_events()`, or any other method that invokes a live LLM. Live LLM interaction examples belong in continuation blocks (code blocks without import statements at the top, which are skipped by the line 163 filter). This constraint ensures every snippet that passes the import filter executes in CI without a live API key.
 
-The complete test suite (~479 lines, 14 test functions) is designed and will be implemented during the TDD phase. The additional tests cover: link integrity validation, naming convention enforcement, index completeness checks, Python syntax validation, continuation snippet parsing, page structure enforcement, and provider pattern coverage.
+The complete test suite (659 lines, 18 test functions) covers: link integrity validation, naming convention enforcement, index completeness checks, Python syntax validation, continuation snippet parsing, page structure enforcement, and provider pattern coverage.
 
 ### Key Test Scenarios
 
