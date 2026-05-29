@@ -59,6 +59,7 @@ flowchart TD
     subgraph TC["TINYCUA TASK CREATION"]
         TA_INIT["Task Analyzer\n(initial pass)"]
         LOT_INIT{{"Initial List Of Tasks"}}
+        DEC_EFFORT{"effort > none?"}
         TASSESS["Task Assessor\n(select tasks to decompose)"]
         SELECTED{{"Selected Tasks"}}
         ITER["For each selected task"]
@@ -73,7 +74,9 @@ flowchart TD
 
     DI --> TA_INIT
     TA_INIT --> LOT_INIT
-    LOT_INIT --> TASSESS
+    LOT_INIT --> DEC_EFFORT
+    DEC_EFFORT -->|Yes| TASSESS
+    DEC_EFFORT -->|No| FLOT
     TASSESS --> SELECTED
     SELECTED --> ITER
     ITER --> TA_DECOMP

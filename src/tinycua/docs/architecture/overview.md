@@ -141,7 +141,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 ---
 
-## Color Legend (for diagrams)
+## Diagram Legend
 
 | Shape | Meaning |
 |-------|---------|

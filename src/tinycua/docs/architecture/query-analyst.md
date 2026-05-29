@@ -5,7 +5,7 @@
 > **File:** `architecture/query-analyst.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Implemented
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [information-digestion.md](information-digestion.md), [task-classification.md](task-classification.md), [state-objects.md](state-objects.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [information-digestion.md](information-digestion.md), [task-classification.md](task-classification.md), [state-objects.md](state-objects.md), [primary-agent.md](primary-agent.md)
 
 ---
 

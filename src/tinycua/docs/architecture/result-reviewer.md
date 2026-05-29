@@ -98,7 +98,7 @@ This avoids dumping every previous task result into every future task. Context u
 |--------|----------------------|
 | `accepted` | Consolidate context for unfinished/upcoming tasks, then check whether any unfinished tasks remain. If none remain, aggregate Worker Result. |
 | `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. Do not resume the old executor. |
-| `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. The Task Analyzer is invoked fresh with the task's context and may produce a sub-list — it is not overhauling the entire roadmap, only breaking down the current task. This is a direct call to the Task Analyzer agent — the Task Creation loop runs only at Worker start. See [task-creation.md](task-creation.md) for upfront decomposition. If the final task is decomposed into new tasks, the Worker continues. |
+| `replan` | Call the [Task Analyzer](task-analysis.md) directly to decompose the current task into sub-tasks (not the full Task Creation loop). The Worker continues with the new sub-tasks. |
 | `escalate_user` | Pause the current agent sub-session and ask the user for clarification. |
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
