@@ -32,15 +32,15 @@ agent.run("query")
     v
 BaseLoop.run(agent, messages, tools, stream=False/True)
     |
-    +--> stream=False: _run_sync()
+    +--> stream=False:  # internal: _run_sync()
     |        loop until content or max_iterations:
-    |            agent._call_llm(working, tools)
+    |            # internal: agent._call_llm(working, tools)
     |            if tool_calls: process_tool_calls()
     |            else: return content
     |
-    +--> stream=True: _run_stream()
+    +--> stream=True:  # internal: _run_stream()
              loop until content or max_iterations:
-                 agent._call_llm(working, tools, stream=True)
+                 # internal: agent._call_llm(working, tools, stream=True)
                  yield events + execute tool calls
              yield response.completed
 ```

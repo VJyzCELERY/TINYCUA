@@ -277,7 +277,10 @@ manually — the client does it for you.
 
 ## Next Steps
 
-- **[Chat Completions Provider](./chat-completions-provider.md)** —
-  Compare with the Chat Completions provider for a full picture.
 - **[Custom Providers](./custom-providers.md)** — Build your own provider
   by implementing `LLMClient` and registering with `ProviderRegistry`.
+
+## See Also
+
+- **[Chat Completions Provider](./chat-completions-provider.md)** —
+  Compare with the Chat Completions provider for a full picture.

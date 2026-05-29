@@ -350,7 +350,7 @@ agent = Agent(
 )
 
 async def main():
-    async with AgentExecutor(config=agent._config) as executor:
+    async with AgentExecutor(config=agent.to_config()) as executor:
         try:
             response = await agent.run("Hello")
             print(response)
@@ -469,7 +469,9 @@ for normal shutdown, and letting it propagate uncaught will crash your app.
 5xx (server errors). The `@retry` decorator above only retries with
 `is_retryable()` — use a similar filter in your own code.
 
-## Next Steps
+## Related Topics
+
+You've completed the TINYCUA SDK Cookbook. Here are related topics for deeper exploration:
 
 - **[Custom Execution Loops](./custom-execution-loops.md)** — Override
   `BaseLoop` to add error handling at the loop level.
