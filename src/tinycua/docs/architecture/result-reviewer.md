@@ -88,7 +88,7 @@ flowchart TD
 
 After accepting a task, the Result Reviewer decides which unfinished or upcoming tasks need context updates.
 
-This avoids dumping every previous task result into every future task. Context updates are information consolidation: they may reduce, replace, or rewrite task context rather than only append new text.
+This avoids dumping every previous task result into every future task. Context updates may modify task context — they can replace or add to existing content. The architecture does not prescribe a specific consolidation strategy.
 
 ---
 

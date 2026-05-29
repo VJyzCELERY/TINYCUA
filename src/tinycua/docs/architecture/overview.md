@@ -80,7 +80,7 @@ flowchart TD
 
 The Worker is a sequential roadmap executor. It is not a parallel dependency scheduler.
 
-1. Task Creation runs at Worker start: when effort is high, the Task Assessor selects complex tasks and the Task Analyzer is invoked repeatedly to build a nested task tree (see [task-creation.md](task-creation.md)).
+1. Task Creation runs at Worker start: when effort is high, the Task Assessor and Task Analyzer work iteratively to build a nested task tree (see [task-creation.md](task-creation.md)).
 2. The Task Executor runs the current task using only that task's `context` plus shallow roadmap awareness.
 3. The Result Reviewer accepts, retries, replans, escalates, and propagates context to future tasks.
 4. Accepted task results are aggregated into the Worker Result.
@@ -136,7 +136,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Task Assessor | Input→output (no internal routing branches) | [task-assessor.md](task-assessor.md) |
 | Task Analyzer | Input→output (no internal routing branches) | [task-analysis.md](task-analysis.md) |
 | Task Executor | ReAct | [task-execution.md](task-execution.md) |
-| Result Reviewer | Hybrid decision (branching: accept / retry / replan / escalate) | [result-reviewer.md](result-reviewer.md) |
+| Result Reviewer | Hybrid decision | [result-reviewer.md](result-reviewer.md) |
 | Primary Agent | Response composition | [primary-agent.md](primary-agent.md) |
 
 ---

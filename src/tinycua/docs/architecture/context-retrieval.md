@@ -56,8 +56,6 @@ Important rules:
 - User query size does **not** trigger enhanced context retrieval.
 - The Information Digester decides when to search; retrieval is not automatic.
 - The Information Digester is unaware of whether the Session `Context` has been compacted — it searches whatever current state exists.
-- Session `chat_history` should preserve user, agent, and internal-agent turns in JSON form.
-- Session `Context` should accumulate as structured markdown and be compacted as needed (compaction is a background system process, separate from enhanced retrieval).
 
 ---
 
@@ -108,9 +106,7 @@ flowchart TD
 
 ## Search Approach
 
-Enhanced Context Retrieval searches the Session `Context` as an external data store. The exact search strategy (keyword, vector, LLM-based, or a combination) is an implementation detail. The architecture only requires that the Information Digester can search the Session `Context` without loading it entirely into its own context window.
-
-The approach is precision-first: relevance is judged by the Information Digester during exploration, not by token-proximity heuristics.
+The exact search strategy (keyword, vector, LLM-based, or combination) is an implementation detail. See Design Decisions below for the architectural approach.
 
 ---
 
