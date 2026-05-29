@@ -42,6 +42,7 @@ def check_auth():
 Catch it to differentiate authentication issues from other errors:
 
 ```python
+import asyncio
 import os
 
 from tinycua_sdk import Agent, LanguageModel
@@ -83,6 +84,8 @@ def simulate_rate_limit():
 Catch and inspect the status code to decide recovery strategy:
 
 ```python
+import asyncio
+
 from tinycua_sdk.core.exceptions import ProviderApiError
 
 try:
@@ -115,6 +118,7 @@ def show_supported():
 Catch it to provide helpful error messages:
 
 ```python
+import asyncio
 import os
 
 from tinycua_sdk import Agent, LanguageModel
@@ -147,6 +151,7 @@ Combine all three into a single handler that differentiates recovery
 strategies:
 
 ```python
+import asyncio
 import os
 
 from tinycua_sdk import Agent, LanguageModel
@@ -196,6 +201,8 @@ For transient errors (rate limits, server errors), use `tenacity` to retry
 with exponential backoff:
 
 ```python
+import asyncio
+
 from tenacity import (
     retry,
     retry_if_exception,
@@ -366,6 +373,8 @@ exceptions are raised during execution.
 ### Local (local LLM server / openai-compatible)
 
 ```python
+import asyncio
+
 from tinycua_sdk import Agent, LanguageModel
 from tinycua_sdk.core.exceptions import (
     ProviderApiError,
@@ -401,6 +410,7 @@ except ProviderApiError as e:
 ### Remote (OpenAI)
 
 ```python
+import asyncio
 import os
 
 from tinycua_sdk import Agent, LanguageModel
