@@ -36,7 +36,7 @@ Task Creation is an iterative decomposition loop that builds a nested task tree 
 
 **Initial pass:** The Task Analyzer receives `Digested Information` and produces an initial `List of Tasks`.
 
-**Effort gating:** If `effort` is `none`, the initial list is returned as-is — no further decomposition occurs. If `effort` is `high`, the iterative decomposition loop begins.
+**Effort gating:** The `effort` setting controls whether decomposition occurs. See [Effort-Controlled Decomposition](#effort-controlled-decomposition) below for the full behavior at each level.
 
 **Decomposition loop:** Each pass, the Task Assessor reviews the current task list and selects which tasks are complex enough to warrant decomposition (see [task-assessor.md](task-assessor.md)). For each selected task, the Task Analyzer is invoked fresh with the task's context as focused input and produces a sub-list. The sub-tasks are appended at the current task's position, and the original parent task becomes a container (see [state-objects.md](state-objects.md) for the nested task list schema).
 

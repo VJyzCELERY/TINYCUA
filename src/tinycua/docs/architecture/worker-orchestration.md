@@ -5,7 +5,7 @@
 > **File:** `architecture/worker-orchestration.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Implemented
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [information-digestion.md](information-digestion.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [information-digestion.md](information-digestion.md), [task-creation.md](task-creation.md), [task-assessor.md](task-assessor.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 
 This document defines the internal Worker orchestration used in Worker Mode.
 
@@ -134,3 +134,14 @@ The Worker only terminates successfully when the final unfinished task is accept
 The Worker Result aggregates accepted task outputs for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
 
 The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
+
+---
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Roadmap model | Sequential execution | Keeps orchestration simple; parallel work belongs inside individual task execution, not at the top level |
+| Human-in-the-loop | Clarification is not termination | Pausing for user input preserves the sub-session context; resuming avoids restarting the whole request |
+| Agent structure | Internal specialized agents, not standalone | Worker agents use sub-sessions for context isolation but remain part of the same TINYCUA agent — distinct from future explicit Sub Agents |
+| Worker output | Aggregated accepted results only | The Primary Agent receives only provenanced, accepted outputs — no rejected or intermediate results bypass Worker guarantees |

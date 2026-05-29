@@ -205,3 +205,14 @@ Important rules:
 - User query size alone does not trigger enhanced retrieval.
 
 See [context-retrieval.md](context-retrieval.md).
+
+---
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Context isolation | Sub-sessions with own `chat_history` and `Context` | Each specialized component receives only the context it needs without inheriting the full parent session |
+| Compaction trigger | Background system process, not agent-driven | Keeps compaction out of agent diagrams and tool sets. Triggered by model context-window pressure, not user query size |
+| Sub-session Context propagation | Not automatically propagated to primary | Preserves context isolation — parent Context only receives consolidated information when explicitly decided |
+| Sub-session chat_history propagation | Appended to primary chat_history | Preserves an auditable record of internal agent communication without leaking full execution context |

@@ -121,3 +121,14 @@ Enhanced Context Retrieval is invoked by the Information Digester. It searches t
 The Information Digester compiles this retrieved context into `Digested Information`.
 
 The Task Analyzer uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
+
+---
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Context access | Search tool, not direct loading | The Information Digester searches Session Context as an external data store — keeps its own context window small while accessing broad session knowledge |
+| Relevance judgment | LLM-judged, not token-proximity | Precision-first approach: semantic relevance matters more than keyword overlap or positional proximity |
+| Compaction relationship | Indifferent to compaction state | The retrieval tool searches whatever current Context exists — it does not depend on or trigger compaction |
+| Retrieval strategy | Implementation detail | Keyword, vector, LLM-based, or hybrid — the architecture only requires the ability to search without full loading |

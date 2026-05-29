@@ -194,7 +194,7 @@ Optional fields:
 
 - `tasks` — a nested sub-list of task objects. When present, this task is a container and is not executed.
 
-Avoid adding rigid per-task fields such as `required_tools`, `expected_output`, `max_depth`, or dependency lists unless a later design explicitly justifies them.
+Additional fields may be introduced if justified by a later design decision.
 
 ---
 
