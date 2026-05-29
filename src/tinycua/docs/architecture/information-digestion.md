@@ -91,6 +91,5 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 | Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
 | Boundary | Privileged narrowing boundary | Digestion can inspect broad context without leaking broad context downstream |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
-| Output format | Text representation sent to agents | LLMs consume text naturally; storage format is an implementation detail |
-| Original query included? | No raw-query crutch by default | Downstream agents should work from digest, not default to broad history |
+
 | Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |

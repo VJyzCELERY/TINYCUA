@@ -94,9 +94,7 @@ flowchart TD
 
 ## LLM-First Retrieval
 
-TINYCUA should avoid framing retrieval as conventional RAG where embedding search and hard token packing dominate the design.
-
-The preferred architectural approach is precision-first, LLM-judged retrieval: generate search queries from the CEQ (high-level guidance), search session `chat_history` and/or `Context` for candidate matches, use an LLM to judge relevance semantically, and produce fine-detail retrieved context for the Information Digester to compile into `Digested Information`. The Mermaid diagram above captures this flow without prescribing implementation details.
+TINYCUA uses precision-first, LLM-judged retrieval: semantic relevance judgment by an LLM, not embedding-search token proximity.
 
 ---
 
