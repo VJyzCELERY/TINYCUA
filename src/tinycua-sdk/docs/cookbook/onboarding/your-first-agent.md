@@ -116,11 +116,11 @@ Enable streaming with `stream=True`:
 ```python
 import asyncio
 
-async def _demo():
+async def demo():
     async for event in await agent.run("Say hello in three languages", stream=True):
         print(event)
 
-asyncio.run(_demo())
+asyncio.run(demo())
 ```
 
 Each event is a dictionary. To accumulate text content:

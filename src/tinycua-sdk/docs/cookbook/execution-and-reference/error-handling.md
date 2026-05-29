@@ -173,7 +173,9 @@ agent = Agent(
     instructions="You are a helpful assistant.",
     llm_model=model,
 )
+```
 
+```python
 try:
     response = asyncio.run(agent.run("What is the weather today?"))
     print(response)
@@ -198,7 +200,11 @@ except Exception as e:
 ## Retry with tenacity
 
 For transient errors (rate limits, server errors), use `tenacity` to retry
-with exponential backoff:
+with exponential backoff. Install it first:
+
+```bash
+pip install tenacity
+```
 
 ```python
 import asyncio
@@ -393,7 +399,9 @@ agent = Agent(
     instructions="You are a local assistant.",
     llm_model=model,
 )
+```
 
+```python
 try:
     response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
@@ -432,7 +440,9 @@ agent = Agent(
     instructions="You are a remote assistant.",
     llm_model=model,
 )
+```
 
+```python
 try:
     response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:

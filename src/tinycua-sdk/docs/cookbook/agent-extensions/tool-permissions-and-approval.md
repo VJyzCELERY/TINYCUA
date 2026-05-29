@@ -126,16 +126,12 @@ agent.tool_permissions = {
 `ApprovalWorkflow` is an abstract base class with one required method:
 
 ```python
-from abc import abstractmethod
 from typing import Any
+from tinycua_sdk.security.approval import ApprovalWorkflow
 
-
-class ApprovalWorkflow:
-    @abstractmethod
-    async def request_approval(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
-        ...
+# ApprovalWorkflow is an abstract base class with one required method:
+#   async def request_approval(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]
+# Subclass it and implement this method to create a custom approval workflow.
 ```
 
 The method receives the tool name and resolved arguments. It must return a dict
