@@ -241,8 +241,6 @@ agent = Agent(
 You can also override `process_tool_calls` to intercept tool execution:
 
 ```python
-import asyncio
-import json
 from typing import Any
 
 from tinycua_sdk import Agent, BaseLoop

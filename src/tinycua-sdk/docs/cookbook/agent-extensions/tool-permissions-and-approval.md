@@ -29,8 +29,6 @@ time or set it later via the `tool_permissions` property.
 Unlisted tools default to `"allow"`.
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel, tool
 
 

@@ -139,8 +139,6 @@ reading when it's time to send data to the API.
 Local (local LLM server) — construction only:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, FileAttachment, LanguageModel
 
 attachment = FileAttachment.from_path("large_document.pdf", stream=True)

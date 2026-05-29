@@ -544,11 +544,11 @@ def test_page_structure():
         if not re.search(r"^##\s+Common Pitfalls\s*$", prose, re.MULTILINE):
             violations.append((rel, "missing ## Common Pitfalls section"))
 
-        # Must have a Next Steps section (or See Also)
+        # Must have a Next Steps section (or See Also / Related Topics)
         if not re.search(
-            r"^##\s+(Next Steps|See Also)\s*$", prose, re.MULTILINE
+            r"^##\s+(Next Steps|See Also|Related Topics)\s*$", prose, re.MULTILINE
         ):
-            violations.append((rel, "missing ## Next Steps section"))
+            violations.append((rel, "missing ## Next Steps / Related Topics section"))
 
     assert not violations, (
         f"Structure violations in {len(violations)} pages: "

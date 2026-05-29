@@ -221,8 +221,6 @@ def get_metadata(record_id: int) -> dict:
 Once defined, tools are passed at construction time or added later:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel, tool
 
 

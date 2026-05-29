@@ -113,8 +113,6 @@ Start your local server, load a model (e.g., `qwen/qwen3.5-9b`), and enable the 
 server on port `1234`. Then:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
@@ -133,8 +131,6 @@ agent = Agent(
 With `LLM_BASE_URL` set in `.env`, omit `base_url`:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(

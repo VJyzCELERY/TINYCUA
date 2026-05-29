@@ -196,8 +196,6 @@ For transient errors (rate limits, server errors), use `tenacity` to retry
 with exponential backoff:
 
 ```python
-import os
-
 from tenacity import (
     retry,
     retry_if_exception,
@@ -368,8 +366,6 @@ exceptions are raised during execution.
 ### Local (local LLM server / openai-compatible)
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 from tinycua_sdk.core.exceptions import (
     ProviderApiError,

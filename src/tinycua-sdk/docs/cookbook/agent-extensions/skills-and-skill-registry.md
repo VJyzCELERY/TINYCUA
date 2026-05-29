@@ -174,8 +174,6 @@ Skills are injected into the system prompt alongside the agent's
 ### Local (local LLM server)
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel, Skill
 
 safety = Skill(

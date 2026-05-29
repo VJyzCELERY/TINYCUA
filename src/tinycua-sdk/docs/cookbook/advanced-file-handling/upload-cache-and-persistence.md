@@ -46,8 +46,6 @@ agent = Agent(
 Local (local LLM server) setup:
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
