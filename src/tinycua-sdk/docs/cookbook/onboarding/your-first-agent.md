@@ -209,5 +209,8 @@ asyncio.run(main())
 
 - **[Agent Configuration](./agent-configuration.md)** — Learn `AgentConfig`,
   `AgentPolicy`, and serialization to JSON/YAML.
+
+## See Also
+
 - **[Creating Tools](../agent-extensions/creating-tools.md)** — Extend your
   agent with custom tools.

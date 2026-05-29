@@ -296,5 +296,3 @@ exposed as tools.
 
 - **[Skills and Skill Registry](./skills-and-skill-registry.md)** — Add
   reusable instructions to agents with `Skill` objects.
-- **[Tool Results with Files](../advanced-file-handling/tool-results-with-files.md)** —
-  Return file attachments from tool calls.

@@ -233,6 +233,10 @@ applies these alias mappings:
 | `"openai"` | `"openai-responses"` |
 | `"lmstudio"` | `"openai-compatible"` |
 
+> **Note**: `"lmstudio"` is a legacy convenience alias that maps to
+> `"openai-compatible"`. For new code, prefer `"openai-compatible"` directly
+> — it's provider-agnostic and works with any local LLM server.
+
 When you call `registry.register("my-alias", factory)`, the alias is resolved
 to its canonical form before storage. This means:
 

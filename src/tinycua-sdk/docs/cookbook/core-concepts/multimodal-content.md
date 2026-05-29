@@ -10,6 +10,9 @@ Multimodal content lets you send a mix of text and files as a single agent query
 
 This page covers building `ContentPart` lists, mixing text and images, provider-level behavior differences, and patterns for both local and remote models.
 
+> **Note**: Code examples use placeholder paths like `"path/to/your/photo.jpg"`.
+> Replace these with actual files on your system when running the snippets.
+
 ## ContentPart Types
 
 A `ContentPart` is a union type — it is either text or a file:

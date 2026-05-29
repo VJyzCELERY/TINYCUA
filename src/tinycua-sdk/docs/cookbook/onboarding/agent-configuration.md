@@ -227,5 +227,8 @@ missing, install it with `pip install pyyaml` or use JSON instead.
 
 - **[Language Models and Providers](../core-concepts/language-models-and-providers.md)** —
   Deep dive into model parameters and provider selection.
+
+## See Also
+
 - **[Creating Tools](../agent-extensions/creating-tools.md)** — Define custom
   tools for your agents.

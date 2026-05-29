@@ -10,6 +10,9 @@ You can create attachments from local file paths, in-memory byte buffers, or rem
 
 This page covers all three factory methods, the `file_id` reference pattern, local vs remote provider support, and common mistakes with file handling.
 
+> **Note**: Code examples use placeholder paths like `"path/to/your/file.png"`.
+> Replace these with actual files on your system when running the snippets.
+
 ## Creating File Attachments
 
 ### From a Local File
