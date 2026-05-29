@@ -153,7 +153,7 @@ See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
 
 ## Context Compaction
 
-Compaction is triggered by model context-window pressure, not by user query size.
+Compaction is a **background system process** — not part of any agent's tool set and not shown in the agent architecture diagrams. It is triggered by model context-window pressure, not by user query size.
 
 Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. After compaction:
 
@@ -194,8 +194,14 @@ Future explicit Sub Agents will be a separate concept. A future Sub Agent sessio
 
 ## Relationship to Enhanced Context Retrieval
 
-Enhanced Context Retrieval is invoked by the Information Digester. It uses session `Context` and/or retrievable `chat_history` records to perform deep, precise retrieval of lower-level, finer-detail context.
+Enhanced Context Retrieval is a tool used by the Information Digester. It searches the current Session `Context` as an external data store — without loading the full `Context` into the Information Digester's own context window.
 
-The trigger is accumulated session `Context` size relative to model context-window pressure. User query size alone does not trigger enhanced retrieval.
+The Information Digester receives what it treats as the user query (the `Context Enhanced Query` from the Query Analyst). When it identifies information gaps, it uses Enhanced Context Retrieval to explore the Session `Context` for missing details.
+
+Important rules:
+
+- Enhanced Context Retrieval searches whatever current Session `Context` exists — it is indifferent to whether the context is original, compacted, or enriched with memory/recall.
+- Compaction (above) is a separate background system process triggered by context-window pressure. Enhanced Context Retrieval is not compaction and is not triggered by context-window pressure.
+- User query size alone does not trigger enhanced retrieval.
 
 See [context-retrieval.md](context-retrieval.md).

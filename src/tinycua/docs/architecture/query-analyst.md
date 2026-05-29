@@ -27,7 +27,6 @@ The Query Analyst scans session `Context` directly (no search tool needed). Deep
 - `user_query`
 - `session.chat_history`
 - `session.context`
-- context-window pressure assessment (session `Context` size relative to model limit)
 
 **Output:**
 

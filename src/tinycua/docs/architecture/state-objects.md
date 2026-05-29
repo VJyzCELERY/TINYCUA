@@ -42,7 +42,7 @@ Important rules:
 
 - `chat_history` is the preserved turn log and should be JSON.
 - `Context` is structured markdown and is what the model loads.
-- Enhanced context retrieval is invoked by the Information Digester when session `Context` approaches model context-window pressure.
+- Enhanced context retrieval is a tool used by the Information Digester to search the current Session `Context` as an external data store — without loading it directly. Compaction (triggered by model context-window pressure) is a separate background system process.
 - Sub-sessions keep their own `chat_history`, `Context`, and `execution_log`, but sub-session `chat_history` is propagated to primary session `chat_history`.
 - Sub-session `Context` is not automatically appended to primary session `Context`.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.

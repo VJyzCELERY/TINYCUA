@@ -18,7 +18,7 @@ The Query Analyst performs a fast, high-level scan and produces:
 1. `Context Enhanced Query` (CEQ) — high-level enrichment
 2. `Mode Decision`
 
-The Information Digester receives the CEQ and performs Enhanced Context Retrieval (deep, precise search of session data) to produce `Digested Information`.
+The Information Digester receives the CEQ and uses Enhanced Context Retrieval (a search tool that explores the current Session `Context` as an external source) to produce `Digested Information`.
 
 The current top-level routing model is:
 

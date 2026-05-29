@@ -26,7 +26,7 @@ Work decomposition is therefore a means to context decomposition.
 The Query Analyst produces a `Mode Decision`:
 
 - **Primary Agent Mode:** Query Analyst (high-level scan) → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated, precise context before answering.
-- **Worker Mode:** Query Analyst (high-level scan) → Information Digester (deep context retrieval) → TINYCUA Worker → Primary Agent
+- **Worker Mode:** Query Analyst (high-level scan) → Information Digester (explores Session Context via Enhanced Context Retrieval) → TINYCUA Worker → Primary Agent
 - **Uncertain Mode:** Query Analyst must choose an explicit `uncertain_next_action`, such as exploring more or asking the user.
 
 Worker Mode is an internal specialized-agent orchestration presented externally as one TINYCUA agent.
@@ -38,7 +38,7 @@ flowchart TD
         CEQ{{"Context Enhanced Query\n(high-level)"}}
         MD{{"Mode Decision"}}
         ROUTE{"Selected mode"}
-        ID["Information Digester\n(Agent — deep retrieval + digestion)"]
+        ID["Information Digester\n(Exploration Agent —\nsearches Session Context)"]
         DI{{"Digested Information"}}
         TW["TINYCUA Worker\n(Sub-agent Orchestration)"]
         WR{{"Worker Result"}}
@@ -64,7 +64,7 @@ flowchart TD
 
     ROUTE -->|worker| ID
     CEQ --> ID
-    FSC -. "deep retrieval" .-> ID
+    FSC -. "exploration\nvia retrieval tool" .-> ID
     ID --> DI
     DI -->|primary_agent requested digestion| PA
     DI -->|worker mode| TW
@@ -116,7 +116,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Component | File | Type | Role |
 |-----------|------|------|------|
 | Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Performs fast, high-level context scan and produces CEQ + Mode Decision |
-| Information Digester | [information-digestion.md](information-digestion.md) | LLM Agent | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
+| Information Digester | [information-digestion.md](information-digestion.md) | Exploration Agent | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Analyzer, Task Executor, and Task Reviewer sequentially |
 | Task Analyzer | [task-analysis.md](task-analysis.md) | ReAct Agent | Creates the sequential task roadmap |
 | Task Executor | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
@@ -130,7 +130,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Agent | Loop Type | Tools | Notes |
 |-------|-----------|-------|-------|
 | Query Analyst | High-level context scan + classification | None (scans session context directly) | Produces `primary_agent`, `worker`, or `uncertain` decision |
-| Information Digester | Precision-oriented digestion | Enhanced Context Retrieval | Deep, precise context retrieval; removes distracting context and preserves task-critical information |
+| Information Digester | Precision-oriented exploration | Enhanced Context Retrieval (searches Session Context as external source) | Exploration agent; does not load full Session Context — searches it via retrieval tool. Removes distracting context and preserves task-critical information |
 | Task Analyzer | Effort-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
 | Task Executor | ReAct | Task tools | Produces result + execution log |
 | Task Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |

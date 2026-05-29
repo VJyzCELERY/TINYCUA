@@ -1,19 +1,28 @@
 # Enhanced Context Retrieval
 
-> **Category:** Process Spec
+> **Category:** Tool Spec
 
 > **File:** `architecture/context-retrieval.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-29
 > **Status:** Draft
 > **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 
-This document defines the deep, precision-oriented context retrieval process used by the Information Digester to compile fine-detail context from session `chat_history` and `Context`.
+This document defines Enhanced Context Retrieval — the search tool used by the Information Digester to explore the current Session `Context` as an external information source, without loading it directly into the Information Digester's own context window.
 
 ---
 
 ## Role
 
-The Enhanced Context Retrieval process is invoked by the Information Digester. It receives a `Context Enhanced Query` (high-level) as guidance and performs deep, precision-oriented search of session `chat_history` and `Context` to retrieve lower-level, finer-detail context. The retrieved context is then compiled by the Information Digester into `Digested Information`.
+Enhanced Context Retrieval is a **tool** available to the Information Digester. It allows the Information Digester to search the current Session `Context` (the structured markdown loaded by the model for the session) as an external research source.
+
+The Information Digester does not receive the full Session `Context` as its direct context. Instead, it receives what it treats as the user query (the `Context Enhanced Query` from the Query Analyst). When the Information Digester identifies information gaps — details the query alludes to but does not contain — it uses Enhanced Context Retrieval to explore the Session `Context` for the missing information.
+
+Key framing:
+
+- Enhanced Context Retrieval **searches** the current Session `Context`. It does not load it. The Information Digester queries the Session `Context`; it does not ingest it wholesale.
+- It is **not** compaction. Compaction is a background system process triggered by context-window pressure (see [session-architecture.md](session-architecture.md)) and is not part of any agent's tool set.
+- It is indifferent to compaction state. Whether the Session `Context` is original, compacted, or enriched with memory/recall, the retrieval tool searches whatever current state exists.
+- It may use keyword pagination, vector retrieval, LLM-based exploration, or any combination — the exact strategy is an implementation detail.
 
 ---
 
@@ -21,15 +30,12 @@ The Enhanced Context Retrieval process is invoked by the Information Digester. I
 
 **Input:**
 
-- `context_enhanced_query` (high-level) — guidance for what to search for
-- `user_query`
-- Session `chat_history` (JSON turn log)
-- Session `Context` (structured markdown)
-- Context-window pressure trigger (accumulated `Context` size relative to model limit)
+- Information needs derived from the Information Digester's query processing (gaps, missing details, entities to resolve)
+- Current Session `Context` (structured markdown) — searched as an external data store
 
 **Output:**
 
-- **Retrieved context** — lower-level, finer-detail context retrieved from session data. Consumed by the Information Digester to produce `Digested Information`.
+- **Retrieved context** — lower-level, finer-detail context retrieved from the Session `Context`. Consumed by the Information Digester to produce `Digested Information`.
 
 ---
 
@@ -37,18 +43,29 @@ The Enhanced Context Retrieval process is invoked by the Information Digester. I
 
 Enhanced context retrieval is about precision, not token efficiency alone. The goal is to reduce irrelevant context exposure so agents reason over the context most relevant to their current role.
 
+By searching rather than loading, the Information Digester stays focused while accessing the broader session knowledge when needed.
+
 ---
 
 ## Retrieval Trigger
 
-Enhanced Context Retrieval is invoked by the Information Digester. Deep search of session data is triggered when accumulated session `Context` approaches model context-window pressure; when `Context` is small, the system can use it directly without deep search.
+Enhanced Context Retrieval is used by the Information Digester when it identifies information gaps while processing the query it received. The Information Digester does not distinguish between a raw user query and a `Context Enhanced Query` — it treats whatever it receives as the query and uses retrieval when it needs more context.
 
 Important rules:
 
 - User query size does **not** trigger enhanced context retrieval.
-- If session `Context` is still small, the system can use it directly.
+- The Information Digester decides when to search; retrieval is not automatic.
+- The Information Digester is unaware of whether the Session `Context` has been compacted — it searches whatever current state exists.
 - Session `chat_history` should preserve user, agent, and internal-agent turns in JSON form.
-- Session `Context` should accumulate as structured markdown and be compacted as needed.
+- Session `Context` should accumulate as structured markdown and be compacted as needed (compaction is a background system process, separate from enhanced retrieval).
+
+---
+
+## Relationship to Compaction
+
+Compaction is a **background system process** — not part of any agent's tool set and not shown in the agent architecture diagrams. It is triggered by model context-window pressure and summarizes the current Session `Context` to keep it manageable (see [session-architecture.md](session-architecture.md)).
+
+Enhanced Context Retrieval is indifferent to compaction. It searches the current Session `Context` regardless of whether that context is original, compacted, or enriched with memory/recall. From the retrieval tool's perspective, the Session `Context` is simply the searchable data store that exists at retrieval time.
 
 ---
 
@@ -59,8 +76,7 @@ Session storage, compaction, and sub-session propagation are defined in [session
 Important retrieval-facing rules:
 
 - `chat_history` is JSON and preserves turns.
-- `Context` is structured markdown and is what the model loads.
-- Compaction summarizes current `Context`, not raw `chat_history` from scratch.
+- `Context` is structured markdown and is what the model loads. Enhanced Context Retrieval searches it as an external store.
 - Sub-sessions can preserve their own isolated `Context` while propagating their `chat_history` into the primary session `chat_history`.
 
 ---
@@ -69,26 +85,36 @@ Important retrieval-facing rules:
 
 ```mermaid
 flowchart TD
-    UQ{{"User Query"}}
-    CEQ_GUIDE{{"Context Enhanced Query\n(high-level guidance)"}}
-    SIZE{"Session Context near model limit?"}
-    DIRECT["Use current context directly"]
-    SEARCH["Generate search query / retrieval plan"]
-    STORE{{"Session chat_history + Context"}}
-    CAND{{"Candidate context"}}
+    DIGESTER["Information Digester\n(processes query, identifies gaps)"]
+    SEARCH_NEED{"Needs more context?"}
+    DIRECT["Proceed with current information"]
+    FORMULATE["Formulate search query\nfrom identified gaps"]
+    SESSION_CTX[("Session Context\n(structured markdown)\n— current state")]
+    CAND{{"Candidate results"}}
     JUDGE["LLM-first relevance judgment"]
     RET_CTX{{"Retrieved Context\n(fine-detail, to Digester)"}}
 
-    UQ --> SIZE
-    CEQ_GUIDE --> SIZE
-    SIZE -->|No| DIRECT
+    DIGESTER --> SEARCH_NEED
+    SEARCH_NEED -->|No| DIRECT
     DIRECT --> RET_CTX
-    SIZE -->|Yes| SEARCH
-    SEARCH --> STORE
-    STORE --> CAND
+    SEARCH_NEED -->|Yes| FORMULATE
+    FORMULATE --> SESSION_CTX
+    SESSION_CTX --> CAND
     CAND --> JUDGE
     JUDGE --> RET_CTX
 ```
+
+---
+
+## Search Approaches
+
+Enhanced Context Retrieval may use one or more search strategies to browse the Session `Context`:
+
+- **Keyword pagination** — search `Context` sections by keyword match with paginated results.
+- **Vector retrieval** — embed the search query and retrieve semantically similar `Context` sections.
+- **LLM-based exploration** — use an agentic loop to explore the `Context` and judge relevance.
+
+The exact approach is an implementation detail. The architecture only requires that the Information Digester can search the Session `Context` without loading it entirely into its own context window.
 
 ---
 
@@ -100,10 +126,8 @@ TINYCUA uses precision-first, LLM-judged retrieval: semantic relevance judgment 
 
 ## Relationship to Digestion and Task Context
 
-Enhanced Context Retrieval is invoked by the Information Digester. It receives the Context Enhanced Query (high-level, from the Query Analyst) as guidance and retrieves deep, precise context from session `chat_history` and `Context`.
+Enhanced Context Retrieval is invoked by the Information Digester. It searches the current Session `Context` to retrieve deep, precise context.
 
-The Information Digester compiles this retrieved context with other inputs into `Digested Information`.
+The Information Digester compiles this retrieved context into `Digested Information`.
 
 The Task Analyzer uses Digested Information to create each task's `context` field. This is where task-specific context exposure is established.
-
-
