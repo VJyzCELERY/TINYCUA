@@ -154,7 +154,7 @@ agent = Agent(
 
 json_str = agent.to_json()
 
-with open("agent_config.json", "w") as f:
+with open("tmp/agent_config.json", "w") as f:
     f.write(json_str)
 ```
 
@@ -194,7 +194,7 @@ agent = Agent(
 
 yaml_str = agent.to_yaml()
 
-with open("agent_config.yaml", "w") as f:
+with open("tmp/agent_config.yaml", "w") as f:
     f.write(yaml_str)
 ```
 

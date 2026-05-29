@@ -28,8 +28,13 @@ agents, tools, streaming, file handling, providers, and more.
 
 The `Agent.run()` method accepts file attachments via the optional
 `file_attachments` parameter and supports multimodal `ContentPart` queries.
-`FileAttachment` and `ContentPart` are importable from the top-level
+`FileAttachment` provides `from_path`, `from_bytes`, and `from_url` factory
+methods. `ContentPart` is a union of text parts and file parts, all under the
 `tinycua_sdk` namespace.
+
+> **Note**: Replace `"screenshot.png"`, `"photo1.jpg"`, and `"photo2.jpg"`
+> below with actual files on your system. See the
+> [cookbook](./docs/cookbook/index.md) for complete runnable examples.
 
 ```python
 import asyncio
