@@ -169,7 +169,7 @@ task_list:
   current_task_id: "<current task id>"
 ```
 
-Nesting can continue to arbitrary depth. The depth is controlled by the Worker's `effort` setting and how many passes the Task Creation loop performs. Deeper nesting follows the same container/leaf pattern — each additional level is a `tasks` sub-list within a container task. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
+Nesting can continue to arbitrary depth, controlled by the Worker's `effort` setting. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
 
 The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify a task's `context` field — they can replace or add to existing context. The architecture does not prescribe a specific consolidation strategy.
 

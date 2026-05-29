@@ -96,9 +96,9 @@ session:
   session_id: "<session id>"
   owner_type: primary | tinycua_internal | future_sub_agent
   owner_name: "<agent or user name>"
-  chat_history: []
+  chat_history: "<JSON turn log entries>"
   context: "<structured markdown>"
-  execution_log: []  # actions and outcomes from sub-session execution
+  execution_log: "<sub-session actions and outcomes>"
 ```
 
 `owner_type` distinguishes the primary user-facing session, TINYCUA internal specialized-agent sessions, and future explicit sub-agent sessions.
@@ -155,11 +155,7 @@ See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
 
 Compaction is a **background system process** — not part of any agent's tool set and not shown in the agent architecture diagrams. It is triggered by model context-window pressure, not by user query size.
 
-Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. After compaction:
-
-1. compacted information is placed near the beginning of `Context`;
-2. new relevant turns are appended after the compacted information;
-3. `chat_history` remains the structural source of preserved turns as much as practical.
+Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. The compacted information replaces the original `Context` content; `chat_history` is preserved separately. The exact structure of the compacted `Context` is an implementation detail.
 
 This lets TINYCUA preserve exchange history while keeping model-loaded context manageable.
 
