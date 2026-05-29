@@ -146,25 +146,9 @@ the `BaseLoop`. It manages:
 - **Cancellation** via `cancel()` and `is_cancelled`
 - **Resource cleanup** via `close()` (calls `client.close()`)
 
-```python
-import asyncio
-from tinycua_sdk import Agent, AgentExecutor
-
-agent = Agent(
-    name="helper",
-    instructions="You are a helpful assistant.",
-)
-
-async def main():
-    executor = AgentExecutor(config=agent.to_config())
-    async with executor:
-        # Use executor here
-        pass
-
-asyncio.run(main())
-```
-
-The executor supports async context manager — `close()` is called on exit:
+The executor supports async context manager — `close()` is called on exit.
+You can also construct the executor separately:
+`executor = AgentExecutor(config=agent.to_config()) ; async with executor: ...`
 
 ```python
 import asyncio
@@ -314,5 +298,8 @@ surprising consumers who iterate over a string.
 
 - **[Canonical Stream Events](./canonical-stream-events.md)** — Complete
   reference of all 15 event types that flow through the execution loop.
+
+## See Also
+
 - **[Error Handling](./error-handling.md)** — Catch and handle provider
   errors, authentication failures, and cancellations.

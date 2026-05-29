@@ -182,8 +182,6 @@ The 15 canonical event types emitted during streaming, in typical order of occur
 |---|---|---|
 | `response.created` | — | Stream session established |
 | `response.in_progress` | — | Processing has begun |
-| `response.reasoning.delta` | `delta` | Reasoning token (reasoning models only) |
-| `response.reasoning.done` | — | Reasoning phase complete |
 | `response.output_text.delta` | `delta`, `index` | Text token fragment |
 | `response.output_text.done` | `index` | One output text item finished |
 | `response.output_item.added` | `id`, `call_id`, `name` | Tool call started |
@@ -194,6 +192,8 @@ The 15 canonical event types emitted during streaming, in typical order of occur
 | `response.completed` | `finish_reason` | Stream completed successfully |
 | `response.failed` | `error` | Stream failed with an error |
 | `response.cancelled` | — | Stream was cancelled |
+| `response.reasoning.delta` | `delta` | Reasoning token (reasoning models only) |
+| `response.reasoning.done` | — | Reasoning phase complete (reasoning models only) |
 | `error` | `error` | Unexpected error during stream processing |
 
 Events are emitted in-order within each output item. Tool call events are nested between `response.output_item.added` and `response.function_call_arguments.done`.

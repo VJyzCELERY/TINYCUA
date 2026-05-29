@@ -1,5 +1,11 @@
 # Custom Providers
 
+> **Advanced**: This page uses internal SDK modules for deep provider
+> exploration. These import paths (`tinycua_sdk.agent.*`, `tinycua_sdk.providers.*`) are not part
+> of the stable public API and may change between minor versions. For
+> production code, use the high-level `LanguageModel` and `Agent` APIs
+> demonstrated in earlier pages.
+
 **Prerequisites**: [Responses Provider](./responses-provider.md) —
 you understand how the built-in clients translate messages and handle API calls.
 
@@ -330,5 +336,8 @@ calls `close()` on the client when the agent context exits.
 - **[Custom Execution Loops](../execution-and-reference/custom-execution-loops.md)** —
   Override `BaseLoop` to customize how the agent processes tool calls and
   manages iteration.
+
+## See Also
+
 - **[Canonical Stream Events](../execution-and-reference/canonical-stream-events.md)** —
   Complete reference of all 15 event types your provider must emit.

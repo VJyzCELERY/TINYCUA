@@ -108,6 +108,18 @@ policy = AgentPolicy(
 > other. Set to `False` to run tools one at a time in order — use this when tool
 > B needs the output of tool A.
 
+When `parallel_tool_calls` is left at its default (`True`), multiple tool calls
+execute concurrently:
+
+```python
+from tinycua_sdk import AgentPolicy
+
+# Default: parallel_tool_calls=True
+# Multiple tool calls from a single LLM response execute concurrently.
+# This is faster but may cause race conditions with dependent tools.
+policy_default = AgentPolicy()
+```
+
 Attach a policy when constructing:
 
 ```python

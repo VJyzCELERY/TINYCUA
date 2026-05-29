@@ -1,5 +1,11 @@
 # Chat Completions Provider
 
+> **Advanced**: This page uses internal SDK modules for deep provider
+> exploration. These import paths (`tinycua_sdk.providers.*`) are not part
+> of the stable public API and may change between minor versions. For
+> production code, use the high-level `LanguageModel` and `Agent` APIs
+> demonstrated in earlier pages.
+
 **Prerequisites**: [Tool Results with Files](../advanced-file-handling/tool-results-with-files.md) —
 you understand how tools return content and how multipart results flow through the system.
 
@@ -18,7 +24,7 @@ the client directly.
 ## Selecting the Provider
 
 Use `LanguageModel(provider="openai-chat-completions")` to route through this
-provider. The alias `"openai-compatible"` also resolves to it — ideal for local
+provider. The alias `"openai-compatible"` also resolves to it — ideal for
 local LLM servers and similar servers.
 
 ```python
@@ -258,11 +264,11 @@ arrival, and optional `finish_reason` appearance timing.
 
 ## Common Pitfalls
 
-**Using `openai-responses` fields with Chat Completions**. Some parameters
-that are valid for one provider (e.g., stateful conversation parameters) may
-be silently ignored when passed to another provider. Always check the
-supported fields table above to confirm which parameters your chosen
-provider accepts.
+**Using Responses-only parameters with Chat Completions**. The Chat
+Completions provider silently ignores parameters not listed in the Supported
+Fields table above (e.g., `parallel_tool_calls` directive from the Responses
+conversation state model). Always check the table to confirm which parameters
+your chosen provider accepts.
 
 **Missing tool-result synthetic messages**. When a tool returns structured
 content (images or files), the Chat Completions client generates extra
@@ -278,5 +284,8 @@ different client entirely with distinct behavior.
 
 - **[Responses Provider](./responses-provider.md)** — Deep dive into
   `OpenAIResponsesClient` and the Responses API provider.
+
+## See Also
+
 - **[Custom Providers](./custom-providers.md)** — Build your own provider
   by implementing the `LLMClient` ABC.

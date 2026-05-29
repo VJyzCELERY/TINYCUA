@@ -131,7 +131,7 @@ import asyncio
 async def main():
     content = ""
     async for event in await agent.run("Tell me a short joke", stream=True):
-        if event.get("type") == "response.output_text.delta":
+        if event["type"] == "response.output_text.delta":
             content += event.get("delta", "")
     print(content)
 
@@ -195,7 +195,7 @@ import asyncio
 async def main():
     content = ""
     async for event in await agent.run("Hello", stream=True):
-        if event.get("type") == "response.output_text.delta":
+        if event["type"] == "response.output_text.delta":
             content += event.get("delta", "")
     print(content)
 

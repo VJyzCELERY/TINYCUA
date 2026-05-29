@@ -171,6 +171,20 @@ You can use `file_attachments` with a string query **or** `ContentPart` lists. T
 
 ```python
 import asyncio
+import os
+from tinycua_sdk import LanguageModel, Agent, ContentPart, FileAttachment
+
+model = LanguageModel(
+    provider="openai-responses",
+    model_name="gpt-4o",
+    api_key=os.environ.get("OPENAI_API_KEY"),
+)
+
+agent = Agent(
+    name="vision-assistant",
+    instructions="You are a helpful assistant.",
+    llm_model=model,
+)
 
 # Approach 1: file_attachments parameter
 response = asyncio.run(agent.run(

@@ -202,5 +202,8 @@ for multi-GB files.
 - **[Upload Cache and Persistence](./upload-cache-and-persistence.md)** —
   Cache uploaded file references across sessions with content-addressed
   deduplication.
+
+## See Also
+
 - **[Tool Results with Files](./tool-results-with-files.md)** — Return file
   attachments from tool calls.

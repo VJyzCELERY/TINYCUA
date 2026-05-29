@@ -1,5 +1,11 @@
 # Responses Provider
 
+> **Advanced**: This page uses internal SDK modules for deep provider
+> exploration. These import paths (`tinycua_sdk.providers.*`) are not part
+> of the stable public API and may change between minor versions. For
+> production code, use the high-level `LanguageModel` and `Agent` APIs
+> demonstrated in earlier pages.
+
 **Prerequisites**: [Chat Completions Provider](./chat-completions-provider.md) —
 you understand how the Chat Completions client handles message translation and
 supported fields.

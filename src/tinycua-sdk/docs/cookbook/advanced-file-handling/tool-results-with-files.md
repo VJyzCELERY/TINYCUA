@@ -270,6 +270,9 @@ naturally.
 - **[Chat Completions Provider](../provider-deep-dives/chat-completions-provider.md)** —
   Deep dive into how Chat Completions handles tool results and synthetic
   messages.
+
+## See Also
+
 - **[Responses Provider](../provider-deep-dives/responses-provider.md)** —
   Understand how Responses handles stateful conversations and follow-up user
   messages.

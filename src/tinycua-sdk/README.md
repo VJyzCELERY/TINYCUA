@@ -16,9 +16,12 @@ remote (OpenAI) providers.
 import asyncio
 from tinycua_sdk import Agent
 
-agent = Agent(name="assistant", instructions="You are a helpful assistant.")
-response = asyncio.run(agent.run("Hello!"))
-print(response)
+async def main():
+    agent = Agent(name="assistant", instructions="You are a helpful assistant.")
+    response = await agent.run("Hello!")
+    print(response)
+
+asyncio.run(main())
 ```
 
 See the [cookbook](./docs/cookbook/index.md) for a complete walkthrough covering
