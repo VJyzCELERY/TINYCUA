@@ -118,8 +118,8 @@ See [state-objects.md](state-objects.md) for object definitions.
 | Information Digester | [information-digestion.md](information-digestion.md) | Exploration Agent | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Creation, Task Assessor, Task Analyzer, Task Executor, and Result Reviewer sequentially |
 | Task Creation | [task-creation.md](task-creation.md) | Process Spec | Upfront decomposition loop: iteratively invokes the Task Analyzer to build a nested task tree |
-| Task Assessor | [task-assessor.md](task-assessor.md) | Agent Spec | Selects which tasks should be decomposed further during Task Creation |
-| Task Analyzer | [task-analysis.md](task-analysis.md) | Linear Agent | Creates the sequential task roadmap (single pass: input → output) |
+| Task Assessor | [task-assessor.md](task-assessor.md) | Agent Spec (no branching) | Selects which tasks should be decomposed further during Task Creation |
+| Task Analyzer | [task-analysis.md](task-analysis.md) | ReAct Agent (no branching) | Creates the sequential task roadmap (input → output; iterates internally but has no routing decision branches) |
 | Task Executor | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
 | Result Reviewer | [result-reviewer.md](result-reviewer.md) | Hybrid Decision Agent | Reviews results and updates future task contexts |
 | Primary Agent | [primary-agent.md](primary-agent.md) | ReAct Agent | Produces final user-facing response |
@@ -128,16 +128,16 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 ## Agent Loop Types
 
-| Agent | Loop Type | Tools | Notes |
-|-------|-----------|-------|-------|
-| Query Analyst | High-level context scan + classification | None (scans session context directly) | Produces `primary_agent`, `worker`, or `uncertain` decision |
-| Information Digester | Precision-oriented exploration | Enhanced Context Retrieval (searches Session Context as external source) | Searches Session Context via retrieval tool; produces precision-oriented Digested Information |
-| Task Creation | Iterative decomposition loop | None (orchestrates Task Analyzer) | Invokes Task Analyzer iteratively at Worker start; effort controls nesting depth |
-| Task Assessor | Linear (single-pass selection) | None | Selects which tasks to decompose between Task Creation passes; decomposition is delegated to the Task Analyzer |
-| Task Analyzer | Linear (single-pass) | Optional info/research tools | Single-pass roadmap generation from structured input; multi-pass decomposition is handled by the Task Creation loop |
-| Task Executor | ReAct | Task tools | Produces result + execution log |
-| Result Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
-| Primary Agent | Response composition | Formatting/verification tools | Should not bypass Worker guarantees with new research |
+| Agent | Loop Type | See |
+|-------|-----------|-----|
+| Query Analyst | High-level context scan + classification | [query-analyst.md](query-analyst.md) |
+| Information Digester | Precision-oriented exploration | [information-digestion.md](information-digestion.md) |
+| Task Creation | Iterative decomposition loop | [task-creation.md](task-creation.md) |
+| Task Assessor | Input→output (no internal routing branches) | [task-assessor.md](task-assessor.md) |
+| Task Analyzer | Input→output (no internal routing branches) | [task-analysis.md](task-analysis.md) |
+| Task Executor | ReAct | [task-execution.md](task-execution.md) |
+| Result Reviewer | Hybrid decision (branching: accept / retry / replan / escalate) | [result-reviewer.md](result-reviewer.md) |
+| Primary Agent | Response composition | [primary-agent.md](primary-agent.md) |
 
 ---
 

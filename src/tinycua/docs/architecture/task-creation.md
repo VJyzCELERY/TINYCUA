@@ -13,7 +13,7 @@
 
 Task Creation is the upfront process that invokes the [Task Analyzer](task-analysis.md) iteratively to build a nested task tree. It runs **once at Worker start**, before any task execution begins.
 
-The Task Analyzer itself is a linear, stateless agent — each invocation receives input and produces a task list in a single pass. Task Creation is the outer loop that calls the Task Analyzer fresh for each decomposition decision. The Task Analyzer never refines its own output; multi-pass decomposition is achieved by the Task Creation loop re-invoking it.
+The Task Analyzer itself is a stateless ReAct agent with a single input→output contract (no internal routing branches). Each invocation receives input and produces a task list. Task Creation is the outer loop that calls the Task Analyzer fresh for each decomposition decision. The Task Analyzer never refines its own output; multi-pass decomposition is achieved by the Task Creation loop re-invoking it.
 
 During execution, when the Result Reviewer needs to decompose a task, it calls the Task Analyzer directly (not the full Task Creation loop). See [task-analysis.md](task-analysis.md) for the Task Analyzer's replanning behavior.
 
@@ -95,7 +95,7 @@ The Task Assessor runs between passes: it reviews the current list and selects w
 
 ## Effort-Controlled Decomposition
 
-The `effort` setting controls how many passes of the Task Assessor → Task Analyzer cycle are performed. It does not change the Task Analyzer's internal behavior — the Task Analyzer always performs a single pass regardless of effort.
+The `effort` setting controls how many passes of the Task Assessor → Task Analyzer cycle are performed. It does not change the Task Analyzer's internal behavior — the Task Analyzer always follows the same input→output contract regardless of effort.
 
 - **`none`** — Task Creation runs only the initial pass. The Task Analyzer is invoked once with `Digested Information` and produces a flat task list. The Task Assessor is not invoked. No iterative decomposition occurs.
 
@@ -111,7 +111,7 @@ See [state-objects.md](state-objects.md) for the `Worker Config` schema and effo
 
 Task Creation runs only at Worker start for upfront planning. During execution, when the Result Reviewer needs to decompose a task or revise the roadmap, it calls the **Task Analyzer directly** — not the full Task Creation loop. See [task-analysis.md](task-analysis.md) for the Task Analyzer's replanning behavior, and [result-reviewer.md](result-reviewer.md) for the `replan` decision.
 
-The Task Analyzer's output mechanics are identical regardless of who calls it: it receives input (a task's context or remaining roadmap), performs a single pass, and produces a task list. The difference is scope:
+The Task Analyzer's output mechanics are identical regardless of who calls it: it receives input (a task's context or remaining roadmap) and produces a task list. The difference is scope:
 
 - **Task Creation (upfront):** iterates through the full task list, calling the Task Analyzer repeatedly to build a complete nested tree.
 - **Result Reviewer (mid-execution):** calls the Task Analyzer once to decompose the current task. The output sub-list is inserted at the current position and execution continues. The Result Reviewer is not overhauling the entire roadmap — only breaking down the task at hand.
@@ -124,7 +124,7 @@ This separation keeps the Task Creation loop as an upfront orchestration concern
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Decomposition strategy | Iterative loop invoking the Task Analyzer fresh | Keeps the Task Analyzer stateless and simple (single pass). The loop handles complexity control (effort, max depth) without burdening the agent. |
+| Decomposition strategy | Iterative loop invoking the Task Analyzer fresh | Keeps the Task Analyzer stateless with a simple input→output contract. The loop handles complexity control (effort, max depth) without burdening the agent. |
 | Nested structure | Container tasks with `tasks` sub-list | Preserves the sequential roadmap structure while allowing arbitrary nesting depth. Leaf tasks are the only executable units. |
 | In-place list modification | Append sub-tasks at current position | Ensures the iteration naturally visits newly decomposed tasks in the same pass, allowing progressively deeper decomposition without restarting the loop. |
 | Scope | Upfront planning only | Task Creation runs once at Worker start. During execution, the Result Reviewer calls the Task Analyzer directly — the same agent, but without the full loop orchestration. |

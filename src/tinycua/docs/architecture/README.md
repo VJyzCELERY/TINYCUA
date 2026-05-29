@@ -14,7 +14,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 6. [task-classification.md](task-classification.md) — The scoring rubric for routing decisions
 7. [information-digestion.md](information-digestion.md) — How broad session context is narrowed for precision
 8. [worker-orchestration.md](worker-orchestration.md) — Inside the Worker: how tasks are orchestrated sequentially
-9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap (single-pass agent)
+9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap (ReAct agent, no internal routing branches)
 10. [task-creation.md](task-creation.md) — How the Task Creation loop decomposes complex tasks into nested sub-tasks
 11. [task-assessor.md](task-assessor.md) — How the Task Assessor selects tasks for decomposition during Task Creation
 12. [task-execution.md](task-execution.md) — How individual tasks are executed with isolated context
@@ -37,7 +37,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 | [query-analyst.md](query-analyst.md) | Produces high-level Context Enhanced Query and Mode Decision |
 | [information-digestion.md](information-digestion.md) | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | [primary-agent.md](primary-agent.md) | Final synthesis agent for Primary Agent and Worker modes |
-| [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap (single-pass linear agent) |
+| [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap (ReAct agent, no internal routing branches) |
 | [task-assessor.md](task-assessor.md) | Inside Worker: selects which tasks to decompose during upfront Task Creation |
 | [task-execution.md](task-execution.md) | Inside Worker: executes one task with task-specific context |
 | [result-reviewer.md](result-reviewer.md) | Inside Worker: reviews task result, propagates context, and decides next transition |

@@ -11,7 +11,7 @@
 
 ## Role
 
-The Task Analyzer receives input (`Digested Information` or a focused task context) and creates a sequential task list. Each invocation performs a **single pass** — it takes input and produces a task list. The Task Analyzer does not refine its own output or perform multiple passes internally.
+The Task Analyzer receives input (`Digested Information` or a focused task context) and creates a sequential task list. It is a ReAct agent — it iterates internally (think → act → observe → repeat) until it produces its output. However, it has no internal routing decision branches: each invocation takes one input and produces one output (a task list). It does not have accept/retry/replan/escalate decision paths — that belongs to the Result Reviewer.
 
 Multi-pass decomposition, where individual tasks are recursively broken down into sub-tasks, is handled by the **Task Creation** process. See [task-creation.md](task-creation.md) for the decomposition loop, nested task tree structure, and effort-controlled depth.
 
@@ -35,13 +35,13 @@ The `context` field should be structured markdown. See [state-objects.md](state-
 
 ## Internal Flow
 
-Each individual invocation of the Task Analyzer is a single pass: it receives structured input and returns a sequential list of tasks. There is no refinement or multi-pass logic inside the Task Analyzer itself.
+Each individual invocation of the Task Analyzer takes structured input and returns a sequential list of tasks. Internally it may iterate (ReAct loop, tool use), but it has a single input→output contract — no internal routing decision branches like accept/retry/replan/escalate. Multi-pass orchestration is handled externally by the Task Creation loop, not by the Task Analyzer refining its own output.
 
 ```mermaid
 flowchart TD
     INPUT{{"Input\n(Digested Information or\nFocused Task Context)"}}
     ANALYZE["Analyze input"]
-    DECOMPOSE["Create task list\n(single pass)"]
+    DECOMPOSE["Create task list\n(ReAct, no branching)"]
     ASSIGN["Assign context to each task"]
     TL{{"Task List"}}
 
@@ -69,7 +69,7 @@ The Result Reviewer may ask the Task Analyzer to revise the roadmap when the cur
 - **structure** — task ordering is wrong or a completed task reveals missing context;
 - **systemic failure** — repeated failures indicate the roadmap itself is flawed.
 
-When the Result Reviewer requests replanning during execution, it calls the **Task Analyzer directly** with the current task's context. The Task Analyzer decomposes that specific task into a sub-list — it is not overhauling the entire roadmap, only breaking down the current task. This is the same linear input→output behavior the Task Analyzer always performs. The full Task Creation loop runs only at Worker start for upfront planning. See [task-creation.md](task-creation.md) for the upfront decomposition loop.
+When the Result Reviewer requests replanning during execution, it calls the **Task Analyzer directly** with the current task's context. The Task Analyzer decomposes that specific task into a sub-list — it is not overhauling the entire roadmap, only breaking down the current task. This is the same input→output behavior the Task Analyzer always performs. The full Task Creation loop runs only at Worker start for upfront planning. See [task-creation.md](task-creation.md) for the upfront decomposition loop.
 
 The Task Analyzer may split the current task into sub-tasks. The Result Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 
@@ -82,4 +82,4 @@ The Task Analyzer may split the current task into sub-tasks. The Result Reviewer
 | Roadmap shape | Sequential list | Keeps orchestration simple and avoids dependency-graph complexity |
 | Task schema | Lightweight | Reduces prompt overhead and rigidity |
 | Success definition | Semantic success criteria | Avoids overfitting to predicted exact outputs |
-| Decomposition | Delegated to Task Creation | The Task Analyzer is stateless single-pass. Multi-pass decomposition is handled by the [Task Creation](task-creation.md) outer loop, which invokes the Task Analyzer fresh for each decomposition decision. |
+| Decomposition | Delegated to Task Creation | The Task Analyzer is stateless with a single input→output contract (no internal routing branches). Multi-pass decomposition is handled by the [Task Creation](task-creation.md) outer loop, which invokes the Task Analyzer fresh for each decomposition decision. |
