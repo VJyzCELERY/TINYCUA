@@ -380,5 +380,8 @@ source or a custom provider may omit it. Check with `event.get("finish_reason")`
 - **[Error Handling](./error-handling.md)** — Catch `ProviderApiError`,
   `ProviderAuthError`, and `ProviderNotSupportedError` with retry and
   cancellation patterns.
+
+## See Also
+
 - **[Custom Execution Loops](./custom-execution-loops.md)** — Override
   `BaseLoop` to customize how events are processed.
