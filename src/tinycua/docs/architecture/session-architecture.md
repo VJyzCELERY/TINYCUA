@@ -35,7 +35,7 @@ Additional session fields can be added later, but these three are the required f
 
 **Output:**
 
-- Session object with `chat_history`, `Context`, and `execution_log` — canonical schema in [state-objects.md](state-objects.md)
+- Session object with `chat_history`, `Context`, and `execution_log` (see schema below)
 - Session propagation rules (sub-session → primary session)
 - Context compaction rules
 

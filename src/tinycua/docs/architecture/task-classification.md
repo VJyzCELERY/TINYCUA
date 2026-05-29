@@ -53,7 +53,7 @@ The Query Analyst produces a `Mode Decision` object. See [state-objects.md](stat
 The classifier must guard against three failure modes:
 
 - **Worker overuse**: `worker` mode requires a clear decomposition benefit and a stated reason why direct response is risky. Without both, the classifier should not select `worker`.
-- **Unsafe Primary Agent routing**: `primary_agent` mode requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed. The Primary Agent may still invoke Information Digestion if context consolidation is useful.
+- **Unsafe Primary Agent routing**: `primary_agent` mode requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed.
 - **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` to `explore` or `ask_user` — never leave uncertainty as a nondeterministic state. `explore` resolves uncertainty by gathering more context (then re-classifies); `ask_user` pauses for human input.
 
 ---

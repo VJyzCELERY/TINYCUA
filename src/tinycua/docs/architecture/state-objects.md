@@ -36,18 +36,11 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 
 ## Session Object
 
-The Session schema is defined in [session-architecture.md](session-architecture.md). The core fields are `session_id`, `owner_type`, `owner_name`, `chat_history` (JSON turn log), `context` (structured markdown), and `execution_log`.
+The canonical Session schema is defined in [session-architecture.md](session-architecture.md).
 
-Important rules:
+Use `Session.context` for model-loadable context and `Session.chat_history` for preserved turns. Use `Session.execution_log` for actions and outcomes from sub-session execution.
 
-- `chat_history` is the preserved turn log and should be JSON.
-- `Context` is structured markdown and is what the model loads.
-- Enhanced context retrieval is a tool used by the Information Digester to search the current Session `Context` as an external data store — without loading it directly. Compaction (triggered by model context-window pressure) is a separate background system process.
-- Sub-sessions keep their own `chat_history`, `Context`, and `execution_log`, but sub-session `chat_history` is propagated to primary session `chat_history`.
-- Sub-session `Context` is not automatically appended to primary session `Context`.
-- Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
-
-Use `Session.Context` for model-loadable context and `Session.chat_history` for preserved turns. Use `Session.execution_log` for actions and outcomes from sub-session execution.
+See [session-architecture.md](session-architecture.md) for the complete schema rules, compaction behavior, and sub-session propagation contract.
 
 ---
 
@@ -95,16 +88,14 @@ The Information Digester produces `Digested Information` — a precision-oriente
 
 ```yaml
 digested_information:
-  context_summary: "compressed relevant context (markdown)"
-  key_points:
-    - "takeaway point 1"
-    - "takeaway point 2"
-  advisory_instructions: "action-oriented guidance for the downstream agent"
-  constraints:
-    - "guardrail 1"
-    - "guardrail 2"
-  known_gaps:
-    - "information that may be missing"
+  context_summary: "<compressed relevant context (markdown)>"   # required
+  key_points:                                                   # required
+    - "<takeaway point>"
+  advisory_instructions: "<action-oriented guidance>"           # optional
+  constraints:                                                  # optional
+    - "<guardrail>"
+  known_gaps:                                                   # optional
+    - "<missing information>"
 ```
 
 Key rules:
@@ -146,27 +137,28 @@ During the Task Creation loop, complex tasks may be decomposed into sub-tasks. T
 ```yaml
 task_list:
   tasks:
+    # Leaf task — no `tasks` field
     - task_id: "<task id>"
       name: "<task name>"
       description: "<task description>"
       context: "<task-specific context (structured markdown)>"
       success_criteria:
         - "<criterion>"
+    # Container task — has `tasks` sub-list, not executed
     - task_id: "<container task id>"
       name: "<container name>"
       description: "<container description>"
       context: "<container context>"
       success_criteria: []
-      tasks:  # nested sub-list — this is a container task
+      tasks:
         - task_id: "<child task id>"
           name: "<child name>"
           description: "<child description>"
           context: "<child context>"
           success_criteria:
             - "<criterion>"
-  confidence: "<numeric>"  # exact scale is implementation calibration
-
   current_task_id: "<current task id>"
+  confidence: "<numeric>"
 ```
 
 Nesting can continue to arbitrary depth, controlled by the Worker's `effort` setting. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.

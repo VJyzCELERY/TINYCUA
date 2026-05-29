@@ -95,15 +95,9 @@ The Task Assessor runs between passes: it reviews the current list and selects w
 
 ## Effort-Controlled Decomposition
 
-The `effort` setting controls how many passes of the Task Assessor → Task Analyzer cycle are performed. It does not change the Task Analyzer's internal behavior — the Task Analyzer always follows the same input→output contract regardless of effort.
-
-- **`none`** — Task Creation runs only the initial pass. The Task Analyzer is invoked once with `Digested Information` and produces a flat task list. The Task Assessor is not invoked. No iterative decomposition occurs.
-
-- **`high`** — Task Creation performs the initial pass plus one or more decomposition passes. Each pass: the Task Assessor selects complex tasks, then the Task Analyzer is invoked fresh on each selected task to produce sub-lists. This repeats for progressively deeper nesting, limited by how many passes the effort setting allows. The max depth is a pass-count control for Task Creation upfront planning — it is not an absolute nesting limit on the final task tree.
+The `effort` setting controls how deeply the Task Creation loop decomposes the task tree before execution begins. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
 The Task Assessor acts as a gate between passes — it decides which tasks deserve further decomposition rather than blindly iterating over every task. The Task Analyzer never refines its own output; it always produces a new list from new input.
-
-See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
 ---
 

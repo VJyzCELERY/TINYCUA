@@ -1,8 +1,9 @@
 # Design Document: TINYCUA Architecture Documentation
 
-**Spec**: ./spec.md
-**Status**: Implemented
-**Last Updated**: 2026-05-26
+> **Category:** Design Doc
+> **Spec:** ./spec.md
+> **Status:** Implemented
+> **Last Updated:** 2026-05-26
 
 ---
 

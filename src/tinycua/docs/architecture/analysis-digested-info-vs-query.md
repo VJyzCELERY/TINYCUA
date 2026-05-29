@@ -5,7 +5,7 @@
 > **File:** `architecture/analysis-digested-info-vs-query.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Implemented
-> **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md)
+> **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md), [overview.md](overview.md)
 
 This decision record has been updated to match the current routing model.
 
@@ -13,21 +13,11 @@ This decision record has been updated to match the current routing model.
 
 ## Current Routing Context
 
-The Query Analyst performs a fast, high-level scan and produces:
+The [Query Analyst](query-analyst.md) produces a [Context Enhanced Query](state-objects.md) and a [Mode Decision](state-objects.md) with three routing paths: `primary_agent`, `worker`, and `uncertain`. See [overview.md](overview.md) for the canonical routing diagram.
 
-1. `Context Enhanced Query` (CEQ) — high-level enrichment
-2. `Mode Decision`
-
-The Information Digester receives the CEQ and uses Enhanced Context Retrieval (a search tool that explores the current Session `Context` as an external source) to produce `Digested Information`.
-
-The current top-level routing model is:
-
-The Query Analyst produces a `Context Enhanced Query` and a `Mode Decision` with three routing paths: `primary_agent`, `worker`, and `uncertain`. See [overview.md](overview.md) for the canonical routing diagram.
-
-The Information Digester is therefore used in two situations:
-
-- before Worker Mode, where the Worker needs narrowed context before task decomposition;
-- when the Primary Agent decides the CEQ needs context consolidation before it can answer safely.
+The Information Digester is used in two situations:
+- before Worker Mode (narrowed context before task decomposition);
+- when the Primary Agent decides the CEQ needs context consolidation.
 
 ---
 
