@@ -37,7 +37,7 @@ The Information Digester does **not** receive the full Session `Context` as dire
 
 **Tools:**
 
-- **Enhanced Context Retrieval** — searches the current Session `Context` (structured markdown) as an external data store. Uses keyword pagination, vector retrieval, LLM-based exploration, or any combination. See [context-retrieval.md](context-retrieval.md).
+- **Enhanced Context Retrieval** — searches the current Session `Context` (structured markdown) as an external data store. See [context-retrieval.md](context-retrieval.md).
 
 **Output:**
 
@@ -51,7 +51,7 @@ The digest is sent to downstream agents as structured text; storage format is an
 flowchart TD
     CEQ{{"Context Enhanced Query\n(treated as user query)"}}
     GAPS["Identify information gaps\nin the query"]
-    RETRIEVE["Enhanced Context Retrieval\n(explore Session Context\nvia keyword / vector / LLM)"]
+    RETRIEVE["Enhanced Context Retrieval\n(search Session Context)"]
     SESSION_CTX[("Session Context\n(structured markdown)\n— current state")]
     RET_CTX{{"Retrieved Context\n(low-level, fine detail)"}}
     FOCUS["Identify relevant topics/entities"]

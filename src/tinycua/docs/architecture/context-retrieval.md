@@ -106,21 +106,11 @@ flowchart TD
 
 ---
 
-## Search Approaches
+## Search Approach
 
-Enhanced Context Retrieval may use one or more search strategies to browse the Session `Context`:
+Enhanced Context Retrieval searches the Session `Context` as an external data store. The exact search strategy (keyword, vector, LLM-based, or a combination) is an implementation detail. The architecture only requires that the Information Digester can search the Session `Context` without loading it entirely into its own context window.
 
-- **Keyword pagination** — search `Context` sections by keyword match with paginated results.
-- **Vector retrieval** — embed the search query and retrieve semantically similar `Context` sections.
-- **LLM-based exploration** — use an agentic loop to explore the `Context` and judge relevance.
-
-The exact approach is an implementation detail. The architecture only requires that the Information Digester can search the Session `Context` without loading it entirely into its own context window.
-
----
-
-## LLM-First Retrieval
-
-TINYCUA uses precision-first, LLM-judged retrieval: semantic relevance judgment by an LLM, not embedding-search token proximity.
+The approach is precision-first: relevance is judged by the Information Digester during exploration, not by token-proximity heuristics.
 
 ---
 
