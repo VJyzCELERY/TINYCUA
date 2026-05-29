@@ -103,7 +103,7 @@ byte_parts = [
 
 ## Local Provider Pattern
 
-For a local LLM server or Ollama, switch to `"openai-compatible"` and supply a `base_url`. Vision-capable local models like LLaVA or Llama 3.2 Vision accept images:
+For a local LLM server, switch to `"openai-compatible"` and supply a `base_url`. Vision-capable local models like LLaVA or Llama 3.2 Vision accept images:
 
 ```python
 import os

@@ -12,8 +12,8 @@ conversations via `previous_response_id`, and server-side tool call handling.
 It is the **default provider** when no explicit provider is specified.
 
 **Local servers:** This provider targets the OpenAI Responses
-endpoint (`/v1/responses`). If you are running a local LLM server or
-Ollama that supports the Chat Completions-style API but not the Responses endpoint,
+endpoint (`/v1/responses`). If you are running a local LLM server that
+supports the Chat Completions-style API but not the Responses endpoint,
 switch to `openai-compatible` (see
 [Language Models and Providers](../core-concepts/language-models-and-providers.md)
 for the full comparison). The streaming event shapes and tool-call handling differ

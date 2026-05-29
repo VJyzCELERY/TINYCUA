@@ -6,7 +6,7 @@
 
 `LanguageModel` is the configuration object that controls which LLM provider and model your agent uses under the hood. It handles model name resolution from environment variables, API key auto-detection, and provider-specific tuning like temperature, max tokens, and system prompts.
 
-TINYCUA SDK supports **two categories** of providers: **remote** (OpenAI via `openai-responses` or `openai-chat-completions`) and **local** (local LLM servers — Ollama, OpenAI-compatible endpoints — via `openai-compatible`). You can switch between them by changing a single `provider` string — the rest of your agent code stays the same.
+TINYCUA SDK supports **two categories** of providers: **remote** (OpenAI via `openai-responses` or `openai-chat-completions`) and **local** (local LLM servers — OpenAI-compatible endpoints — via `openai-compatible`). You can switch between them by changing a single `provider` string — the rest of your agent code stays the same.
 
 This page covers how to configure every `LanguageModel` field, understand provider differences, auto-resolve credentials from environment variables, and serialize configurations with `to_dict()`/`from_dict()`.
 
@@ -61,7 +61,7 @@ agent = Agent(
 
 ## Local Providers
 
-### Local LLM Server / Ollama / OpenAI-Compatible
+### Local LLM Server / OpenAI-Compatible
 
 Set `provider="openai-compatible"` and supply a `base_url` pointing to your local server. The `api_key` is optional for local servers that don't require authentication, but you can still pass one if needed.
 

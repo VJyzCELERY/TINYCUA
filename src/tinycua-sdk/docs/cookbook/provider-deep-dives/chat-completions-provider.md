@@ -6,7 +6,7 @@ you understand how tools return content and how multipart results flow through t
 ## Overview
 
 The `OpenAIChatCompletionsClient` provides access to OpenAI's Chat Completions
-API and any OpenAI-compatible endpoint (local LLM servers, Ollama, self-hosted vLLM).
+API and any OpenAI-compatible endpoint (local LLM servers, self-hosted vLLM).
 It translates the SDK's canonical message and tool formats into the Chat
 Completions wire format, handles multi-turn tool-call conversations, and
 normalizes streaming deltas into canonical events.

@@ -9,7 +9,7 @@ variables, and verifying that everything works.
 
 The SDK supports two provider paths:
 
-- **Local** — a local LLM server (e.g., Ollama, an OpenAI-compatible endpoint) at
+- **Local** — a local LLM server (an OpenAI-compatible endpoint) at
   `http://localhost:1234/v1`. No API key needed.
 - **Remote** — OpenAI's API (Responses or Chat Completions endpoint). Requires
   an API key.

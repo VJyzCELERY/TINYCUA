@@ -195,7 +195,7 @@ url_attachment = FileAttachment(
   are uploaded to `/v1/files` and referenced as `{"type": "file", "file": {"file_id": ...}}` content parts.
 - **Responses (`openai-responses`)**: Non-image data and URL content are sent
   inline via `file_data` without uploading to `/v1/files`, enabling local
-  servers (local LLM servers, Ollama) that lack a files endpoint.
+  servers (local LLM servers) that lack a files endpoint.
 
 ### Phase 6 — Tool-Result File Attachments
 
