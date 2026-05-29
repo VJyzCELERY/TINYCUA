@@ -196,7 +196,7 @@ Additional fields may be introduced if justified by a later design decision.
 
 ```yaml
 task_result:
-  task_id: task_001
+  task_id: "<task id>"
   status: completed | failed | blocked
   result: "..."
   discovered_sequence_issues:
@@ -214,9 +214,9 @@ The Worker Result aggregates accepted task outputs for the Primary Agent to synt
 ```yaml
 worker_result:
   accepted_results:
-    - task_id: task_001
-      name: "..."
-      result: "..."
+    - task_id: "<task id>"
+      name: "<task name>"
+      result: "<task result>"
   unresolved_items:
     - "..."
   reviewer_notes:
@@ -232,13 +232,13 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 
 ```yaml
 reviewer_decision:
-  task_id: task_001
+  task_id: "<task id>"
   status: accepted | retry | replan | escalate_user
   reason: "..."
   confidence: "<numeric>"  # exact scale is implementation calibration
   context_updates:
-    - target_task_id: task_004
-      update: "..."
+    - target_task_id: "<target task id>"
+      update: "<context update>"
   retry_instructions: "..."
   replan_request: "..."
   consecutive_failures: 0
@@ -253,7 +253,7 @@ Agent state determines whether the next user message resumes an internal agent o
 ```yaml
 agent_state:
   active_agent: "<agent name>"   # matches the documented name of any architecture agent
-  active_task_id: task_001
+  active_task_id: "<active task id>"
   status: running | waiting_for_user | terminated
   resume_target: "..."
   consecutive_failures: 0
