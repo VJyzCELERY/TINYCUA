@@ -32,16 +32,15 @@ During execution, when the Result Reviewer needs to decompose a task, it calls t
 
 ## How It Works
 
-1. **Initial pass:** `Digested Information` → **Task Analyzer** → Initial `List of Tasks`.
-2. **Effort check:**
-   - If `effort` is `none` → return the initial list as-is (no further decomposition).
-   - If `effort` is `high` (or higher) → enter the iterative decomposition loop.
-3. **Task assessment:** The **Task Assessor** reviews the current task list and selects which individual tasks are complex enough to warrant decomposition (see [task-assessor.md](task-assessor.md)). Tasks at max depth are skipped.
-4. **Decomposition:** For each selected task:
-   a. Invoke the **Task Analyzer** fresh with the task's context as focused input.
-   b. The Task Analyzer produces a **sub-list of tasks**.
-   c. The sub-tasks are appended at the current task's position in the list, and the original parent task becomes a container (see [state-objects.md](state-objects.md) for the nested task list schema).
-5. **Repeat:** If `effort` allows more passes, go back to step 3 with the now-expanded list. Each pass is one layer of deeper decomposition.
+Task Creation is an iterative decomposition loop that builds a nested task tree before execution begins.
+
+**Initial pass:** The Task Analyzer receives `Digested Information` and produces an initial `List of Tasks`.
+
+**Effort gating:** If `effort` is `none`, the initial list is returned as-is — no further decomposition occurs. If `effort` is `high`, the iterative decomposition loop begins.
+
+**Decomposition loop:** Each pass, the Task Assessor reviews the current task list and selects which tasks are complex enough to warrant decomposition (see [task-assessor.md](task-assessor.md)). For each selected task, the Task Analyzer is invoked fresh with the task's context as focused input and produces a sub-list. The sub-tasks are appended at the current task's position, and the original parent task becomes a container (see [state-objects.md](state-objects.md) for the nested task list schema).
+
+**Pass depth:** The loop repeats until the effort setting allows no more passes. Each pass represents one additional layer of nesting. The maximum pass depth is not an absolute nesting limit — it only controls how many decomposition passes Task Creation performs upfront. During execution, the Result Reviewer may call the Task Analyzer directly to decompose further.
 
 ---
 
@@ -97,7 +96,7 @@ The `effort` setting controls how many passes of the Task Assessor → Task Anal
 
 - **`none`** — Task Creation runs only the initial pass. The Task Analyzer is invoked once with `Digested Information` and produces a flat task list. The Task Assessor is not invoked. No iterative decomposition occurs.
 
-- **`high`** — Task Creation performs the initial pass plus one or more decomposition passes. Each pass: the Task Assessor selects complex tasks, then the Task Analyzer is invoked fresh on each selected task to produce sub-lists. This repeats for progressively deeper nesting, up to the configured max depth.
+- **`high`** — Task Creation performs the initial pass plus one or more decomposition passes. Each pass: the Task Assessor selects complex tasks, then the Task Analyzer is invoked fresh on each selected task to produce sub-lists. This repeats for progressively deeper nesting, limited by how many passes the effort setting allows. The max depth is a pass-count control for Task Creation upfront planning — it is not an absolute nesting limit on the final task tree.
 
 The Task Assessor acts as a gate between passes — it decides which tasks deserve further decomposition rather than blindly iterating over every task. The Task Analyzer never refines its own output; it always produces a new list from new input.
 
