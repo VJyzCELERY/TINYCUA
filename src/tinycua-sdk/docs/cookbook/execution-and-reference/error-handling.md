@@ -361,7 +361,7 @@ agent = Agent(
 )
 
 async def main():
-    async with AgentExecutor(config=agent.to_config()) as executor:
+    async with AgentExecutor(config=agent.to_config()):
         try:
             response = await agent.run("Hello")
             print(response)
