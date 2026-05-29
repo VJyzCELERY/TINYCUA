@@ -91,5 +91,4 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 | Main objective | Precision-oriented digestion | Reduce irrelevant context exposure, not only token count |
 | Boundary | Privileged narrowing boundary | Digestion can inspect broad context without leaking broad context downstream |
 | Instructions | Advisory | Allows downstream agents to adapt without drifting from context |
-
 | Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |
