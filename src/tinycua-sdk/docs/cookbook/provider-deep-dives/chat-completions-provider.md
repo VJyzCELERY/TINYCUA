@@ -195,6 +195,12 @@ request payload:
 
 Fields not listed above are silently ignored.
 
+> **Advanced fields**: `stop`, `seed`, `response_format`, `tool_choice`, `logprobs`,
+> `top_logprobs`, and `user` are available for advanced use cases. See the
+> [OpenAI Chat Completions API reference](https://platform.openai.com/docs/api-reference/chat)
+> for per-field documentation and usage examples. The cookbook covers the
+> most commonly used subset (`temperature`, `max_tokens`, `top_p`, penalties).
+
 ## API Key Resolution
 
 The client resolves the API key in this order:

@@ -96,6 +96,8 @@ agent = Agent(
 Once constructed, call `run()` with a query string (live LLM interaction):
 
 ```python
+import asyncio
+
 response = asyncio.run(agent.run("Say hello in three languages"))
 
 print(response)
@@ -126,19 +128,21 @@ Each event is a dictionary. To accumulate text content:
 ```python
 import asyncio
 
-async def _demo():
+async def main():
     content = ""
     async for event in await agent.run("Tell me a short joke", stream=True):
-        if event.get("type") == "text_delta":
-            content += event.get("text", "")
+        if event.get("type") == "response.output_text.delta":
+            content += event.get("delta", "")
     print(content)
 
-asyncio.run(_demo())
+asyncio.run(main())
 ```
 
 ### Passing a Message History
 
 ```python
+import asyncio
+
 messages = [
     {"role": "user", "content": "What is the capital of France?"},
     {"role": "assistant", "content": "The capital of France is Paris."},
@@ -191,8 +195,8 @@ import asyncio
 async def main():
     content = ""
     async for event in await agent.run("Hello", stream=True):
-        if event.get("type") == "text_delta":
-            content += event.get("text", "")
+        if event.get("type") == "response.output_text.delta":
+            content += event.get("delta", "")
     print(content)
 
 asyncio.run(main())

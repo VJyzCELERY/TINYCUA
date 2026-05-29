@@ -102,6 +102,12 @@ policy = AgentPolicy(
 | `max_tool_calls` | `int` | 10 | Maximum tool-call iterations per `run()` |
 | `parallel_tool_calls` | `bool` | `True` | Whether multiple tools can execute concurrently |
 
+> **Parallel vs sequential execution**: When `parallel_tool_calls=True` (default),
+> the SDK runs all tool calls from a single LLM response at the same time.
+> This is faster but can cause race conditions when tool outputs depend on each
+> other. Set to `False` to run tools one at a time in order — use this when tool
+> B needs the output of tool A.
+
 Attach a policy when constructing:
 
 ```python

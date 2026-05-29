@@ -114,6 +114,14 @@ agent = Agent(
 | `strip_thinking` | `bool` | `False` | Strips `thinking` content from reasoning model responses |
 | `max_context` | `int` | `128000` | Maximum context window size in tokens |
 
+> **`strip_thinking`**: When set to `True`, chain-of-thought (reasoning) tokens from models
+> like DeepSeek R1, OpenAI o-series, and Qwen with reasoning are hidden from the output.
+> Only the final visible response is returned. Leave `False` (default) to see the full
+> reasoning trace, or enable it when you want just the answer.
+>
+> **`max_context`**: Controls how many tokens the system prompt reserves for the context
+> window. Set lower for models with smaller context windows or higher for long-running agents.
+
 ## API Key Auto-Detection
 
 When `api_key` is not explicitly set, `LanguageModel` checks these environment variables, ordered by priority:

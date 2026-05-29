@@ -78,6 +78,8 @@ agent = Agent(
 ```
 
 ```python
+import asyncio
+
 response = asyncio.run(agent.run(parts))
 ```
 
@@ -132,6 +134,8 @@ agent = Agent(
 ```
 
 ```python
+import asyncio
+
 response = asyncio.run(agent.run(parts))
 ```
 
@@ -163,6 +167,8 @@ If your local model does not support vision, file parts are silently ignored or 
 You can use `file_attachments` with a string query **or** `ContentPart` lists. The two approaches are equivalent for simple queries:
 
 ```python
+import asyncio
+
 # Approach 1: file_attachments parameter
 response = asyncio.run(agent.run(
     "Describe this image.",
