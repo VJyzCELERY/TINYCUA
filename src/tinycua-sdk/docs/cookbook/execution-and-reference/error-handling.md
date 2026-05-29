@@ -61,7 +61,7 @@ agent = Agent(
 )
 
 try:
-    response = agent.run("Hello")
+    response = asyncio.run(agent.run("Hello"))
 except ProviderAuthError as e:
     print(f"Authentication failed: {e}")
     print("Check your API key and environment variables.")
@@ -86,7 +86,7 @@ Catch and inspect the status code to decide recovery strategy:
 from tinycua_sdk.core.exceptions import ProviderApiError
 
 try:
-    response = agent.run("Summarize this long document...")
+    response = asyncio.run(agent.run("Summarize this long document..."))
 except ProviderApiError as e:
     if e.status_code == 429:
         print(f"Rate limited! {e.message}")
@@ -134,7 +134,7 @@ agent = Agent(
 )
 
 try:
-    response = agent.run("Hello")
+    response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
     print(f"Provider '{e.provider_id}' is not supported.")
     if e.supported_list:
@@ -170,7 +170,7 @@ agent = Agent(
 )
 
 try:
-    response = agent.run("What is the weather today?")
+    response = asyncio.run(agent.run("What is the weather today?"))
     print(response)
 except ProviderNotSupportedError as e:
     print(f"Provider not supported: {e.provider_id}")
@@ -219,8 +219,12 @@ def is_retryable(exception: Exception) -> bool:
     reraise=True,
 )
 async def call_with_retry(agent, query: str) -> str:
-    return agent.run(query)
+    return await agent.run(query)
 ```
+
+> **Note**: Tenacity 8.x+ natively supports `@retry` on async functions. For
+> earlier versions, or a dependency-free alternative, use the manual retry
+> pattern below.
 
 A simpler pattern with manual retry for any `ProviderApiError`:
 
@@ -235,7 +239,7 @@ async def call_with_manual_retry(agent, query: str) -> str:
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            return agent.run(query)
+            return await agent.run(query)
         except ProviderApiError as e:
             last_error = e
             delay = 2 ** attempt
@@ -276,7 +280,7 @@ detected. Catch it to perform cleanup:
 
 ```python
 try:
-    response = agent.run("A very long query...")
+    response = asyncio.run(agent.run("A very long query..."))
 except asyncio.CancelledError:
     print("Agent run was cancelled.")
 except Exception as e:
@@ -295,7 +299,7 @@ than raised as exceptions. The agent loop emits:
 ```python
 async def stream_with_error_handling(agent, query: str):
     seen_error = False
-    async for event in agent.run(query, stream=True):
+    async for event in await agent.run(query, stream=True):
         event_type = event.get("type", "")
 
         if event_type == "response.failed":
@@ -342,7 +346,7 @@ agent = Agent(
 async def main():
     async with AgentExecutor(config=agent._config) as executor:
         try:
-            response = agent.run("Hello")
+            response = await agent.run("Hello")
             print(response)
         except Exception as e:
             print(f"Error: {e}")
@@ -380,7 +384,7 @@ agent = Agent(
 )
 
 try:
-    response = agent.run("Hello")
+    response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
     print(f"Provider error: {e} — check provider spelling")
 except ProviderAuthError as e:
@@ -418,7 +422,7 @@ agent = Agent(
 )
 
 try:
-    response = agent.run("Hello")
+    response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
     print(f"Provider not supported: {e} — did you mean 'openai'?")
 except ProviderAuthError as e:

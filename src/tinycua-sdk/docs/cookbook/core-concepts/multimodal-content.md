@@ -78,7 +78,7 @@ agent = Agent(
 ```
 
 ```python
-response = agent.run(parts)
+response = asyncio.run(agent.run(parts))
 ```
 
 Text and file parts can appear in any order. The model processes them sequentially and treats each file relative to the text that precedes it.
@@ -132,7 +132,7 @@ agent = Agent(
 ```
 
 ```python
-response = agent.run(parts)
+response = asyncio.run(agent.run(parts))
 ```
 
 If your local model does not support vision, file parts are silently ignored or cause a provider error, depending on the model server.
@@ -164,10 +164,10 @@ You can use `file_attachments` with a string query **or** `ContentPart` lists. T
 
 ```python
 # Approach 1: file_attachments parameter
-response = agent.run(
+response = asyncio.run(agent.run(
     "Describe this image.",
     file_attachments=[FileAttachment.from_path("path/to/your/image.png")],
-)
+))
 
 # Approach 2: ContentPart list
 parts = [
@@ -177,7 +177,7 @@ parts = [
         file=FileAttachment.from_path("path/to/your/image.png"),
     ),
 ]
-response = agent.run(parts)
+response = asyncio.run(agent.run(parts))
 ```
 
 Use `file_attachments` for simple "one prompt + files" queries. Use `ContentPart` lists when interleaving explanatory text between multiple files.

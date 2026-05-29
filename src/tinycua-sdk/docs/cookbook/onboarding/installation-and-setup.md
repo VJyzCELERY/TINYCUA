@@ -90,7 +90,7 @@ os.environ["LLM_MODEL"] = "gpt-4o-mini"
 ## Verify Installation
 
 ```bash
-python -c "from tinycua_sdk import Agent; print('SDK installed successfully')"
+uv run python -c "from tinycua_sdk import Agent; print('SDK installed successfully')"
 ```
 
 Expected output:

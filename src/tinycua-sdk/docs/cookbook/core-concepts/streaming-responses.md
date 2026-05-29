@@ -63,7 +63,7 @@ import asyncio
 
 async def main():
     response_parts = []
-    async for event in agent.run("Tell me a short story about a robot", stream=True):
+    async for event in await agent.run("Tell me a short story about a robot", stream=True):
         if event["type"] == "response.output_text.delta":
             response_parts.append(event["delta"])
             print(event["delta"], end="", flush=True)
@@ -89,7 +89,7 @@ async def main():
     output_texts = {}
     active_tool_calls = {}
 
-    async for event in agent.run("Search for the latest Python release date", stream=True):
+    async for event in await agent.run("Search for the latest Python release date", stream=True):
         etype = event["type"]
 
         if etype == "response.output_text.delta":
@@ -158,7 +158,7 @@ async def stream_with_cancel():
 
 async def run_stream(agent):
     output = []
-    async for event in agent.run(
+    async for event in await agent.run(
         "Write a 1000-word essay on the history of computing",
         stream=True,
     ):
@@ -195,6 +195,7 @@ The 15 canonical event types emitted during streaming, in typical order of occur
 | `response.completed` | `finish_reason` | Stream completed successfully |
 | `response.failed` | `error` | Stream failed with an error |
 | `response.cancelled` | — | Stream was cancelled |
+| `error` | `error` | Unexpected error during stream processing |
 
 Events are emitted in-order within each output item. Tool call events are nested between `response.output_item.added` and `response.function_call_arguments.done`.
 

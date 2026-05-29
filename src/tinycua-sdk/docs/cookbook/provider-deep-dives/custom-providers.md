@@ -232,7 +232,6 @@ applies these alias mappings:
 | Alias | Canonical ID |
 |---|---|
 | `"openai"` | `"openai-responses"` |
-| `"lmstudio"` | `"openai-compatible"` | (local LLM server alias) |
 | `"ollama"` | `"openai-compatible"` |
 
 When you call `registry.register("my-alias", factory)`, the alias is resolved
@@ -245,7 +244,7 @@ registry = get_provider_registry()
 
 print(registry.is_supported("openai"))          # True (resolved to openai-responses)
 print(registry.is_supported("openai-responses")) # True
-print(registry.is_supported("lmstudio"))          # True (resolved to openai-compatible; local server alias)
+print(registry.is_supported("ollama"))            # True (resolved to openai-compatible)
 print(registry.is_supported("openai-compatible")) # True
 ```
 
@@ -311,7 +310,7 @@ When implementing a production provider, you need to handle:
 ## Common Pitfalls
 
 **Forgetting to call `resolve_provider()` in your factory**. If your factory
-doesn't call `resolve_provider()`, aliases like `"lmstudio"` won't work
+doesn't call `resolve_provider()`, aliases like `"ollama"` won't work
 correctly. The `register()` method handles this for you, so it's best to
 register through `ProviderRegistry.register()`.
 

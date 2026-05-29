@@ -158,8 +158,6 @@ def _extract_markdown_links(md_content: str) -> list[tuple[str, str]]:
 SECRET_PATTERNS = [
     (re.compile(r"sk-[a-zA-Z0-9]{20,}"), "OpenAI API key pattern"),
     (re.compile(r'api_key\s*=\s*"[^$"]{8,}"'), "Hardcoded non-placeholder API key"),
-    (re.compile(r"Bearer\s+[a-zA-Z0-9\-_=]{20,}"), "Hardcoded Bearer token"),
-    (re.compile(r'api_key\s*=\s*"[^$"]{8,}"'), "Hardcoded non-placeholder API key"),
 ]
 
 # ---------------------------------------------------------------------------

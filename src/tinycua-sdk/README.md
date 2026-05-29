@@ -8,7 +8,7 @@ Guided, basic-to-advanced walkthrough of all SDK capabilities. Start with the
 [index](./docs/cookbook/index.md) for a complete learning path covering agents,
 configuration, tools, skills, streaming, file handling, providers, execution
 loops, and error handling — with runnable code examples for both local and
-and remote (OpenAI) providers.
+remote (OpenAI) providers.
 
 ### Quick Start
 

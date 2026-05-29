@@ -100,17 +100,17 @@ Use `from_url()` for files already hosted behind a public URL — it avoids the 
 The continuation block shows how to pass the attachments constructed above into `agent.run()`:
 
 ```python
-response = agent.run(
+response = await agent.run(
     "What does this screenshot show?",
     file_attachments=[screenshot],
 )
 
-response = agent.run(
+response = await agent.run(
     "How many vacation days does the handbook specify?",
     file_attachments=[handbook],
 )
 
-response = agent.run(
+response = await agent.run(
     "Describe the subject of this photo.",
     file_attachments=[remote_image],
 )
@@ -122,7 +122,7 @@ You can attach **multiple files** in a single query:
 invoice = FileAttachment.from_path("path/to/your/invoice.pdf")
 receipt = FileAttachment.from_path("path/to/your/receipt.png")
 
-response = agent.run(
+response = await agent.run(
     "Does the receipt match the invoice amounts?",
     file_attachments=[invoice, receipt],
 )
@@ -155,7 +155,7 @@ agent = Agent(
 ```
 
 ```python
-response = agent.run(
+response = await agent.run(
     "Tell me about this file again.",
     file_attachments=[file_ref],
 )

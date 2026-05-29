@@ -20,8 +20,6 @@ Everything else has sensible defaults.
 ### Local Agent (Local LLM Server)
 
 ```python
-import os
-
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
@@ -41,8 +39,6 @@ If `LLM_BASE_URL` and `LLM_MODEL` are set in your environment, the defaults
 suffice:
 
 ```python
-import os
-
 from tinycua_sdk import Agent
 
 agent = Agent(
@@ -100,7 +96,7 @@ agent = Agent(
 Once constructed, call `run()` with a query string (live LLM interaction):
 
 ```python
-response = agent.run("Say hello in three languages")
+response = asyncio.run(agent.run("Say hello in three languages"))
 
 print(response)
 ```
@@ -116,19 +112,28 @@ Hello! / ¡Hola! / Bonjour!
 Enable streaming with `stream=True`:
 
 ```python
-async for event in agent.run("Say hello in three languages", stream=True):
-    print(event)
+import asyncio
+
+async def _demo():
+    async for event in await agent.run("Say hello in three languages", stream=True):
+        print(event)
+
+asyncio.run(_demo())
 ```
 
 Each event is a dictionary. To accumulate text content:
 
 ```python
-content = ""
-async for event in agent.run("Tell me a short joke", stream=True):
-    if event.get("type") == "text_delta":
-        content += event.get("text", "")
+import asyncio
 
-print(content)
+async def _demo():
+    content = ""
+    async for event in await agent.run("Tell me a short joke", stream=True):
+        if event.get("type") == "text_delta":
+            content += event.get("text", "")
+    print(content)
+
+asyncio.run(_demo())
 ```
 
 ### Passing a Message History
@@ -140,7 +145,7 @@ messages = [
     {"role": "user", "content": "What is its population?"},
 ]
 
-response = agent.run(messages=messages)
+response = asyncio.run(agent.run(messages=messages))
 
 print(response)
 ```
@@ -185,7 +190,7 @@ import asyncio
 
 async def main():
     content = ""
-    async for event in agent.run("Hello", stream=True):
+    async for event in await agent.run("Hello", stream=True):
         if event.get("type") == "text_delta":
             content += event.get("text", "")
     print(content)
