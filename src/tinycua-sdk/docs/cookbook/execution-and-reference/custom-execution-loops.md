@@ -147,6 +147,7 @@ the `BaseLoop`. It manages:
 - **Resource cleanup** via `close()` (calls `client.close()`)
 
 ```python
+import asyncio
 from tinycua_sdk import Agent, AgentExecutor
 
 agent = Agent(
@@ -154,15 +155,19 @@ agent = Agent(
     instructions="You are a helpful assistant.",
 )
 
-executor = AgentExecutor(config=agent.to_config())
+async def main():
+    executor = AgentExecutor(config=agent.to_config())
+    async with executor:
+        # Use executor here
+        pass
 
-async with executor:
-    pass
+asyncio.run(main())
 ```
 
 The executor supports async context manager — `close()` is called on exit:
 
 ```python
+import asyncio
 from tinycua_sdk import Agent, AgentExecutor
 
 agent = Agent(
@@ -170,8 +175,12 @@ agent = Agent(
     instructions="You are a helpful assistant.",
 )
 
-async with AgentExecutor(config=agent.to_config()) as executor:
-    pass
+async def main():
+    async with AgentExecutor(config=agent.to_config()) as executor:
+        # Use executor here
+        pass
+
+asyncio.run(main())
 ```
 
 ## Building a Custom Loop

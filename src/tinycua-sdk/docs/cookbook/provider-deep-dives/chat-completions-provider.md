@@ -258,10 +258,11 @@ arrival, and optional `finish_reason` appearance timing.
 
 ## Common Pitfalls
 
-**Using `openai-responses` fields with Chat Completions**. Fields unique to
-the Responses API (e.g., `top_logprobs`) may be silently ignored if they are
-not in the Chat Completions supported set. Always check the supported fields
-table above.
+**Using `openai-responses` fields with Chat Completions**. Some parameters
+that are valid for one provider (e.g., stateful conversation parameters) may
+be silently ignored when passed to another provider. Always check the
+supported fields table above to confirm which parameters your chosen
+provider accepts.
 
 **Missing tool-result synthetic messages**. When a tool returns structured
 content (images or files), the Chat Completions client generates extra

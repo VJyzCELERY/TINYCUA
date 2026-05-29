@@ -172,7 +172,6 @@ All model resolution and API key detection happens automatically — no manual w
 `LanguageModel` supports full round-trip serialization. Use this to save configurations to JSON/YAML files or share them across agents:
 
 ```python
-import os
 from tinycua_sdk import LanguageModel
 
 original = LanguageModel(
