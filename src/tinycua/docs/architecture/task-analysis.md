@@ -3,15 +3,17 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-analysis.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-29
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [state-objects.md](state-objects.md), [information-digestion.md](information-digestion.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md)
+> **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-assessor.md](task-assessor.md), [state-objects.md](state-objects.md), [information-digestion.md](information-digestion.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md)
 
 ---
 
 ## Role
 
-The Task Analyzer receives `Digested Information` and creates a sequential task roadmap for the Worker.
+The Task Analyzer receives input (`Digested Information` or a focused task context) and creates a sequential task list. Each invocation performs a **single pass** — it takes input and produces a task list. The Task Analyzer does not refine its own output or perform multiple passes internally.
+
+Multi-pass decomposition, where individual tasks are recursively broken down into sub-tasks, is handled by the **Task Creation** process. See [task-creation.md](task-creation.md) for the decomposition loop, nested task tree structure, and effort-controlled depth.
 
 The roadmap is not a dependency graph and is not intended to be parallelized at the top level. If parallel work is useful, it belongs inside an individual task's execution strategy.
 
@@ -21,12 +23,33 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 
 **Input:**
 
-- `Digested Information`
+- `Digested Information` (from the Information Digester)
 - `Worker Config` with `effort`
+- When invoked during decomposition: the current task's `context` as focused input (see [task-creation.md](task-creation.md))
 
-**Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
+**Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`. A task may optionally contain a nested `tasks` field holding a sub-list (added by the Task Creation process, not by the Task Analyzer itself).
 
 The `context` field should be structured markdown. It should remain small and focused. Updating context means consolidating information, not blindly appending more information.
+
+---
+
+## Internal Flow
+
+Each individual invocation of the Task Analyzer is a single pass: it receives structured input and returns a sequential list of tasks. There is no refinement or multi-pass logic inside the Task Analyzer itself.
+
+```mermaid
+flowchart TD
+    INPUT{{"Input\n(Digested Information or\nFocused Task Context)"}}
+    ANALYZE["Analyze input"]
+    DECOMPOSE["Create task list\n(single pass)"]
+    ASSIGN["Assign context to each task"]
+    TL{{"Task List"}}
+
+    INPUT --> ANALYZE
+    ANALYZE --> DECOMPOSE
+    DECOMPOSE --> ASSIGN
+    ASSIGN --> TL
+```
 
 ---
 
@@ -38,46 +61,17 @@ The Task Executor may create short-term todos while executing one task. Those to
 
 ---
 
-## Effort-Controlled Decomposition
-
-The Task Analyzer may run one or more refinement passes depending on Worker effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
-
----
-
-## Internal Flow
-
-```mermaid
-flowchart TD
-    DI{{"Digested Information"}}
-    CREATE["Create initial sequential roadmap"]
-    EFFORT{"Effort allows refinement?"}
-    REFINE["Optional per-task decomposition pass"]
-    REVIEW["Review overlap and sequencing"]
-    ASSIGN["Assign each task context"]
-    TL{{"Task List"}}
-
-    DI --> CREATE
-    CREATE --> EFFORT
-    EFFORT -->|Yes| REFINE
-    EFFORT -->|No| REVIEW
-    REFINE --> REVIEW
-    REVIEW --> ASSIGN
-    ASSIGN --> TL
-```
-
----
-
 ## Replanning Requests
 
-The Task Reviewer may ask the Task Analyzer to revise the roadmap when the current plan is insufficient. This covers three categories:
+The Result Reviewer may ask the Task Analyzer to revise the roadmap when the current plan is insufficient. This covers three categories:
 
 - **granularity** — a task is too broad or should be split;
 - **structure** — task ordering is wrong or a completed task reveals missing context;
 - **systemic failure** — repeated failures indicate the roadmap itself is flawed.
 
-Replanning requests from the Reviewer are handled by the Task Analyzer. The Task Analyzer may revise the current task context or split the task.
+When the Result Reviewer requests replanning during execution, it calls the **Task Analyzer directly** with the current task's (or remaining roadmap's) context. The Task Analyzer produces a new sub-list or revised structure — the same linear input→output behavior it always performs. This is the same agent, not the full Task Creation loop (which runs only at Worker start for upfront planning). See [task-creation.md](task-creation.md) for the upfront decomposition loop.
 
-The Reviewer should request replanning rather than directly rewriting the decomposition semantics.
+The Task Analyzer may revise the current task context or split the task. The Result Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 
 ---
 
@@ -88,4 +82,4 @@ The Reviewer should request replanning rather than directly rewriting the decomp
 | Roadmap shape | Sequential list | Keeps orchestration simple and avoids dependency-graph complexity |
 | Task schema | Lightweight | Reduces prompt overhead and rigidity |
 | Success definition | Semantic success criteria | Avoids overfitting to predicted exact outputs |
-| Decomposition depth | Effort-controlled | Allows faster or more thorough Worker behavior |
+| Decomposition | Delegated to Task Creation | The Task Analyzer is stateless single-pass. Multi-pass decomposition is handled by the [Task Creation](task-creation.md) outer loop, which invokes the Task Analyzer fresh for each decomposition decision. |

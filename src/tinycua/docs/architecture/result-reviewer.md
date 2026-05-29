@@ -1,17 +1,19 @@
-# Task Reviewer (Inside TINYCUA Worker)
+# Result Reviewer (Inside TINYCUA Worker)
 
 > **Category:** Agent Spec
 
-> **File:** `architecture/task-reviewer.md`
-> **Last Updated:** 2026-05-27
+> **File:** `architecture/result-reviewer.md`
+> **Last Updated:** 2026-05-29
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [state-objects.md](state-objects.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-assessor.md](task-assessor.md), [state-objects.md](state-objects.md)
 
 ---
 
 ## Role
 
-The Task Reviewer evaluates each task result and decides the next Worker transition.
+The Result Reviewer evaluates each task result and decides the next Worker transition.
+
+This is distinct from the [Task Assessor](task-assessor.md), which runs during upfront Task Creation to select tasks for decomposition. The Result Reviewer operates during execution, after each task completes.
 
 Its primary responsibilities are:
 
@@ -23,7 +25,7 @@ Its primary responsibilities are:
 
 ## Hybrid Reviewer
 
-Task Reviewer should be hybrid:
+The Result Reviewer should be hybrid:
 
 - deterministic checks for schema validity, missing fields, ordering consistency, and citations where applicable;
 - LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions.
@@ -42,7 +44,7 @@ Task Reviewer should be hybrid:
 - shallow full task list;
 - dynamic access to individual task contexts when needed.
 
-The Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
+The Result Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
 
 **Output:**
 
@@ -84,7 +86,7 @@ flowchart TD
 
 ## Context Propagation
 
-After accepting a task, the Reviewer decides which unfinished or upcoming tasks need context updates.
+After accepting a task, the Result Reviewer decides which unfinished or upcoming tasks need context updates.
 
 This avoids dumping every previous task result into every future task. Context updates are information consolidation: they may reduce, replace, or rewrite task context rather than only append new text.
 
@@ -96,7 +98,7 @@ This avoids dumping every previous task result into every future task. Context u
 |--------|----------------------|
 | `accepted` | Consolidate context for unfinished/upcoming tasks, then check whether any unfinished tasks remain. If none remain, aggregate Worker Result. |
 | `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. Do not resume the old executor. |
-| `replan` | Call the Task Analyzer to revise the sequential roadmap or expand task context. If the final task is decomposed into new tasks, the Worker continues. |
+| `replan` | Call the [Task Analyzer](task-analysis.md) to revise the sequential roadmap or decompose the current task into sub-tasks. The Task Analyzer is invoked fresh with the task's context and may produce a sub-list. This is a direct call to the Task Analyzer agent — the Task Creation loop runs only at Worker start. See [task-creation.md](task-creation.md) for upfront decomposition. If the final task is decomposed into new tasks, the Worker continues. |
 | `escalate_user` | Pause the current agent sub-session and ask the user for clarification. |
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
@@ -117,5 +119,5 @@ This is not only per-task. It protects the whole Worker from retry/replan loops.
 |----------|--------|-----------|
 | Reviewer style | Hybrid | Combines reliable validation with semantic judgment |
 | Context update | Targeted propagation | Preserves precision and avoids context pollution |
-| Replanning | Request the Task Analyzer | Keeps roadmap generation responsibility in the Task Analyzer |
+| Replanning | Call the Task Analyzer directly | Keeps roadmap generation responsibility in the Task Analyzer. During execution, the Result Reviewer calls the Task Analyzer agent fresh — the same agent used by Task Creation upfront, but without the full loop orchestration. See [task-analysis.md](task-analysis.md) for the agent and [task-creation.md](task-creation.md) for upfront decomposition. |
 | Failure escalation | Consecutive failure threshold | Prevents infinite retry loops and supports HITL recovery |

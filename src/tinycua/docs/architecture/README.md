@@ -14,11 +14,13 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 6. [task-classification.md](task-classification.md) — The scoring rubric for routing decisions
 7. [information-digestion.md](information-digestion.md) — How broad session context is narrowed for precision
 8. [worker-orchestration.md](worker-orchestration.md) — Inside the Worker: how tasks are orchestrated sequentially
-9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap
-10. [task-execution.md](task-execution.md) — How individual tasks are executed with isolated context
-11. [task-reviewer.md](task-reviewer.md) — How results are reviewed and context is propagated between tasks
-12. [primary-agent.md](primary-agent.md) — How the final user-facing response is synthesized
-13. [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md) — Design decision: digest vs. raw query
+9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap (single-pass agent)
+10. [task-creation.md](task-creation.md) — How the Task Creation loop decomposes complex tasks into nested sub-tasks
+11. [task-assessor.md](task-assessor.md) — How the Task Assessor selects tasks for decomposition during Task Creation
+12. [task-execution.md](task-execution.md) — How individual tasks are executed with isolated context
+13. [result-reviewer.md](result-reviewer.md) — How results are reviewed and context is propagated between tasks
+14. [primary-agent.md](primary-agent.md) — How the final user-facing response is synthesized
+15. [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md) — Design decision: digest vs. raw query
 
 ---
 
@@ -35,16 +37,18 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 | [query-analyst.md](query-analyst.md) | Produces high-level Context Enhanced Query and Mode Decision |
 | [information-digestion.md](information-digestion.md) | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | [primary-agent.md](primary-agent.md) | Final synthesis agent for Primary Agent and Worker modes |
-| [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap |
+| [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap (single-pass linear agent) |
+| [task-assessor.md](task-assessor.md) | Inside Worker: selects which tasks to decompose during upfront Task Creation |
 | [task-execution.md](task-execution.md) | Inside Worker: executes one task with task-specific context |
-| [task-reviewer.md](task-reviewer.md) | Inside Worker: reviews task result, propagates context, and decides next transition |
+| [result-reviewer.md](result-reviewer.md) | Inside Worker: reviews task result, propagates context, and decides next transition |
 
 ## Process Specifications
 
 | File | Description |
 |------|-------------|
 | [session-architecture.md](session-architecture.md) | Session model: chat_history, Context, execution log, sub-sessions, and compaction |
-| [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Analyzer → Task Executor → Task Reviewer |
+| [worker-orchestration.md](worker-orchestration.md) | Internal Worker flow: Task Creation → Task Assessor → Task Analyzer → Task Executor → Result Reviewer |
+| [task-creation.md](task-creation.md) | Inside Worker: iterative decomposition loop that builds a nested task tree |
 
 ## Tool Specifications
 

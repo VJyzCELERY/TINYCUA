@@ -144,7 +144,7 @@ The Execution Log captures the actions taken and their outcomes during a sub-ses
 - Each sub-session has its own `execution_log`.
 - The Task Executor sub-session records its actions and outcomes into its execution log.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
-- The Task Reviewer accesses the sub-session's execution log to evaluate task results.
+- The Result Reviewer accesses the sub-session's execution log to evaluate task results.
 - Sub-session `execution_log` is not automatically propagated to primary session `execution_log`.
 
 See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
@@ -186,7 +186,7 @@ This preserves context isolation while still preserving an auditable history of 
 
 TINYCUA is sub-agentic internally, but not every specialized TINYCUA component is a future standalone Sub Agent.
 
-The sub-session system exists to manage context isolation between specialized parts of the same TINYCUA agent. Query Analyst, Task Analysis, Task Execution, and Task Reviewer can have separate sessions, but they are still internal parts of TINYCUA.
+The sub-session system exists to manage context isolation between specialized parts of the same TINYCUA agent. Query Analyst, Task Analysis, Task Execution, and Result Reviewer can have separate sessions, but they are still internal parts of TINYCUA.
 
 Future explicit Sub Agents will be a separate concept. A future Sub Agent session is not necessarily just a sub-session of the parent TINYCUA session.
 

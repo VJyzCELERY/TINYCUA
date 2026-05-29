@@ -5,7 +5,7 @@
 > **File:** `architecture/task-execution.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 
 ---
 
@@ -23,7 +23,7 @@ It receives only the current task's information plus shallow roadmap awareness. 
 
 - Current `task` from the Task List — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
 - `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
-- Failure context from the Task Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
+- Failure context from the Result Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
 Retries create a new Task Executor sub-session. The new executor receives context about the previous failure so it can avoid repeating the same mistake, without inheriting the full prior execution context.
 
@@ -74,7 +74,7 @@ If a later roadmap task appears to be needed first, Task Execution should return
 
 Execution actions are captured in the Task Executor sub-session's `execution_log`, not embedded in the Task Result. This separation means:
 
-- The execution log is evidence for the Task Reviewer, who accesses the sub-session log.
+- The execution log is evidence for the Result Reviewer, who accesses the sub-session log.
 - Actions, observations, changes, and decision traces are recorded.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log — the old log is not carried forward.
 

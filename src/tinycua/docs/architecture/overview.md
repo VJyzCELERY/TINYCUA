@@ -80,9 +80,9 @@ flowchart TD
 
 The Worker is a sequential roadmap executor. It is not a parallel dependency scheduler.
 
-1. The Task Analyzer creates and optionally refines the sequential task list.
+1. Task Creation runs at Worker start: when effort is high, the Task Assessor selects complex tasks and the Task Analyzer is invoked repeatedly to build a nested task tree (see [task-creation.md](task-creation.md)).
 2. The Task Executor runs the current task using only that task's `context` plus shallow roadmap awareness.
-3. The Task Reviewer accepts, retries, replans, escalates, and updates relevant future task contexts.
+3. The Result Reviewer accepts, retries, replans, escalates, and propagates context to future tasks.
 4. Accepted task results are aggregated into the Worker Result.
 
 See [worker-orchestration.md](worker-orchestration.md) for the full Worker flow.
@@ -116,10 +116,12 @@ See [state-objects.md](state-objects.md) for object definitions.
 |-----------|------|------|------|
 | Query Analyst | [query-analyst.md](query-analyst.md) | ReAct Agent | Performs fast, high-level context scan and produces CEQ + Mode Decision |
 | Information Digester | [information-digestion.md](information-digestion.md) | Exploration Agent | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
-| TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Analyzer, Task Executor, and Task Reviewer sequentially |
-| Task Analyzer | [task-analysis.md](task-analysis.md) | ReAct Agent | Creates the sequential task roadmap |
+| TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Sub-agent Orchestration | Runs Task Creation, Task Assessor, Task Analyzer, Task Executor, and Result Reviewer sequentially |
+| Task Creation | [task-creation.md](task-creation.md) | Process Spec | Upfront decomposition loop: iteratively invokes the Task Analyzer to build a nested task tree |
+| Task Assessor | [task-assessor.md](task-assessor.md) | Agent Spec | Selects which tasks should be decomposed further during Task Creation |
+| Task Analyzer | [task-analysis.md](task-analysis.md) | Linear Agent | Creates the sequential task roadmap (single pass: input → output) |
 | Task Executor | [task-execution.md](task-execution.md) | ReAct Agent | Executes one task with task-specific context |
-| Task Reviewer | [task-reviewer.md](task-reviewer.md) | Hybrid Decision Agent | Reviews results and updates future task contexts |
+| Result Reviewer | [result-reviewer.md](result-reviewer.md) | Hybrid Decision Agent | Reviews results and updates future task contexts |
 | Primary Agent | [primary-agent.md](primary-agent.md) | ReAct Agent | Produces final user-facing response |
 
 ---
@@ -130,9 +132,11 @@ See [state-objects.md](state-objects.md) for object definitions.
 |-------|-----------|-------|-------|
 | Query Analyst | High-level context scan + classification | None (scans session context directly) | Produces `primary_agent`, `worker`, or `uncertain` decision |
 | Information Digester | Precision-oriented exploration | Enhanced Context Retrieval (searches Session Context as external source) | Exploration agent; does not load full Session Context — searches it via retrieval tool. Removes distracting context and preserves task-critical information |
-| Task Analyzer | Effort-controlled planning | Optional info/research tools | Produces a sequential roadmap, not a dependency graph |
+| Task Creation | Iterative decomposition loop | None (orchestrates Task Analyzer) | Runs once at Worker start. Iterates through the task list and invokes the Task Analyzer fresh for each decomposition decision. Effort controls the number of passes (nesting depth) |
+| Task Assessor | Linear (single-pass selection) | None | Reviews the task list between Task Creation passes and selects which tasks to decompose. Selection only — decomposition is delegated to the Task Analyzer |
+| Task Analyzer | Linear (single-pass) | Optional info/research tools | Each invocation receives input and produces a task list — no internal loop. Multi-pass decomposition is handled by the Task Creation loop, not by the Task Analyzer internally. Produces a sequential roadmap, not a dependency graph |
 | Task Executor | ReAct | Task tools | Produces result + execution log |
-| Task Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
+| Result Reviewer | Hybrid decision | Validation + optional inspection tools | Accepts, retries, replans, escalates, and propagates context |
 | Primary Agent | Response composition | Formatting/verification tools | Should not bypass Worker guarantees with new research |
 
 ---

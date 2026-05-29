@@ -5,7 +5,7 @@
 > **File:** `architecture/state-objects.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [primary-agent.md](primary-agent.md)
+> **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [primary-agent.md](primary-agent.md)
 
 This document defines the shared state and data objects used across the TINYCUA architecture docs.
 
@@ -65,7 +65,7 @@ Key rules:
 
 - The Execution Log belongs to a sub-session, not to a specific task result.
 - Retries create new Task Executor sub-sessions, so each retry starts with a fresh execution log.
-- The Task Reviewer accesses the sub-session's execution log when evaluating a task.
+- The Result Reviewer accesses the sub-session's execution log when evaluating a task.
 
 ---
 
@@ -136,6 +136,13 @@ The `Task List` is a sequential roadmap. It is not a dependency graph and is not
 
 If part of a task can be parallelized, that parallelization belongs inside the task execution strategy, not in the top-level task list schema.
 
+### Nested Task Lists
+
+During the Task Creation loop, complex tasks may be decomposed into sub-tasks. This produces a nested tree structure where a task item can contain a `tasks` field holding a sub-list.
+
+- **Leaf task** — a task without a `tasks` field. Only leaf tasks are executed by the Task Executor.
+- **Container task** — a task with a `tasks` field. Container tasks are structural: they hold a sub-list but are not themselves executed. Their `name` and `description` describe the container's purpose; the actual work is defined by their child tasks.
+
 ```yaml
 task_list:
   tasks:
@@ -145,10 +152,42 @@ task_list:
       context: "..."
       success_criteria:
         - "..."
+    - task_id: task_002
+      name: "Complex Task (decomposed)"
+      description: "..."
+      context: "..."
+      success_criteria: []
+      tasks:  # nested sub-list — this is a container task
+        - task_id: task_002_1
+          name: "..."
+          description: "..."
+          context: "..."
+          success_criteria:
+            - "..."
+        - task_id: task_002_2
+          name: "Deeply Nested Task (decomposed)"
+          description: "..."
+          context: "..."
+          success_criteria: []
+          tasks:  # further nested sub-list
+            - task_id: task_002_2_1
+              name: "..."
+              description: "..."
+              context: "..."
+              success_criteria:
+                - "..."
+            - task_id: task_002_2_2
+              name: "..."
+              description: "..."
+              context: "..."
+              success_criteria:
+                - "..."
   confidence: "<numeric>"  # exact scale is implementation calibration
 
   current_task_id: task_001
 ```
+
+The depth of nesting depends on the Worker's `effort` setting and how many passes the Task Creation loop is allowed. See [task-analysis.md](task-analysis.md) for the Task Creation loop and effort-controlled decomposition.
 
 The `context` field should be structured markdown, not an unbounded raw dump. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates should consolidate information; they may reduce or replace stale information rather than only append more text.
 
@@ -162,6 +201,10 @@ Required fields:
 - `context`
 - `success_criteria`
 - `confidence`
+
+Optional fields:
+
+- `tasks` — a nested sub-list of task objects. When present, this task is a container and is not executed.
 
 Avoid adding rigid per-task fields such as `required_tools`, `expected_output`, `max_depth`, or dependency lists unless a later design explicitly justifies them.
 

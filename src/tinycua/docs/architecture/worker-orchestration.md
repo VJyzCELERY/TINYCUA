@@ -5,7 +5,7 @@
 > **File:** `architecture/worker-orchestration.md`
 > **Last Updated:** 2026-05-27
 > **Status:** Draft
-> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [information-digestion.md](information-digestion.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [task-reviewer.md](task-reviewer.md), [state-objects.md](state-objects.md)
+> **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [information-digestion.md](information-digestion.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 
 This document defines the internal Worker orchestration used in Worker Mode.
 
@@ -15,9 +15,11 @@ This document defines the internal Worker orchestration used in Worker Mode.
 
 The TINYCUA Worker is an internal orchestration of specialized TINYCUA agents. Externally, the user can experience TINYCUA as a single agent, but internally Worker Mode coordinates:
 
-1. Task Analyzer
-2. Task Executor
-3. Task Reviewer
+1. Task Creation (upfront loop)
+2. Task Assessor (selects tasks for decomposition during Task Creation)
+3. Task Analyzer (linear agent, called by both Task Creation and the Result Reviewer)
+4. Task Executor
+5. Result Reviewer
 
 The Worker exists to reduce hallucination by decomposing context exposure. Each internal agent receives only the context required for its role.
 
@@ -57,7 +59,7 @@ flowchart TD
     TC{{"Task Context"}}
     TE["Task Executor"]
     TRS{{"Task Result"}}
-    RV["Task Reviewer"]
+    RV["Result Reviewer"]
     DEC{{"Reviewer Decision"}}
     NEXT{"Decision"}
     UPDATE["Consolidate unfinished/upcoming task contexts"]
@@ -99,7 +101,9 @@ flowchart TD
 
 Worker effort is configuration that controls how much planning happens before execution. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
-Effort changes the amount of upfront task analysis by the Task Analyzer. It does not change the sequential nature of the top-level task list.
+Effort controls the number of passes the Task Creation loop performs during upfront planning. With `none` effort, the Task Analyzer is invoked once and produces a flat task list. With `high` effort, the loop iterates through each task and invokes the Task Analyzer fresh to decompose complex tasks into sub-tasks, producing a nested task tree. Effort does not change the sequential nature of the top-level task list.
+
+The Task Analyzer itself always performs a single pass regardless of effort. Multi-pass decomposition is achieved by the Task Creation loop re-invoking the Task Analyzer, not by the Task Analyzer refining its own output. See [task-analysis.md](task-analysis.md) for the full Task Creation loop and effort-controlled decomposition.
 
 ---
 
@@ -117,7 +121,7 @@ This prevents a clarification turn from accidentally restarting the whole reques
 
 ## Repeated Failure Rule
 
-The Worker terminates with a failure summary and asks the user for next steps when the consecutive-failure threshold is reached. See [task-reviewer.md](task-reviewer.md) for the counter mechanism and escalation rules.
+The Worker terminates with a failure summary and asks the user for next steps when the consecutive-failure threshold is reached. See [result-reviewer.md](result-reviewer.md) for the counter mechanism and escalation rules.
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues.
 
