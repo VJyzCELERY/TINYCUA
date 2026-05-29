@@ -98,7 +98,7 @@ This avoids dumping every previous task result into every future task. Context u
 |--------|----------------------|
 | `accepted` | Consolidate context for unfinished/upcoming tasks, then check whether any unfinished tasks remain. If none remain, aggregate Worker Result. |
 | `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. Do not resume the old executor. |
-| `replan` | Call the [Task Analyzer](task-analysis.md) to revise the sequential roadmap or decompose the current task into sub-tasks. The Task Analyzer is invoked fresh with the task's context and may produce a sub-list. This is a direct call to the Task Analyzer agent — the Task Creation loop runs only at Worker start. See [task-creation.md](task-creation.md) for upfront decomposition. If the final task is decomposed into new tasks, the Worker continues. |
+| `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. The Task Analyzer is invoked fresh with the task's context and may produce a sub-list — it is not overhauling the entire roadmap, only breaking down the current task. This is a direct call to the Task Analyzer agent — the Task Creation loop runs only at Worker start. See [task-creation.md](task-creation.md) for upfront decomposition. If the final task is decomposed into new tasks, the Worker continues. |
 | `escalate_user` | Pause the current agent sub-session and ask the user for clarification. |
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
@@ -119,5 +119,5 @@ This is not only per-task. It protects the whole Worker from retry/replan loops.
 |----------|--------|-----------|
 | Reviewer style | Hybrid | Combines reliable validation with semantic judgment |
 | Context update | Targeted propagation | Preserves precision and avoids context pollution |
-| Replanning | Call the Task Analyzer directly | Keeps roadmap generation responsibility in the Task Analyzer. During execution, the Result Reviewer calls the Task Analyzer agent fresh — the same agent used by Task Creation upfront, but without the full loop orchestration. See [task-analysis.md](task-analysis.md) for the agent and [task-creation.md](task-creation.md) for upfront decomposition. |
+| Replanning | Call the Task Analyzer to decompose the current task | Keeps decomposition responsibility in the Task Analyzer. During execution, the Result Reviewer calls the Task Analyzer fresh to break down the current task — not overhaul the entire roadmap. The same agent is used by Task Creation upfront. See [task-analysis.md](task-analysis.md) for the agent and [task-creation.md](task-creation.md) for upfront decomposition. |
 | Failure escalation | Consecutive failure threshold | Prevents infinite retry loops and supports HITL recovery |

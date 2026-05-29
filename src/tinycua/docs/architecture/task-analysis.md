@@ -69,9 +69,9 @@ The Result Reviewer may ask the Task Analyzer to revise the roadmap when the cur
 - **structure** — task ordering is wrong or a completed task reveals missing context;
 - **systemic failure** — repeated failures indicate the roadmap itself is flawed.
 
-When the Result Reviewer requests replanning during execution, it calls the **Task Analyzer directly** with the current task's (or remaining roadmap's) context. The Task Analyzer produces a new sub-list or revised structure — the same linear input→output behavior it always performs. This is the same agent, not the full Task Creation loop (which runs only at Worker start for upfront planning). See [task-creation.md](task-creation.md) for the upfront decomposition loop.
+When the Result Reviewer requests replanning during execution, it calls the **Task Analyzer directly** with the current task's context. The Task Analyzer decomposes that specific task into a sub-list — it is not overhauling the entire roadmap, only breaking down the current task. This is the same linear input→output behavior the Task Analyzer always performs. The full Task Creation loop runs only at Worker start for upfront planning. See [task-creation.md](task-creation.md) for the upfront decomposition loop.
 
-The Task Analyzer may revise the current task context or split the task. The Result Reviewer should request replanning rather than directly rewriting the decomposition semantics.
+The Task Analyzer may split the current task into sub-tasks. The Result Reviewer should request replanning rather than directly rewriting the decomposition semantics.
 
 ---
 

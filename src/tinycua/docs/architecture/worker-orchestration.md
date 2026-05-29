@@ -65,7 +65,7 @@ flowchart TD
     UPDATE["Consolidate unfinished/upcoming task contexts"]
     REMAIN{"Remaining unfinished tasks?"}
     RETRY["Create new Executor with failure recorded in task context"]
-    REPLAN["Call Task Analyzer\nto revise roadmap"]
+    REPLAN["Call Task Analyzer\nto decompose current task"]
     TA["Task Analyzer\n(single pass)"]
     ASK["Ask user / pause continuation state"]
     FAIL_TERM["Terminate Worker with failure summary"]

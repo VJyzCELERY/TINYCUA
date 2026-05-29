@@ -111,7 +111,7 @@ Task Creation runs only at Worker start for upfront planning. During execution, 
 The Task Analyzer's output mechanics are identical regardless of who calls it: it receives input (a task's context or remaining roadmap), performs a single pass, and produces a task list. The difference is scope:
 
 - **Task Creation (upfront):** iterates through the full task list, calling the Task Analyzer repeatedly to build a complete nested tree.
-- **Result Reviewer (mid-execution):** calls the Task Analyzer once for a specific task or the remaining roadmap. The output sub-list is inserted at the current position and execution continues.
+- **Result Reviewer (mid-execution):** calls the Task Analyzer once to decompose the current task. The output sub-list is inserted at the current position and execution continues. The Result Reviewer is not overhauling the entire roadmap — only breaking down the task at hand.
 
 This separation keeps the Task Creation loop as an upfront orchestration concern while the Task Analyzer remains a reusable, stateless agent available throughout the Worker's lifecycle.
 
