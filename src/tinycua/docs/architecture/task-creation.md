@@ -52,7 +52,7 @@ Only **leaf tasks** (tasks without a `tasks` sub-list) are executed by the Task 
 
 ---
 
-## Flow
+## Internal Flow
 
 ```mermaid
 flowchart TD

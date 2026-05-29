@@ -29,7 +29,7 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 
 **Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`. A task may optionally contain a nested `tasks` field holding a sub-list (added by the Task Creation process, not by the Task Analyzer itself).
 
-The `context` field should be structured markdown. It should remain small and focused. Updating context means consolidating information, not blindly appending more information.
+The `context` field should be structured markdown. See [state-objects.md](state-objects.md) for the canonical schema and context update rules.
 
 ---
 

@@ -90,6 +90,10 @@ Where applicable, process specs should also include:
 | File | Description |
 | ...
 
+## Tool Specifications
+| File | Description |
+| ...
+
 ## Reference Specifications
 | File | Description |
 | ...
@@ -102,6 +106,8 @@ Where applicable, process specs should also include:
 | File | Description |
 | ...
 ```
+
+The README should also include a numbered learning path section guiding new readers through the docs in logical order, placed before the category reference tables.
 
 The README sections map directly to the file categories above. Additional sections may be added as new categories are introduced.
 
