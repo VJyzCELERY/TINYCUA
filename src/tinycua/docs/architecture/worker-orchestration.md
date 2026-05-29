@@ -53,7 +53,7 @@ If a task contains parallelizable work, that parallelization happens inside the 
 ```mermaid
 flowchart TD
     DI{{"Digested Information"}}
-    TA["Task Analyzer"]
+    TCR["Task Creation\n(upfront loop)"]
     TL{{"Sequential Task List"}}
     PICK["Pick current task"]
     TC{{"Task Context"}}
@@ -65,14 +65,15 @@ flowchart TD
     UPDATE["Consolidate unfinished/upcoming task contexts"]
     REMAIN{"Remaining unfinished tasks?"}
     RETRY["Create new Executor with failure recorded in task context"]
-    REPLAN["Call Task Analyzer to revise roadmap / explore more context"]
+    REPLAN["Call Task Analyzer\nto revise roadmap"]
+    TA["Task Analyzer\n(single pass)"]
     ASK["Ask user / pause continuation state"]
     FAIL_TERM["Terminate Worker with failure summary"]
     AGG["Aggregate accepted results"]
     WR{{"Worker Result"}}
 
-    DI --> TA
-    TA --> TL
+    DI --> TCR
+    TCR --> TL
     TL --> PICK
     PICK --> TC
     TC --> TE
@@ -89,6 +90,7 @@ flowchart TD
     RETRY --> TE
     NEXT -->|replan| REPLAN
     REPLAN --> TA
+    TA -. "updates" .-> TL
     NEXT -->|escalate_user| ASK
     NEXT -->|consecutive failure threshold| FAIL_TERM
     FAIL_TERM --> ASK
@@ -101,9 +103,9 @@ flowchart TD
 
 Worker effort is configuration that controls how much planning happens before execution. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
-Effort controls the number of passes the Task Creation loop performs during upfront planning. With `none` effort, the Task Analyzer is invoked once and produces a flat task list. With `high` effort, the loop iterates through each task and invokes the Task Analyzer fresh to decompose complex tasks into sub-tasks, producing a nested task tree. Effort does not change the sequential nature of the top-level task list.
+Effort controls the number of passes the Task Creation loop performs during upfront planning. With `none` effort, Task Creation invokes the Task Analyzer once and produces a flat task list. With `high` effort, the Task Assessor selects complex tasks and the loop invokes the Task Analyzer fresh on each to decompose them into sub-tasks, producing a nested task tree. Effort does not change the sequential nature of the top-level task list.
 
-The Task Analyzer itself always performs a single pass regardless of effort. Multi-pass decomposition is achieved by the Task Creation loop re-invoking the Task Analyzer, not by the Task Analyzer refining its own output. See [task-analysis.md](task-analysis.md) for the full Task Creation loop and effort-controlled decomposition.
+The Task Analyzer itself always performs a single pass regardless of effort. Multi-pass decomposition is achieved by the Task Creation loop orchestrating the Task Assessor and Task Analyzer, not by the Task Analyzer refining its own output. See [task-creation.md](task-creation.md) for the full decomposition loop.
 
 ---
 
