@@ -22,15 +22,7 @@ The Information Digester receives the CEQ and uses Enhanced Context Retrieval (a
 
 The current top-level routing model is:
 
-```text
-Query Analyst (high-level scan)
-    ├── Context Enhanced Query (high-level)
-    └── Mode Decision
-            ├── primary_agent → Primary Agent
-            │       └── may invoke Information Digestion if CEQ needs precise consolidation
-            ├── worker → Information Digester (deep retrieval + digestion) → TINYCUA Worker → Primary Agent
-            └── uncertain → uncertain_next_action: ask_user | explore
-```
+The Query Analyst produces a `Context Enhanced Query` and a `Mode Decision` with three routing paths: `primary_agent`, `worker`, and `uncertain`. See [overview.md](../overview.md) for the canonical routing diagram.
 
 The Information Digester is therefore used in two situations:
 

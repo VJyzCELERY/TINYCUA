@@ -93,11 +93,11 @@ flowchart TD
 
 ```yaml
 session:
-  session_id: session_001
+  session_id: "<session id>"
   owner_type: primary | tinycua_internal | future_sub_agent
-  owner_name: "Primary Agent"
+  owner_name: "<agent or user name>"
   chat_history: []
-  context: "structured markdown"
+  context: "<structured markdown>"
   execution_log: []  # actions and outcomes from sub-session execution
 ```
 

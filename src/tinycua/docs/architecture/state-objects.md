@@ -146,33 +146,27 @@ During the Task Creation loop, complex tasks may be decomposed into sub-tasks. T
 ```yaml
 task_list:
   tasks:
-    - task_id: task_001
-      name: "..."
-      description: "..."
-      context: "..."
+    - task_id: "<task id>"
+      name: "<task name>"
+      description: "<task description>"
+      context: "<task-specific context (structured markdown)>"
       success_criteria:
-        - "..."
-    - task_id: task_002
-      name: "Complex Task (decomposed)"
-      description: "..."
-      context: "..."
+        - "<criterion>"
+    - task_id: "<container task id>"
+      name: "<container name>"
+      description: "<container description>"
+      context: "<container context>"
       success_criteria: []
       tasks:  # nested sub-list — this is a container task
-        - task_id: task_002_1
-          name: "..."
-          description: "..."
-          context: "..."
+        - task_id: "<child task id>"
+          name: "<child name>"
+          description: "<child description>"
+          context: "<child context>"
           success_criteria:
-            - "..."
-        - task_id: task_002_2
-          name: "..."
-          description: "..."
-          context: "..."
-          success_criteria:
-            - "..."
+            - "<criterion>"
   confidence: "<numeric>"  # exact scale is implementation calibration
 
-  current_task_id: task_001
+  current_task_id: "<current task id>"
 ```
 
 Nesting can continue to arbitrary depth. The depth is controlled by the Worker's `effort` setting and how many passes the Task Creation loop performs. Deeper nesting follows the same container/leaf pattern — each additional level is a `tasks` sub-list within a container task. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.

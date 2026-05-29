@@ -82,11 +82,6 @@ The Task Assessor is invoked between passes of the Task Creation loop:
 4. For each selected task: the Task Analyzer is invoked fresh and produces a sub-list.
 5. If `effort` allows more passes: go back to step 2 with the now-expanded list.
 
-```
-Pass N: Task Assessor → selects tasks → Task Analyzer × N → expanded list
-Pass N+1: Task Assessor → selects tasks → Task Analyzer × N → further expanded list
-```
-
 See [task-creation.md](task-creation.md) for the full Task Creation flow and effort-controlled pass limits.
 
 ---
