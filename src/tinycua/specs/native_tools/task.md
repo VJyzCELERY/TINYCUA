@@ -70,11 +70,16 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
   - [ ] Handle empty files (return empty string)
 - [ ] Implement `write_file` in `files.py` <!-- id: 15 -->
   - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
-  - [ ] Create/overwrite mode (start=None): write content, create parent dirs if needed
-  - [ ] Patch mode (start set): read existing file, replace lines start..start+offset, write back
-  - [ ] Return `{success, path, bytes_written, mode, start_line, lines_replaced, error}`
-  - [ ] Handle partial replace on nonexistent file, invalid start line as error dicts
-- [ ] Implement `list_files` in `files.py` <!-- id: 16 -->
+  - [ ] Create/overwrite entire file with content, creating parent dirs if needed
+  - [ ] Return `{success, path, bytes_written, error}`
+  - [ ] Handle permission denied as error dict
+- [ ] Implement `edit_file` in `files.py` <!-- id: 16 -->
+  - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
+  - [ ] Read existing file, replace lines start..start+offset, write back
+  - [ ] Return `{success, path, start_line, lines_replaced, bytes_written, error}`
+  - [ ] Handle file not found, invalid start line as error dicts
+  - [ ] offset=None replaces to end of file from start
+- [ ] Implement `list_files` in `files.py` <!-- id: 17 -->
   - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
   - [ ] Use `pathlib.Path.glob()` for pattern matching
   - [ ] Return list of absolute paths as strings
@@ -83,7 +88,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ### Web Tools
 
-- [ ] Implement `fetch_url` in `web.py` <!-- id: 17 -->
+- [ ] Implement `fetch_url` in `web.py` <!-- id: 18 -->
   - [ ] Use `httpx` for HTTP requests
   - [ ] Support GET (default), POST, and other methods via `method` parameter
   - [ ] Support custom headers via `headers` parameter (dict or None)
@@ -94,7 +99,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ### Python Execution Tools
 
-- [ ] Implement `run_python` in `python_exec.py` <!-- id: 18 -->
+- [ ] Implement `run_python` in `python_exec.py` <!-- id: 19 -->
   - [ ] Execute code via `subprocess.run(["python", "-c", code], timeout=timeout, capture_output=True, text=True)`
   - [ ] Handle `subprocess.TimeoutExpired` → kill process, set timed_out=True, exit_code=-1
   - [ ] Handle syntax/runtime errors → stderr contains traceback, exit_code=1
@@ -102,36 +107,37 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 19 -->
-- [ ] Run e2e integration tests — expect GREEN (all pass with live LLM) <!-- id: 20 -->
-- [ ] Write unit tests for `shell.py` — mock subprocess for edge cases (empty command, large output) <!-- id: 21 -->
-- [ ] Write unit tests for `files.py` — test truncation logic, path resolution, line counting edge cases <!-- id: 22 -->
-- [ ] Write unit tests for `web.py` — mock httpx for all HTTP error codes, timeout, invalid URLs <!-- id: 23 -->
-- [ ] Write unit tests for `python_exec.py` — mock subprocess for timeout, syntax error, runtime error <!-- id: 24 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — all tests must pass <!-- id: 25 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 20 -->
+- [ ] Run e2e integration tests — expect GREEN (all pass with live LLM) <!-- id: 21 -->
+- [ ] Write unit tests for `shell.py` — mock subprocess for edge cases (empty command, large output) <!-- id: 22 -->
+- [ ] Write unit tests for `files.py` — test truncation logic, path resolution, line counting edge cases, edit_file line replacement <!-- id: 23 -->
+- [ ] Write unit tests for `web.py` — mock httpx for all HTTP error codes, timeout, invalid URLs <!-- id: 24 -->
+- [ ] Write unit tests for `python_exec.py` — mock subprocess for timeout, syntax error, runtime error <!-- id: 25 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — all tests must pass <!-- id: 26 -->
 
 ## Verification Phase
 
-- [ ] Import all six tools from `tinycua.agent.tools` and verify `Tool` instances <!-- id: 26 -->
-- [ ] Manually test `run_shell("echo hello")` — verify stdout capture <!-- id: 27 -->
-- [ ] Manually test `read_file` with a temp file — full read, range read, relative path <!-- id: 28 -->
-- [ ] Manually test `write_file` — create, overwrite, patch, parent dir creation <!-- id: 29 -->
-- [ ] Manually test `fetch_url("https://httpbin.org/get")` — verify response body <!-- id: 30 -->
-- [ ] Manually test `run_python("print(1+1)")` — verify stdout capture <!-- id: 31 -->
-- [ ] Verify tool JSON Schema output matches expected function-calling format <!-- id: 32 -->
-- [ ] Run e2e tests with live LLM — verify Agent calls correct native tools for multi-step tasks <!-- id: 33 -->
+- [ ] Import all seven tools from `tinycua.agent.tools` and verify `Tool` instances <!-- id: 27 -->
+- [ ] Manually test `run_shell("echo hello")` — verify stdout capture <!-- id: 28 -->
+- [ ] Manually test `read_file` with a temp file — full read, range read, relative path <!-- id: 29 -->
+- [ ] Manually test `write_file` — create, overwrite, parent dir creation <!-- id: 30 -->
+- [ ] Manually test `edit_file` — single line, multiple lines, replace to end, relative path <!-- id: 31 -->
+- [ ] Manually test `fetch_url("https://httpbin.org/get")` — verify response body <!-- id: 32 -->
+- [ ] Manually test `run_python("print(1+1)")` — verify stdout capture <!-- id: 33 -->
+- [ ] Verify tool JSON Schema output matches expected function-calling format <!-- id: 34 -->
+- [ ] Run e2e tests with live LLM — verify Agent calls correct native tools for multi-step tasks <!-- id: 35 -->
 
 ## Documentation Phase
 
-- [ ] Update `tinycua/agent/tools/__init__.py` docstring with usage examples <!-- id: 34 -->
-- [ ] Add module-level docstrings to each tool module explaining purpose and usage <!-- id: 35 -->
-- [ ] Update CHANGELOG with new native tools addition <!-- id: 36 -->
+- [ ] Update `tinycua/agent/tools/__init__.py` docstring with usage examples <!-- id: 36 -->
+- [ ] Add module-level docstrings to each tool module explaining purpose and usage <!-- id: 37 -->
+- [ ] Update CHANGELOG with new native tools addition <!-- id: 38 -->
 
 ## Review and Merge
 
-- [ ] Create pull request using `.agents/scripts/gh.py` with PR body from template <!-- id: 37 -->
-- [ ] Address review feedback and run `/review-loop` <!-- id: 38 -->
-- [ ] Merge to main branch <!-- id: 39 -->
+- [ ] Create pull request using `.agents/scripts/gh.py` with PR body from template <!-- id: 39 -->
+- [ ] Address review feedback and run `/review-loop` <!-- id: 40 -->
+- [ ] Merge to main branch <!-- id: 41 -->
 
 ---
 

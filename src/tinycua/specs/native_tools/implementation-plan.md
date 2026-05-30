@@ -1,6 +1,6 @@
 # Implementation: Native Benchmark Tools
 
-Implement six native tools (`run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python`) as `@tool`-decorated functions in `tinycua/agent/tools/native/`. These tools provide the Task Executor agent with environment interaction capabilities: shell execution, file I/O, web fetching, and Python code execution. All tools return structured, JSON-serializable output and handle errors gracefully.
+Implement seven native tools (`run_shell`, `read_file`, `write_file`, `edit_file`, `list_files`, `fetch_url`, `run_python`) as `@tool`-decorated functions in `tinycua/agent/tools/native/`. These tools provide the Task Executor agent with environment interaction capabilities: shell execution, file I/O (read/write/edit/list), web fetching, and Python code execution. All tools return structured, JSON-serializable output and handle errors gracefully.
 
 ## Context
 
@@ -221,7 +221,6 @@ def test_write_file_create():
         assert result["success"] is True
         assert result["path"] == filepath
         assert result["bytes_written"] == len("hello world")
-        assert result["mode"] == "create"
         assert Path(filepath).read_text() == "hello world"
 
 
@@ -234,7 +233,6 @@ def test_write_file_overwrite():
 
         result = write_file(filepath, "new content")
         assert result["success"] is True
-        assert result["mode"] == "overwrite"
         assert Path(filepath).read_text() == "new content"
 
 
@@ -247,69 +245,6 @@ def test_write_file_creates_parent_dirs():
         result = write_file(filepath, "deep content")
         assert result["success"] is True
         assert Path(filepath).read_text() == "deep content"
-
-
-def test_write_file_patch_single_line():
-    """Replace a single line at start position."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "patch.txt")
-        Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import write_file
-
-        result = write_file(filepath, "REPLACED", start=2, offset=1)
-        assert result["success"] is True
-        assert result["mode"] == "patch"
-        assert result["start_line"] == 2
-        assert result["lines_replaced"] == 1
-        assert Path(filepath).read_text() == "line 1\nREPLACED\nline 3\n"
-
-
-def test_write_file_patch_multiple_lines():
-    """Replace multiple lines with offset parameter."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "patch_multi.txt")
-        Path(filepath).write_text("line 1\nline 2\nline 3\nline 4\n")
-        from tinycua.agent.tools.native.files import write_file
-
-        result = write_file(filepath, "A\nB", start=2, offset=2)
-        assert result["success"] is True
-        assert result["lines_replaced"] == 2
-        assert Path(filepath).read_text() == "line 1\nA\nB\nline 4\n"
-
-
-def test_write_file_patch_to_end():
-    """Replace from start to end of file when offset is None."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "patch_end.txt")
-        Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import write_file
-
-        result = write_file(filepath, "TAIL", start=2)
-        assert result["success"] is True
-        assert Path(filepath).read_text() == "line 1\nTAIL"
-
-
-def test_write_file_patch_nonexistent_file():
-    """Error when trying to patch a file that does not exist."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "does_not_exist.txt")
-        from tinycua.agent.tools.native.files import write_file
-
-        result = write_file(filepath, "content", start=1)
-        assert result["success"] is False
-        assert "error" in result
-
-
-def test_write_file_invalid_start_line():
-    """Error when start line exceeds file length."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "short.txt")
-        Path(filepath).write_text("only one line\n")
-        from tinycua.agent.tools.native.files import write_file
-
-        result = write_file(filepath, "content", start=100)
-        assert result["success"] is False
-        assert "error" in result
 
 
 def test_write_file_relative_path():
@@ -325,6 +260,71 @@ def test_write_file_relative_path():
             assert Path(tmpdir, "relative_output.txt").read_text() == "hello"
     finally:
         os.chdir(original_cwd)
+
+
+# --- edit_file ---
+
+def test_edit_file_single_line():
+    """Replace a single line at a given start position."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "edit.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=2, content="REPLACED", offset=1)
+        assert result["success"] is True
+        assert result["start_line"] == 2
+        assert result["lines_replaced"] == 1
+        assert Path(filepath).read_text() == "line 1\nREPLACED\nline 3\n"
+
+
+def test_edit_file_multiple_lines():
+    """Replace multiple lines with offset parameter."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "edit_multi.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\nline 4\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=2, content="A\nB", offset=2)
+        assert result["success"] is True
+        assert result["lines_replaced"] == 2
+        assert Path(filepath).read_text() == "line 1\nA\nB\nline 4\n"
+
+
+def test_edit_file_to_end():
+    """Replace from start to end of file when offset is None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "edit_end.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=2, content="TAIL")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "line 1\nTAIL"
+
+
+def test_edit_file_nonexistent_file():
+    """Error when editing a file that does not exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "does_not_exist.txt")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=1, content="content")
+        assert result["success"] is False
+        assert "error" in result
+
+
+def test_edit_file_invalid_start_line():
+    """Error when start line exceeds file length."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "short.txt")
+        Path(filepath).write_text("only one line\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=100, content="content")
+        assert result["success"] is False
+        assert "error" in result
+        assert "lines" in result.get("error", "").lower()
 
 
 # --- list_files ---
@@ -536,7 +536,7 @@ import pytest
 
 
 def test_tool_registers_with_agent():
-    """All six tools can be registered with an SDK Agent."""
+    """All seven tools can be registered with an SDK Agent."""
     from tinycua_sdk.tools.decorators import Tool
     from tinycua.agent.tools.native.shell import run_shell
     from tinycua.agent.tools.native.files import read_file, write_file, list_files
@@ -709,7 +709,7 @@ class TestNativeToolsE2E:
 - [ ] **Scenario 5 — E2E Agent loop (list → read)**: Agent explores a directory with list_files and reads relevant files based on LLM decisions.
 - [ ] **Scenario 6 — E2E Agent loop (shell)**: Agent calls run_shell through a live LLM and reports the output correctly.
 - [ ] **Edge case — Truncation bypass**: `read_file` with `start`/`offset` set bypasses the internal truncation limit entirely.
-- [ ] **Edge case — write_file partial**: `write_file` with `start`/`offset` correctly replaces a line range within an existing file.
+- [ ] **Edge case — edit_file partial**: `edit_file` with `start`/`offset` correctly replaces a line range within an existing file. Errors returned for nonexistent file or invalid start line.
 - [ ] **Edge case — Relative paths**: All file tools resolve relative paths against `os.getcwd()`.
 
 ## Verification Plan
@@ -722,7 +722,7 @@ class TestNativeToolsE2E:
 
 ### Manual Verification
 
-- [ ] Import all six tools from `tinycua.agent.tools` and verify they are `Tool` instances
+- [ ] Import all seven tools from `tinycua.agent.tools` and verify they are `Tool` instances
 - [ ] Run `run_shell("echo hello")` manually — verify stdout capture
 - [ ] Create a temp file, read it with `read_file`, patch it with `write_file(start=N)`, verify result
 
@@ -747,7 +747,7 @@ class TestNativeToolsE2E:
 
 #### [NEW] `tinycua/tinycua/agent/tools/native/files.py`
 
-- **Description**: Implements `read_file(path, start=None, offset=None)`, `write_file(path, content, start=None, offset=None)`, `list_files(path, pattern="*")`. Uses `pathlib` for path resolution (absolute vs relative-to-CWD). `read_file` applies internal 100KB truncation only for full-file reads (start/offset both None). `write_file` supports full-file create/overwrite and partial line replacement. `list_files` uses `pathlib.glob()`.
+- **Description**: Implements `read_file(path, start=None, offset=None)`, `write_file(path, content)`, `edit_file(path, start, content, offset=None)`, `list_files(path, pattern="*")`. Uses `pathlib` for path resolution (absolute vs relative-to-CWD). `read_file` applies internal 100KB truncation only for full-file reads (start/offset both None). `write_file` creates or overwrites entire files, creating parent dirs if needed. `edit_file` replaces a line range in an existing file using `start`/`offset`. `list_files` uses `pathlib.glob()`.
 - **Rationale**: File I/O is essential for any agent that reads data, writes results, and explores directories.
 
 #### [NEW] `tinycua/tinycua/agent/tools/native/web.py`
@@ -762,7 +762,7 @@ class TestNativeToolsE2E:
 
 #### [MODIFY] `tinycua/tinycua/agent/tools/__init__.py`
 
-- **Description**: Add imports and re-exports for all six tool functions: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python`.
+- **Description**: Add imports and re-exports for all seven tool functions: `run_shell`, `read_file`, `write_file`, `edit_file`, `list_files`, `fetch_url`, `run_python`.
 - **Rationale**: Provides a flat import surface (`from tinycua.agent.tools import read_file`) for convenience.
 
 ### Tests
@@ -858,7 +858,7 @@ class TestNativeToolsE2E:
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `tinycua/agent/tools/native/` | New | Package with four modules (shell, files, web, python_exec) |
-| `tinycua/agent/tools/__init__.py` | Modify | Add re-exports for all six native tools |
+| `tinycua/agent/tools/__init__.py` | Modify | Add re-exports for all seven native tools |
 | `tinycua/agent/tools/cua/` | Unchanged | Separate concern — no changes needed |
 | `tinycua-sdk` | Unchanged | Tools use existing `@tool` decorator and `ToolExecutor` |
 | `tests/` | New | Test suite with integration tests and e2e LLM tests |
@@ -873,7 +873,8 @@ class TestNativeToolsE2E:
 # Tool return values follow the shapes defined in design.md:
 #   run_shell:    {stdout, stderr, exit_code, timed_out, error}
 #   read_file:    str (or dict on error)
-#   write_file:   {success, path, bytes_written, mode, start_line, lines_replaced, error}
+#   write_file:   {success, path, bytes_written, error}
+#   edit_file:    {success, path, start_line, lines_replaced, bytes_written, error}
 #   list_files:   list[str] (or dict on error)
 #   fetch_url:    str (or dict on error)
 #   run_python:   {stdout, stderr, exit_code, timed_out, error}
@@ -887,7 +888,8 @@ class TestNativeToolsE2E:
 |------|--------|---------|
 | `run_shell` | `shell.py` | Execute shell commands |
 | `read_file` | `files.py` | Read file contents with range support |
-| `write_file` | `files.py` | Write/overwrite/patch files |
+| `write_file` | `files.py` | Create/overwrite files |
+| `edit_file` | `files.py` | Replace lines in existing files |
 | `list_files` | `files.py` | List directory contents with glob |
 | `fetch_url` | `web.py` | HTTP fetch with truncation |
 | `run_python` | `python_exec.py` | Execute Python code in subprocess |

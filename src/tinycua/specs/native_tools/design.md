@@ -8,7 +8,7 @@
 
 ## Overview
 
-Implement six native tools as `tinycua_sdk` `@tool`-decorated functions in the `src/tinycua/tinycua/agent/tools/` package. These tools give the Task Executor agent the ability to interact with the environment: execute shell commands, read/write/list files, fetch URLs, and run Python code. They are the execution-layer tools in the TINYCUA architecture.
+Implement seven native tools as `tinycua_sdk` `@tool`-decorated functions in the `src/tinycua/tinycua/agent/tools/` package. These tools give the Task Executor agent the ability to interact with the environment: execute shell commands, read/write/edit/list files, fetch URLs, and run Python code. They are the execution-layer tools in the TINYCUA architecture.
 
 ---
 
@@ -22,7 +22,7 @@ tinycua/tinycua/agent/tools/
 └── native/
     ├── __init__.py      # Re-exports from individual modules
     ├── shell.py         # run_shell
-    ├── files.py         # read_file, write_file, list_files
+    ├── files.py         # read_file, write_file, edit_file, list_files
     ├── web.py           # fetch_url
     └── python_exec.py   # run_python
 ```
@@ -76,11 +76,22 @@ Each tool returns a structured result:
     "success": bool,
     "path": str,
     "bytes_written": int,
-    "mode": str,          # "create" (new file), "overwrite" (full replace), or "patch" (partial replace)
-    "start_line": int | None,  # line where replacement began (None for full-file write)
-    "lines_replaced": int | None,  # number of lines replaced (None for full-file write)
     "error": str | None,
 }
+```
+
+#### `edit_file`
+```python
+{
+    "success": bool,
+    "path": str,
+    "start_line": int,       # line where replacement began
+    "lines_replaced": int,   # number of lines replaced
+    "bytes_written": int,    # total bytes written to file
+    "error": str | None,
+}
+# On error (file not found): {"error": "File does not exist: /path/to/file"}
+# On error (invalid start): {"error": "Invalid start line: 500 (file has 42 lines)"}
 ```
 
 #### `list_files`
@@ -146,24 +157,35 @@ def read_file(path: str, start: int | None = None, offset: int | None = None) ->
     """
 
 @tool
-def write_file(path: str, content: str, start: int | None = None, offset: int | None = None) -> dict:
+def write_file(path: str, content: str) -> dict:
     """Write content to a file, creating parent directories if needed.
     
     Paths starting with '/' are treated as absolute. All other paths are resolved
     relative to the agent's current working directory.
     
-    When start is None (default), replaces the entire file with the given content.
-    This creates the file (and parent directories) if they do not exist.
-    
-    When start is set to a line number, performs a partial replacement: reads the
-    file, replaces lines starting at `start` for `offset` lines (or to end if
-    offset is None), and writes the result back. The file must already exist for
-    partial replacement.
+    If the file already exists, it is overwritten. If it does not exist, the file
+    (and any missing parent directories) are created.
     
     Args:
         path: Path to the file (absolute or relative to CWD).
-        content: Content to write (full file content or replacement lines).
-        start: 1-indexed line number to begin replacing. None replaces the entire file.
+        content: Content to write.
+    """
+
+@tool
+def edit_file(path: str, start: int, content: str, offset: int | None = None) -> dict:
+    """Replace lines in an existing file starting at a given line number.
+    
+    Paths starting with '/' are treated as absolute. All other paths are resolved
+    relative to the agent's current working directory.
+    
+    Reads the file, replaces lines starting at `start` for `offset` lines (or to
+    end of file if offset is None), and writes the result back. The file must
+    already exist — use `write_file` to create new files.
+    
+    Args:
+        path: Path to the file (absolute or relative to CWD).
+        start: 1-indexed line number to begin replacing at.
+        content: Replacement content (may be multiple lines).
         offset: Number of lines to replace starting from `start`. None replaces to end of file.
     """
 
@@ -206,11 +228,10 @@ def run_python(code: str, timeout: int = 30) -> dict:
 
 | Error Case | Return Value |
 |------------|-------------|
-| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `write_file` (partial): `{"error": "..."}` |
+| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `edit_file`: `{"error": "File does not exist: ..."}` |
 | Directory not found | `list_files`: `{"error": "..."}` |
 | Permission denied | `{"error": "Permission denied: ..."}` |
-| Invalid start line | `read_file`: `{"error": "Invalid start line: N (file has M lines)"}`; `write_file`: `{"error": "..."}` |
-| Partial replace on new file | `write_file`: `{"error": "File does not exist: use start=None to create"}` |
+| Invalid start line | `read_file`: `{"error": "Invalid start line: N (file has M lines)"}`; `edit_file`: `{"error": "Invalid start line: N (file has M lines)"}` |
 | Command timeout | `{"stdout": "...", "stderr": "...", "exit_code": -1, "timed_out": true}` |
 | Python execution error | `{"stdout": "", "stderr": "<traceback>", "exit_code": 1, "timed_out": false}` |
 | HTTP error (4xx/5xx) | `{"error": "HTTP 404: Not Found"}` |
@@ -227,7 +248,7 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
 
 - [ ] Create `tinycua/agent/tools/native/` package
 - [ ] Implement `shell.py` — `run_shell` with `subprocess.run`, timeout via `subprocess.Popen` + `Timer`
-- [ ] Implement `files.py` — `read_file` (full-file with truncation + line-range reads), `write_file` (full-file overwrite + partial line replacement), `list_files` using `pathlib` and `glob`
+- [ ] Implement `files.py` — `read_file` (full-file with truncation + line-range reads), `write_file` (full-file create/overwrite), `edit_file` (partial line replacement), `list_files` using `pathlib` and `glob`
 - [ ] Implement `web.py` — `fetch_url` using `httpx` (already a project dependency)
 - [ ] Implement `python_exec.py` — `run_python` using `subprocess.run` with timeout
 - [ ] Update `tinycua/agent/tools/__init__.py` to export all tools
@@ -262,9 +283,9 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
    - **Reason**: LLMs naturally think in terms of line numbers when reading files. Character offsets require the agent to know exact character positions, which is uncommon. A line-based interface aligns with how most agent tools (e.g., OpenCode's Read tool) present file content to the LLM.
    - **Alternatives Considered**: Character offset — more precise but harder for LLMs to use. `[line, col]` tuples — adds parsing complexity without clear benefit over line numbers alone.
 
-7. **Decision**: `write_file` supports both full-file overwrite (`start=None`) and partial line replacement (`start=N`, optional `offset=M`).
-   - **Reason**: A single tool handles both create/overwrite and targeted edits. When `start` is None, the behavior matches standard agent tool conventions (create or overwrite entire file). When `start` is set, the tool performs a line-range replacement. This avoids needing a separate "edit" tool for line-based operations while keeping the default behavior simple.
-   - **Alternatives Considered**: Separate `write_file` and `edit_file` tools (like OpenCode's Write + Edit) — cleaner separation but more tools for the agent to choose between. Text-based replacement (find `oldString`, replace with `newString`) — powerful for arbitrary edits but more complex and error-prone than line-based replacement.
+7. **Decision**: Separate `write_file` (create/overwrite entire file) and `edit_file` (partial line replacement via `start`/`offset`) into two distinct tools.
+   - **Reason**: Clean separation of concerns matches how most agent tools work (e.g., OpenCode's Write + Edit). `write_file` remains simple and predictable — it always creates or overwrites the entire file. `edit_file` handles targeted line-range replacements on existing files. This avoids the ambiguity of a single tool that behaves differently depending on whether optional parameters are set.
+   - **Alternatives Considered**: Single `write_file` with optional `start`/`offset` for partial replacement — simpler tool count but the dual-purpose behavior is harder for the LLM to reason about (the tool either creates or patches depending on parameter presence). Text-based replacement via `oldString`/`newString` — powerful but more complex and error-prone than line-based replacement.
 
 8. **Decision**: File paths are resolved relative to the process CWD; absolute paths (starting with `/`) are used as-is.
    - **Reason**: The agent should not need to discover or construct absolute paths for simple operations like `read_file("file.txt")` or `write_file("output/data.csv")`. Relative-to-CWD is the natural behavior — it matches how shell commands, Python's `open()`, and most tools work. This also reduces token waste from path-finding tool calls.
@@ -280,3 +301,4 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
 | `run_python` could have infinite loops | Medium | Medium | Configurable timeout (default 30s) enforced by subprocess kill. |
 | `fetch_url` could hit internal services | Low | Medium | Only HTTP/HTTPS URLs; no file:// or internal IP ranges in prototype. |
 | Large file reads could exhaust memory | Low | Medium | Internal truncation at 100KB for full-file reads. Agent bypasses limit by setting `start`/`offset`. |
+| `edit_file` could corrupt file on partial write | Low | Low | File is read first, lines replaced in memory, then written atomically. Validation of `start`/`offset` before replacement. |
