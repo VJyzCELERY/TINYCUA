@@ -141,7 +141,7 @@ The following architecture docs MUST be updated to match the implemented types:
 | to_dict / from_dict | Done | Auto-nested via StateObject base class |
 | to_json / from_json | Done | Delegates to dict serialization |
 | Validation | Done | Enum checks + non-negative consecutive_failures |
-| Tests | Done | 94 tests, 100% coverage |
+| Tests | Done | 127 tests, 100% coverage |
 
 ---
 

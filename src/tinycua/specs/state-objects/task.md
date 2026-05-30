@@ -54,8 +54,8 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 
 ## Summary of Results
 
-- **85 tests** (28 serialization + 57 unit/edge case) — all passing
-- **97% coverage** on `tinycua.state` module (12 files, 222 statements)
+- **127 tests** (85 state module + 42 native tools) — all passing
+- **100% coverage** on `tinycua.state` module (12 files, 233 statements)
 - **Lint**: ruff — clean
 - **Type check**: mypy — clean
 - **Architecture docs**: Updated AgentState status and Session owner_type

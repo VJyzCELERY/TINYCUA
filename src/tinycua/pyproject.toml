@@ -57,6 +57,8 @@ ban-relative-imports = "all"
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Project uses uv's dependency-groups (uv-specific) instead of PEP 621
+# [project.optional-dependencies]. All workflows use `uv run` — see AGENTS.md.
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
