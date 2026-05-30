@@ -54,7 +54,7 @@ If a task contains parallelizable work, that parallelization happens inside the 
 flowchart TD
     DI{{"Digested Information"}}
     TCR["Task Creation\n(upfront loop)"]
-    TL{{"Sequential Task List"}}
+    TL{{"Task Tree"}}
     PICK["Pick current task"]
     TC{{"Task Context"}}
     TE["Task Executor"]

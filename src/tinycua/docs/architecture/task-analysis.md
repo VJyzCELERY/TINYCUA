@@ -27,7 +27,7 @@ The roadmap is not a dependency graph and is not intended to be parallelized at 
 - `Worker Config` with `effort`
 - When invoked during decomposition: the current task's `context` as focused input (see [task-creation.md](task-creation.md))
 
-**Output:** `Task List` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`. A task may optionally contain a nested `tasks` field holding a sub-list (added by the Task Creation process, not by the Task Analyzer itself).
+**Output:** `Task Tree` — canonical schema in [state-objects.md](state-objects.md). Required task fields: `task_id`, `task_name`, `task_description`, `task_context` (structured markdown), `success_criteria`, `confidence`, `finished`. A task may optionally contain `child_tasks` — a list of child `Task` nodes (added by the Task Creation process, not by the Task Analyzer itself).
 
 The `context` field should be structured markdown. See [state-objects.md](state-objects.md) for the canonical schema and context update rules.
 
@@ -43,7 +43,7 @@ flowchart TD
     ANALYZE["Analyze input"]
     DECOMPOSE["Create task list\n(ReAct, no branching)"]
     ASSIGN["Assign context to each task"]
-    TL{{"Task List"}}
+    TL{{"Task Tree"}}
 
     INPUT --> ANALYZE
     ANALYZE --> DECOMPOSE
