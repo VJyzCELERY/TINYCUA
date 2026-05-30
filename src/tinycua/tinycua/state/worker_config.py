@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["WorkerConfig", "EffortLevel"]
+
 import dataclasses
 from typing import Literal
 

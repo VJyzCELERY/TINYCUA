@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+__all__ = ["ContextEnhancedQuery", "ModeDecision", "ModeType", "UncertainNextAction"]
+
 import dataclasses
 from typing import Literal
 
 from tinycua.state.base import StateObject
 
 ModeType = Literal["primary_agent", "worker", "uncertain"]
-UncertainNextAction = Literal["ask_user", "explore"] | None
+UncertainNextAction = Literal["ask_user", "explore"]
 
 
 @dataclasses.dataclass
@@ -38,7 +40,7 @@ class ModeDecision(StateObject):
     score: float
     confidence: float
     reasons: list[str]
-    uncertain_next_action: UncertainNextAction = None
+    uncertain_next_action: UncertainNextAction | None = None
 
     def __post_init__(self) -> None:
         """Validate enum fields and cross-field constraints."""

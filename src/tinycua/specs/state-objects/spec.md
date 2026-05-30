@@ -89,15 +89,15 @@ A developer imports a state object, instantiates it with valid fields, serialize
 
 ## Success Criteria
 
-- [ ] All 12 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, TaskList, Task, TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
-- [ ] All types support dict round-trip serialization.
-- [ ] All types support JSON round-trip serialization.
-- [ ] Enum fields reject invalid values with a clear error.
-- [ ] Validation catches negative `consecutive_failures` and missing required fields.
-- [ ] All types are importable from a single entry point (e.g., `from tinycua.state import ...`).
-- [ ] Unit test coverage exceeds 90% for state object module.
-- [ ] Architecture docs (`src/tinycua/docs/architecture/state-objects.md`, `src/tinycua/docs/architecture/session-architecture.md`) are updated to match the implemented Python types (see Architecture Doc Synchronization section below for specific changes needed).
-- [ ] If drift is detected between implementation and architecture docs, the architecture docs are updated accordingly — but remain at the architecture/design level of abstraction, without incorporating low-level implementation details.
+- [x] All 12 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, TaskList, Task, TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
+- [x] All types support dict round-trip serialization.
+- [x] All types support JSON round-trip serialization.
+- [x] Enum fields reject invalid values with a clear error.
+- [x] Validation catches negative `consecutive_failures` and missing required fields.
+- [x] All types are importable from a single entry point (e.g., `from tinycua.state import ...`).
+- [x] Unit test coverage exceeds 90% for state object module.
+- [x] Architecture docs (`src/tinycua/docs/architecture/state-objects.md`, `src/tinycua/docs/architecture/session-architecture.md`) are updated to match the implemented Python types (see Architecture Doc Synchronization section below for specific changes needed).
+- [x] If drift is detected between implementation and architecture docs, the architecture docs are updated accordingly — but remain at the architecture/design level of abstraction, without incorporating low-level implementation details.
 
 ---
 

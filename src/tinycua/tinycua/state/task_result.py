@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["TaskResult", "TaskStatus"]
+
 import dataclasses
 from typing import Literal
 

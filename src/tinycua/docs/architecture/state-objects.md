@@ -144,12 +144,14 @@ task_list:
       context: "<task-specific context (structured markdown)>"
       success_criteria:
         - "<criterion>"
+      confidence: "<numeric>"
     # Container task — has `tasks` sub-list, not executed
     - task_id: "<container task id>"
       name: "<container name>"
       description: "<container description>"
       context: "<container context>"
       success_criteria: []
+      confidence: "<numeric>"
       tasks:
         - task_id: "<child task id>"
           name: "<child name>"
@@ -243,10 +245,6 @@ agent_state:
   resume_target: "..."
   consecutive_failures: 0
 ```
-
-Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
-
-The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.
 
 Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 

@@ -16,14 +16,6 @@ dependencies = [
 tinycua-sdk = { path = "../tinycua-sdk", editable = true }
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.3.0",
-    "radon>=6.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "pytest-httpx>=0.30.0",
-]
 tui = [
     "textual>=0.50.0",
 ]

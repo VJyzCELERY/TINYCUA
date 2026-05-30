@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+__all__ = ["Session", "OwnerType"]
+
 import dataclasses
 from typing import Literal
 
 from tinycua.state.base import StateObject
+from tinycua.state.execution_log import ExecutionLog
 
 OwnerType = Literal["primary", "child"]
 
@@ -26,9 +29,9 @@ class Session(StateObject):
     session_id: str
     owner_type: OwnerType
     owner_name: str
-    chat_history: list
+    chat_history: list[dict]
     context: str
-    execution_log: ExecutionLog | None = None  # noqa: F821
+    execution_log: ExecutionLog | None = None
 
     def __post_init__(self) -> None:
         """Validate enum fields."""
@@ -37,7 +40,3 @@ class Session(StateObject):
             {"primary", "child"},
             "owner_type",
         )
-
-
-# Late import to avoid circular dependency
-from tinycua.state.execution_log import ExecutionLog  # noqa: E402, F811

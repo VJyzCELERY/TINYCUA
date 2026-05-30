@@ -111,25 +111,25 @@ def test_reviewer_decision_rejects_invalid_status():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Session dict/JSON round-trip preserves all fields and equality (FR-001, FR-013, FR-014).
-- [ ] **Scenario 2**: ModeDecision JSON round-trip preserves all fields and equality.
-- [ ] **Scenario 3**: TaskList with nested Task containers round-trips via dict serialization.
-- [ ] **Scenario 4**: TaskList with nested Task containers round-trips via JSON serialization.
-- [ ] **Scenario 5**: ExecutionLog with nested ExecutionLogEntry round-trip via dict/JSON (FR-012).
-- [ ] **Scenario 6**: DigestedInformation with all optional fields omitted (FR-004, edge case).
-- [ ] **Scenario 7**: AgentState rejects negative `consecutive_failures` (FR-011, FR-015).
-- [ ] **Scenario 8**: WorkerConfig rejects invalid `effort` value (FR-005).
-- [ ] **Edge case**: ReviewerDecision rejects an invalid status value with a clear error.
+- [x] **Scenario 1**: Session dict/JSON round-trip preserves all fields and equality (FR-001, FR-013, FR-014).
+- [x] **Scenario 2**: ModeDecision JSON round-trip preserves all fields and equality.
+- [x] **Scenario 3**: TaskList with nested Task containers round-trips via dict serialization.
+- [x] **Scenario 4**: TaskList with nested Task containers round-trips via JSON serialization.
+- [x] **Scenario 5**: ExecutionLog with nested ExecutionLogEntry round-trip via dict/JSON (FR-012).
+- [x] **Scenario 6**: DigestedInformation with all optional fields omitted (FR-004, edge case).
+- [x] **Scenario 7**: AgentState rejects negative `consecutive_failures` (FR-011, FR-015).
+- [x] **Scenario 8**: WorkerConfig rejects invalid `effort` value (FR-005).
+- [x] **Edge case**: ReviewerDecision rejects an invalid status value with a clear error.
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Serialization round-trip tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for `tinycua.state` modules — serialization, validation, edge cases
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
-- [ ] Lint check passes: `cd src/tinycua && uv run ruff check .`
-- [ ] Type check passes: `cd src/tinycua && uv run mypy tinycua/state/`
+- [x] Serialization round-trip tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for `tinycua.state` modules — serialization, validation, edge cases
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Lint check passes: `cd src/tinycua && uv run ruff check .`
+- [x] Type check passes: `cd src/tinycua && uv run mypy tinycua/state/`
 
 ### Manual Verification
 
@@ -215,10 +215,10 @@ def test_reviewer_decision_rejects_invalid_status():
 - **Description of change**: Re-export all public types and literal aliases for easy import.
 - **Rationale**: Provides stable `tinycua.state` API surface.
 
-#### [MODIFY] src/tinycua/tinycua/__init__.py
+#### [NOT DONE] src/tinycua/tinycua/__init__.py
 
 - **Description of change**: Optionally re-export `tinycua.state` for discoverability.
-- **Rationale**: Simplifies top-level imports if desired.
+- **Rationale**: Decided against — re-export not needed. Discoverability via `tinycua.state` direct import is sufficient.
 
 ### Tests
 
@@ -273,7 +273,7 @@ None — standard library only.
 
 ### Internal Dependencies
 
-- [ ] No blocking dependencies; changes are self-contained within `src/tinycua`.
+- [x] No blocking dependencies; changes are self-contained within `src/tinycua`.
 
 ## Risks and Mitigations
 

@@ -259,16 +259,16 @@ from tinycua.state import (
 
 ### Phase 1 — MVP
 
-- [ ] Update `docs/architecture/state-objects.md` — AgentState status values and descriptions
-- [ ] Update `docs/architecture/session-architecture.md` — Session owner_type values and descriptions
-- [ ] Write serialization round-trip tests (TDD — expect RED)
-- [ ] Write unit test stubs for all state object types
-- [ ] Create `tinycua/state/base.py` with `StateObject` base class
-- [ ] Create all state object modules (session, mode_decision, digested_information, worker_config, task, task_result, reviewer, worker_result, agent_state, execution_log)
-- [ ] Create `tinycua/state/__init__.py` re-exporting all public types
-- [ ] Implement serialization and validation (TDD — iterate until GREEN)
-- [ ] Complete unit tests with full coverage
-- [ ] Run `uv run pytest` with full coverage
+- [x] Update `docs/architecture/state-objects.md` — AgentState status values and descriptions
+- [x] Update `docs/architecture/session-architecture.md` — Session owner_type values and descriptions
+- [x] Write serialization round-trip tests (TDD — expect RED)
+- [x] Write unit test stubs for all state object types
+- [x] Create `tinycua/state/base.py` with `StateObject` base class
+- [x] Create all state object modules (session, mode_decision, digested_information, worker_config, task, task_result, reviewer, worker_result, agent_state, execution_log)
+- [x] Create `tinycua/state/__init__.py` re-exporting all public types
+- [x] Implement serialization and validation (TDD — iterate until GREEN)
+- [x] Complete unit tests with full coverage
+- [x] Run `uv run pytest` with full coverage
 
 ### Phase 2 — Enhancements
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["ExecutionLog", "ExecutionLogEntry"]
+
 import dataclasses
 
 from tinycua.state.base import StateObject

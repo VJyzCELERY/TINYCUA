@@ -1,5 +1,7 @@
 """Base class for all TINYCUA state objects with serialization helpers."""
 
+__all__ = ["StateObject"]
+
 import dataclasses
 import json
 import types

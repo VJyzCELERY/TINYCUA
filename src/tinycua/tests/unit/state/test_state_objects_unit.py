@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import typing
 
 import pytest
 
@@ -23,6 +25,7 @@ from tinycua.state import (
     WorkerConfig,
     WorkerResult,
 )
+from tinycua.state.base import StateObject
 
 
 # =========================================================================
@@ -638,3 +641,87 @@ class TestSerializationEdgeCases:
         restored_empty = DigestedInformation.from_dict(info_with_empty.to_dict())
         assert restored_none.constraints is None
         assert restored_empty.constraints == []
+
+
+# =========================================================================
+# StateObject Base Edge Cases
+# =========================================================================
+
+
+@dataclasses.dataclass
+class _TestWithDefaultFactory(StateObject):
+    name: str
+    tags: list[str] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class _TestWithNoneType(StateObject):
+    name: str
+    metadata: None = None
+
+
+@dataclasses.dataclass
+class _TestWithDictField(StateObject):
+    name: str
+    config: dict = dataclasses.field(default_factory=dict)
+
+
+class TestBaseEdgeCases:
+    """Edge case tests for the StateObject base class."""
+
+    def test_from_dict_omits_optional_with_default_factory(self):
+        """from_dict handles optional fields with default_factory omitted."""
+        obj = _TestWithDefaultFactory.from_dict({"name": "test"})
+        assert obj.name == "test"
+        assert obj.tags == []
+
+    def test_from_dict_none_type_hint(self):
+        """from_dict handles fields with None type hint (resolved_type is None).
+
+        When the annotation resolves to None (singleton), resolved_type is None
+        and the raw value is passed through directly.
+        """
+        obj = _TestWithNoneType.from_dict({"name": "test", "metadata": "through"})
+        assert obj.name == "test"
+        assert obj.metadata == "through"
+
+    def test_convert_value_union_non_none(self):
+        """_convert_value handles Union with non-None args correctly."""
+        value = _TestWithDefaultFactory._convert_value(
+            {"name": "nested"}, _TestWithDefaultFactory,
+        )
+        assert isinstance(value, _TestWithDefaultFactory)
+        assert value.name == "nested"
+
+    def test_convert_value_list_fallback_non_list(self):
+        """_convert_value returns non-list value as-is when origin is list but value is not a list."""
+        value = _TestWithDictField._convert_value(42, list[str])
+        assert value == 42
+
+    def test_convert_value_dict_fallback(self):
+        """_convert_value returns dict value as-is when origin is dict."""
+        value = _TestWithDictField._convert_value({"raw": "data"}, dict[str, str])
+        assert value == {"raw": "data"}
+
+    def test_convert_value_union_all_none_type(self):
+        """_convert_value returns value as-is when Union has only NoneType args.
+
+        Covers the fallthrough path in _convert_value where non_none_args
+        is empty (line 91). Constructed via _GenericAlias since Python's
+        type system simplifies Union[None, None] to NoneType.
+        """
+        try:
+            from typing import _GenericAlias
+        except ImportError:
+            pytest.skip("_GenericAlias not available — skip edge case test")
+
+        union_only_none = _GenericAlias(typing.Union, (type(None),))
+        value = _TestWithDefaultFactory._convert_value("fallthrough", union_only_none)
+        assert value == "fallthrough"
+
+    def test_is_state_object_type_non_type(self):
+        """_is_state_object_type returns False for non-type arguments."""
+        assert not StateObject._is_state_object_type(None)
+        assert not StateObject._is_state_object_type("string")
+        assert not StateObject._is_state_object_type(42)
+        assert not StateObject._is_state_object_type([1, 2, 3])
