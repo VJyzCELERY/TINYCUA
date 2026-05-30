@@ -1,10 +1,14 @@
-"""Update the **Commit Range** line in a review report to the current PR head.
+"""Update the **Commit Range** line in a review report to the current HEAD.
 
 Usage:
     uv run python .agents/scripts/update-commit-range.py <path/to/review-file.md>
 
-Reads the review file, detects the PR from the current branch, fetches the full
-BASE and HEAD SHAs, then replaces the **Commit Range** line in place.
+Determines the correct HEAD SHA by checking local vs remote tracking branch:
+  - If local is AHEAD of remote (or equal): uses local HEAD (healthy).
+  - If local is BEHIND remote (alone or diverged): marks as stale — exits with error.
+    The review report is outdated and needs re-validation.
+
+Also exports `check_branch_health()` for reuse in other scripts.
 <EOF_DESC>
 """
 
@@ -24,6 +28,48 @@ def run(cmd):
         return ""
 
 
+def check_branch_health() -> dict:
+    """Check the current branch's health vs its remote tracking branch.
+
+    Returns:
+        dict with keys:
+            status: 'ahead' | 'behind' | 'diverged' | 'up_to_date' | 'no_remote' | 'detached'
+            ahead: int (commits ahead of remote)
+            behind: int (commits behind remote)
+            head: str (local HEAD SHA)
+            branch: str (current branch name)
+    """
+    branch = run(["git", "branch", "--show-current"])
+    if not branch:
+        return {"status": "detached", "ahead": 0, "behind": 0,
+                "head": run(["git", "rev-parse", "HEAD"]), "branch": ""}
+
+    head = run(["git", "rev-parse", "HEAD"])
+
+    # Check if remote tracking exists
+    remote_ref = run(["git", "rev-parse", "--abbrev-ref", "@{u}"])
+    if not remote_ref:
+        return {"status": "no_remote", "ahead": 0, "behind": 0,
+                "head": head, "branch": branch}
+
+    ahead_str = run(["git", "rev-list", "--count", "@{u}..HEAD"])
+    behind_str = run(["git", "rev-list", "--count", "HEAD..@{u}"])
+    ahead = int(ahead_str) if ahead_str else 0
+    behind = int(behind_str) if behind_str else 0
+
+    if ahead > 0 and behind > 0:
+        status = "diverged"
+    elif ahead > 0:
+        status = "ahead"
+    elif behind > 0:
+        status = "behind"
+    else:
+        status = "up_to_date"
+
+    return {"status": status, "ahead": ahead, "behind": behind,
+            "head": head, "branch": branch}
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: uv run python .agents/scripts/update-commit-range.py <review-file.md>", file=sys.stderr)
@@ -36,36 +82,61 @@ def main():
 
     content = file_path.read_text(encoding="utf-8")
 
-    # Detect PR from current branch
+    # --- Step 1: Check branch health ---
+    health = check_branch_health()
+
+    if health["status"] == "detached":
+        print("[FAIL] Detached HEAD — cannot determine branch health.", file=sys.stderr)
+        sys.exit(1)
+
+    if health["status"] == "no_remote":
+        print("[WARN] No remote tracking branch. Using local HEAD as-is.", file=sys.stderr)
+
+    if health["status"] == "behind":
+        print(f"[FAIL] Local branch is {health['behind']} commit(s) BEHIND remote.", file=sys.stderr)
+        print(f"[FAIL] Remote has moved ahead. Review is stale — re-validate before updating.", file=sys.stderr)
+        print(f"[FAIL] Run `git pull` or `git rebase` to catch up, then re-run.", file=sys.stderr)
+        sys.exit(1)
+
+    if health["status"] == "diverged":
+        print(f"[FAIL] Branch is DIVERGED — {health['ahead']} ahead, {health['behind']} behind remote.", file=sys.stderr)
+        print(f"[FAIL] Remote has moved (possibly rebased). Review is stale — resolve divergence first.", file=sys.stderr)
+        sys.exit(1)
+
+    # --- Step 2: Determine HEAD ---
+    # If local is ahead or up-to-date, use local HEAD
+    head_sha = health["head"]
+
+    # --- Step 3: Determine base SHA ---
+    # Try PR base first, else fall back to merge-base with main
     pr_number = run(["gh", "pr", "view", "--json", "number", "--jq", ".number"])
-    if not pr_number:
-        print("[FAIL] No open PR for current branch", file=sys.stderr)
+    base_sha = ""
+    if pr_number:
+        owner_repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
+        if owner_repo:
+            base_sha = run(["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}", "--jq", ".base.sha"])
+
+    if not base_sha:
+        # Fallback: use merge-base with main
+        base_sha = run(["git", "merge-base", "main", "HEAD"])
+
+    if not base_sha:
+        print("[FAIL] Could not determine base SHA (no PR and no merge-base with main).", file=sys.stderr)
         sys.exit(1)
 
-    # Fetch full SHAs — headRefOid is available directly, base SHA needs API
-    head_sha = run(["gh", "pr", "view", pr_number, "--json", "headRefOid", "--jq", ".headRefOid"])
-    owner_repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
-    if not owner_repo:
-        print("[FAIL] Could not detect repository", file=sys.stderr)
-        sys.exit(1)
-    base_sha = run(["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}", "--jq", ".base.sha"])
-
-    if not head_sha or not base_sha:
-        print(f"[FAIL] Could not fetch SHAs for PR #{pr_number}", file=sys.stderr)
-        print(f"       head={head_sha!r} base={base_sha!r}", file=sys.stderr)
-        sys.exit(1)
-
-    # Validate SHAs look correct (40 hex chars)
     if not re.match(r'^[0-9a-f]{40}$', head_sha) or not re.match(r'^[0-9a-f]{40}$', base_sha):
         print(f"[FAIL] SHAs are not full 40-char hex: base={base_sha} head={head_sha}", file=sys.stderr)
         sys.exit(1)
 
     new_range = f"{base_sha}...{head_sha}"
 
-    # Check if already up to date — extract current commit range from file
+    # --- Step 4: Update the review file ---
     existing = re.search(r'^\*\*Commit Range\*\*:\s*(\S+)', content, re.MULTILINE)
     if existing and existing.group(1) == new_range:
-        print(f"[OK] Commit Range already up to date: {new_range}")
+        if health["status"] == "ahead":
+            print(f"[OK] Commit Range already up to date (local ahead by {health['ahead']}): {new_range}")
+        else:
+            print(f"[OK] Commit Range already up to date: {new_range}")
         sys.exit(0)
 
     # Remove all existing **Commit Range** lines (handles duplicates)
@@ -94,7 +165,11 @@ def main():
         sys.exit(1)
 
     file_path.write_text(inserted, encoding="utf-8")
-    print(f"[OK] Commit Range updated to {new_range} in {file_path}")
+
+    if health["status"] == "ahead":
+        print(f"[OK] Commit Range updated to local HEAD (ahead by {health['ahead']}): {new_range} in {file_path}")
+    else:
+        print(f"[OK] Commit Range updated to {new_range} in {file_path}")
 
 
 if __name__ == "__main__":
