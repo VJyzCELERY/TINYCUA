@@ -467,6 +467,34 @@ class TestTaskStatus:
         )
         assert parent._status_marker() == "-"
 
+    def test_container_marker_blocked_child(self):
+        """Container marker returns '/' when a child is blocked."""
+        child = Task(
+            task_id="a", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            task_result=TaskResult(task_id="a", status="blocked", result="x"),
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert parent._status_marker() == "/"
+
+    def test_container_marker_inprogress_child(self):
+        """Container marker returns '*' when a child is inprogress."""
+        child = Task(
+            task_id="a", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            task_result=TaskResult(task_id="a", status="inprogress", result="x"),
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert parent._status_marker() == "*"
+
 
 # =========================================================================
 # Task Display
@@ -908,6 +936,21 @@ class TestTaskAtId:
         )
         with pytest.raises(ValueError, match="No child at index"):
             root.at_id("T-5")
+
+    def test_at_id_task_id_mismatch_at_path(self):
+        """at_id raises ValueError when indices resolve but task_id doesn't match."""
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[
+                Task(task_id="T-0", task_name="A", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                Task(task_id="T-2", task_name="B", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+            ],
+        )
+        with pytest.raises(ValueError, match="not found at expected path"):
+            root.at_id("T-1")
 
 
 class TestTaskSetParents:

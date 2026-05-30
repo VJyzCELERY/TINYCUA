@@ -53,9 +53,9 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 *Last updated: 2026-05-30*
 
 ## Summary of Results
+- **136 tests** — all passing
 
-- **127 tests** (85 state module + 42 native tools) — all passing
-- **100% coverage** on `tinycua.state` module (12 files, 233 statements)
+- **100% coverage** on `tinycua.state` module (12 files, 336 statements)
 - **Lint**: ruff — clean
 - **Type check**: mypy — clean
 - **Architecture docs**: Updated AgentState status and Session owner_type

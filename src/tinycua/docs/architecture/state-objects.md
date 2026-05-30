@@ -123,10 +123,10 @@ Effort controls how much planning happens before execution.
 
 ## Task Tree Object
 
-Tasks form a tree structure navigated via DFS pre-order traversal. Each task is a node that may have child tasks (`child_tasks`). The finished flag propagates upward: a container task can only be marked finished after all its children are finished.
+Tasks form a tree structure navigated via DFS pre-order traversal. Each task is a node that may have child tasks (`child_tasks`). Completion status is derived from `task_result.status` for leaf tasks and propagates upward: a container task is complete only when all its children are complete.
 
 - **Leaf task** — a task without `child_tasks` (`None`). Only leaf tasks are executed by the Task Executor.
-- **Container task** — a task with `child_tasks`. Container tasks are structural: they hold child tasks but are not themselves executed. Their progress is a function of all children being finished.
+- **Container task** — a task with `child_tasks`. Container tasks are structural: they hold child tasks but are not themselves executed. Their progress is a function of all children being complete.
 
 DFS pre-order traversal produces a flat sequential display:
 
@@ -150,7 +150,7 @@ task:
   success_criteria:
     - "<criterion>"
   confidence: "<numeric>"
-  finished: true | false
+  task_result: null | TaskResult
   child_tasks: null
 
 # Container task — has child_tasks, not executed directly
@@ -163,7 +163,7 @@ task:
   success_criteria:
     - "<criterion>"
   confidence: "<numeric>"
-  finished: false   # blocked until all children finished
+  task_result: null | TaskResult
   child_tasks:
     - task_id: "<child task id>"
       parent_task_id: "<container task id>"
@@ -173,7 +173,7 @@ task:
       success_criteria:
         - "<criterion>"
       confidence: "<numeric>"
-      finished: false
+      task_result: null | TaskResult
       child_tasks: null
 ```
 
@@ -189,7 +189,7 @@ Required fields:
 - `task_context` — task-specific context in structured markdown. May contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify this field.
 - `success_criteria` — list of criteria for task completion.
 - `confidence` — agent-assigned confidence in decomposition or execution readiness. Exact scale is implementation calibration.
-- `finished` — whether this task is complete (default `false`). For leaf tasks, finished/unfinished is managed directly. For container tasks, `finished=true` is only valid when all `child_tasks` are finished.
+- `task_result` — the execution result for this task (`null` if not yet started). For leaf tasks, completion status is derived from `task_result.status`. For container tasks, completion is derived from whether all children are complete.
 
 Optional fields:
 

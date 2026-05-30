@@ -80,20 +80,21 @@ class Task(StateObject):
         Container: derived from children's aggregate status.
         """
         if self.child_tasks is not None:
-            # Container: aggregate child statuses
+            # Container: recursively aggregate descendant statuses
             children = self.child_tasks
-            if any(c._leaf_status() == "failed" for c in children):
+            if any(c._status_marker() == "-" for c in children):
                 return "-"
-            if any(c._leaf_status() == "blocked" for c in children):
+            if any(c._status_marker() == "/" for c in children):
                 return "/"
-            if any(c._leaf_status() == "inprogress" for c in children):
+            if any(c._status_marker() == "*" for c in children):
                 return "*"
             if all(c.is_completed for c in children):
                 return "x"
             return " "
         else:
             # Leaf
-            if self.task_result is None:
+            status = self._leaf_status()
+            if status is None:
                 return " "
             mapping = {
                 "inprogress": "*",
@@ -101,7 +102,7 @@ class Task(StateObject):
                 "failed": "-",
                 "blocked": "/",
             }
-            return mapping.get(self.task_result.status, " ")
+            return mapping.get(status, " ")
 
     # ------------------------------------------------------------------
     # Construction
@@ -172,7 +173,6 @@ class Task(StateObject):
             for child in self.child_tasks:
                 if not child.is_completed:
                     return child.traverse()
-            return self
         return self
 
     def at_id(self, task_id: str) -> Task:

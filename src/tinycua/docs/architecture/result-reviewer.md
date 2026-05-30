@@ -36,7 +36,7 @@ The Result Reviewer should be hybrid:
 
 **Input:**
 
-- Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `context`, `success_criteria`.
+- Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `task_name`, `task_context`, `success_criteria`.
 - `task_result` — result of the task's execution. Canonical schema in [state-objects.md](state-objects.md).
 - `execution_log` — sub-session execution log (actions and outcomes from the Task Executor's sub-session). See [session-architecture.md](session-architecture.md).
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).

@@ -180,7 +180,7 @@ def test_reviewer_decision_rejects_invalid_status():
 
 #### [NEW] src/tinycua/tinycua/state/task.py
 
-- **Description of change**: Add `Task` tree node dataclass with `finished` constraint enforcement, `parent_task_id` auto-setting, and `display()` DFS pre-order traversal.
+- **Description of change**: Add `Task` tree node dataclass with `task_result`-based status tracking, `parent_task_id` auto-setting, and `display()` DFS pre-order traversal.
 - **Rationale**: Represents the internal execution plan and task tree.
 
 #### [NEW] src/tinycua/tinycua/state/task_result.py
