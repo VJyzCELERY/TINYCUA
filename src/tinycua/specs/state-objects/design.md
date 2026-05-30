@@ -42,6 +42,8 @@ src/tinycua/tinycua/
 |-----------|-------------|-------|
 | `tinycua/state/` | New | Entire new module — 11 source files + `__init__.py` + `base.py` |
 | `tinycua/__init__.py` | Modified | May optionally re-export `tinycua.state` submodule |
+| `docs/architecture/state-objects.md` | Modified | Update AgentState status values and descriptions |
+| `docs/architecture/session-architecture.md` | Modified | Update Session owner_type values and descriptions |
 
 ---
 
@@ -230,6 +232,8 @@ from tinycua.state import (
 
 ### Phase 1 — MVP
 
+- [ ] Update `docs/architecture/state-objects.md` — AgentState status values and descriptions
+- [ ] Update `docs/architecture/session-architecture.md` — Session owner_type values and descriptions
 - [ ] Create `tinycua/state/base.py` with `StateObject` base class
 - [ ] Create all state object modules (session, mode_decision, digested_information, worker_config, task, task_result, reviewer, worker_result, agent_state, execution_log)
 - [ ] Create `tinycua/state/__init__.py` re-exporting all public types
@@ -265,15 +269,15 @@ None — Phase 1 covers the full M1 scope.
 
 ---
 
-## Architecture Doc Updates Required
+## Architecture Doc Updates (In Scope)
 
-The following changes to `docs/architecture/` must be made to reflect the decisions above:
+The following changes to `docs/architecture/` are in scope for this implementation and will be applied alongside the Python code:
 
 | Doc | Change |
 |-----|--------|
 | `state-objects.md` — AgentState status | `running \| waiting_for_user \| terminated` → `idle \| running \| blocked \| terminated` |
 | `session-architecture.md` — Session owner_type | `primary \| tinycua_internal \| future_sub_agent` → `primary \| child` |
-| `session-architecture.md` — owner_type description | Rewrite to describe `primary` (user-facing root) and `child` (sub-session) model, including parent/child chat history propagation and context isolation rules |
+| `session-architecture.md` — owner_type description | Update to reflect `primary` (user-facing root) and `child` (sub-session) model with parent/child chat history propagation and context isolation rules |
 
 ---
 

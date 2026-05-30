@@ -124,7 +124,7 @@ The following changes must also be applied to the canonical architecture docs to
 | `docs/architecture/session-architecture.md` (line 97) | `session.owner_type` values: `primary \| tinycua_internal \| future_sub_agent` → `primary \| child` |
 | `docs/architecture/session-architecture.md` (line 104) | Description text: remove reference to `future_sub_agent`; update to reflect `primary \| child` model (parent records own + child chat history, child context isolated from parent, etc.) |
 
-> **Note**: These architecture doc updates are tracked here but may be done as a separate follow-up PR or batched with this implementation.
+> **Note**: These architecture doc updates are in scope for this implementation and will be applied as part of the work.
 
 ---
 
