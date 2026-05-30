@@ -158,7 +158,6 @@ task_list:
           success_criteria:
             - "<criterion>"
   current_task_id: "<current task id>"
-  confidence: "<numeric>"
 ```
 
 Nesting can continue to arbitrary depth, controlled by the Worker's `effort` setting. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
@@ -227,9 +226,7 @@ reviewer_decision:
   context_updates:
     - target_task_id: "<target task id>"
       update: "<context update>"
-  retry_instructions: "..."
-  replan_request: "..."
-  consecutive_failures: 0
+  retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
 
 ---
