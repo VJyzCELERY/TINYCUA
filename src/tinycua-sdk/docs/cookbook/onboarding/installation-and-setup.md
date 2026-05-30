@@ -85,9 +85,9 @@ os.environ["LLM_MODEL"] = "gpt-4o-mini"
 | `OPENAI_CHAT_COMPLETIONS_API_KEY` | Override key for Chat Completions |
 | `OPENAI_RESPONSES_MODEL` | Default model for Responses provider |
 | `OPENAI_CHAT_COMPLETIONS_MODEL` | Default model for Chat Completions |
-| `LLM_BASE_URL` | Base URL for the `openai-compatible` provider (e.g., local server) |
-| `OPENAI_COMPATIBLE_API_KEY` | Override key for the `openai-compatible` provider |
-| `OPENAI_COMPATIBLE_MODEL` | Default model for `openai-compatible` provider |
+| `LLM_BASE_URL` | Base URL for the local Chat Completions provider (e.g., local server) |
+| `OPENAI_CHAT_COMPLETIONS_API_KEY` | Override key for Chat Completions |
+| `OPENAI_CHAT_COMPLETIONS_MODEL` | Default model for Chat Completions |
 | `TINYCUA_CACHE_DIR` | Fallback cache directory (used if `cache_dir` is not passed to `Agent`) |
 
 ## Verify Installation
@@ -119,7 +119,7 @@ server on port `1234`. Then:
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )
@@ -137,7 +137,7 @@ With `LLM_BASE_URL` set in `.env`, omit `base_url`:
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     # base_url read from LLM_BASE_URL env var
 )

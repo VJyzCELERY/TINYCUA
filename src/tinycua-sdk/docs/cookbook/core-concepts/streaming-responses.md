@@ -40,7 +40,7 @@ agent = Agent(
 from tinycua_sdk import LanguageModel, Agent
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
     temperature=0.7,

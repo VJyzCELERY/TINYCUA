@@ -108,14 +108,14 @@ byte_parts = [
 
 ## Local Provider Pattern
 
-For a local LLM server, switch to `"openai-compatible"` and supply a `base_url`. Vision-capable local models like LLaVA or Llama 3.2 Vision accept images:
+For a local LLM server, use `"openai-chat-completions"` with a `base_url` pointing to your server. Vision-capable local models like LLaVA or Llama 3.2 Vision accept images:
 
 ```python
 import os
 from tinycua_sdk import LanguageModel, Agent, ContentPart, FileAttachment
 
 local_model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="llava-v1.6-34b",
     base_url="http://localhost:1234/v1",
     api_key=os.environ.get("OPENAI_API_KEY"),
@@ -160,9 +160,9 @@ If your local model does not support vision, file parts are silently ignored or 
 - Non-image files are **not supported** and will raise a `ProviderApiError`
 - All content entries are grouped into a single user message
 
-### openai-compatible
+### openai-chat-completions (local server)
 
-- Behaves similarly to `openai-chat-completions` for format translation
+- Behaves identically for format translation regardless of remote or local endpoint
 - File support depends entirely on the model running locally — test your specific model and server combination
 
 ## Query-as-String vs Query-as-Parts
@@ -211,7 +211,7 @@ Use `file_attachments` for simple "one prompt + files" queries. Use `ContentPart
 
 2. **Using ContentPart with unsupported file types** — When using `openai-chat-completions`, only image MIME types work as file parts. Audio, video, and document files will raise errors. Use `openai-responses` for broader file format support.
 
-3. **Assuming all local models support multimodality** — `openai-compatible` with a text-only local model will fail or silently ignore file parts. Verify your model's capabilities before building multimodal features on local providers.
+3. **Assuming all local models support multimodality** — `openai-chat-completions` with a text-only local model will fail or silently ignore file parts. Verify your model's capabilities before building multimodal features on local providers.
 
 ## Next Steps
 

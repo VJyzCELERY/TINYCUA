@@ -232,7 +232,7 @@ def get_weather(city: str) -> str:
 
 # Local — local LLM server
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )

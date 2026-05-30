@@ -14,7 +14,8 @@ you understand how the built-in clients translate messages and handle API calls.
 The TINYCUA SDK supports custom LLM providers through the `ProviderRegistry`.
 You can register your own provider factory — a callable that takes a
 `LanguageModel` configuration and returns an `LLMClient` instance — and the
-SDK will treat it like any built-in provider.
+SDK will treat it like any built-in provider. This is useful for integrating
+custom local LLM servers, alternative cloud providers, or debugging stubs.
 
 By the end of this page, you'll understand the `LLMClient` ABC, the
 `ProviderFactory` protocol, provider alias resolution, and how to build and
@@ -237,11 +238,10 @@ applies these alias mappings:
 | Alias | Canonical ID |
 |---|---|
 | `"openai"` | `"openai-responses"` |
-| `"lmstudio"` | `"openai-compatible"` |
 
-> **Note**: `"lmstudio"` is a legacy convenience alias that maps to
-> `"openai-compatible"`. For new code, prefer `"openai-compatible"` directly
-> — it's provider-agnostic and works with any local LLM server.
+> **Note**: The `"openai"` alias is deprecated — use `"openai-responses"`
+> directly. Legacy aliases like `"lmstudio"` and `"ollama"` are also
+> deprecated — use `"openai-chat-completions"` for local servers.
 
 When you call `registry.register("my-alias", factory)`, the alias is resolved
 to its canonical form before storage. This means:
@@ -251,10 +251,9 @@ from tinycua_sdk.providers.registry import get_provider_registry
 
 registry = get_provider_registry()
 
-print(registry.is_supported("openai"))          # True (resolved to openai-responses)
-print(registry.is_supported("openai-responses")) # True
-print(registry.is_supported("lmstudio"))          # True (legacy alias — prefer "openai-compatible")
-print(registry.is_supported("openai-compatible")) # True
+print(registry.is_supported("openai"))              # True (deprecated alias — resolved to openai-responses)
+print(registry.is_supported("openai-responses"))     # True
+print(registry.is_supported("openai-chat-completions"))  # True
 ```
 
 You can register additional aliases by calling `register()` with the alias

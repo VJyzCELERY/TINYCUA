@@ -179,15 +179,15 @@ Set only `file_id` (leave `data`, `url`, and `filename` empty) to reuse a previo
 
 ## Local vs Remote Provider Support
 
-| Feature | openai-responses | openai-chat-completions | openai-compatible |
-|---|---|---|---|
-| Image files (PNG, JPEG, etc.) | Yes | Yes | Depends on local model |
-| PDF documents | Yes | No | Depends on local model |
-| Audio files | Yes | Limited | Depends on local model |
-| File ID reuse | Yes | No | No |
-| Multiple files per query | Yes | Limited | Depends on local model |
+| Feature | openai-responses | openai-chat-completions |
+|---|---|---|
+| Image files (PNG, JPEG, etc.) | Yes | Yes |
+| PDF documents | Yes | No |
+| Audio files | Yes | Limited |
+| File ID reuse | Yes | No |
+| Multiple files per query | Yes | Limited |
 
-When targeting `openai-compatible` providers, file attachment support depends entirely on the local model running on your server. Vision-capable models like LLaVA or Llama 3.2 Vision support images; text-only models will ignore file attachments or return errors.
+When targeting local LLM servers via `openai-chat-completions`, file attachment support depends entirely on the model running on your server. Vision-capable models like LLaVA or Llama 3.2 Vision support images; text-only models will ignore file attachments or return errors.
 
 ## Common Pitfalls
 

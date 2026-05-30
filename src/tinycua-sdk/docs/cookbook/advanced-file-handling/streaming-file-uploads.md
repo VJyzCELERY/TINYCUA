@@ -36,20 +36,10 @@ difference: `data` is always `None` — no bytes are ever loaded into a single
 buffer. The file path is resolved to an absolute path at construction time so
 later changes to the working directory don't affect reads.
 
-You can also construct one directly for advanced use:
-
-```python
-from tinycua_sdk import StreamingFileAttachment
-
-attachment = StreamingFileAttachment(
-    data=None,
-    mime_type="video/mp4",
-    filename="demo.mp4",
-)
-```
-
-However, you must set `_file_path` yourself if constructed this way.
-`FileAttachment.from_path(stream=True)` is the recommended path.
+> **Note**: Always use `FileAttachment.from_path(path, stream=True)` to create
+> streaming attachments. Direct construction via `StreamingFileAttachment(...)`
+> is not recommended — it requires internal setup not available through the
+> public constructor.
 
 ## Reading Chunks
 
@@ -144,7 +134,7 @@ from tinycua_sdk import Agent, FileAttachment, LanguageModel
 attachment = FileAttachment.from_path("large_document.pdf", stream=True)
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )

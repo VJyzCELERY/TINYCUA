@@ -386,7 +386,7 @@ exceptions are raised during execution.
 
 ## Error Scenarios: Local vs Remote
 
-### Local (local LLM server / openai-compatible)
+### Local (local LLM server / openai-chat-completions)
 
 ```python
 import asyncio
@@ -399,7 +399,7 @@ from tinycua_sdk.core.exceptions import (
 )
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )

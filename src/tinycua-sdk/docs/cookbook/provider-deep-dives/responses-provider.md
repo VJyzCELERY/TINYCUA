@@ -20,7 +20,7 @@ It is the **default provider** when no explicit provider is specified.
 **Local servers:** This provider targets the OpenAI Responses
 endpoint (`/v1/responses`). If you are running a local LLM server that
 supports the Chat Completions-style API but not the Responses endpoint,
-switch to `openai-compatible` (see
+switch to `openai-chat-completions` (see
 [Language Models and Providers](../core-concepts/language-models-and-providers.md)
 for the full comparison). The streaming event shapes and tool-call handling differ
 between the two, but the Agent interface is identical.
@@ -59,26 +59,8 @@ model = LanguageModel(
 )
 ```
 
-The alias `"openai"` also resolves to `openai-responses`:
-
-```python
-import os
-
-from tinycua_sdk import Agent, LanguageModel
-
-model = LanguageModel(
-    provider="openai",
-    model_name="gpt-4o-mini",
-    base_url="https://api.openai.com/v1",
-    api_key=os.environ.get("OPENAI_API_KEY"),
-)
-
-agent = Agent(
-    name="default-assistant",
-    instructions="You are a helpful assistant.",
-    llm_model=model,
-)
-```
+> **Note**: The legacy `"openai"` alias also resolves to `"openai-responses"` but is
+> deprecated. Prefer `"openai-responses"` directly in new code.
 
 ## Direct Client Construction
 

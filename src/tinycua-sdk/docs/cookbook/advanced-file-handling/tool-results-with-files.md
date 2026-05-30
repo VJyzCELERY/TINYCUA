@@ -185,7 +185,7 @@ blocks in the same message.
 This means the model sees the tool result as two consecutive messages: the
 `function_call_output` (text content) and a user message (the files).
 
-### Local Compatible (`openai-compatible`)
+### Local Server (`openai-chat-completions`)
 
 Behavior depends on the local server's implementation. Local LLM servers and similar
 servers typically follow Chat Completions conventions.

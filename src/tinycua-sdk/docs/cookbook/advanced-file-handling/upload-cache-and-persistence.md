@@ -49,7 +49,7 @@ Local (local LLM server) setup:
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )
@@ -115,8 +115,7 @@ For example:
             └── cache.jsonl
 ```
 
-- **`provider`** — e.g., `"openai-responses"`, `"openai-chat-completions"`,
-  `"openai-compatible"`.
+- **`provider`** — e.g., `"openai-responses"` or `"openai-chat-completions"`.
 - **`base_url_hash`** — SHA-256 hex of the normalized base URL (trailing
   slash stripped). This isolates caches across different proxy or regional
   endpoints.

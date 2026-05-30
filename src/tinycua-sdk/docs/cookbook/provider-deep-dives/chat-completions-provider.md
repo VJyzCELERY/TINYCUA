@@ -24,8 +24,8 @@ the client directly.
 ## Selecting the Provider
 
 Use `LanguageModel(provider="openai-chat-completions")` to route through this
-provider. The alias `"openai-compatible"` also resolves to it — ideal for
-local LLM servers and similar servers.
+provider — ideal for both remote OpenAI and local LLM servers (set
+`base_url` to your local server).
 
 ```python
 import os
@@ -46,13 +46,13 @@ agent = Agent(
 )
 ```
 
-For local LLM servers, use the `openai-compatible` alias with your local server URL:
+For local LLM servers, use `openai-chat-completions` with your local server URL:
 
 ```python
 from tinycua_sdk import Agent, LanguageModel
 
 model = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )
@@ -91,7 +91,7 @@ from tinycua_sdk import LanguageModel
 from tinycua_sdk.providers.open_ai_chat_completions import OpenAIChatCompletionsClient
 
 model_config = LanguageModel(
-    provider="openai-compatible",
+    provider="openai-chat-completions",
     model_name="qwen/qwen3.5-9b",
     base_url="http://localhost:1234/v1",
 )
@@ -280,10 +280,9 @@ content (images or files), the Chat Completions client generates extra
 user-type messages after the `tool` role messages to carry that content.
 Your message history will grow more than expected — this is normal.
 
-**Provider aliases use different clients**. `openai-compatible` resolves to
-`openai-chat-completions` under the hood, so both use the same
+**Provider aliases use different clients**. `openai-chat-completions` uses
 `OpenAIChatCompletionsClient`. The `openai-responses` provider uses a
-different client entirely with distinct behavior.
+different client (`OpenAIResponsesClient`) with distinct behavior.
 
 ## Next Steps
 
