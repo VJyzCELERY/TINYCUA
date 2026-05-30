@@ -1,0 +1,733 @@
+# Implementation: Native Benchmark Tools
+
+Implement six native tools (`run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python`) as `@tool`-decorated functions in `tinycua/agent/tools/native/`. These tools provide the Task Executor agent with environment interaction capabilities: shell execution, file I/O, web fetching, and Python code execution. All tools return structured, JSON-serializable output and handle errors gracefully.
+
+## Context
+
+- **Spec Reference**: [spec.md](./spec.md)
+- **Design Reference**: [design.md](./design.md)
+- **Priority**: P0
+- **Estimated Effort**: M
+
+## Environment Pre-requisites
+
+### Configuration
+
+- [ ] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+- [ ] **None** — no external services needed
+
+### Data / Fixtures
+
+- [ ] **None** — no data or fixtures needed
+
+### Access / Permissions
+
+- [ ] **None** — tools run with the process's filesystem and network permissions
+
+### Developer Tooling
+
+- [ ] **Runtime**: Python 3.11+
+- [ ] **Package manager**: uv
+- [ ] **httpx** already declared in `pyproject.toml` (for `fetch_url`)
+
+---
+
+## Success Criteria — Integration Tests (TDD First)
+
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+```python
+# Test file: tests/integration/test_native_tools_shell.py
+"""Integration tests for run_shell."""
+
+
+def test_run_shell_echo():
+    """Run a simple echo command and verify stdout, stderr, exit_code."""
+    from tinycua.agent.tools.native.shell import run_shell
+
+    result = run_shell("echo hello")
+    assert result["stdout"].strip() == "hello"
+    assert result["stderr"] == ""
+    assert result["exit_code"] == 0
+    assert result["timed_out"] is False
+    assert result["error"] is None
+
+
+def test_run_shell_invalid_command():
+    """Verify error handling for a nonexistent command."""
+    result = run_shell("nonexistent_command_xyz")
+    assert result["exit_code"] != 0
+    assert result["stderr"] != "" or result["error"] is not None
+
+
+def test_run_shell_timeout():
+    """Verify timeout kills a long-running process."""
+    result = run_shell("sleep 60", timeout=1)
+    assert result["timed_out"] is True
+    assert result["exit_code"] == -1
+    # stdout may contain partial output or be empty
+```
+
+```python
+# Test file: tests/integration/test_native_tools_files.py
+"""Integration tests for read_file, write_file, list_files."""
+
+import tempfile
+import os
+from pathlib import Path
+
+
+# --- read_file ---
+
+def test_read_file_full():
+    """Read entire file when start and offset are not set."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("line 1\nline 2\nline 3\n")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path)
+        assert result == "line 1\nline 2\nline 3\n"
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_start_only():
+    """Read from start line to end of file."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("line 1\nline 2\nline 3\nline 4\n")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path, start=2)
+        assert result == "line 2\nline 3\nline 4\n"
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_start_and_offset():
+    """Read exactly offset lines from start."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("line 1\nline 2\nline 3\nline 4\n")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path, start=2, offset=2)
+        assert result == "line 2\nline 3\n"
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_truncation():
+    """Full-file read truncates when file exceeds internal limit."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        # Write ~150KB to exceed 100KB limit
+        f.write("x" * 150 * 1024)
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path)
+        assert "[Truncated:" in result
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_range_no_truncation():
+    """Range reads bypass truncation limit entirely."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("x" * 150 * 1024)
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        # Read first 5 lines — should NOT be truncated even though file > 100KB
+        result = read_file(path, start=1, offset=5)
+        assert "[Truncated:" not in result
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_not_found():
+    """Error dict returned for missing file."""
+    from tinycua.agent.tools.native.files import read_file
+
+    result = read_file("/nonexistent/path/file.txt")
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert "not found" in result["error"].lower()
+
+
+def test_read_file_invalid_start_line():
+    """Error dict returned when start exceeds file length."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("only one line\n")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path, start=100)
+        assert isinstance(result, dict)
+        assert "error" in result
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_empty():
+    """Read an empty file returns empty string."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        path = f.name  # write nothing
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path)
+        assert result == ""
+    finally:
+        os.unlink(path)
+
+
+def test_read_file_relative_path():
+    """Relative path is resolved from CWD."""
+    original_cwd = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            Path("test.txt").write_text("hello world\n")
+
+            from tinycua.agent.tools.native.files import read_file
+            result = read_file("test.txt")
+            assert result == "hello world\n"
+    finally:
+        os.chdir(original_cwd)
+
+
+# --- write_file ---
+
+def test_write_file_create():
+    """Create a new file with content."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "output.txt")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "hello world")
+        assert result["success"] is True
+        assert result["path"] == filepath
+        assert result["bytes_written"] == len("hello world")
+        assert result["mode"] == "create"
+        assert Path(filepath).read_text() == "hello world"
+
+
+def test_write_file_overwrite():
+    """Overwrite an existing file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "existing.txt")
+        Path(filepath).write_text("old content")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "new content")
+        assert result["success"] is True
+        assert result["mode"] == "overwrite"
+        assert Path(filepath).read_text() == "new content"
+
+
+def test_write_file_creates_parent_dirs():
+    """Missing parent directories are created automatically."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "deep/nested/dir/output.txt")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "deep content")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "deep content"
+
+
+def test_write_file_patch_single_line():
+    """Replace a single line at start position."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "patch.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "REPLACED", start=2, offset=1)
+        assert result["success"] is True
+        assert result["mode"] == "patch"
+        assert result["start_line"] == 2
+        assert result["lines_replaced"] == 1
+        assert Path(filepath).read_text() == "line 1\nREPLACED\nline 3\n"
+
+
+def test_write_file_patch_multiple_lines():
+    """Replace multiple lines with offset parameter."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "patch_multi.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\nline 4\n")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "A\nB", start=2, offset=2)
+        assert result["success"] is True
+        assert result["lines_replaced"] == 2
+        assert Path(filepath).read_text() == "line 1\nA\nB\nline 4\n"
+
+
+def test_write_file_patch_to_end():
+    """Replace from start to end of file when offset is None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "patch_end.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "TAIL", start=2)
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "line 1\nTAIL"
+
+
+def test_write_file_patch_nonexistent_file():
+    """Error when trying to patch a file that does not exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "does_not_exist.txt")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "content", start=1)
+        assert result["success"] is False
+        assert "error" in result
+
+
+def test_write_file_invalid_start_line():
+    """Error when start line exceeds file length."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "short.txt")
+        Path(filepath).write_text("only one line\n")
+        from tinycua.agent.tools.native.files import write_file
+
+        result = write_file(filepath, "content", start=100)
+        assert result["success"] is False
+        assert "error" in result
+
+
+def test_write_file_relative_path():
+    """Relative path is resolved from CWD."""
+    original_cwd = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            from tinycua.agent.tools.native.files import write_file
+
+            result = write_file("relative_output.txt", "hello")
+            assert result["success"] is True
+            assert Path(tmpdir, "relative_output.txt").read_text() == "hello"
+    finally:
+        os.chdir(original_cwd)
+
+
+# --- list_files ---
+
+def test_list_files_all():
+    """List all files in a directory."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "a.txt").touch()
+        Path(tmpdir, "b.txt").touch()
+        Path(tmpdir, "c.py").touch()
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(tmpdir)
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert all(os.path.join(tmpdir, f) in result for f in ["a.txt", "b.txt", "c.py"])
+
+
+def test_list_files_with_pattern():
+    """Filter files with a glob pattern."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "a.txt").touch()
+        Path(tmpdir, "b.txt").touch()
+        Path(tmpdir, "c.py").touch()
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(tmpdir, "*.py")
+        assert len(result) == 1
+        assert os.path.join(tmpdir, "c.py") in result
+
+
+def test_list_files_directory_not_found():
+    """Error dict returned for nonexistent directory."""
+    from tinycua.agent.tools.native.files import list_files
+
+    result = list_files("/nonexistent/path")
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_list_files_empty_directory():
+    """Empty directory returns empty list."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(tmpdir)
+        assert result == []
+
+
+def test_list_files_relative_path():
+    """Relative path is resolved from CWD."""
+    original_cwd = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            Path("subdir").mkdir()
+            Path("subdir", "file.txt").touch()
+            from tinycua.agent.tools.native.files import list_files
+
+            result = list_files("subdir")
+            assert len(result) == 1
+    finally:
+        os.chdir(original_cwd)
+```
+
+```python
+# Test file: tests/integration/test_native_tools_web.py
+"""Integration tests for fetch_url."""
+
+import pytest
+
+
+def test_fetch_url_get_success(httpx_mock):
+    """Successful GET request returns response body."""
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/data",
+        text="response data",
+        status_code=200,
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/data")
+    assert result == "response data"
+
+
+def test_fetch_url_post_with_headers(httpx_mock):
+    """POST request with custom headers returns response body."""
+    httpx_mock.add_response(
+        method="POST",
+        url="https://example.com/api",
+        text='{"ok": true}',
+        status_code=200,
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url(
+        "https://example.com/api",
+        method="POST",
+        headers={"Authorization": "Bearer token"},
+    )
+    assert result == '{"ok": true}'
+
+
+def test_fetch_url_http_error(httpx_mock):
+    """HTTP 404 returns error dict."""
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/missing",
+        status_code=404,
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/missing")
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert "404" in result["error"]
+
+
+def test_fetch_url_truncation(httpx_mock):
+    """Large response is truncated with indicator."""
+    large_body = "x" * 150 * 1024  # 150KB
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/large",
+        text=large_body,
+        status_code=200,
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/large", max_size=102400)
+    assert "[truncated" in result.lower()
+
+
+def test_fetch_url_timeout(httpx_mock):
+    """Timeout returns error dict."""
+    import httpx
+
+    httpx_mock.add_exception(
+        httpx.TimeoutException("timed out"),
+        url="https://example.com/slow",
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/slow", timeout=1)
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_fetch_url_invalid_url():
+    """Invalid URL returns error dict."""
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("not-a-valid-url")
+    assert isinstance(result, dict)
+    assert "error" in result
+```
+
+```python
+# Test file: tests/integration/test_native_tools_python.py
+"""Integration tests for run_python."""
+
+
+def test_run_python_hello():
+    """Execute simple print statement and capture stdout."""
+    from tinycua.agent.tools.native.python_exec import run_python
+
+    result = run_python("print('hello world')")
+    assert result["stdout"].strip() == "hello world"
+    assert result["stderr"] == ""
+    assert result["exit_code"] == 0
+    assert result["timed_out"] is False
+    assert result["error"] is None
+
+
+def test_run_python_syntax_error():
+    """Return stderr with traceback for invalid Python code."""
+    from tinycua.agent.tools.native.python_exec import run_python
+
+    result = run_python("print(undefined_var")
+    assert result["exit_code"] != 0
+    assert "error" in result["stderr"].lower() or "syntax" in result["stderr"].lower()
+
+
+def test_run_python_timeout():
+    """Infinite loop is terminated by timeout."""
+    from tinycua.agent.tools.native.python_exec import run_python
+
+    result = run_python("while True: pass", timeout=1)
+    assert result["timed_out"] is True
+    assert result["exit_code"] == -1
+
+
+def test_run_python_empty_code():
+    """Empty code returns success with no output."""
+    from tinycua.agent.tools.native.python_exec import run_python
+
+    result = run_python("")
+    assert result["stdout"] == ""
+    assert result["stderr"] == ""
+    assert result["exit_code"] == 0
+```
+
+```python
+# Test file: tests/integration/test_native_tools_sdk.py
+"""Integration tests verifying tools work through the SDK's ToolExecutor and Agent."""
+
+import pytest
+
+
+def test_tool_registers_with_agent():
+    """All six tools can be registered with an SDK Agent."""
+    from tinycua_sdk.tools.decorators import Tool
+    from tinycua.agent.tools.native.shell import run_shell
+    from tinycua.agent.tools.native.files import read_file, write_file, list_files
+    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.agent.tools.native.python_exec import run_python
+
+    tools = [run_shell, read_file, write_file, list_files, fetch_url, run_python]
+    for tool_func in tools:
+        assert isinstance(tool_func, Tool), f"{tool_func.name} should be a Tool instance"
+    assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)
+
+
+def test_tool_schemas_valid_json_schema():
+    """Each tool generates valid JSON Schema for function calling."""
+    from tinycua.agent.tools.native.shell import run_shell
+    from tinycua.agent.tools.native.files import read_file, write_file
+
+    for tool in [run_shell, read_file, write_file]:
+        params = tool.parameters
+        assert params["type"] == "object"
+        assert "properties" in params
+        for prop in params["properties"].values():
+            assert "type" in prop
+
+
+def test_tool_executor_invokes_tool():
+    """ToolExecutor.execute() successfully invokes a tool."""
+    import tempfile
+    import os
+    from tinycua_sdk.agent.executor import ToolExecutor
+    from tinycua.agent.tools.native.files import write_file
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "executor_test.txt")
+        result = ToolExecutor.execute(
+            write_file,
+            {"path": filepath, "content": "executor test"},
+        )
+        assert result["success"] is True
+        assert os.path.exists(filepath)
+```
+
+### Key Test Scenarios
+
+- [ ] **Scenario 1 — All tools function**: Each tool executes its primary happy path and returns the expected result shape.
+- [ ] **Scenario 2 — Error handling**: Every error case (file not found, timeout, syntax error, HTTP 404, invalid range) returns an error dict, never raises.
+- [ ] **Scenario 3 — SDK integration**: Tools register with an SDK Agent, generate valid JSON Schema, and execute through ToolExecutor.
+- [ ] **Edge case — Truncation bypass**: `read_file` with `start`/`offset` set bypasses the internal truncation limit entirely.
+- [ ] **Edge case — write_file partial**: `write_file` with `start`/`offset` correctly replaces a line range within an existing file.
+- [ ] **Edge case — Relative paths**: All file tools resolve relative paths against `os.getcwd()`.
+
+## Verification Plan
+
+### Automated Tests
+
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for each module — test error handling, edge cases, mock external dependencies
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+
+### Manual Verification
+
+- [ ] Import all six tools from `tinycua.agent.tools` and verify they are `Tool` instances
+- [ ] Run `run_shell("echo hello")` manually — verify stdout capture
+- [ ] Create a temp file, read it with `read_file`, patch it with `write_file(start=N)`, verify result
+
+### Performance Considerations
+
+- [ ] `read_file` full-file reads should not load entire 1GB files into memory — internal truncation guards this
+- [ ] `run_shell` timeout enforcement must reliably kill child processes (use `Popen` + `Timer`)
+
+## Proposed Changes
+
+### Package: `tinycua/agent/tools/native/`
+
+#### [NEW] `tinycua/tinycua/agent/tools/native/__init__.py`
+
+- **Description**: Re-export all tool functions from submodules for convenient imports.
+- **Dependencies**: `shell`, `files`, `web`, `python_exec` submodules.
+
+#### [NEW] `tinycua/tinycua/agent/tools/native/shell.py`
+
+- **Description**: Implements `run_shell(command, timeout=30)` using `subprocess.Popen` + `threading.Timer` for reliable timeout enforcement. Returns `{stdout, stderr, exit_code, timed_out, error}`.
+- **Rationale**: Shell execution is the primary tool for benchmark task automation.
+
+#### [NEW] `tinycua/tinycua/agent/tools/native/files.py`
+
+- **Description**: Implements `read_file(path, start=None, offset=None)`, `write_file(path, content, start=None, offset=None)`, `list_files(path, pattern="*")`. Uses `pathlib` for path resolution (absolute vs relative-to-CWD). `read_file` applies internal 100KB truncation only for full-file reads (start/offset both None). `write_file` supports full-file create/overwrite and partial line replacement. `list_files` uses `pathlib.glob()`.
+- **Rationale**: File I/O is essential for any agent that reads data, writes results, and explores directories.
+
+#### [NEW] `tinycua/tinycua/agent/tools/native/web.py`
+
+- **Description**: Implements `fetch_url(url, method="GET", headers=None, timeout=30, max_size=102400)` using `httpx`. Truncates large responses with indicator. Handles HTTP errors (4xx/5xx), timeouts, and invalid URLs as error dicts.
+- **Rationale**: Agents need web access for benchmark tasks that involve API calls or data fetching.
+
+#### [NEW] `tinycua/tinycua/agent/tools/native/python_exec.py`
+
+- **Description**: Implements `run_python(code, timeout=30)` using `subprocess.run(["python", "-c", code], timeout=timeout)`. Captures stdout/stderr and returns `{stdout, stderr, exit_code, timed_out, error}`.
+- **Rationale**: Python execution enables the agent to perform data computation, transformation, and analysis within benchmarks.
+
+#### [MODIFY] `tinycua/tinycua/agent/tools/__init__.py`
+
+- **Description**: Add imports and re-exports for all six tool functions: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python`.
+- **Rationale**: Provides a flat import surface (`from tinycua.agent.tools import read_file`) for convenience.
+
+### Tests
+
+#### [NEW] `tests/integration/test_native_tools_shell.py`
+
+- **Description**: Integration tests for `run_shell` — echo, invalid command, timeout.
+
+#### [NEW] `tests/integration/test_native_tools_files.py`
+
+- **Description**: Integration tests for `read_file`, `write_file`, `list_files` — full reads, range reads, truncation, create/overwrite/patch, glob filtering, relative paths, all error cases.
+
+#### [NEW] `tests/integration/test_native_tools_web.py`
+
+- **Description**: Integration tests for `fetch_url` — GET, POST with headers, HTTP errors, truncation, timeout, invalid URL. Uses `pytest-httpx` or `httpx_mock` for mocking.
+
+#### [NEW] `tests/integration/test_native_tools_python.py`
+
+- **Description**: Integration tests for `run_python` — print, syntax error, infinite loop timeout, empty code.
+
+#### [NEW] `tests/integration/test_native_tools_sdk.py`
+
+- **Description**: Integration tests verifying all tools work through the SDK's `ToolExecutor` and generate valid JSON Schema for function calling.
+
+#### [NEW] `tests/unit/` — per-tool unit tests
+
+- **Description**: Unit tests for each tool module with mocked external dependencies. Test edge cases: empty file, empty directory, empty URL, empty command/code, permission denied simulation.
+
+## Architecture Changes
+
+| Component | Change Type | Description |
+|-----------|-------------|-------------|
+| `tinycua/agent/tools/native/` | New | Package with four modules (shell, files, web, python_exec) |
+| `tinycua/agent/tools/__init__.py` | Modify | Add re-exports for all six native tools |
+| `tinycua/agent/tools/cua/` | Unchanged | Separate concern — no changes needed |
+| `tinycua-sdk` | Unchanged | Tools use existing `@tool` decorator and `ToolExecutor` |
+
+## Data Model Changes
+
+```python
+# No new data models — tools use existing SDK Tool and LLMToolSpec.
+# Tool return values follow the shapes defined in design.md:
+#   run_shell:    {stdout, stderr, exit_code, timed_out, error}
+#   read_file:    str (or dict on error)
+#   write_file:   {success, path, bytes_written, mode, start_line, lines_replaced, error}
+#   list_files:   list[str] (or dict on error)
+#   fetch_url:    str (or dict on error)
+#   run_python:   {stdout, stderr, exit_code, timed_out, error}
+```
+
+## API Changes
+
+### New Tool Functions
+
+| Name | Module | Purpose |
+|------|--------|---------|
+| `run_shell` | `shell.py` | Execute shell commands |
+| `read_file` | `files.py` | Read file contents with range support |
+| `write_file` | `files.py` | Write/overwrite/patch files |
+| `list_files` | `files.py` | List directory contents with glob |
+| `fetch_url` | `web.py` | HTTP fetch with truncation |
+| `run_python` | `python_exec.py` | Execute Python code in subprocess |
+
+No modified or removed endpoints (this is a library addition, not an API service).
+
+## Dependencies
+
+### External Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| httpx | ^0.28 (existing) | HTTP client for `fetch_url` |
+| pytest-httpx | latest | Mock HTTP for `fetch_url` tests (dev dependency) |
+
+### Internal Dependencies
+
+- [ ] Depends on `tinycua-sdk` — tools use `@tool` decorator, `ToolExecutor`, `LLMToolSpec` from SDK
+- [ ] Blocks no other features — this is a standalone addition
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| `run_shell` could execute dangerous commands | High | Scope: benchmarks run in controlled environments. Future: sandboxing. |
+| `run_python` infinite loops | Medium | Configurable timeout (default 30s) enforced by subprocess kill. |
+| `fetch_url` hitting internal services | Low | Only HTTP/HTTPS URLs; restrict to public endpoints in prototype. |
+| Large file reads exhausting memory | Medium | Internal truncation at 100KB for full-file reads. Agent bypasses via `start`/`offset`. |
+| Partial `write_file` line mismatch | Low | `start`/`offset` validated against file line count before replacement. Errors returned as dicts. |
+| `pathlib` glob inconsistent across platforms | Low | `pathlib.Path.glob()` is platform-independent. Tests run on Linux (CI) and local. |
+
+---
+
+*Generated from spec.md and design.md*
+*Last updated: 2026-05-30*
