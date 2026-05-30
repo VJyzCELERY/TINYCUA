@@ -13,11 +13,13 @@ Implement six native tools (`run_shell`, `read_file`, `write_file`, `list_files`
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- [ ] **`.env.example`** must be updated to include LLM provider env vars (see Proposed Changes)
+- [ ] **`.env.test.example`** must be created for integration test LLM config (see Proposed Changes)
+- [ ] **`.env.test`** (gitignored) is created by the developer — copy from `.env.test.example` and customize
 
 ### Running Services
 
-- [ ] **None** — no external services needed
+- [ ] **LLM server** (required for e2e integration tests): an OpenAI-compatible server at the URL configured in `.env.test`. Default: `http://localhost:1234/v1`
 
 ### Data / Fixtures
 
@@ -32,7 +34,6 @@ Implement six native tools (`run_shell`, `read_file`, `write_file`, `list_files`
 - [ ] **Runtime**: Python 3.11+
 - [ ] **Package manager**: uv
 - [ ] **httpx** already declared in `pyproject.toml` (for `fetch_url`)
-- [ ] **Test environment**: Copy `.env.test.example` to `.env.test` and configure LLM server settings for integration tests that use a live LLM
 
 ---
 
@@ -802,15 +803,55 @@ class TestNativeToolsE2E:
 
 #### [NEW] `.env.test.example`
 
-- **Description**: Template environment file for integration tests. Contains default LLM server settings (localhost:1234/v1, qwen model). Developers copy to `.env.test` and customize. Mirrors the `src/tinycua-sdk/.env.test.example` pattern.
+- **Description**: Template environment file for integration tests. Follows the `src/tinycua-sdk/.env.test.example` pattern. Developers copy this to `.env.test` (gitignored) and customize their LLM endpoint.
+- **Content**:
+  ```ini
+  # Provider-specific env vars for OpenAI Chat Completions (take highest priority)
+  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:1234/v1
+  OPENAI_CHAT_COMPLETIONS_API_KEY=dummy
+  OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-9b
+
+  # Generic fallback env vars (used when no provider-specific var is set)
+  LLM_BASE_URL=http://localhost:1234/v1
+  LLM_MODEL=qwen/qwen3.5-9b
+
+  # Backend (not required for native tool tests)
+  TINYCUA_BACKEND_URL=http://localhost:8000
+  ```
 
 #### [MODIFY] `.env.example`
 
-- **Description**: Added LLM provider environment variables (LLM_MODEL, LLM_BASE_URL, OPENAI_CHAT_COMPLETIONS_*) matching the SDK's configuration scheme. Deprecates legacy TINYCUA_PROVIDER/MODEL/BASE_URL vars.
+- **Description**: Update `src/tinycua/.env.example` to include LLM provider environment variables matching the SDK's scheme. Keep existing tinycua-specific vars but add `LLM_MODEL`, `LLM_BASE_URL`, and provider-specific override sections (commented out by default). Deprecate legacy `TINYCUA_PROVIDER`/`TINYCUA_MODEL`/`TINYCUA_BASE_URL` vars.
+- **Expected content**:
+  ```ini
+  # TINYCUA Configuration
+
+  # Backend Configuration
+  TINYCUA_BACKEND_URL=http://localhost:8000
+  TINYCUA_API_KEY=
+  TINYCUA_DATABASE_URL=sqlite:///./tinycua.db
+  TINYCUA_ENV=dev
+
+  # Default Model Configuration (fallback for all providers)
+  # LLM_BASE_URL and LLM_MODEL are shared fallbacks for all providers.
+  LLM_MODEL=qwen/qwen3.5-9b
+  LLM_BASE_URL=http://localhost:1234/v1
+
+  # Provider-specific overrides (take precedence over LLM_* env vars)
+  # OpenAI Chat Completions provider (chat/completions endpoint)
+  # OPENAI_CHAT_COMPLETIONS_BASE_URL=https://api.openai.com/v1
+  # OPENAI_CHAT_COMPLETIONS_API_KEY=sk-...
+  # OPENAI_CHAT_COMPLETIONS_MODEL=gpt-4o-mini
+
+  # Legacy (deprecated — use LLM_* or provider-specific vars instead)
+  # TINYCUA_PROVIDER=openai-compatible
+  # TINYCUA_MODEL=qwen/qwen3.5-9b
+  # TINYCUA_BASE_URL=http://localhost:1234/v1
+  ```
 
 #### [MODIFY] `pyproject.toml`
 
-- **Description**: Added `python-dotenv` to core dependencies, `pytest-cov` and `pytest-httpx` to dev dependencies. Added pytest markers (`integration`, `lm_studio`) and filterwarnings for httpx resource cleanup. Enables `uv run pytest` with proper marker registration.
+- **Description**: Add `python-dotenv>=1.0.0` to core dependencies (needed by conftest.py to load `.env.test`). Add `pytest-cov>=4.1.0` and `pytest-httpx>=0.30.0` to dev dependencies. Add pytest markers (`integration`, `lm_studio`) and filterwarnings for httpx resource cleanup in `[tool.pytest.ini_options]`.
 
 ## Architecture Changes
 
