@@ -91,7 +91,7 @@ All enum-typed fields are validated in `__post_init__` via a shared `_validate_e
 ModeType = Literal["primary_agent", "worker", "uncertain"]
 UncertainNextAction = Literal["ask_user", "explore"] | None
 EffortLevel = Literal["none", "high"]
-TaskStatus = Literal["completed", "failed", "blocked"]
+TaskStatus = Literal["not_started", "inprogress", "completed", "failed", "blocked"]
 ReviewStatus = Literal["accepted", "retry", "replan", "escalate_user"]
 AgentStatus = Literal["idle", "running", "blocked", "terminated"]
 OwnerType = Literal["primary", "child"]
@@ -148,18 +148,23 @@ class Task:
     task_context: str
     success_criteria: list[str]
     confidence: float                 # 0.0–1.0 (implementation calibration)
-    finished: bool = False
+    task_result: TaskResult | None = None  # None = not_started
     child_tasks: list[Task] | None = None  # None = leaf, list = container
 
-    # Navigation (serialized fields only; _parent is not a dataclass field)
+    # Status
     @property
-    def parent(self) -> Task | None: ...  # _parent object reference
+    def is_completed(self) -> bool: ...  # leaf: task_result.status=="completed"; container: all children completed
+    def _status_marker(self) -> str: ...  # [ ] [*] [x] [-] [/]
+
+    # Navigation
+    @property
+    def parent(self) -> Task | None: ...  # _parent object reference (not serialized)
     def is_root(self) -> bool: ...
-    def root(self) -> Task: ...           # Walk to top-most parent
-    def traverse(self) -> Task: ...       # DFS pre-order: find next executable leaf
-    def at_id(self, task_id: str) -> Task: ...  # Navigate by structured T-{idx}... ID
-    def set_parents(self) -> None: ...    # Re-establish _parent refs after deserialization
-    def display(self, indent: int = 0) -> str: ...  # DFS pre-order string, root hides UUID
+    def root(self) -> Task: ...
+    def traverse(self) -> Task: ...       # DFS pre-order: find next non-completed leaf
+    def at_id(self, task_id: str) -> Task: ...  # Structured T-{idx}... ID navigation
+    def set_parents(self) -> None: ...
+    def display(self, indent=0, trim=False) -> str: ...  # DFS pre-order string, root hides UUID
 
 @dataclass
 class TaskResult:

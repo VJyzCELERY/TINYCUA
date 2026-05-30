@@ -40,7 +40,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - What happens when optional fields (e.g., `advisory_instructions`, `constraints`) are omitted? They should default to `None`.
 - What happens when `uncertain_next_action` is provided but `mode` is not `uncertain`? The value is preserved but downstream consumers should ignore it. When `mode` is `uncertain`, `uncertain_next_action` must be provided.
 - What happens with deeply nested `Task` trees? Must handle arbitrary nesting depth.
-- What happens on a `Task` with empty `child_tasks` (not `None`)? Treated as a leaf — no children to iterate.
+- What happens when `task_result` is `None` on a leaf? Treated as `not_started` (marker `[ ]`).
 - What about negative `consecutive_failures` values? Validation should reject.
 
 ---
@@ -54,9 +54,9 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **FR-003**: System MUST provide a `ModeDecision` data type with `mode` (enum: primary_agent, worker, uncertain), `score`, `confidence`, `reasons` (list[str]), and `uncertain_next_action` (optional enum: ask_user, explore).
 - **FR-004**: System MUST provide a `DigestedInformation` data type with `context_summary`, `key_points` (list[str]), optional `advisory_instructions`, optional `constraints` (list[str]), optional `known_gaps` (list[str]).
 - **FR-005**: System MUST provide a `WorkerConfig` data type with `effort` (enum: none, high).
-- **FR-006**: System MUST provide a `Task` tree node data type representing an executable task with `task_id`, `parent_task_id` (auto-set from container), `task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`, `finished` (default `false`), and optional `child_tasks` (list of `Task`, `None` for leaf tasks).
-- **FR-007**: System MUST validate the `finished` constraint: a task with `child_tasks` can only be `finished=True` when all children are finished. Additionally, when `child_tasks` is provided, each child's `parent_task_id` is auto-set to the parent's `task_id` (unless an explicit matching value is provided). The `_parent` object reference MUST be set on all children for O(1) upward traversal. System MUST provide `traverse()` (DFS pre-order to find next executable leaf), `root()` (walk to top-most parent), `at_id(task_id)` (navigate by structured ID from anywhere in the tree), `set_parents()` (re-establish _parent refs after deserialization), and `display()` (DFS pre-order string with `[x]`/`[ ]` markers; root hides UUID, children show ID).
-- **FR-008**: System MUST provide a `TaskResult` data type with `task_id`, `status` (enum: completed, failed, blocked), `result`, optional `discovered_sequence_issues` (list[str]), optional `uncertainty_notes` (list[str]).
+- **FR-006**: System MUST provide a `Task` tree node data type with `task_id`, `parent_task_id` (auto-set from container), `task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`, `task_result` (`TaskResult | None`, default `None` = not_started), and optional `child_tasks` (list of `Task`, `None` for leaf tasks).
+- **FR-007**: System MUST provide navigation and display for the Task tree. `traverse()` finds the next non-completed leaf via DFS pre-order (container completion derived from children). `root()` walks to top-most parent. `at_id(task_id)` navigates by structured `T-{idx}.{subidx}...` IDs from anywhere in the tree. `set_parents()` re-establishes `_parent` object references after deserialization (auto-called by `from_dict`/`from_json`). `display()` outputs DFS pre-order string with status markers: `[ ]` not_started, `[*]` inprogress, `[x]` completed, `[-]` failed, `[/]` blocked. Root hides UUID; children show ID.
+- **FR-008**: System MUST provide a `TaskResult` data type with `task_id`, `status` (enum: not_started, inprogress, completed, failed, blocked), `result`, optional `discovered_sequence_issues` (list[str]), optional `uncertainty_notes` (list[str]).
 - **FR-009**: System MUST provide a `ReviewerDecision` data type with `task_id`, `status` (enum: accepted, retry, replan, escalate_user), `reason`, `confidence`, optional `context_updates` (list[ContextUpdate]), optional `retry_instructions`.
 - **FR-010**: System MUST provide a `WorkerResult` data type with `accepted_results` (list[AcceptedResult]).
 - **FR-011**: System MUST provide an `AgentState` data type with `active_agent`, `active_task_id`, `status` (enum: idle, running, blocked, terminated), `resume_target`, `consecutive_failures` (int, non-negative).
@@ -73,7 +73,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **Session**: The unit containing conversation history (`chat_history`), model-loaded context (`context`), and sub-session execution log. Central state container for the entire TINYCUA lifecycle.
 - **ModeDecision**: Output of the Query Analyst. Drives routing between Primary Agent mode, Worker mode, and Uncertain mode.
 - **DigestedInformation**: Precision-oriented context summary produced by the Information Digester. Consumed by Task Analyzer and Primary Agent.
-- **Task Tree**: A tree of `Task` nodes navigated via DFS pre-order traversal. Container tasks hold `child_tasks` but are not executed directly; leaf tasks (`child_tasks=None`) are the executable units. The `finished` flag propagates upward — a container can only be marked finished when all children are finished, preventing orphaned subtasks. `Task.display()` flattens the tree into a sequential list showing each task's finished status and ID.
+- **Task Tree**: A tree of `Task` nodes navigated via DFS pre-order traversal. Container tasks hold `child_tasks` but are not executed directly; leaf tasks (`child_tasks=None`) are the executable units. Each leaf carries an optional `TaskResult` (`None` = not_started). Container completion is derived from children — a container is completed when all children are completed. Status is tracked per-task via `task_result.status` (not_started, inprogress, completed, failed, blocked). `Task.display()` flattens the tree into a sequential list with rich status markers.
 - **TaskResult**: Output of a single task execution. Status indicates completion, failure, or blocked.
 - **ReviewerDecision**: Result Reviewer's judgment on a task result. Drives Worker transitions (accept, retry, replan, escalate).
 - **WorkerResult**: Aggregated accepted task results, consumed by Primary Agent for final response.
@@ -89,7 +89,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 
 ## Success Criteria
 
-- [x] All 12 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, Task (tree node), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
+- [x] All 11 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, Task (tree node), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
 - [x] All types support dict round-trip serialization.
 - [x] All types support JSON round-trip serialization.
 - [x] Enum fields reject invalid values with a clear error.
@@ -110,10 +110,10 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - `to_json()` / `from_json()` round-trip for every type.
 - Enum validation: invalid enum values raise appropriate errors.
 - Field validation: negative `consecutive_failures`, missing required fields, empty lists where required.
-- Nested Task tree serialization (container with multi-level children).
-- Edge cases: empty `context_updates`, empty `key_points`, empty `known_gaps`, no `uncertain_next_action`.
-- Finished constraint: container tasks reject `finished=True` when any child is unfinished.
-- `Task.display()`: DFS pre-order traversal with correct `[x]`/`[ ]` markers and indentation.
+- Nested Task tree serialization with `task_result` round-trips.
+- Edge cases: `task_result=None` (not_started), all task_result statuses (not_started, inprogress, completed, failed, blocked), container completion derived from children.
+- `Task.traverse()`: DFS pre-order finds next non-completed leaf; walks up from completed nodes.
+- `Task.display()`: DFS pre-order with correct `[ ]` `[*]` `[x]` `[-]` `[/]` markers and indentation.
 
 ### Integration Tests
 
@@ -142,7 +142,7 @@ The following architecture docs MUST be updated to match the implemented types:
 | Core data types | Done | 11 core + 3 supporting types (Task is a tree node, replacing TaskList+Task) |
 | to_dict / from_dict | Done | Auto-nested via StateObject base class |
 | to_json / from_json | Done | Delegates to dict serialization |
-| Validation | Done | Enum checks + non-negative consecutive_failures |
+| Validation | Done | Enum checks + non-negative consecutive_failures + task_result status validation |
 | Tests | Done | 127 tests, 100% coverage |
 
 ---
