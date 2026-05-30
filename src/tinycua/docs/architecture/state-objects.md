@@ -247,3 +247,7 @@ agent_state:
 Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.
+
+Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
+
+The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.
