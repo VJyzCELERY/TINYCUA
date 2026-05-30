@@ -66,7 +66,8 @@ Each tool returns a structured result:
 #   with no automatic truncation.
 #
 # On error: {"error": "File not found: /path/to/file"}
-# On invalid range: {"error": "Invalid start line: 500 (file has 42 lines)"}
+# On invalid range: {"error": "Invalid range: start=500, file has 42 lines"}
+# On range beyond file: {"error": "Invalid range: start=40, offset=20 exceeds file length (42 lines)"}
 # If truncated: "...\n[Truncated: 843 lines remaining, ~48KB not shown]"
 ```
 
@@ -91,7 +92,8 @@ Each tool returns a structured result:
     "error": str | None,
 }
 # On error (file not found): {"error": "File does not exist: /path/to/file"}
-# On error (invalid start): {"error": "Invalid start line: 500 (file has 42 lines)"}
+# On error (invalid start): {"error": "Invalid range: start=500, file has 42 lines"}
+# On error (start+offset beyond file): {"error": "Invalid range: start=40, offset=20 exceeds file length (42 lines)"}
 ```
 
 #### `list_files`
@@ -231,7 +233,7 @@ def run_python(code: str, timeout: int = 30) -> dict:
 | File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `edit_file`: `{"error": "File does not exist: ..."}` |
 | Directory not found | `list_files`: `{"error": "..."}` |
 | Permission denied | `{"error": "Permission denied: ..."}` |
-| Invalid start line | `read_file`: `{"error": "Invalid start line: N (file has M lines)"}`; `edit_file`: `{"error": "Invalid start line: N (file has M lines)"}` |
+| Invalid start or range | `read_file`: `{"error": "Invalid range: start=500, file has 42 lines"}` or `{"error": "...offset=20 exceeds file length (42 lines)"}`; `edit_file`: same format |
 | Command timeout | `{"stdout": "...", "stderr": "...", "exit_code": -1, "timed_out": true}` |
 | Python execution error | `{"stdout": "", "stderr": "<traceback>", "exit_code": 1, "timed_out": false}` |
 | HTTP error (4xx/5xx) | `{"error": "HTTP 404: Not Found"}` |

@@ -126,6 +126,22 @@ def test_read_file_start_and_offset():
         os.unlink(path)
 
 
+def test_read_file_start_plus_offset_exceeds_file():
+    """Error when start+offset exceeds file line count."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("line 1\nline 2\nline 3\n")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(path, start=2, offset=5)
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "exceeds" in result["error"].lower()
+    finally:
+        os.unlink(path)
+
+
 def test_read_file_truncation():
     """Full-file read truncates when file exceeds internal limit."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -177,6 +193,7 @@ def test_read_file_invalid_start_line():
         result = read_file(path, start=100)
         assert isinstance(result, dict)
         assert "error" in result
+        assert "range" in result["error"].lower()
     finally:
         os.unlink(path)
 
@@ -324,7 +341,21 @@ def test_edit_file_invalid_start_line():
         result = edit_file(filepath, start=100, content="content")
         assert result["success"] is False
         assert "error" in result
-        assert "lines" in result.get("error", "").lower()
+        assert "range" in result.get("error", "").lower()
+
+
+def test_edit_file_start_plus_offset_exceeds_file():
+    """Error when start+offset exceeds file line count."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "short_multi.txt")
+        # 3 lines: start=2, offset=5 → wants to replace 5 lines but only 2 exist (lines 2-3)
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=2, content="A\nB\nC\nD\nE", offset=5)
+        assert result["success"] is False
+        assert "error" in result
+        assert "exceeds" in result["error"].lower()
 
 
 # --- list_files ---
@@ -710,6 +741,7 @@ class TestNativeToolsE2E:
 - [ ] **Scenario 6 — E2E Agent loop (shell)**: Agent calls run_shell through a live LLM and reports the output correctly.
 - [ ] **Edge case — Truncation bypass**: `read_file` with `start`/`offset` set bypasses the internal truncation limit entirely.
 - [ ] **Edge case — edit_file partial**: `edit_file` with `start`/`offset` correctly replaces a line range within an existing file. Errors returned for nonexistent file or invalid start line.
+- [ ] **Edge case — Range out of bounds**: `read_file` and `edit_file` return an error when `start+offset` exceeds the file's line count, with a message showing the file's total lines. Silently clamping to available lines would hide mistakes.
 - [ ] **Edge case — Relative paths**: All file tools resolve relative paths against `os.getcwd()`.
 
 ## Verification Plan

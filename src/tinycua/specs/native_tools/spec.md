@@ -42,6 +42,7 @@ A Task Executor agent receives a benchmark task (e.g., "read the file at /data/i
 - What happens when `run_python` code has a syntax error or infinite loop?
 - What happens when `list_files` is given a path that does not exist?
 - What happens when `edit_file` is given a start line beyond the file's length?
+- What happens when `read_file` or `edit_file` is given a `start+offset` that exceeds the file's line count?
 - How are large outputs handled (file too large, URL response too large)?
 
 ---
