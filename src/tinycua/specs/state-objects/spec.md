@@ -73,7 +73,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **TaskResult**: Output of a single task execution. Status indicates completion, failure, or blocked.
 - **ReviewerDecision**: Result Reviewer's judgment on a task result. Drives Worker transitions (accept, retry, replan, escalate).
 - **WorkerResult**: Aggregated accepted task results, consumed by Primary Agent for final response.
-- **AgentState**: Tracks which internal agent is active and its operational status (idle, running, or blocked waiting for user input).
+- **AgentState**: Tracks which internal agent is active and its operational status (idle, running, blocked waiting for user input, or terminated).
 - **ExecutionLog**: Record of actions, outcomes, and decisions during sub-session execution.
 - **WorkerConfig**: Configuration controlling Worker behavior (effort level).
 
@@ -132,6 +132,7 @@ The following changes must also be applied to the canonical architecture docs to
 
 | Item | Status | Notes |
 |------|--------|-------|
+| Architecture doc updates | TODO | Sync `state-objects.md` and `session-architecture.md` |
 | Core dataclasses | TODO | |
 | to_dict / from_dict | TODO | |
 | to_json / from_json | TODO | |
@@ -156,7 +157,7 @@ The following changes must also be applied to the canonical architecture docs to
 
 - [x] No implementation details (no code, framework, or architecture choices)
 - [x] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
+- [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
 - [x] Success criteria are measurable

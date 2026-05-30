@@ -99,7 +99,7 @@ class ModeDecision:
     score: float
     confidence: float
     reasons: list[str]
-    uncertain_next_action: str | None = None  # "ask_user" | "explore"
+    uncertain_next_action: UncertainNextAction = None  # "ask_user" | "explore"
 
 @dataclass
 class DigestedInformation:
