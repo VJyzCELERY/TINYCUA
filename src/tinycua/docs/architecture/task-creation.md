@@ -3,7 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/task-creation.md`
-> **Last Updated:** 2026-05-29
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-assessor.md](task-assessor.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 

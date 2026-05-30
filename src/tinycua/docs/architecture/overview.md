@@ -5,7 +5,7 @@
 > **File:** `architecture/overview.md`
 > **Last Updated:** 2026-05-30
 > **Status:** Implemented
-> **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md)
+> **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [primary-agent.md](primary-agent.md), [task-analysis.md](task-analysis.md), [task-assessor.md](task-assessor.md), [task-creation.md](task-creation.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md)
 
 This document describes the top-level orchestration of TINYCUA and how its agents connect.
 

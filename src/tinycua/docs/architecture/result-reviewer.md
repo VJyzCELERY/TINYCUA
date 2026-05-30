@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/result-reviewer.md`
-> **Last Updated:** 2026-05-29
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-creation.md](task-creation.md), [task-execution.md](task-execution.md), [task-assessor.md](task-assessor.md), [state-objects.md](state-objects.md)
 
@@ -36,13 +36,10 @@ The Result Reviewer should be hybrid:
 
 **Input:**
 
-- original task definition;
-- current task `context`;
-- task success criteria;
-- task result;
-- sub-session execution log (actions and outcomes from the Task Executor's sub-session);
-- shallow full task list;
-- dynamic access to individual task contexts when needed.
+- Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `context`, `success_criteria`.
+- `task_result` — result of the task's execution. Canonical schema in [state-objects.md](state-objects.md).
+- `execution_log` — sub-session execution log (actions and outcomes from the Task Executor's sub-session). See [session-architecture.md](session-architecture.md).
+- `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
 
 The Result Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
 

@@ -3,7 +3,7 @@
 > **Category:** Tool Spec
 
 > **File:** `architecture/context-retrieval.md`
-> **Last Updated:** 2026-05-29
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md)
 
