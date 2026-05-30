@@ -279,7 +279,7 @@ loop checks `is_cancelled` before each tool call and between iterations.
 import asyncio
 
 async def cancel_after_timeout(agent, query: str, timeout: float) -> str:
-    task = asyncio.ensure_future(agent.run(query))
+    task = asyncio.create_task(agent.run(query))
     try:
         result = await asyncio.wait_for(task, timeout=timeout)
         return result
