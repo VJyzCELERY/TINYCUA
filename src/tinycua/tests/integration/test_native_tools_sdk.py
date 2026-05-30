@@ -10,11 +10,11 @@ def test_tool_registers_with_agent():
     """All seven tools can be registered with an SDK Agent."""
     from tinycua_sdk.tools.decorators import Tool
     from tinycua.agent.tools.native.shell import run_shell
-    from tinycua.agent.tools.native.files import read_file, write_file, list_files
+    from tinycua.agent.tools.native.files import read_file, write_file, list_files, edit_file
     from tinycua.agent.tools.native.web import fetch_url
     from tinycua.agent.tools.native.python_exec import run_python
 
-    tools = [run_shell, read_file, write_file, list_files, fetch_url, run_python]
+    tools = [run_shell, read_file, write_file, list_files, fetch_url, run_python, edit_file]
     for tool_func in tools:
         assert isinstance(tool_func, Tool), f"{tool_func.name} should be a Tool instance"
     assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)

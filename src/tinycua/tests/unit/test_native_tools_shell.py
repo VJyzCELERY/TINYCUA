@@ -1,9 +1,5 @@
 """Unit tests for shell.py — mocking subprocess for edge cases."""
 
-from unittest.mock import patch
-
-import pytest
-
 
 def test_run_shell_empty_command():
     """Empty command returns success with empty output."""

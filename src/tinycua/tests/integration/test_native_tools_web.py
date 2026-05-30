@@ -1,7 +1,5 @@
 """Integration tests for fetch_url tool."""
 
-import pytest
-
 
 def test_fetch_url_get_success(httpx_mock):
     """Successful GET request returns response body."""

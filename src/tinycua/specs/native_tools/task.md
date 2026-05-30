@@ -71,7 +71,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 - [x] Implement `write_file` in `files.py` <!-- id: 15 -->
   - [x] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
   - [x] Create/overwrite entire file with content, creating parent dirs if needed
-  - [x] Return `{success, path, bytes_written, error}`
+  - [x] Return `{success, path, chars_written, error}`
   - [x] Handle permission denied as error dict
 - [x] Implement `edit_file` in `files.py` <!-- id: 16 -->
   - [x] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`

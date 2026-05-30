@@ -6,8 +6,9 @@ capturing stdout, stderr, and exit codes with configurable timeout.
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
-import threading
 from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
@@ -24,45 +25,48 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
-    result: dict[str, Any] = {
-        "stdout": "",
-        "stderr": "",
-        "exit_code": 0,
-        "timed_out": False,
-        "error": None,
-    }
+    process = subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        preexec_fn=os.setsid,
+    )
 
     try:
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-        timer = threading.Timer(timeout, lambda p: p.kill(), [process])
-        timer.daemon = True
-        timer.start()
-
-        try:
-            stdout_data, stderr_data = process.communicate()
-            result["stdout"] = stdout_data or ""
-            result["stderr"] = stderr_data or ""
-            result["exit_code"] = process.returncode or 0
-            if process.returncode == -9:
-                result["timed_out"] = True
-                result["exit_code"] = -1
-        finally:
-            timer.cancel()
-
-    except FileNotFoundError:
-        result["exit_code"] = 127
-        result["stderr"] = f"Command not found: {command}"
-        result["error"] = f"Command not found: {command}"
+        stdout, stderr = process.communicate(timeout=timeout)
+        return {
+            "stdout": stdout or "",
+            "stderr": stderr or "",
+            "exit_code": process.returncode,
+            "timed_out": False,
+            "error": None,
+        }
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        stdout, stderr = process.communicate()
+        return {
+            "stdout": stdout or "",
+            "stderr": stderr or "",
+            "exit_code": -1,
+            "timed_out": True,
+            "error": f"Command timed out after {timeout}s",
+        }
+    except subprocess.SubprocessError as exc:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": str(exc),
+        }
     except Exception as exc:
-        result["exit_code"] = -1
-        result["error"] = str(exc)
-        result["timed_out"] = False
-
-    return result
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": str(exc),
+        }

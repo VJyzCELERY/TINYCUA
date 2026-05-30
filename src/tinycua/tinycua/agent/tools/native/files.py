@@ -27,11 +27,63 @@ def _resolve_path(path: str) -> Path:
     return Path(os.getcwd()) / path
 
 
-def _count_lines(text: str) -> int:
-    """Return the number of lines in a string (including trailing empty line)."""
-    if not text:
-        return 0
-    return len(text.split("\n")) - 1 if text.endswith("\n") else len(text.split("\n"))
+# --- Helper functions for read_file ---
+
+
+def _truncate_content(
+    content_bytes: bytes, max_bytes: int, start_line: int = 1
+) -> str:
+    """Truncate *content_bytes* to *max_bytes* and append a truncation notice.
+
+    Truncation is performed at a byte boundary. Any trailing incomplete
+    multi-byte UTF-8 sequence is silently ignored to avoid inserting
+    replacement characters that could confuse LLMs.
+
+    Args:
+        content_bytes: The content to truncate, already UTF-8 encoded.
+        max_bytes: Maximum number of bytes to keep.
+        start_line: The starting line number (for the resume hint).
+
+    Returns:
+        Truncated content string with a truncation notice appended.
+    """
+    truncated = content_bytes[:max_bytes].decode("utf-8", errors="ignore")
+    remaining_bytes = len(content_bytes) - max_bytes
+    remaining_lines = content_bytes[max_bytes:].count(b"\n")
+    lines_read = truncated.count("\n")
+    next_start = start_line + lines_read
+    return (
+        f"{truncated}"
+        f"\n[Truncated: {remaining_lines} lines remaining, ~{remaining_bytes} bytes not shown."
+        f" Set start={next_start} to continue reading.]"
+    )
+
+
+def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
+    """Read a file and split into lines, returning (lines, content, trailing_newline).
+
+    Returns an error dict if the file cannot be read.
+    """
+    resolved = _resolve_path(path)
+
+    if not resolved.exists():
+        return {"error": f"File not found: {path}"}
+    if not resolved.is_file():
+        return {"error": f"Not a file: {path}"}
+
+    try:
+        content = resolved.read_text()
+        content = content.replace("\r\n", "\n")
+    except PermissionError:
+        return {"error": f"Permission denied: {path}"}
+    except Exception as exc:
+        return {"error": f"Failed to read file: {exc}"}
+
+    trailing_newline = content.endswith("\n")
+    lines = content.split("\n")
+    if trailing_newline:
+        lines = lines[:-1]
+    return (lines, content, trailing_newline)
 
 
 # --- read_file ---
@@ -55,27 +107,10 @@ def read_file(path: str, start: int | None = None, offset: int | None = None) ->
     Returns:
         The file content as a string on success, or an error dict on failure.
     """
-    resolved = _resolve_path(path)
-
-    if not resolved.exists():
-        return {"error": f"File not found: {path}"}
-    if not resolved.is_file():
-        return {"error": f"Not a file: {path}"}
-
-    try:
-        content = resolved.read_text()
-    except PermissionError:
-        return {"error": f"Permission denied: {path}"}
-    except Exception as exc:
-        return {"error": f"Failed to read file: {exc}"}
-
-    # Split into lines, handling trailing newline correctly.
-    # When content ends with "\n", the trailing empty element from split is
-    # an artifact — strip it so line counting is accurate.
-    if content.endswith("\n"):
-        lines = content.split("\n")[:-1]
-    else:
-        lines = content.split("\n")
+    result = _read_lines(path)
+    if isinstance(result, dict):
+        return result  # error dict
+    lines, content, trailing_newline = result
 
     total_lines = len(lines)
     content_bytes = content.encode("utf-8")
@@ -83,26 +118,24 @@ def read_file(path: str, start: int | None = None, offset: int | None = None) ->
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
     if offset is not None:
-        if start is None:
-            start = 1  # default to beginning when only offset is given
-        if start < 1:
-            return {"error": f"Invalid start line: {start}. Must be >= 1."}
-        if start > total_lines:
+        actual_start = start if start is not None else 1
+        if actual_start < 1:
+            return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
+        if actual_start > total_lines:
             return {
-                "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
+                "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
             }
-
-        start_idx = start - 1
+        start_idx = actual_start - 1
         if start_idx + offset > total_lines:
             return {
-                "error": f"Start line {start} + offset {offset} exceeds file length "
+                "error": f"Start line {actual_start} + offset {offset} exceeds file length "
                 f"({total_lines} lines). Range out of bounds."
             }
         selected = lines[start_idx : start_idx + offset]
-        result = "\n".join(selected)
-        if content.endswith("\n"):
-            result += "\n"
-        return result
+        result_str = "\n".join(selected)
+        if trailing_newline:
+            result_str += "\n"
+        return result_str
 
     # --- Start-only mode: unbounded read from N to end ---
     # This is still subject to truncation since the range is open-ended.
@@ -113,45 +146,18 @@ def read_file(path: str, start: int | None = None, offset: int | None = None) ->
             return {
                 "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
             }
-
-        start_idx = start - 1
-        selected = lines[start_idx:]
-        result = "\n".join(selected)
-        if content.endswith("\n"):
-            result += "\n"
-
-        # Apply truncation to the selected range
-        result_bytes = result.encode("utf-8")
+        result_str = "\n".join(lines[start - 1 :])
+        if trailing_newline:
+            result_str += "\n"
+        result_bytes = result_str.encode("utf-8")
         if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
-            return result
-
-        truncated = result_bytes[:_FULL_FILE_TRUNCATION_BYTES].decode("utf-8", errors="replace")
-        remaining_bytes = len(result_bytes) - _FULL_FILE_TRUNCATION_BYTES
-        remaining_content = result_bytes[_FULL_FILE_TRUNCATION_BYTES:].decode("utf-8", errors="replace")
-        remaining_lines = remaining_content.count("\n")
-        lines_read = truncated.count("\n")
-        next_start = start + lines_read
-        truncated += (
-            f"\n[Truncated: {remaining_lines} lines remaining, ~{remaining_bytes} bytes not shown."
-            f" Set start={next_start} to continue reading.]"
-        )
-        return truncated
+            return result_str
+        return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
 
     # --- Full-file mode: no start, no offset ---
     if len(content_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
         return content
-
-    truncated = content_bytes[:_FULL_FILE_TRUNCATION_BYTES].decode("utf-8", errors="replace")
-    remaining_bytes = len(content_bytes) - _FULL_FILE_TRUNCATION_BYTES
-    remaining_content = content_bytes[_FULL_FILE_TRUNCATION_BYTES:].decode("utf-8", errors="replace")
-    remaining_lines = remaining_content.count("\n")
-    lines_read = truncated.count("\n")
-    next_start = 1 + lines_read
-    truncated += (
-        f"\n[Truncated: {remaining_lines} lines remaining, ~{remaining_bytes} bytes not shown."
-        f" Set start={next_start} to continue reading.]"
-    )
-    return truncated
+    return _truncate_content(content_bytes, _FULL_FILE_TRUNCATION_BYTES)
 
 
 # --- write_file ---
@@ -167,7 +173,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         content: The content to write to the file.
 
     Returns:
-        A dict with keys: success, path, bytes_written, error.
+        A dict with keys: success, path, chars_written, error.
     """
     resolved = _resolve_path(path)
 
@@ -178,30 +184,30 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
-            "bytes_written": 0,
+            "chars_written": 0,
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
 
     try:
-        bytes_written = resolved.write_text(content, encoding="utf-8")
+        chars_written = resolved.write_text(content, encoding="utf-8")
         return {
             "success": True,
             "path": str(resolved),
-            "bytes_written": bytes_written,
+            "chars_written": chars_written,
             "error": None,
         }
     except PermissionError:
         return {
             "success": False,
             "path": str(resolved),
-            "bytes_written": 0,
+            "chars_written": 0,
             "error": f"Permission denied: {path}",
         }
     except Exception as exc:
         return {
             "success": False,
             "path": str(resolved),
-            "bytes_written": 0,
+            "chars_written": 0,
             "error": str(exc),
         }
 
@@ -244,6 +250,7 @@ def edit_file(
 
     try:
         original = resolved.read_text()
+        original = original.replace("\r\n", "\n")
     except PermissionError:
         return {
             "success": False,

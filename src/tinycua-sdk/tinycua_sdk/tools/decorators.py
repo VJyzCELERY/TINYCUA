@@ -67,7 +67,6 @@ class Tool:
         parameter names.
         """
         if args and self._callable is not None:
-            import inspect
             sig = inspect.signature(self._callable)
             param_names = list(sig.parameters.keys())
             for i, arg in enumerate(args):

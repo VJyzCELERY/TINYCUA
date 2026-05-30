@@ -1,7 +1,5 @@
 """Unit tests for python_exec.py — mocking subprocess for timeout/errors."""
 
-import pytest
-
 
 def test_run_python_runtime_error():
     """Runtime error in code returns stderr with traceback."""

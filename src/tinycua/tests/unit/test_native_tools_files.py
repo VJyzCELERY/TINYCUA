@@ -83,6 +83,22 @@ def test_read_file_not_a_file():
         assert "error" in result
 
 
+def test_read_file_start_zero_returns_error():
+    """start=0 (invalid, must be >= 1) returns error."""
+    from tinycua.agent.tools.native.files import read_file
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("hello\nworld\n")
+        path = f.name
+    try:
+        result = read_file(path, start=0)
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "Invalid start line" in result["error"]
+    finally:
+        os.unlink(path)
+
+
 def test_read_file_truncation_message_format():
     """Truncation message matches expected format with resume hint."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -110,7 +126,7 @@ def test_write_file_empty_content():
 
         result = write_file(filepath, "")
         assert result["success"] is True
-        assert result["bytes_written"] == 0
+        assert result["chars_written"] == 0
         assert Path(filepath).read_text() == ""
 
 
@@ -142,6 +158,18 @@ def test_edit_file_with_newline_content():
         content = Path(filepath).read_text()
         # The replacement content's trailing newline should be respected
         assert "A\nB\n" in content
+
+
+def test_edit_file_start_zero_returns_error():
+    """edit_file with start=0 (invalid, must be >= 1) returns error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "edit_start_zero.txt")
+        Path(filepath).write_text("line 1\nline 2\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start=0, content="new")
+        assert result["success"] is False
+        assert "Invalid start line" in result["error"]
 
 
 def test_edit_file_single_line_no_trailing_newline():
@@ -182,6 +210,22 @@ def test_list_files_with_subdirectories():
         # Only top-level files, not recursive
         assert len(result) == 1
         assert any(p.endswith("file.txt") for p in result)
+
+
+def test_list_files_on_file_returns_error():
+    """list_files on a file path (not a directory) returns error."""
+    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+        f.write(b"content")
+        path = f.name
+    try:
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(path)
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "Not a directory" in result["error"]
+    finally:
+        os.unlink(path)
 
 
 def test_list_files_absolute_paths():

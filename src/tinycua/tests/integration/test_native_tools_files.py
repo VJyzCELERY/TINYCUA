@@ -163,7 +163,7 @@ def test_write_file_create():
         result = write_file(filepath, "hello world")
         assert result["success"] is True
         assert result["path"] == filepath
-        assert result["bytes_written"] == len("hello world")
+        assert result["chars_written"] == len("hello world")
         assert Path(filepath).read_text() == "hello world"
 
 

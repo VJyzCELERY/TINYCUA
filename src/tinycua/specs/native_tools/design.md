@@ -66,8 +66,8 @@ Each tool returns a structured result:
 #   with no automatic truncation.
 #
 # On error: {"error": "File not found: /path/to/file"}
-# On invalid range: {"error": "Invalid range: start=500, file has 42 lines"}
-# On range beyond file: {"error": "Invalid range: start=40, offset=20 exceeds file length (42 lines)"}
+# On invalid range: {"error": "Start line 500 exceeds file length (42 lines). Range out of bounds."}
+# On range beyond file: {"error": "Start line 40 + offset 20 exceeds file length (42 lines). Range out of bounds."}
 # If truncated: "...\n[Truncated: 843 lines remaining, ~48KB not shown]"
 ```
 
@@ -76,7 +76,7 @@ Each tool returns a structured result:
 {
     "success": bool,
     "path": str,
-    "bytes_written": int,
+    "chars_written": int,
     "error": str | None,
 }
 ```
@@ -91,9 +91,9 @@ Each tool returns a structured result:
     "bytes_written": int,    # total bytes written to file
     "error": str | None,
 }
-# On error (file not found): {"error": "File does not exist: /path/to/file"}
-# On error (invalid start): {"error": "Invalid range: start=500, file has 42 lines"}
-# On error (start+offset beyond file): {"error": "Invalid range: start=40, offset=20 exceeds file length (42 lines)"}
+# On error (file not found): {"error": "File not found: /path/to/file"}
+# On error (invalid start): {"error": "Start line 500 exceeds file length (42 lines). Range out of bounds."}
+# On error (start+offset beyond file): {"error": "Start line 40 + offset 20 exceeds file length (42 lines). Range out of bounds."}
 ```
 
 #### `list_files`
@@ -230,10 +230,10 @@ def run_python(code: str, timeout: int = 30) -> dict:
 
 | Error Case | Return Value |
 |------------|-------------|
-| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `edit_file`: `{"error": "File does not exist: ..."}` |
+| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `edit_file`: `{"error": "File not found: ..."}` |
 | Directory not found | `list_files`: `{"error": "..."}` |
 | Permission denied | `{"error": "Permission denied: ..."}` |
-| Invalid start or range | `read_file`: `{"error": "Invalid range: start=500, file has 42 lines"}` or `{"error": "...offset=20 exceeds file length (42 lines)"}`; `edit_file`: same format |
+| Invalid start or range | `read_file`: `{"error": "Start line 500 exceeds file length (42 lines). Range out of bounds."}` or `{"error": "Start line 40 + offset 20 exceeds file length (42 lines). Range out of bounds."}`; `edit_file`: same format |
 | Command timeout | `{"stdout": "...", "stderr": "...", "exit_code": -1, "timed_out": true}` |
 | Python execution error | `{"stdout": "", "stderr": "<traceback>", "exit_code": 1, "timed_out": false}` |
 | HTTP error (4xx/5xx) | `{"error": "HTTP 404: Not Found"}` |

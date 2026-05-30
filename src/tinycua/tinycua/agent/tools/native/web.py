@@ -12,6 +12,34 @@ import httpx
 from tinycua_sdk.tools.decorators import tool
 
 
+def _process_response(response: httpx.Response, max_size: int, url: str) -> str | dict[str, Any]:
+    """Process an HTTP response: check status, truncate if needed.
+
+    Args:
+        response: The HTTP response object.
+        max_size: Maximum response body size in bytes.
+        url: The original URL (for error messages).
+
+    Returns:
+        The response body as a string on success, or an error dict on failure.
+    """
+    if response.status_code >= 400:
+        error_msg = f"HTTP {response.status_code}"
+        if response.reason_phrase:
+            error_msg += f": {response.reason_phrase}"
+        error_msg += f" for URL: {url}"
+        return {"error": error_msg}
+
+    body = response.text
+    body_bytes = response.content
+
+    if len(body_bytes) > max_size:
+        truncated = body_bytes[:max_size].decode("utf-8", errors="ignore")
+        return f"{truncated}\n[truncated at {max_size // 1024} KB]"
+
+    return body
+
+
 @tool
 def fetch_url(
     url: str,
@@ -41,21 +69,7 @@ def fetch_url(
                 timeout=timeout,
                 follow_redirects=True,
             )
-
-            if response.status_code >= 400:
-                return {
-                    "error": f"HTTP {response.status_code}: {response.reason_phrase} "
-                    f"for URL: {url}"
-                }
-
-            body = response.text
-            body_bytes = response.content
-
-            if len(body_bytes) > max_size:
-                truncated = body[:(max_size // 4)]  # approx bytes to chars
-                return f"{truncated}\n[truncated at {max_size // 1024} KB]"
-
-            return body
+            return _process_response(response, max_size, url)
 
     except httpx.TimeoutException:
         return {"error": f"Request timed out after {timeout}s for URL: {url}"}

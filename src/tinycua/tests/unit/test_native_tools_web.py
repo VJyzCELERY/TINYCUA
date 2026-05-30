@@ -1,7 +1,6 @@
 """Unit tests for web.py — mocking httpx for error codes, timeout, invalid URLs."""
 
 import httpx
-import pytest
 
 
 def test_fetch_url_http_500(httpx_mock):

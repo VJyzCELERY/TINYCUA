@@ -237,7 +237,7 @@ def test_write_file_create():
         result = write_file(filepath, "hello world")
         assert result["success"] is True
         assert result["path"] == filepath
-        assert result["bytes_written"] == len("hello world")
+        assert result["chars_written"] == len("hello world")
         assert Path(filepath).read_text() == "hello world"
 
 
@@ -905,7 +905,7 @@ class TestNativeToolsE2E:
 # Tool return values follow the shapes defined in design.md:
 #   run_shell:    {stdout, stderr, exit_code, timed_out, error}
 #   read_file:    str (or dict on error)
-#   write_file:   {success, path, bytes_written, error}
+#   write_file:   {success, path, chars_written, error}
 #   edit_file:    {success, path, start_line, lines_replaced, bytes_written, error}
 #   list_files:   list[str] (or dict on error)
 #   fetch_url:    str (or dict on error)
