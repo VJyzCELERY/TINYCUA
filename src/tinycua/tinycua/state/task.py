@@ -215,23 +215,23 @@ class Task(StateObject):
     # Display
     # ------------------------------------------------------------------
 
-    def display(self, indent: int = 0) -> str:
-        """Return a DFS pre-order string representation of the full task tree.
+    def display(self, indent: int = 0, trim: bool = False) -> str:
+        """Return a DFS pre-order string representation of the task tree.
 
-        Always starts from the root, regardless of which node this is
-        called on. Child tasks are indented by 2 spaces per level.
+        By default, always starts from the root regardless of which node
+        this is called on. Set trim=True to display only the subtree
+        starting from this node.
+
+        Args:
+            indent: Initial indentation level in spaces (2 per level).
+            trim: If True, show only the subtree from this node. Default
+                False (show full tree from root).
 
         Returns:
-            A multi-line string of the entire tree, suitable for display.
-
-        Example:
-            [ ] - Research topic
-              [ ] - Gather sources - T-0
-                [x] - Read paper - T-0.0
-              [ ] - Write summary - T-1
+            A multi-line string suitable for display.
         """
-        root = self.root()
-        return root._display(indent=indent)
+        node = self if trim else self.root()
+        return node._display(indent=indent)
 
     def _display(self, indent: int = 0) -> str:
         """Internal: DFS pre-order display from this node (no root walk)."""

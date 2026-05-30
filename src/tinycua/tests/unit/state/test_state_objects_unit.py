@@ -587,6 +587,30 @@ class TestTaskDisplay:
         # Verify the root is accessible from anywhere
         assert grandchild.root() is root
 
+    def test_display_trim_shows_subtree_only(self):
+        """display(trim=True) shows only the subtree from the current node."""
+        grandchild = Task(
+            task_id="T-0.0", task_name="Deep", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[grandchild],
+        )
+        Task(  # root — only used implicitly via _parent
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        # trim=True from child → only child's subtree
+        result = child.display(trim=True)
+        expected = (
+            "[ ] - Child - T-0\n"
+            "  [ ] - Deep - T-0.0"
+        )
+        assert result == expected
+
 
 # =========================================================================
 # Task Navigation
