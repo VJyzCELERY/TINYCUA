@@ -55,6 +55,25 @@ class Tool:
             "parameters": self.parameters,
         }
 
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Make Tool instances callable.
+
+        Delegates to :meth:`invoke`, allowing tools to be called directly
+        (e.g. ``read_file(path="...")``) as well as through
+        ``ToolExecutor.execute()``.
+
+        Supports both positional and keyword arguments. When positional
+        args are provided, they are matched to the underlying function's
+        parameter names.
+        """
+        if args and self._callable is not None:
+            sig = inspect.signature(self._callable)
+            param_names = list(sig.parameters.keys())
+            for i, arg in enumerate(args):
+                if i < len(param_names):
+                    kwargs[param_names[i]] = arg
+        return self.invoke(**kwargs)
+
     def invoke(self, **kwargs: Any) -> Any:
         """Invoke the tool function with keyword arguments."""
         if self._callable is None:
