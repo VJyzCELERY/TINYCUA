@@ -3,7 +3,7 @@
 > **Category:** Architecture Overview
 
 > **File:** `architecture/overview.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [state-objects.md](state-objects.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md)
 

@@ -3,7 +3,7 @@
 > **Category:** Design Note
 
 > **File:** `architecture/task-classification.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [query-analyst.md](query-analyst.md), [state-objects.md](state-objects.md), [worker-orchestration.md](worker-orchestration.md)
 
@@ -52,9 +52,9 @@ The Query Analyst produces a `Mode Decision` object. See [state-objects.md](stat
 
 The classifier must guard against three failure modes:
 
-- **Worker overuse**: `worker` mode requires a clear decomposition benefit and a stated reason why direct response is risky. Without both, the classifier should not select `worker`.
+- **Worker overuse**: `worker` mode requires a clear decomposition benefit and a stated reason why direct response is risky.
 - **Unsafe Primary Agent routing**: `primary_agent` mode requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed.
-- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` to `explore` or `ask_user` — never leave uncertainty as a nondeterministic state. `explore` resolves uncertainty by gathering more context (then re-classifies); `ask_user` pauses for human input.
+- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` — never leave uncertainty as a nondeterministic state.
 
 ---
 
@@ -65,3 +65,13 @@ Worker mode decides whether to use the Worker. Worker effort decides how much up
 Effort uses planning-depth semantics modeled on LLM reasoning effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
 ---
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Classification style | Score-based with multi-dimensional rubric | Prevents binary small/large judgments; requires the classifier to explain its reasoning |
+| Scoring dimensions | Task complexity, context dependency, safety/risk | Covers the three axes that meaningfully distinguish routing needs |
+| Anti-laziness safeguards | Three explicit failure modes | Worker overuse, unsafe PA routing, and open-ended uncertainty cover the ways the classifier can misroute |
+| Mode definitions | Primary-agent, Worker, Uncertain | Worker requires decomposition benefit; PA requires safety rationale; uncertain must explicitly resolve |
+| Effort relationship | Separate from mode | Mode decides whether to use the Worker; effort decides how much upfront planning within it |

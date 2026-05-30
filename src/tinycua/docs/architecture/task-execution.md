@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-execution.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 

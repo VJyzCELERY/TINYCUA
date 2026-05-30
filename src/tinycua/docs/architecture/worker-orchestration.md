@@ -3,7 +3,7 @@
 > **Category:** Process Spec
 
 > **File:** `architecture/worker-orchestration.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [information-digestion.md](information-digestion.md), [task-creation.md](task-creation.md), [task-assessor.md](task-assessor.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 

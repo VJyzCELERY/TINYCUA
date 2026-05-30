@@ -3,7 +3,7 @@
 > **Category:** Reference Spec
 
 > **File:** `architecture/state-objects.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [primary-agent.md](primary-agent.md)
 
@@ -209,11 +209,7 @@ worker_result:
     - task_id: "<task id>"
       name: "<task name>"
       result: "<task result>"
-  unresolved_items:
-    - "..."
-  reviewer_notes:
-    - "..."
-  confidence: "<numeric>"  # exact scale is implementation calibration
+  # Additional provenance and status fields are implementation detail.
 ```
 
 The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees. See [worker-orchestration.md](worker-orchestration.md) for the Worker's internal flow.

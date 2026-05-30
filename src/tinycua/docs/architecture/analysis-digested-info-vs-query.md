@@ -3,7 +3,7 @@
 > **Category:** Decision Record
 
 > **File:** `architecture/analysis-digested-info-vs-query.md`
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-30
 > **Status:** Implemented
 > **See also:** [information-digestion.md](information-digestion.md), [query-analyst.md](query-analyst.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md), [overview.md](overview.md)
 
