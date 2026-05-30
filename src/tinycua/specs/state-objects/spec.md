@@ -137,11 +137,11 @@ The following architecture docs MUST be updated to match the implemented types:
 | Item | Status | Notes |
 |------|--------|-------|
 | Architecture doc updates | Done | Applied in this PR |
-| Core data types | Not Started | |
-| to_dict / from_dict | Not Started | |
-| to_json / from_json | Not Started | |
-| Validation | Not Started | |
-| Tests | Not Started | |
+| Core data types | Done | 12 core + 3 supporting types |
+| to_dict / from_dict | Done | Auto-nested via StateObject base class |
+| to_json / from_json | Done | Delegates to dict serialization |
+| Validation | Done | Enum checks + non-negative consecutive_failures |
+| Tests | Done | 94 tests, 100% coverage |
 
 ---
 
