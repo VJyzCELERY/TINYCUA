@@ -176,6 +176,8 @@ agent = Agent(
 ```
 
 ```python
+import asyncio
+
 try:
     response = asyncio.run(agent.run("What is the weather today?"))
     print(response)
@@ -297,6 +299,8 @@ detected **inside the async call** — catch it within the coroutine body,
 not around `asyncio.run()`:
 
 ```python
+import asyncio
+
 async def run_with_cancel_guard(agent, query: str) -> str:
     try:
         return await agent.run(query)
@@ -408,6 +412,8 @@ agent = Agent(
 ```
 
 ```python
+import asyncio
+
 try:
     response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
@@ -449,6 +455,8 @@ agent = Agent(
 ```
 
 ```python
+import asyncio
+
 try:
     response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:

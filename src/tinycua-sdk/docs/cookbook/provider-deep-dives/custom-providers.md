@@ -253,7 +253,7 @@ registry = get_provider_registry()
 
 print(registry.is_supported("openai"))          # True (resolved to openai-responses)
 print(registry.is_supported("openai-responses")) # True
-print(registry.is_supported("lmstudio"))          # True (resolved to openai-compatible)
+print(registry.is_supported("lmstudio"))          # True (legacy alias — prefer "openai-compatible")
 print(registry.is_supported("openai-compatible")) # True
 ```
 

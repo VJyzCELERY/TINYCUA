@@ -80,14 +80,20 @@ This method (and its streaming variant `process_stream_tool_calls`) handles
 the tool execution pipeline:
 
 ```python
-tool_call_count, max_reached = await loop.process_tool_calls(
-    agent=agent,
-    tools=tools,
-    tool_calls=[{"name": "calculator", "arguments": '{"expression": "2+2"}'}],
-    working_messages=working,
-    tool_call_count=0,
-    assistant_content="",
-)
+import asyncio
+
+async def main():
+    tool_call_count, max_reached = await loop.process_tool_calls(
+        agent=agent,
+        tools=tools,
+        tool_calls=[{"name": "calculator", "arguments": '{"expression": "2+2"}'}],
+        working_messages=working,
+        tool_call_count=0,
+        assistant_content="",
+    )
+    print(f"Tool calls executed: {tool_call_count}")
+
+asyncio.run(main())
 ```
 
 It does the following for each tool call:
