@@ -129,21 +129,22 @@ class TestTaskTree:
         assert restored == parent
         assert restored.child_tasks[0].task_id == "t-2"
 
-    def test_tree_preserves_finished_flags(self):
-        """Tree round-trip preserves finished flags."""
+    def test_tree_preserves_task_result(self):
+        """Tree round-trip preserves task_result."""
         leaf = Task(
-            task_id="t-2", task_name="leaf", task_description="d",
+            task_id="T-0", task_name="leaf", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="done"),
         )
         parent = Task(
-            task_id="t-1", task_name="parent", task_description="d",
+            task_id="uuid-root", task_name="parent", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[leaf],
         )
         restored = Task.from_dict(parent.to_dict())
-        assert restored.child_tasks[0].finished is True
-        assert restored.finished is False
+        assert restored.child_tasks[0].task_result is not None
+        assert restored.child_tasks[0].task_result.status == "completed"
+        assert restored.is_completed  # container: all children completed
 
     def test_tree_preserves_parent_task_id(self):
         """Tree round-trip preserves parent_task_id after auto-setting."""

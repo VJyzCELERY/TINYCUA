@@ -9,7 +9,7 @@ from typing import Literal
 
 from tinycua.state.base import StateObject
 
-TaskStatus = Literal["completed", "failed", "blocked"]
+TaskStatus = Literal["not_started", "inprogress", "completed", "failed", "blocked"]
 
 
 @dataclasses.dataclass
@@ -34,6 +34,6 @@ class TaskResult(StateObject):
         """Validate status enum value."""
         self._validate_enum(
             self.status,
-            {"completed", "failed", "blocked"},
+            {"not_started", "inprogress", "completed", "failed", "blocked"},
             "status",
         )

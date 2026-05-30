@@ -8,6 +8,7 @@ import dataclasses
 from typing import Any, Self
 
 from tinycua.state.base import StateObject
+from tinycua.state.task_result import TaskResult
 
 
 @dataclasses.dataclass
@@ -18,8 +19,10 @@ class Task(StateObject):
     A task with child_tasks is a container (not executed directly); a task
     with child_tasks=None is a leaf (executable).
 
-    The finished flag propagates upward: a container task can only be marked
-    finished when all its children are finished, ensuring no orphaned subtasks.
+    Each leaf task carries an optional TaskResult recording its execution
+    outcome. task_result=None means not_started. Container task completion
+    is derived from children: a container is completed when all its
+    children are completed.
 
     Root tasks are identified by parent_task_id=None. Root task IDs should
     be UUIDs. Child task IDs follow the format T-{idx}.{subidx}... (e.g.,
@@ -37,9 +40,8 @@ class Task(StateObject):
         task_context: Task-specific context in structured markdown.
         success_criteria: List of criteria for task completion.
         confidence: Agent-assigned confidence in decomposition or readiness.
-        finished: Whether this task is complete. Leaf tasks can be
-            finished/unfinished freely. Container tasks require all
-            children finished before being marked finished.
+        task_result: Execution outcome (None = not_started). Only set on
+            leaf tasks; containers derive status from children.
         child_tasks: Optional list of child tasks. When present, this is
             a container task and is not executed directly.
     """
@@ -51,21 +53,69 @@ class Task(StateObject):
     success_criteria: list[str]
     confidence: float
     parent_task_id: str | None = None
-    finished: bool = False
+    task_result: TaskResult | None = None
     child_tasks: list[Task] | None = None
 
+    # ------------------------------------------------------------------
+    # Status
+    # ------------------------------------------------------------------
+
+    def _leaf_status(self) -> str | None:
+        """Return the status string for a leaf task, or None if not_started."""
+        if self.task_result is None:
+            return None
+        return self.task_result.status
+
+    @property
+    def is_completed(self) -> bool:
+        """True if this task is done (leaf result = completed, or all children completed)."""
+        if self.child_tasks is not None:
+            return all(child.is_completed for child in self.child_tasks)
+        return self.task_result is not None and self.task_result.status == "completed"
+
+    def _status_marker(self) -> str:
+        """Return the display marker character for this task's status.
+
+        Leaf: derived from task_result status.
+        Container: derived from children's aggregate status.
+        """
+        if self.child_tasks is not None:
+            # Container: aggregate child statuses
+            children = self.child_tasks
+            if any(c._leaf_status() == "failed" for c in children):
+                return "-"
+            if any(c._leaf_status() == "blocked" for c in children):
+                return "/"
+            if any(c._leaf_status() == "inprogress" for c in children):
+                return "*"
+            if all(c.is_completed for c in children):
+                return "x"
+            return " "
+        else:
+            # Leaf
+            if self.task_result is None:
+                return " "
+            mapping = {
+                "inprogress": "*",
+                "completed": "x",
+                "failed": "-",
+                "blocked": "/",
+            }
+            return mapping.get(self.task_result.status, " ")
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
     def __post_init__(self) -> None:
-        """Validate finished constraint, sync parent_task_id, and set _parent."""
-        # Initialize _parent (not a dataclass field — excluded from serialization)
+        """Sync parent_task_id and set _parent on children."""
         if not hasattr(self, "_parent"):
             object.__setattr__(self, "_parent", None)
 
         if self.child_tasks is not None:
             for child in self.child_tasks:
-                # Set child's parent object reference
                 object.__setattr__(child, "_parent", self)
 
-                # Auto-set or validate parent_task_id
                 if child.parent_task_id is None:
                     child.parent_task_id = self.task_id
                 elif child.parent_task_id != self.task_id:
@@ -73,12 +123,6 @@ class Task(StateObject):
                         f"Child task '{child.task_id}' has parent_task_id "
                         f"'{child.parent_task_id}' but expected '{self.task_id}'"
                     )
-
-            if self.finished and not all(c.finished for c in self.child_tasks):
-                raise ValueError(
-                    f"Cannot mark container task '{self.task_id}' as finished: "
-                    "not all child tasks are finished"
-                )
 
     # ------------------------------------------------------------------
     # Navigation
@@ -103,35 +147,32 @@ class Task(StateObject):
     def traverse(self) -> Task:
         """Find the next executable leaf task via DFS pre-order traversal.
 
-        If this task is unfinished: descend to the deepest unfinished
-        child in pre-order. Returns the first unfinished leaf.
+        If this task is not completed: descend to the deepest
+        non-completed child in pre-order. Returns the first
+        non-completed leaf.
 
-        If this task is finished: walk up to the first unfinished
+        If this task is completed: walk up to the first non-completed
         ancestor, then traverse from there. If the root itself is
-        finished, returns the root (meaning: all tasks done).
+        completed, returns the root (meaning: all tasks done).
 
         Returns:
-            The next leaf task to execute, or the finished root.
+            The next leaf task to execute, or the completed root.
         """
-        if self.finished:
-            # Walk up to first unfinished ancestor
+        if self.is_completed:
+            # Walk up to first non-completed ancestor
             current: Task = self
-            while current._parent is not None and current.finished:  # type: ignore[attr-defined]
+            while current._parent is not None and current.is_completed:  # type: ignore[attr-defined]
                 current = current._parent  # type: ignore[attr-defined]
-            if current.finished:
-                # Root is finished — everything done
-                return current
+            if current.is_completed:
+                return current  # All done
             return current.traverse()
 
-        # This task is unfinished
+        # This task is not completed
         if self.child_tasks:
             for child in self.child_tasks:
-                if not child.finished:
+                if not child.is_completed:
                     return child.traverse()
-            # All children finished but self isn't — shouldn't happen
-            # due to __post_init__ constraint, but handle gracefully
             return self
-        # Leaf task, unfinished — ready to execute
         return self
 
     def at_id(self, task_id: str) -> Task:
@@ -162,7 +203,7 @@ class Task(StateObject):
                 "Expected root UUID or T-{idx}.{subidx}..."
             )
 
-        indices_str = task_id[2:]  # strip "T-"
+        indices_str = task_id[2:]
         indices = [int(i) for i in indices_str.split(".")]
 
         current = r
@@ -181,12 +222,11 @@ class Task(StateObject):
         )
 
     def set_parents(self) -> None:
-        """Walk the tree from this node and set _parent on all descendants.
+        """Walk the tree and set _parent on all descendants.
 
         Must be called after deserialization (from_dict/from_json) to
-        re-establish parent object references for navigation methods.
-        This method is called automatically by Task.from_dict() and
-        Task.from_json().
+        re-establish parent object references. Called automatically by
+        Task.from_dict() and Task.from_json().
         """
         if self.child_tasks:
             for child in self.child_tasks:
@@ -222,10 +262,13 @@ class Task(StateObject):
         this is called on. Set trim=True to display only the subtree
         starting from this node.
 
+        Markers:
+            [ ] = not_started   [*] = inprogress   [x] = completed
+            [-] = failed        [/] = blocked
+
         Args:
             indent: Initial indentation level in spaces (2 per level).
-            trim: If True, show only the subtree from this node. Default
-                False (show full tree from root).
+            trim: If True, show only the subtree from this node.
 
         Returns:
             A multi-line string suitable for display.
@@ -235,7 +278,7 @@ class Task(StateObject):
 
     def _display(self, indent: int = 0) -> str:
         """Internal: DFS pre-order display from this node (no root walk)."""
-        marker = "x" if self.finished else " "
+        marker = self._status_marker()
         prefix = "  " * indent
         if self.parent_task_id is None:
             line = f"{prefix}[{marker}] - {self.task_name}"

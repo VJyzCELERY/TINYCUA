@@ -268,8 +268,8 @@ class TestWorkerConfigUnit:
 class TestTaskUnit:
     """Unit tests for Task tree node."""
 
-    def test_leaf_task(self):
-        """A leaf task has no child_tasks and defaults finished=False."""
+    def test_leaf_task_defaults(self):
+        """A leaf task defaults to task_result=None, parent_task_id=None."""
         task = Task(
             task_id="t-1",
             task_name="Test",
@@ -279,9 +279,10 @@ class TestTaskUnit:
             confidence=0.9,
         )
         assert task.child_tasks is None
-        assert task.finished is False
+        assert task.task_result is None
         assert task.parent_task_id is None
         assert task.task_id == "t-1"
+        assert not task.is_completed
 
     def test_container_task(self):
         """A container task has child_tasks and auto-sets parent_task_id."""
@@ -359,95 +360,112 @@ class TestTaskUnit:
 
 
 # =========================================================================
-# Task Finished Constraint
+# Task Status
 # =========================================================================
 
 
-class TestTaskFinishedConstraint:
-    """Tests for the finished flag validation on Task tree nodes."""
+class TestTaskStatus:
+    """Tests for task_result-based status on Task tree nodes."""
 
-    def test_leaf_can_be_finished(self):
-        """A leaf task (no child_tasks) can be marked finished."""
+    def test_leaf_not_started(self):
+        """Leaf with task_result=None is not_started."""
         task = Task(
             task_id="t-1", task_name="Leaf", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
         )
-        assert task.finished is True
+        assert task.task_result is None
+        assert not task.is_completed
+        assert task._status_marker() == " "
 
-    def test_leaf_can_be_unfinished(self):
-        """A leaf task can be unfinished."""
+    def test_leaf_inprogress(self):
+        """Leaf with inprogress result is not completed."""
+        result = TaskResult(task_id="t-1", status="inprogress", result="working...")
         task = Task(
             task_id="t-1", task_name="Leaf", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
+            task_result=result,
         )
-        assert task.finished is False
+        assert not task.is_completed
+        assert task._status_marker() == "*"
 
-    def test_container_requires_all_children_finished(self):
-        """Container task rejects finished=True when a child is unfinished."""
+    def test_leaf_completed(self):
+        """Leaf with completed result is completed."""
+        result = TaskResult(task_id="t-1", status="completed", result="done")
+        task = Task(
+            task_id="t-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            task_result=result,
+        )
+        assert task.is_completed
+        assert task._status_marker() == "x"
+
+    def test_leaf_failed(self):
+        """Leaf with failed result."""
+        result = TaskResult(task_id="t-1", status="failed", result="error")
+        task = Task(
+            task_id="t-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            task_result=result,
+        )
+        assert not task.is_completed
+        assert task._status_marker() == "-"
+
+    def test_leaf_blocked(self):
+        """Leaf with blocked result."""
+        result = TaskResult(task_id="t-1", status="blocked", result="waiting")
+        task = Task(
+            task_id="t-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            task_result=result,
+        )
+        assert not task.is_completed
+        assert task._status_marker() == "/"
+
+    def test_container_completed_when_children_completed(self):
+        """Container is_completed is True when all children are completed."""
         child = Task(
             task_id="c1", task_name="Child", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
-        )
-        with pytest.raises(ValueError, match="not all child tasks are finished"):
-            Task(
-                task_id="p1", task_name="Parent", task_description="d",
-                task_context="c", success_criteria=["x"], confidence=0.5,
-                finished=True,
-                child_tasks=[child],
-            )
-
-    def test_container_can_finish_when_all_children_finished(self):
-        """Container task accepts finished=True when all children finished."""
-        child = Task(
-            task_id="c1", task_name="Child", task_description="d",
-            task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="c1", status="completed", result="ok"),
         )
         parent = Task(
             task_id="p1", task_name="Parent", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
             child_tasks=[child],
         )
-        assert parent.finished is True
+        assert parent.is_completed
 
-    def test_mixed_children_one_unfinished(self):
-        """Container rejects finished=True when any child is unfinished."""
+    def test_container_not_completed_when_child_not_completed(self):
+        """Container is_completed is False when a child is not completed."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert not parent.is_completed
+
+    def test_container_marker_aggregates_children(self):
+        """Container marker reflects most severe child status."""
         child_a = Task(
             task_id="a", task_name="A", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="a", status="failed", result="x"),
         )
         child_b = Task(
             task_id="b", task_name="B", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
-        )
-        with pytest.raises(ValueError, match="not all child tasks are finished"):
-            Task(
-                task_id="p1", task_name="Parent", task_description="d",
-                task_context="c", success_criteria=["x"], confidence=0.5,
-                finished=True,
-                child_tasks=[child_a, child_b],
-            )
-
-    def test_container_can_be_unfinished(self):
-        """Container task can be unfinished regardless of children."""
-        child = Task(
-            task_id="c1", task_name="Child", task_description="d",
-            task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="b", status="completed", result="x"),
         )
         parent = Task(
             task_id="p1", task_name="Parent", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
-            child_tasks=[child],
+            child_tasks=[child_a, child_b],
         )
-        assert parent.finished is False
+        assert parent._status_marker() == "-"
 
 
 # =========================================================================
@@ -468,17 +486,17 @@ class TestTaskDisplay:
         assert result == "[ ] - Research"
 
     def test_finished_leaf_display(self):
-        """A finished leaf task shows [x]. Root hides UUID."""
+        """A completed leaf task shows [x]."""
+        result = TaskResult(task_id="uuid-2", status="completed", result="done")
         task = Task(
             task_id="uuid-2", task_name="Done task", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=result,
         )
-        result = task.display()
-        assert result == "[x] - Done task"
+        assert task.display() == "[x] - Done task"
 
     def test_container_display(self):
-        """A container task displays with indented children, child shows ID."""
+        """A container task displays with indented children."""
         child = Task(
             task_id="T-0", task_name="Gather sources", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
@@ -499,7 +517,7 @@ class TestTaskDisplay:
         grandchild = Task(
             task_id="T-0.0", task_name="Read paper", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0.0", status="completed", result="ok"),
         )
         child = Task(
             task_id="T-0", task_name="Gather sources", task_description="d",
@@ -512,8 +530,8 @@ class TestTaskDisplay:
             child_tasks=[child],
         )
         expected = (
-            "[ ] - Research\n"
-            "  [ ] - Gather sources - T-0\n"
+            "[x] - Research\n"
+            "  [x] - Gather sources - T-0\n"
             "    [x] - Read paper - T-0.0"
         )
         assert parent.display() == expected
@@ -523,7 +541,7 @@ class TestTaskDisplay:
         child_a = Task(
             task_id="T-0", task_name="Gather", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         child_b = Task(
             task_id="T-1", task_name="Analyze", task_description="d",
@@ -542,14 +560,15 @@ class TestTaskDisplay:
         assert parent.display() == expected
 
     def test_empty_child_tasks(self):
-        """Task with empty child_tasks list acts as leaf (root hides UUID)."""
+        """Task with empty child_tasks list is container — all children completed."""
         task = Task(
             task_id="uuid-empty", task_name="Empty", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[],
         )
+        assert task.is_completed
         result = task.display()
-        assert result == "[ ] - Empty"
+        assert result == "[x] - Empty"
 
     def test_display_with_custom_indent(self):
         """Display respects a custom initial indent level."""
@@ -664,60 +683,60 @@ class TestTaskNavigation:
         assert root.root() is root
 
     def test_parent_chain_mutation_visible(self):
-        """Changing finished via parent reference is visible from child."""
+        """Changing task_result via parent reference is visible from child."""
         child = Task(
             task_id="T-0", task_name="Child", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         parent = Task(
             task_id="uuid-root", task_name="Root", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[child],
         )
-        # Mutate parent via child's parent reference
-        child.parent.finished = True
-        assert parent.finished is True
+        # Mutate child via parent reference
+        child.parent.child_tasks[0].task_result = TaskResult(
+            task_id="T-0", status="failed", result="error",
+        )
+        assert child.task_result.status == "failed"
+        assert parent.child_tasks[0].task_result.status == "failed"
 
 
 class TestTaskTraverse:
     """Tests for Task.traverse() DFS pre-order next-executable-leaf."""
 
-    def test_leaf_unfinished_returns_self(self):
-        """traverse on an unfinished leaf returns itself."""
+    def test_leaf_not_completed_returns_self(self):
+        """traverse on a non-completed leaf returns itself."""
         task = Task(
             task_id="uuid-1", task_name="Leaf", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
         )
         assert task.traverse() is task
 
-    def test_leaf_finished_goes_to_ancestor(self):
-        """traverse on a finished leaf goes up to unfinished ancestor."""
+    def test_leaf_completed_goes_to_ancestor(self):
+        """traverse on a completed leaf goes up to non-completed ancestor."""
         leaf_a = Task(
             task_id="T-0", task_name="A", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         leaf_b = Task(
             task_id="T-1", task_name="B", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
         )
         root = Task(
             task_id="uuid-root", task_name="Root", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[leaf_a, leaf_b],
         )
-        # Traverse from finished leaf_a → should find leaf_b
         assert leaf_a.traverse() is leaf_b
         assert leaf_a.parent is root
 
-    def test_goes_to_deepest_unfinished(self):
-        """traverse descends to deepest unfinished leaf."""
+    def test_goes_to_deepest_non_completed(self):
+        """traverse descends to deepest non-completed leaf."""
         grandchild = Task(
             task_id="T-0.0", task_name="Deep", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
         )
         child = Task(
             task_id="T-0", task_name="Child", task_description="d",
@@ -731,17 +750,16 @@ class TestTaskTraverse:
         )
         assert root.traverse() is grandchild
 
-    def test_skips_finished_children(self):
-        """traverse skips finished children to find unfinished one."""
+    def test_skips_completed_children(self):
+        """traverse skips completed children to find non-completed one."""
         leaf_a = Task(
             task_id="T-0", task_name="A", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         leaf_b = Task(
             task_id="T-1", task_name="B", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
         )
         root = Task(
             task_id="uuid-root", task_name="Root", task_description="d",
@@ -750,44 +768,41 @@ class TestTaskTraverse:
         )
         assert root.traverse() is leaf_b
 
-    def test_all_finished_returns_root(self):
-        """traverse returns root when everything is finished."""
+    def test_all_completed_returns_root(self):
+        """traverse returns root when everything is completed."""
         leaf = Task(
             task_id="T-0", task_name="Done", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         root = Task(
             task_id="uuid-root", task_name="Root", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[leaf],
-            finished=True,
         )
         assert root.traverse() is root
 
-    def test_finished_child_goes_up_then_down(self):
-        """Finished child → up past finished parent → down to unfinished sibling."""
+    def test_completed_child_goes_up_then_down(self):
+        """Completed child → up past completed parent → down to non-completed sibling."""
         leaf_a = Task(
             task_id="T-0", task_name="A", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-0", status="completed", result="ok"),
         )
         leaf_b = Task(
             task_id="T-1", task_name="B", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=True,
+            task_result=TaskResult(task_id="T-1", status="completed", result="ok"),
         )
         leaf_c = Task(
             task_id="T-2", task_name="C", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
-            finished=False,
         )
         root = Task(
             task_id="uuid-root", task_name="Root", task_description="d",
             task_context="c", success_criteria=["x"], confidence=0.5,
             child_tasks=[leaf_a, leaf_b, leaf_c],
         )
-        # leaf_b is finished, goes up to root (unfinished), root.traverse() finds leaf_c
         assert leaf_b.traverse() is leaf_c
         assert leaf_b.parent is root
 
@@ -954,7 +969,7 @@ class TestTaskSetParents:
 class TestTaskResultUnit:
     """Unit tests for TaskResult."""
 
-    @pytest.mark.parametrize("status", ["completed", "failed", "blocked"])
+    @pytest.mark.parametrize("status", ["not_started", "inprogress", "completed", "failed", "blocked"])
     def test_valid_status(self, status):
         """Valid status values are accepted."""
         result = TaskResult(task_id="t-1", status=status, result="ok")
