@@ -20,9 +20,9 @@ It receives only the current task's information plus shallow roadmap awareness. 
 ## Inputs / Outputs
 
 **Input:**
+- Current `task` from the Task Tree — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `task_name`, `task_description`, `task_context` (structured markdown), `success_criteria`, `confidence`, `task_result`.
 
-- Current `task` from the Task List — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `description`, `context` (structured markdown), `success_criteria`, `confidence`.
-- `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
+- `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 - Failure context from the Result Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
 Retries create a new Task Executor sub-session. The new executor receives context about the previous failure so it can avoid repeating the same mistake, without inheriting the full prior execution context.

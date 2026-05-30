@@ -121,63 +121,80 @@ Effort controls how much planning happens before execution.
 
 ---
 
-## Task List Object
+## Task Tree Object
 
-The `Task List` is a sequential roadmap. It is not a dependency graph and is not intended to be parallelized at the top level.
+Tasks form a tree structure navigated via DFS pre-order traversal. Each task is a node that may have child tasks (`child_tasks`). Completion status is derived from `task_result.status` for leaf tasks and propagates upward: a container task is complete only when all its children are complete.
 
-If part of a task can be parallelized, that parallelization belongs inside the task execution strategy, not in the top-level task list schema.
+- **Leaf task** — a task without `child_tasks` (`None`). Only leaf tasks are executed by the Task Executor.
+- **Container task** — a task with `child_tasks`. Container tasks are structural: they hold child tasks but are not themselves executed. Their progress is a function of all children being complete.
 
-### Nested Task Lists
+DFS pre-order traversal produces a flat sequential display:
 
-During the Task Creation loop, complex tasks may be decomposed into sub-tasks. This produces a nested tree structure where a task item can contain a `tasks` field holding a sub-list.
+```
+[ ] - Research topic (t-1)
+  [ ] - Gather sources (t-1.1)
+  [ ] - Analyze findings (t-1.2)
+[x] - Write summary (t-2)
+```
 
-- **Leaf task** — a task without a `tasks` field. Only leaf tasks are executed by the Task Executor.
-- **Container task** — a task with a `tasks` field. Container tasks are structural: they hold a sub-list but are not themselves executed. Their `name` and `description` describe the container's purpose; the actual work is defined by their child tasks.
+This enables automated `advance_task` tooling: traverse the tree, find the first unfinished leaf, and execute it — no manual cursor tracking needed.
 
 ```yaml
-task_list:
-  tasks:
-    # Leaf task — no `tasks` field
-    - task_id: "<task id>"
-      name: "<task name>"
-      description: "<task description>"
-      context: "<task-specific context (structured markdown)>"
+# Leaf task — no child_tasks, directly executable
+task:
+  task_id: "<task id>"
+  parent_task_id: "<parent task id or null for root>"
+  task_name: "<short label>"
+  task_description: "<agent-readable description>"
+  task_context: "<task-specific context (structured markdown)>"
+  success_criteria:
+    - "<criterion>"
+  confidence: "<numeric>"
+  task_result: null | TaskResult
+  child_tasks: null
+
+# Container task — has child_tasks, not executed directly
+task:
+  task_id: "<container task id>"
+  parent_task_id: null
+  task_name: "<container name>"
+  task_description: "<container description>"
+  task_context: "<container context>"
+  success_criteria:
+    - "<criterion>"
+  confidence: "<numeric>"
+  task_result: null | TaskResult
+  child_tasks:
+    - task_id: "<child task id>"
+      parent_task_id: "<container task id>"
+      task_name: "<child name>"
+      task_description: "<child description>"
+      task_context: "<child context>"
       success_criteria:
         - "<criterion>"
-    # Container task — has `tasks` sub-list, not executed
-    - task_id: "<container task id>"
-      name: "<container name>"
-      description: "<container description>"
-      context: "<container context>"
-      success_criteria: "<not applicable — container task, not executed>"
-      tasks:
-        - task_id: "<child task id>"
-          name: "<child name>"
-          description: "<child description>"
-          context: "<child context>"
-          success_criteria:
-            - "<criterion>"
-  current_task_id: "<current task id>"
+      confidence: "<numeric>"
+      task_result: null | TaskResult
+      child_tasks: null
 ```
 
 Nesting can continue to arbitrary depth, controlled by the Worker's `effort` setting. See [task-creation.md](task-creation.md) for the decomposition loop and effort-controlled depth.
 
-The `context` field should be structured markdown. It may contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify a task's `context` field — they can replace or add to existing context. The architecture does not prescribe a specific consolidation strategy.
-
-### Task Object
+### Task Node Fields
 
 Required fields:
 
-- `task_id`
-- `name`
-- `description`
-- `context`
-- `success_criteria`
-- `confidence` — agent-assigned confidence in the task's decomposition or execution readiness. Exact scale is implementation calibration.
+- `task_id` — unique identifier for cross-referencing.
+- `task_name` — short label for the task.
+- `task_description` — agent-readable prose describing what to do.
+- `task_context` — task-specific context in structured markdown. May contain relevant facts, constraints, prior accepted results, known gaps, or user clarifications. Context updates may modify this field.
+- `success_criteria` — list of criteria for task completion.
+- `confidence` — agent-assigned confidence in decomposition or execution readiness. Exact scale is implementation calibration.
+- `task_result` — the execution result for this task (`null` if not yet started). For leaf tasks, completion status is derived from `task_result.status`. For container tasks, completion is derived from whether all children are complete.
 
 Optional fields:
 
-- `tasks` — a nested sub-list of task objects. When present, this task is a container and is not executed.
+- `child_tasks` — list of child `Task` nodes (`null` for leaves). When present, this task is a container and is not executed directly.
+- `parent_task_id` — ID of the parent task (`null` for root tasks). Auto-set on children when `child_tasks` is provided; explicit values must match the container's `task_id`.
 
 Additional fields may be introduced if justified by a later design decision.
 
@@ -239,11 +256,11 @@ Agent state determines whether the next user message resumes an internal agent o
 agent_state:
   active_agent: "<agent name>"   # matches the documented name of any architecture agent
   active_task_id: "<active task id>"
-  status: running | waiting_for_user | terminated
+  status: idle | running | blocked | terminated
   resume_target: "..."
   consecutive_failures: 0
 ```
 
-Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`waiting_for_user`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
+Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.

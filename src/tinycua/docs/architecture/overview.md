@@ -100,7 +100,7 @@ Important objects:
 - Context Enhanced Query
 - Mode Decision
 - Digested Information
-- Task List
+- Task Tree
 - Task Result
 - Reviewer Decision
 - Worker Result

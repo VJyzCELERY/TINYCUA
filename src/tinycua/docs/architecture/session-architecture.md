@@ -94,14 +94,14 @@ flowchart TD
 ```yaml
 session:
   session_id: "<session id>"
-  owner_type: primary | tinycua_internal | future_sub_agent
+  owner_type: primary | child
   owner_name: "<agent or user name>"
   chat_history: "<JSON turn log entries>"
   context: "<structured markdown>"
   execution_log: "<sub-session actions and outcomes>"
 ```
 
-`owner_type` distinguishes the primary user-facing session, TINYCUA internal specialized-agent sessions, and future explicit sub-agent sessions.
+`owner_type` distinguishes the primary user-facing session (`primary`) from internal sub-agent sessions (`child`). The `child` value covers both TINYCUA internal specialized-agent sessions and future standalone sub-agent sessions. Distinction between them, if needed, will be handled by other fields or in a future milestone.
 
 ---
 
