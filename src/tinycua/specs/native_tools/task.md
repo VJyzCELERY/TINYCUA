@@ -4,6 +4,13 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
+### Test Infrastructure Setup
+
+- [ ] Copy `.env.test.example` to `.env.test` and configure LLM server settings <!-- id: -1 -->
+- [ ] Verify `conftest.py` loads env correctly and probes server when available <!-- id: -2 -->
+
+### Integration Tests (No LLM Required)
+
 - [ ] Write integration tests for `run_shell` in `tests/integration/test_native_tools_shell.py` <!-- id: 0 -->
 - [ ] Write integration tests for `read_file`, `write_file`, `list_files` in `tests/integration/test_native_tools_files.py` <!-- id: 1 -->
 - [ ] Write integration tests for `fetch_url` in `tests/integration/test_native_tools_web.py` <!-- id: 2 -->
@@ -11,17 +18,25 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 - [ ] Write SDK integration tests in `tests/integration/test_native_tools_sdk.py` <!-- id: 4 -->
 - [ ] Run integration tests — expect RED (all failures) since no implementation yet <!-- id: 5 -->
 
+### E2E Integration Tests (Live LLM Required)
+
+- [ ] Write e2e Agent tests in `tests/integration/test_native_tools_e2e.py` <!-- id: 6 -->
+  - [ ] `test_agent_reads_file_and_writes_result` — read → run_python → write pipeline
+  - [ ] `test_agent_lists_and_reads_files` — list_files → read_file exploration
+  - [ ] `test_agent_calls_run_shell` — run_shell command execution
+- [ ] Run e2e integration tests — expect RED (import errors) since no implementation yet <!-- id: 7 -->
+
 ## Implementation Phase
 
 ### Package Structure
 
-- [ ] Create `tinycua/agent/tools/native/` package with `__init__.py` re-exporting all tool functions <!-- id: 6 -->
+- [ ] Create `tinycua/agent/tools/native/` package with `__init__.py` re-exporting all tool functions <!-- id: 8 -->
   - [ ] Create `tinycua/agent/tools/native/__init__.py`
   - [ ] Update `tinycua/agent/tools/__init__.py` to export all six tools
 
 ### Shell Tools
 
-- [ ] Implement `run_shell` in `shell.py` <!-- id: 7 -->
+- [ ] Implement `run_shell` in `shell.py` <!-- id: 9 -->
   - [ ] Execute commands via `subprocess.Popen` + `threading.Timer` for timeout
   - [ ] Capture stdout and stderr separately
   - [ ] Return `{stdout, stderr, exit_code, timed_out, error}`
@@ -30,20 +45,20 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ### File Tools
 
-- [ ] Implement `read_file` in `files.py` <!-- id: 8 -->
+- [ ] Implement `read_file` in `files.py` <!-- id: 10 -->
   - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
   - [ ] Full-file mode (start=None, offset=None): read entire file, truncate at internal 100KB limit
   - [ ] Truncation message: `[Truncated: N lines remaining, ~X bytes not shown]`
   - [ ] Range mode (start and/or offset set): read specified line range, no truncation
   - [ ] Handle file not found, permission denied, invalid start line as error dicts
   - [ ] Handle empty files (return empty string)
-- [ ] Implement `write_file` in `files.py` <!-- id: 9 -->
+- [ ] Implement `write_file` in `files.py` <!-- id: 11 -->
   - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
   - [ ] Create/overwrite mode (start=None): write content, create parent dirs if needed
   - [ ] Patch mode (start set): read existing file, replace lines start..start+offset, write back
   - [ ] Return `{success, path, bytes_written, mode, start_line, lines_replaced, error}`
   - [ ] Handle partial replace on nonexistent file, invalid start line as error dicts
-- [ ] Implement `list_files` in `files.py` <!-- id: 10 -->
+- [ ] Implement `list_files` in `files.py` <!-- id: 12 -->
   - [ ] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
   - [ ] Use `pathlib.Path.glob()` for pattern matching
   - [ ] Return list of absolute paths as strings
@@ -52,7 +67,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ### Web Tools
 
-- [ ] Implement `fetch_url` in `web.py` <!-- id: 11 -->
+- [ ] Implement `fetch_url` in `web.py` <!-- id: 13 -->
   - [ ] Use `httpx` for HTTP requests
   - [ ] Support GET (default), POST, and other methods via `method` parameter
   - [ ] Support custom headers via `headers` parameter (dict or None)
@@ -63,7 +78,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ### Python Execution Tools
 
-- [ ] Implement `run_python` in `python_exec.py` <!-- id: 12 -->
+- [ ] Implement `run_python` in `python_exec.py` <!-- id: 14 -->
   - [ ] Execute code via `subprocess.run(["python", "-c", code], timeout=timeout, capture_output=True, text=True)`
   - [ ] Handle `subprocess.TimeoutExpired` → kill process, set timed_out=True, exit_code=-1
   - [ ] Handle syntax/runtime errors → stderr contains traceback, exit_code=1
@@ -71,34 +86,36 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 13 -->
-- [ ] Write unit tests for `shell.py` — mock subprocess for edge cases (empty command, large output) <!-- id: 14 -->
-- [ ] Write unit tests for `files.py` — test truncation logic, path resolution, line counting edge cases <!-- id: 15 -->
-- [ ] Write unit tests for `web.py` — mock httpx for all HTTP error codes, timeout, invalid URLs <!-- id: 16 -->
-- [ ] Write unit tests for `python_exec.py` — mock subprocess for timeout, syntax error, runtime error <!-- id: 17 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — all tests must pass <!-- id: 18 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
+- [ ] Run e2e integration tests — expect GREEN (all pass with live LLM) <!-- id: 16 -->
+- [ ] Write unit tests for `shell.py` — mock subprocess for edge cases (empty command, large output) <!-- id: 17 -->
+- [ ] Write unit tests for `files.py` — test truncation logic, path resolution, line counting edge cases <!-- id: 18 -->
+- [ ] Write unit tests for `web.py` — mock httpx for all HTTP error codes, timeout, invalid URLs <!-- id: 19 -->
+- [ ] Write unit tests for `python_exec.py` — mock subprocess for timeout, syntax error, runtime error <!-- id: 20 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — all tests must pass <!-- id: 21 -->
 
 ## Verification Phase
 
-- [ ] Import all six tools from `tinycua.agent.tools` and verify `Tool` instances <!-- id: 19 -->
-- [ ] Manually test `run_shell("echo hello")` — verify stdout capture <!-- id: 20 -->
-- [ ] Manually test `read_file` with a temp file — full read, range read, relative path <!-- id: 21 -->
-- [ ] Manually test `write_file` — create, overwrite, patch, parent dir creation <!-- id: 22 -->
-- [ ] Manually test `fetch_url("https://httpbin.org/get")` — verify response body <!-- id: 23 -->
-- [ ] Manually test `run_python("print(1+1)")` — verify stdout capture <!-- id: 24 -->
-- [ ] Verify tool JSON Schema output matches expected function-calling format <!-- id: 25 -->
+- [ ] Import all six tools from `tinycua.agent.tools` and verify `Tool` instances <!-- id: 22 -->
+- [ ] Manually test `run_shell("echo hello")` — verify stdout capture <!-- id: 23 -->
+- [ ] Manually test `read_file` with a temp file — full read, range read, relative path <!-- id: 24 -->
+- [ ] Manually test `write_file` — create, overwrite, patch, parent dir creation <!-- id: 25 -->
+- [ ] Manually test `fetch_url("https://httpbin.org/get")` — verify response body <!-- id: 26 -->
+- [ ] Manually test `run_python("print(1+1)")` — verify stdout capture <!-- id: 27 -->
+- [ ] Verify tool JSON Schema output matches expected function-calling format <!-- id: 28 -->
+- [ ] Run e2e tests with live LLM — verify Agent calls correct native tools for multi-step tasks <!-- id: 29 -->
 
 ## Documentation Phase
 
-- [ ] Update `tinycua/agent/tools/__init__.py` docstring with usage examples <!-- id: 26 -->
-- [ ] Add module-level docstrings to each tool module explaining purpose and usage <!-- id: 27 -->
-- [ ] Update CHANGELOG with new native tools addition <!-- id: 28 -->
+- [ ] Update `tinycua/agent/tools/__init__.py` docstring with usage examples <!-- id: 30 -->
+- [ ] Add module-level docstrings to each tool module explaining purpose and usage <!-- id: 31 -->
+- [ ] Update CHANGELOG with new native tools addition <!-- id: 32 -->
 
 ## Review and Merge
 
-- [ ] Create pull request using `.agents/scripts/gh.py` with PR body from template <!-- id: 29 -->
-- [ ] Address review feedback and run `/review-loop` <!-- id: 30 -->
-- [ ] Merge to main branch <!-- id: 31 -->
+- [ ] Create pull request using `.agents/scripts/gh.py` with PR body from template <!-- id: 33 -->
+- [ ] Address review feedback and run `/review-loop` <!-- id: 34 -->
+- [ ] Merge to main branch <!-- id: 35 -->
 
 ---
 

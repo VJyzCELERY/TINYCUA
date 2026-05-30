@@ -32,6 +32,7 @@ Implement six native tools (`run_shell`, `read_file`, `write_file`, `list_files`
 - [ ] **Runtime**: Python 3.11+
 - [ ] **Package manager**: uv
 - [ ] **httpx** already declared in `pyproject.toml` (for `fetch_url`)
+- [ ] **Test environment**: Copy `.env.test.example` to `.env.test` and configure LLM server settings for integration tests that use a live LLM
 
 ---
 
@@ -577,11 +578,135 @@ def test_tool_executor_invokes_tool():
         assert os.path.exists(filepath)
 ```
 
+```python
+# Test file: tests/integration/test_native_tools_e2e.py
+"""End-to-end integration tests: Agent uses native tools through the SDK loop.
+
+These tests require a live LLM server. Copy .env.test.example to .env.test
+and configure your LLM settings. Tests are auto-skipped when no server is reachable.
+"""
+
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+from tinycua_sdk import Agent, LanguageModel
+from tests.integration.conftest import resolve_integration_llm_config
+
+
+def _build_language_model() -> LanguageModel:
+    cfg = resolve_integration_llm_config()
+    return LanguageModel(
+        provider=cfg.provider, model_name=cfg.model,
+        base_url=cfg.base_url, api_key=cfg.api_key,
+    )
+
+
+class TestNativeToolsE2E:
+    """Agent uses native tools through the full SDK pipeline."""
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_agent_reads_file_and_writes_result(self):
+        """Agent reads numbers.txt, sums with run_python, writes result.txt."""
+        from tinycua.agent.tools.native.files import read_file, write_file, list_files
+        from tinycua.agent.tools.native.python_exec import run_python
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmpdir)
+                Path("numbers.txt").write_text("10\n10\n10\n10\n10\n")
+
+                agent = Agent(
+                    name="e2e-native-tools-agent",
+                    instructions=(
+                        "You are a helpful assistant with file tools. "
+                        "Use read_file, write_file, run_python, and list_files."
+                    ),
+                    llm_model=_build_language_model(),
+                    tools=[read_file, write_file, run_python, list_files],
+                )
+
+                response = await agent.run(
+                    "Read 'numbers.txt', sum all numbers using Python, "
+                    "and write the total to 'result.txt'."
+                )
+
+                assert Path("result.txt").exists()
+                assert "50" in Path("result.txt").read_text()
+                assert isinstance(response, str) and len(response) > 0
+            finally:
+                os.chdir(original_cwd)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_agent_lists_and_reads_files(self):
+        """Agent lists files with list_files then reads relevant ones."""
+        from tinycua.agent.tools.native.files import list_files, read_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmpdir)
+                Path("data").mkdir()
+                Path("data/a.csv").write_text("id,name\n1,Alice\n")
+                Path("data/b.csv").write_text("id,name\n2,Bob\n")
+                Path("data/readme.txt").write_text("CSV data\n")
+
+                agent = Agent(
+                    name="e2e-listing-agent",
+                    instructions="Use list_files to explore directories.",
+                    llm_model=_build_language_model(),
+                    tools=[list_files, read_file],
+                )
+
+                response = await agent.run(
+                    "List files in 'data' and tell me how many CSV files there are."
+                )
+
+                assert isinstance(response, str)
+                assert "2" in response
+            finally:
+                os.chdir(original_cwd)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_agent_calls_run_shell(self):
+        """Agent calls run_shell to execute a shell command."""
+        from tinycua.agent.tools.native.shell import run_shell
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmpdir)
+
+                agent = Agent(
+                    name="e2e-shell-agent",
+                    instructions="Use run_shell to execute commands.",
+                    llm_model=_build_language_model(),
+                    tools=[run_shell],
+                )
+
+                response = await agent.run(
+                    "Run 'pwd' and tell me the current directory path."
+                )
+
+                assert isinstance(response, str) and len(response) > 0
+                assert tmpdir in response
+            finally:
+                os.chdir(original_cwd)
+```
+
 ### Key Test Scenarios
 
 - [ ] **Scenario 1 — All tools function**: Each tool executes its primary happy path and returns the expected result shape.
 - [ ] **Scenario 2 — Error handling**: Every error case (file not found, timeout, syntax error, HTTP 404, invalid range) returns an error dict, never raises.
 - [ ] **Scenario 3 — SDK integration**: Tools register with an SDK Agent, generate valid JSON Schema, and execute through ToolExecutor.
+- [ ] **Scenario 4 — E2E Agent loop (read → compute → write)**: Agent uses native tools through the full SDK pipeline with a live LLM. Agent reads a file, runs Python to compute, and writes the result — all tool calls are dispatched by the LLM, not hardcoded.
+- [ ] **Scenario 5 — E2E Agent loop (list → read)**: Agent explores a directory with list_files and reads relevant files based on LLM decisions.
+- [ ] **Scenario 6 — E2E Agent loop (shell)**: Agent calls run_shell through a live LLM and reports the output correctly.
 - [ ] **Edge case — Truncation bypass**: `read_file` with `start`/`offset` set bypasses the internal truncation limit entirely.
 - [ ] **Edge case — write_file partial**: `write_file` with `start`/`offset` correctly replaces a line range within an existing file.
 - [ ] **Edge case — Relative paths**: All file tools resolve relative paths against `os.getcwd()`.
@@ -665,6 +790,28 @@ def test_tool_executor_invokes_tool():
 
 - **Description**: Unit tests for each tool module with mocked external dependencies. Test edge cases: empty file, empty directory, empty URL, empty command/code, permission denied simulation.
 
+#### [NEW] `tests/integration/test_native_tools_e2e.py`
+
+- **Description**: End-to-end integration tests that create a real SDK `Agent` with native tools and run it through the BaseLoop against a live LLM. Tests cover: (1) read → run_python → write pipeline, (2) list_files → read_file exploration, (3) run_shell command execution. Skipped automatically when no LLM server is reachable.
+
+#### [NEW] `tests/integration/conftest.py`
+
+- **Description**: Integration test configuration with LLM server probing. Resolves provider config from environment variables (following the tinycua-sdk pattern), probes server reachability at collection time, and auto-skips integration tests when the server is down. Loads `.env.test` or `.env.test.example` automatically.
+
+### Test Infrastructure
+
+#### [NEW] `.env.test.example`
+
+- **Description**: Template environment file for integration tests. Contains default LLM server settings (localhost:1234/v1, qwen model). Developers copy to `.env.test` and customize. Mirrors the `src/tinycua-sdk/.env.test.example` pattern.
+
+#### [MODIFY] `.env.example`
+
+- **Description**: Added LLM provider environment variables (LLM_MODEL, LLM_BASE_URL, OPENAI_CHAT_COMPLETIONS_*) matching the SDK's configuration scheme. Deprecates legacy TINYCUA_PROVIDER/MODEL/BASE_URL vars.
+
+#### [MODIFY] `pyproject.toml`
+
+- **Description**: Added `python-dotenv` to core dependencies, `pytest-cov` and `pytest-httpx` to dev dependencies. Added pytest markers (`integration`, `lm_studio`) and filterwarnings for httpx resource cleanup. Enables `uv run pytest` with proper marker registration.
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -673,6 +820,10 @@ def test_tool_executor_invokes_tool():
 | `tinycua/agent/tools/__init__.py` | Modify | Add re-exports for all six native tools |
 | `tinycua/agent/tools/cua/` | Unchanged | Separate concern — no changes needed |
 | `tinycua-sdk` | Unchanged | Tools use existing `@tool` decorator and `ToolExecutor` |
+| `tests/` | New | Test suite with integration tests and e2e LLM tests |
+| `.env.test.example` | New | LLM config template for integration tests (mirrors SDK pattern) |
+| `.env.example` | Modify | Added LLM provider env vars |
+| `pyproject.toml` | Modify | Added test deps, markers, filterwarnings |
 
 ## Data Model Changes
 
