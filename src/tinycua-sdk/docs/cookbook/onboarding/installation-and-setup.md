@@ -82,8 +82,6 @@ os.environ["LLM_MODEL"] = "gpt-4o-mini"
 | `OPENAI_RESPONSES_MODEL` | Default model for Responses provider |
 | `OPENAI_CHAT_COMPLETIONS_MODEL` | Default model for Chat Completions |
 | `LLM_BASE_URL` | Base URL for the local Chat Completions provider (e.g., local server) |
-| `OPENAI_CHAT_COMPLETIONS_API_KEY` | Override key for Chat Completions |
-| `OPENAI_CHAT_COMPLETIONS_MODEL` | Default model for Chat Completions |
 | `TINYCUA_CACHE_DIR` | Fallback cache directory (used if `cache_dir` is not passed to `Agent`) |
 
 ## Verify Installation

@@ -460,7 +460,7 @@ import asyncio
 try:
     response = asyncio.run(agent.run("Hello"))
 except ProviderNotSupportedError as e:
-    print(f"Provider not supported: {e} — did you mean 'openai'?")
+    print(f"Provider not supported: {e} — did you mean 'openai-responses'?")
 except ProviderAuthError as e:
     print(
         f"Authentication error: {e} — check OPENAI_API_KEY "
