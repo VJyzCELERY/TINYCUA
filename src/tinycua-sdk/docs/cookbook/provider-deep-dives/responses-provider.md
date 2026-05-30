@@ -100,8 +100,13 @@ model_config = LanguageModel(
 client = OpenAIResponsesClient(model_config)
 ```
 
-Once constructed, the client is ready. The following block demonstrates a live
-interaction using canonical messages:
+Once constructed, the client is ready.
+
+> **Live call**: The following snippet calls the LLM. Ensure your API key is
+> set before running. See [Language Models and Providers](../core-concepts/language-models-and-providers.md)
+> for environment variable setup.
+
+It demonstrates a live interaction using canonical messages:
 
 ```python
 import asyncio
@@ -267,7 +272,8 @@ events from some models are normalized to `response.reasoning.delta`, and
 
 **Setting unsupported fields**. `frequency_penalty`, `presence_penalty`,
 `stop`, `seed`, and `logprobs` must stay at their defaults. If you need
-these features, switch to `openai-chat-completions`.
+these features, switch to `openai-chat-completions`
+(see [Chat Completions Provider — Supported Fields](./chat-completions-provider.md#supported-fields)).
 
 **Confusing API key resolution**. The Responses client does NOT fall back
 to `OPENAI_API_KEY`. However, `LanguageModel` resolves `OPENAI_API_KEY` as a

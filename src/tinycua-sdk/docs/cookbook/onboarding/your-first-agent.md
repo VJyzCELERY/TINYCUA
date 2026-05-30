@@ -184,7 +184,8 @@ print(f"Provider: {agent.llm_model.provider if agent.llm_model else 'default'}")
 
 **`agent.run()` blocks indefinitely**. The default loop runs until the model
 produces a final answer or hits a max-iteration guard. Press Ctrl+C to cancel,
-or pass a policy with `max_tool_calls` to cap iterations.
+or pass a policy with `max_tool_calls` to cap iterations (see
+[Agent Configuration](./agent-configuration.md) for `AgentPolicy` details).
 
 **Streaming without `await`**. `agent.run(stream=True)` returns an async
 iterator. Wrap in `asyncio.run()` for synchronous use:

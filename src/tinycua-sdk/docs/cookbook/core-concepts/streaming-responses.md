@@ -55,7 +55,8 @@ agent = Agent(
 
 ## Basic Streaming Loop
 
-The continuation block iterates over events from `agent.run(..., stream=True)`. Each event is a `dict` with a `type` key:
+The continuation block iterates over events from `agent.run(..., stream=True)`. Each event is a `dict` with a `type` key.
+The `agent` variable is constructed in the "Setting Up an Agent for Streaming" section above.
 
 ```python
 import asyncio

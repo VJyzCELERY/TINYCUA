@@ -293,15 +293,21 @@ async def cancel_after_timeout(agent, query: str, timeout: float) -> str:
 ### Handling CancelledError
 
 The execution loop raises `asyncio.CancelledError` when cancellation is
-detected. Catch it to perform cleanup:
+detected **inside the async call** — catch it within the coroutine body,
+not around `asyncio.run()`:
 
 ```python
-try:
-    response = asyncio.run(agent.run("A very long query..."))
-except asyncio.CancelledError:
-    print("Agent run was cancelled.")
-except Exception as e:
-    print(f"Error: {e}")
+async def run_with_cancel_guard(agent, query: str) -> str:
+    try:
+        return await agent.run(query)
+    except asyncio.CancelledError:
+        print("Agent run was cancelled.")
+        return "[cancelled]"
+    except Exception as e:
+        print(f"Error: {e}")
+        return "[error]"
+
+# Usage: asyncio.run(run_with_cancel_guard(agent, "Hello"))
 ```
 
 ## Streaming Error Handling

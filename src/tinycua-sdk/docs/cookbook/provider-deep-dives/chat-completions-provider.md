@@ -99,9 +99,14 @@ model_config = LanguageModel(
 client = OpenAIChatCompletionsClient(model_config)
 ```
 
-Once constructed, the client is ready to call the LLM. The following block
-demonstrates a live interaction — it builds canonical messages, configures
-tools, and sends a non-streaming chat request:
+Once constructed, the client is ready to call the LLM.
+
+> **Live call**: The following snippet calls the LLM. Ensure your API key is
+> set before running. See [Language Models and Providers](../core-concepts/language-models-and-providers.md)
+> for environment variable setup.
+
+It builds canonical messages, configures tools, and sends a non-streaming
+chat request:
 
 ```python
 import asyncio

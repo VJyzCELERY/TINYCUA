@@ -150,6 +150,7 @@ Serialize an agent to JSON:
 
 ```python
 import os
+from pathlib import Path
 
 from tinycua_sdk import Agent, LanguageModel
 
@@ -166,6 +167,7 @@ agent = Agent(
 
 json_str = agent.to_json()
 
+Path("tmp").mkdir(parents=True, exist_ok=True)
 with open("tmp/agent_config.json", "w") as f:
     f.write(json_str)
 ```
@@ -190,6 +192,7 @@ print(f"Loaded agent: {agent.name}")
 
 ```python
 import os
+from pathlib import Path
 
 from tinycua_sdk import Agent, LanguageModel
 
@@ -206,6 +209,7 @@ agent = Agent(
 
 yaml_str = agent.to_yaml()
 
+Path("tmp").mkdir(parents=True, exist_ok=True)
 with open("tmp/agent_config.yaml", "w") as f:
     f.write(yaml_str)
 ```
