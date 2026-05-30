@@ -14,10 +14,10 @@
 - **Non-Goals**: This spec does NOT cover agent factory, custom loop types, system prompts, agent-to-agent calling, session system, worker orchestration, or top-level orchestrator. Those are separate milestones (M3–M10).
 - **Constraints**:
   - Types must match the canonical YAML schemas in `src/tinycua/docs/architecture/state-objects.md` after the architecture doc updates defined in the Architecture Doc Synchronization section below are applied.
-  - Types must be plain Python (no ORM, no framework dependency).
+  - Types must be plain Python.
   - Types must support serialization to/from dict and JSON.
   - All types must be importable from a single public entry point.
-  - Types must target Python 3.11+ (stdlib dataclasses with `Self` return type and `|` union syntax).
+  - Types must target Python 3.11+.
   - No runtime LLM dependency for state objects themselves.
 
 ---
@@ -133,7 +133,7 @@ The following architecture docs MUST be updated to match the implemented types:
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Architecture doc updates | Partially Done | Changes applied locally; not yet pushed to remote |
+| Architecture doc updates | Done | Applied in this PR |
 | Core data types | Not Started | |
 | to_dict / from_dict | Not Started | |
 | to_json / from_json | Not Started | |

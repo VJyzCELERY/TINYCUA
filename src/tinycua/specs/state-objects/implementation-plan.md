@@ -23,6 +23,8 @@ Define the serialization round-trip tests that prove the feature works. These ar
 # Test file: src/tinycua/tests/state/test_state_objects_serialization.py
 """Serialization round-trip tests for state objects serialization and validation."""
 
+import pytest
+
 from tinycua.state import ModeDecision, Task, TaskList, ReviewerDecision
 
 
@@ -98,7 +100,6 @@ def test_tasklist_nested_round_trip_json():
 
 def test_reviewer_decision_rejects_invalid_status():
     """ReviewerDecision validation rejects unsupported status values."""
-    import pytest
     with pytest.raises(ValueError, match="status"):
         ReviewerDecision(
             task_id="t-1",

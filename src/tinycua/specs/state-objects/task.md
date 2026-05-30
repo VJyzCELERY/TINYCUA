@@ -44,7 +44,7 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 ## Review and Merge
 
 - [ ] T-028 Address review feedback
-- [ ] T-029 Create pull request
+- [x] T-029 Create pull request
 - [ ] T-030 Merge to base branch (feat/agent-prototype)
 
 ---

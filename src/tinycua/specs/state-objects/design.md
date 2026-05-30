@@ -65,6 +65,20 @@ class StateObject:
 
 Implementation uses `dataclasses.dataclass` + `dataclasses.asdict()` for `to_dict()`, and per-field construction in `from_dict()`. JSON methods delegate to `json.dumps` / `json.loads`.
 
+#### Nested Deserialization Strategy
+
+`to_dict()` uses `dataclasses.asdict()` which handles recursive serialization of nested custom-typed fields transparently. For `from_dict()`, the base `StateObject` uses `typing.get_type_hints()` + `dataclasses.fields()` introspection to auto-convert nested custom types from raw dicts back into their typed objects:
+
+- The base `from_dict()` inspects each field's type annotation via `typing.get_type_hints(cls)`.
+- If a field's annotation is itself a `@dataclass` subclass of `StateObject`, `from_dict()` is called recursively to reconstruct it.
+- For `list[T]` where `T` is a `StateObject` subclass, each element is recursively deserialized.
+- For `list[T]` where `T` is a standard Python type (e.g., `str`, `float`), elements are left as-is.
+- For `T | None` (Optional), the value is converted if non-None, else kept as None.
+
+This approach means subclasses do NOT need to override `from_dict()` — the base class handles all nested deserialization automatically. The `to_dict()`/`from_dict()` contract provides **structural typing**: any dict produced by `to_dict()` round-trips through `from_dict()` to reconstruct the original typed object tree.
+
+All enum-typed fields are validated in `__post_init__` via a shared `_validate_enum` helper from the `StateObject` base class (see Technical Decision #5). Only `ModeDecision` cross-field validation is shown explicitly below as it involves multiple fields.
+
 ### Enum Types
 
 ```
@@ -229,7 +243,7 @@ from tinycua.state import (
 |------------|---------------------|-------|
 | Invalid enum value in field | `ValueError("Invalid value '...' for field 'mode': expected one of ...")` | Raised during `__post_init__` validation |
 | Negative `consecutive_failures` | `ValueError("consecutive_failures must be non-negative")` | |
-| Missing required field in `from_dict()` | `KeyError` or `ValueError` | Missing key in dict |
+| Missing required field in `from_dict()` | `ValueError` | `from_dict` pre-validates all required keys are present, raises `ValueError` with the missing field name before construction |
 | Invalid JSON in `from_json()` | `json.JSONDecodeError` | Propagated from stdlib |
 | Type mismatch in `from_dict()` | `TypeError` or `ValueError` | Incompatible type for field |
 
@@ -316,11 +330,11 @@ The following questions from the spec and earlier design drafts have been resolv
 1. **Validation strictness** — `ModeDecision(mode="worker", uncertain_next_action="explore")` is allowed (consumers should ignore `uncertain_next_action` when mode is not `"uncertain"`). When mode is `"uncertain"`, `uncertain_next_action` is required and validated in `__post_init__` (cross-field validation), matching the canonical constraint in `state-objects.md`.
 2. **ExecutionLogEntry** — Confirmed as a separate public dataclass (not an inline dict).
 3. **ContextUpdate** — Confirmed as a separate public dataclass with `target_task_id` and `update` fields.
-4. **Session.execution_log** — Typed as `ExecutionLog | None` (not a raw list).
+4. **Session.execution_log** — Typed as `ExecutionLog | None` (not a raw list). Defaulting to `None` because a session may not have spawned sub-sessions yet when first created. An empty `ExecutionLog` (entries=[]) could alternatively be the default; choosing `None` to distinguish "no log yet" from "empty log."
 5. **OwnerType values** — Changed to `Literal["primary", "child"]` to avoid the ambiguous `future_sub_agent` term. The `child` value is intentionally broad for MVP and covers both internal specialized-agent sub-sessions and future standalone sub-agent sessions. The distinction between them, if needed, will be handled by other fields or in a future milestone.
 6. **AgentState status** — Values changed to `idle`, `running`, `blocked`, `terminated` with default `"idle"`.
 7. **Literal vs enum.Enum** — Confirmed use of `Literal` string aliases with manual `__post_init__` validation.
-8. **chat_history** — Kept as `list[dict]` for MVP simplicity; a dedicated `ChatHistoryEntry` type may be added later.
+8. **chat_history** — Kept as `list[dict]` for MVP simplicity; a dedicated `ChatHistoryEntry` type may be added later. The arch doc's YAML `"<JSON turn log entries>"` is a documentation placeholder representing a JSON-serializable array; the Python representation is `list[dict]`.
 
 ---
 
