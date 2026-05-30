@@ -1,7 +1,7 @@
 # Design Document: State Objects (M1)
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: In Progress
 **Last Updated**: 2026-05-30
 
 ---
@@ -71,8 +71,8 @@ UncertainNextAction = Literal["ask_user", "explore"] | None
 EffortLevel = Literal["none", "high"]
 TaskStatus = Literal["completed", "failed", "blocked"]
 ReviewStatus = Literal["accepted", "retry", "replan", "escalate_user"]
-AgentStatus = Literal["running", "waiting_for_user", "terminated"]
-OwnerType = Literal["primary", "tinycua_internal", "future_sub_agent"]
+AgentStatus = Literal["idle", "running", "blocked", "terminated"]
+OwnerType = Literal["primary", "child"]
 ```
 
 ### Core State Objects
@@ -85,7 +85,7 @@ class Session:
     owner_name: str
     chat_history: list[dict]          # JSON turn log entries
     context: str                      # Structured markdown
-    execution_log: list | None = None # ExecutionLog entries
+    execution_log: ExecutionLog | None = None
 
 @dataclass
 class ContextEnhancedQuery:
@@ -162,7 +162,7 @@ class WorkerResult:
 class AgentState:
     active_agent: str
     active_task_id: str | None = None
-    status: AgentStatus = "running"
+    status: AgentStatus = "idle"
     resume_target: str | None = None
     consecutive_failures: int = 0
 
@@ -265,6 +265,18 @@ None — Phase 1 covers the full M1 scope.
 
 ---
 
+## Architecture Doc Updates Required
+
+The following changes to `docs/architecture/` must be made to reflect the decisions above:
+
+| Doc | Change |
+|-----|--------|
+| `state-objects.md` — AgentState status | `running \| waiting_for_user \| terminated` → `idle \| running \| blocked \| terminated` |
+| `session-architecture.md` — Session owner_type | `primary \| tinycua_internal \| future_sub_agent` → `primary \| child` |
+| `session-architecture.md` — owner_type description | Rewrite to describe `primary` (user-facing root) and `child` (sub-session) model, including parent/child chat history propagation and context isolation rules |
+
+---
+
 ## Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -276,10 +288,18 @@ None — Phase 1 covers the full M1 scope.
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-1. **Validation strictness** — Should `ModeDecision(mode="worker", uncertain_next_action="explore")` be allowed when `uncertain_next_action` is only meaningful for `mode="uncertain"`?
-   - **Current thinking**: Allow it in the dataclass (no cross-field validation in MVP), but document that consumers should ignore `uncertain_next_action` when mode is not `uncertain`.
+The following questions from the spec and earlier design drafts have been resolved through review:
+
+1. **Validation strictness** — `ModeDecision(mode="worker", uncertain_next_action="explore")` is allowed (no cross-field validation). Consumers should ignore `uncertain_next_action` when mode is not `"uncertain"`.
+2. **ExecutionLogEntry** — Confirmed as a separate public dataclass (not an inline dict).
+3. **ContextUpdate** — Confirmed as a separate public dataclass with `target_task_id` and `update` fields.
+4. **Session.execution_log** — Typed as `ExecutionLog | None` (not a raw list).
+5. **OwnerType values** — Changed to `Literal["primary", "child"]` to avoid the ambiguous `future_sub_agent` term.
+6. **AgentState status** — Values changed to `idle`, `running`, `blocked`, `terminated` with default `"idle"`.
+7. **Literal vs enum.Enum** — Confirmed use of `Literal` string aliases with manual `__post_init__` validation.
+8. **chat_history** — Kept as `list[dict]` for MVP simplicity; a dedicated `ChatHistoryEntry` type may be added later.
 
 ---
 

@@ -1,6 +1,6 @@
 # Feature Specification: State Objects (M1)
 
-**Status**: Draft
+**Status**: In Progress
 **Created**: 2026-05-30
 **Last Updated**: 2026-05-30
 **Subproject(s) Affected**: tinycua
@@ -48,7 +48,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a `Session` dataclass with `session_id`, `owner_type`, `owner_name`, `chat_history`, `context`, and `execution_log` fields.
+- **FR-001**: System MUST provide a `Session` dataclass with `session_id`, `owner_type` (enum: primary, child), `owner_name`, `chat_history`, `context`, and `execution_log` fields.
 - **FR-002**: System MUST provide a `ContextEnhancedQuery` dataclass with the enhanced query text.
 - **FR-003**: System MUST provide a `ModeDecision` dataclass with `mode` (enum: primary_agent, worker, uncertain), `score`, `confidence`, `reasons` (list[str]), and `uncertain_next_action` (optional enum: ask_user, explore).
 - **FR-004**: System MUST provide a `DigestedInformation` dataclass with `context_summary`, `key_points` (list[str]), optional `advisory_instructions`, optional `constraints` (list[str]), optional `known_gaps` (list[str]).
@@ -58,7 +58,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **FR-008**: System MUST provide a `TaskResult` dataclass with `task_id`, `status` (enum: completed, failed, blocked), `result`, optional `discovered_sequence_issues` (list[str]), optional `uncertainty_notes` (list[str]).
 - **FR-009**: System MUST provide a `ReviewerDecision` dataclass with `task_id`, `status` (enum: accepted, retry, replan, escalate_user), `reason`, `confidence`, optional `context_updates` (list[ContextUpdate]), optional `retry_instructions`.
 - **FR-010**: System MUST provide a `WorkerResult` dataclass with `accepted_results` (list[AcceptedResult]).
-- **FR-011**: System MUST provide an `AgentState` dataclass with `active_agent`, `active_task_id`, `status` (enum: running, waiting_for_user, terminated), `resume_target`, `consecutive_failures` (int, non-negative).
+- **FR-011**: System MUST provide an `AgentState` dataclass with `active_agent`, `active_task_id`, `status` (enum: idle, running, blocked, terminated), `resume_target`, `consecutive_failures` (int, non-negative).
 - **FR-012**: System MUST provide an `ExecutionLog` dataclass with a sequence of `ExecutionLogEntry` objects (action, outcome, decision).
 - **FR-013**: All dataclasses MUST support `to_dict()` and `from_dict()` serialization.
 - **FR-014**: All dataclasses MUST support `to_json()` and `from_json()` serialization (JSON string round-trip).
@@ -73,7 +73,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **TaskResult**: Output of a single task execution. Status indicates completion, failure, or blocked.
 - **ReviewerDecision**: Result Reviewer's judgment on a task result. Drives Worker transitions (accept, retry, replan, escalate).
 - **WorkerResult**: Aggregated accepted task results, consumed by Primary Agent for final response.
-- **AgentState**: Tracks which internal agent is active and whether the system is waiting for user input or running.
+- **AgentState**: Tracks which internal agent is active and its operational status (idle, running, or blocked waiting for user input).
 - **ExecutionLog**: Record of actions, outcomes, and decisions during sub-session execution.
 - **WorkerConfig**: Configuration controlling Worker behavior (effort level).
 
@@ -88,6 +88,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - [ ] Validation catches negative `consecutive_failures` and missing required fields.
 - [ ] All types are importable from a single entry point (e.g., `from tinycua.state import ...`).
 - [ ] Unit test coverage exceeds 90% for state object module.
+- [ ] Architecture docs (`docs/architecture/state-objects.md`, `docs/architecture/session-architecture.md`) are updated to match the implemented Python types (see Design Updates section below for specific changes needed).
 
 ---
 
@@ -113,6 +114,20 @@ A developer imports a state object, instantiates it with valid fields, serialize
 
 ---
 
+## Architecture Doc Updates Required
+
+The following changes must also be applied to the canonical architecture docs to keep them in sync with the implementation:
+
+| Architecture Doc | Change Needed |
+|-----------------|---------------|
+| `docs/architecture/state-objects.md` (line 242) | `agent_state.status` values: `running \| waiting_for_user \| terminated` → `idle \| running \| blocked \| terminated` |
+| `docs/architecture/session-architecture.md` (line 97) | `session.owner_type` values: `primary \| tinycua_internal \| future_sub_agent` → `primary \| child` |
+| `docs/architecture/session-architecture.md` (line 104) | Description text: remove reference to `future_sub_agent`; update to reflect `primary \| child` model (parent records own + child chat history, child context isolated from parent, etc.) |
+
+> **Note**: These architecture doc updates are tracked here but may be done as a separate follow-up PR or batched with this implementation.
+
+---
+
 ## Status Tracker
 
 | Item | Status | Notes |
@@ -128,11 +143,11 @@ A developer imports a state object, instantiates it with valid fields, serialize
 ## Open Questions
 
 1. **Should `ExecutionLogEntry` be a separate public type or an inline dict?**
-   - **Status**: Proposed
+   - **Status**: Decided
    - **Proposed Answer**: Separate public type for type safety and serialization consistency.
 
 2. **Should `ContextUpdate` be a separate public type?**
-   - **Status**: Proposed
+   - **Status**: Decided
    - **Proposed Answer**: Yes — `target_task_id` + `update` string as a named struct.
 
 ---
