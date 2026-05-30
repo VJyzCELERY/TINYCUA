@@ -83,7 +83,7 @@ OwnerType = Literal["primary", "child"]
 @dataclass
 class Session:
     session_id: str
-    owner_type: OwnerType
+    owner_type: OwnerType             # primary | child
     owner_name: str
     chat_history: list[dict]          # JSON turn log entries
     context: str                      # Structured markdown
@@ -91,7 +91,7 @@ class Session:
 
 @dataclass
 class ContextEnhancedQuery:
-    query: str
+    enhanced_query: str
 
 @dataclass
 class ModeDecision:
@@ -100,6 +100,12 @@ class ModeDecision:
     confidence: float
     reasons: list[str]
     uncertain_next_action: UncertainNextAction = None  # "ask_user" | "explore"
+
+    def __post_init__(self):
+        if self.mode == "uncertain" and self.uncertain_next_action is None:
+            raise ValueError(
+                "uncertain_next_action is required when mode is 'uncertain'"
+            )
 
 @dataclass
 class DigestedInformation:
@@ -120,7 +126,7 @@ class Task:
     description: str
     context: str
     success_criteria: list[str]
-    confidence: float
+    confidence: float                 # 0.0–1.0 (implementation calibration)
     tasks: list[Task] | None = None  # If present, this is a container task
 
 @dataclass
@@ -181,7 +187,7 @@ class ExecutionLog:
 
 ### Schema Changes
 
-None — this is entirely new implementation. The canonical schema in `state-objects.md` is already defined.
+Architecture doc schema values updated for AgentState status and Session owner_type (see Implementation Phases).
 
 ---
 
@@ -213,6 +219,7 @@ from tinycua.state import (
     AgentStatus,
     EffortLevel,
     OwnerType,
+    UncertainNextAction,
 )
 ```
 
@@ -234,13 +241,13 @@ from tinycua.state import (
 
 - [ ] Update `docs/architecture/state-objects.md` — AgentState status values and descriptions
 - [ ] Update `docs/architecture/session-architecture.md` — Session owner_type values and descriptions
+- [ ] Write serialization round-trip tests (TDD — expect RED)
+- [ ] Write unit test stubs for all state object types
 - [ ] Create `tinycua/state/base.py` with `StateObject` base class
 - [ ] Create all state object modules (session, mode_decision, digested_information, worker_config, task, task_result, reviewer, worker_result, agent_state, execution_log)
 - [ ] Create `tinycua/state/__init__.py` re-exporting all public types
-- [ ] Implement `to_dict()` / `from_dict()` for every type
-- [ ] Implement `to_json()` / `from_json()` for every type
-- [ ] Implement field validation (`__post_init__`)
-- [ ] Write comprehensive unit tests
+- [ ] Implement serialization and validation (TDD — iterate until GREEN)
+- [ ] Complete unit tests with full coverage
 - [ ] Run `uv run pytest` with full coverage
 
 ### Phase 2 — Enhancements
@@ -250,6 +257,8 @@ None — Phase 1 covers the full M1 scope.
 ---
 
 ## Technical Decisions
+
+**Compatibility**: This module requires Python 3.11+ due to `Self` return type (PEP 673) and `|` union syntax (PEP 604). Backward compatibility with Python 3.10 can be achieved with `from __future__ import annotations` and `typing_extensions.Self` if needed; this is documented here as a known tradeoff.
 
 1. **Decision**: Use `dataclasses.dataclass` rather than `pydantic.BaseModel` or `attrs`.
    - **Reason**: Zero external dependencies. Python stdlib only. TINYCUA's state objects are simple data containers, not complex validated models.
@@ -264,14 +273,22 @@ None — Phase 1 covers the full M1 scope.
    - **Alternatives Considered**: Single `state.py` — rejected because it would be ~500+ lines.
 
 4. **Decision**: Enum-typed string literals rather than `enum.Enum` subclasses.
-   - **Reason**: Simpler JSON serialization — no custom encoder needed. Type aliases provide IDE support.
-   - **Alternatives Considered**: `enum.Enum` — would require custom JSON encoder. Rejected for added complexity.
+   - **Reason**: Simpler serialization — no extra conversion step needed for JSON. Type aliases provide IDE support.
+   - **Alternatives Considered**: `enum.Enum` — would require additional conversion in `to_dict()` since `dataclasses.asdict()` preserves enum objects rather than string values. Rejected for added complexity with no benefit for simple string-constrained fields.
+
+5. **Decision**: Per-class `__post_init__` with shared `_validate_enum` helper in `StateObject` base class for enum field validation.
+   - **Reason**: Ensures consistent error messages and validation behavior across all state objects. The shared `_validate_enum(value, allowed_set, field_name)` method produces uniform `ValueError("Invalid value '...' for field '...': expected one of ...")` messages. Cross-field validation rules (e.g., ModeDecision's uncertain_next_action requirement) are handled in per-class `__post_init__` methods.
+   - **Alternatives Considered**: Per-class manual checks without shared helper — rejected for producing inconsistent error message formats. Enum subclass validation — rejected because `Literal` string aliases are already chosen over `enum.Enum` (Decision #4).
+
+6. **Decision**: `ContextEnhancedQuery` is a single-field dataclass rather than a bare `str` or type alias.
+   - **Reason**: The dataclass wrapper provides a stable type identity that distinguishes enriched queries from raw query strings in the type system and supports future extension with provenance/metadata fields (e.g., enrichment timestamp, source context references) without breaking consumers.
+   - **Alternatives Considered**: Bare `str` — provides no type safety distinction from raw queries. `TypeAlias` — same issue, no structural distinction at runtime.
 
 ---
 
 ## Architecture Doc Updates (In Scope)
 
-The following changes to `docs/architecture/` are in scope for this implementation and will be applied alongside the Python code:
+The following changes to `docs/architecture/` are applied in this PR to align canonical schemas before implementation:
 
 | Doc | Change |
 |-----|--------|
@@ -296,11 +313,11 @@ The following changes to `docs/architecture/` are in scope for this implementati
 
 The following questions from the spec and earlier design drafts have been resolved through review:
 
-1. **Validation strictness** — `ModeDecision(mode="worker", uncertain_next_action="explore")` is allowed (no cross-field validation). Consumers should ignore `uncertain_next_action` when mode is not `"uncertain"`.
+1. **Validation strictness** — `ModeDecision(mode="worker", uncertain_next_action="explore")` is allowed (consumers should ignore `uncertain_next_action` when mode is not `"uncertain"`). When mode is `"uncertain"`, `uncertain_next_action` is required and validated in `__post_init__` (cross-field validation), matching the canonical constraint in `state-objects.md`.
 2. **ExecutionLogEntry** — Confirmed as a separate public dataclass (not an inline dict).
 3. **ContextUpdate** — Confirmed as a separate public dataclass with `target_task_id` and `update` fields.
 4. **Session.execution_log** — Typed as `ExecutionLog | None` (not a raw list).
-5. **OwnerType values** — Changed to `Literal["primary", "child"]` to avoid the ambiguous `future_sub_agent` term.
+5. **OwnerType values** — Changed to `Literal["primary", "child"]` to avoid the ambiguous `future_sub_agent` term. The `child` value is intentionally broad for MVP and covers both internal specialized-agent sub-sessions and future standalone sub-agent sessions. The distinction between them, if needed, will be handled by other fields or in a future milestone.
 6. **AgentState status** — Values changed to `idle`, `running`, `blocked`, `terminated` with default `"idle"`.
 7. **Literal vs enum.Enum** — Confirmed use of `Literal` string aliases with manual `__post_init__` validation.
 8. **chat_history** — Kept as `list[dict]` for MVP simplicity; a dedicated `ChatHistoryEntry` type may be added later.

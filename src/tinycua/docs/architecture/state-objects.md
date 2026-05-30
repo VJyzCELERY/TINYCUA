@@ -239,11 +239,11 @@ Agent state determines whether the next user message resumes an internal agent o
 agent_state:
   active_agent: "<agent name>"   # matches the documented name of any architecture agent
   active_task_id: "<active task id>"
-  status: running | waiting_for_user | terminated
+  status: idle | running | blocked | terminated
   resume_target: "..."
   consecutive_failures: 0
 ```
 
-Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`waiting_for_user`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
+Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.

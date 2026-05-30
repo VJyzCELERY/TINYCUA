@@ -4,50 +4,48 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests (defined in implementation-plan.md) <!-- id: 0 -->
-- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
+- [ ] T-001 Write serialization round-trip tests (defined in implementation-plan.md)
+- [ ] T-002 Run serialization round-trip tests — expect RED (failures) since no implementation yet
 
 ## Implementation Phase
 
-- [ ] Create `tinycua.state` module scaffold <!-- id: 2 -->
-  - [ ] Add `tinycua/state/base.py` with `StateObject` serialization helpers
-  - [ ] Add `tinycua/state/__init__.py` with public re-exports
-- [ ] Implement core state dataclasses <!-- id: 3 -->
-  - [ ] Session, ContextEnhancedQuery, ModeDecision
-  - [ ] DigestedInformation, WorkerConfig
-  - [ ] Task, TaskList, TaskResult
-  - [ ] ContextUpdate, ReviewerDecision
-  - [ ] AcceptedResult, WorkerResult
-  - [ ] AgentState, ExecutionLog, ExecutionLogEntry
-- [ ] Add validation logic for enums and constraints <!-- id: 4 -->
-  - [ ] Enum value checks in `__post_init__`
-  - [ ] Non-negative `consecutive_failures` enforcement
-- [ ] Wire serialization for nested structures <!-- id: 5 -->
-  - [ ] Nested `Task` trees and `TaskList`
-  - [ ] ExecutionLog entries
+- [ ] T-003 Update architecture docs (pre-requisite per spec constraint)
+  - [ ] T-004 Update `src/tinycua/docs/architecture/state-objects.md` status values
+  - [ ] T-005 Update `src/tinycua/docs/architecture/session-architecture.md` owner_type definition
+- [ ] T-006 Create `tinycua.state` module scaffold
+  - [ ] T-007 Add `tinycua/state/base.py` with `StateObject` serialization helpers
+  - [ ] T-008 Add `tinycua/state/__init__.py` with public re-exports
+- [ ] T-009 Implement core state dataclasses
+  - [ ] T-010 Session, ContextEnhancedQuery, ModeDecision
+  - [ ] T-011 DigestedInformation, WorkerConfig
+  - [ ] T-012 Task, TaskList, TaskResult
+  - [ ] T-013 ContextUpdate, ReviewerDecision
+  - [ ] T-014 AcceptedResult, WorkerResult
+  - [ ] T-015 AgentState, ExecutionLog, ExecutionLogEntry
+- [ ] T-016 Add validation logic for enums and constraints
+  - [ ] T-017 Enum value checks in `__post_init__`
+  - [ ] T-018 Non-negative `consecutive_failures` enforcement
+- [ ] T-019 Wire serialization for nested structures
+  - [ ] T-020 Nested `Task` trees and `TaskList`
+  - [ ] T-021 ExecutionLog entries
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 6 -->
-- [ ] Write unit tests for `tinycua.state` types <!-- id: 7 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 8 -->
+- [ ] T-022 Run serialization round-trip tests — expect GREEN (all pass)
+- [ ] T-023 Write unit tests for `tinycua.state` types
+- [ ] T-024 Run full test suite: `cd src/tinycua && uv run pytest`
 
 ## Verification Phase
 
-- [ ] Review unit test coverage for `tinycua.state` (>90%) <!-- id: 9 -->
-- [ ] Confirm serialization round-trips for all state objects <!-- id: 10 -->
-- [ ] Validate error messages for invalid enum values <!-- id: 11 -->
-
-## Documentation Phase
-
-- [ ] Update `docs/architecture/state-objects.md` status values <!-- id: 12 -->
-- [ ] Update `docs/architecture/session-architecture.md` owner_type definition <!-- id: 13 -->
+- [ ] T-025 Review unit test coverage for `tinycua.state` (>90%)
+- [ ] T-026 Confirm serialization round-trips for all state objects
+- [ ] T-027 Validate error messages for invalid enum values
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 14 -->
-- [ ] Address review feedback <!-- id: 15 -->
-- [ ] Merge to main branch <!-- id: 16 -->
+- [ ] T-028 Address review feedback
+- [ ] T-029 Create pull request
+- [ ] T-030 Merge to base branch (feat/agent-prototype)
 
 ---
 

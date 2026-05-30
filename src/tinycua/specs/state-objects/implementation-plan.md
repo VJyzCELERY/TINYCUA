@@ -15,13 +15,13 @@ Deliver canonical Python dataclasses for all TINYCUA state objects with consiste
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Serialization Round-Trip Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the serialization round-trip tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/state/test_state_objects_integration.py
-"""Integration tests for state objects serialization and validation."""
+# Test file: src/tinycua/tests/state/test_state_objects_serialization.py
+"""Serialization round-trip tests for state objects serialization and validation."""
 
 from tinycua.state import ModeDecision, Task, TaskList, ReviewerDecision
 
@@ -71,35 +71,64 @@ def test_tasklist_nested_round_trip_dict():
     assert restored.tasks[0].tasks[0].task_id == "t-2"
 
 
+def test_tasklist_nested_round_trip_json():
+    """Nested TaskList structures round-trip through JSON serialization."""
+    leaf = Task(
+        task_id="t-2",
+        name="leaf",
+        description="leaf task",
+        context="ctx",
+        success_criteria=["done"],
+        confidence=0.9,
+    )
+    parent = Task(
+        task_id="t-1",
+        name="parent",
+        description="container task",
+        context="ctx",
+        success_criteria=["all children done"],
+        confidence=0.8,
+        tasks=[leaf],
+    )
+    task_list = TaskList(tasks=[parent], current_task_id="t-1")
+    restored = TaskList.from_json(task_list.to_json())
+    assert restored == task_list
+    assert restored.tasks[0].tasks[0].task_id == "t-2"
+
+
 def test_reviewer_decision_rejects_invalid_status():
     """ReviewerDecision validation rejects unsupported status values."""
-    # Arrange / Act / Assert
-    try:
+    import pytest
+    with pytest.raises(ValueError, match="status"):
         ReviewerDecision(
             task_id="t-1",
             status="invalid_value",
             reason="bad status",
             confidence=0.2,
         )
-    except ValueError as exc:
-        assert "status" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for invalid status")
 ```
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: ModeDecision JSON round-trip preserves all fields and equality.
-- [ ] **Scenario 2**: TaskList with nested Task containers round-trips via dict serialization.
+- [ ] **Scenario 1**: Session dict/JSON round-trip preserves all fields and equality (FR-001, FR-013, FR-014).
+- [ ] **Scenario 2**: ModeDecision JSON round-trip preserves all fields and equality.
+- [ ] **Scenario 3**: TaskList with nested Task containers round-trips via dict serialization.
+- [ ] **Scenario 4**: TaskList with nested Task containers round-trips via JSON serialization.
+- [ ] **Scenario 5**: ExecutionLog with nested ExecutionLogEntry round-trip via dict/JSON (FR-012).
+- [ ] **Scenario 6**: DigestedInformation with all optional fields omitted (FR-004, edge case).
+- [ ] **Scenario 7**: AgentState rejects negative `consecutive_failures` (FR-011, FR-015).
+- [ ] **Scenario 8**: WorkerConfig rejects invalid `effort` value (FR-005).
 - [ ] **Edge case**: ReviewerDecision rejects an invalid status value with a clear error.
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Serialization round-trip tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for `tinycua.state` modules — serialization, validation, edge cases
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Lint check passes: `cd src/tinycua && uv run ruff check .`
+- [ ] Type check passes: `cd src/tinycua && uv run mypy tinycua/state/`
 
 ### Manual Verification
 
@@ -110,6 +139,18 @@ def test_reviewer_decision_rejects_invalid_status():
 - None — data-only types with no performance-sensitive paths
 
 ## Proposed Changes
+
+### Documentation (Architecture Docs — Pre-requisite)
+
+#### [MODIFY] src/tinycua/docs/architecture/state-objects.md
+
+- **Description of change**: Update `agent_state.status` values to `idle | running | blocked | terminated`.
+- **Rationale**: Aligns canonical schema with implemented literals before code depends on new enum values.
+
+#### [MODIFY] src/tinycua/docs/architecture/session-architecture.md
+
+- **Description of change**: Update `session.owner_type` values and description for `primary | child`.
+- **Rationale**: Aligns canonical session ownership model with spec before code depends on new enum values.
 
 ### State Objects Module
 
@@ -180,27 +221,15 @@ def test_reviewer_decision_rejects_invalid_status():
 
 ### Tests
 
-#### [NEW] src/tinycua/tests/state/test_state_objects_integration.py
+#### [NEW] src/tinycua/tests/state/test_state_objects_serialization.py
 
-- **Description of change**: Integration tests that validate cross-object serialization and validation.
+- **Description of change**: Serialization round-trip tests that validate cross-object serialization and validation.
 - **Rationale**: Ensures end-to-end round-trips and error handling.
 
 #### [NEW] src/tinycua/tests/state/test_state_objects_unit.py
 
 - **Description of change**: Unit tests for each state object and validation rule.
 - **Rationale**: Achieve >90% coverage for the state module.
-
-### Documentation
-
-#### [MODIFY] src/tinycua/docs/architecture/state-objects.md
-
-- **Description of change**: Update `agent_state.status` values to `idle | running | blocked | terminated`.
-- **Rationale**: Aligns canonical schema with implemented literals.
-
-#### [MODIFY] src/tinycua/docs/architecture/session-architecture.md
-
-- **Description of change**: Update `session.owner_type` values and description for `primary | child`.
-- **Rationale**: Aligns canonical session ownership model with spec.
 
 ## Architecture Changes
 
@@ -250,7 +279,7 @@ None — standard library only.
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Schema drift between docs and implementation | High | Derive all fields from canonical `state-objects.md` and update docs in this PR |
-| Serialization edge cases with deep nesting | Medium | Add nested TaskList integration test with multi-level tasks |
+| Serialization edge cases with deep nesting | Medium | Add nested TaskList serialization round-trip test with multi-level tasks |
 | Missing fields in `from_dict()` | Medium | Unit tests that cover round-trip for every type |
 
 ---
