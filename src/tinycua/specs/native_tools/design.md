@@ -59,8 +59,15 @@ Each tool returns a structured result:
 #### `read_file`
 ```python
 # Returns file contents as string.
+# Full-file mode (start=None, offset=None): reads entire file up to an internal
+#   size limit (100KB default). If file exceeds the limit, content is truncated
+#   with a summary message.
+# Range mode (start and/or offset set): reads exactly the requested line range
+#   with no automatic truncation.
+#
 # On error: {"error": "File not found: /path/to/file"}
-# If truncated: "<content>...\n[truncated at 100KB]"
+# On invalid range: {"error": "Invalid start line: 500 (file has 42 lines)"}
+# If truncated: "...\n[Truncated: 843 lines remaining, ~48KB not shown]"
 ```
 
 #### `write_file`
@@ -69,6 +76,9 @@ Each tool returns a structured result:
     "success": bool,
     "path": str,
     "bytes_written": int,
+    "mode": str,          # "create" (new file), "overwrite" (full replace), or "patch" (partial replace)
+    "start_line": int | None,  # line where replacement began (None for full-file write)
+    "lines_replaced": int | None,  # number of lines replaced (None for full-file write)
     "error": str | None,
 }
 ```
@@ -115,29 +125,57 @@ def run_shell(command: str, timeout: int = 30) -> dict:
     """
 
 @tool
-def read_file(path: str, max_size: int = 102400) -> str | dict:
+def read_file(path: str, start: int | None = None, offset: int | None = None) -> str | dict:
     """Read the contents of a file.
     
+    Paths starting with '/' are treated as absolute. All other paths are resolved
+    relative to the agent's current working directory (e.g., read_file("file.txt")
+    reads ./file.txt).
+    
+    When start and offset are both None (default), reads the entire file up to an
+    internal size limit (100KB). If the file is larger, content is truncated with a
+    summary of what remains.
+    
+    When start and/or offset are set, reads the specified line range without
+    automatic truncation — the agent explicitly controls the read window.
+    
     Args:
-        path: Path to the file.
-        max_size: Maximum bytes to read before truncating.
+        path: Path to the file (absolute or relative to CWD).
+        start: 1-indexed line number to start reading from. None starts from the beginning.
+        offset: Number of lines to read. None reads to end of file from start.
     """
 
 @tool
-def write_file(path: str, content: str) -> dict:
+def write_file(path: str, content: str, start: int | None = None, offset: int | None = None) -> dict:
     """Write content to a file, creating parent directories if needed.
     
+    Paths starting with '/' are treated as absolute. All other paths are resolved
+    relative to the agent's current working directory.
+    
+    When start is None (default), replaces the entire file with the given content.
+    This creates the file (and parent directories) if they do not exist.
+    
+    When start is set to a line number, performs a partial replacement: reads the
+    file, replaces lines starting at `start` for `offset` lines (or to end if
+    offset is None), and writes the result back. The file must already exist for
+    partial replacement.
+    
     Args:
-        path: Path to the file.
-        content: Content to write.
+        path: Path to the file (absolute or relative to CWD).
+        content: Content to write (full file content or replacement lines).
+        start: 1-indexed line number to begin replacing. None replaces the entire file.
+        offset: Number of lines to replace starting from `start`. None replaces to end of file.
     """
 
 @tool
 def list_files(path: str, pattern: str = "*") -> list[str] | dict:
     """List files in a directory matching a glob pattern.
     
+    Paths starting with '/' are treated as absolute. All other paths are resolved
+    relative to the agent's current working directory.
+    
     Args:
-        path: Directory path.
+        path: Directory path (absolute or relative to CWD).
         pattern: Glob pattern to match (e.g., "*.py", "**/*.txt").
     """
 
@@ -168,9 +206,11 @@ def run_python(code: str, timeout: int = 30) -> dict:
 
 | Error Case | Return Value |
 |------------|-------------|
-| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}` |
+| File not found | `read_file`: `{"error": "File not found: ..."}`; `list_files`: `{"error": "..."}`; `write_file` (partial): `{"error": "..."}` |
 | Directory not found | `list_files`: `{"error": "..."}` |
 | Permission denied | `{"error": "Permission denied: ..."}` |
+| Invalid start line | `read_file`: `{"error": "Invalid start line: N (file has M lines)"}`; `write_file`: `{"error": "..."}` |
+| Partial replace on new file | `write_file`: `{"error": "File does not exist: use start=None to create"}` |
 | Command timeout | `{"stdout": "...", "stderr": "...", "exit_code": -1, "timed_out": true}` |
 | Python execution error | `{"stdout": "", "stderr": "<traceback>", "exit_code": 1, "timed_out": false}` |
 | HTTP error (4xx/5xx) | `{"error": "HTTP 404: Not Found"}` |
@@ -187,7 +227,7 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
 
 - [ ] Create `tinycua/agent/tools/native/` package
 - [ ] Implement `shell.py` — `run_shell` with `subprocess.run`, timeout via `subprocess.Popen` + `Timer`
-- [ ] Implement `files.py` — `read_file`, `write_file`, `list_files` using `pathlib` and `glob`
+- [ ] Implement `files.py` — `read_file` (full-file with truncation + line-range reads), `write_file` (full-file overwrite + partial line replacement), `list_files` using `pathlib` and `glob`
 - [ ] Implement `web.py` — `fetch_url` using `httpx` (already a project dependency)
 - [ ] Implement `python_exec.py` — `run_python` using `subprocess.run` with timeout
 - [ ] Update `tinycua/agent/tools/__init__.py` to export all tools
@@ -214,9 +254,21 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
    - **Reason**: Execution tools need status information (exit code, timed_out). Data tools return the data itself — wrapping in a dict adds indirection the LLM must parse.
    - **Alternatives Considered**: Always return dicts — consistent but adds unnecessary nesting for simple data returns.
 
-5. **Decision**: Default truncation at 100KB for `read_file` and `fetch_url`.
-   - **Reason**: Prevents context-window pollution. 100KB is generous enough for any benchmark task file while protecting against accidental large reads.
-   - **Alternatives Considered**: 10KB, 1MB — 10KB too restrictive for code files, 1MB risks context bloat.
+5. **Decision**: Internal truncation limit (100KB) for `read_file` full-file reads; bypass when `start` or `offset` is explicitly set.
+   - **Reason**: Prevents context-window pollution during accidental full-file reads of large files. When the agent explicitly requests a line range via `start`/`offset`, it is making a deliberate choice and no automatic truncation is applied. The limit is an internal constant, not a tool parameter, to keep the tool interface simple for the LLM.
+   - **Alternatives Considered**: `max_size` as a tool parameter — adds parameter complexity that may confuse the agent. Always truncating regardless of `start`/`offset` — prevents the agent from deliberately reading large sections when needed.
+
+6. **Decision**: `read_file` uses 1-indexed line numbers for `start` and `offset` (line count), not character offsets or `[line, col]` tuples.
+   - **Reason**: LLMs naturally think in terms of line numbers when reading files. Character offsets require the agent to know exact character positions, which is uncommon. A line-based interface aligns with how most agent tools (e.g., OpenCode's Read tool) present file content to the LLM.
+   - **Alternatives Considered**: Character offset — more precise but harder for LLMs to use. `[line, col]` tuples — adds parsing complexity without clear benefit over line numbers alone.
+
+7. **Decision**: `write_file` supports both full-file overwrite (`start=None`) and partial line replacement (`start=N`, optional `offset=M`).
+   - **Reason**: A single tool handles both create/overwrite and targeted edits. When `start` is None, the behavior matches standard agent tool conventions (create or overwrite entire file). When `start` is set, the tool performs a line-range replacement. This avoids needing a separate "edit" tool for line-based operations while keeping the default behavior simple.
+   - **Alternatives Considered**: Separate `write_file` and `edit_file` tools (like OpenCode's Write + Edit) — cleaner separation but more tools for the agent to choose between. Text-based replacement (find `oldString`, replace with `newString`) — powerful for arbitrary edits but more complex and error-prone than line-based replacement.
+
+8. **Decision**: File paths are resolved relative to the process CWD; absolute paths (starting with `/`) are used as-is.
+   - **Reason**: The agent should not need to discover or construct absolute paths for simple operations like `read_file("file.txt")` or `write_file("output/data.csv")`. Relative-to-CWD is the natural behavior — it matches how shell commands, Python's `open()`, and most tools work. This also reduces token waste from path-finding tool calls.
+   - **Alternatives Considered**: Require absolute paths — safer but forces the agent to always know the full tree, which adds friction. Configurable `workspace_dir` — more flexible but adds complexity; CWD is the established convention.
 
 ---
 
@@ -227,4 +279,4 @@ All tools catch exceptions internally and return error dicts — no unhandled ex
 | `run_shell` could execute dangerous commands | Medium | High | Scope: benchmarks run in controlled environments. Future: sandboxing. |
 | `run_python` could have infinite loops | Medium | Medium | Configurable timeout (default 30s) enforced by subprocess kill. |
 | `fetch_url` could hit internal services | Low | Medium | Only HTTP/HTTPS URLs; no file:// or internal IP ranges in prototype. |
-| Large file reads could exhaust memory | Low | Medium | Truncation at 100KB default. Configurable `max_size` parameter. |
+| Large file reads could exhaust memory | Low | Medium | Internal truncation at 100KB for full-file reads. Agent bypasses limit by setting `start`/`offset`. |
