@@ -20,7 +20,6 @@ from tinycua.state import (
     ReviewerDecision,
     Session,
     Task,
-    TaskList,
     TaskResult,
     WorkerConfig,
     WorkerResult,
@@ -267,88 +266,633 @@ class TestWorkerConfigUnit:
 
 
 class TestTaskUnit:
-    """Unit tests for Task."""
+    """Unit tests for Task tree node."""
 
     def test_leaf_task(self):
-        """A leaf task has no nested tasks."""
+        """A leaf task has no child_tasks and defaults finished=False."""
         task = Task(
             task_id="t-1",
-            name="Test",
-            description="A test task",
-            context="ctx",
+            task_name="Test",
+            task_description="A test task",
+            task_context="ctx",
             success_criteria=["done"],
             confidence=0.9,
         )
-        assert task.tasks is None
+        assert task.child_tasks is None
+        assert task.finished is False
+        assert task.parent_task_id is None
         assert task.task_id == "t-1"
 
     def test_container_task(self):
-        """A container task has nested sub-tasks."""
+        """A container task has child_tasks and auto-sets parent_task_id."""
         child = Task(
             task_id="t-1.1",
-            name="Child",
-            description="Child task",
-            context="ctx",
+            task_name="Child",
+            task_description="Child task",
+            task_context="ctx",
             success_criteria=["done"],
             confidence=0.8,
         )
         parent = Task(
             task_id="t-1",
-            name="Parent",
-            description="Parent task",
-            context="ctx",
+            task_name="Parent",
+            task_description="Parent task",
+            task_context="ctx",
             success_criteria=["all done"],
             confidence=0.7,
-            tasks=[child],
+            child_tasks=[child],
         )
-        assert parent.tasks is not None
-        assert len(parent.tasks) == 1
-        assert parent.tasks[0].task_id == "t-1.1"
+        assert parent.child_tasks is not None
+        assert len(parent.child_tasks) == 1
+        assert parent.child_tasks[0].task_id == "t-1.1"
+        # parent_task_id auto-set on child
+        assert child.parent_task_id == "t-1"
 
     def test_deeply_nested(self):
-        """Task supports deep nesting."""
+        """Task supports deep nesting with auto parent_task_id propagation."""
         level3 = Task(
-            task_id="l3", name="L3", description="d", context="c",
+            task_id="l3", task_name="L3", task_description="d", task_context="c",
             success_criteria=["x"], confidence=0.9,
         )
         level2 = Task(
-            task_id="l2", name="L2", description="d", context="c",
+            task_id="l2", task_name="L2", task_description="d", task_context="c",
             success_criteria=["x"], confidence=0.9,
-            tasks=[level3],
+            child_tasks=[level3],
         )
         level1 = Task(
-            task_id="l1", name="L1", description="d", context="c",
+            task_id="l1", task_name="L1", task_description="d", task_context="c",
             success_criteria=["x"], confidence=0.9,
-            tasks=[level2],
+            child_tasks=[level2],
         )
-        assert level1.tasks[0].tasks[0].task_id == "l3"
+        assert level1.child_tasks[0].child_tasks[0].task_id == "l3"
+        assert level3.parent_task_id == "l2"
+        assert level2.parent_task_id == "l1"
+
+    def test_parent_task_id_explicit_match(self):
+        """Explicit parent_task_id matching child_tasks is accepted."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            parent_task_id="p1",
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert child.parent_task_id == "p1"
+        assert parent.child_tasks[0].task_id == "c1"
+
+    def test_parent_task_id_mismatch_raises(self):
+        """Conflicting parent_task_id in child raises ValueError."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            parent_task_id="wrong_parent",
+        )
+        with pytest.raises(ValueError, match="parent_task_id"):
+            Task(
+                task_id="p1", task_name="Parent", task_description="d",
+                task_context="c", success_criteria=["x"], confidence=0.5,
+                child_tasks=[child],
+            )
 
 
 # =========================================================================
-# TaskList
+# Task Finished Constraint
 # =========================================================================
 
 
-class TestTaskListUnit:
-    """Unit tests for TaskList."""
+class TestTaskFinishedConstraint:
+    """Tests for the finished flag validation on Task tree nodes."""
 
-    def test_no_current_task(self):
-        """TaskList can have no current_task_id."""
+    def test_leaf_can_be_finished(self):
+        """A leaf task (no child_tasks) can be marked finished."""
         task = Task(
-            task_id="t-1", name="T1", description="d", context="c",
-            success_criteria=["x"], confidence=0.9,
+            task_id="t-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
         )
-        tl = TaskList(tasks=[task])
-        assert tl.current_task_id is None
+        assert task.finished is True
 
-    def test_with_current_task(self):
-        """TaskList tracks current_task_id."""
+    def test_leaf_can_be_unfinished(self):
+        """A leaf task can be unfinished."""
         task = Task(
-            task_id="t-1", name="T1", description="d", context="c",
-            success_criteria=["x"], confidence=0.9,
+            task_id="t-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
         )
-        tl = TaskList(tasks=[task], current_task_id="t-1")
-        assert tl.current_task_id == "t-1"
+        assert task.finished is False
+
+    def test_container_requires_all_children_finished(self):
+        """Container task rejects finished=True when a child is unfinished."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        with pytest.raises(ValueError, match="not all child tasks are finished"):
+            Task(
+                task_id="p1", task_name="Parent", task_description="d",
+                task_context="c", success_criteria=["x"], confidence=0.5,
+                finished=True,
+                child_tasks=[child],
+            )
+
+    def test_container_can_finish_when_all_children_finished(self):
+        """Container task accepts finished=True when all children finished."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+            child_tasks=[child],
+        )
+        assert parent.finished is True
+
+    def test_mixed_children_one_unfinished(self):
+        """Container rejects finished=True when any child is unfinished."""
+        child_a = Task(
+            task_id="a", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        child_b = Task(
+            task_id="b", task_name="B", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        with pytest.raises(ValueError, match="not all child tasks are finished"):
+            Task(
+                task_id="p1", task_name="Parent", task_description="d",
+                task_context="c", success_criteria=["x"], confidence=0.5,
+                finished=True,
+                child_tasks=[child_a, child_b],
+            )
+
+    def test_container_can_be_unfinished(self):
+        """Container task can be unfinished regardless of children."""
+        child = Task(
+            task_id="c1", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        parent = Task(
+            task_id="p1", task_name="Parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+            child_tasks=[child],
+        )
+        assert parent.finished is False
+
+
+# =========================================================================
+# Task Display
+# =========================================================================
+
+
+class TestTaskDisplay:
+    """Tests for the Task.display() DFS pre-order traversal method."""
+
+    def test_leaf_display(self):
+        """A leaf task displays as a single line. Root hides UUID."""
+        task = Task(
+            task_id="uuid-1", task_name="Research", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        result = task.display()
+        assert result == "[ ] - Research"
+
+    def test_finished_leaf_display(self):
+        """A finished leaf task shows [x]. Root hides UUID."""
+        task = Task(
+            task_id="uuid-2", task_name="Done task", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        result = task.display()
+        assert result == "[x] - Done task"
+
+    def test_container_display(self):
+        """A container task displays with indented children, child shows ID."""
+        child = Task(
+            task_id="T-0", task_name="Gather sources", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        parent = Task(
+            task_id="uuid-root", task_name="Research", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        expected = (
+            "[ ] - Research\n"
+            "  [ ] - Gather sources - T-0"
+        )
+        assert parent.display() == expected
+
+    def test_deeply_nested_display(self):
+        """Deeply nested tree displays with correct indentation levels."""
+        grandchild = Task(
+            task_id="T-0.0", task_name="Read paper", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        child = Task(
+            task_id="T-0", task_name="Gather sources", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[grandchild],
+        )
+        parent = Task(
+            task_id="uuid-root", task_name="Research", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        expected = (
+            "[ ] - Research\n"
+            "  [ ] - Gather sources - T-0\n"
+            "    [x] - Read paper - T-0.0"
+        )
+        assert parent.display() == expected
+
+    def test_multiple_children_display(self):
+        """Tree with multiple children at same level displays correctly."""
+        child_a = Task(
+            task_id="T-0", task_name="Gather", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        child_b = Task(
+            task_id="T-1", task_name="Analyze", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        parent = Task(
+            task_id="uuid-root", task_name="Research", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child_a, child_b],
+        )
+        expected = (
+            "[ ] - Research\n"
+            "  [x] - Gather - T-0\n"
+            "  [ ] - Analyze - T-1"
+        )
+        assert parent.display() == expected
+
+    def test_empty_child_tasks(self):
+        """Task with empty child_tasks list acts as leaf (root hides UUID)."""
+        task = Task(
+            task_id="uuid-empty", task_name="Empty", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[],
+        )
+        result = task.display()
+        assert result == "[ ] - Empty"
+
+    def test_display_with_custom_indent(self):
+        """Display respects a custom initial indent level."""
+        task = Task(
+            task_id="uuid-1", task_name="Task", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        result = task.display(indent=2)
+        assert result == "    [ ] - Task"
+
+
+# =========================================================================
+# Task Navigation
+# =========================================================================
+
+
+class TestTaskNavigation:
+    """Tests for Task tree navigation: parent, root, traverse, at_id."""
+
+    def test_parent_none_for_root(self):
+        """Root task has parent=None."""
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        assert root.parent is None
+        assert root.is_root()
+
+    def test_parent_set_on_child(self):
+        """Child task has parent object reference set."""
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        parent = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert child.parent is parent
+        assert not child.is_root()
+
+    def test_root_from_nested_child(self):
+        """root() returns top-most task from deeply nested child."""
+        leaf = Task(
+            task_id="T-2.0", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        mid = Task(
+            task_id="T-2", task_name="Mid", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[mid],
+        )
+        assert leaf.root() is root
+        assert mid.root() is root
+        assert root.root() is root
+
+    def test_parent_chain_mutation_visible(self):
+        """Changing finished via parent reference is visible from child."""
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        parent = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        # Mutate parent via child's parent reference
+        child.parent.finished = True
+        assert parent.finished is True
+
+
+class TestTaskTraverse:
+    """Tests for Task.traverse() DFS pre-order next-executable-leaf."""
+
+    def test_leaf_unfinished_returns_self(self):
+        """traverse on an unfinished leaf returns itself."""
+        task = Task(
+            task_id="uuid-1", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        assert task.traverse() is task
+
+    def test_leaf_finished_goes_to_ancestor(self):
+        """traverse on a finished leaf goes up to unfinished ancestor."""
+        leaf_a = Task(
+            task_id="T-0", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        leaf_b = Task(
+            task_id="T-1", task_name="B", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf_a, leaf_b],
+        )
+        # Traverse from finished leaf_a → should find leaf_b
+        assert leaf_a.traverse() is leaf_b
+        assert leaf_a.parent is root
+
+    def test_goes_to_deepest_unfinished(self):
+        """traverse descends to deepest unfinished leaf."""
+        grandchild = Task(
+            task_id="T-0.0", task_name="Deep", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[grandchild],
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert root.traverse() is grandchild
+
+    def test_skips_finished_children(self):
+        """traverse skips finished children to find unfinished one."""
+        leaf_a = Task(
+            task_id="T-0", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        leaf_b = Task(
+            task_id="T-1", task_name="B", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf_a, leaf_b],
+        )
+        assert root.traverse() is leaf_b
+
+    def test_all_finished_returns_root(self):
+        """traverse returns root when everything is finished."""
+        leaf = Task(
+            task_id="T-0", task_name="Done", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+            finished=True,
+        )
+        assert root.traverse() is root
+
+    def test_finished_child_goes_up_then_down(self):
+        """Finished child → up past finished parent → down to unfinished sibling."""
+        leaf_a = Task(
+            task_id="T-0", task_name="A", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        leaf_b = Task(
+            task_id="T-1", task_name="B", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        leaf_c = Task(
+            task_id="T-2", task_name="C", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=False,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf_a, leaf_b, leaf_c],
+        )
+        # leaf_b is finished, goes up to root (unfinished), root.traverse() finds leaf_c
+        assert leaf_b.traverse() is leaf_c
+        assert leaf_b.parent is root
+
+
+class TestTaskAtId:
+    """Tests for Task.at_id() structured ID navigation."""
+
+    def test_at_id_root(self):
+        """at_id returns root when given root's ID."""
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        assert root.at_id("uuid-root") is root
+
+    def test_at_id_child(self):
+        """at_id navigates to child by T-{idx}."""
+        child = Task(
+            task_id="T-2", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[
+                Task(task_id="T-0", task_name="A", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                Task(task_id="T-1", task_name="B", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                child,
+            ],
+        )
+        assert root.at_id("T-2") is child
+
+    def test_at_id_deeply_nested(self):
+        """at_id navigates to deeply nested task by T-{idx}.{subidx}...."""
+        target = Task(
+            task_id="T-0.1.2", task_name="Target", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        deep_child = Task(
+            task_id="T-0.1", task_name="L2", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[
+                Task(task_id="T-0.1.0", task_name="X", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                Task(task_id="T-0.1.1", task_name="Y", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                target,
+            ],
+        )
+        top_child = Task(
+            task_id="T-0", task_name="L1", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[
+                Task(task_id="T-0.0", task_name="Z", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+                deep_child,
+            ],
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[top_child],
+        )
+        assert root.at_id("T-0.1.2") is target
+        # Also works from anywhere in the tree
+        assert top_child.at_id("T-0.1.2") is target
+        assert target.at_id("T-0.1.2") is target
+
+    def test_at_id_from_child(self):
+        """at_id works from a non-root task by navigating to root first."""
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        assert child.at_id("uuid-root") is root
+        assert child.at_id("T-0") is child
+
+    def test_at_id_invalid_format_raises(self):
+        """at_id raises ValueError for unknown ID format."""
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        with pytest.raises(ValueError, match="Unknown task ID format"):
+            root.at_id("bad-format")
+
+    def test_at_id_index_out_of_range_raises(self):
+        """at_id raises ValueError when index exceeds child count."""
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[
+                Task(task_id="T-0", task_name="Only", task_description="d",
+                     task_context="c", success_criteria=["x"], confidence=0.5),
+            ],
+        )
+        with pytest.raises(ValueError, match="No child at index"):
+            root.at_id("T-5")
+
+
+class TestTaskSetParents:
+    """Tests for set_parents() re-establishing references after deserialization."""
+
+    def test_set_parents_after_from_dict(self):
+        """from_dict auto-calls set_parents, parent references work."""
+        leaf = Task(
+            task_id="T-0", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        restored = Task.from_dict(root.to_dict())
+        # Parent references should work
+        assert restored.child_tasks[0].parent is restored
+        assert restored.child_tasks[0].root() is restored
+        assert restored.child_tasks[0].is_root() is False
+
+    def test_set_parents_after_from_json(self):
+        """from_json auto-calls set_parents, navigation works."""
+        leaf = Task(
+            task_id="T-0", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        restored = Task.from_json(root.to_json())
+        assert restored.child_tasks[0].parent is restored
+        assert restored.traverse() is restored.child_tasks[0]
+
+    def test_parent_not_in_serialized_dict(self):
+        """_parent is not in the serialized dict."""
+        leaf = Task(
+            task_id="T-0", task_name="Leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        d = root.to_dict()
+        assert "_parent" not in d
+        assert "_parent" not in d["child_tasks"][0]
 
 
 # =========================================================================
@@ -554,7 +1098,7 @@ class TestSerializationEdgeCases:
     def test_empty_string_fields(self):
         """Empty string fields are preserved in round-trip."""
         task = Task(
-            task_id="", name="", description="", context="",
+            task_id="", task_name="", task_description="", task_context="",
             success_criteria=[], confidence=0.0,
         )
         restored = Task.from_dict(task.to_dict())
@@ -569,22 +1113,23 @@ class TestSerializationEdgeCases:
         restored = DigestedInformation.from_json(info.to_json())
         assert restored == info
 
-    def test_very_nested_task_list(self):
-        """Very deeply nested TaskList survives round-trip."""
+    def test_very_nested_task_tree(self):
+        """Very deeply nested Task tree survives round-trip."""
         # Build 5 levels of nesting
         current = Task(
-            task_id="l5", name="deep", description="d", context="c",
+            task_id="l5", task_name="deep", task_description="d", task_context="c",
             success_criteria=["x"], confidence=0.5,
         )
         for i in range(4, 0, -1):
             current = Task(
-                task_id=f"l{i}", name=f"L{i}", description="d", context="c",
+                task_id=f"l{i}", task_name=f"L{i}", task_description="d", task_context="c",
                 success_criteria=["x"], confidence=0.5,
-                tasks=[current],
+                child_tasks=[current],
             )
-        task_list = TaskList(tasks=[current], current_task_id="l1")
-        restored = TaskList.from_json(task_list.to_json())
-        assert restored == task_list
+        restored = Task.from_json(current.to_json())
+        assert restored == current
+        # Verify nesting depth preserved
+        assert restored.child_tasks[0].child_tasks[0].child_tasks[0].child_tasks[0].task_id == "l5"
 
     def test_boolean_in_chat_history(self):
         """Booleans in chat_history dicts survive round-trip."""

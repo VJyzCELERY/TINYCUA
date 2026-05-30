@@ -18,7 +18,7 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 - [x] T-009 Implement core state dataclasses
   - [x] T-010 Session, ContextEnhancedQuery, ModeDecision
   - [x] T-011 DigestedInformation, WorkerConfig
-  - [x] T-012 Task, TaskList, TaskResult
+  - [x] T-012 Task (tree node), TaskResult
   - [x] T-013 ContextUpdate, ReviewerDecision
   - [x] T-014 AcceptedResult, WorkerResult
   - [x] T-015 AgentState, ExecutionLog, ExecutionLogEntry
@@ -26,7 +26,7 @@ Implementation tasks for State Objects (M1). Check off items as completed.
   - [x] T-017 Enum value checks in `__post_init__`
   - [x] T-018 Non-negative `consecutive_failures` enforcement
 - [x] T-019 Wire serialization for nested structures
-  - [x] T-020 Nested `Task` trees and `TaskList`
+  - [x] T-020 Nested `Task` tree (child_tasks)
   - [x] T-021 ExecutionLog entries
 
 ## Testing Phase

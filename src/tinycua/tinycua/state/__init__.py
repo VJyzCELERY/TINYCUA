@@ -4,7 +4,7 @@ Provides canonical Python dataclasses for all TINYCUA shared state objects
 with consistent serialization (to_dict/from_dict/to_json/from_json) and validation.
 
 All types are importable from this single entry point:
-    from tinycua.state import Session, Task, TaskList, ...
+    from tinycua.state import Session, Task, ...
 """
 
 from tinycua.state.agent_state import AgentState, AgentStatus
@@ -19,7 +19,7 @@ from tinycua.state.mode_decision import (
 )
 from tinycua.state.reviewer import ContextUpdate, ReviewStatus, ReviewerDecision
 from tinycua.state.session import OwnerType, Session
-from tinycua.state.task import Task, TaskList
+from tinycua.state.task import Task
 from tinycua.state.task_result import TaskResult, TaskStatus
 from tinycua.state.worker_config import EffortLevel, WorkerConfig
 from tinycua.state.worker_result import AcceptedResult, WorkerResult
@@ -42,7 +42,6 @@ __all__ = [
     "Session",
     "StateObject",
     "Task",
-    "TaskList",
     "TaskResult",
     "TaskStatus",
     "UncertainNextAction",

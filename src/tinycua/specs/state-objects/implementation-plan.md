@@ -25,7 +25,7 @@ Define the serialization round-trip tests that prove the feature works. These ar
 
 import pytest
 
-from tinycua.state import ModeDecision, Task, TaskList, ReviewerDecision
+from tinycua.state import ModeDecision, Task, ReviewerDecision
 
 
 def test_mode_decision_json_round_trip():
@@ -45,57 +45,55 @@ def test_mode_decision_json_round_trip():
     assert restored == decision
 
 
-def test_tasklist_nested_round_trip_dict():
-    """Nested TaskList structures round-trip through dict serialization."""
+def test_task_tree_nested_round_trip_dict():
+    """Nested Task tree structures round-trip through dict serialization."""
     # Arrange
     leaf = Task(
         task_id="t-2",
-        name="leaf",
-        description="leaf task",
-        context="ctx",
+        task_name="leaf",
+        task_description="leaf task",
+        task_context="ctx",
         success_criteria=["done"],
         confidence=0.9,
     )
     parent = Task(
         task_id="t-1",
-        name="parent",
-        description="container task",
-        context="ctx",
+        task_name="parent",
+        task_description="container task",
+        task_context="ctx",
         success_criteria=["all children done"],
         confidence=0.8,
-        tasks=[leaf],
+        child_tasks=[leaf],
     )
-    task_list = TaskList(tasks=[parent], current_task_id="t-1")
     # Act
-    restored = TaskList.from_dict(task_list.to_dict())
+    restored = Task.from_dict(parent.to_dict())
     # Assert
-    assert restored == task_list
-    assert restored.tasks[0].tasks[0].task_id == "t-2"
+    assert restored == parent
+    assert restored.child_tasks[0].task_id == "t-2"
 
 
-def test_tasklist_nested_round_trip_json():
-    """Nested TaskList structures round-trip through JSON serialization."""
+def test_task_tree_nested_round_trip_json():
+    """Nested Task tree structures round-trip through JSON serialization."""
     leaf = Task(
         task_id="t-2",
-        name="leaf",
-        description="leaf task",
-        context="ctx",
+        task_name="leaf",
+        task_description="leaf task",
+        task_context="ctx",
         success_criteria=["done"],
         confidence=0.9,
     )
     parent = Task(
         task_id="t-1",
-        name="parent",
-        description="container task",
-        context="ctx",
+        task_name="parent",
+        task_description="container task",
+        task_context="ctx",
         success_criteria=["all children done"],
         confidence=0.8,
-        tasks=[leaf],
+        child_tasks=[leaf],
     )
-    task_list = TaskList(tasks=[parent], current_task_id="t-1")
-    restored = TaskList.from_json(task_list.to_json())
-    assert restored == task_list
-    assert restored.tasks[0].tasks[0].task_id == "t-2"
+    restored = Task.from_json(parent.to_json())
+    assert restored == parent
+    assert restored.child_tasks[0].task_id == "t-2"
 
 
 def test_reviewer_decision_rejects_invalid_status():
@@ -113,8 +111,8 @@ def test_reviewer_decision_rejects_invalid_status():
 
 - [x] **Scenario 1**: Session dict/JSON round-trip preserves all fields and equality (FR-001, FR-013, FR-014).
 - [x] **Scenario 2**: ModeDecision JSON round-trip preserves all fields and equality.
-- [x] **Scenario 3**: TaskList with nested Task containers round-trips via dict serialization.
-- [x] **Scenario 4**: TaskList with nested Task containers round-trips via JSON serialization.
+- [x] **Scenario 3**: Task tree with nested container/leaf tasks round-trips via dict serialization.
+- [x] **Scenario 4**: Task tree with nested container/leaf tasks round-trips via JSON serialization.
 - [x] **Scenario 5**: ExecutionLog with nested ExecutionLogEntry round-trip via dict/JSON (FR-012).
 - [x] **Scenario 6**: DigestedInformation with all optional fields omitted (FR-004, edge case).
 - [x] **Scenario 7**: AgentState rejects negative `consecutive_failures` (FR-011, FR-015).
@@ -182,7 +180,7 @@ def test_reviewer_decision_rejects_invalid_status():
 
 #### [NEW] src/tinycua/tinycua/state/task.py
 
-- **Description of change**: Add `Task` and `TaskList` dataclasses, including nested task serialization.
+- **Description of change**: Add `Task` tree node dataclass with `finished` constraint enforcement, `parent_task_id` auto-setting, and `display()` DFS pre-order traversal.
 - **Rationale**: Represents the internal execution plan and task tree.
 
 #### [NEW] src/tinycua/tinycua/state/task_result.py
@@ -249,8 +247,7 @@ ContextEnhancedQuery
 ModeDecision
 DigestedInformation
 WorkerConfig
-Task
-TaskList
+Task (tree node)
 TaskResult
 ContextUpdate
 ReviewerDecision
@@ -280,7 +277,7 @@ None — standard library only.
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Schema drift between docs and implementation | High | Derive all fields from canonical `state-objects.md` and update docs in this PR |
-| Serialization edge cases with deep nesting | Medium | Add nested TaskList serialization round-trip test with multi-level tasks |
+| Serialization edge cases with deep nesting | Medium | Add nested Task tree serialization round-trip test with multi-level child_tasks |
 | Missing fields in `from_dict()` | Medium | Unit tests that cover round-trip for every type |
 
 ---

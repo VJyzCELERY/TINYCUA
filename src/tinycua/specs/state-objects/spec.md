@@ -10,7 +10,7 @@
 ## Problem Statement
 
 - **Goals**: Provide canonical Python data types for all TINYCUA state objects so internal agents can produce, consume, and serialize typed state consistently.
-- **Gaps**: The architecture defines state objects in `src/tinycua/docs/architecture/state-objects.md` as YAML schemas, but there is no Python implementation. Agent code currently has no shared typed representation for Session, ModeDecision, DigestedInformation, TaskList, Task, TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog, or WorkerConfig.
+- **Gaps**: The architecture defines state objects in `src/tinycua/docs/architecture/state-objects.md` as YAML schemas, but there is no Python implementation. Agent code currently has no shared typed representation for Session, ModeDecision, DigestedInformation, TaskTree (Task nodes), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog, or WorkerConfig.
 - **Non-Goals**: This spec does NOT cover agent factory, custom loop types, system prompts, agent-to-agent calling, session system, worker orchestration, or top-level orchestrator. Those are separate milestones (M3–M10).
 - **Constraints**:
   - Types must match the canonical YAML schemas in `src/tinycua/docs/architecture/state-objects.md` after the architecture doc updates defined in the Architecture Doc Synchronization section below are applied.
@@ -31,7 +31,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 ### Acceptance Scenarios
 
 1. **Given** a `ModeDecision` object with mode, score, confidence, reasons, and uncertain_next_action, **When** serialized to JSON and back, **Then** the deserialized object matches the original.
-2. **Given** a `TaskList` with nested container tasks, **When** serialized to dict, **Then** nesting depth is preserved.
+2. **Given** a `Task` tree with nested container tasks, **When** serialized to dict, **Then** nesting depth is preserved.
 3. **Given** a `ReviewerDecision` with `status=accepted`, **When** validation runs, **Then** it passes without error.
 4. **Given** a `ReviewerDecision` with `status=invalid_value`, **When** validation runs, **Then** it raises a validation error.
 
@@ -40,7 +40,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - What happens when optional fields (e.g., `advisory_instructions`, `constraints`) are omitted? They should default to `None`.
 - What happens when `uncertain_next_action` is provided but `mode` is not `uncertain`? The value is preserved but downstream consumers should ignore it. When `mode` is `uncertain`, `uncertain_next_action` must be provided.
 - What happens with deeply nested `Task` trees? Must handle arbitrary nesting depth.
-- What happens on empty `TaskList` (no tasks)? Valid; no tasks to execute.
+- What happens on a `Task` with empty `child_tasks` (not `None`)? Treated as a leaf — no children to iterate.
 - What about negative `consecutive_failures` values? Validation should reject.
 
 ---
@@ -54,8 +54,8 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **FR-003**: System MUST provide a `ModeDecision` data type with `mode` (enum: primary_agent, worker, uncertain), `score`, `confidence`, `reasons` (list[str]), and `uncertain_next_action` (optional enum: ask_user, explore).
 - **FR-004**: System MUST provide a `DigestedInformation` data type with `context_summary`, `key_points` (list[str]), optional `advisory_instructions`, optional `constraints` (list[str]), optional `known_gaps` (list[str]).
 - **FR-005**: System MUST provide a `WorkerConfig` data type with `effort` (enum: none, high).
-- **FR-006**: System MUST provide a `TaskList` data type containing a list of `Task` objects and a `current_task_id`.
-- **FR-007**: System MUST provide a `Task` data type with `task_id`, `name`, `description`, `context`, `success_criteria` (list[str]), optional nested `tasks` (list[Task]), and `confidence`.
+- **FR-006**: System MUST provide a `Task` tree node data type representing an executable task with `task_id`, `parent_task_id` (auto-set from container), `task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`, `finished` (default `false`), and optional `child_tasks` (list of `Task`, `None` for leaf tasks).
+- **FR-007**: System MUST validate the `finished` constraint: a task with `child_tasks` can only be `finished=True` when all children are finished. Additionally, when `child_tasks` is provided, each child's `parent_task_id` is auto-set to the parent's `task_id` (unless an explicit matching value is provided). The `_parent` object reference MUST be set on all children for O(1) upward traversal. System MUST provide `traverse()` (DFS pre-order to find next executable leaf), `root()` (walk to top-most parent), `at_id(task_id)` (navigate by structured ID from anywhere in the tree), `set_parents()` (re-establish _parent refs after deserialization), and `display()` (DFS pre-order string with `[x]`/`[ ]` markers; root hides UUID, children show ID).
 - **FR-008**: System MUST provide a `TaskResult` data type with `task_id`, `status` (enum: completed, failed, blocked), `result`, optional `discovered_sequence_issues` (list[str]), optional `uncertainty_notes` (list[str]).
 - **FR-009**: System MUST provide a `ReviewerDecision` data type with `task_id`, `status` (enum: accepted, retry, replan, escalate_user), `reason`, `confidence`, optional `context_updates` (list[ContextUpdate]), optional `retry_instructions`.
 - **FR-010**: System MUST provide a `WorkerResult` data type with `accepted_results` (list[AcceptedResult]).
@@ -73,7 +73,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **Session**: The unit containing conversation history (`chat_history`), model-loaded context (`context`), and sub-session execution log. Central state container for the entire TINYCUA lifecycle.
 - **ModeDecision**: Output of the Query Analyst. Drives routing between Primary Agent mode, Worker mode, and Uncertain mode.
 - **DigestedInformation**: Precision-oriented context summary produced by the Information Digester. Consumed by Task Analyzer and Primary Agent.
-- **TaskList / Task**: Sequential roadmap of work items with `current_task_id` tracking. Tasks can be container (with nested sub-tasks) or leaf (directly executable).
+- **Task Tree**: A tree of `Task` nodes navigated via DFS pre-order traversal. Container tasks hold `child_tasks` but are not executed directly; leaf tasks (`child_tasks=None`) are the executable units. The `finished` flag propagates upward — a container can only be marked finished when all children are finished, preventing orphaned subtasks. `Task.display()` flattens the tree into a sequential list showing each task's finished status and ID.
 - **TaskResult**: Output of a single task execution. Status indicates completion, failure, or blocked.
 - **ReviewerDecision**: Result Reviewer's judgment on a task result. Drives Worker transitions (accept, retry, replan, escalate).
 - **WorkerResult**: Aggregated accepted task results, consumed by Primary Agent for final response.
@@ -89,7 +89,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 
 ## Success Criteria
 
-- [x] All 12 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, TaskList, Task, TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
+- [x] All 12 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, Task (tree node), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
 - [x] All types support dict round-trip serialization.
 - [x] All types support JSON round-trip serialization.
 - [x] Enum fields reject invalid values with a clear error.
@@ -110,8 +110,10 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - `to_json()` / `from_json()` round-trip for every type.
 - Enum validation: invalid enum values raise appropriate errors.
 - Field validation: negative `consecutive_failures`, missing required fields, empty lists where required.
-- Nested Task tree serialization (container with multi-level sub-tasks).
+- Nested Task tree serialization (container with multi-level children).
 - Edge cases: empty `context_updates`, empty `key_points`, empty `known_gaps`, no `uncertain_next_action`.
+- Finished constraint: container tasks reject `finished=True` when any child is unfinished.
+- `Task.display()`: DFS pre-order traversal with correct `[x]`/`[ ]` markers and indentation.
 
 ### Integration Tests
 
@@ -137,7 +139,7 @@ The following architecture docs MUST be updated to match the implemented types:
 | Item | Status | Notes |
 |------|--------|-------|
 | Architecture doc updates | Done | Applied in this PR |
-| Core data types | Done | 12 core + 3 supporting types |
+| Core data types | Done | 11 core + 3 supporting types (Task is a tree node, replacing TaskList+Task) |
 | to_dict / from_dict | Done | Auto-nested via StateObject base class |
 | to_json / from_json | Done | Delegates to dict serialization |
 | Validation | Done | Enum checks + non-negative consecutive_failures |

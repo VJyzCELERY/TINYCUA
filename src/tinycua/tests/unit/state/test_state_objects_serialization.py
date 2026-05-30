@@ -14,7 +14,6 @@ from tinycua.state import (
     ReviewerDecision,
     Session,
     Task,
-    TaskList,
     TaskResult,
     WorkerConfig,
     WorkerResult,
@@ -81,63 +80,84 @@ class TestModeDecision:
         assert decision.uncertain_next_action == "explore"
 
 
-class TestTaskList:
-    """TaskList and Task serialization."""
+class TestTaskTree:
+    """Task tree node serialization."""
 
     def test_nested_round_trip_dict(self):
-        """Nested TaskList structures round-trip through dict serialization."""
+        """Nested Task tree structures round-trip through dict serialization."""
         leaf = Task(
             task_id="t-2",
-            name="leaf",
-            description="leaf task",
-            context="ctx",
+            task_name="leaf",
+            task_description="leaf task",
+            task_context="ctx",
             success_criteria=["done"],
             confidence=0.9,
         )
         parent = Task(
             task_id="t-1",
-            name="parent",
-            description="container task",
-            context="ctx",
+            task_name="parent",
+            task_description="container task",
+            task_context="ctx",
             success_criteria=["all children done"],
             confidence=0.8,
-            tasks=[leaf],
+            child_tasks=[leaf],
         )
-        task_list = TaskList(tasks=[parent], current_task_id="t-1")
-        restored = TaskList.from_dict(task_list.to_dict())
-        assert restored == task_list
-        assert restored.tasks[0].tasks[0].task_id == "t-2"
+        restored = Task.from_dict(parent.to_dict())
+        assert restored == parent
+        assert restored.child_tasks[0].task_id == "t-2"
 
     def test_nested_round_trip_json(self):
-        """Nested TaskList structures round-trip through JSON serialization."""
+        """Nested Task tree structures round-trip through JSON serialization."""
         leaf = Task(
             task_id="t-2",
-            name="leaf",
-            description="leaf task",
-            context="ctx",
+            task_name="leaf",
+            task_description="leaf task",
+            task_context="ctx",
             success_criteria=["done"],
             confidence=0.9,
         )
         parent = Task(
             task_id="t-1",
-            name="parent",
-            description="container task",
-            context="ctx",
+            task_name="parent",
+            task_description="container task",
+            task_context="ctx",
             success_criteria=["all children done"],
             confidence=0.8,
-            tasks=[leaf],
+            child_tasks=[leaf],
         )
-        task_list = TaskList(tasks=[parent], current_task_id="t-1")
-        restored = TaskList.from_json(task_list.to_json())
-        assert restored == task_list
-        assert restored.tasks[0].tasks[0].task_id == "t-2"
+        restored = Task.from_json(parent.to_json())
+        assert restored == parent
+        assert restored.child_tasks[0].task_id == "t-2"
 
-    def test_empty_task_list(self):
-        """Empty TaskList is valid."""
-        task_list = TaskList(tasks=[])
-        assert task_list.tasks == []
-        restored = TaskList.from_dict(task_list.to_dict())
-        assert restored == task_list
+    def test_tree_preserves_finished_flags(self):
+        """Tree round-trip preserves finished flags."""
+        leaf = Task(
+            task_id="t-2", task_name="leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            finished=True,
+        )
+        parent = Task(
+            task_id="t-1", task_name="parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        restored = Task.from_dict(parent.to_dict())
+        assert restored.child_tasks[0].finished is True
+        assert restored.finished is False
+
+    def test_tree_preserves_parent_task_id(self):
+        """Tree round-trip preserves parent_task_id after auto-setting."""
+        leaf = Task(
+            task_id="t-2", task_name="leaf", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        parent = Task(
+            task_id="t-1", task_name="parent", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[leaf],
+        )
+        restored = Task.from_dict(parent.to_dict())
+        assert restored.child_tasks[0].parent_task_id == "t-1"
 
 
 class TestSession:

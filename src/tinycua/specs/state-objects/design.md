@@ -27,7 +27,7 @@ src/tinycua/tinycua/
     ├── mode_decision.py            # ContextEnhancedQuery, ModeDecision
     ├── digested_information.py     # DigestedInformation
     ├── worker_config.py            # WorkerConfig
-    ├── task.py                     # Task, TaskList
+    ├── task.py                     # Task (tree node)
     ├── task_result.py              # TaskResult
     ├── reviewer.py                 # ReviewerDecision
     ├── worker_result.py            # WorkerResult
@@ -142,17 +142,24 @@ class WorkerConfig:
 @dataclass
 class Task:
     task_id: str
-    name: str
-    description: str
-    context: str
+    parent_task_id: str | None = None  # Auto-set from container
+    task_name: str
+    task_description: str
+    task_context: str
     success_criteria: list[str]
     confidence: float                 # 0.0–1.0 (implementation calibration)
-    tasks: list[Task] | None = None  # If present, this is a container task
+    finished: bool = False
+    child_tasks: list[Task] | None = None  # None = leaf, list = container
 
-@dataclass
-class TaskList:
-    tasks: list[Task]
-    current_task_id: str | None = None
+    # Navigation (serialized fields only; _parent is not a dataclass field)
+    @property
+    def parent(self) -> Task | None: ...  # _parent object reference
+    def is_root(self) -> bool: ...
+    def root(self) -> Task: ...           # Walk to top-most parent
+    def traverse(self) -> Task: ...       # DFS pre-order: find next executable leaf
+    def at_id(self, task_id: str) -> Task: ...  # Navigate by structured T-{idx}... ID
+    def set_parents(self) -> None: ...    # Re-establish _parent refs after deserialization
+    def display(self, indent: int = 0) -> str: ...  # DFS pre-order string, root hides UUID
 
 @dataclass
 class TaskResult:
@@ -223,7 +230,6 @@ from tinycua.state import (
     DigestedInformation,
     WorkerConfig,
     Task,
-    TaskList,
     TaskResult,
     ReviewerDecision,
     WorkerResult,
