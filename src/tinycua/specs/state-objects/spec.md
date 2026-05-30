@@ -89,6 +89,7 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - [ ] All types are importable from a single entry point (e.g., `from tinycua.state import ...`).
 - [ ] Unit test coverage exceeds 90% for state object module.
 - [ ] Architecture docs (`docs/architecture/state-objects.md`, `docs/architecture/session-architecture.md`) are updated to match the implemented Python types (see Design Updates section below for specific changes needed).
+- [ ] If drift is detected between implementation and architecture docs, the architecture docs are updated accordingly — but remain at the architecture/design level of abstraction, without incorporating low-level implementation details.
 
 ---
 
