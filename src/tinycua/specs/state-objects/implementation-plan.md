@@ -20,7 +20,7 @@ Deliver canonical Python dataclasses for all TINYCUA state objects with consiste
 Define the serialization round-trip tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/state/test_state_objects_serialization.py
+# Test file: src/tinycua/tests/unit/state/test_state_objects_serialization.py
 """Serialization round-trip tests for state objects serialization and validation."""
 
 import pytest
@@ -222,12 +222,12 @@ def test_reviewer_decision_rejects_invalid_status():
 
 ### Tests
 
-#### [NEW] src/tinycua/tests/state/test_state_objects_serialization.py
+#### [NEW] src/tinycua/tests/unit/state/test_state_objects_serialization.py
 
 - **Description of change**: Serialization round-trip tests that validate cross-object serialization and validation.
 - **Rationale**: Ensures end-to-end round-trips and error handling.
 
-#### [NEW] src/tinycua/tests/state/test_state_objects_unit.py
+#### [NEW] src/tinycua/tests/unit/state/test_state_objects_unit.py
 
 - **Description of change**: Unit tests for each state object and validation rule.
 - **Rationale**: Achieve >90% coverage for the state module.

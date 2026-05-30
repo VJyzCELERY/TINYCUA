@@ -1,6 +1,6 @@
 # Feature Specification: State Objects (M1)
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2026-05-30
 **Last Updated**: 2026-05-30
 **Subproject(s) Affected**: tinycua
@@ -64,6 +64,9 @@ A developer imports a state object, instantiates it with valid fields, serialize
 - **FR-013**: All types MUST support round-trip serialization to and from dict.
 - **FR-014**: All types MUST support round-trip serialization to and from JSON.
 - **FR-015**: Validation MUST reject invalid enum values, negative integers for `consecutive_failures`, and missing required fields on construction.
+- **FR-016**: System MUST provide a `ContextUpdate` data type with `target_task_id` and `update` fields.
+- **FR-017**: System MUST provide an `AcceptedResult` data type with `task_id`, `name`, and `result` fields.
+- **FR-018**: System MUST provide an `ExecutionLogEntry` data type with `action`, `outcome`, and optional `decision` fields.
 
 ### Key Entities
 

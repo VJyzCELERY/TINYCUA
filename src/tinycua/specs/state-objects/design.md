@@ -1,7 +1,7 @@
 # Design Document: State Objects (M1)
 
 **Spec**: ./spec.md
-**Status**: In Progress
+**Status**: Complete
 **Last Updated**: 2026-05-30
 
 ---
@@ -61,6 +61,12 @@ class StateObject:
     def to_json(self, **json_kwargs) -> str: ...
     @classmethod
     def from_json(cls, json_str: str) -> Self: ...
+
+    @staticmethod
+    def _validate_enum(value: str, allowed: set[str], field_name: str) -> None:
+        """Validate that *value* is one of the *allowed* values for *field_name*.
+        Raises ValueError with a consistent message on failure."""
+        ...
 ```
 
 Implementation uses `dataclasses.dataclass` + `dataclasses.asdict()` for `to_dict()`, and per-field construction in `from_dict()`. JSON methods delegate to `json.dumps` / `json.loads`.
