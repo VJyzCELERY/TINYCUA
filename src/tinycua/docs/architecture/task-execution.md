@@ -29,7 +29,7 @@ Retries create a new Task Executor sub-session. The new executor receives contex
 
 **Output:**
 
-- `Task Result` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `status` (`completed | failed | blocked`), `result`, `discovered_sequence_issues`, `uncertainty_notes`.
+- `Task Result` — canonical schema in [state-objects.md](state-objects.md).
 
 Execution actions (tool calls, observations, decision trace) are recorded in the sub-session's `execution_log` — see [session-architecture.md](session-architecture.md). The Task Result points back to its sub-session but does not embed the full execution log.
 
@@ -60,13 +60,7 @@ flowchart TD
 
 ## Stop Conditions
 
-Task Execution should stop when:
-
-- success criteria are met;
-- a structural issue is discovered;
-- the executor cannot proceed.
-
-If a later roadmap task appears to be needed first, Task Execution should return `blocked` with a sequencing explanation.
+Task Execution stops when success criteria are met, a structural issue is discovered, or the executor cannot proceed. If a later roadmap task is needed first, Task Execution should return `blocked` with a sequencing explanation.
 
 ---
 

@@ -149,7 +149,7 @@ task_list:
       name: "<container name>"
       description: "<container description>"
       context: "<container context>"
-      success_criteria: []
+      success_criteria: "<not applicable — container task, not executed>"
       tasks:
         - task_id: "<child task id>"
           name: "<child name>"

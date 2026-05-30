@@ -73,6 +73,7 @@ Each process spec doc includes at minimum:
 Where applicable, process specs should also include:
 - `## Inputs / Outputs` section (recommended — format may vary by component)
 - `## Internal Flow` section (Mermaid diagram)
+- `## Design Decisions` table
 
 ### README Structure
 

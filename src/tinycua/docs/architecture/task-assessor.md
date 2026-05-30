@@ -37,13 +37,7 @@ The Task Assessor does not modify tasks or produce sub-lists. It produces select
 
 ## How It Works
 
-For each task in the current list, the Task Assessor evaluates:
-
-1. **Complexity** — is this task broad enough to benefit from decomposition? Simple, atomic tasks should remain as-is.
-2. **Depth** — has the task already reached the maximum nesting depth allowed by `effort`? If so, do not decompose further.
-3. **Nature** — is this task inherently indivisible? Tasks that cannot be meaningfully split should remain as-is.
-
-Tasks that are complex AND not at max depth are selected for decomposition. The Task Creation loop then invokes the Task Analyzer on each selected task to produce its sub-list.
+For each task in the current list, the Task Assessor evaluates complexity, nesting depth, and whether the task is inherently indivisible (see Design Decisions below). Tasks that are complex AND not at max depth are selected for decomposition. The Task Creation loop then invokes the Task Analyzer on each selected task to produce its sub-list.
 
 ---
 

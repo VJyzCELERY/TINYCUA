@@ -31,7 +31,7 @@ The Query Analyst scans session `Context` directly (no search tool needed). Deep
 **Output:**
 
 - `Context Enhanced Query` (CEQ) — user query enriched with high-level session context. See [context-retrieval.md](context-retrieval.md) for the deep retrieval flow used by the Information Digester.
-- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md). Key fields: `mode` (`primary_agent | worker | uncertain`), `score`, `confidence`, `uncertain_next_action` (`ask_user | explore | null`).
+- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md).
 
 ---
 

@@ -128,7 +128,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 ## Agent Loop Types
 
-> **Note:** Task Creation is included for Worker-internal completeness but follows Process Spec conventions (no Design Decisions, different heading conventions).
+> **Note:** Task Creation is a Process Spec but is included here for Worker-internal completeness.
 
 | Agent | Loop Type | See |
 |-------|-----------|-----|
