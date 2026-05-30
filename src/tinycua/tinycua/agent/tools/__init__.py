@@ -1,7 +1,7 @@
 """Tool implementations for the Task Executor agent.
 
 Provides native tools for shell execution, file I/O, web fetching,
-and Python code execution, as well as CUDA-specific tools.
+and Python code execution, as well as CUA-specific tools.
 """
 
 from tinycua.agent.tools.native import (
