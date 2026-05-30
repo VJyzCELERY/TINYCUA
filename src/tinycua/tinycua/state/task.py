@@ -216,14 +216,13 @@ class Task(StateObject):
     # ------------------------------------------------------------------
 
     def display(self, indent: int = 0) -> str:
-        """Return a DFS pre-order string representation of the task tree.
+        """Return a DFS pre-order string representation of the full task tree.
 
-        Each line shows the finished status and task name. Non-root tasks
-        also show their task ID. Child tasks are indented by 2 spaces
-        per level of depth.
+        Always starts from the root, regardless of which node this is
+        called on. Child tasks are indented by 2 spaces per level.
 
         Returns:
-            A multi-line string suitable for display.
+            A multi-line string of the entire tree, suitable for display.
 
         Example:
             [ ] - Research topic
@@ -231,6 +230,11 @@ class Task(StateObject):
                 [x] - Read paper - T-0.0
               [ ] - Write summary - T-1
         """
+        root = self.root()
+        return root._display(indent=indent)
+
+    def _display(self, indent: int = 0) -> str:
+        """Internal: DFS pre-order display from this node (no root walk)."""
         marker = "x" if self.finished else " "
         prefix = "  " * indent
         if self.parent_task_id is None:
@@ -241,5 +245,5 @@ class Task(StateObject):
         lines = [line]
         if self.child_tasks:
             for child in self.child_tasks:
-                lines.append(child.display(indent=indent + 1))
+                lines.append(child._display(indent=indent + 1))
         return "\n".join(lines)

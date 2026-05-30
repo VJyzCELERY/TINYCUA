@@ -560,6 +560,33 @@ class TestTaskDisplay:
         result = task.display(indent=2)
         assert result == "    [ ] - Task"
 
+    def test_display_from_child_shows_full_tree(self):
+        """display() from a child task still shows the full tree from root."""
+        grandchild = Task(
+            task_id="T-0.0", task_name="Deep", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+        )
+        child = Task(
+            task_id="T-0", task_name="Child", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[grandchild],
+        )
+        root = Task(
+            task_id="uuid-root", task_name="Root", task_description="d",
+            task_context="c", success_criteria=["x"], confidence=0.5,
+            child_tasks=[child],
+        )
+        # Calling display from the deepest grandchild should still show full tree
+        result = grandchild.display()
+        expected = (
+            "[ ] - Root\n"
+            "  [ ] - Child - T-0\n"
+            "    [ ] - Deep - T-0.0"
+        )
+        assert result == expected
+        # Verify the root is accessible from anywhere
+        assert grandchild.root() is root
+
 
 # =========================================================================
 # Task Navigation
