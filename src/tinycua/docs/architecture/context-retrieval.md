@@ -106,7 +106,7 @@ flowchart TD
 
 ## Search Approach
 
-The exact search strategy (keyword, vector, LLM-based, or combination) is an implementation detail. See Design Decisions below for the architectural approach.
+The exact search strategy is an implementation detail. See Design Decisions below for the architectural approach.
 
 ---
 
