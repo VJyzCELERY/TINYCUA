@@ -22,7 +22,7 @@ Key framing:
 - Enhanced Context Retrieval **searches** the current Session `Context`. It does not load it. The Information Digester queries the Session `Context`; it does not ingest it wholesale.
 - It is **not** compaction. Compaction is a background system process triggered by context-window pressure (see [session-architecture.md](session-architecture.md)) and is not part of any agent's tool set.
 - It is indifferent to compaction state. Whether the Session `Context` is original, compacted, or enriched with memory/recall, the retrieval tool searches whatever current state exists.
-- It may use keyword pagination, vector retrieval, LLM-based exploration, or any combination — the exact strategy is an implementation detail.
+- The exact search strategy is an implementation detail.
 
 ---
 
