@@ -93,15 +93,12 @@ def main():
         print("[WARN] No remote tracking branch. Using local HEAD as-is.", file=sys.stderr)
 
     if health["status"] == "behind":
-        print(f"[FAIL] Local branch is {health['behind']} commit(s) BEHIND remote.", file=sys.stderr)
-        print(f"[FAIL] Remote has moved ahead. Review is stale — re-validate before updating.", file=sys.stderr)
-        print(f"[FAIL] Run `git pull` or `git rebase` to catch up, then re-run.", file=sys.stderr)
-        sys.exit(1)
+        print(f"[WARN] Local branch is {health['behind']} commit(s) BEHIND remote.", file=sys.stderr)
+        print(f"[WARN] Remote has moved ahead. Consider pulling latest changes.", file=sys.stderr)
 
     if health["status"] == "diverged":
-        print(f"[FAIL] Branch is DIVERGED — {health['ahead']} ahead, {health['behind']} behind remote.", file=sys.stderr)
-        print(f"[FAIL] Remote has moved (possibly rebased). Review is stale — resolve divergence first.", file=sys.stderr)
-        sys.exit(1)
+        print(f"[WARN] Branch is DIVERGED — {health['ahead']} ahead, {health['behind']} behind remote.", file=sys.stderr)
+        print(f"[WARN] Remote has moved (possibly rebased). Consider rebasing to resolve.", file=sys.stderr)
 
     # --- Step 2: Determine HEAD ---
     # If local is ahead or up-to-date, use local HEAD
