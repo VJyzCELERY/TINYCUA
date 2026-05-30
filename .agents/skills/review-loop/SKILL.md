@@ -24,12 +24,12 @@ This skill guides the **review orchestrator** through the review loop lifecycle:
 The loop runs in this order:
 
 ```
-Step 1: Review Report → OPEN? → Step 2 : Clean? → Step 6
+Step 1: Review Report → OPEN? → Step 2 : Clean? → Step 6 (Archive) → Step 7
 Step 2: Review Validate → Step 3
 Step 3: Review Implement + commit (NO PUSH) → Step 4
-Step 4: Review Verify → ADDRESSED? → Step 5 → Step 1 : OPEN? → Step 3
+Step 4: Review Verify → ADDRESSED? → Archive → Step 5 → Step 1 : OPEN? → Step 3
 Step 5: Goto Step 1
-Step 6: Review Archive → Step 7
+Step 6: Review Archive (initial clean only) → Step 7
 Step 7: Squash unpushed commits → Push → Terminate
 ```
 
@@ -96,8 +96,9 @@ run @.agents/commands/review-report.md <user_prompt> — also check that all new
 
 | Situation | Action |
 |-----------|--------|
-| Review report is clean (no OPEN issues) | Skip validate/implement/verify. Go directly to Step 6 (Archive). |
-| Verify finds some ADDRESSED, some OPEN | Only the OPEN ones go back to Step 3. ADDRESSED ones stay documented. |
+| Review report is clean (no OPEN issues) | Skip validate/implement/verify. Go directly to Step 6 (Archive) → Step 7. |
+| Verify finds ALL ADDRESSED | Archive the cycle immediately, then go to Step 5 → Step 1 for fresh review. |
+| Verify finds some ADDRESSED, some OPEN | Only the OPEN ones go back to Step 3. No archive — the cycle is not complete. |
 | Review report flags unpushed commits repeatedly | Use early push optimization: squash+push after next Step 3 commit (does NOT terminate loop). |
 | Force push would be required at Step 7 | Do NOT push. Abort and report — something is wrong with the branch state. |
 | No unpushed commits at Step 7 | Skip squash+push. Just terminate. |

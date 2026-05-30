@@ -137,16 +137,24 @@ Send the verify command the user chose (or the default):
 <user_chosen_verify_command>
 ```
 
-- If **all issues are ADDRESSED** → proceed to **Step 5** → Step 1 (fresh review).
+- If **all issues are ADDRESSED** → immediately run **Review Archive** (inline, not Step 6), then proceed to **Step 5** → Step 1 (fresh review).
 - If **issues are still OPEN** → go back to **Step 3** (Implement again).
+
+> **Archive after verify**: When verify confirms all issues are addressed, archive the current cycle before the fresh review. This preserves the cycle's findings for traceability.
+
+To archive inline, send the archive command the user chose for this step:
+
+```
+<user_chosen_archive_command>
+```
 
 ### Step 5: Goto Step 1
 
-After all issues are addressed and the inner fix loop exits, go back to **Step 1** for a fresh review report to check if fixes introduced new issues.
+After archive completes, go back to **Step 1** for a fresh review report to check if fixes introduced new issues.
 
 ### Step 6: Review Archive (Subagent)
 
-Only reached when Step 1 returns a clean report (no OPEN issues).
+Only reached when Step 1 returns a clean report (no OPEN issues) on the **first cycle** (no fixes were needed).
 
 Send the archive command the user chose (or the default):
 
@@ -181,7 +189,7 @@ Once push succeeds, the review loop is complete and terminates.
 ```
 Step 1: Review Report
   ├── Has OPEN issues → Step 2
-  └── No issues (clean) → Step 6
+  └── No issues (clean) → Step 6 (Archive) → Step 7
 
 Step 2: Review Validate → Step 3
 
@@ -189,12 +197,12 @@ Step 3: Review Implement → git commit (NO PUSH) → Step 4
   └── (Early squash+push if review report flags unpushed commits)
 
 Step 4: Review Verify
-  ├── All ADDRESSED → Step 5 → Step 1 (fresh review)
+  ├── All ADDRESSED → Archive → Step 5 → Step 1 (fresh review)
   └── Still OPEN → Step 3 (fix again)
 
 Step 5: Goto Step 1
 
-Step 6: Review Archive → Step 7
+Step 6: Review Archive (initial clean only) → Step 7
 
 Step 7: Squash unpushed commits → Push → Terminate
 ```
@@ -224,6 +232,8 @@ Step 7: Squash unpushed commits → Push → Terminate
 - The initial questions are the **only** user interaction — the loop runs fully automated after that.
 - The review-report prompt is entirely user-determined — pass it verbatim to the subagent.
 - **After Step 3** (review-implement): orchestrator always commits the changes locally. Do NOT push.
+- **Archive after verify**: When Step 4 (verify) confirms all ADDRESSED, run archive immediately — do NOT skip to Step 1 first. The archive preserves the cycle before the fresh review.
+- **Step 6** is only for the **initial clean report** path (no issues found on first review).
 - **Step 7**: Squash ALL unpushed commits into a single commit, then push normally. Must NOT require `--force`.
 - **Early push optimization**: If the review report keeps flagging "unpushed commits" as an issue, squash+push early after the next Step 3 commit. This does NOT terminate the loop — the loop continues normally.
 - If a squash+push would require force push, the agent is doing it wrong — abort and report.
