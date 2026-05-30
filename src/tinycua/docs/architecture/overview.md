@@ -114,15 +114,15 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Component | File | Type | Role |
 |-----------|------|------|------|
-| Query Analyst | [query-analyst.md](query-analyst.md) | Agent Spec (ReAct) | Performs fast, high-level context scan and produces CEQ + Mode Decision |
-| Information Digester | [information-digestion.md](information-digestion.md) | Agent Spec (exploration) | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
-| TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Process Spec (sub-agent orchestration) | Runs Task Creation, Task Assessor, Task Analyzer, Task Executor, and Result Reviewer sequentially |
-| Task Creation | [task-creation.md](task-creation.md) | Process Spec (iterative loop) | Upfront decomposition loop: iteratively invokes the Task Analyzer to build a nested task tree |
-| Task Assessor | [task-assessor.md](task-assessor.md) | Agent Spec (input→output) | Selects which tasks should be decomposed further during Task Creation |
-| Task Analyzer | [task-analysis.md](task-analysis.md) | Agent Spec (ReAct, input→output) | Creates the sequential task roadmap (input → output; iterates internally but has no routing decision branches) |
-| Task Executor | [task-execution.md](task-execution.md) | Agent Spec (ReAct) | Executes one task with task-specific context |
-| Result Reviewer | [result-reviewer.md](result-reviewer.md) | Agent Spec (hybrid decision) | Reviews results and updates future task contexts |
-| Primary Agent | [primary-agent.md](primary-agent.md) | Agent Spec (ReAct) | Produces final user-facing response |
+| Query Analyst | [query-analyst.md](query-analyst.md) | Agent Spec | Performs fast, high-level context scan and produces CEQ + Mode Decision |
+| Information Digester | [information-digestion.md](information-digestion.md) | Agent Spec | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
+| TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Process Spec | Runs Task Creation, Task Assessor, Task Analyzer, Task Executor, and Result Reviewer sequentially |
+| Task Creation | [task-creation.md](task-creation.md) | Process Spec | Upfront decomposition loop: iteratively invokes the Task Analyzer to build a nested task tree |
+| Task Assessor | [task-assessor.md](task-assessor.md) | Agent Spec | Selects which tasks should be decomposed further during Task Creation |
+| Task Analyzer | [task-analysis.md](task-analysis.md) | Agent Spec | Creates the sequential task roadmap (iterates internally but has no routing decision branches) |
+| Task Executor | [task-execution.md](task-execution.md) | Agent Spec | Executes one task with task-specific context |
+| Result Reviewer | [result-reviewer.md](result-reviewer.md) | Agent Spec | Reviews results and updates future task contexts |
+| Primary Agent | [primary-agent.md](primary-agent.md) | Agent Spec | Produces final user-facing response |
 
 ---
 

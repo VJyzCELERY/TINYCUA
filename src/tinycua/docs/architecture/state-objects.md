@@ -173,7 +173,7 @@ Required fields:
 - `description`
 - `context`
 - `success_criteria`
-- `confidence`
+- `confidence` — agent-assigned confidence in the task's decomposition or execution readiness. Exact scale is implementation calibration.
 
 Optional fields:
 
