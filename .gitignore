@@ -42,6 +42,7 @@ dev/
 *dev/*
 
 /.worktrees/
+worktrees/
 */reviews/*
 reviews/
 tmp/

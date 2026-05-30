@@ -10,10 +10,10 @@ alwaysApply: false
 All subprojects live under `src/`:
 ```
 src/
-├── tinycua/          # CLI/TUI application
-├── tinycua-backend/  # FastAPI backend
-├── tinycua-finetune/ # Fine-tuning pipeline
-└── tinycua-sdk/      # Developer SDK
+├── my-app/          # CLI/TUI application
+├── my-backend/      # FastAPI backend
+├── my-finetune/     # Fine-tuning pipeline
+└── my-sdk/          # Developer SDK
 ```
 
 ## Per-Subproject Standards

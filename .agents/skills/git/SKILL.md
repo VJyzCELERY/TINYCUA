@@ -29,7 +29,7 @@ Safely rebase branches onto targets without duplicating commits, and clean up co
    - If output says `base=<branch>` where `<branch>` is not `main`/`master`, the branch is **stacked**.
    - If it says `base=main`, the branch is a **single** (standalone) branch.
 2. **If stacked** (branch is built on another local branch):
-   - Identify the parent branch (e.g., `base/refactor-tinycua-sdk-v2`)
+   - Identify the parent branch (e.g., `base/refactor-sdk-v2`)
    - Check parent's own base: if parent is also stacked, resolve recursively until reaching `main`
    - **Always rebase from bottom up**: rebase the parent branch onto `main` first, then rebase this branch onto the rebased parent
    - Follow the "Stacked Rebase" workflow below

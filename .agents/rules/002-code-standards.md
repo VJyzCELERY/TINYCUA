@@ -12,7 +12,7 @@ alwaysApply: false
 - Auto-fix on save: `ruff check --fix --select ALL`
 
 ## Imports
-- Use absolute imports: `from tinycua_sdk.module import Name`
+- Use absolute imports: `from my_package.module import Name`
 - Group: stdlib → third-party → local (one line per import, no `*`)
 
 ## Naming
@@ -31,6 +31,6 @@ alwaysApply: false
 - Flag cognitive complexity in review
 
 ## Logging
-- Use centralized logger: `from tinycua_sdk.utils.logging import get_logger`
+- Use centralized logger: `from my_package.utils.logging import get_logger`
 - Log levels: DEBUG (details), INFO (milestones), WARNING (unexpected), ERROR (failures)
 - Structured format: `key=value` pairs
