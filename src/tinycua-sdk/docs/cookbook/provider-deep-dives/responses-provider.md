@@ -255,7 +255,7 @@ events from some models are normalized to `response.reasoning.delta`, and
 **Setting unsupported fields**. `frequency_penalty`, `presence_penalty`,
 `stop`, `seed`, and `logprobs` must stay at their defaults. If you need
 these features, switch to `openai-chat-completions`
-(see [Chat Completions Provider — Supported Fields](./chat-completions-provider.md#supported-fields)).
+(see [Chat Completions Provider](./chat-completions-provider.md)).
 
 **Confusing API key resolution**. The Responses client does NOT fall back
 to `OPENAI_API_KEY`. However, `LanguageModel` resolves `OPENAI_API_KEY` as a

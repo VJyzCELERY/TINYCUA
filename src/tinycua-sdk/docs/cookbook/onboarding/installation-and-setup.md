@@ -19,21 +19,17 @@ You can switch between the two by changing a few lines of configuration.
 ## Installation
 
 ```bash
-# pip
 pip install tinycua-sdk
-
-# uv
-uv pip install tinycua-sdk
 ```
 
 Inside a project:
 
 ```bash
-# pip + requirements.txt
+# requirements.txt
 echo "tinycua-sdk" >> requirements.txt
 pip install -r requirements.txt
 
-# uv + pyproject.toml
+# Or with uv
 uv add tinycua-sdk
 ```
 

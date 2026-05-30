@@ -147,7 +147,7 @@ ECHO_USAGE = TokenUsage(input_tokens=0, output_tokens=0, total_tokens=0)
 
 class EchoClient(LLMClient):
     def __init__(self, model_config):
-        self._model_config = model_config
+        self.model_config = model_config
 
     async def close(self) -> None:
         pass
@@ -171,7 +171,7 @@ class EchoClient(LLMClient):
                 tool_calls=None,
                 usage=ECHO_USAGE,
                 finish_reason="stop",
-                model=self._model_config.model_name,
+                model=self.model_config.model_name,
             )
 
         return self._stream_response(f"[Echo] {last_user}")
