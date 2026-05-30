@@ -322,7 +322,8 @@ tc: ToolCallDict = {
 
 ## Working with Raw Events
 
-For custom processing, you can collect, filter, and transform events:
+The following reusable function demonstrates how to collect, filter, and
+transform canonical stream events from any async event iterator:
 
 ```python
 import json
@@ -381,7 +382,7 @@ source or a custom provider may omit it. Check with `event.get("finish_reason")`
   `ProviderAuthError`, and `ProviderNotSupportedError` with retry and
   cancellation patterns.
 
-## See Also
+## Related Topics
 
 - **[Custom Execution Loops](./custom-execution-loops.md)** — Override
   `BaseLoop` to customize how events are processed.

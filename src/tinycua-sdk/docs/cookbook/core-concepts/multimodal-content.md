@@ -80,6 +80,8 @@ agent = Agent(
 )
 ```
 
+With the agent and parts list defined above, run the multimodal query:
+
 ```python
 import asyncio
 
