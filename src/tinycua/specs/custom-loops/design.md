@@ -666,58 +666,6 @@ The implementation phase should include an architecture-doc synchronization task
 
 ---
 
-## Implementation Phases
-
-### Phase 1 — SDK Integration Foundation
-
-- [ ] Verify `tinycua-sdk` dependency is available and properly configured in `pyproject.toml`
-- [ ] Create `tinycua/loops/errors.py` with error hierarchy (thin wrappers)
-- [ ] Create `tinycua/loops/schema_validator.py` that wraps SDK `Agent.run()` with output validation and retry
-- [ ] Create `tinycua/loops/__init__.py` re-exporting SDK types and custom loop types
-- [ ] Create `tinycua/agents/` config registry and prompt module skeleton
-- [ ] Define TinyCUA default model config as `LanguageModel(provider="openai-chat-completions", model_name="qwen/qwen3.5-4b", base_url="http://localhost:1234/v1")` and use it in all default agent configs
-- [ ] Define MainLoop metadata contract keys (`internal_agents`, `state_store`, optional `artifact_store`, `default_session_id`, `orchestration`) so M2 configs are compatible with the future external TINYCUA agent and SQLite-first storage preference
-
-### Phase 2 — Classification Loop
-
-- [ ] Implement `tinycua/loops/classification.py` extending `BaseLoop`
-- [ ] Configure Query Analyst as `Agent(..., loop=ClassificationLoop())` with classification prompt and schema validation
-- [ ] Write unit tests using mock SDK `Agent`: valid outputs for all three modes, anti-laziness safeguards, edge cases, and no forced `max_iterations=1` single-pass configuration
-
-### Phase 3 — Exploration Loop
-
-- [ ] Implement `tinycua/loops/exploration.py` extending `BaseLoop`, adding gap-evaluation between SDK iterations
-- [ ] Define Enhanced Context Retrieval as an SDK `Tool` contract (full native implementation belongs to the Tools milestone; stub/mock is acceptable for M2 tests)
-- [ ] Configure Information Digester as `Agent(..., loop=ExplorationLoop())` with digestion prompt, retrieval tool, and schema validation
-- [ ] Write unit tests using mock SDK `Agent`: multi-iteration retrieval, stop on sufficiency, empty results → known_gaps
-
-### Phase 4 — Direct SDK BaseLoop Agent Configurations
-
-- [ ] Configure Task Analyzer and Task Assessor to use SDK `BaseLoop` directly (no `tinycua/loops/linear.py`)
-- [ ] Configure Task Executor and Primary Agent to use SDK `BaseLoop` directly with their required SDK tools
-- [ ] Add output schema validation tests for standard agents around SDK `Agent.run()`
-- [ ] Verify optional SDK `Tool` usage and pure-reasoning behavior through SDK `BaseLoop`
-
-### Phase 5 — Hybrid Review Loop
-
-- [ ] Implement `tinycua/loops/hybrid_review.py` with two-phase execution: deterministic rules + SDK `Agent.run()`
-- [ ] Configure Result Reviewer as `Agent(..., loop=HybridReviewLoop(...))` with review prompt, deterministic rules, and schema validation
-- [ ] Write unit tests using mock SDK `Agent`: all four statuses, deterministic failure overrides LLM, context_updates on accept
-
-### Phase 6 — Agent-to-Agent Tools, Integration & Documentation
-
-- [ ] Implement `call_query_analyst`, `call_information_digester`, `call_task_analyzer`, `call_task_assessor`, `call_task_executor`, `call_result_reviewer`, `call_primary_agent` as SDK `Tool` objects
-- [ ] Integration tests: end-to-end with mock SDK `Agent` for each configured architecture agent
-- [ ] Verify custom loops are attached through SDK `Agent(loop=...)`, not by wrapping agents
-- [ ] Verify agent factory output can be placed under `Agent(loop=MainLoop(), metadata={"tinycua": {"internal_agents": ...}})` without changing internal agent APIs
-- [ ] Docstrings and usage examples for all loop types
-- [ ] Update SDK custom execution loops cookbook to document `Agent(loop=CustomLoop(...))` usage and remove/clarify examples where `loop = CustomLoop()` is not attached to the agent
-- [ ] Sync architecture docs listed in **Future Architecture Documentation Sync**
-- [ ] Verify all loops integrate correctly with SDK's `BaseLoop.run()` interface
-- [ ] Verify all M1 state types are properly consumed and produced
-
----
-
 ## Technical Decisions
 
 0. **Decision**: Custom loop strategies MUST extend or compose with `tinycua_sdk.agent.loop.BaseLoop` and use `tinycua_sdk.agent.Agent` for LLM interaction. Standard single-input/single-output agents MUST use SDK `BaseLoop` directly. No custom LLM backend protocols, tool-calling infrastructure, or streaming logic.
