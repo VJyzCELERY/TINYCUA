@@ -1,4 +1,4 @@
-# TinyCUA External Wrapper
+# TinyCUA External Orchestrator
 
 > **File:** `docs/design/agents/tinycua.md`
 > **Package:** `tinycua.agents.tinycua`
@@ -7,21 +7,29 @@
 
 ## Role
 
-`TinyCUA` is the single external entry point. It composes an SDK `Agent` with `MainLoop`,
-holds all internal agent wrappers, and manages session continuation state. Users interact
-with `tinycua.run(...)` — internal agents are implementation details.
+`TinyCUA` is the single external entry point and top-level orchestrator. It owns all
+internal orchestrator instances, manages session persistence, and can route directly
+to a specific agent when resuming a mid-session execution.
+
+Users interact with `async for event in tinycua.run(...)` — streaming token-by-token
+output with session continuity.
 
 ---
 
-## Wrapper Class
+## Orchestrator Class
 
 **File:** `tinycua/agents/tinycua.py`
 
 ```python
+import json
+from collections.abc import AsyncIterator
+
 from tinycua_sdk.agent import Agent
-from tinycua.agents.factory import create_all_agents
+from tinycua.agents.factory import create_all_orchestrators
 from tinycua.config.agents import TinyCUAConfig
+from tinycua.config.types import AgentKind
 from tinycua.loops.main_loop import MainLoop
+from tinycua.state.information import SessionState
 from tinycua.tools.agent_calls import (
     call_query_analyst, call_information_digester,
     call_task_analyzer, call_task_assessor,
@@ -31,84 +39,154 @@ from tinycua.tools.agent_calls import (
 
 
 class TinyCUA:
-    """External TinyCUA wrapper — composes SDK Agent with MainLoop."""
+    """Top-level orchestrator — manages internal orchestrators and session state."""
 
     def __init__(self, config: TinyCUAConfig):
         self.config = config
-        self.internal_agents = create_all_agents(config.internal_agent_overrides)
+        self.internal_orchestrators = create_all_orchestrators(
+            config.internal_orchestrator_overrides
+        )
         self.state_store = config.state_store
         self.artifact_store = config.artifact_store
-        self.session_state: dict | None = None
-        self.agent = self._build_agent()
+        self.state: SessionState = SessionState()
 
-    def _build_agent(self) -> Agent:
-        return Agent(
-            name=self.config.name,
-            instructions=self.config.instructions,
-            llm_model=self.config.model,
-            tools=self._build_agent_tools(),
-            loop=MainLoop(),
-        )
+    # ── Orchestrator call tools ──────────────────────────────────────
 
-    def _build_agent_tools(self) -> list[Tool]:
+    def _build_orchestrator_tools(self) -> list:
+        """Build SDK Tools that delegate to internal orchestrator instances."""
         return [
-            call_query_analyst(self.internal_agents),
-            call_information_digester(self.internal_agents),
-            call_task_analyzer(self.internal_agents),
-            call_task_assessor(self.internal_agents),
-            call_task_executor(self.internal_agents),
-            call_result_reviewer(self.internal_agents),
-            call_primary_agent(self.internal_agents),
+            call_query_analyst(self.internal_orchestrators),
+            call_information_digester(self.internal_orchestrators),
+            call_task_analyzer(self.internal_orchestrators),
+            call_task_assessor(self.internal_orchestrators),
+            call_task_executor(self.internal_orchestrators),
+            call_result_reviewer(self.internal_orchestrators),
+            call_primary_agent(self.internal_orchestrators),
         ]
 
-    async def run(self, user_query: str, session_id: str | None = None) -> Response:
+    # ── Main entry point ─────────────────────────────────────────────
+
+    async def run(
+        self,
+        user_query: str,
+        session_id: str | None = None,
+    ) -> AsyncIterator[dict]:
+        """Run TinyCUA for a user query, yielding all SDK stream events.
+
+        On session resume: loads previous state and routes directly to the
+        active orchestrator, bypassing MainLoop.
+        On fresh run: executes full orchestration via MainLoop.
+        """
+        # Restore session if resuming
         if session_id:
             await self._restore_state(session_id)
-        response = await self.agent.run(query=user_query)
-        if self.config.orchestration.checkpoint_after_each_phase:
+
+        self.state.accumulated_text = []
+
+        # ── Session resume: route directly to the active orchestrator ──
+        if self.state.active_agent and session_id:
+            orchestrator = self.internal_orchestrators.get(
+                AgentKind(self.state.active_agent)
+            )
+            if orchestrator:
+                # Build input from saved state
+                resume_input = self._build_resume_input()
+                async for event in orchestrator.run(**resume_input):
+                    if event["type"] == "response.output_text.delta":
+                        self.state.accumulated_text.append(event["delta"])
+                    elif event["type"] == "response.usage":
+                        self.state.token_usage = event["usage"]
+                    yield event
+                await self._checkpoint(session_id)
+                return
+
+        # ── Fresh run: full MainLoop orchestration ────────────────────
+        agent = Agent(
+            name="tinycua",
+            instructions=self.config.instructions,
+            llm_model=self.config.model,
+            tools=self._build_orchestrator_tools(),
+            loop=MainLoop(
+                state=self.state,
+                internal_orchestrators=self.internal_orchestrators,
+            ),
+        )
+
+        async for event in agent.run(query=user_query, stream=True):
+            if event["type"] == "response.output_text.delta":
+                self.state.accumulated_text.append(event["delta"])
+            elif event["type"] == "response.usage":
+                self.state.token_usage = event["usage"]
+            yield event
+
+        raw = "".join(self.state.accumulated_text)
+        self.state.last_result = json.loads(raw) if raw else {}
+        if session_id:
             await self._checkpoint(session_id)
-        return response
+
+    # ── Session helpers ───────────────────────────────────────────────
+
+    def _build_resume_input(self) -> dict:
+        """Build the input dict for the active orchestrator based on state."""
+        kind = AgentKind(self.state.active_agent)
+        if kind == AgentKind.QUERY_ANALYST:
+            return {"user_query": self.state.last_query.get("user_query", "")}
+        if kind == AgentKind.INFORMATION_DIGESTER:
+            return {"context_enhanced_query": self.state.context_enhanced_query}
+        if kind == AgentKind.TASK_ANALYZER:
+            return {"digested_information": self.state.digested_information}
+        if kind == AgentKind.TASK_EXECUTOR:
+            return {"task": self.state.last_query.get("task", {})}
+        if kind == AgentKind.RESULT_REVIEWER:
+            return {
+                "task": self.state.last_query.get("task", {}),
+                "task_result": self.state.last_query.get("task_result", {}),
+            }
+        if kind == AgentKind.PRIMARY_AGENT:
+            return {"input_data": self.state.worker_results or self.state.context_enhanced_query or {}}
+        return {}
 
     async def _restore_state(self, session_id: str):
         state = await self.state_store.load(session_id, "main_loop_state")
         if state:
-            self.session_state = state
+            self.state = SessionState(**state)
 
     async def _checkpoint(self, session_id: str):
         if session_id and self.state_store:
-            await self.state_store.save(session_id, "main_loop_state", self.session_state)
+            await self.state_store.save(
+                session_id, "main_loop_state", self.state.__dict__
+            )
 
     def save_state(self, store) -> None:
-        """Save wrapper state and all internal agent states."""
+        """Save orchestrator state and all internal orchestrator states."""
 
     def restore_state(self, store) -> None:
-        """Restore wrapper state and all internal agent states."""
+        """Restore orchestrator state and all internal orchestrator states."""
 ```
 
 ---
 
 ## Config
 
-`TinyCUAConfig` — `instructions=TINYCUA_MAIN_PROMPT`, `state_store`, `artifact_store`, `internal_agent_overrides`, `orchestration`.
+`TinyCUAConfig` — `instructions=TINYCUA_MAIN_PROMPT`, `state_store`, `artifact_store`,
+`internal_orchestrator_overrides`, `orchestration`.
 See [`config/agents.md`](../config/agents.md#tinycuaconfig).
 
 ---
 
-## Instance Attributes (NOT `Agent.metadata`)
+## State
 
-| Attribute | Type | Purpose |
-|-----------|------|---------|
-| `self.internal_agents` | `dict[AgentKind, BaseAgentWrapper]` | All configured wrapper instances |
-| `self.state_store` | `StateStore | None` | Structured session/continuation state |
-| `self.artifact_store` | `Any | None` | Filesystem-backed storage for artifacts |
-| `self.session_state` | `dict | None` | Current session continuation state |
+`SessionState` — `active_agent: str | None`, `orchestration_phase: str | None`,
+`context_enhanced_query`, `digested_information`, `task_tree`, `worker_results`,
+`checkpoints`. See [`state/information.md`](../state/information.md#sessionstate).
 
 ---
 
-## Agent-Calling Tools
+## Orchestrator-Call Tools
 
-TinyCUA's composed SDK `Agent` has all seven `call_*` tools available. `MainLoop` orchestrates
-by invoking these tools, which delegate to the corresponding internal wrapper's `run()` method.
+`_build_orchestrator_tools()` builds SDK `Tool` objects that delegate to internal
+orchestrators. Each tool calls `orchestrator.run(...)`, consumes the stream generator,
+and returns the final result from `orchestrator.state.last_result`.
 
 ```python
 # Inside MainLoop, the LLM can call:
@@ -118,9 +196,25 @@ by invoking these tools, which delegate to the corresponding internal wrapper's 
 #   etc.
 ```
 
-Each tool receives the wrapper instance, calls `wrapper.run(...)`, validates the output,
-and returns the normalized result. The composed SDK `Agent` never sees raw SDK `Agent`
-instances — only typed wrapper `run()` calls.
+Key rule: **Tool calls `orchestrator.run(...)`, never creates a raw Agent.** This
+preserves typed state management and loop integrity.
+
+---
+
+## Session Continuity
+
+```
+Run 1: tinycua.run("Research quantum computing", session_id="abc")
+  → MainLoop → QueryAnalyst → InformationDigester → TaskAnalyzer
+  → Checkpoint after each phase
+  → Interrupted mid-TaskAnalyzer
+
+Run 2: tinycua.run(..., session_id="abc")
+  → state_store.load("abc")
+  → state.active_agent == "task_analyzer"
+  → task_analyzer.run(digested_information=state.digested_information)  ← skip MainLoop
+  → Continue from where TaskAnalyzer left off
+```
 
 ---
 
@@ -135,7 +229,9 @@ tinycua = TinyCUA(
         artifact_store=FileSystemArtifactStore(base_dir="./tinycua_artifacts"),
     )
 )
-response = await tinycua.run("Research quantum computing", session_id="session-123")
+async for event in tinycua.run("Research quantum computing", session_id="session-123"):
+    if event["type"] == "response.output_text.delta":
+        print(event["delta"], end="", flush=True)
 # State is checkpointed after each orchestration phase
 ```
 
@@ -145,7 +241,10 @@ response = await tinycua.run("Research quantum computing", session_id="session-1
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| One external entry point | `TinyCUA(...).run(...)` | Internal agents remain implementation details |
-| State on wrapper, not metadata | Instance attributes | Typed, traceable; not obscured by SDK internals |
-| Agent-calling tools as delegation | `call_*` SDK Tools on composed agent | MainLoop invokes via natural language + tool calls |
+| One external entry point | `async for event in tinycua.run(...)` | Internal orchestrators remain implementation details |
+| Agent built per-call | `Agent(...)` in `run()` | Loop receives fresh state reference each call |
+| No self.agent | Local variable in `run()` | Agent is configuration, not state |
+| Session resume bypasses MainLoop | Direct `orchestrator.run()` call | Faster resume; skip irrelevant phases |
+| Orchestrator-call tools as delegation | `call_*` SDK Tools | MainLoop invokes via natural language + tool calls |
+| Tools consume generator internally | `async for event in orchestrator.run(): pass` | SDK sees a normal dict return from the tool |
 | SQLite-first persistence | `SQLiteStateStore` as default | Durable, transactional, zero-config |

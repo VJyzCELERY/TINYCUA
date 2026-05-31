@@ -10,8 +10,9 @@
 ## Role
 
 Classification loop for the Query Analyst: high-level context scan → multi-dimensional scoring →
-one validated `ModeDecision` output. The agent uses `ClassificationTool` to emit its verdict
-by selecting a mode index.
+one validated `ModeDecision` output. The agent uses `ClassificationTool` to emit its verdict.
+
+Receives `QueryAnalystState` by reference for state tracking.
 
 ---
 
@@ -21,21 +22,24 @@ by selecting a mode index.
 
 ```python
 from tinycua_sdk.agent.loop import BaseLoop
+from tinycua.state.information import QueryAnalystState
 
 
 class QueryAnalystLoop(BaseLoop):
     """Structured classification using SDK's normal BaseLoop behavior.
 
-    Does NOT set max_iterations=1. Relies on prompt structure and schema
-    validation to produce one definitive classification result.
+    Does NOT set max_iterations=1. Relies on prompt structure and
+    ClassificationTool to produce one definitive classification result.
     """
 
-    def __init__(self):
-        super().__init__()  # SDK default iteration; no forced single-pass
+    def __init__(self, state: QueryAnalystState):
+        super().__init__()
+        self.state = state
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
         """Execute classification via SDK's BaseLoop.run()."""
-        return await super().run(agent, messages, tools, override_instructions, stream)
+        async for event in super().run(agent, messages, tools, override_instructions, stream=True):
+            yield event
 ```
 
 ---
@@ -44,18 +48,11 @@ class QueryAnalystLoop(BaseLoop):
 
 - **Default iteration**: Uses SDK `BaseLoop` default — does NOT set `max_iterations=1`
 - **One result, not one pass**: The agent may iterate internally (tool calling, re-reading context)
-  but produces one validated `ContextEnhancedQuery` + `ModeDecision`
-- **ClassificationTool**: Wired at wrapper level (via `QUERY_ANALYST_BASE_TOOLS`). Agent calls
-  `classify(mode_index=N)` to emit verdict; tool resolves the index to a label
-- **Schema validation**: `SchemaValidator` on the wrapper validates the output
-
----
-
-## Why Not `max_iterations=1`?
-
-Forcing a one-pass loop can make the agent stop immediately before the SDK loop has room
-to complete normal execution (message construction, system prompt processing, tool response
-parsing). Classification relies on prompt design and schema validation to produce one result.
+  but produces one validated output
+- **ClassificationTool**: Wired at orchestrator level (via `QUERY_ANALYST_BASE_TOOLS`). Agent calls
+  `classify(mode_index=N)` to emit verdict
+- **Orchestrator post-processing**: After stream ends, `QueryAnalyst.run()` parses the
+  accumulated text into `ModeDecision` and `ContextEnhancedQuery` typed objects
 
 ---
 
@@ -67,8 +64,9 @@ user_query + chat_history + session_context
         → LLM scans context, scores dimensions
         → LLM calls classify(mode_index=N)
         → ClassificationTool returns label at index N
-    → SchemaValidator validates {context_enhanced_query, mode_decision}
-    → Wrapper stores result in self.state
+    → Stream ends
+    → Orchestrator parses accumulated text → ModeDecision + ContextEnhancedQuery
+    → Stored in self.state
 ```
 
 ---
@@ -78,5 +76,6 @@ user_query + chat_history + session_context
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | No `max_iterations=1` | SDK default iteration | Prevents premature agent termination |
-| ClassificationTool at wrapper level | In `QUERY_ANALYST_BASE_TOOLS` | Loop stays focused on execution strategy; tools are a wrapper concern |
-| Schema validation in wrapper | `SchemaValidator` in `run()` | Separation of concerns: loop executes, wrapper validates |
+| ClassificationTool at orchestrator level | In `QUERY_ANALYST_BASE_TOOLS` | Loop stays focused on execution strategy; tools are an orchestrator concern |
+| State via constructor | `QueryAnalystLoop(state=self.state)` | Direct reference for state access |
+| No post-processing in loop | Orchestrator handles JSON parse | Loop controls execution; orchestrator manages typed state |

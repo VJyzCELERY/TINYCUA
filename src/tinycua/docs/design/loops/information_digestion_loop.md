@@ -11,7 +11,9 @@
 
 Iterative retrieval loop for the Information Digester: identify information gaps →
 invoke Enhanced Context Retrieval → evaluate relevance → retrieve again or stop.
-SDK `BaseLoop` handles the tool-calling iteration; this loop adds gap-evaluation logic.
+
+Receives `InformationDigesterState` by reference — the loop increments
+`self.state.retrieval_iterations` as it iterates.
 
 ---
 
@@ -21,23 +23,29 @@ SDK `BaseLoop` handles the tool-calling iteration; this loop adds gap-evaluation
 
 ```python
 from tinycua_sdk.agent.loop import BaseLoop
+from tinycua.state.information import InformationDigesterState
 
 
 class InformationDigestionLoop(BaseLoop):
     """Iterative retrieval with gap-evaluation between SDK iterations."""
 
-    def __init__(self, max_iterations: int | None = None):
+    def __init__(self, state: InformationDigesterState, max_iterations: int | None = None):
         super().__init__()
+        self.state = state
         if max_iterations is not None:
             self.max_iterations = max_iterations
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-        """Execute iterative retrieval via SDK BaseLoop with gap evaluation."""
-        # SDK BaseLoop handles: LLM → tool call → observe → repeat
-        # After each iteration, check if LLM output indicates gaps are addressed
-        # If gaps remain AND max_iterations not reached → continue
-        # If gaps addressed OR max reached → validate and return DigestedInformation
-        ...
+        """Execute iterative retrieval via SDK BaseLoop with gap evaluation.
+
+        SDK BaseLoop handles: LLM → tool call → observe → repeat.
+        After each iteration, increment state.retrieval_iterations.
+        Stop when gaps addressed or max_iterations reached.
+        """
+        self.state.retrieval_iterations = 0
+        async for event in super().run(agent, messages, tools, override_instructions, stream=True):
+            yield event
+        # Loop can track iteration count here or inspect stream events
 ```
 
 ---
@@ -60,8 +68,9 @@ Input: ContextEnhancedQuery
     → LLM identifies information gaps
     → SDK Tool: enhanced_context_retrieval searches session context
     → LLM evaluates relevance
+    → self.state.retrieval_iterations += 1
     ↓
-    ┌─ Sufficient? ─→ Yes ─→ SchemaValidator → Output: DigestedInformation
+    ┌─ Sufficient? ─→ Yes ─→ Stream ends → Orchestrator parses → DigestedInformation
     │ No
     │ max_iterations not reached
     └─→ loop back (identify remaining gaps)
@@ -76,5 +85,6 @@ On empty retrieval results: `DigestedInformation.known_gaps` is populated.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Stop on sufficiency + hard cap | LLM-judged + count-based | Context awareness + safety against infinite loops |
-| Max iterations configurable | `config.max_iterations_override` | Different deployments may want different limits |
+| Max iterations configurable | Constructor parameter from config | Different deployments may want different limits |
+| State via constructor | `InformationDigestionLoop(state=self.state)` | Loop increments `retrieval_iterations` directly |
 | Gap evaluation in loop | Overridden `run()` | Loop is the execution strategy; gap evaluation is control flow |

@@ -20,21 +20,40 @@ tinycua_sdk.agent.loop.BaseLoop    (SDK — tool calling, streaming, cancellatio
 
 ---
 
+## State Injection Pattern
+
+All custom loops receive the orchestrator's state by reference via constructor.
+State survives across Agent calls and persists if the stream is interrupted.
+
+```python
+# In orchestrator's run():
+loop = QueryAnalystLoop(state=self.state)
+agent = Agent(..., loop=loop)
+
+# In loop:
+class QueryAnalystLoop(BaseLoop):
+    def __init__(self, state: QueryAnalystState):
+        super().__init__()
+        self.state = state  # direct reference — reads/writes synchronously
+```
+
+---
+
 ## Loop Input/Output
 
-| Loop | Input | Output |
-|------|-------|--------|
-| ReActAgentLoop | Agent-specific (via wrapper `run()`) | Agent-specific (validated by wrapper `run()`) |
-| QueryAnalystLoop | `{user_query, chat_history, session_context}` | `{context_enhanced_query, mode_decision}` |
-| InformationDigestionLoop | `ContextEnhancedQuery` | `DigestedInformation` |
-| ResultReviewLoop | `{task, task_result, execution_log}` | `ReviewerDecision` |
-| MainLoop | User query + session state | Final response |
+| Loop | Input (via agent.run query) | Writes to state | Behavior |
+|------|-----|------|------|
+| ReActAgentLoop | Agent-specific | `accumulated_text`, `token_usage` | Default ReAct via `super().run()` |
+| QueryAnalystLoop | `{user_query, chat_history, session_context}` | `accumulated_text`, `token_usage` | Classification via ClassificationTool |
+| InformationDigestionLoop | `ContextEnhancedQuery` | `accumulated_text`, `retrieval_iterations`, `token_usage` | Iterative retrieval with gap evaluation |
+| ResultReviewLoop | `{task, task_result, execution_log}` | `accumulated_text`, `deterministic_failures`, `token_usage` | Two-phase: deterministic then LLM |
+| MainLoop | User query + session state | `accumulated_text`, `active_agent`, `checkpoints` | Full orchestration via orchestrator-call tools |
 
 ---
 
 ## Agent Loop Mapping
 
-| Agent | Loop | Custom Behavior |
+| Orchestrator | Loop | Custom Behavior |
 |-------|------|-----------------|
 | QueryAnalyst | QueryAnalystLoop | Classification |
 | InformationDigester | InformationDigestionLoop | Iterative retrieval |
@@ -43,7 +62,7 @@ tinycua_sdk.agent.loop.BaseLoop    (SDK — tool calling, streaming, cancellatio
 | TaskExecutor | ReActAgentLoop | (none — shared ReAct) |
 | ResultReviewer | ResultReviewLoop | Two-phase review |
 | PrimaryAgent | ReActAgentLoop | (none — shared ReAct) |
-| TinyCUA | MainLoop | Orchestration routing |
+| TinyCUA | MainLoop | Orchestration routing, session resume |
 
 ---
 
@@ -55,7 +74,7 @@ All loops rely on SDK infrastructure — no custom retry logic:
 |------------|-------------|---------------------|
 | Transient LLM error | `LLMClient` retry/backoff | Propagate as `LoopTransientError` if exhausted |
 | Permanent LLM error | SDK raises immediately | Propagate as `LoopPermanentError` |
-| Output validation failure | `SchemaValidator` retries | Raise `LoopOutputValidationError` after max retries |
+| Output not valid JSON | — | Orchestrator raises after stream ends (future: retry loop) |
 | Invalid input | — | Raise `ValueError` before any LLM call |
 | Tool call failure | `ToolExecutor` returns error as observation | LLM decides next action |
 
@@ -63,8 +82,9 @@ All loops rely on SDK infrastructure — no custom retry logic:
 
 ## Common Patterns
 
-1. All loops extend SDK `BaseLoop` and override `run()` to add domain-specific control flow
-2. Loops are passed to the composed SDK `Agent` via `Agent(loop=...)` inside the wrapper's `_build_agent()`
-3. The wrapper `run()` method handles pre-processing (building messages) and post-processing (validation, state updates)
-4. Loops do NOT store state — that's the wrapper's responsibility
-5. Loops do NOT define tools — those come from `*_BASE_TOOLS` and `config.extra_tools`
+1. All loops extend SDK `BaseLoop` and override `run()` for domain-specific control flow
+2. Loops receive `state` via constructor — reads/writes synchronously to orchestrator state
+3. Loops are passed to the SDK `Agent` via `Agent(loop=...)` inside the orchestrator's `run()`
+4. The orchestrator's `run()` yields all stream events transparently
+5. Loops define their own termination conditions (classification done, gaps addressed, review complete)
+6. Loops do NOT define tools — those come from `*_BASE_TOOLS` and `config.extra_tools`

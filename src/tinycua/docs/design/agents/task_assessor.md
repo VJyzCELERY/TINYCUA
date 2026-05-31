@@ -5,58 +5,81 @@
 
 ---
 
-## Wrapper Class
+## Orchestrator Class
 
 ```python
+import json
+from collections.abc import AsyncIterator
+
 from tinycua_sdk.agent import Agent
-from tinycua.agents.base import BaseAgentWrapper
+from tinycua.agents.base import BaseAgentOrchestrator
 from tinycua.config.agents import TaskAssessorConfig
 from tinycua.constants.tools import TASK_ASSESSOR_BASE_TOOLS
+from tinycua.constants.prompts import TASK_ASSESSOR_PROMPT
 from tinycua.loops.react_agent import ReActAgentLoop
-from tinycua.utility.schema_validator import SchemaValidator
 from tinycua.state.information import TaskAssessorState
 
 
-class TaskAssessor(BaseAgentWrapper[TaskAssessorState]):
-    """Task assessment agent — ReActAgentLoop."""
+class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
+    """Task assessment — ReActAgentLoop with direct state reference."""
 
-    state: TaskAssessorState
+    config: TaskAssessorConfig
 
-    def __init__(self, config: TaskAssessorConfig):
-        super().__init__(config, state_factory=TaskAssessorState)
-        self._build_agent()
+    def __init__(self, config: TaskAssessorConfig | None = None):
+        if config is None:
+            config = TaskAssessorConfig()
+        self.config = config
+        self.state = TaskAssessorState()
 
-    def _build_agent(self):
-        self.agent = Agent(
+    async def run(self, task_tree: dict, worker_config: dict) -> AsyncIterator[dict]:
+        self.state.last_query = {"task_tree": task_tree, "worker_config": worker_config}
+        self.state.accumulated_text = []
+
+        input_msg = json.dumps({"task_tree": task_tree, "worker_config": worker_config})
+
+        agent = Agent(
             name=self.config.name,
             instructions=self.config.instructions,
             llm_model=self.config.model,
             tools=[*TASK_ASSESSOR_BASE_TOOLS, *self.config.extra_tools],
-            loop=ReActAgentLoop(),
+            loop=ReActAgentLoop(state=self.state),
         )
 
-    async def run(self, task_tree: dict, worker_config: dict) -> dict:
-        self.state.last_query = {"task_tree": task_tree, "worker_config": worker_config}
-        raw = await self.agent.run(query=json.dumps({"task_tree": task_tree, "worker_config": worker_config}))
-        result = SchemaValidator(validation_fn=validate_task_selection).validate(raw)
+        async for event in agent.run(query=input_msg, stream=True):
+            if event["type"] == "response.output_text.delta":
+                self.state.accumulated_text.append(event["delta"])
+            elif event["type"] == "response.usage":
+                self.state.token_usage = event["usage"]
+            yield event
+
+        raw = "".join(self.state.accumulated_text)
+        result = json.loads(raw)
         self.state.selected_task_ids = result.get("task_ids", [])
         self.state.last_result = result
-        return result
 ```
+
+---
 
 ## Config
 
 `TaskAssessorConfig` — `name="task-assessor"`, `instructions=TASK_ASSESSOR_PROMPT`.
 See [`config/agents.md`](../config/agents.md#taskassessorconfig).
 
+---
+
 ## State
 
 `TaskAssessorState` — `selected_task_ids: list[str]`.
 See [`state/information.md`](../state/information.md#taskassessorstate).
 
+---
+
 ## Loop
 
-`ReActAgentLoop` — shared. See [`loops/react_agent.md`](../loops/react_agent.md).
+`ReActAgentLoop(state=self.state)` — shared loop with state reference.
+See [`loops/react_agent.md`](../loops/react_agent.md).
+
+---
 
 ## Tools
 

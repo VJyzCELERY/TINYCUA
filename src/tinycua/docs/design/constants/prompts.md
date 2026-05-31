@@ -11,7 +11,7 @@
 
 System prompt strings for all seven internal agents plus the TinyCUA main prompt.
 Each prompt includes role, input contract, output schema, constraints, and guardrails.
-Prompts are module-level string constants, NOT embedded in wrapper or loop code.
+Prompts are module-level string constants, NOT embedded in orchestrator or loop code.
 
 ---
 
@@ -32,9 +32,9 @@ Prompts are module-level string constants, NOT embedded in wrapper or loop code.
 
 ## Prompt Governance
 
-- Prompts live in `tinycua/constants/prompts.py` — not embedded in wrapper `__init__` or loop `run()`
-- Wrappers reference prompts via `config.instructions` (set by the config dataclass default)
-- To change a prompt, edit the constant. No code changes needed in wrapper or loop classes
+- Prompts live in `tinycua/constants/prompts.py` — not embedded in orchestrator `__init__` or loop `run()`
+
+- To change a prompt, edit the constant. No code changes needed in orchestrator or loop classes
 - Prompts are derived from architecture docs (`src/tinycua/docs/architecture/`)
 
 ---
@@ -43,5 +43,5 @@ Prompts are module-level string constants, NOT embedded in wrapper or loop code.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Prompts as constants | `tinycua/constants/prompts.py` | Single place to find/edit prompts; not scattered across wrapper classes |
+| Prompts as constants | `tinycua/constants/prompts.py` | Single place to find/edit prompts; not scattered across orchestrator classes |
 | Own package | `tinycua.constants` | Separates prompts from tools and config; each constant type has its own module |

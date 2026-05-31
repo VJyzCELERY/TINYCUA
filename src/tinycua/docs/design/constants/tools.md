@@ -49,13 +49,14 @@ PRIMARY_AGENT_BASE_TOOLS: list[Tool] = []
 
 ## Tool Source Pattern
 
-Every agent's `_build_agent()` merges exactly two tool sources:
+Every orchestrator's `run()` builds the SDK Agent per-call, merging exactly two tool sources:
 
 ```python
-self.agent = Agent(
+# Inside orchestrator.run():
+agent = Agent(
     ...
     tools=[*QUERY_ANALYST_BASE_TOOLS, *self.config.extra_tools],
-    loop=QueryAnalystLoop(),
+    loop=QueryAnalystLoop(state=self.state),
 )
 ```
 

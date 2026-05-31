@@ -24,7 +24,7 @@ class LoopPermanentError(LoopError):
     """Permanent failure — caller should not retry (e.g., auth failure)."""
 
 class LoopOutputValidationError(LoopError):
-    """Output failed validation after all retries exhausted by SchemaValidator."""
+    """Output was not valid JSON after all retry attempts by the orchestrator."""
 ```
 
 ---
@@ -35,7 +35,7 @@ class LoopOutputValidationError(LoopError):
 |------------|-------------|
 | `LoopTransientError` | SDK's `LLMClient` exhausts its retries on a transient error |
 | `LoopPermanentError` | SDK raises a permanent error immediately or a required tool is missing at construction |
-| `LoopOutputValidationError` | `SchemaValidator` exhausts its `max_validation_retries` |
+| `LoopOutputValidationError` | Orchestrator exhausts retry attempts on bad JSON output |
 | `ValueError` | Invalid input received before any LLM call |
 
 ---

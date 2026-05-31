@@ -25,7 +25,7 @@ class AgentKind(str, Enum):
     TINYCUA = "tinycua"
 ```
 
-Used by `create_agent(AgentKind, ...)` and `create_all_agents()` in the factory.
+Used by `create_orchestrator(AgentKind, ...)` and `create_all_orchestrators()` in the factory.
 
 ---
 
@@ -53,4 +53,4 @@ can override via their config dataclass.
 |----------|--------|-----------|
 | `TINYCUA_DEFAULT_MODEL` in `config/types` | Central constant | Single source of truth for the default model; all agents reference it |
 | Provider `openai-chat-completions` | Not alias `openai` | SDK's `openai` alias resolves to the Responses API, not the intended chat-completions endpoint |
-| `AgentKind.TINYCUA` | Enum member even though wrapper is in `agents/` | Consistent registry lookup; factory can return either internal or external agents |
+| `AgentKind.TINYCUA` | Enum member even though orchestrator is in `agents/` | Consistent registry lookup |

@@ -9,10 +9,11 @@
 
 ## Role
 
-`MainLoop` is the top-level orchestration loop for the `TinyCUA` external wrapper.
+`MainLoop` is the top-level orchestration loop for the `TinyCUA` external orchestrator.
 It extends SDK `BaseLoop` and implements the full TINYCUA flow: classify → route →
-delegate to internal agents → synthesize response. Uses agent-calling tools to invoke
-internal wrapper instances.
+delegate to internal orchestrators → synthesize response.
+
+Receives `SessionState` and all internal orchestrator instances by reference.
 
 ---
 
@@ -22,19 +23,32 @@ internal wrapper instances.
 
 ```python
 from tinycua_sdk.agent.loop import BaseLoop
+from tinycua.state.information import SessionState
+from tinycua.agents.base import BaseAgentOrchestrator
+from tinycua.config.types import AgentKind
 
 
 class MainLoop(BaseLoop):
     """Top-level orchestration: Query Analyst → route → delegate → synthesize."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        state: SessionState,
+        internal_orchestrators: dict[AgentKind, BaseAgentOrchestrator],
+    ):
         super().__init__()
+        self.state = state
+        self._orchestrators = internal_orchestrators
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
-        """Full orchestration flow."""
-        # The composed SDK Agent (in TinyCUA wrapper) has agent-calling tools available.
-        # MainLoop orchestrates by calling these tools, which delegate to internal wrappers.
-        ...
+        """Full orchestration flow.
+
+        The composed SDK Agent (in TinyCUA) has orchestrator-call tools available.
+        MainLoop orchestrates by calling these tools, which delegate to internal
+        orchestrator instances via orchestrator.run(...).
+        """
+        async for event in super().run(agent, messages, tools, override_instructions, stream=True):
+            yield event
 ```
 
 ---
@@ -61,19 +75,18 @@ User Query
 ```
 
 The composed SDK `Agent` uses `call_query_analyst`, `call_information_digester`, etc.
-to route to internal wrappers. Each tool delegates to the target wrapper's `run()` method.
+Each tool calls `orchestrator.run(...)` on the corresponding internal instance, consumes
+the stream generator, and returns the final result.
 
 ---
 
 ## Continuation State
 
-`MainLoop` tracks per-session state so an interrupted run can resume. State fields:
+`MainLoop` tracks per-session state via `self.state` (SessionState). Fields:
 
 - `session_id`
 - Current orchestration phase (`query_analysis`, `primary_agent`, `information_digestion`, `worker`, `uncertain`, `final_response`)
-- Active internal agent
-- Active sub-session / Worker state reference
-- Last completed step / checkpoint
+- Active internal orchestrator (`active_agent`)
 - Pending user action
 - Current `ContextEnhancedQuery`, `ModeDecision`, `DigestedInformation`
 - Active `Task` tree and current task id
@@ -84,39 +97,28 @@ State is persisted via the `StateStore` backend (SQLite by default). Checkpoint 
 
 ---
 
-## Integration with TinyCUA Wrapper
+## Integration with TinyCUA Orchestrator
 
 ```python
 class TinyCUA:
-    def __init__(self, config: TinyCUAConfig):
-        self.internal_agents = create_all_agents(config.internal_agent_overrides)
-        self.state_store = config.state_store
+    async def run(self, user_query, session_id=None):
+        # Session resume: route directly to active orchestrator
+        if self.state.active_agent and session_id:
+            orchestrator = self.internal_orchestrators[AgentKind(self.state.active_agent)]
+            async for event in orchestrator.run(**self._build_resume_input()):
+                yield event
+            return
 
-        self.agent = Agent(
+        # Fresh run: full orchestration via MainLoop
+        agent = Agent(
             name="tinycua",
-            instructions=config.instructions,
-            llm_model=config.model,
-            tools=[*self._build_agent_tools()],
-            loop=MainLoop(),
+            instructions=self.config.instructions,
+            llm_model=self.config.model,
+            tools=self._build_orchestrator_tools(),
+            loop=MainLoop(state=self.state, internal_orchestrators=self.internal_orchestrators),
         )
-
-    def _build_agent_tools(self) -> list[Tool]:
-        return [
-            call_query_analyst(self.internal_agents),
-            call_information_digester(self.internal_agents),
-            call_task_analyzer(self.internal_agents),
-            call_task_assessor(self.internal_agents),
-            call_task_executor(self.internal_agents),
-            call_result_reviewer(self.internal_agents),
-            call_primary_agent(self.internal_agents),
-        ]
-
-    async def run(self, user_query: str, session_id: str | None = None) -> Response:
-        if session_id:
-            await self._restore_state(session_id)
-        response = await self.agent.run(query=user_query)
-        await self._checkpoint(session_id)
-        return response
+        async for event in agent.run(query=user_query, stream=True):
+            yield event
 ```
 
 ---
@@ -125,7 +127,7 @@ class TinyCUA:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Agent-calling tools as the delegation mechanism | `call_*` SDK Tools on the composed agent | MainLoop can invoke internal agents via natural language + tool calls, not programmatic dispatch |
-| Checkpoint after each phase | `orchestration.checkpoint_after_each_phase` | Configurable granularity for resume behavior |
+| Orchestrator-call tools as delegation | `call_*` SDK Tools on the composed agent | MainLoop invokes via natural language + tool calls |
+| State via constructor | `MainLoop(state=self.state, ...)` | Direct reference to SessionState for phase tracking |
+| Session resume bypasses MainLoop | Direct `orchestrator.run()` in TinyCUA | Skip irrelevant phases on resume |
 | SQLite-first persistence | `SQLiteStateStore` as default | Durable, transactional, zero-config |
-| Per-session state | Tracked in TinyCUA wrapper, persisted via StateStore | One external agent manages multiple sessions |

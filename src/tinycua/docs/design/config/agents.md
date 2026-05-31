@@ -11,7 +11,7 @@
 
 Each agent has a typed config dataclass extending `AgentConfigBase`. Configs hold all
 overridable parameters (model, instructions, agent-specific knobs, extra tools).
-The factory creates a wrapper class instance from its config.
+The factory creates an orchestrator instance from its config.
 
 ---
 
@@ -133,7 +133,7 @@ class TinyCUAConfig:
     model: LanguageModel = field(default_factory=lambda: TINYCUA_DEFAULT_MODEL)
     state_store: Any = None           # e.g., SQLiteStateStore instance
     artifact_store: Any = None        # e.g., FileSystemArtifactStore instance
-    internal_agent_overrides: dict[AgentKind, AgentConfigBase] = field(default_factory=dict)
+    internal_orchestrator_overrides: dict[AgentKind, AgentConfigBase] = field(default_factory=dict)
     orchestration: OrchestrationSettings = field(default_factory=OrchestrationSettings)
 ```
 

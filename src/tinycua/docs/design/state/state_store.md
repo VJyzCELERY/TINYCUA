@@ -10,7 +10,7 @@
 ## Role
 
 The `StateStore` is the persistence backend for TinyCUA's session continuation state.
-The TinyCUA wrapper and each internal agent use it to checkpoint progress so an interrupted
+The TinyCUA orchestrator and each internal orchestrator use it to checkpoint progress so an interrupted
 run can resume from the last safe point.
 
 ---
@@ -75,11 +75,11 @@ class TinyCUA:
 
 ## Agent-Level Persistence
 
-Each wrapper's `save_state(store)` and `restore_state(store)` accept a `StateStore`
+Each orchestrator's `save_state(store)` and `restore_state(store)` accept a `StateStore`
 backend parameter:
 
 ```python
-class BaseAgentWrapper(Generic[S]):
+class BaseAgentOrchestrator(Generic[S]):
     def save_state(self, store: StateStore) -> None:
         """Serialize self.state to the store."""
 
@@ -95,5 +95,5 @@ class BaseAgentWrapper(Generic[S]):
 |----------|--------|-----------|
 | SQLite-first | `SQLiteStateStore` as default | Durable, transactional, zero-config for single-machine deployments |
 | Pluggable backends | `StateStore` ABC | In-memory for tests, filesystem for artifacts, SQLite for sessions |
-| Agent-level hooks | `save_state()` / `restore_state()` on wrapper | Each agent owns its state serialization |
+| Agent-level hooks | `save_state()` / `restore_state()` on orchestrator | Each orchestrator owns its state serialization |
 | Checkpoint-after-phase | Configurable in `OrchestrationSettings` | Control granularity of persistence |
