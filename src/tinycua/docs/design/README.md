@@ -43,7 +43,8 @@ Read in order for a linear learning experience:
 33. [`agents/primary_agent.md`](agents/primary_agent.md)
 34. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
 35. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
-36. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
+36. [`tools/digester.md`](tools/digester.md) — InformationDigester tools (`enhanced_context_retrieval` + `digest_information`)
+37. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
 
 ---
 

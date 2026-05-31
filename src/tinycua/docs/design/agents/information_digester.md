@@ -126,224 +126,54 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
 
 ## Tools
 
-InformationDigester uses exactly two tools:
+InformationDigester uses exactly two tools, both defined in
+[`tools/digester.md`](../tools/digester.md):
 
 | Tool | Purpose | Required? |
 |------|---------|-----------|
-| `enhanced_context_retrieval` | Search the cached full context via internal agent | No (but informative) |
+| `enhanced_context_retrieval` | Search the cached full context via internal agent | No |
 | `digest_information` | Produce structured `DigestedInformation` output | **Yes** — at least 1 call |
 
-### `enhanced_context_retrieval`
+**Factory:** `create_enhanced_context_retrieval(cache_path, model) -> Tool` — spawns an
+internal agent with `read_context_cache` (grep + offset/limit, never loads full file).
+**Output:** `digest_information` uses `DIGEST_OUTPUT_PREFIX` prefix so the orchestrator
+can distinguish it from retrieval results in the event stream.
 
-A tool that runs an **internal agent** with a `read_context_cache` tool wired to the
-cache file. The internal agent searches the cached context based on a search query
-and returns relevant findings.
-
-```python
-from tinycua_sdk.agent import Agent
-from tinycua_sdk.agent.loop import BaseLoop
-from tinycua_sdk.tools.decorators import Tool, tool
-
-
-def create_enhanced_context_retrieval(
-    cache_path: str,
-    model: LanguageModel,
-) -> Tool:
-    """Create the enhanced context retrieval tool.
-
-    Returns a Tool that spawns an internal Agent with a read_context_cache
-    tool for dynamic file exploration (grep + offset/limit pagination).
-    The internal agent:
-    - Uses the same LanguageModel as InformationDigester
-    - Uses the SDK's default BaseLoop (no custom loop)
-    - Returns its final response as the search result
-    """
-
-    # Helper tool — wired exclusively to the cache file via closure.
-    # Works like a file explorer: grep for keywords, paginate results.
-    @tool
-    async def read_context_cache(
-        grep: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> str:
-        """Search the context cache file dynamically.
-
-        Use grep to find lines containing a keyword (case-insensitive).
-        Use offset and limit to paginate through results.
-        Never loads the entire file at once — explore iteratively.
-
-        Args:
-            grep: If provided, return only lines matching this pattern.
-            offset: Start reading from this line number (0-indexed).
-            limit: Read at most this many lines.
-        """
-        with open(cache_path, "r") as f:
-            lines = f.readlines()
-
-        if grep is not None:
-            pattern = grep.lower()
-            matching = [
-                f"L{i}: {line.rstrip()}"
-                for i, line in enumerate(lines)
-                if pattern in line.lower()
-            ]
-            start = offset or 0
-            end = (start + (limit or 200)) if limit is not None else None
-            if end is not None:
-                result = matching[start:end]
-            else:
-                result = matching[start:]
-            if not result:
-                return f"No lines matching '{grep}' found."
-            shown_end = end or len(matching)
-            return (
-                f"Found {len(matching)} lines matching '{grep}'. "
-                f"Showing lines {start}-{min(shown_end, len(matching))}:\n"
-                + "\n".join(result)
-            )
-        else:
-            start = offset or 0
-            end = (start + limit) if limit is not None else len(lines)
-            end = min(end, len(lines))
-            result = lines[start:end]
-            if not result:
-                return f"No lines at offset {start}."
-            return (
-                f"File lines {start}-{end-1} of {len(lines)}:\n"
-                + "".join(
-                    f"L{i}: {line}"
-                    for i, line in enumerate(result, start=start)
-                )
-            )
-
-    # Main tool exposed to InformationDigester
-    @tool
-    async def enhanced_context_retrieval(search_query: str) -> str:
-        """Search the full session context cache for relevant information.
-
-        Spawns an internal agent with read_context_cache to dynamically
-        explore the cached context file. The internal agent searches with
-        grep-like patterns and paginates with offset/limit — it never loads
-        the entire file at once.
-
-        Args:
-            search_query: What to search for in the context cache.
-              Be specific — use keywords the internal agent can grep for.
-        """
-        agent = Agent(
-            name="context-searcher",
-            instructions=(
-                "You are a context searcher. Use the read_context_cache tool to "
-                "explore the full session context file. Search for information "
-                "relevant to the given query. "
-                "IMPORTANT: Do NOT try to read the whole file at once. Use grep "
-                "to find keywords, then use offset/limit to paginate through "
-                "matching sections. Return only the found information — no "
-                "commentary."
-            ),
-            llm_model=model,
-            tools=[read_context_cache],
-            loop=BaseLoop(),  # default SDK loop
-        )
-        result_parts: list[str] = []
-        async for event in agent.run(query=search_query, stream=True):
-            if event["type"] == "response.output_text.delta":
-                result_parts.append(event["delta"])
-        return "".join(result_parts)
-
-    return enhanced_context_retrieval  # already a Tool via @tool decorator
-```
-
-**Design notes:**
-- Both `read_context_cache` and `enhanced_context_retrieval` are `@tool`-decorated —
-  follows the SDK factory pattern (same as `create_skills_list_tool`)
-- `read_context_cache` is captured via closure, used only by the internal agent
-- The internal agent uses `BaseLoop` (SDK default) — no custom iteration logic
-- The same `LanguageModel` as InformationDigester is used (configurable in future)
-- The `@tool` decorator auto-generates JSON Schema from type annotations + docstring
-
-### `digest_information`
-
-A tool that formats findings into `DigestedInformation`. This is the **primary output
-mechanism** — the orchestrator reads the result from this tool call, not from the
-agent's final text response.
+### Tool wiring in `run()`
 
 ```python
-from tinycua_sdk.tools.decorators import tool
-from tinycua.state.digested_information import DigestedInformation
-
-
-# Unique identifier prefix for digest_information outputs
-DIGEST_OUTPUT_PREFIX = "DIGEST_INFO::"
-
-@tool
-async def digest_information(
-    context_summary: str,
-    key_points: list[str],
-    advisory_instructions: str | None = None,
-    constraints: list[str] | None = None,
-    known_gaps: list[str] | None = None,
-) -> str:
-    """Format findings into structured DigestedInformation output.
-
-    You MUST call this tool at least once before stopping. Subsequent
-    calls replace your previous output (last call wins).
-
-    Args:
-        context_summary: Compressed relevant context in markdown.
-        key_points: Key takeaway points for downstream agents.
-        advisory_instructions: Action-oriented guidance.
-        constraints: Guardrails and constraints for downstream agents.
-        known_gaps: Information gaps that could not be filled.
-    """
-    result = DigestedInformation(
-        context_summary=context_summary,
-        key_points=key_points,
-        advisory_instructions=advisory_instructions,
-        constraints=constraints,
-        known_gaps=known_gaps,
-    )
-    return f"{DIGEST_OUTPUT_PREFIX}{result.to_json()}"
+cache_path = self._write_context_cache()
+tools = [
+    create_enhanced_context_retrieval(cache_path=cache_path, model=self.config.model),
+    digest_information,
+    *self.config.extra_tools,
+]
 ```
-
-**Design notes:**
-- `@tool` decorator generates JSON Schema from type annotations + docstring
-- The `DIGEST_OUTPUT_PREFIX` allows the orchestrator to distinguish this tool's result
-  from `enhanced_context_retrieval` results
-- The agent MUST call this at least once — enforced by `InformationDigestionLoop`
-- Subsequent calls replace the previous output (last call wins in `_parse_digested_output`)
-- The tool mirrors `DigestedInformation` fields exactly — no mapping needed
-
----
 
 ## Output Parsing
 
 Unlike other orchestrators that parse the agent's final text response, InformationDigester
-extracts the `DigestedInformation` from the `digest_information` tool call result:
+extracts `DigestedInformation` from the `digest_information` tool call result:
 
 ```python
 def _parse_digested_output(self, events: list[dict]) -> DigestedInformation | None:
-    """Extract DigestedInformation from digest_information tool call results.
-
-    Scans all tool_call events for digest_information calls, takes the
-    LAST one (subsequent calls replace previous output). Parses the
-    DIGEST_OUTPUT_PREFIX result into a DigestedInformation object.
-    """
+    """Extract DigestedInformation from the LAST digest_information tool call."""
     for event in reversed(events):
         if event.get("type") != "response.tool_call":
             continue
         if event.get("tool_name") != "digest_information":
             continue
-
-        # Tool result is in the event output (accumulated after stream)
         result_str = event.get("output", "")
         if result_str.startswith(DIGEST_OUTPUT_PREFIX):
             json_str = result_str[len(DIGEST_OUTPUT_PREFIX):]
             return DigestedInformation.from_json(json_str)
-
-    return None  # No digest_information call found (error)
+    return None
 ```
+
+**Key points:**
+- Output comes from a tool call, NOT from parsing `"".join(text_parts)` → JSON
+- `DIGEST_OUTPUT_PREFIX` discriminates from `enhanced_context_retrieval` results
+- Reversed iteration: last `digest_information` call wins (subsequent calls replace)
 
 ---
 
@@ -616,6 +446,15 @@ See [`state/information.md`](../state/information.md#informationdigesterstate).
 
 ---
 
+## State
+
+`InformationDigesterState` — `digested_information: DigestedInformation | None`,
+`retrieval_iterations: int`.
+
+See [`state/information.md`](../state/information.md#informationdigesterstate).
+
+---
+
 ## Loop
 
 `InformationDigestionLoop(state=self.state, max_iterations=...)` — iterative retrieval
@@ -675,4 +514,4 @@ Prev : [`QueryAnalyst` Orchestrator](query_analyst.md) | Next : [`TaskAnalyzer`]
 - [DigestedInformation output](../state/digested_information.md)
 - [ContextEnhancedQuery from QueryAnalyst](../state/mode_decision.md)
 - [Spawned by TinyCUA in worker mode](tinycua.md)
-- [enhanced_context_retrieval + digest_information tools](../constants/tools.md)
+- [enhanced_context_retrieval + digest_information tools](../tools/digester.md)

@@ -207,7 +207,7 @@ session = Session.from_dict(data)
 
 ## See also
 
-Prev : [Orchestrator-Call Tools](../tools/agent_calls.md)
+Prev : [InformationDigester Tools](../tools/digester.md)
 
 
 ## Related
