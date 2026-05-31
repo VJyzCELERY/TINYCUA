@@ -82,12 +82,13 @@ Orchestrator-level action (routing decision, mode classification, task creation)
 
 ### `agent`
 
-SDK Agent's text response.
+SDK Agent's text response. The metadata SHOULD include the orchestrator that spawned
+the agent and the agent's own identity.
 
 | Field | Type | Example |
 |-------|------|---------|
-| `metadata` | `{"agent_name": str, "model": str}` | `{"agent_name": "query-analyst", "model": "gpt-4o"}` |
-| `content` | `{"text": str}` | `{"text": "## Context Analysis\n..."}` |
+| `metadata` | `{"orchestrator": str, "agent_name": str, "model": str}` | `{"orchestrator": "task_analyzer", "agent_name": "task-analyzer", "model": "gpt-4o"}` |
+| `content` | `{"text": str}` | `{"text": "## Task Analysis Summary\n..."}` |
 
 ### `tools`
 
@@ -181,7 +182,9 @@ def append_assistant(
 | Metadata + content separation | Two dict fields | Metadata identifies who/what; content holds the payload |
 | Timestamp per record | ISO 8601 string | Chronological ordering; survives serialization |
 | chat_history vs session_context | Separate lists with different formats | LLM needs role/content dicts; audit trail needs structured records |
-| Transient also propagates | chat_history merges upward on transient termination | Full audit trail at root — no information loss |
+| Orchestrator metadata on agent records | `metadata.orchestrator` on `type="agent"` ChatRecords | Traces which orchestrator spawned each agent call |
+| Internal queries not stored | Only `Agent.run()` RESPONSES recorded, never the queries | Queries are internal orchestration detail; only outputs matter for context |
+| `user` role only for real input | Only user messages sent to QueryAnalyst get `role="user"` in session_context | Internal agent queries are not user messages — they don't affect context |
 | Append-only | Never compacted, never truncated | chat_history is the canonical log; survives compaction |
 
 

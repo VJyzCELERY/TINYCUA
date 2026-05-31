@@ -295,11 +295,33 @@ class Session(StateObject):
 
     # ── Messages ────────────────────────────────────────────────────
 
+    # ── Message Recording Rules ──────────────────────────────────────
+    # Only the ACTUAL user input (sent to QueryAnalyst) is stored as
+    # role="user" in session_context. Internal Agent.run(query=...) calls
+    # by orchestrators are NOT stored — only the agent's RESPONSE output
+    # is recorded.
+    #
+    # session_context: role/content dicts for LLM consumption.
+    #   - "user" entries: ONLY real user messages.
+    #   - "assistant" entries: agent responses (text only, no tool calls).
+    #
+    # chat_history: ChatRecord entries for the audit trail.
+    #   - type="user": real user input.
+    #   - type="agent": agent response — metadata includes orchestrator
+    #     name + agent name/model.
+    #   - type="agent_orchestrator": orchestrator-level action
+    #     (routing, mode decision, task creation).
+    #   - type="tools": tool call or tool result.
+    # ─────────────────────────────────────────────────────────────────
+
     def append_user(self, content: str) -> None:
-        """Append a user turn.
+        """Append a REAL user turn (only for actual user messages).
 
         chat_history: ChatRecord(type="user") — structured audit entry.
         session_context: {"role": "user", "content": content} — LLM-compatible.
+
+        Internal orchestrator queries to Agent.run() are NEVER stored
+        via this method — only the agent's response is recorded.
         """
         self.chat_history.append(ChatRecord(
             id=str(uuid4()),
@@ -316,19 +338,24 @@ class Session(StateObject):
         tool_results: list[dict] | None = None,
         metadata: dict | None = None,
     ) -> None:
-        """Append an assistant turn.
+        """Append an agent response turn.
 
         chat_history: ChatRecord(type="agent") + optional ChatRecord(type="tools")
             for each tool call and result — full verbatim audit trail.
+            metadata SHOULD include the orchestrator and agent identity:
+              {"orchestrator": "task_analyzer", "agent_name": "task-analyzer", "model": "gpt-4o"}
+
         session_context: text only ({"role": "assistant", "content": content}) —
             tool calls/results are discarded (their effect is captured in the
             assistant's next response).
         """
-        # ChatRecord for the assistant text
+        # ChatRecord for the assistant text — include orchestrator/agent identity
         self.chat_history.append(ChatRecord(
             id=str(uuid4()),
             type="agent",
-            metadata=metadata or {},
+            metadata={
+                **(metadata or {}),
+            },
             content={"text": content},
         ))
         # ChatRecords for tool calls
@@ -370,8 +397,13 @@ class Session(StateObject):
     ) -> None:
         """Append an orchestrator-level record to chat_history only.
 
-        session_context is NOT modified — orchestrator records are for the
-        audit trail only, not for LLM consumption.
+        Used for non-agent actions: routing decisions, mode classification,
+        task lifecycle events. session_context is NOT modified.
+
+        Args:
+            action: What the orchestrator did (e.g., "classify", "task_init").
+            result: The result data.
+            orchestrator_name: The orchestrator class name (e.g., "query_analyst").
         """
         self.chat_history.append(ChatRecord(
             id=str(uuid4()),
@@ -509,7 +541,9 @@ self.session.terminate_child(primary.session)
 | Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
 | Token usage: active | `active_token_usage` on Session | Based on current session_context; reset on compaction; reflects active window |
 | Typed chat_history | `list[ChatRecord]` on Session | Structured audit with id, type, metadata, content, timestamp — not loose dicts |
-| Consecutive records allowed | ChatRecord types can repeat | Sessions may receive multiple child results or tool calls in sequence |
+| Internal queries not stored | Only `Agent.run()` responses recorded; queries discarded | Queries are internal orchestration detail; only outputs affect context |
+| Only real user → `role:user` | `append_user` only for actual user messages to QueryAnalyst | Internal agent queries are NOT user messages; session_context never gets spurious user entries |
+| Agent metadata on records | `append_assistant(metadata={...})` should include orchestrator + agent identity | Traces which orchestrator spawned each agent call in the audit trail |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
 
 
