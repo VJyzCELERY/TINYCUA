@@ -1,6 +1,6 @@
 # TINYCUA Benchmark Tools Gap Analysis
 
-> Per-benchmark analysis: what TINYCUA already has vs. what it still needs to implement, evaluated against current 7 native tools + Image tool.
+> Per-benchmark analysis: what TINYCUA already has vs. what it still needs for **local evaluation** (testing TINYCUA's own capabilities). NOT about leaderboard submission — harness adapter, Dockerfile, and `run.sh` are only needed for official WildClawBench leaderboard participation, not for running evaluations locally.
 
 ---
 
@@ -23,7 +23,7 @@
 
 ### 1. WildClawBench — 60 tasks, 6 categories
 
-**Purpose**: Measure agent proficiency in practical digital tasks — productivity, coding, social coordination, search, creative synthesis, safety. Most comprehensive real-world tool-use benchmark. Primary TINYCUA target.
+**Purpose**: Measure agent proficiency in practical digital tasks — productivity, coding, social coordination, search, creative synthesis, safety. Primary TINYCUA target.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -36,11 +36,12 @@
 | Calendar (CalDAV) | `run_python` + caldav | ✅ none |
 | Image analysis | Image tool / `run_python` + PIL | ✅ none |
 
-**Still needed**:
-- Harness adapter (~250 lines)
-- Dockerfile (~40 lines)
-- run.sh entry (~50 lines)
-= **~340 lines. Zero new tools.**
+**Still needed (local eval)**:
+- Task reader: reads task YAML + Markdown → calls `Agent.run()` (~50-100 lines)
+- Grader invocation: feeds agent output to WildClawBench grader scripts (already in their repo)
+= **~50-100 lines. Zero new tools.**
+
+> Leaderboard submission would additionally need: harness adapter, Dockerfile, run.sh entry (~340 lines) — skip these for local eval.
 
 ---
 
@@ -55,7 +56,7 @@
 | CLI runner | `tinycua` CLI exists | `--message`, `--session` flags missing (~40 lines) |
 | Session continuity | — | `ConversationSession` wrapper (~140 lines) |
 
-**Still needed**:
+**Still needed (local eval)**:
 - `--message` / `--session` CLI flags (~40 lines)
 - `ConversationSession` wrapper (~140 lines)
 = **~180 lines. Zero new tools.**
@@ -64,7 +65,7 @@
 
 ### 3. ClawBench — 19 curated tasks
 
-**Purpose**: Signal-curated benchmark with 4-axis scoring (completion, trajectory, behavior, judge). Tests tool-use quality beyond pass/fail — how well the agent traverses solutions. Defines the Partner Trace Spec interchange format.
+**Purpose**: Signal-curated benchmark with 4-axis scoring (completion, trajectory, behavior, judge). Tests tool-use quality beyond pass/fail.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -74,19 +75,20 @@
 | Browser | `run_shell("chromium --headless --dump-dom <url>")` | ✅ none |
 | Email (mock SMTP) | `run_python` + smtplib | ✅ none |
 | Calendar (CalDAV) | `run_python` + caldav | ✅ none |
-| Trace emission | `RunResult.trace` carries data | Partner Trace Spec JSONL adapter (~200 lines) |
-| Schema alignment | `Tool.to_config()` = OpenAI-compatible | Need tool name mapping in harness adapter (~50 lines) |
+| Trace emission | `RunResult.trace` carries data | Partner Trace Spec only needed for leaderboard submission |
+| Schema alignment | `Tool.to_config()` = OpenAI-compatible | ✅ none for local eval |
 
-**Still needed**:
-- Partner Trace Spec JSONL adapter (~200 lines)
-- Tool name mapping in harness adapter (~50 lines)
-= **~250 lines. Zero new tools.**
+**Still needed (local eval)**:
+- Task runner: reads ClawBench tasks, maps tool names, calls `Agent.run()`, collects results (~100 lines)
+= **~100 lines. Zero new tools.**
+
+> Leaderboard submission would additionally need: Partner Trace Spec JSONL adapter (~250 lines) — skip for local eval.
 
 ---
 
 ### 4. Claw-Eval — 300 tasks, 3 splits
 
-**Purpose**: 300 human-verified tasks across 9 domains (communication, finance, operations, etc.) with completion + safety + robustness scoring. Largest human-curated tool-use dataset. Includes multi-turn and multimodal splits.
+**Purpose**: 300 human-verified tasks across 9 domains (communication, finance, operations, etc.) with completion + safety + robustness scoring. Largest human-curated tool-use dataset.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -98,16 +100,16 @@
 | Spreadsheet read/write | `run_python` + openpyxl | ✅ none |
 | Stock price API | `fetch_url` (REST API) | ✅ none |
 
-**Still needed**:
-- Harness adapter (~250 lines)
+**Still needed (local eval)**:
+- Eval script: reads Claw-Eval tasks, invokes agent, calls their Python graders (~150 lines)
 - CLI `--session` flag for multi_turn split (~40 lines)
-= **~290 lines. Zero new tools.**
+= **~190 lines. Zero new tools.**
 
 ---
 
 ### 5. ClawProBench — 102 tasks, 4 profiles
 
-**Purpose**: Multi-profile benchmarking (core, intelligence, native, full) with 3-try runs and coverage summaries. Designed for YAML-defined scenarios — tests portability of agent configs across hardware/software stacks.
+**Purpose**: Multi-profile benchmarking (core, intelligence, native, full) with 3-try runs and coverage summaries. YAML-defined scenarios.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -117,16 +119,16 @@
 | YAML-defined tool profiles | — | YAML parser + tool name mapping (~400 lines) — uses same tools underneath |
 | Profile runner | — | `--trials N`, summary output (~200 lines) |
 
-**Still needed**:
+**Still needed (local eval)**:
 - YAML parser + tool name mapping (~400 lines)
 - Profile runner with `--trials N` and summary output (~200 lines)
-= **~600 lines. Tool name mapping only — no new tool implementations.**
+= **~600 lines. Zero new tools** — same tools underneath, just name mapping.
 
 ---
 
 ### 6. τ-bench — 200 tasks, 3 domains
 
-**Purpose**: Tests policy adherence under a simulated human user. Unique among benchmarks — agent must follow domain policies (retail, airline, banking) while interacting with an LLM-simulated customer in multi-turn conversations. Cited in model cards from Anthropic, OpenAI, Google.
+**Purpose**: Tests policy adherence under a simulated human user. Agent must follow domain policies (retail, airline, banking) while interacting with an LLM-simulated customer. Cited in model cards from Anthropic, OpenAI, Google.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -135,7 +137,7 @@
 | Loop inversion (per-turn) | `BaseLoop` drives full conversation | `HalfDuplexAgent` adapter slicing `run()` into per-turn calls (~120 lines) |
 | τ³ BM25 retrieval | — | Adapter for τ³ knowledge retrieval (~100 lines) |
 
-**Still needed**:
+**Still needed (local eval)**:
 - Domain tool wrappers for exact τ-bench schema match (~150 lines)
 - `HalfDuplexAgent` adapter slicing `run()` into per-turn calls (~120 lines)
 - τ³ BM25 retrieval adapter (~100 lines)
@@ -145,7 +147,7 @@
 
 ### 7. ClawMark — 100 tasks, 13 domains, 5 services
 
-**Purpose**: Multi-day professional task benchmark with 1,537 fully deterministic checkers (no LLM judge). Unique for exogenous state changes between turns — tests agent's ability to detect silent changes across simulated workdays. Highest bar for robust session management.
+**Purpose**: Multi-day professional task benchmark with 1,537 fully deterministic checkers (no LLM judge). Unique for exogenous state changes between turns — tests agent's ability to detect silent changes across simulated workdays.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -154,22 +156,22 @@
 | Calendar (Radicale CalDAV) | `run_python` + caldav | ✅ none |
 | Notion mock (HTTP API) | `fetch_url` | ✅ none |
 | Sheets mock (HTTP API) | `fetch_url` | ✅ none |
-| Docker Compose integration | — | Agent joining `clawmark` network (~60 lines) |
+| Docker Compose infrastructure | — | Must join `clawmark` network with 5 stateful services (~60 lines) |
 | Multimodal artifacts (PDF, image, audio, video) | `run_python` + PyMuPDF/PIL, `run_shell` + ffmpeg | ✅ none |
 | Task-level session | — | `ClawMarkTaskSession` managing inter-turn state (~200 lines) |
 | Silent-change detection | — | Prompt engineering in system message (~20 lines) |
 
-**Still needed**:
-- Docker Compose network integration (~60 lines)
+**Still needed (local eval)**:
+- Docker Compose network integration (~60 lines) — **required even for local eval** (GreenMail, Radicale, etc. are Docker services)
 - `ClawMarkTaskSession` for inter-turn state (~200 lines)
 - Silent-change detection prompt (~20 lines)
-= **~280 lines. Zero new tools.** (All service operations composable from existing tools.)
+= **~280 lines. Zero new tools.**
 
 ---
 
 ### 8. QwenClawBench — 100 tasks, 8 domains
 
-**Purpose**: Breadth benchmark across 8 domains (workflow, sysops, knowledge, finance, data, security, comms, research) with hybrid automated + LLM-judge scoring. Strength is infrastructure reliability (anomaly detection, resumable runs). Overlaps heavily with WildClawBench and ClawMark.
+**Purpose**: Breadth benchmark across 8 domains (workflow, sysops, knowledge, finance, data, security, comms, research) with hybrid automated + LLM-judge scoring. Overlaps heavily with WildClawBench and ClawMark.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
@@ -180,87 +182,86 @@
 | Security tools (credential audit, injection defense) | `run_shell`, `run_python` | ✅ none (composable) |
 | Data tools (statistics, regression) | `run_python` + scipy/sklearn | ✅ none (composable) |
 | Communication (notifications, reminders) | `run_python` | ✅ none (composable) |
-| Knowledge base / vector store | — | **Memory system needed** for 15/100 tasks (knowledge domain) — not a tool gap |
+| Knowledge base / vector store | — | **Memory system** for 15/100 knowledge-domain tasks — not a tool gap |
 | Workflow sessions | — | Session continuity for 21/100 workflow tasks |
 
-**Still needed**:
-- Harness adapter (~200 lines)
-- Knowledge base / vector store for 15/100 knowledge-domain tasks (~500+ lines — memory gap, not tool gap)
-= **~200 lines for harness. New tool count: 0.**
+**Still needed (local eval)**:
+- Task runner (~150 lines)
+- Memory system for 15 knowledge tasks (~500+ lines — not a tool gap)
+= **~150 lines for local eval. Zero new tools.**
 
 ---
 
 ### 9. Engram — 498 tasks, memory benchmark
 
-**Purpose**: Measures agent memory quality — nothing else. 498 tasks across 9 question types testing fact recall, temporal reasoning, cross-agent memory, multi-session knowledge. Wrong benchmark until TINYCUA has a working memory system. Baseline TINYCUA would score near 0.
+**Purpose**: Measures agent memory quality — nothing else. 498 tasks across 9 question types testing fact recall, temporal reasoning, cross-agent memory. Wrong benchmark until TINYCUA has a working memory system.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
 | Simple Q&A | LLM itself | ✅ none |
-| Memory extraction | — | Full memory system needed (persistence + extraction + retrieval + abstention) |
-| Multi-session management | — | `--agent-id`, session ID tracking, Seed→Settle→Probe→Judge protocol |
-| `tinycua agent` CLI | `tinycua` CLI exists | `--agent-id`, `--condition` flags missing (~40 lines) |
+| Memory extraction | — | Full memory system (persistence + extraction + retrieval + abstention) |
+| Multi-session management | — | Seed→Settle→Probe→Judge protocol, `--agent-id` flag |
 
-**Still needed**:
-- Memory persistence layer (SQLite or vector store)
-- Memory extraction pipeline (facts from conversations)
-- Memory retrieval pipeline (semantic search)
-- Abstention mechanism (when to say "I don't know")
-- Multi-session management (Seed→Settle→Probe→Judge protocol)
+**Still needed (local eval)**:
+- Full memory system (SQLite/vector store, extraction pipeline, retrieval pipeline, abstention)
 - `--agent-id`, `--condition` CLI flags (~40 lines)
-= **~1800 lines total. This is a memory infrastructure gap, not a tool gap. Tools are almost irrelevant here.**
+= **~1800 lines. Memory infrastructure gap, not a tool gap. Tools are irrelevant.**
 
 ---
 
 ### 10. Hermes Agent (TB2 / TBLite / YC-Bench)
 
-**Purpose**: Terminal-based benchmarks from NousResearch's Hermes Agent. TB2 (89 tasks) and TBLite (100 tasks) test CLI tool-use. YC-Bench is a long-horizon CEO simulation. Deeply coupled to Atropos RL framework — high integration effort for limited marginal benefit over WildClawBench.
+**Purpose**: Terminal-based benchmarks from NousResearch. TB2 (89 tasks) and TBLite (100 tasks) test CLI tool-use. YC-Bench is a long-horizon CEO simulation. Deeply coupled to Atropos RL framework.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
 | Terminal execution | `run_shell` | ✅ none |
 | File operations | `read_file`, `write_file`, `edit_file`, `list_files` | ✅ none |
-| Atropos `BaseEnv` interface | — | Adapter wrapping TINYCUA as Hermes agent (~400 lines) OR standalone runner (~400 lines) |
+| Task runner | — | Standalone script reading TB2/TBLite task definitions (~300 lines) |
 
-**Still needed**:
-- Atropos `BaseEnv` adapter OR standalone Docker task runner (~400 lines)
-= **~400 lines. Zero new tools.** (Overlaps with WildClawBench's Code Intelligence category — redundant effort.)
+**Still needed (local eval)**:
+- Standalone task runner reading TB2/TBLite tasks, launching agent, running test suites (~300 lines)
+= **~300 lines. Zero new tools.**
 
 ---
 
 ### 11. Terminal-Bench 2.0 / 2.1 — 89 tasks
 
-**Purpose**: Pure terminal capability benchmark — shell commands, compilers, git, system administration. Binary pass/fail. Only one tool needed (`execute_command`). Harnesses include Claude Code, Codex, OpenHands, Gemini CLI. Lowest integration effort on this list.
+**Purpose**: Pure terminal capability — shell commands, compilers, git, system administration. Binary pass/fail. Only one tool needed.
 
 | Benchmark needs | TINYCUA has | Gap |
 |----------------|-------------|-----|
 | `execute_command(cmd)` | `run_shell` | ✅ none |
-| Harbor `BaseInstalledAgent` interface | — | Harbor adapter (~100 lines) |
+| Task definition reader | — | Script that reads tasks and invokes agent (~80 lines) |
 | `--instruction` CLI flag | — | ~30 lines |
 
-**Still needed**:
-- Harbor `BaseInstalledAgent` adapter (~100 lines)
+**Still needed (local eval)**:
+- Task reader script (~80 lines)
 - `--instruction` CLI flag (~30 lines)
-= **~130 lines. Zero new tools.** (Simplest integration of all benchmarks — single tool needed, TINYCUA has it.)
+= **~110 lines. Zero new tools.**
 
 ---
 
 ## Summary
 
-| # | Benchmark | Purpose | Tools gap | Still need to build | Est. lines | Priority lock |
-|---|-----------|---------|-----------|---------------------|-----------|---------------|
-| 1 | **WildClawBench** | Real-world tool use (60 tasks, 6 categories) | 0 | • Harness adapter<br>• Dockerfile<br>• run.sh entry | ~340 | Primary target |
-| 2 | **ClawEval** | Infrastructure soundness check | 0 | • `--message`/`--session` flags<br>• Session wrapper | ~180 | Needs session |
-| 3 | **ClawBench** | Signal-curated tool-use quality | 0 | • Trace adapter<br>• Tool name mapping | ~250 | WildClawBench overlap |
-| 4 | **Claw-Eval** | 300 human-verified domain tasks | 0 | • Harness adapter<br>• CLI `--session` flag | ~290 | WildClawBench overlap |
-| 5 | **ClawProBench** | Multi-profile YAML-defined scenarios | 0 | • YAML parser + tool mapping<br>• Profile runner | ~600 | WildClawBench overlap |
-| 6 | **τ-bench** | Policy adherence with simulated user | 0 | • Domain tool wrappers<br>• HalfDuplexAgent adapter | ~370 | WildClawBench overlap |
-| 7 | **ClawMark** | Multi-day tasks, silent state changes | 0 | • Docker Compose<br>• Task session | ~280 | WildClawBench overlap |
-| 8 | **QwenClawBench** | 8-domain breadth benchmark | 0 | • Harness adapter<br>• Memory for knowledge tasks | ~200 (+500) | Needs memory |
-| 9 | **Engram** | Memory quality (498 tasks) | 0 | • Full memory system | ~1800 | Needs memory |
-| 10 | **Hermes (TB2/TBLite/YC)** | Terminal + long-horizon CEO sim | 0 | • Atropos adapter or standalone runner | ~400 | WildClawBench overlap |
-| 11 | **Terminal-Bench** | Pure terminal capability | 0 | • Harbor adapter<br>• `--instruction` flag | ~130 | WildClawBench overlap |
+| # | Benchmark | Purpose | Tools gap | Locally needed | Est. lines | Real blocker |
+|---|-----------|---------|-----------|----------------|-----------|-------------|
+| 1 | **WildClawBench** | Real-world tool use | 0 | Task reader + grader caller | ~50-100 | None |
+| 2 | **ClawEval** | Infrastructure soundness | 0 | CLI flags + session wrapper | ~180 | Session |
+| 3 | **ClawBench** | Tool-use quality | 0 | Task runner | ~100 | None |
+| 4 | **Claw-Eval** | 300 domain tasks | 0 | Eval script + session flag | ~190 | Session |
+| 5 | **ClawProBench** | YAML scenarios | 0 | YAML parser + profile runner | ~600 | None |
+| 6 | **τ-bench** | Policy + simulated user | 0 | Tool wrappers + agent adapter | ~370 | Loop inversion |
+| 7 | **ClawMark** | Multi-day silent changes | 0 | Docker Compose + task session | ~280 | Session + Docker |
+| 8 | **QwenClawBench** | 8-domain breadth | 0 | Task runner + memory | ~150 (+500) | Memory |
+| 9 | **Engram** | Memory quality | 0 | Full memory system | ~1800 | Memory |
+| 10 | **Hermes** | Terminal + CEO sim | 0 | Standalone task runner | ~300 | None |
+| 11 | **Terminal-Bench** | Pure terminal | 0 | Task reader + `--instruction` | ~110 | None |
 
-**Key finding**: Zero benchmarks require new tool implementations that can't be composed from TINYCUA's 7 existing tools + Image tool. Every integration is a harness/adapter problem, not a tool capability problem. The two genuine blockers are:
-- **Session infrastructure** (ClawEval, Claw-Eval multi_turn, ClawMark, QwenClawBench workflows) — ~200 lines of session wrapper
-- **Memory infrastructure** (Engram, QwenClawBench knowledge) — ~1800 lines of full memory system
+**Key finding**: Zero benchmarks need new tool implementations. The 7 existing tools + Image tool compose everything. Every integration is either:
+- **Trivial** (task reader only): WildClawBench, ClawBench, Claw-Eval, ClawProBench, Hermes, Terminal-Bench
+- **Needs session wrapper** (~200 lines): ClawEval, Claw-Eval multi_turn, ClawMark
+- **Needs memory system** (~1800 lines): Engram, QwenClawBench knowledge domain
+- **Special cases**: τ-bench (loop inversion), ClawMark (Docker Compose)
+
+The shortest path to a working eval: **WildClawBench** (~50-100 lines for a task reader + grader caller).
