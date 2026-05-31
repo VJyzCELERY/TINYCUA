@@ -3,6 +3,4 @@ name = "project-root"
 version = "0.1.0"
 description = "Root project — provides Python environment for preflight/postflight scripts"
 requires-python = ">=3.11"
-dependencies = [
-    "pytest>=9.0.3",
-]
+dependencies = []

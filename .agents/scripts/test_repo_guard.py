@@ -16,7 +16,7 @@ class TestAssertInsideRepo:
         repo_guard.assert_inside_repo(PROJECT_ROOT)
 
     def test_accepts_nested_path(self):
-        nested = PROJECT_ROOT / "src" / "tinycua"
+        nested = PROJECT_ROOT / "src" / "my-subproject"
         repo_guard.assert_inside_repo(nested)
 
     def test_accepts_dot_agents(self):

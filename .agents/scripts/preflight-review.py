@@ -20,10 +20,20 @@ With --init-review, also prints the review file path so the agent knows where to
 <EOF_DESC>
 """
 
+import importlib.util
 import subprocess, sys, re, argparse, json, datetime
 from pathlib import Path
 
 import repo_guard
+
+# Import check_branch_health from update-commit-range.py (hyphenated filename)
+_spec = importlib.util.spec_from_file_location(
+    "update_commit_range",
+    repo_guard.repo_root() / ".agents" / "scripts" / "update-commit-range.py",
+)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+check_branch_health = _mod.check_branch_health
 
 
 _commit_base = None
@@ -437,6 +447,23 @@ def main():
         warnings.extend(check_stale(args.review_file))
 
     warnings.extend(check_unstaged())
+
+    # Check branch health vs remote tracking (advisory only)
+    health = check_branch_health()
+    if health["status"] == "behind":
+        print(
+            f"[INFO] Branch is {health['behind']} commit(s) BEHIND remote. "
+            "Consider pulling latest changes before review."
+        )
+    elif health["status"] == "diverged":
+        print(
+            f"[INFO] Branch is DIVERGED ({health['ahead']} ahead, {health['behind']} behind remote). "
+            "Consider rebasing before review if accurate diff is needed."
+        )
+    elif health["status"] == "detached":
+        print("[INFO] Detached HEAD — proceed with caution.")
+    elif health["status"] == "ahead":
+        print(f"[INFO] Branch is {health['ahead']} commit(s) AHEAD of remote. Reviewing local state as latest.")
 
     has_warnings = bool(warnings)
     for line in info_lines:
