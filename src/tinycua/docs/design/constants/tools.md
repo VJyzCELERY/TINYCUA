@@ -21,7 +21,6 @@ in this file.
 ```python
 from tinycua_sdk.tools.decorators import Tool
 from tinycua.tools.classification import ClassificationTool
-from tinycua.tools.retrieval import enhanced_context_retrieval
 from tinycua.tools.native import native_benchmark_tools
 
 QUERY_ANALYST_BASE_TOOLS: list[Tool] = [
@@ -36,9 +35,11 @@ READ_ONLY_TASK_TOOLS: list[Tool] = [
     # list_tasks, get_task_detail — task inspection without side effects
 ]
 
-INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = [
-    enhanced_context_retrieval,
-]
+INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = []
+# Tools are built dynamically in run():
+#   - enhanced_context_retrieval (internal agent + cache read_file)
+#   - digest_information (structured output formatter)
+# Both created via closures capturing cache_path and model.
 
 TASK_CREATOR_BASE_TOOLS: list[Tool] = []
 
