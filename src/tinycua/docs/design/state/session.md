@@ -312,39 +312,23 @@ class Session(StateObject):
     # ── Compaction ──────────────────────────────────────────────────
 
     def _check_compaction(self) -> None:
-        """Check if session_context exceeds the context window and compact if needed.
+        """Delegate compaction check to the stored strategy.
 
-        Derives the context window from agent_state.agent_config.model.
-        Uses self.compaction_strategy as the summarize_fn. If no strategy
-        is set, compaction is skipped.
+        The strategy owns the policy: context window derivation, token
+        estimation, threshold comparison, and when to trigger compaction.
+        Session only calls the strategy — it has no compaction logic.
 
         Called automatically after every session_context mutation:
         append_user(), append_assistant(), terminate_child().
         """
-        if self.compaction_strategy is None:
-            return
-        if self.agent_state is None or self.agent_state.agent_config is None:
-            return
-        context_window = getattr(
-            self.agent_state.agent_config.model, "context_window", None
-        )
-        if context_window is None:
-            return
-
-        # Estimate token count — approximate: tokens ≈ chars / 4
-        estimated_tokens = sum(
-            len(msg.get("content", "")) for msg in self.session_context
-        ) // 4
-
-        if estimated_tokens > context_window:
-            self.compact(self.compaction_strategy)
+        if self.compaction_strategy is not None:
+            self.compaction_strategy.check_compaction(self)
 
     def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
         """Replace session_context with a single summarized turn.
 
-        summarize_fn receives the current session_context and returns a
-        summary string. Typically self.compaction_strategy (a BaseCompaction
-        instance implementing __call__). The caller can inject any callable.
+        summarize_fn is typically self.compaction_strategy (a BaseCompaction
+        instance implementing __call__).
 
         Reset active_token_usage on compaction (the active window changed).
         chat_history and total_token_usage are never modified.
@@ -435,10 +419,9 @@ self.session.terminate_child(primary.session)
 | Chat history always propagates | `terminate_child()` always merges `chat_history` | Full audit trail available at root (except transient agents) |
 | Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
 | Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |
-| Compaction trigger | `_check_compaction()` on every `session_context` mutation | Proactive; no separate compaction pass |
+| Compaction trigger | `_check_compaction()` delegates to `self.compaction_strategy.check_compaction(self)` | Strategy owns the policy; Session just delegates |
 | Compaction strategy | `Session.compaction_strategy: BaseCompaction` | Serialized with session; callable; extensible via subclass |
-| Context window from config | `agent_state.agent_config.model.context_window` | Per-agent configurable; derived from LanguageModel |
-| No default stub | Removed `_default_summarize` — strategy injection is the contract | Stub had no logic; `compaction_strategy` must be explicitly set |
+| Compaction policy in strategy | `check_compaction(session)` on BaseCompaction | Strategy decides context window, thresholds, token estimation |
 | Re-parent after deserialization | `set_parents()` in `from_dict()` | `_parent` excluded from serialization; re-established on load |
 | Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
 | Token usage: active | `active_token_usage` on Session | Based on current session_context; reset on compaction; reflects active window |

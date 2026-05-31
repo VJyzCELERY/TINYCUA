@@ -10,9 +10,9 @@
 ## Role
 
 `BaseCompaction` is a serializable, callable strategy for compressing session context
-messages. Each Session stores a concrete compaction instance. When context-window
-pressure is detected, `_check_compaction()` calls the stored strategy, which compresses
-`session_context` into a single summary turn.
+messages. It owns BOTH the policy for when to compact (`check_compaction`) and the
+compression logic (`__call__`). Each Session stores a concrete compaction instance
+and delegates compaction decisions to it.
 
 Subclasses can store persistent data (snapshots, checkpoints, intermediate summaries)
 alongside the strategy itself.
@@ -44,7 +44,40 @@ class BaseCompaction(StateObject):
     """
 
     config: dict[str, Any] = field(default_factory=dict)
-    # Configuration for the compaction algorithm (model, prompt template, etc.)
+    # Configuration for the compaction algorithm (model, prompt template,
+    # context window threshold, etc.).
+
+    def check_compaction(self, session: "Session") -> None:
+        """Check if the session's context exceeds the threshold and compact.
+
+        Called by Session._check_compaction() after every session_context
+        mutation. Derives the context window from session.agent_state and
+        applies the strategy's policy for when compaction should trigger.
+
+        Override in subclasses for custom policies (e.g., checkpoint-based
+        thresholds instead of raw token counts).
+        """
+        context_window = self._get_context_window(session)
+        if context_window is None:
+            return
+
+        estimated_tokens = self._estimate_tokens(session.session_context)
+        if estimated_tokens > context_window:
+            session.compact(self)
+
+    def _get_context_window(self, session: "Session") -> int | None:
+        """Derive context window from the session's agent config."""
+        if session.agent_state is None or session.agent_state.agent_config is None:
+            return None
+        return getattr(
+            session.agent_state.agent_config.model, "context_window", None
+        )
+
+    def _estimate_tokens(self, messages: list[dict[str, Any]]) -> int:
+        """Estimate token count from messages. Override for accurate counting."""
+        return sum(
+            len(msg.get("content", "")) for msg in messages
+        ) // 4
 
     def __call__(self, messages: list[dict[str, Any]]) -> str:
         """Compress messages into a single summary string.
@@ -61,37 +94,37 @@ class BaseCompaction(StateObject):
 
 ## Integration with Session
 
-`Session` stores the compaction strategy instance:
+`Session` delegates to the strategy:
 
 ```python
 # In Session:
 compaction_strategy: BaseCompaction | None = None
 
 def _check_compaction(self) -> None:
-    """Check if session_context exceeds the context window."""
-    if self.compaction_strategy is None:
-        return
-    context_window = getattr(
-        self.agent_state.agent_config.model, "context_window", None
-    )
-    if context_window is None:
-        return
+    """Delegate compaction check to the strategy."""
+    if self.compaction_strategy is not None:
+        self.compaction_strategy.check_compaction(self)
 
-    estimated_tokens = sum(
-        len(msg.get("content", "")) for msg in self.session_context
-    ) // 4
-
-    if estimated_tokens > context_window:
-        self.compact(self.compaction_strategy)
+def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
+    """Replace session_context with a single summarized turn.
+    
+    summarize_fn is typically self.compaction_strategy (implements __call__).
+    """
+    summary = summarize_fn(self.session_context)
+    self.session_context = [{"role": "user", "content": summary}]
+    self.active_token_usage = None
+    self.compaction_count += 1
 ```
 
-`compact()` already accepts a `summarize_fn` parameter, and `BaseCompaction` is
-callable — the instance is passed directly:
+The strategy owns the full compaction policy:
+- `check_compaction(session)` — decides IF compaction should happen
+- `__call__(messages)` — decides HOW to compact
+- `config` — stores thresholds, model settings, etc.
+- Subclass fields — stores persistent data (snapshots, history)
 
-```python
-self.compact(self.compaction_strategy)
-# Equivalent to: self.compaction_strategy(self.session_context)
-```
+Session only needs to call `self.compaction_strategy.check_compaction(self)` —
+it doesn't need to know about context windows, token estimation, or compaction
+thresholds.
 
 ---
 
@@ -158,6 +191,8 @@ session = Session.from_dict(data)
 |----------|--------|-----------|
 | Callable + StateObject | `BaseCompaction(StateObject)` with `__call__` | Passed as `summarize_fn`; persists alongside session |
 | Strategy on Session | `Session.compaction_strategy` | Per-session configurable; serialized with session |
+| Strategy owns compaction policy | `check_compaction(session)` on strategy | Strategy decides WHEN to compact; Session just delegates |
+| Token estimation on strategy | `_estimate_tokens()` on BaseCompaction | Override for accurate counting or custom policies |
 | No default summarizer stub | Removed `_default_summarize` from Session | Stub had no real logic; strategy injection is the contract |
 | Extensible via subclass | `BaseCompaction` can add persistent data | Supports advanced patterns like snapshot accumulation |
 
