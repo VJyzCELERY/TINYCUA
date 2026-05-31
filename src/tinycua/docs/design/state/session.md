@@ -15,13 +15,13 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 
 | Concern | Where |
 |---------|-------|
-| Own agent state | `agent_state: AgentState` — this session's state; also stores `agent_config` for context window |
+| Own agent state | `agent_state: AgentState` — this session's own state; stores `agent_config` (provides context window + compaction strategy) |
 | Transient flag | `is_transient: bool` — if True, never registered in `child_sessions` (only `parent_id` set); nothing propagates upward on termination |
 | Shared task | `task: Task \| None` — all sessions in the tree reference the **same** Task object |
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
 | Active session | `get_active_session()` — DFS pre-order |
 | Filtered messages | `session_context` (vs raw `chat_history`) |
-| Compaction | `_check_compaction()` triggered on every session_context mutation; `compaction_strategy` is serializable |
+| Compaction | `_check_compaction()` triggered on every session_context mutation; strategy from `agent_state.agent_config.compaction_strategy` |
 | Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
 | Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
 | Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing (child never in tree). |
@@ -74,13 +74,13 @@ class Session(StateObject):
         session_id, name, type, chat_history, context, execution_log
 
     Our design adds:
-        - agent_state (this session's own AgentState, including agent_config)
-        - is_transient (transient agents propagate nothing on termination)
+        - agent_state (this session's own AgentState, non-optional; includes agent_config)
+        - is_transient (transient agents: not in child_sessions, nothing propagates)
         - task (shared Task object, all sessions reference the same tree)
         - Tree structure (parent_id, child_sessions, _parent)
         - session_context (filtered messages for LLM, vs raw chat_history)
         - Compaction (_check_compaction triggered on every context mutation;
-          compaction_strategy injected as serializable strategy)
+          strategy inherited from agent_state.agent_config.compaction_strategy)
         - Child lifecycle (add_child / terminate_child with dual propagation rules)
     """
 
@@ -92,10 +92,12 @@ class Session(StateObject):
     execution_log: Any = None  # ExecutionLog | None
 
     # ── Own agent state (our addition) ────────────────────────────────
-    agent_state: AgentState | None = None
-    # Each session stores ONLY its own agent's state.
-    # Root (TinyCUA) → agent_state tracks overall system lifecycle.
-    # agent_state.agent_config provides the context window for compaction.
+    agent_state: AgentState
+    # Each session stores ONLY its own agent's state. Non-optional —
+    # must be provided at session creation (orchestrator sets it).
+    # agent_state.agent_config provides:
+    #   - model.context_window for compaction threshold checks
+    #   - compaction_strategy for both check_compaction() and __call__()
 
     # ── Transient flag (our addition) ─────────────────────────────────
     is_transient: bool = False
@@ -103,11 +105,6 @@ class Session(StateObject):
     # Rule: never registered in parent.child_sessions, only parent_id set.
     # On termination: nothing propagates to parent (not chat_history,
     # not session_context). Used for QueryAnalyst, InformationDigester.
-
-    # ── Compaction strategy (our addition) ────────────────────────────
-    compaction_strategy: BaseCompaction | None = None
-    # Serialized with the session. Passed as summarize_fn to compact().
-    # Subclasses can store persistent data (snapshots, checkpoints).
 
     # ── Token tracking (our addition) ─────────────────────────────────
     total_token_usage: dict[str, int] | None = None
@@ -324,28 +321,29 @@ class Session(StateObject):
     # ── Compaction ──────────────────────────────────────────────────
 
     def _check_compaction(self) -> None:
-        """Delegate compaction check to the stored strategy.
+        """Delegate compaction check to the strategy from agent config.
 
-        The strategy owns the policy: context window derivation, token
-        estimation, threshold comparison, and when to trigger compaction.
-        Session only calls the strategy — it has no compaction logic.
+        The strategy (from agent_state.agent_config.compaction_strategy) owns
+        the policy: context window derivation, token estimation, threshold
+        comparison, and when to trigger compaction. Session only calls the
+        strategy — it has no compaction logic.
 
         Called automatically after every session_context mutation:
         append_user(), append_assistant(), terminate_child().
         """
-        if self.compaction_strategy is not None:
-            self.compaction_strategy.check_compaction(self)
+        strategy = self.agent_state.agent_config.compaction_strategy
+        if strategy is not None:
+            strategy.check_compaction(self)
 
     def compact(self) -> None:
         """Replace session_context with a single summarized turn.
 
-        Delegates to self.compaction_strategy.__call__() — the strategy
-        compresses session_context and returns the summary.
-
-        Reset active_token_usage on compaction (the active window changed).
+        Delegates to compaction strategy from agent_state.agent_config.
+        The strategy compresses session_context and returns the summary.
         chat_history and total_token_usage are never modified.
         """
-        summary = self.compaction_strategy(self.session_context)
+        strategy = self.agent_state.agent_config.compaction_strategy
+        summary = strategy(self.session_context)
         self.session_context = [
             {"role": "user", "content": summary}
         ]
@@ -430,8 +428,8 @@ self.session.terminate_child(primary.session)
 | Chat history always propagates | `terminate_child()` always merges `chat_history` | Full audit trail available at root (except transient agents) |
 | Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
 | Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |
-| Compaction trigger | `_check_compaction()` delegates to `self.compaction_strategy.check_compaction(self)` | Strategy owns the policy; Session just delegates |
-| Compaction strategy | `Session.compaction_strategy: BaseCompaction` | Serialized with session; callable; extensible via subclass |
+| Compaction trigger | `_check_compaction()` → `agent_state.agent_config.compaction_strategy.check_compaction(self)` | Strategy lives on agent config; Session delegates via its own agent_state |
+| Compaction strategy | On `AgentConfigBase.compaction_strategy: BaseCompaction \| None` | Per-agent configurable; Session inherits via `agent_state.agent_config` |
 | Compaction policy in strategy | `check_compaction(session)` on BaseCompaction | Strategy decides context window, thresholds, token estimation |
 | Re-parent after deserialization | `set_parents()` in `from_dict()` | `_parent` excluded from serialization; re-established on load |
 | Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
@@ -458,5 +456,5 @@ Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [Contin
 - [Session.agent_state per node](agent_state.md)
 - [Session.task — shared Task object](task.md)
 - [Persistence backend for Session](state_store.md)
-- [Compaction strategy stored on Session](../utility/compaction.md)
+- [Compaction strategy inherited from agent_state.agent_config](../utility/compaction.md)
 - [Orchestrators hold self.session](../agents/base.md)

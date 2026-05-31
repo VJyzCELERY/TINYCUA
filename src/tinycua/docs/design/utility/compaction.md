@@ -11,8 +11,8 @@
 
 `BaseCompaction` is a serializable, callable strategy for compressing session context
 messages. It owns BOTH the policy for when to compact (`check_compaction`) and the
-compression logic (`__call__`). Each Session stores a concrete compaction instance
-and delegates compaction decisions to it.
+compression logic (`__call__`). Each agent config (`AgentConfigBase`) stores a concrete
+compaction instance; Session inherits it via `agent_state.agent_config.compaction_strategy`.
 
 Subclasses can store persistent data (snapshots, checkpoints, intermediate summaries)
 alongside the strategy itself.
@@ -34,9 +34,12 @@ from tinycua.state.base import StateObject
 class BaseCompaction(StateObject):
     """Compression strategy — callable, serializable, extensible.
 
-    Stored on Session.compaction_strategy. Passed as the summarize_fn
-    to Session.compact(). Implements __call__ so it can be invoked
-    directly.
+    Stored on AgentConfigBase.compaction_strategy. Session accesses it through
+    self.agent_state.agent_config.compaction_strategy.
+
+    Implements __call__ so it can be invoked directly.
+    check_compaction(session) is called by Session._check_compaction()
+    to decide whether to compact.
 
     Subclasses can add persistent fields for intermediate data storage.
     For example, ParallelCompaction might store compaction snapshots that
@@ -94,20 +97,25 @@ class BaseCompaction(StateObject):
 
 ## Integration with Session
 
-`Session` delegates to the strategy:
+`Session` accesses the strategy through its `agent_state.agent_config`:
 
 ```python
-# In Session:
+# In AgentConfigBase:
 compaction_strategy: BaseCompaction | None = None
 
+# In Session:
+# No dedicated compaction_strategy field — derived from agent_state.agent_config
+
 def _check_compaction(self) -> None:
-    """Delegate compaction check to the strategy."""
-    if self.compaction_strategy is not None:
-        self.compaction_strategy.check_compaction(self)
+    """Delegate compaction check to the strategy from agent config."""
+    strategy = self.agent_state.agent_config.compaction_strategy
+    if strategy is not None:
+        strategy.check_compaction(self)
 
 def compact(self) -> None:
-    """Replace session_context by delegating to self.compaction_strategy."""
-    summary = self.compaction_strategy(self.session_context)
+    """Replace session_context by delegating to the compaction strategy."""
+    strategy = self.agent_state.agent_config.compaction_strategy
+    summary = strategy(self.session_context)
     self.session_context = [{"role": "user", "content": summary}]
     self.compaction_count += 1
 ```
@@ -117,6 +125,9 @@ The strategy owns the full compaction lifecycle:
 - `__call__(messages)` — compresses messages into summary
 - `config` — stores thresholds, model settings
 - Subclass fields — persistent data (snapshots, history)
+
+The strategy is stored per-agent via `AgentConfigBase.compaction_strategy`.
+Each agent can have its own compaction policy; Session derives it automatically.
 
 ---
 
@@ -162,17 +173,17 @@ class ParallelCompaction(BaseCompaction):
 
 `BaseCompaction` extends `StateObject` — its fields (`config`, subclass fields like
 `snapshots`) are automatically serialized/deserialized via `to_dict()`/`from_dict()`.
-This means a Session with a compaction strategy can be persisted and restored with
-strategy state intact.
+Since the strategy lives on `AgentConfigBase`, it is serialized as part of the agent
+state (`agent_state.agent_config`), which is stored on the session.
 
 ```python
 # Save:
 session.to_dict()
-# → {"compaction_strategy": {"config": {...}, "snapshots": [...]}, ...}
+# → {"agent_state": {"agent_config": {"compaction_strategy": {"config": {...}, "snapshots": [...]}}}, ...}
 
 # Restore:
 session = Session.from_dict(data)
-# session.compaction_strategy is a ParallelCompaction with its snapshots
+# session.agent_state.agent_config.compaction_strategy is a ParallelCompaction
 ```
 
 ---
@@ -181,11 +192,11 @@ session = Session.from_dict(data)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Callable + StateObject | `BaseCompaction(StateObject)` with `__call__` | Passed as `summarize_fn`; persists alongside session |
-| Strategy on Session | `Session.compaction_strategy` | Per-session configurable; serialized with session |
+| Callable + StateObject | `BaseCompaction(StateObject)` with `__call__` | Serializes alongside agent config; callable as summarize_fn |
+| Strategy on AgentConfigBase | `AgentConfigBase.compaction_strategy` | Per-agent compaction policy; Session derives via `agent_state.agent_config` |
 | Strategy owns compaction policy | `check_compaction(session)` on strategy | Strategy decides WHEN to compact; Session just delegates |
 | Token estimation on strategy | `_estimate_tokens()` on BaseCompaction | Override for accurate counting or custom policies |
-| No default summarizer stub | Removed `_default_summarize` from Session | Stub had no real logic; strategy injection is the contract |
+| Session derives strategy | `session.agent_state.agent_config.compaction_strategy` | No dedicated field on Session; naturally available via agent_state |
 | Extensible via subclass | `BaseCompaction` can add persistent data | Supports advanced patterns like snapshot accumulation |
 
 
@@ -201,5 +212,5 @@ Prev : [Orchestrator-Call Tools](../tools/agent_calls.md)
 
 ## Related
 
-- [Stored on Session.compaction_strategy](../state/session.md)
+- [Stored on AgentConfigBase.compaction_strategy](../config/agents.md)
 - [Context window from AgentState.agent_config](../state/agent_state.md)

@@ -19,9 +19,14 @@ The factory creates an orchestrator instance from its config.
 
 ```python
 from dataclasses import dataclass, field
+from typing import Any, TYPE_CHECKING
+
 from tinycua_sdk.tools.decorators import Tool
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua.config.types import TINYCUA_DEFAULT_MODEL
+
+if TYPE_CHECKING:
+    from tinycua.utility.compaction import BaseCompaction
 
 
 @dataclass
@@ -32,6 +37,7 @@ class AgentConfigBase:
     model: LanguageModel = field(default_factory=lambda: TINYCUA_DEFAULT_MODEL)
     extra_tools: list[Tool] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    compaction_strategy: "BaseCompaction | None" = None
 ```
 
 | Field | Purpose |
@@ -41,6 +47,7 @@ class AgentConfigBase:
 | `model` | `LanguageModel` — defaults to `TINYCUA_DEFAULT_MODEL` |
 | `extra_tools` | Externally injected tools — **empty by default**. MainLoop uses this to inject per-agent tools |
 | `metadata` | Free-form dict for future extensibility |
+| `compaction_strategy` | Per-agent compaction strategy (`BaseCompaction \| None`) — Session inherits via `agent_state.agent_config` |
 
 ---
 
@@ -155,6 +162,7 @@ class TinyCUAConfig:
 | One config per agent | Dataclass per agent kind | Typed, auto-completing; no dict-based config lookup |
 | `extra_tools` in base | Shared field, empty default | Single injection channel for MainLoop or tests |
 | `metadata: dict` in base | Free-form extensibility | Future fields can be promoted to typed fields without breaking the dict |
+| `compaction_strategy` in base | `BaseCompaction \| None` on `AgentConfigBase` | Each agent can have its own compaction strategy; Session derives from `agent_state.agent_config` |
 | `max_iterations_override` on InformationDigester | Agent-specific field | Only this agent has a meaningful iteration cap override |
 | `deterministic_rules` on ResultReviewer | Agent-specific field | Only the review agent uses deterministic rules |
 

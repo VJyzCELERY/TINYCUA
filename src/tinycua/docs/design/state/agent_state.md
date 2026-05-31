@@ -36,8 +36,8 @@ class AgentState(StateObject):
     last_query: dict[str, Any] = field(default_factory=dict)
     last_result: dict[str, Any] = field(default_factory=dict)
 
-    # Config reference for context window derivation
-    agent_config: Any = None  # AgentConfigBase — provides model.context_window
+    # Config reference — provides model.context_window + compaction_strategy
+    agent_config: Any = None  # AgentConfigBase
 ```
 
 `AgentStatus = Literal["idle", "running", "blocked", "terminated"]`
@@ -74,7 +74,7 @@ if agent and agent.status == "running":
 | Stored per session node | `Session.agent_state` on each session | Walk the tree to find who's active; no central dict needed |
 | Resume via tree walk | `get_active_session()` → `agent_state` | Deepest leaf IS the active agent; no explicit routing key |
 | Session metadata on root | `last_query`, `last_result` on root AgentState | Always reachable via `session.root()` |
-| Config on AgentState | `agent_config: AgentConfigBase` | Provides context window for compaction checks per session |
+| Config on AgentState | `agent_config: AgentConfigBase` | Provides `model.context_window` and `compaction_strategy` to Session |
 
 
 ---
