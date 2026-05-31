@@ -63,7 +63,7 @@ class BaseCompaction(StateObject):
 
         estimated_tokens = self._estimate_tokens(session.session_context)
         if estimated_tokens > context_window:
-            session.compact(self)
+            session.compact()
 
     def _get_context_window(self, session: "Session") -> int | None:
         """Derive context window from the session's agent config."""
@@ -105,26 +105,18 @@ def _check_compaction(self) -> None:
     if self.compaction_strategy is not None:
         self.compaction_strategy.check_compaction(self)
 
-def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
-    """Replace session_context with a single summarized turn.
-    
-    summarize_fn is typically self.compaction_strategy (implements __call__).
-    """
-    summary = summarize_fn(self.session_context)
+def compact(self) -> None:
+    """Replace session_context by delegating to self.compaction_strategy."""
+    summary = self.compaction_strategy(self.session_context)
     self.session_context = [{"role": "user", "content": summary}]
-    self.active_token_usage = None
     self.compaction_count += 1
 ```
 
-The strategy owns the full compaction policy:
-- `check_compaction(session)` — decides IF compaction should happen
-- `__call__(messages)` — decides HOW to compact
-- `config` — stores thresholds, model settings, etc.
-- Subclass fields — stores persistent data (snapshots, history)
-
-Session only needs to call `self.compaction_strategy.check_compaction(self)` —
-it doesn't need to know about context windows, token estimation, or compaction
-thresholds.
+The strategy owns the full compaction lifecycle:
+- `check_compaction(session)` — decides IF compaction should happen, calls `session.compact()`
+- `__call__(messages)` — compresses messages into summary
+- `config` — stores thresholds, model settings
+- Subclass fields — persistent data (snapshots, history)
 
 ---
 

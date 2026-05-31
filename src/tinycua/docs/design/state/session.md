@@ -53,7 +53,6 @@ child agent internally spawns its own child session.
 **File:** `tinycua/state/session.py`
 
 ```python
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -324,20 +323,19 @@ class Session(StateObject):
         if self.compaction_strategy is not None:
             self.compaction_strategy.check_compaction(self)
 
-    def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
+    def compact(self) -> None:
         """Replace session_context with a single summarized turn.
 
-        summarize_fn is typically self.compaction_strategy (a BaseCompaction
-        instance implementing __call__).
+        Delegates to self.compaction_strategy.__call__() — the strategy
+        compresses session_context and returns the summary.
 
         Reset active_token_usage on compaction (the active window changed).
         chat_history and total_token_usage are never modified.
         """
-        summary = summarize_fn(self.session_context)
+        summary = self.compaction_strategy(self.session_context)
         self.session_context = [
             {"role": "user", "content": summary}
         ]
-        self.active_token_usage = None  # reset — active window changed
         self.compaction_count += 1
 
     # ── Serialization ───────────────────────────────────────────────
