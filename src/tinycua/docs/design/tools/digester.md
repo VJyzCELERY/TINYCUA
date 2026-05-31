@@ -296,7 +296,7 @@ tools = [
 
 ## See also
 
-Prev : [Orchestrator-Call Tools](agent_calls.md) | Next : [`BaseCompaction` Strategy](../utility/compaction.md)
+Prev : [Orchestrator-Call Tools](agent_calls.md) | Next : [Task Tools](task.md)
 
 
 ## Related

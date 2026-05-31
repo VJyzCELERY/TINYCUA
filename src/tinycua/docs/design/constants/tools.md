@@ -32,7 +32,13 @@ QUERY_ANALYST_UNCERTAINTY_TOOLS: list[Tool] = [
 ]
 
 READ_ONLY_TASK_TOOLS: list[Tool] = [
-    # list_tasks, get_task_detail — task inspection without side effects
+    # ReadActiveTask, ReadTask, ListTask — task inspection without side effects
+    # Defined in tinycua/tools/task.py. See design/tools/task.md.
+]
+
+WRITE_TASK_TOOLS: list[Tool] = [
+    # TaskInit, SetSubTask, AddSubTask, DeleteSubTask, EditSubTask, SwapTask
+    # Defined in tinycua/tools/task.py. See design/tools/task.md.
 ]
 
 INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = []

@@ -207,7 +207,7 @@ session = Session.from_dict(data)
 
 ## See also
 
-Prev : [InformationDigester Tools](../tools/digester.md)
+Prev : [Task Tools](../tools/task.md)
 
 
 ## Related
