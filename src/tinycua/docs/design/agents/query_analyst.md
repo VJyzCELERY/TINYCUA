@@ -21,7 +21,12 @@ from tinycua.state import ModeDecision, ContextEnhancedQuery
 
 
 class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
-    """Query classification — QueryAnalystLoop with direct state reference."""
+    """Query classification — transient agent whose output is NOT stored.
+
+    Always called first by TinyCUA. Decides between:
+      - Passthrough: route to PrimaryAgent (no active task) or active agent
+      - Worker: abort children + task, spawn fresh InfoDigester → Worker chain
+    """
 
     config: QueryAnalystConfig
 
@@ -34,7 +39,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
     async def run(
         self,
         user_query: str,
-        session: Session | None = None,
+        session: Session,
     ) -> AsyncIterator[dict]:
         # 1. Build instruction from base constant + dynamic context
         instructions = self.build_instruction({
@@ -44,7 +49,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
         # 2. Build query from domain input
         query = json.dumps({
             "user_query": user_query,
-            "session_context": session.session_context if session else None,
+            "session_context": session.get_messages() if session else None,
         })
 
         # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
@@ -99,7 +104,7 @@ No `max_iterations=1`. See [`loops/query_analyst_loop.md`](../loops/query_analys
 
 ## Tools
 
-`QUERY_ANALYST_BASE_TOOLS = [ClassificationTool(labels=["primary_agent", "worker", "uncertain"])]`.
+`QUERY_ANALYST_BASE_TOOLS = [ClassificationTool(labels=["passthrough", "worker", "uncertain"])]`.
 See [`constants/tools.md`](../constants/tools.md).
 
 ---
@@ -113,6 +118,12 @@ See [`constants/tools.md`](../constants/tools.md).
 | Agent built per-call | `Agent(...)` in `run()` | Loop receives fresh state reference each call |
 | State reference into loop | `QueryAnalystLoop(state=self.state)` | Loop reads/writes state directly — no custom events needed |
 | Stream passthrough | `yield event` on all events | Caller sees token-by-token output, usage, tool calls |
+| Transient session | `is_transient = True` | Output not stored in chat_history or session_context |
+| Passthrough sub-routing | `get_active_session()` determines target | No active task → PrimaryAgent; active task → active agent |
+| Worker mode aborts | Terminate all children, `session.task = None` | Fresh start for the worker chain |
+
+
+---
 
 
 ---

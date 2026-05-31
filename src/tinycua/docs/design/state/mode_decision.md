@@ -25,7 +25,7 @@ class ContextEnhancedQuery(StateObject):
 
 @dataclass
 class ModeDecision(StateObject):
-    mode: ModeType                          # primary_agent | worker | uncertain
+    mode: ModeType                          # passthrough | worker | uncertain
     score: float                            # confidence score for mode choice
     confidence: float                       # overall confidence
     reasons: list[str]                      # reasons for chosen mode
@@ -34,7 +34,7 @@ class ModeDecision(StateObject):
 
 **Type aliases:**
 ```python
-ModeType = Literal["primary_agent", "worker", "uncertain"]
+ModeType = Literal["passthrough", "worker", "uncertain"]
 UncertainNextAction = Literal["ask_user", "explore"]
 ```
 
@@ -42,7 +42,7 @@ UncertainNextAction = Literal["ask_user", "explore"]
 
 ## Validation
 
-- `mode` must be one of `primary_agent`, `worker`, `uncertain`
+- `mode` must be one of `passthrough`, `worker`, `uncertain`
 - `uncertain_next_action` (if set) must be `ask_user` or `explore`
 - Cross-field: if `mode == "uncertain"`, `uncertain_next_action` is **required**
 
@@ -55,6 +55,9 @@ UncertainNextAction = Literal["ask_user", "explore"]
 | Mode + next action separate | `mode` + `uncertain_next_action` | `uncertain_next_action` only meaningful for uncertain mode |
 | Cross-field validation | `__post_init__` check | Catch missing next_action at construction time |
 | Context injected separately | `ContextEnhancedQuery` distinct from `ModeDecision` | Query enrichment and routing are separate concerns |
+
+
+---
 
 
 ---

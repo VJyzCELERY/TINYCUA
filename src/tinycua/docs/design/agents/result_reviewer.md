@@ -5,6 +5,15 @@
 
 ---
 
+## Role
+
+`ResultReviewer` reviews task execution results. When a task needs decomposition
+(retry with subtasks), it calls **TaskCreator** (not TaskAnalyzer directly).
+TaskCreator internally delegates to TaskAnalyzer → TaskAssessor and returns the
+aggregated task tree.
+
+---
+
 ## Orchestrator Class
 
 ```python
@@ -110,6 +119,9 @@ See [`loops/result_review_loop.md`](../loops/result_review_loop.md).
 |----------|--------|-----------|
 | Deterministic rules in config | `config.deterministic_rules` | Per-deployment customization |
 | Deterministic wins conflicts | Skip Phase 2 on failure | Schema authority |
+
+
+---
 
 
 ---

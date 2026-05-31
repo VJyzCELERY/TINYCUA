@@ -13,7 +13,9 @@ it's on, operational status, and failure tracking. Used for session continuity:
 on resume, the system reads `active_agent` and `active_task_id` to route directly
 to the right orchestrator.
 
-Stored in our design `Session` as `states["agent"]: AgentState`.
+Stored directly on `Session.agent_state` — each session node holds its own agent's
+state. To find which agent is currently active, walk the session tree to the deepest
+leaf via `session.get_active_session()`.
 
 ---
 
@@ -29,6 +31,13 @@ class AgentState(StateObject):
     status: AgentStatus = "idle"         # idle | running | blocked | terminated
     resume_target: str | None = None     # resume target description
     consecutive_failures: int = 0        # non-negative
+
+    # Session-level metadata (set on root session's AgentState)
+    last_query: dict[str, Any] = field(default_factory=dict)
+    last_result: dict[str, Any] = field(default_factory=dict)
+
+    # Config reference for context window derivation
+    agent_config: Any = None  # AgentConfigBase — provides model.context_window
 ```
 
 `AgentStatus = Literal["idle", "running", "blocked", "terminated"]`
@@ -39,14 +48,18 @@ class AgentState(StateObject):
 
 ```python
 # During execution:
-agent_state.status = "running"
-agent_state.active_agent = "task_executor"
-agent_state.active_task_id = "T-0.1"
+session.agent_state.status = "running"
+session.agent_state.active_agent = "task_executor"
+session.agent_state.active_task_id = "T-0.1"
 
-# On session resume:
-if agent_state.status == "running":
-    orchestrator = internal_orchestrators[AgentKind(agent_state.active_agent)]
-    async for event in orchestrator.run(task=load_task(agent_state.active_task_id)):
+# On session resume — walk the tree to find the active session:
+active_session = root_session.get_active_session()
+agent = active_session.agent_state
+if agent and agent.status == "running":
+    orchestrator = internal_orchestrators[AgentKind(agent.active_agent)]
+    async for event in orchestrator.run(
+        task=load_task(agent.active_task_id)
+    ):
         yield event
 ```
 
@@ -58,7 +71,13 @@ if agent_state.status == "running":
 |----------|--------|-----------|
 | Flat lifecycle tracking | Status enum + active fields | Simple state machine; no complex resume logic |
 | Consecutive failure count | `consecutive_failures: int` | Monitors for escalation without requiring external counters |
-| Stored in Session.states | `states["agent"]` | Session is the serialization hub; all state lives there |
+| Stored per session node | `Session.agent_state` on each session | Walk the tree to find who's active; no central dict needed |
+| Resume via tree walk | `get_active_session()` → `agent_state` | Deepest leaf IS the active agent; no explicit routing key |
+| Session metadata on root | `last_query`, `last_result` on root AgentState | Always reachable via `session.root()` |
+| Config on AgentState | `agent_config: AgentConfigBase` | Provides context window for compaction checks per session |
+
+
+---
 
 
 ---

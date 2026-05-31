@@ -58,6 +58,9 @@ class ReviewerDecision(StateObject):
 
 ---
 
+
+---
+
 ## See also
 
 Prev : [`DigestedInformation`](digested_information.md) | Next : [`WorkerResult` + `WorkerConfig`](worker_result.md)

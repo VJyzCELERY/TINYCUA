@@ -32,6 +32,8 @@ INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = [
     enhanced_context_retrieval,
 ]
 
+TASK_CREATOR_BASE_TOOLS: list[Tool] = []
+
 TASK_ANALYZER_BASE_TOOLS: list[Tool] = []
 
 TASK_ASSESSOR_BASE_TOOLS: list[Tool] = []
@@ -100,6 +102,9 @@ Defined in `tinycua/tools/classification.py`. Configured in `QUERY_ANALYST_BASE_
 | Classification labels in tool | Not in prompt | Changing labels doesn't require prompt edits |
 | Native tools in constant | `TASK_EXECUTOR_BASE_TOOLS` | Always available; not optional at runtime |
 | `extra_tools` separate | Empty by default | Single injection channel; keeps base tools clean |
+
+
+---
 
 
 ---

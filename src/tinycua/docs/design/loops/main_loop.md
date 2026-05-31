@@ -58,7 +58,7 @@ class MainLoop(BaseLoop):
 ```
 User Query
   → classify(user_query)           → QueryAnalyst → ModeDecision
-      ├── primary_agent
+      ├── passthrough
       │     → synthesize(ceq)        → PrimaryAgent → final response
       │
       ├── worker
@@ -85,7 +85,7 @@ the stream generator, and returns the final result.
 `MainLoop` tracks per-session state via `self.state` (SessionState). Fields:
 
 - `session_id`
-- Current orchestration phase (`query_analysis`, `primary_agent`, `information_digestion`, `worker`, `uncertain`, `final_response`)
+- Current orchestration phase (`query_analysis`, `passthrough`, `information_digestion`, `worker`, `uncertain`, `final_response`)
 - Active internal orchestrator (`active_agent`)
 - Pending user action
 - Current `ContextEnhancedQuery`, `ModeDecision`, `DigestedInformation`
@@ -102,11 +102,10 @@ State is persisted via the `StateStore` backend (SQLite by default). Checkpoint 
 ```python
 class TinyCUA(BaseAgentOrchestrator[Session]):
     async def run(self, user_query):
-        if self.state.active_agent:
-            orchestrator = self.internal_orchestrators[AgentKind(self.state.active_agent)]
-            async for event in orchestrator.run(**self._build_resume_input()):
-                yield event
-            return
+        # All queries go through QueryAnalyst first;
+        # passthrough or worker routing is handled in run().
+        # MainLoop is used when TinyCUA composes an internal Agent
+        # with orchestrator-call tools for worker orchestration.
 
         agent = Agent(
             name="tinycua",
@@ -114,23 +113,7 @@ class TinyCUA(BaseAgentOrchestrator[Session]):
             llm_model=self.config.model,
             tools=self._build_orchestrator_tools(),
             loop=MainLoop(
-                state=self.state,  # Session IS the state
-                internal_orchestrators=self.internal_orchestrators,
-            ),
-        )
-        async for event in agent.run(query=user_query, stream=True):
-            yield event
-            return
-
-        # Fresh run: full orchestration via MainLoop
-        agent = Agent(
-            name="tinycua",
-            instructions=self.build_instruction({"session": self.session}),
-            llm_model=self.config.model,
-            tools=self._build_orchestrator_tools(),
-            loop=MainLoop(
                 state=self.state,
-                session=self.session,
                 internal_orchestrators=self.internal_orchestrators,
             ),
         )
@@ -145,9 +128,12 @@ class TinyCUA(BaseAgentOrchestrator[Session]):
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Orchestrator-call tools as delegation | `call_*` SDK Tools on the composed agent | MainLoop invokes via natural language + tool calls |
-| State via constructor | `MainLoop(state=self.state, ...)` | Direct reference to SessionState for phase tracking |
-| Session resume bypasses MainLoop | Direct `orchestrator.run()` in TinyCUA | Skip irrelevant phases on resume |
+| State via constructor | `MainLoop(state=self.state, ...)` | Direct reference to Session for phase tracking |
+| All queries through QueryAnalyst | QueryAnalyst called first in TinyCUA.run() | Central routing; passthrough vs worker decided upfront |
 | SQLite-first persistence | `SQLiteStateStore` as default | Durable, transactional, zero-config |
+
+
+---
 
 
 ---

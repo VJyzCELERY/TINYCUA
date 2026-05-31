@@ -10,8 +10,9 @@
 ## Role
 
 `BaseAgentOrchestrator[S]` is the abstract generic base for all TinyCUA agent orchestrators.
-It owns persistent configuration and typed runtime state. The SDK `Agent` is **not** persisted —
-it is constructed on-the-fly inside `run()` with the loop receiving a direct reference to state.
+It owns persistent configuration, typed runtime state, and a reference to its `Session`.
+The SDK `Agent` is **not** persisted — it is constructed on-the-fly inside `run()` with
+the loop receiving a direct reference to state.
 
 ---
 
@@ -26,6 +27,7 @@ from typing import Any, Generic, TypeVar
 
 from tinycua.config.agents import AgentConfigBase
 from tinycua.state.base import StateObject
+from tinycua.state.session import Session
 
 S = TypeVar("S", bound=StateObject)
 
@@ -33,14 +35,35 @@ S = TypeVar("S", bound=StateObject)
 class BaseAgentOrchestrator(ABC, Generic[S]):
     """Abstract base for all TinyCUA agent orchestrators.
 
-    Owns persistent config and typed state. Builds SDK Agent per-call
-    by wiring state into the constructor of the custom loop.
+    Owns persistent config, typed state, and a reference to its Session.
+    Builds SDK Agent per-call by wiring state into the constructor of the
+    custom loop.
     """
 
     config: AgentConfigBase
     state: S  # set by subclass — typed per-agent StateObject
+    session: Session  # always set — auto-created as root if not provided
 
-    def __init__(self, config: AgentConfigBase): ...
+    def __init__(
+        self,
+        config: AgentConfigBase,
+        session: Session | None = None,
+    ):
+        """Initialize the orchestrator.
+
+        If session is None, a new root session is auto-created — the
+        orchestrator can run standalone (useful for testing individual
+        agents). When spawning a child, the parent links the child's
+        auto-created session into the tree via self.session.add_child().
+        """
+        self.config = config
+        if session is None:
+            self.session = Session(
+                session_id=str(uuid4()),
+                agent_state=self.state,
+            )
+        else:
+            self.session = session
 
     @abstractmethod
     async def run(self, *args: Any, **kwargs: Any) -> AsyncIterator[dict]:
@@ -141,6 +164,7 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
 |---------|----------|
 | Config | `self.config` — typed per-agent config dataclass |
 | State | `self.state` — agent-specific `StateObject` (NOT SDK `Agent.metadata`) |
+| Session | `self.session` — own session node in the tree; child agents spawned via `self.session.add_child()` |
 | Identity | Orchestrator class name + `self.config.name` |
 | Base instruction | `self.config.instructions` — static constant (role, schema, guardrails) |
 | Full instruction | `self.build_instruction(**context)` — base + dynamic session/project context |
@@ -180,7 +204,7 @@ class SomeOrchestrator(BaseAgentOrchestrator[SomeState]):
     async def run(self, domain_input: DomainType) -> AsyncIterator[dict]:
         # 1. Build instruction from base constant + dynamic context
         instructions = self.build_instruction({
-            "session": session,
+            "session": self.session,
             "project_files": self.config.project_files,
         })
 
@@ -244,10 +268,21 @@ not returned — it is stored in `self.state.last_result`. Callers consume the s
 `async for`, then access state:
 
 ```python
-# Caller (e.g., agent-calling tool):
-async for event in orchestrator.run(user_query=...):
-    pass  # or log, forward, display
-result = orchestrator.state.last_result
+# Standalone (testing): no session passed, orchestrator auto-creates a root session
+analyst = QueryAnalyst(config)
+async for event in analyst.run(user_query=...):
+    pass
+result = analyst.state.last_result
+
+# Child spawning: parent links child's auto-created session into the tree
+child = QueryAnalyst(config)  # child auto-creates its own session
+self.session.add_child(child.session)
+async for event in child.run(user_query=...):
+    pass
+result = child.state.last_result
+
+# When child is done:
+self.session.terminate_child(child.session)
 ```
 
 ---
@@ -264,6 +299,10 @@ result = orchestrator.state.last_result
 | Always `stream=True` | All `Agent.run()` calls stream | Real-time token access; transparent passthrough |
 | Async generator return | `yield` events, store result in state | Caller sees streaming events; final state accessible after `async for` |
 | `build_instruction(context: dict)` | Dict with priority-ordered keys, skip None | Standard format; handles missing context gracefully; no kwargs explosion |
+| `session` owned by orchestrator | `self.session: Session \| None` | Every orchestrator holds its session node; child agents spawned via `self.session.add_child()` |
+
+
+---
 
 
 ---

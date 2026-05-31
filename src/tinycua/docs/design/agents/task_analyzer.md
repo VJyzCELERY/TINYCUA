@@ -5,6 +5,14 @@
 
 ---
 
+## Role
+
+`TaskAnalyzer` decomposes digested information into a task tree. It is called
+**through TaskCreator** — not directly by Worker orchestration. TaskCreator wraps
+TaskAnalyzer → TaskAssessor and returns the aggregated result.
+
+---
+
 ## Orchestrator Class
 
 ```python
@@ -94,6 +102,9 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 |----------|--------|-----------|
 | No custom loop | `ReActAgentLoop` | Single input → single output |
 | Shared loop with state | `ReActAgentLoop(state=self.state)` | Consistency; state reference for telemetry |
+
+
+---
 
 
 ---

@@ -67,6 +67,15 @@ class InformationDigesterConfig(AgentConfigBase):
     max_iterations_override: int | None = None  # None → no iteration limit
 ```
 
+### `TaskCreatorConfig`
+
+```python
+@dataclass
+class TaskCreatorConfig(AgentConfigBase):
+    name: str = "task-creator"
+    instructions: str = TASK_CREATOR_INSTRUCTION
+```
+
 ### `TaskAnalyzerConfig`
 
 ```python
@@ -148,6 +157,9 @@ class TinyCUAConfig:
 | `metadata: dict` in base | Free-form extensibility | Future fields can be promoted to typed fields without breaking the dict |
 | `max_iterations_override` on InformationDigester | Agent-specific field | Only this agent has a meaningful iteration cap override |
 | `deterministic_rules` on ResultReviewer | Agent-specific field | Only the review agent uses deterministic rules |
+
+
+---
 
 
 ---

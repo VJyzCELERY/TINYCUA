@@ -89,6 +89,9 @@ class TaskResult(StateObject):
 
 ---
 
+
+---
+
 ## See also
 
 Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [`ModeDecision` + `ContextEnhancedQuery`](mode_decision.md)

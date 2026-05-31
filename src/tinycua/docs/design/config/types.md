@@ -9,7 +9,7 @@
 
 ## `AgentKind` Enum
 
-Identifies each of the seven architecture agents plus the external TinyCUA agent:
+Identifies each of the eight architecture agents plus the external TinyCUA agent:
 
 ```python
 from enum import Enum
@@ -17,6 +17,7 @@ from enum import Enum
 class AgentKind(str, Enum):
     QUERY_ANALYST = "query-analyst"
     INFORMATION_DIGESTER = "information-digester"
+    TASK_CREATOR = "task-creator"
     TASK_ANALYZER = "task-analyzer"
     TASK_ASSESSOR = "task-assessor"
     TASK_EXECUTOR = "task-executor"
@@ -54,6 +55,9 @@ can override via their config dataclass.
 | `TINYCUA_DEFAULT_MODEL` in `config/types` | Central constant | Single source of truth for the default model; all agents reference it |
 | Provider `openai-chat-completions` | Not alias `openai` | SDK's `openai` alias resolves to the Responses API, not the intended chat-completions endpoint |
 | `AgentKind.TINYCUA` | Enum member even though orchestrator is in `agents/` | Consistent registry lookup |
+
+
+---
 
 
 ---

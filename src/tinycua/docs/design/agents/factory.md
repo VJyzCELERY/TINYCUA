@@ -38,7 +38,7 @@ def create_orchestrator(
 def create_all_orchestrators(
     config_overrides: dict[AgentKind, AgentConfigBase] | None = None,
 ) -> dict[AgentKind, BaseAgentOrchestrator]:
-    """Create all seven internal orchestrators.
+    """Create all eight internal orchestrators.
 
     config_overrides allows per-agent customization (extra tools, model, etc.)
     without modifying the default configs or orchestrator code.
@@ -69,7 +69,7 @@ custom_analyst = create_orchestrator(
 
 # Create all for TinyCUA
 orchestrators = create_all_orchestrators()
-assert len(orchestrators) == 7  # 7 internal orchestrators
+assert len(orchestrators) == 8  # 8 internal orchestrators
 assert AgentKind.QUERY_ANALYST in orchestrators
 ```
 
@@ -97,6 +97,9 @@ create_orchestrator(AgentKind.QUERY_ANALYST, config)
 | `config=None` uses defaults | Default config per agent kind | Simple creation path; overrides only when needed |
 | No Agent in factory | Agent built per-call in `run()` | Loop receives fresh state reference each invocation |
 | Excludes TinyCUA | Internal orchestrators only | TinyCUA is the top-level composer, created separately |
+
+
+---
 
 
 ---

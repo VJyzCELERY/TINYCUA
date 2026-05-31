@@ -11,24 +11,23 @@
 Each agent orchestrator owns a typed state object extending `StateObject` directly.
 All state objects inherit `to_dict()`/`from_dict()` serialization from `StateObject`.
 
-Per-agent states are stored in `Session.states` dict for persistence.
+Each state is stored on its **own Session** via `Session.agent_state` — there is no central
+`states` dict. To find an agent's state, walk the session tree to that agent's node.
 
 ---
 
 ## `SessionTracking`
 
-Session-level tracking stored as `Session.states["session"]`.
+Session-level tracking stored directly on `Session` fields (no separate `states["session"]` entry).
 
-```python
-@dataclass
-class SessionTracking(StateObject):
-    """Session-level tracking state."""
-    last_query: dict[str, Any] = field(default_factory=dict)
-    last_result: dict[str, Any] = field(default_factory=dict)
-    token_usage: dict[str, int | None] | None = None  # from response.usage events
-    orchestration_phase: str | None = None            # current phase
-    checkpoints: list[dict] = field(default_factory=list)
-```
+| Field | Location | Description |
+|-------|----------|-------------|
+| `last_query` | `AgentState` (on root session) | Last user query processed |
+| `last_result` | `AgentState` (on root session) | Last orchestration result |
+| `total_token_usage` | `Session.total_token_usage` | Persistent, accumulates forever, propagates upward |
+| `active_token_usage` | `Session.active_token_usage` | Dynamic, based on current session_context |
+| `orchestration_phase` | `AgentState.resume_target` | Current phase for resume routing |
+| `checkpoints` | `Session` (via serialization of full tree) | State snapshots are the session tree itself |
 
 ---
 
@@ -51,6 +50,15 @@ class QueryAnalystState(StateObject):
 class InformationDigesterState(StateObject):
     digested_information: DigestedInformation | None = None
     retrieval_iterations: int = 0
+```
+
+### `TaskCreatorState`
+
+```python
+@dataclass
+class TaskCreatorState(StateObject):
+    task_tree: Task | None = None
+    selected_task_ids: list[str] = field(default_factory=list)
 ```
 
 ### `TaskAnalyzerState`
@@ -112,14 +120,24 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
     async def run(self, ...):
         ...
         self.state.mode_decision = ModeDecision(**result)
-        self.state.last_result = result  # stored on SessionTracking, not here
 ```
 
-Per-agent states are stored in the Session for persistence:
+State is stored on the session when the agent runs:
 
 ```python
-session.set_state("query_analyst", analyst.state)
-session.set_state("task_executor", executor.state)
+# QueryAnalyst auto-creates its own session:
+analyst = QueryAnalyst(config)
+root_session.add_child(analyst.session)
+
+# Deserialize: walk the tree to find a specific agent's state
+def find_state(session: Session, agent_type: str) -> StateObject | None:
+    if session.agent_state and session.agent_state.active_agent == agent_type:
+        return session.agent_state
+    for child in session.child_sessions:
+        found = find_state(child, agent_type)
+        if found:
+            return found
+    return None
 ```
 
 ---
@@ -129,9 +147,13 @@ session.set_state("task_executor", executor.state)
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | No intermediate ABC | Extends `StateObject` directly | `StateInformation` was adding unnecessary indirection |
-| `last_query`/`last_result` on SessionTracking | Session-level, not per-agent | Agents don't need these individually; session tracks them |
+| `last_query`/`last_result` on root `AgentState` | Session-level fields on root session | Root is always reachable via `session.root()` |
 | Serialization inherited | `StateObject.to_dict()` / `from_dict()` | No custom code needed per state class |
-| Stored in Session.states | Dict keyed by agent kind | Single persistence point; session serializes everything |
+| State stored per session | `Session.agent_state` on each agent's node | Walk the tree to find any agent's state; no central dict needed |
+| Token tracking on Session | `total_token_usage` + `active_token_usage` on Session | Persistent total propagates upward; active resets on compaction |
+
+
+---
 
 
 ---

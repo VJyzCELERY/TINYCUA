@@ -36,11 +36,12 @@ Read in order for a linear learning experience:
 26. [`agents/information_digester.md`](agents/information_digester.md)
 27. [`agents/task_analyzer.md`](agents/task_analyzer.md)
 28. [`agents/task_assessor.md`](agents/task_assessor.md)
-29. [`agents/task_executor.md`](agents/task_executor.md)
-30. [`agents/result_reviewer.md`](agents/result_reviewer.md)
-31. [`agents/primary_agent.md`](agents/primary_agent.md)
-32. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
-33. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
+29. [`agents/task_creator.md`](agents/task_creator.md) — `TaskCreator` wraps TaskAnalyzer + TaskAssessor
+30. [`agents/task_executor.md`](agents/task_executor.md)
+31. [`agents/result_reviewer.md`](agents/result_reviewer.md)
+32. [`agents/primary_agent.md`](agents/primary_agent.md)
+33. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
+34. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
 
 ---
 
@@ -68,6 +69,7 @@ Read in order for a linear learning experience:
 | [`agents/information_digester.md`](agents/information_digester.md) | `InformationDigester` — retrieval orchestrator |
 | [`agents/task_analyzer.md`](agents/task_analyzer.md) | `TaskAnalyzer` — task decomposition |
 | [`agents/task_assessor.md`](agents/task_assessor.md) | `TaskAssessor` — decomposition selection |
+| [`agents/task_creator.md`](agents/task_creator.md) | `TaskCreator` — wraps TaskAnalyzer + TaskAssessor |
 | [`agents/task_executor.md`](agents/task_executor.md) | `TaskExecutor` — task execution |
 | [`agents/result_reviewer.md`](agents/result_reviewer.md) | `ResultReviewer` — two-phase review |
 | [`agents/primary_agent.md`](agents/primary_agent.md) | `PrimaryAgent` — final synthesis |

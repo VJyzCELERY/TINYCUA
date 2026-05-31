@@ -8,10 +8,11 @@
 ## Role
 
 `TinyCUA` is the top-level orchestrator and the single external entry point. It extends
-`BaseAgentOrchestrator[SessionState]` — the same pattern as all internal orchestrators.
+`BaseAgentOrchestrator[Session]` — the same pattern as all internal orchestrators.
 
-`TinyCUA` is **always a root/parent session** (`parent_id = None`). Internal agents
-run as child sessions attached to this root.
+`TinyCUA` is **always a root/parent session**. All queries route through QueryAnalyst
+first, which decides between passthrough (→ PrimaryAgent or active agent) and worker
+(→ fresh InformationDigester → Worker chain).
 
 ---
 
@@ -34,18 +35,17 @@ from tinycua.state.session import Session
 from tinycua.state.information import SessionState
 from tinycua.tools.agent_calls import (
     call_query_analyst, call_information_digester,
-    call_task_analyzer, call_task_assessor,
-    call_task_executor, call_result_reviewer,
-    call_primary_agent,
+    call_task_creator, call_task_executor,
+    call_result_reviewer, call_primary_agent,
 )
 
 
 class TinyCUA(BaseAgentOrchestrator[Session]):
     """Top-level orchestrator — always a root session.
 
-    Self-referential: self.state IS the Session. Extends
-    BaseAgentOrchestrator[Session] so build_instruction(), save_state(),
-    and restore_state() are inherited.
+    All queries route through QueryAnalyst. Based on the mode decision:
+      - Passthrough: route to active agent (PrimaryAgent or current active agent)
+      - Worker: terminate all children, abort task, spawn fresh chain
     """
 
     config: TinyCUAConfig
@@ -90,8 +90,7 @@ class TinyCUA(BaseAgentOrchestrator[Session]):
         return [
             call_query_analyst(self.internal_orchestrators),
             call_information_digester(self.internal_orchestrators),
-            call_task_analyzer(self.internal_orchestrators),
-            call_task_assessor(self.internal_orchestrators),
+            call_task_creator(self.internal_orchestrators),
             call_task_executor(self.internal_orchestrators),
             call_result_reviewer(self.internal_orchestrators),
             call_primary_agent(self.internal_orchestrators),
@@ -102,79 +101,96 @@ class TinyCUA(BaseAgentOrchestrator[Session]):
     async def run(self, user_query: str) -> AsyncIterator[dict]:
         """Run TinyCUA for a user query, yielding all SDK stream events.
 
-        The session is pre-loaded in __init__. If resuming a mid-execution
-        session, routes directly to the active orchestrator, bypassing
-        MainLoop.
+        All queries go through QueryAnalyst first. QueryAnalyst decides:
+          - Passthrough → route to active agent (PrimaryAgent or current active)
+          - Worker → terminate all children, abort task, spawn fresh chain
+
+        QueryAnalyst is transient — its output is not stored in the session.
         """
         self.state.append_user(user_query)
 
-        # ── Session resume: route directly to the active orchestrator ──
-        if self.state.active_agent:
-            orchestrator = self.internal_orchestrators.get(
-                AgentKind(self.state.active_agent)
-            )
-            if orchestrator:
-                resume_input = self._build_resume_input()
-                async for event in orchestrator.run(**resume_input):
-                    yield event
-                return
+        # ── Always route through QueryAnalyst ─────────────────────────
+        analyst = self.internal_orchestrators[AgentKind.QUERY_ANALYST]
+        analyst.session.is_transient = True
+        self.state.add_child(analyst.session)
 
-        # ── Fresh run: full MainLoop orchestration ────────────────────
-        instructions = self.build_instruction({"session": self.state})
-
-        agent = Agent(
-            name="tinycua",
-            instructions=instructions,
-            llm_model=self.config.model,
-            tools=self._build_orchestrator_tools(),
-            loop=MainLoop(
-                state=self.state,  # Session IS the state
-                internal_orchestrators=self.internal_orchestrators,
-            ),
-        )
-
-        text_parts: list[str] = []
-        async for event in agent.run(
-            query=user_query,
-            messages=self.state.get_messages(),
-            stream=True,
+        async for event in analyst.run(
+            user_query=user_query,
+            session=self.state,
         ):
-            if event["type"] == "response.output_text.delta":
-                text_parts.append(event["delta"])
-            elif event["type"] == "response.usage":
-                self.state.token_usage = event["usage"]
             yield event
 
-        raw = "".join(text_parts)
-        self.state.append_assistant(raw)
+        # QueryAnalyst is transient — terminate without propagation
+        self.state.terminate_child(analyst.session)
 
-    # ── Session resume helper ─────────────────────────────────────────
+        # ── Route based on QueryAnalyst decision ──────────────────────
+        mode = analyst.state.mode_decision.mode if analyst.state.mode_decision else "passthrough"
 
-    def _build_resume_input(self) -> dict:
-        """Build input for the active orchestrator based on session state."""
-        kind = AgentKind(self.state.active_agent)
-        if kind == AgentKind.QUERY_ANALYST:
-            return {"user_query": self.state.last_query.get("user_query", "")}
-        if kind == AgentKind.INFORMATION_DIGESTER:
-            return {"context_enhanced_query": self.state.context_enhanced_query}
-        if kind == AgentKind.TASK_ANALYZER:
-            return {"digested_information": self.state.digested_information}
-        if kind == AgentKind.TASK_EXECUTOR:
-            return {"task": self.state.last_query.get("task", {})}
-        if kind == AgentKind.RESULT_REVIEWER:
-            return {
-                "task": self.state.last_query.get("task", {}),
-                "task_result": self.state.last_query.get("task_result", {}),
-            }
-        if kind == AgentKind.PRIMARY_AGENT:
-            return {
-                "input_data": (
-                    self.state.worker_results
-                    or self.state.context_enhanced_query
-                    or {}
-                )
-            }
-        return {}
+        if mode == "passthrough":
+            active = self.state.get_active_session()
+            if active is self.state or self.state.task is None:
+                # No active task — go to PrimaryAgent
+                async for event in self._run_primary_agent():
+                    yield event
+            else:
+                # Active task exists — route to active agent
+                async for event in self._route_to_active_agent(active):
+                    yield event
+
+        elif mode == "worker":
+            # Terminate all existing children, abort task
+            self._abort_all_children()
+            self.state.task = None
+
+            # Spawn fresh chain: InfoDigester → Worker
+            async for event in self._run_worker_chain(analyst.state.context_enhanced_query):
+                yield event
+
+        elif mode == "uncertain":
+            async for event in self._handle_uncertain():
+                yield event
+
+    # ── Routing helpers ───────────────────────────────────────────────
+
+    async def _run_primary_agent(self) -> AsyncIterator[dict]:
+        """Route passthrough to PrimaryAgent."""
+        primary = self.internal_orchestrators[AgentKind.PRIMARY_AGENT]
+        self.state.add_child(primary.session)
+        async for event in primary.run(input_data={}):
+            yield event
+        self.state.terminate_child(primary.session)
+
+    async def _route_to_active_agent(self, active_session: Session) -> AsyncIterator[dict]:
+        """Pass user query through to the currently active agent."""
+        # The active agent handles the query directly
+        pass
+
+    async def _run_worker_chain(
+        self,
+        context_enhanced_query,
+    ) -> AsyncIterator[dict]:
+        """Spawn fresh InformationDigester → Worker chain."""
+        # InformationDigester (transient)
+        digester = self.internal_orchestrators[AgentKind.INFORMATION_DIGESTER]
+        digester.session.is_transient = True
+        self.state.add_child(digester.session)
+        async for event in digester.run(context_enhanced_query):
+            yield event
+        self.state.terminate_child(digester.session)
+
+        # Worker
+        worker = self.internal_orchestrators[AgentKind.TASK_CREATOR]  # Worker via tools
+        # ... continued in MainLoop via orchestrator-call tools ...
+        # The composed Agent handles the full Worker chain via tool calls
+
+    async def _handle_uncertain(self) -> AsyncIterator[dict]:
+        """Ask user for clarification."""
+        yield {"type": "text", "content": "I need more information to proceed."}
+
+    def _abort_all_children(self) -> None:
+        """Terminate all child sessions, propagating context upward."""
+        for child in list(self.state.child_sessions):
+            self.state.terminate_child(child)
 ```
 
 ---
@@ -208,26 +224,32 @@ See [`config/agents.md`](../config/agents.md#tinycuaconfig).
 
 ## State
 
-`SessionState` — `active_agent: str | None`, `orchestration_phase: str | None`,
-`context_enhanced_query`, `digested_information`, `task_tree`, `worker_results`,
-`checkpoints`. See [`state/information.md`](../state/information.md#sessionstate).
+`TinyCUA`'s state is the `Session` itself (`self.state`). The session tree holds all
+agent states via `agent_state` on each node. No separate `SessionTracking` — token usage
+is on `Session.total_token_usage`/`active_token_usage`.
+
+See [`state/session.md`](../state/session.md) for the full Session API.
 
 ---
 
 ## Session Tree
 
-`TinyCUA` owns the **root session** (`parent_id = None`). Internal orchestrators
-(workers, sub-tasks) run as **child sessions** created via `root.create_child(...)`.
-Children propagate `chat_history` upward on completion but `session_context` stays
-isolated.
+`TinyCUA` owns the **root session**. All agents run as child sessions created via
+`self.state.add_child(...)`. Children propagate `chat_history` and `session_context`
+upward on termination (except transient agents).
 
 ```
-TinyCUA (root session, parent_id=None)
- ├── Child session: Worker-1
- │    ├── Child: TaskAnalyzer sub-session
- │    └── Child: TaskExecutor sub-session
- └── Child session: Worker-2
+TinyCUA (root)
+ ├── QueryAnalyst      [transient — nothing propagates]
+ ├── InformationDigester [transient — nothing propagates]
+ ├── Worker
+ │   ├── TaskCreator   (→ TaskAnalyzer → TaskAssessor)
+ │   ├── TaskExecutor
+ │   └── ResultReviewer
+ └── PrimaryAgent
 ```
+
+Only Worker and PrimaryAgent final responses propagate to TinyCUA's session_context.
 
 ---
 
@@ -235,12 +257,17 @@ TinyCUA (root session, parent_id=None)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Extends BaseAgentOrchestrator | `BaseAgentOrchestrator[SessionState]` | Same pattern as internal orchestrators; inherits build_instruction, save/restore |
+| Extends BaseAgentOrchestrator | `BaseAgentOrchestrator[Session]` | Same pattern as internal orchestrators; inherits build_instruction, save/restore |
 | Always root session | `parent_id = None`, UUID if missing | Single top-level entry point; session tree branches downward |
-| Session in constructor | `__init__(session=...)` | Session loaded once, not per-run; survives across calls |
-| state = session.state | Same reference | Orchestrator writes state; session persists it via serialization |
-| Session resume bypasses MainLoop | Direct `orchestrator.run()` | Skip irrelevant phases when resuming mid-execution |
-| Orchestrator-call tools | `call_*` SDK Tools | MainLoop invokes via natural language + tool calls |
+| All queries through QueryAnalyst | QueryAnalyst always called first | Central routing decision; passthrough vs worker |
+| No session resume bypass | Removed `active_agent` check | QueryAnalyst always consulted; routing is always fresh |
+| Transient QueryAnalyst | `is_transient = True` | Output not stored in session; only decisions and CEQ passed forward |
+| Transient InformationDigester | `is_transient = True` | DigestedInformation passed directly to Worker |
+| Worker mode aborts task | `self.state.task = None` | Fresh task tree created from scratch |
+| Orchestrator-call tools | `call_*` SDK Tools | Worker chain invoked via natural language + tool calls |
+
+
+---
 
 
 ---

@@ -5,6 +5,15 @@
 
 ---
 
+## Role
+
+`InformationDigester` retrieves and digests information from the context-enhanced
+query. It is **transient** (`is_transient = True`) — its output (DigestedInformation)
+is passed directly to the Worker, not stored in the session. Nothing propagates on
+termination.
+
+---
+
 ## Orchestrator Class
 
 ```python
@@ -101,6 +110,9 @@ See [`constants/tools.md`](../constants/tools.md).
 | Max iterations configurable | `config.max_iterations_override` | Different deployment needs |
 | Empty results → known_gaps | Loop populates `DigestedInformation.known_gaps` | Explicit gap documentation |
 | State reference into loop | `InformationDigestionLoop(state=self.state)` | Loop tracks `retrieval_iterations` directly |
+
+
+---
 
 
 ---

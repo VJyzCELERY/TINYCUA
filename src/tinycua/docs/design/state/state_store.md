@@ -10,8 +10,8 @@
 ## Role
 
 The `StateStore` is the persistence backend for TinyCUA's session continuation state.
-The TinyCUA orchestrator and each internal orchestrator use it to checkpoint progress so an interrupted
-run can resume from the last safe point.
+The entire session tree (root + all child sessions) is saved and loaded as one unit.
+No per-agent key fragments — the tree is self-contained.
 
 ---
 
@@ -19,23 +19,35 @@ run can resume from the last safe point.
 
 ```python
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class StateStore(ABC):
-    """Abstract persistence backend for TinyCUA state."""
+    """Abstract persistence backend for TinyCUA session state."""
 
     @abstractmethod
-    async def save(self, session_id: str, key: str, data: Any) -> None: ...
+    async def save(self, session_id: str, session: "Session") -> None:
+        """Persist the entire session tree under session_id.
+
+        session.to_dict() serializes recursively — the root and all
+        children, agent_states, tasks, and chat histories are included.
+        """
+        ...
 
     @abstractmethod
-    async def load(self, session_id: str, key: str) -> Any | None: ...
+    async def load(self, session_id: str) -> "Session | None":
+        """Restore the entire session tree for session_id.
+
+        Returns None if no state exists for this session_id.
+        The returned Session has _parent references re-established
+        via set_parents().
+        """
+        ...
 
     @abstractmethod
-    async def delete(self, session_id: str, key: str) -> None: ...
+    async def delete(self, session_id: str) -> None: ...
 
     @abstractmethod
-    async def list_keys(self, session_id: str) -> list[str]: ...
+    async def list_sessions(self) -> list[str]: ...
 ```
 
 ---
@@ -44,7 +56,7 @@ class StateStore(ABC):
 
 | Backend | Class | Use Case |
 |---------|-------|----------|
-| SQLite | `SQLiteStateStore` | Production — structured session state, transactional checkpoints |
+| SQLite | `SQLiteStateStore` | Production — structured session state, transactional persistence |
 | Filesystem | `FileSystemStateStore` | Artifacts, snapshots, logs, attachments, simple deployments |
 | In-Memory | `MemoryStateStore` | Tests, development, cache |
 
@@ -58,33 +70,47 @@ class TinyCUA:
         self.state_store = config.state_store  # SQLiteStateStore(db_path="tinycua.db")
 
     async def run(self, user_query: str, session_id: str | None = None) -> Response:
-        # Restore previous state if available
+        # Restore or create session
         if session_id:
-            prev_state = await self.state_store.load(session_id, "main_loop_state")
-            if prev_state:
-                self._restore_orchestration(prev_state)
+            session = await self.state_store.load(session_id)
+            if session:
+                # Resume from active point in the tree
+                active = session.get_active_session()
+                if active.agent_state and active.agent_state.status == "running":
+                    return await self._resume(active)
+        else:
+            session = Session(
+                session_id=str(uuid4()),
+                agent_state=AgentState(active_agent="tinycua", status="running"),
+            )
 
         # Run orchestration flow...
+        session.append_user(user_query)
+        async for event in self._orchestrate(session):
+            yield event
 
-        # Checkpoint after each phase
-        if self.config.orchestration.checkpoint_after_each_phase:
-            await self.save_state(self.state_store, session_id)
+        # Persist the entire tree
+        await self.state_store.save(session.session_id, session)
 ```
 
 ---
 
-## Agent-Level Persistence
+## Agent-Level Serialization
 
-Each orchestrator's `save_state(store)` and `restore_state(store)` accept a `StateStore`
-backend parameter:
+Each orchestrator's state lives on its session's `agent_state`. Serialization is
+handled by the session tree — no per-agent `save_state`/`restore_state` methods needed:
 
 ```python
 class BaseAgentOrchestrator(Generic[S]):
-    def save_state(self, store: StateStore) -> None:
-        """Serialize self.state to the store."""
-
-    def restore_state(self, store: StateStore) -> None:
-        """Hydrate self.state from the store."""
+    # The orchestrator mutates self.state during execution.
+    # Before yielding events, it attaches self.state to the session:
+    
+    async def run(self, session: Session | None = None, **kwargs) -> AsyncGenerator:
+        if session:
+            session.agent_state = self.state
+        # ... agent execution ...
+        # After execution, self.state is already on session.agent_state
+        # (same reference). Serialization is handled by the session tree.
 ```
 
 ---
@@ -93,10 +119,14 @@ class BaseAgentOrchestrator(Generic[S]):
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
+| Tree as unit of persistence | `save(session_id, session)` saves entire tree | Self-contained; children only exist within parent's scope |
 | SQLite-first | `SQLiteStateStore` as default | Durable, transactional, zero-config for single-machine deployments |
 | Pluggable backends | `StateStore` ABC | In-memory for tests, filesystem for artifacts, SQLite for sessions |
-| Agent-level hooks | `save_state()` / `restore_state()` on orchestrator | Each orchestrator owns its state serialization |
-| Checkpoint-after-phase | Configurable in `OrchestrationSettings` | Control granularity of persistence |
+| No per-agent keys | Removed `save(session_id, key, data)` → tree-based | Keys added unnecessary fragmentation; tree is always consistent |
+| Recursive serialization | `StateObject.to_dict()` on root serializes tree | `dataclasses.asdict()` handles nested Session, Task, AgentState, etc. |
+
+
+---
 
 
 ---

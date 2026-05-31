@@ -55,14 +55,13 @@ def call_query_analyst(
 
 ---
 
-## All Seven Tools
+## All Six Tools
 
 | Tool | Target Orchestrator | Returns |
 |------|---------------|---------|
 | `call_query_analyst(internal_orchestrators)` | `QueryAnalyst` | `{mode_decision: ModeDecision, context_enhanced_query: ContextEnhancedQuery}` |
 | `call_information_digester(internal_orchestrators)` | `InformationDigester` | `DigestedInformation` |
-| `call_task_analyzer(internal_orchestrators)` | `TaskAnalyzer` | `Task` tree |
-| `call_task_assessor(internal_orchestrators)` | `TaskAssessor` | `{task_ids: list[str]}` |
+| `call_task_creator(internal_orchestrators)` | `TaskCreator` | `Task` tree with selections |
 | `call_task_executor(internal_orchestrators)` | `TaskExecutor` | `TaskResult` |
 | `call_result_reviewer(internal_orchestrators)` | `ResultReviewer` | `ReviewerDecision` |
 | `call_primary_agent(internal_orchestrators)` | `PrimaryAgent` | `{final_response, citations}` |
@@ -96,6 +95,9 @@ return result  # SDK sees a normal dict return
 | Factory pattern | `call_*(internal_orchestrators) -> Tool` | Late binding of orchestrator instances |
 | Tool consumes generator | `async for event in orchestrator.run(): pass` | SDK expects a dict return from tool execute |
 | Result from state | `orchestrator.state.last_result` | State is populated after stream ends; typed and validated |
+
+
+---
 
 
 ---

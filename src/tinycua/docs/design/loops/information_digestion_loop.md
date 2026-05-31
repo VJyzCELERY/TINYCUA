@@ -92,6 +92,9 @@ On empty retrieval results: `DigestedInformation.known_gaps` is populated.
 
 ---
 
+
+---
+
 ## See also
 
 Prev : [`QueryAnalystLoop`](query_analyst_loop.md) | Next : [`ResultReviewLoop`](result_review_loop.md)

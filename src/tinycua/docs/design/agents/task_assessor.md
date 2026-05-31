@@ -5,6 +5,14 @@
 
 ---
 
+## Role
+
+`TaskAssessor` selects tasks from the task tree for execution. It is called
+**through TaskCreator** — not directly by Worker orchestration. TaskCreator wraps
+TaskAnalyzer → TaskAssessor and returns the aggregated result.
+
+---
+
 ## Orchestrator Class
 
 ```python
@@ -97,6 +105,9 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 
 ---
 
+
+---
+
 ## See also
 
-Prev : [`TaskAnalyzer`](task_analyzer.md) | Next : [`TaskExecutor`](task_executor.md)
+Prev : [`TaskAnalyzer`](task_analyzer.md) | Next : [`TaskCreator`](task_creator.md)

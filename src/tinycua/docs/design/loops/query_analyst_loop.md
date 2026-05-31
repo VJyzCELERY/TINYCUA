@@ -62,10 +62,10 @@ class QueryAnalystLoop(BaseLoop):
 user_query + chat_history + session_context
     → SDK Agent with ClassificationTool
         → LLM scans context, scores dimensions
-        → LLM calls classify(mode_index=N)
-        → ClassificationTool returns label at index N
+         → LLM calls classify(mode_index=N)
+         → ClassificationTool returns label at index N
     → Stream ends
-    → Orchestrator parses accumulated text → ModeDecision + ContextEnhancedQuery
+    → Orchestrator parses accumulated text → ModeDecision (passthrough | worker | uncertain) + ContextEnhancedQuery
     → Stored in self.state
 ```
 
@@ -79,6 +79,9 @@ user_query + chat_history + session_context
 | ClassificationTool at orchestrator level | In `QUERY_ANALYST_BASE_TOOLS` | Loop stays focused on execution strategy; tools are an orchestrator concern |
 | State via constructor | `QueryAnalystLoop(state=self.state)` | Direct reference for state access |
 | No post-processing in loop | Orchestrator handles JSON parse | Loop controls execution; orchestrator manages typed state |
+
+
+---
 
 
 ---

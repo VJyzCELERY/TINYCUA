@@ -47,7 +47,7 @@ class QueryAnalystLoop(BaseLoop):
 | QueryAnalystLoop | `{user_query, chat_history, session_context}` | — | Classification via ClassificationTool |
 | InformationDigestionLoop | `ContextEnhancedQuery` | `retrieval_iterations` | Iterative retrieval with gap evaluation |
 | ResultReviewLoop | `{task, task_result, execution_log}` | `deterministic_failures` | Two-phase: deterministic then LLM |
-| MainLoop | User query + session state | `active_agent`, `token_usage` (on Session) | Full orchestration via orchestrator-call tools |
+| MainLoop | User query + session state | `active_agent`, `token_usage` (on Session) | Full orchestration via orchestrator-call tools. All queries route through QueryAnalyst first. |
 
 ---
 
@@ -57,12 +57,13 @@ class QueryAnalystLoop(BaseLoop):
 |-------|------|-----------------|
 | QueryAnalyst | QueryAnalystLoop | Classification |
 | InformationDigester | InformationDigestionLoop | Iterative retrieval |
+| TaskCreator | ReActAgentLoop | Wraps TaskAnalyzer + TaskAssessor |
 | TaskAnalyzer | ReActAgentLoop | (none — shared ReAct) |
 | TaskAssessor | ReActAgentLoop | (none — shared ReAct) |
 | TaskExecutor | ReActAgentLoop | (none — shared ReAct) |
 | ResultReviewer | ResultReviewLoop | Two-phase review |
 | PrimaryAgent | ReActAgentLoop | (none — shared ReAct) |
-| TinyCUA | MainLoop | Orchestration routing, session resume |
+| TinyCUA | MainLoop | Orchestration routing |
 
 ---
 
@@ -88,6 +89,9 @@ All loops rely on SDK infrastructure — no custom retry logic:
 4. The orchestrator's `run()` yields all stream events transparently
 5. Loops define their own termination conditions (classification done, gaps addressed, review complete)
 6. Loops do NOT define tools — those come from `*_BASE_TOOLS` and `config.extra_tools`
+
+
+---
 
 
 ---

@@ -10,28 +10,40 @@
 ## Role
 
 Our `Session` extends the **existing** `Session(StateObject)` from `tinycua.state.session`.
-The existing class provides `session_id`, `name`, `type`, `chat_history`, `context`, and
+The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 `execution_log`. Our design adds:
 
 | Concern | Where |
 |---------|-------|
+| Own agent state | `agent_state: AgentState` — this session's state; also stores `agent_config` for context window |
+| Transient flag | `is_transient: bool` — if True, nothing propagates upward on termination |
+| Shared task | `task: Task \| None` — all sessions in the tree reference the **same** Task object |
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
+| Active session | `get_active_session()` — DFS pre-order |
 | Filtered messages | `session_context` (vs raw `chat_history`) |
-| Compaction | `compact()` + `compaction_count` |
-| Active task | `task: Task \| None` — current task node, shared with children |
-| State container | `states: dict[str, StateObject]` |
-| Token tracking | `states["session"]: SessionTracking` |
+| Compaction | `_check_compaction()` triggered on every session_context mutation |
+| Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
+| Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
+| Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing. |
 
 ```
-Session
- ├── session_id, parent_id, child_sessions    ← tree structure
- ├── chat_history, session_context            ← messages
- └── states: {
-       "session":     SessionTracking(...),
-       "query_analyst": QueryAnalystState(...),
-       "task_executor": TaskExecutorState(...),
-       ...
-     }
+Session tree (hierarchical parent-child structure):
+
+  TinyCUA (root)
+   ├── QueryAnalyst      [transient — nothing propagates]
+   ├── InformationDigester [transient — nothing propagates]
+   ├── Worker
+   │   ├── TaskCreator   (→ TaskAnalyzer → TaskAssessor)
+   │   ├── TaskExecutor
+   │   └── ResultReviewer
+   └── PrimaryAgent
+
+Active session is determined by DFS pre-order traversal.
+
+This tree reflects session nesting (ownership), not TinyCUA's orchestration order.
+TinyCUA spawns children sequentially — in practice children would typically be
+siblings, not nested. The nesting structure exists for edge cases where a
+child agent internally spawns its own child session.
 ```
 
 ---
@@ -46,6 +58,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from tinycua.state.base import StateObject
+from tinycua.state.agent_state import AgentState
 from tinycua.state.task import Task
 
 
@@ -56,45 +69,69 @@ class Session(StateObject):
     The existing Session (from tinycua.state.session) provides:
         session_id, name, type, chat_history, context, execution_log
 
-
     Our design adds:
+        - agent_state (this session's own AgentState, including agent_config)
+        - is_transient (transient agents propagate nothing on termination)
+        - task (shared Task object, all sessions reference the same tree)
         - Tree structure (parent_id, child_sessions, _parent)
         - session_context (filtered messages for LLM, vs raw chat_history)
-        - states dict (flexible StateObject container)
-        - Compaction (compact + compaction_count)
+        - Compaction (_check_compaction triggered on every context mutation)
+        - Child lifecycle (add_child / terminate_child with dual propagation rules)
     """
 
     # ── From existing Session ─────────────────────────────────────────
     session_id: str
     name: str = ""
-    type: str = "primary"  # "primary" | "child"
     chat_history: list[dict[str, Any]] = field(default_factory=list)
     context: str = ""
     execution_log: Any = None  # ExecutionLog | None
 
+    # ── Own agent state (our addition) ────────────────────────────────
+    agent_state: AgentState | None = None
+    # Each session stores ONLY its own agent's state.
+    # Root (TinyCUA) → agent_state tracks overall system lifecycle.
+    # agent_state.agent_config provides the context window for compaction.
+
+    # ── Transient flag (our addition) ─────────────────────────────────
+    is_transient: bool = False
+    # If True, nothing propagates to parent on termination (not chat_history,
+    # not session_context). Used for agents whose output is passed directly
+    # to the next agent in the chain (QueryAnalyst, InformationDigester).
+
+    # ── Token tracking (our addition) ─────────────────────────────────
+    total_token_usage: dict[str, int] | None = None
+    # Persistent, accumulates forever (like chat_history). Survives
+    # compaction. Child totals propagate upward on terminate_child().
+
+    active_token_usage: dict[str, int] | None = None
+    # Dynamic, based on the current session_context. Reset on compaction.
+    # Represents the token footprint of the active message window.
+
+    # ── Shared task (our addition) ────────────────────────────────────
+    task: Task | None = None
+    # Parent and all children reference the SAME Task object.
+    # Only the root session creates it; children receive it by reference.
+    # Use get_active_task() to advance to the next executable node.
+
     # ── Tree structure (our addition) ─────────────────────────────────
     parent_id: str | None = None
-    child_sessions: list["Session"] | None = None
+    child_sessions: list["Session"] = field(default_factory=list)
+    # FIFO queue. Children are processed in insertion order.
+    # Realistically at most 1 child is active at a time
+    # (sequential execution model).
 
     # ── Filtered messages (our addition) ──────────────────────────────
     session_context: list[dict[str, Any]] = field(default_factory=list)
     compaction_count: int = 0
-
-    # ── Active task (our addition) ────────────────────────────────────
-    task: Task | None = None  # current active task node — shared with children
-
-    # ── State container (our addition) ────────────────────────────────
-    states: dict[str, StateObject] = field(default_factory=dict)
 
     # Hidden parent reference
     _parent: "Session | None" = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         """Establish parent references on children."""
-        if self.child_sessions is not None:
-            for child in self.child_sessions:
-                child._parent = self
-                child.parent_id = self.session_id
+        for child in self.child_sessions:
+            child._parent = self
+            child.parent_id = self.session_id
 
     # ── Tree navigation ─────────────────────────────────────────────
 
@@ -115,34 +152,125 @@ class Session(StateObject):
             node = node._parent
         return node
 
+    def get_active_session(self) -> "Session":
+        """Return the currently active session — determined by DFS pre-order.
+
+        If this session has no children, it IS the active session.
+        Otherwise, the first child (head of the FIFO queue) is visited next.
+        """
+        if not self.child_sessions:
+            return self
+        # FIFO: first child added is first to be processed.
+        # In practice only 1 child exists at a time (sequential execution),
+        # but the queue handles nested child agents.
+        return self.child_sessions[0].get_active_session()
+
     def set_parents(self) -> None:
         """Re-establish _parent references after deserialization.
-        Walk the tree bottom-up to restore hidden parent links.
+        Walk the tree to restore hidden parent links.
         """
-        if self.child_sessions is not None:
-            for child in self.child_sessions:
-                child._parent = self
-                child.set_parents()
+        for child in self.child_sessions:
+            child._parent = self
+            child.set_parents()
 
-    # ── Chat history propagation ─────────────────────────────────────
+    # ── Child session lifecycle ─────────────────────────────────────
 
-    def propagate_chat_history(self) -> None:
-        """Append this session's complete chat_history to the parent.
-        
-        Called after a child session finishes. The parent inherits the
-        auditable record but NOT the session_context.
+    def add_child(self, child: "Session") -> None:
+        """Append a child session to the FIFO queue.
+
+        The child shares this session's Task object (same reference).
+        Its chat_history and session_context start clean.
         """
-        if self._parent is not None:
-            self._parent.chat_history.extend(self.chat_history)
-            self._parent.propagate_chat_history()  # recursive upward
+        child._parent = self
+        child.parent_id = self.session_id
+        child.task = self.task  # shared reference
+        self.child_sessions.append(child)
 
-    # ── Turn appending ───────────────────────────────────────────────
+    def terminate_child(self, child: "Session") -> None:
+        """Terminate a child session. Propagation depends on termination type.
+
+        Precondition: child.can_terminate() is True (no active grandchildren).
+
+        Propagation rules:
+          - Transient agents (is_transient=True): nothing propagates.
+          - Natural termination (agent_state.status == "terminated"):
+              chat_history + final response (session_context[-1]) propagate.
+          - Mid-progress termination (agent_state.status != "terminated"):
+              chat_history + entire session_context propagate.
+        """
+        if not child.can_terminate():
+            raise SessionError(
+                f"Cannot terminate child session {child.session_id}: "
+                f"has active child sessions"
+            )
+
+        # Transient agents: skip everything
+        if child.is_transient:
+            self.child_sessions.remove(child)
+            return
+
+        # Always merge chat_history upward
+        self.chat_history.extend(child.chat_history)
+
+        # Merge total token usage upward
+        if child.total_token_usage and self.total_token_usage:
+            for key, value in child.total_token_usage.items():
+                self.total_token_usage[key] = (
+                    self.total_token_usage.get(key, 0) + value
+                )
+        elif child.total_token_usage:
+            self.total_token_usage = dict(child.total_token_usage)
+
+        # Session_context propagation depends on termination type
+        is_natural = (
+            child.agent_state
+            and child.agent_state.status == "terminated"
+        )
+        if is_natural and child.session_context:
+            # Natural: propagate only the final response
+            self.session_context.append(child.session_context[-1])
+        elif not is_natural and child.session_context:
+            # Mid-progress: propagate entire session_context
+            self.session_context.extend(child.session_context)
+
+        # Remove from queue
+        self.child_sessions.remove(child)
+
+        # Check compaction after receiving propagated context
+        self._check_compaction()
+
+    def can_terminate(self) -> bool:
+        """True if this session has no active child sessions.
+
+        A session can only be terminated when all its children have
+        been terminated first (bottom-up termination).
+        """
+        return len(self.child_sessions) == 0
+
+    # ── Shared task access ──────────────────────────────────────────
+
+    def get_active_task(self) -> Task | None:
+        """Return the next executable task, advancing the shared tree.
+
+        Calls self.task.traverse() if a task is set. Returns None if no
+        task is active or the tree is fully completed.
+
+        Since task is shared, advancing it on any session moves the
+        pointer for all sessions in the tree.
+        """
+        if self.task is None:
+            return None
+        self.task = self.task.traverse()
+        return self.task
+
+    # ── Messages ────────────────────────────────────────────────────
 
     def append_user(self, content: str) -> None:
         """Append a user turn. Always added to both histories."""
         turn = {"role": "user", "content": content}
         self.chat_history.append(turn)
         self.session_context.append(turn)
+        self._check_compaction()
 
     def append_assistant(
         self,
@@ -165,26 +293,7 @@ class Session(StateObject):
 
         # Filtered record in session_context
         self.session_context.append({"role": "assistant", "content": content})
-
-    # ── Compaction ────────────────────────────────────────────────────
-
-    def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
-        """Replace session_context with a single summarized turn.
-
-        summarize_fn receives the current session_context and returns a
-        summary string. The caller defines the compaction algorithm — the
-        Session only handles the mechanical collapse.
-
-        Called when context-window pressure is detected (background system
-        process, not agent-driven). chat_history is never modified.
-        """
-        summary = summarize_fn(self.session_context)
-        self.session_context = [
-            {"role": "user", "content": summary}
-        ]
-        self.compaction_count += 1
-
-    # ── Read helpers ──────────────────────────────────────────────────
+        self._check_compaction()
 
     def get_messages(self) -> list[dict[str, Any]]:
         """Return session_context as the messages list for Agent.run()."""
@@ -194,55 +303,63 @@ class Session(StateObject):
         """Return the complete chat_history for storage."""
         return list(self.chat_history)
 
-    # ── Per-agent state management ──────────────────────────────────
+    # ── Compaction ──────────────────────────────────────────────────
 
-    def set_state(self, key: str, state: StateObject) -> None:
-        """Store an agent-specific state under a key.
-        e.g. session.set_state("query_analyst", analyst.state)
+    def _check_compaction(self) -> None:
+        """Check if session_context exceeds the context window and compact if needed.
+
+        Derives the context window from agent_state.agent_config.model.
+        If no context window is available, compaction is skipped.
+
+        Called automatically after every session_context mutation:
+        append_user(), append_assistant(), terminate_child().
         """
-        self.states[key] = state
-
-    def get_state(self, key: str) -> StateObject | None:
-        """Retrieve an agent-specific state by key."""
-        return self.states.get(key)
-
-    # ── Active task ──────────────────────────────────────────────────
-
-    def get_active_task(self) -> Task | None:
-        """Return the next executable task, advancing self.task.
-
-        Calls self.task.traverse() if a task is set. Returns None if no
-        task is active or the tree is fully completed.
-        """
-        if self.task is None:
-            return None
-        self.task = self.task.traverse()
-        return self.task
-
-    # ── Child creation ───────────────────────────────────────────────
-
-    def create_child(self, session_id: str) -> "Session":
-        """Create a child session attached to this node.
-
-        The child starts with clean context. When it finishes, call
-        propagate_chat_history() to push its audit record upward.
-        """
-        child = Session(
-            session_id=session_id,
-            parent_id=self.session_id,
+        if self.agent_state is None or self.agent_state.agent_config is None:
+            return
+        context_window = getattr(
+            self.agent_state.agent_config.model, "context_window", None
         )
-        child._parent = self
-        if self.child_sessions is None:
-            self.child_sessions = []
-        self.child_sessions.append(child)
-        return child
+        if context_window is None:
+            return
 
-    # ── Serialization ─────────────────────────────────────────────────
+        # Estimate token count — approximate: tokens ≈ chars / 4
+        estimated_tokens = sum(
+            len(msg.get("content", "")) for msg in self.session_context
+        ) // 4
+
+        if estimated_tokens > context_window:
+            self.compact(self._default_summarize)
+
+    def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
+        """Replace session_context with a single summarized turn.
+
+        summarize_fn receives the current session_context and returns a
+        summary string. The caller defines the compaction algorithm — the
+        Session only handles the mechanical collapse.
+
+        Reset active_token_usage on compaction (the active window changed).
+        chat_history and total_token_usage are never modified.
+        """
+        summary = summarize_fn(self.session_context)
+        self.session_context = [
+            {"role": "user", "content": summary}
+        ]
+        self.active_token_usage = None  # reset — active window changed
+        self.compaction_count += 1
+
+    def _default_summarize(self, messages: list[dict]) -> str:
+        """Default stub — compaction algorithm defined in utility/compaction.py."""
+        # Deferred: the actual LLM-based summary is injected via the
+        # summarize_fn parameter on compact(). This stub exists so
+        # _check_compaction() has a fallback.
+        return "..."
+
+    # ── Serialization ───────────────────────────────────────────────
 
     # Inherited from StateObject:
     #   to_dict() / from_dict() / to_json() / from_json()
     # dataclasses.asdict() recursively serializes all fields including
-    # nested StateObject subclasses (task, states dict values, child_sessions).
+    # nested StateObject subclasses (task, agent_state, child_sessions).
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Session":
@@ -270,23 +387,36 @@ async for event in agent.run(
 
 session.append_assistant(response_text)
 self.session_store.save(session)
+# _check_compaction() was automatically called during append calls
 ```
 
-### Child session (Worker/internal agent)
+### Transient agent (QueryAnalyst)
 ```python
-# TinyCUA creates a child for an internal worker:
-child = root_session.create_child(f"{session_id}-worker-1")
+# QueryAnalyst auto-creates its session, marks it transient:
+analyst = QueryAnalyst(config)
+analyst.session.is_transient = True  # nothing propagates on termination
 
-# Worker runs internal agents on this child...
-child.append_user(task_description)
-async for event in task_executor.run(task):
+# Parent links it, runs it, terminates it:
+self.session.add_child(analyst.session)
+async for event in analyst.run(user_query):
     yield event
-child.append_assistant(execution_result)
+self.session.terminate_child(analyst.session)
+# Nothing was propagated — analyst was transient.
 
-# Worker done — propagate chat_history upward:
-child.propagate_chat_history()
-# root_session.chat_history now includes child's full audit trail
-# root_session.session_context is unchanged (child context NOT inherited)
+# CEQ is passed directly to the next agent, not stored:
+next_agent.run(analyst.state.context_enhanced_query)
+```
+
+### Regular agent (PrimaryAgent)
+```python
+# PrimaryAgent auto-creates its session (is_transient defaults to False):
+primary = PrimaryAgent(config)
+self.session.add_child(primary.session)
+# ... run + terminate ...
+self.session.terminate_child(primary.session)
+
+# Natural termination: chat_history + final response propagated
+# Mid-progress: chat_history + entire session_context propagated
 ```
 
 ---
@@ -295,18 +425,25 @@ child.propagate_chat_history()
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Tree structure | `parent_id` + `child_sessions` + `_parent` | Mirrors Task tree; recursive nesting; upward propagation |
-| Parent inherits chat_history only | `propagate_chat_history()` appends upward | Architecture rule: context is isolated per session |
-| Child context is clean | `create_child()` starts empty | Internal agents don't leak into parent's model context |
-| Two histories, one format | Both `list[{"role", "content"}]` | Same serialization format; simple filtering during append |
-| chat_history never passed to LLM | Only `session_context` as `messages` | Full tool traces would bloat prompts; audit record stays clean |
-| Compaction collapses to single turn | `session_context` → `[{"role": "user", "content": summary}]` | Preserves context continuity; model sees summary + recent turns |
-| summarize_fn injected by caller | `compact(summarize_fn)` parameter | Compaction algorithm is flexible; Session only handles mechanics |
+| One session per agent | Each Session holds its own `agent_state` | No central `states` dict — walk the tree to find who's active |
+| Active session via DFS | `get_active_session()` DFS pre-order | Sequential execution means at most 1 active child |
+| Shared Task object | `task` field references same object across tree | All agents work on the same task tree; no need to sync |
+| Bottom-up termination | `can_terminate()` blocks until children are done | Child agents must finish first; guarantees clean teardown |
+| Transient agents | `is_transient=True` → nothing propagates | QueryAnalyst, InformationDigester pass output directly to next agent |
+| Chat history always propagates | `terminate_child()` always merges `chat_history` | Full audit trail available at root (except transient agents) |
+| Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
+| Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |
+| Compaction trigger | `_check_compaction()` on every `session_context` mutation | Proactive; no separate compaction pass |
+| Context window from config | `agent_state.agent_config.model.context_window` | Per-agent configurable; derived from LanguageModel |
+| summarize_fn injected | `compact(summarize_fn)` parameter | Compaction algorithm is flexible; defined in `utility/compaction.py` |
 | Re-parent after deserialization | `set_parents()` in `from_dict()` | `_parent` excluded from serialization; re-established on load |
-| Session is the state container | `states: dict[str, StateObject]` | All tracking and per-agent state lives in dict — no inline type fields |
-| Per-agent states in dict | Keyed by agent kind | Flexible; any StateObject subclass stored by key |
-| Token usage in SessionTracking | `states["session"].token_usage` | Updated from stream events; survives compaction; never reset |
+| Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
+| Token usage: active | `active_token_usage` on Session | Based on current session_context; reset on compaction; reflects active window |
+| Consecutive assistant messages allowed | chat_history format | Sessions may receive multiple child results in sequence |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
+
+
+---
 
 
 ---

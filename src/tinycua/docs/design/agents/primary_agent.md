@@ -5,6 +5,22 @@
 
 ---
 
+## Role
+
+`PrimaryAgent` is the final synthesis orchestrator. It serves two roles:
+
+1. **Default passthrough target** — when QueryAnalyst returns passthrough mode and no
+   active task exists, the user query is routed directly to PrimaryAgent.
+2. **Worker-chain terminal** — after the Worker chain completes (TaskCreator →
+   TaskExecutor → ResultReviewer), the aggregated worker result is passed to
+   PrimaryAgent for final synthesis.
+
+When activated, the parent orchestrator calls `add_child(primary.session)` first,
+then terminates the previous child. This ensures there is never a gap where
+no active agent exists.
+
+---
+
 ## Orchestrator Class
 
 ```python
@@ -96,6 +112,9 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 |----------|--------|-----------|
 | No custom loop | `ReActAgentLoop` | Single input → single output |
 | Flexible input | Accepts CEQ or WorkerResult | Both modes converge here |
+
+
+---
 
 
 ---
