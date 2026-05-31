@@ -10,7 +10,7 @@ All worktrees live under `.worktrees/<branch-name>/`:
 
 ```
 .worktrees/
-├── refactor-tinycua-sdk-v2/
+├── refactor-sdk-v2/
 ├── stage-04-skills/
 └── stage-05-streaming/
 ```

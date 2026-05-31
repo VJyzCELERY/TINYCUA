@@ -158,7 +158,7 @@ def check_pr_base(branch: str) -> str | None:
     """Check if branch has an open PR on GitHub and return its base branch.
 
     Uses `gh pr list --head <branch> --json baseRefName` to find the PR base.
-    Returns the base branch name (e.g. 'main', 'base/refactor-tinycua-sdk-v2')
+    Returns the base branch name (e.g. 'main', 'base/refactor-sdk-v2')
     or None if no open PR exists for this branch.
     """
     out = run([

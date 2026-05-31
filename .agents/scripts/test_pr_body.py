@@ -59,12 +59,12 @@ Added OAuth flow with Google provider.
 
 1. Run tests:
    ```bash
-   cd src/tinycua && uv run pytest
+   cd src/my-subproject && uv run pytest
    ```
 
 ## Review Notes
 
-- `src/tinycua/auth.py` — OAuth flow implementation
+- `src/my-subproject/auth.py` — OAuth flow implementation
 
 ## Related Issues
 

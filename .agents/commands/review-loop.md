@@ -1,153 +1,239 @@
 ---
-description: Runs the review loop independently: review → validate → fix → fresh review → cleanup
+description: Review loop orchestrator — delegates each step to subagents with minimal interference
 subtask: true
 ---
 
-Run the review loop independently: review-report → review-validate → review-implement → fresh review → repeat until clean → review-archive.
+Run the review loop: review-report → review-validate → review-implement → review-verify → repeat until clean → review-archive.
 
-> Load skill: review-core (for orchestrating review cycles)
+> Load skill: review-loop (for loop orchestration guidance)
 
-**Query**: $1 (natural language query — specify what to review, e.g., "review the changes in src/tinycua-sdk" or simply "src/my-subproject/")
-**Review Name**: $2 (optional — defaults to directory name from query)
-**Unscoped (Optional)**: $3 (set to "unscoped" to bypass branch diff scoping)
+**Query**: $1 (— specify what to review, scope, focus, or any custom prompt for review-report, e.g., "review src/my-sdk for security issues" or "src/my-subproject/")
+
+---
+
+## Role: Review Orchestrator
+
+You are the **review orchestrator**. Your job is to follow the loop below, delegating **each step to a fresh subagent**. You do not load skills, read AGENTS.md yourself, or specify review directories — the subagents handle all of that. Minimal interference.
+
+### Bare Command Only — Critical Rule
+
+When delegating to a subagent, send **only the raw command string** — nothing before, nothing after. No preamble, no instructions, no "your job is to...", no "specifically:". The subagent reads the command file and handles everything independently.
+
+**✅ Correct:**
+```
+run @.agents/commands/review-report.md review PR docs readiness such as spec.md, design.md, task.md and implementation-plan.md
+```
+
+**❌ Wrong — do NOT add extra text:**
+```
+Please run the review-report command.
+Your job is to follow the instructions in review-report.md...
+Specifically:
+1. First read...
+2. Read AGENTS.md...
+```
+
+If the user provided **additional notes** that are relevant to a specific step, **append them naturally to the end of the bare command** — still no preamble:
+
+```
+run @.agents/commands/review-report.md <user_prompt> — also check that all new functions have docstrings
+```
+
+This applies to every step in the loop. The command is all the subagent needs.
+
+Each subagent command follows this format (defaults shown — user may override any step):
+
+| Step | Default Bare Command |
+|------|---------------------|
+| Review-Report | `run @.agents/commands/review-report.md <user_prompt>` or `run @.agents/commands/review-report.md <user_prompt> — <additional_note>` |
+| Review-Validate | `run @.agents/commands/review-validate.md` |
+| Review-Implement | `run @.agents/commands/review-implement.md` |
+| Review-Verify | `run @.agents/commands/review-verify.md` |
+| Review-Archive | `run @.agents/commands/review-archive.md` |
+
+---
 
 ## Initial Questions
 
-**Use the question/ask tool to ask these (priority). Only write inline if your harness has no such tool.**
+Ask the user for the review-report prompt first, then ask about each remaining step's command:
 
-1. **Scope tightening**: "Do you want to tighten the review scope as iterations progress (narrow to critical issues after 3-4 cycles), or keep every cycle as a full fresh review?" Default is tighten if not specified.
-2. **Any other clarifications**: If the query is ambiguous, ask for specifics.
+### 1. Review-Report Command
 
-Once answered, the rest of the loop runs fully automated.
+> "What should the review report scope/prompt be? (e.g., 'src/my-sdk' or 'review auth module for security')"
 
----
+This is required and becomes the `<user_prompt>` for the review-report command.
 
-## Pre-Flight
+### 2. Remaining Step Commands (default or custom)
 
-Before starting the loop, run the review pre-flight:
+For each remaining step, ask the user if they want the **default command** or a **custom one**. List the defaults:
 
-```bash
-uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
-```
+| Step | Default Command |
+|------|----------------|
+| Review-Validate | `run @.agents/commands/review-validate.md` |
+| Review-Implement | `run @.agents/commands/review-implement.md` |
+| Review-Verify | `run @.agents/commands/review-verify.md` |
+| Review-Archive | `run @.agents/commands/review-archive.md` |
 
----
+> "For each step below, type 'default' to use the default shown above, or type your own custom command. Press enter to accept all defaults."
 
+Collect the user's choice for each step individually. Record them — the orchestrator uses the chosen command for that step throughout the loop.
 
-## Workflow-Orchestrator Role
+### 3. Additional Notes or Rules
 
-The agent that executes this command is the **workflow-orchestrator**. You delegate to **fresh subagents** for every single step. You own the loop, apply oversight rules, and make go/no-go decisions.
+> "Any additional notes or rules for the loop? (e.g., 'skip review-verify if only one finding', 'run tests after each implement') — leave blank if none."
 
-### Every Step Uses a Fresh Subagent
-
-- `/review-report` → Subagent 1, 4, 7, ...
-- `/review-validate` → Subagent 2, 5, 8, ...
-- `/review-implement` → Subagent 3, 6, 9, ...
-- `/review-archive` → Subagent N
-
----
-
-## Important Global Rule: Use `uv run` for Python
-
-All subagents MUST `cd <subproject-dir> && uv run` for Python/pytest commands.
-Bare `python` or `pytest` may import from the wrong worktree.
+Once answered, rest of the loop runs fully automated. The orchestrator uses the recorded commands and follows any additional notes.
 
 ---
 
 ## Instructions
 
-Enter a loop that continues until truly clean (no issues found in a FRESH review):
+Enter the loop and follow these steps in order:
 
-**Step 1: Review-report (Subagent 1)**
+### Step 1: Review Report (Subagent)
 
-Delegate to a fresh subagent:
+Send the review-report command the user provided (or the default `run @.agents/commands/review-report.md <user_prompt>`):
 
-> Run /review-report for $1 with focus on code quality and spec compliance — read the PR body and title first, adjust scope accordingly, and check PR body/title compliance against specs
+```
+<user_chosen_review_report_command>
+```
 
-The review file is written to `./reviews/REVIEW_{name}.md`.
+- If the review report returns **no OPEN issues** (clean) → proceed to **Step 6** (Archive).
+- If the review report returns **OPEN issues** → proceed to **Step 2**.
 
-**Step 2: Review-validate (Subagent 2)**
+### Step 2: Review Validate (Subagent)
 
-Delegate:
+Send the validate command the user chose (or the default):
 
-> Run /review-validate for ./reviews/REVIEW_{name}.md
+```
+<user_chosen_validate_command>
+```
 
-**Step 3: If OPEN issues exist → Review-implement (Subagent 3)**
+### Step 3: Review Implement (Subagent) + Commit
 
-Delegate:
+Send the implement command the user chose (or the default):
 
-> Run /review-implement for ./reviews/REVIEW_{name}.md
+```
+<user_chosen_implement_command>
+```
 
-After fixing, return to Step 2 for re-validation (new subagent each time).
+After the subagent finishes, the orchestrator **commits the changes** locally:
 
-**Step 4: If VALIDATE returns CLEAN → Run FRESH Review-report (Subagent N)**
+```bash
+git add -A && git commit -m "review: apply fixes from review cycle"
+```
 
-This MUST be a fresh, independent review. No prior context:
+> **Important**: Do NOT push. This is a local commit only.
 
-> Run /review-report for $1 - perform a FRESH independent review. Do NOT use any context from previous reviews. Treat this as a brand new review and check for any remaining issues from scratch — also read the PR body and title, adjust scope, and check PR body/title compliance
+> **Early push optimization**: If the review report agent keeps flagging "unpushed commits" as an issue across cycles, the orchestrator may **squash all unpushed commits into one and push early** after this step (does NOT terminate the loop). See Step 7 for squash+push approach.
 
-**Step 5: Check Fresh Review Result**
-- If fresh review has ANY new issues → return to Step 2
-- If fresh review returns CLEAN (zero issues) → Exit Review Loop → proceed to Cleanup
+Proceed to **Step 4**.
 
-**Step 6: Review-archive (Subagent N)**
+### Step 4: Review Verify (Subagent)
 
-> Run /review-archive for ./reviews/REVIEW_{name}.md
+Send the verify command the user chose (or the default):
+
+```
+<user_chosen_verify_command>
+```
+
+- If **all issues are ADDRESSED** → immediately run **Review Archive** (inline, not Step 6), then proceed to **Step 5** → Step 1 (fresh review).
+- If **issues are still OPEN** → go back to **Step 3** (Implement again).
+
+> **Archive after verify**: When verify confirms all issues are addressed, archive the current cycle before the fresh review. This preserves the cycle's findings for traceability.
+
+To archive inline, send the archive command the user chose for this step:
+
+```
+<user_chosen_archive_command>
+```
+
+### Step 5: Goto Step 1
+
+After archive completes, go back to **Step 1** for a fresh review report to check if fixes introduced new issues.
+
+### Step 6: Review Archive (Subagent)
+
+Only reached when Step 1 returns a clean report (no OPEN issues) on the **first cycle** (no fixes were needed).
+
+Send the archive command the user chose (or the default):
+
+```
+<user_chosen_archive_command>
+```
+
+Proceed to **Step 7**.
+
+### Step 7: Squash Unpushed Commits → Push → Terminate
+
+Check for unpushed local commits:
+
+```bash
+git log @{u}..HEAD --oneline
+```
+
+If there are unpushed commits:
+1. **Squash** all unpushed commits into a single commit using `git reset --soft @{u}` + `git commit`
+2. **Push** with a normal `git push` (no force push)
+
+> **Critical rule**: This must NOT require `--force` or `--force-with-lease`. If a force push would be needed, the agent is doing something wrong. In that case, do NOT push — abort and report the situation.
+
+Once push succeeds, the review loop is complete and terminates.
+
+> **Note on early push**: If the review report repeatedly flags "unpushed commits" as an issue, the orchestrator may apply this squash+push early (after Step 3) without terminating the loop. This silences the false-positive review finding so the loop can continue cleanly.
 
 ---
 
-## Review Loop Oversight Rules (Workflow-Orchestrator)
+## Loop Flow Diagram
 
-### 1. Bookkeep Review History
+```
+Step 1: Review Report
+  ├── Has OPEN issues → Step 2
+  └── No issues (clean) → Step 6 (Archive) → Step 7
 
-Maintain a running ledger of every finding across all cycles. For each new fresh review:
+Step 2: Review Validate → Step 3
 
-1. Check each finding against the ledger — has this been raised and addressed before?
-2. If yes → Invalidate: mark it INVALID with note: "Already addressed in cycle N"
-3. If no → Keep as OPEN
+Step 3: Review Implement → git commit (NO PUSH) → Step 4
+  └── (Early squash+push if review report flags unpushed commits)
 
-**Do NOT invalidate simply because a finding looks similar or overlaps.** Only invalidate if the exact same issue (same file, same line, same description) was previously addressed.
+Step 4: Review Verify
+  ├── All ADDRESSED → Archive → Step 5 → Step 1 (fresh review)
+  └── Still OPEN → Step 3 (fix again)
 
-### 2. Handle Reopened Issues
+Step 5: Goto Step 1
 
-- If **code has changed** since the fix, treat as valid new OPEN finding
-- If **code has NOT changed**, the reviewer is wrong — invalidate
+Step 6: Review Archive (initial clean only) → Step 7
 
-### 3. Tighten Scope as Issues Shrink
-
-Bias toward keeping scope wide:
-
-- **First 4 cycles**: Full scope — spec compliance, code quality, test coverage
-- **Cycles 5-8**: Narrow to spec compliance and correctness issues
-- **Cycles 9+**: Only real bugs, spec violations, or test gaps
-
-### 4. Orchestrator Validation Gate
-
-After each fresh review, before passing to validate-fix: filter through ledger, check reopen status, assess severity against current cycle scope. **Pass all remaining findings through** — do NOT proactively filter or dismiss. Let review-validate and review-verify make the final determination. The orchestrator only removes true duplicates (exact same finding from prior cycle) and out-of-scope items (findings about code not in the diff).
+Step 7: Squash unpushed commits → Push → Terminate
+```
 
 ---
 
 ## Required Context
 
-- Preflight: preflight-review.py
-- Skills: review-core
-- Rules: 004-review-standards.md
+- Preflight: none (subagents handle their own preflights)
+- Skills: none (subagents load their own skills)
+- Rules: none (subagents load their own rules)
 - Templates: none
-- Mutates files: yes
-- Mutates git history: no
-- Mutates remote: no
-- Requires user confirmation: yes (initial questions on scope tightening)
+- Mutates files: yes (orchestrator commits after review-implement)
+- Mutates git history: yes (orchestrator commits and squashes)
+- Mutates remote: yes (orchestrator pushes at Step 7 or early push)
+- Requires user confirmation: yes (review-report prompt + step commands + additional notes)
 
 ## Important
 
-- Delegate each step to a fresh subagent
-- Wait for each subagent to complete before proceeding
-- After validation returns clean, ALWAYS run one more fresh review
-- **Do NOT fix code yourself** — always delegate implementation to subagents via review-implement. The orchestrator owns the loop, not the code
-- For FRESH review: explicitly tell subagent to be independent with no prior context
-- Stay scoped to the target directory
-- Run actual commands and tests — don't assume results
-- Always instruct subagents to read this AGENTS.md file first — they start with zero context and won't know the rules otherwise
-- Always instruct subagents to load the relevant skill (e.g., `gh`, `preflight`) before running tools — list available skills with `ls .agents/skills/` if unsure
-- Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest
-- When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance
-- All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed
+- **Bare command only**: Send the raw `run @.agents/commands/review-<step>.md ...` string — nothing else. No preamble, no extra instructions. The subagent reads the command file and handles everything.
+- **Additional notes**: If the user provided notes, the orchestrator follows them. Append relevant notes to the bare command when they affect a subagent's task.
+- Delegate **each step** to a **fresh subagent** — never do the work yourself.
+- Wait for each subagent to complete before proceeding.
+- Do **not** instruct subagents to read AGENTS.md — they handle that themselves.
+- Do **not** specify review directories — subagents determine paths independently.
+- Do **not** load skills for the review steps — subagents load their own.
+- The initial questions are the **only** user interaction — the loop runs fully automated after that.
+- The review-report prompt is entirely user-determined — pass it verbatim to the subagent.
+- **After Step 3** (review-implement): orchestrator always commits the changes locally. Do NOT push.
+- **Archive after verify**: When Step 4 (verify) confirms all ADDRESSED, run archive immediately — do NOT skip to Step 1 first. The archive preserves the cycle before the fresh review.
+- **Step 6** is only for the **initial clean report** path (no issues found on first review).
+- **Step 7**: Squash ALL unpushed commits into a single commit, then push normally. Must NOT require `--force`.
+- **Early push optimization**: If the review report keeps flagging "unpushed commits" as an issue, squash+push early after the next Step 3 commit. This does NOT terminate the loop — the loop continues normally.
+- If a squash+push would require force push, the agent is doing it wrong — abort and report.
