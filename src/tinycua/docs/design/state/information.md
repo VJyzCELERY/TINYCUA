@@ -66,7 +66,7 @@ class TaskCreatorState(StateObject):
 ```python
 @dataclass
 class TaskAnalyzerState(StateObject):
-    task_tree: Task | None = None
+    analysis_summary: str | None = None  # markdown summary of created/modified/deleted tasks
 ```
 
 ### `TaskAssessorState`

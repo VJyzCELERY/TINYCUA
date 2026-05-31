@@ -49,7 +49,11 @@ INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = []
 
 TASK_CREATOR_BASE_TOOLS: list[Tool] = []
 
-TASK_ANALYZER_BASE_TOOLS: list[Tool] = []
+TASK_ANALYZER_BASE_TOOLS: list[Tool] = [
+    *READ_ONLY_TASK_TOOLS,  # ReadActiveTask, ReadTask, ListTask
+    SetSubTask, AddSubTask, DeleteSubTask, EditSubTask, SwapTask,
+    # All write tools EXCEPT TaskInit (modified in-place, not wholesale replace)
+]
 
 TASK_ASSESSOR_BASE_TOOLS: list[Tool] = []
 
