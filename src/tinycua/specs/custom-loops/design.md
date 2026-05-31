@@ -147,11 +147,12 @@ src/tinycua/tinycua/
 │   ├── __init__.py
 │   ├── types.py                        # AgentKind enum, TINYCUA_DEFAULT_MODEL
 │   └── agents.py                       # AgentConfigBase + 7 per-agent config dataclasses
-├── loops/                           # NEW
+├── loops/                           # NEW — 1 shared ReAct + 3 custom loops
 │   ├── __init__.py                  # Re-exports all loop types + SDK integration types
-│   ├── classification.py            # ClassificationLoop (extends BaseLoop)
-│   ├── exploration.py               # ExplorationLoop (extends BaseLoop)
-│   ├── hybrid_review.py             # HybridReviewLoop (extends BaseLoop)
+│   ├── react_agent.py               # ReActAgentLoop (extends BaseLoop) — shared ReAct loop for simple agents
+│   ├── query_analyst_loop.py        # QueryAnalystLoop (extends BaseLoop) — classification
+│   ├── information_digestion_loop.py # InformationDigestionLoop (extends BaseLoop) — iterative retrieval
+│   ├── result_review_loop.py        # ResultReviewLoop (extends BaseLoop) — two-phase review
 │   ├── schema_validator.py          # Output validation (uses SDK event/model infra)
 │   ├── main_loop.py                  # FUTURE (M6): MainLoop low-level execution loop
 │   └── errors.py                    # LoopError hierarchy (thin wrappers around SDK errors)
@@ -347,9 +348,13 @@ class PrimaryAgentState(StateInformation):
 ```python
 from tinycua_sdk.agent import Agent
 from tinycua.config.agents import QueryAnalystConfig
-from tinycua.loops import ClassificationLoop, SchemaValidator
+from tinycua.loops import QueryAnalystLoop, SchemaValidator
 from tinycua.state.information import QueryAnalystState
 from tinycua.tools import ClassificationTool
+
+# Base tools — the tools this agent fundamentally needs.
+# NOT part of config.extra_tools (which is for externally injected tools only).
+QUERY_ANALYST_BASE_TOOLS = []  # ClassificationTool is built at init time from config
 
 
 class QueryAnalyst(BaseAgentWrapper[QueryAnalystState]):
@@ -361,6 +366,19 @@ class QueryAnalyst(BaseAgentWrapper[QueryAnalystState]):
         super().__init__(config, state_factory=QueryAnalystState)
         self.classification_tool = ClassificationTool(labels=config.classification_labels)
         self._build_agent()
+
+    def _build_agent(self):
+        self.agent = Agent(
+            name=self.config.name,
+            instructions=self.config.instructions,
+            llm_model=self.config.model,
+            tools=[
+                self.classification_tool,          # agent's own tool
+                *QUERY_ANALYST_BASE_TOOLS,         # module-level constant
+                *self.config.extra_tools,          # externally injected (empty by default)
+            ],
+            loop=QueryAnalystLoop(),
+        )
 
     async def run(
         self,
@@ -380,13 +398,21 @@ class QueryAnalyst(BaseAgentWrapper[QueryAnalystState]):
         return result
 ```
 
+Every agent follows this pattern: `_build_agent()` merges three tool sources:
+
+| Source | Purpose | Example |
+|--------|---------|---------|
+| Agent-initialized tools | Built at `__init__` from config (e.g., `ClassificationTool(labels=...)`) | `self.classification_tool` |
+| `*_BASE_TOOLS` | Module-level constant — the agent's inherent tools | `[]` for QueryAnalyst, `[retrieval_tool]` for InformationDigester |
+| `config.extra_tools` | Injected by caller / MainLoop — **empty list by default** | Extra logging, monitoring, or custom tools |
+
 ### Layer Separation: Wrapper vs Loop
 
 | Concern | Managed By | Examples |
 |---------|-----------|----------|
 | LLM orchestration | SDK `BaseLoop` | Tool calling, message construction, streaming |
 | Tool execution | SDK `ToolExecutor` | Invoke tools, normalize results |
-| Domain control flow | Custom loop (`ClassificationLoop`, etc.) | Gap evaluation, two-phase review |
+| Domain control flow | Custom loop (`QueryAnalystLoop`, etc.) | Gap evaluation, two-phase review |
 | Input preparation | Wrapper class `run()` | Building prompt messages from domain objects |
 | Output parsing | Wrapper class `run()` | Parsing raw LLM output into typed objects |
 | Context management | Wrapper `self.state` (StateInformation) | Storing last result, session state, tool results |
@@ -446,7 +472,7 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.tools.decorators import Tool
 
 
-class ClassificationLoop(BaseLoop):
+class QueryAnalystLoop(BaseLoop):
     """Structured classification using SDK's normal BaseLoop behavior."""
 
     def __init__(self):
@@ -475,8 +501,12 @@ class QueryAnalyst(BaseAgentWrapper):
             name=self.config.name,
             instructions=self.config.instructions,
             llm_model=self.config.model,
-            tools=[ClassificationTool(self.config.classification_labels)],
-            loop=ClassificationLoop(),  # loop is passed into Agent, not wrapping it
+            tools=[
+                ClassificationTool(self.config.classification_labels),
+                *QUERY_ANALYST_BASE_TOOLS,
+                *self.config.extra_tools,
+            ],
+            loop=QueryAnalystLoop(),  # loop is passed into Agent, not wrapping it
         )
 
     async def run(self, user_query: str, chat_history=None, session_context=None) -> dict:
@@ -581,7 +611,7 @@ Custom loops do not implement their own retry logic. They rely on the SDK's infr
 
 **Purpose**: High-level context scan → multi-dimensional scoring → one validated ModeDecision output.
 
-**SDK integration**: Extends `BaseLoop` using the SDK's normal/default iteration behavior. It does **not** set `max_iterations=1` or otherwise force a true single-pass loop, because that can make the agent stop immediately before the SDK loop has room to complete normal execution. The `QueryAnalyst` wrapper class composes an SDK `Agent` with a structured classification system prompt, `ClassificationTool`, and `loop=ClassificationLoop()`. The SDK's `BaseLoop.run()` handles LLM calls, message construction, and response parsing.
+**SDK integration**: Extends `BaseLoop` using the SDK's normal/default iteration behavior. It does **not** set `max_iterations=1` or otherwise force a true single-pass loop, because that can make the agent stop immediately before the SDK loop has room to complete normal execution. The `QueryAnalyst` wrapper class composes an SDK `Agent` with a structured classification system prompt, `ClassificationTool`, and `loop=QueryAnalystLoop()`. The SDK's `BaseLoop.run()` handles LLM calls, message construction, and response parsing.
 
 **Implementation approach**:
 1. Constructor receives only loop-specific options, if any. It does not receive or store an SDK `Agent`.
@@ -605,7 +635,7 @@ Custom loops do not implement their own retry logic. They rely on the SDK's infr
 
 **Purpose**: Iterative gap identification + retrieval → DigestedInformation.
 
-**SDK integration**: Extends `BaseLoop`. The `InformationDigester` wrapper class composes an SDK `Agent` with an `enhanced_context_retrieval` SDK `Tool` and `loop=ExplorationLoop()`. The SDK's `BaseLoop` handles the tool-calling iteration (LLM requests tool → tool executes → result returned → LLM evaluates). The Exploration loop adds gap-evaluation logic on top.
+**SDK integration**: Extends `BaseLoop`. The `InformationDigester` wrapper class composes an SDK `Agent` with an `enhanced_context_retrieval` SDK `Tool` and `loop=InformationDigestionLoop()`. The SDK's `BaseLoop` handles the tool-calling iteration (LLM requests tool → tool executes → result returned → LLM evaluates). The Exploration loop adds gap-evaluation logic on top.
 
 **Internal flow**:
 
@@ -650,34 +680,46 @@ Custom loops do not implement their own retry logic. They rely on the SDK's infr
 
 **Stop conditions**: LLM-judged sufficiency (via output parsing) OR SDK's `BaseLoop.max_iterations` (configurable, default 5).
 
-### 3. Direct SDK BaseLoop Usage (Task Analyzer / Task Assessor)
+### 3. ReActAgentLoop (shared — TaskAnalyzer, TaskAssessor, TaskExecutor, PrimaryAgent)
 
-**Architecture reference**: `task-analysis.md` (Task Analyzer), `task-assessor.md` (Task Assessor)
+**Purpose**: Single input → single output with SDK-provided ReAct/tool-calling internal iteration. Used by any agent whose execution strategy does not require custom routing, exploration, or deterministic review phases.
 
-**Purpose**: Single input → single output with SDK-provided ReAct/tool-calling internal iteration but no custom routing branches, exploration phase, or deterministic review phase.
-
-**SDK integration**: Use `tinycua_sdk.agent.loop.BaseLoop` directly through the composed SDK `Agent.run()` inside the wrapper class's `_build_agent()`. The wrapper's `run()` method prepares input, delegates to the composed agent, and validates output. A separate `LinearAgentLoop`, `SimpleLoop`, or equivalent wrapper is intentionally not created.
+**SDK integration**: `ReActAgentLoop` extends `BaseLoop` and is imported from `tinycua.loops.react_agent`. Simple agents configure their composed SDK `Agent` with `loop=ReActAgentLoop()`. The wrapper's `run()` method prepares input, delegates to the composed agent, and handles post-processing (validation, formatting, state updates).
 
 **Implementation approach**:
-- The wrapper class `_build_agent()` creates an SDK `Agent` pre-configured with the agent-specific system prompt, `LanguageModel`, optional SDK `Tool` objects, and no custom `loop` argument so SDK `BaseLoop` is used.
-- The wrapper's `run()` method prepares domain input, calls `self.agent.run(...)`, and validates output via `SchemaValidator`.
-- No custom loop class is introduced for this execution pattern.
+```python
+from tinycua_sdk.agent.loop import BaseLoop
+
+
+class ReActAgentLoop(BaseLoop):
+    """Shared ReAct loop — extends SDK BaseLoop with no additional control flow.
+
+    Used directly by TaskAnalyzer, TaskAssessor, TaskExecutor, and PrimaryAgent.
+    The wrapper class provides agent identity; the loop provides execution strategy.
+    Pre-processing and post-processing happen in the wrapper's run() method.
+    """
+    pass  # Inherits all BaseLoop behavior; no override needed
+```
 
 **Configuration (inside wrapper class)**:
 ```python
 from tinycua_sdk.agent import Agent
-from tinycua_sdk.agent.llm_model import LanguageModel
-from tinycua_sdk.tools.decorators import Tool
+from tinycua.loops.react_agent import ReActAgentLoop
+from tinycua.loops import SchemaValidator
 from tinycua.agents.base import BaseAgentWrapper
 from tinycua.config.agents import TaskAnalyzerConfig
-from tinycua.loops import SchemaValidator
+from tinycua.state.information import TaskAnalyzerState
+
+TASK_ANALYZER_BASE_TOOLS: list[Tool] = []
 
 
-class TaskAnalyzer(BaseAgentWrapper):
-    """Task decomposition agent — SDK BaseLoop."""
+class TaskAnalyzer(BaseAgentWrapper[TaskAnalyzerState]):
+    """Task decomposition agent — ReActAgentLoop."""
+
+    state: TaskAnalyzerState
 
     def __init__(self, config: TaskAnalyzerConfig):
-        super().__init__(config)
+        super().__init__(config, state_factory=TaskAnalyzerState)
         self._build_agent()
 
     def _build_agent(self):
@@ -685,8 +727,11 @@ class TaskAnalyzer(BaseAgentWrapper):
             name=self.config.name,
             instructions=self.config.instructions,
             llm_model=self.config.model,
-            tools=self.config.extra_tools,    # Optional: SDK Tool objects
-            # loop omitted → Agent.run() uses SDK BaseLoop()
+            tools=[
+                *TASK_ANALYZER_BASE_TOOLS,
+                *self.config.extra_tools,
+            ],
+            loop=ReActAgentLoop(),
         )
 
     async def run(self, digested_information: dict) -> dict:
@@ -698,19 +743,20 @@ class TaskAnalyzer(BaseAgentWrapper):
         return result
 ```
 
-**Key distinction from Exploration/Review loops**:
-- No gap-iteration control (unlike Exploration) — SDK's `BaseLoop` handles tool iteration.
-- No branching decisions (unlike Hybrid Review) — the agent produces exactly one output.
-- One input, one output — the agent may think internally via SDK's ReAct/tool loop but produces a single definitive result after validation.
+**Key distinction from custom loops**:
+- No gap-iteration control (unlike InformationDigestionLoop) — ReAct handles tool iteration.
+- No classification scoring (unlike QueryAnalystLoop) — the agent produces exactly one output.
+- No deterministic pre-checks (unlike ResultReviewLoop).
+- One input, one output — the agent may think internally via ReAct/tool loop but produces a single definitive result after the wrapper validates it.
 - No `tinycua.loops.linear` module and no custom `LinearAgentLoop` type.
 
-### 4. Hybrid Review Loop
+### 4. Result Review Loop
 
 **Architecture reference**: `result-reviewer.md`
 
 **Purpose**: Two-phase review: deterministic checks first, then LLM semantic review via SDK `Agent.run()` → ReviewerDecision.
 
-**SDK integration**: Extends `BaseLoop`. The Agent Factory configures the Result Reviewer as an SDK `Agent` with review instructions, review tools, and `loop=HybridReviewLoop(deterministic_rules=...)`. Phase 1 runs custom deterministic rules. Phase 2 delegates to `super().run(agent, ...)` / SDK `BaseLoop` behavior for LLM semantic review. The SDK handles message construction, LLM calling, and response parsing.
+**SDK integration**: Extends `BaseLoop`. The Agent Factory configures the Result Reviewer as an SDK `Agent` with review instructions, review tools, and `loop=ResultReviewLoop(deterministic_rules=...)`. Phase 1 runs custom deterministic rules. Phase 2 delegates to `super().run(agent, ...)` / SDK `BaseLoop` behavior for LLM semantic review. The SDK handles message construction, LLM calling, and response parsing.
 
 **Internal flow**:
 
@@ -771,11 +817,16 @@ class DeterministicRuleResult:
     severity: str | None = None  # "escalate" | "replan"
 
 
-class ResultReviewer(BaseAgentWrapper):
+RESULT_REVIEWER_BASE_TOOLS: list[Tool] = []  # no inherent tools; review criteria are in the prompt
+
+
+class ResultReviewer(BaseAgentWrapper[ResultReviewerState]):
     """Result review agent — Hybrid Review Loop."""
 
+    state: ResultReviewerState
+
     def __init__(self, config: ResultReviewerConfig):
-        super().__init__(config)
+        super().__init__(config, state_factory=ResultReviewerState)
         self._build_agent()
 
     def _build_agent(self):
@@ -783,8 +834,11 @@ class ResultReviewer(BaseAgentWrapper):
             name=self.config.name,
             instructions=self.config.instructions,
             llm_model=self.config.model,
-            tools=self.config.extra_tools,
-            loop=HybridReviewLoop(
+            tools=[
+                *RESULT_REVIEWER_BASE_TOOLS,    # module-level constant
+                *self.config.extra_tools,      # externally injected (empty by default)
+            ],
+            loop=ResultReviewLoop(
                 deterministic_rules=self.config.deterministic_rules,
             ),
         )
@@ -882,9 +936,9 @@ from tinycua_sdk.tools.decorators import Tool
 # Custom loop types
 from tinycua.loops import (
     # Loop implementations (extend BaseLoop)
-    ClassificationLoop,
-    ExplorationLoop,
-    HybridReviewLoop,
+    QueryAnalystLoop,
+    InformationDigestionLoop,
+    ResultReviewLoop,
     # Validation
     SchemaValidator,
     # Hybrid Review types
@@ -950,8 +1004,8 @@ from tinycua.tools.agent_calls import (
 # Factory creates wrapper class instances
 query_analyst = create_agent(AgentKind.QUERY_ANALYST)
 assert isinstance(query_analyst, QueryAnalyst)
-# The composed SDK Agent loop is ClassificationLoop
-assert isinstance(query_analyst.agent.config.loop, ClassificationLoop)
+# The composed SDK Agent loop is QueryAnalystLoop
+assert isinstance(query_analyst.agent.config.loop, QueryAnalystLoop)
 
 # With config overrides
 custom_qa = create_agent(
@@ -976,13 +1030,13 @@ custom loops through `Agent(loop=...)` inside `_build_agent()`.
 
 | Architecture Agent | Wrapper Class | Composed SDK Agent Config | Loop | Input | Output |
 |-------|-------|------------------|--------------------|------------|-------------|
-| Query Analyst | `QueryAnalyst` | Classification prompt + `ClassificationTool` | `loop=ClassificationLoop()` | `(user_query, chat_history, session_context)` | `{context_enhanced_query, mode_decision}` |
-| Information Digester | `InformationDigester` | Digestion prompt + `enhanced_context_retrieval` SDK Tool | `loop=ExplorationLoop()` | `ContextEnhancedQuery` | `DigestedInformation` |
-| Task Analyzer | `TaskAnalyzer` | Task analysis prompt + optional info tools | default SDK `BaseLoop` (`loop` omitted) | `DigestedInformation` | `Task` tree |
-| Task Assessor | `TaskAssessor` | Assessment prompt | default SDK `BaseLoop` (`loop` omitted) | `Task` tree + `WorkerConfig` | `list[task_id]` selection |
-| Task Executor | `TaskExecutor` | Execution prompt + native benchmark SDK Tools | default SDK `BaseLoop` (`loop` omitted) | `Task` | `TaskResult` |
-| Result Reviewer | `ResultReviewer` | Review prompt + pluggable deterministic rules | `loop=HybridReviewLoop(...)` | `(task, task_result, execution_log)` | `ReviewerDecision` |
-| Primary Agent | `PrimaryAgent` | Synthesis prompt + formatting/verification SDK Tools | default SDK `BaseLoop` (`loop` omitted) | `ContextEnhancedQuery` or `WorkerResult` | final response |
+| Query Analyst | `QueryAnalyst` | Classification prompt + `ClassificationTool` | `loop=QueryAnalystLoop()` | `(user_query, chat_history, session_context)` | `{context_enhanced_query, mode_decision}` |
+| Information Digester | `InformationDigester` | Digestion prompt + `enhanced_context_retrieval` SDK Tool | `loop=InformationDigestionLoop()` | `ContextEnhancedQuery` | `DigestedInformation` |
+| Task Analyzer | `TaskAnalyzer` | Task analysis prompt + optional info tools | `loop=ReActAgentLoop()` | `DigestedInformation` | `Task` tree |
+| Task Assessor | `TaskAssessor` | Assessment prompt | `loop=ReActAgentLoop()` | `Task` tree + `WorkerConfig` | `list[task_id]` selection |
+| Task Executor | `TaskExecutor` | Execution prompt + native benchmark SDK Tools | `loop=ReActAgentLoop()` | `Task` | `TaskResult` |
+| Result Reviewer | `ResultReviewer` | Review prompt + pluggable deterministic rules | `loop=ResultReviewLoop(...)` | `(task, task_result, execution_log)` | `ReviewerDecision` |
+| Primary Agent | `PrimaryAgent` | Synthesis prompt + formatting/verification SDK Tools | `loop=ReActAgentLoop()` | `ContextEnhancedQuery` or `WorkerResult` | final response |
 
 ### Agent-to-Agent Calling Tool Contract
 
@@ -1015,10 +1069,10 @@ This PR is spec/design-only and should not edit `src/tinycua/docs/architecture/`
 
 | Architecture Doc | Future Change |
 |------------------|---------------|
-| `overview.md` | Update the Agent Loop Types table so Task Analyzer and Task Assessor are mapped to direct SDK `BaseLoop` usage instead of a separate input→output / Linear / Simple loop type. |
+| `overview.md` | Update the Agent Loop Types table so Task Analyzer and Task Assessor are mapped to `ReActAgentLoop` instead of a separate input→output / Linear / Simple loop type. |
 | `task-analysis.md` | Clarify that Task Analyzer is a wrapper class composing an SDK `Agent` with default SDK `BaseLoop`; any single-output guarantee comes from prompt/schema validation around the composed `Agent.run()`. |
 | `task-assessor.md` | Clarify that Task Assessor is a wrapper class composing an SDK `Agent` with default SDK `BaseLoop`; decomposition-selection output is schema-validated outside the loop. |
-| Any architecture docs mentioning "Linear", "Simple", or "input→output" loop semantics | Normalize wording to distinguish direct SDK `BaseLoop` usage from true custom loop strategies. |
+| Any architecture docs mentioning "Linear", "Simple", or "input→output" loop semantics | Normalize wording to distinguish `ReActAgentLoop` from true custom loop strategies. |
 
 ### Design Docs (new during implementation)
 
@@ -1027,13 +1081,13 @@ Create `src/tinycua/docs/design/` as the canonical reference for TinyCUA's concr
 | Design Doc | Content |
 |------------|---------|
 | `overview.md` | All wrapper classes, config dataclasses, wrapper-loop layer separation, agent-calling contracts |
-| `query-analyst.md` | `QueryAnalyst` class, `QueryAnalystConfig`, `ClassificationLoop`, `ClassificationTool` |
-| `information-digester.md` | `InformationDigester` class, `InformationDigesterConfig`, `ExplorationLoop`, retrieval tool contract |
-| `task-analyzer.md` | `TaskAnalyzer` class, `TaskAnalyzerConfig`, direct SDK `BaseLoop` usage |
-| `task-assessor.md` | `TaskAssessor` class, `TaskAssessorConfig`, direct SDK `BaseLoop` usage |
-| `task-executor.md` | `TaskExecutor` class, `TaskExecutorConfig`, native tool contract, direct SDK `BaseLoop` usage |
-| `result-reviewer.md` | `ResultReviewer` class, `ResultReviewerConfig`, `HybridReviewLoop`, deterministic rules |
-| `primary-agent.md` | `PrimaryAgent` class, `PrimaryAgentConfig`, direct SDK `BaseLoop` usage |
+| `query-analyst.md` | `QueryAnalyst` class, `QueryAnalystConfig`, `QueryAnalystLoop`, `ClassificationTool` |
+| `information-digester.md` | `InformationDigester` class, `InformationDigesterConfig`, `InformationDigestionLoop`, retrieval tool contract |
+| `task-analyzer.md` | `TaskAnalyzer` class, `TaskAnalyzerConfig`, `ReActAgentLoop` |
+| `task-assessor.md` | `TaskAssessor` class, `TaskAssessorConfig`, `ReActAgentLoop` |
+| `task-executor.md` | `TaskExecutor` class, `TaskExecutorConfig`, native tool contract, `ReActAgentLoop` |
+| `result-reviewer.md` | `ResultReviewer` class, `ResultReviewerConfig`, `ResultReviewLoop`, deterministic rules |
+| `primary-agent.md` | `PrimaryAgent` class, `PrimaryAgentConfig`, `ReActAgentLoop` |
 | `agent-calls.md` | Agent-to-agent calling tools, how they receive wrapper instances |
 | `tinycua-agent.md` | `TinyCUA` external wrapper contract, `MainLoop` integration |
 

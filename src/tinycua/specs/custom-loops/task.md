@@ -59,26 +59,25 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write integration tests: classification end-to-end — uncertain path <!-- id: 22 -->
 - [ ] Write integration tests: no forced `max_iterations=1` <!-- id: 23 -->
 - [ ] Write integration tests: anti-laziness safeguards (meaningful rationale) <!-- id: 24 -->
-- [ ] Write unit tests: ClassificationLoop construction, invalid config, edge cases <!-- id: 25 -->
+- [ ] Write unit tests: QueryAnalystLoop construction, invalid config, edge cases <!-- id: 25 -->
 - [ ] Write unit tests: all three modes reachable depending on mock input <!-- id: 26 -->
 - [ ] Run integration tests — expect RED (Phase 2 tests only) <!-- id: 27 -->
 
 ## Implementation Phase — Phase 2: Classification Loop
 
 - [ ] Implement `ClassificationTool` — configurable label list, `execute(mode_index: int) -> str` <!-- id: 28 -->
-- [ ] Implement `tinycua/loops/classification.py` — `ClassificationLoop` extends `BaseLoop` <!-- id: 29 -->
+- [ ] Implement `tinycua/loops/query_analyst_loop.py` — `QueryAnalystLoop` extends `BaseLoop` <!-- id: 29 -->
   - [ ] Constructor: no `max_iterations=1` override; uses SDK default behavior
   - [ ] `run()` delegates to `BaseLoop.run()` with classification prompt
   - [ ] `SchemaValidator` validates output against `ContextEnhancedQuery` + `ModeDecision` schema
 - [ ] Write `QUERY_ANALYST_PROMPT` in `tinycua/agents/prompts.py` <!-- id: 30 -->
   - [ ] Include role, input contract (`user_query`, `chat_history`, `session_context`), output schema (scoring dimensions, mode selection via `classify` tool index), guardrails (anti-laziness: rationale required)
 - [ ] Configure Query Analyst in wrapper: create `tinycua/agents/query_analyst.py` — `QueryAnalyst(BaseAgentWrapper)` <!-- id: 31 -->
-  - [ ] `_build_agent()` composes SDK `Agent` with `ClassificationLoop` and `ClassificationTool(labels=config.classification_labels)`
-  - [ ] `run(user_query, chat_history, session_context)` delegates to composed agent, validates output
-  - [ ] Stores result in `self.state`
+  - [ ] Define `QUERY_ANALYST_BASE_TOOLS = []` (module-level constant)
+  - [ ] `_build_agent()` composes SDK `Agent` with `QueryAnalystLoop`, `ClassificationTool(labels=config.classification_labels)`, `BASE_TOOLS`, and `config.extra_tools`
   - [ ] `save_state(store)` / `restore_state(store)` — no-op default acceptable
 - [ ] Run integration tests — expect GREEN (Phase 2 tests pass) <!-- id: 32 -->
-- [ ] Write and run unit tests for ClassificationLoop (mock Agent) — expect GREEN <!-- id: 33 -->
+- [ ] Write and run unit tests for QueryAnalystLoop (mock Agent) — expect GREEN <!-- id: 33 -->
 
 ## TDD Phase — Phase 3: Exploration Loop (Tests First)
 
@@ -86,12 +85,12 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write integration tests: stops on LLM-judged sufficiency <!-- id: 35 -->
 - [ ] Write integration tests: empty results produce known_gaps <!-- id: 36 -->
 - [ ] Write integration tests: honors `BaseLoop.max_iterations` hard cap <!-- id: 37 -->
-- [ ] Write unit tests: ExplorationLoop construction, sufficiency parsing, error edge cases <!-- id: 38 -->
+- [ ] Write unit tests: InformationDigestionLoop construction, sufficiency parsing, error edge cases <!-- id: 38 -->
 - [ ] Run integration tests — expect RED (Phase 3 tests only) <!-- id: 39 -->
 
 ## Implementation Phase — Phase 3: Exploration Loop
 
-- [ ] Implement `tinycua/loops/exploration.py` — `ExplorationLoop` extends `BaseLoop` <!-- id: 40 -->
+- [ ] Implement `tinycua/loops/information_digestion_loop.py` — `InformationDigestionLoop` extends `BaseLoop` <!-- id: 40 -->
   - [ ] `__init__` accepts optional `max_iterations` override (passed to `BaseLoop`)
   - [ ] `run()` adds gap-evaluation after each SDK `BaseLoop` iteration
   - [ ] Stop on LLM-judged sufficiency OR `max_iterations` hit
@@ -100,9 +99,10 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write `INFORMATION_DIGESTER_PROMPT` in `tinycua/agents/prompts.py` <!-- id: 42 -->
   - [ ] Include role, input contract (`ContextEnhancedQuery`), retrieval strategy, gap-identification, output schema, stop-condition guardrails
 - [ ] Configure Information Digester wrapper: create `tinycua/agents/information_digester.py` — `InformationDigester(BaseAgentWrapper)` <!-- id: 43 -->
-  - [ ] `_build_agent()` composes SDK `Agent` with `ExplorationLoop(max_iterations=config.max_iterations_override)` and retrieval tool
+  - [ ] Define `INFORMATION_DIGESTER_BASE_TOOLS = [...]` (retrieval tool)
+  - [ ] `_build_agent()` composes SDK `Agent` with `InformationDigestionLoop(max_iterations=config.max_iterations_override)`, `BASE_TOOLS`, and `config.extra_tools`
 - [ ] Run integration tests — expect GREEN (Phase 3 tests pass) <!-- id: 44 -->
-- [ ] Write and run unit tests for ExplorationLoop (mock Agent) — expect GREEN <!-- id: 45 -->
+- [ ] Write and run unit tests for InformationDigestionLoop (mock Agent) — expect GREEN <!-- id: 45 -->
 
 ## TDD Phase — Phase 4: Direct SDK BaseLoop Agents (Tests First)
 
@@ -111,18 +111,24 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write integration tests: Task Executor uses native tools end-to-end <!-- id: 48 -->
 - [ ] Write integration tests: Primary Agent synthesizes final response end-to-end <!-- id: 49 -->
 - [ ] Write integration tests: no custom `LinearAgentLoop` or `SimpleLoop` exists <!-- id: 50 -->
-- [ ] Write unit tests: each wrapper composes agent with correct loop=None (BaseLoop default) <!-- id: 51 -->
+- [ ] Implement `tinycua/loops/react_agent.py` — `ReActAgentLoop` extends `BaseLoop` <!-- id: 46a -->
+  - [ ] Thin subclass — no override needed; inherits all BaseLoop behavior
+- [ ] Write unit tests: each wrapper composes agent with correct loop (ReActAgentLoop or custom) <!-- id: 51 -->
 
-## Implementation Phase — Phase 4: Direct SDK BaseLoop Agents
+## Implementation Phase — Phase 4: ReActAgentLoop Agents
 
 - [ ] Write `TASK_ANALYZER_PROMPT`, `TASK_ASSESSOR_PROMPT`, `TASK_EXECUTOR_PROMPT`, `PRIMARY_AGENT_PROMPT` in `tinycua/agents/prompts.py` <!-- id: 53 -->
   - [ ] Each prompt: role, input contract, output schema, constraints, guardrails
 - [ ] Create `tinycua/agents/task_analyzer.py` — `TaskAnalyzer(BaseAgentWrapper)` <!-- id: 54 -->
-  - [ ] `_build_agent()`: SDK `Agent` with no custom loop (default `BaseLoop`), optional info tools from config
+  - [ ] Define `TASK_ANALYZER_BASE_TOOLS = []`
+  - [ ] `_build_agent()`: SDK `Agent` with `loop=ReActAgentLoop()`, `BASE_TOOLS`, and `config.extra_tools`
 - [ ] Create `tinycua/agents/task_assessor.py` — `TaskAssessor(BaseAgentWrapper)` <!-- id: 55 -->
+  - [ ] Define `TASK_ASSESSOR_BASE_TOOLS = []`
 - [ ] Create `tinycua/agents/task_executor.py` — `TaskExecutor(BaseAgentWrapper)` <!-- id: 56 -->
-  - [ ] `_build_agent()`: merges `config.native_tools` and `config.extra_tools`
+  - [ ] Define `TASK_EXECUTOR_BASE_TOOLS = [native_benchmark_tools...]`
+  - [ ] `_build_agent()`: merges `BASE_TOOLS` and `config.extra_tools`
 - [ ] Create `tinycua/agents/primary_agent.py` — `PrimaryAgent(BaseAgentWrapper)` <!-- id: 57 -->
+  - [ ] Define `PRIMARY_AGENT_BASE_TOOLS = []`
 - [ ] Run integration tests — expect GREEN (Phase 4 tests pass) <!-- id: 58 -->
 - [ ] Write and run unit tests for wrapper classes + factory — expect GREEN <!-- id: 59 -->
 
@@ -134,14 +140,14 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write integration tests: escalate_user with user_explanation <!-- id: 63 -->
 - [ ] Write integration tests: deterministic failure skips LLM phase entirely <!-- id: 64 -->
 - [ ] Write integration tests: pluggable rule sets without subclassing <!-- id: 65 -->
-- [ ] Write unit tests: HybridReviewLoop construction, rule evaluation, edge cases <!-- id: 66 -->
+- [ ] Write unit tests: ResultReviewLoop construction, rule evaluation, edge cases <!-- id: 66 -->
 - [ ] Run integration tests — expect RED (Phase 5 tests only) <!-- id: 67 -->
 
 ## Implementation Phase — Phase 5: Hybrid Review Loop
 
 - [ ] Define `DeterministicRule` and `DeterministicRuleResult` dataclasses <!-- id: 68 -->
 - [ ] Define default deterministic rules (`SchemaValidity`, `RequiredFields`) <!-- id: 69 -->
-- [ ] Implement `tinycua/loops/hybrid_review.py` — `HybridReviewLoop` extends `BaseLoop` <!-- id: 70 -->
+- [ ] Implement `tinycua/loops/result_review_loop.py` — `ResultReviewLoop` extends `BaseLoop` <!-- id: 70 -->
   - [ ] `__init__` accepts `deterministic_rules: list[DeterministicRule]`
   - [ ] Phase 1: evaluate all rules; fail with `escalate`/`replan` → return immediately
   - [ ] Phase 2: delegate to SDK `BaseLoop` behavior for LLM semantic review
@@ -149,10 +155,11 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Write `RESULT_REVIEWER_PROMPT` in `tinycua/agents/prompts.py` <!-- id: 71 -->
   - [ ] Include role, input contract (task, task_result, execution_log), review criteria, decision output schema, guardrails
 - [ ] Create `tinycua/agents/result_reviewer.py` — `ResultReviewer(BaseAgentWrapper)` <!-- id: 72 -->
-  - [ ] `_build_agent()`: composes SDK `Agent` with `HybridReviewLoop(deterministic_rules=config.deterministic_rules)`
+  - [ ] Define `RESULT_REVIEWER_BASE_TOOLS = []`
+  - [ ] `_build_agent()`: composes SDK `Agent` with `ResultReviewLoop(deterministic_rules=config.deterministic_rules)`, `BASE_TOOLS`, and `config.extra_tools`
   - [ ] `run(task, task_result, execution_log)` delegates to composed agent, validates output
 - [ ] Run integration tests — expect GREEN (Phase 5 tests pass) <!-- id: 73 -->
-- [ ] Write and run unit tests for HybridReviewLoop (mock Agent) — expect GREEN <!-- id: 74 -->
+- [ ] Write and run unit tests for ResultReviewLoop (mock Agent) — expect GREEN <!-- id: 74 -->
 
 ## TDD Phase — Phase 6: Agent-to-Agent Tools & Documentation (Tests First)
 
@@ -210,8 +217,8 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
   - [ ] Any references to "Linear"/"Simple"/"input→output" loop — normalize to "SDK BaseLoop"
 - [ ] Create `src/tinycua/docs/design/` as canonical reference for TinyCUA agent design: <!-- id: 106a -->
   - [ ] `overview.md` — all wrapper classes, configs, wrapper-loop layer separation
-  - [ ] `query-analyst.md` — `QueryAnalyst`, `QueryAnalystConfig`, `ClassificationLoop`, `ClassificationTool`
-  - [ ] `information-digester.md` — `InformationDigester`, `InformationDigesterConfig`, `ExplorationLoop`
+  - [ ] `query-analyst.md` — `QueryAnalyst`, `QueryAnalystConfig`, `QueryAnalystLoop`, `ClassificationTool`
+  - [ ] `information-digester.md` — `InformationDigester`, `InformationDigesterConfig`, `InformationDigestionLoop`
   - [ ] `task-analyzer.md` — `TaskAnalyzer`, `TaskAnalyzerConfig`
   - [ ] `task-assessor.md` — `TaskAssessor`, `TaskAssessorConfig`
   - [ ] `task-executor.md` — `TaskExecutor`, `TaskExecutorConfig`

@@ -89,7 +89,7 @@ def test_agent_factory_accepts_config_overrides():
     )
     agent = create_agent(AgentKind.QUERY_ANALYST, config=custom_config)
     assert agent.name == "custom-qa"
-    assert agent.config.loop is not None  # ClassificationLoop
+    assert agent.config.loop is not None  # QueryAnalystLoop
 
 
 def test_agent_config_preserves_metadata_for_mainloop():
@@ -105,7 +105,7 @@ def test_agent_config_preserves_metadata_for_mainloop():
 
 ```python
 # Test file: tests/integration/test_classification_loop.py
-"""Integration tests for ClassificationLoop and Query Analyst agent."""
+"""Integration tests for QueryAnalystLoop and Query Analyst agent."""
 
 
 @pytest.mark.asyncio
@@ -135,7 +135,7 @@ async def test_classification_tool_rejects_invalid_index():
 
 @pytest.mark.asyncio
 async def test_classification_loop_primary_agent_path():
-    """Query Analyst with ClassificationLoop produces primary_agent decision end-to-end.
+    """Query Analyst with QueryAnalystLoop produces primary_agent decision end-to-end.
 
     End-to-end: Agent receives a simple query, SDK loop runs (1+ iterations),
     Agent uses the classify tool to pick index 0, tool returns "primary_agent",
@@ -197,9 +197,9 @@ async def test_classification_loop_uncertain_mode():
 
 @pytest.mark.asyncio
 async def test_classification_loop_no_forced_single_pass():
-    """ClassificationLoop uses SDK BaseLoop default iteration behavior,
+    """QueryAnalystLoop uses SDK BaseLoop default iteration behavior,
     not max_iterations=1 or a single-pass restriction."""
-    loop = ClassificationLoop()
+    loop = QueryAnalystLoop()
     assert loop.max_iterations is None  # inherits SDK default, not forced to 1
 
 
@@ -220,7 +220,7 @@ async def test_anti_laziness_safeguards():
 
 ```python
 # Test file: tests/integration/test_exploration_loop.py
-"""Integration tests for ExplorationLoop and Information Digester agent."""
+"""Integration tests for InformationDigestionLoop and Information Digester agent."""
 
 
 @pytest.mark.asyncio
@@ -300,7 +300,7 @@ async def test_exploration_empty_results_produces_known_gaps():
 @pytest.mark.asyncio
 async def test_exploration_loop_honors_max_iterations_hard_cap():
     """BaseLoop.max_iterations prevents infinite retrieval loops."""
-    loop = ExplorationLoop(max_iterations=2)
+    loop = InformationDigestionLoop(max_iterations=2)
     assert loop.max_iterations == 2
 ```
 
@@ -389,7 +389,7 @@ async def test_no_custom_linear_loop_exists():
 
 ```python
 # Test file: tests/integration/test_hybrid_review_loop.py
-"""Integration tests for HybridReviewLoop and Result Reviewer agent."""
+"""Integration tests for ResultReviewLoop and Result Reviewer agent."""
 
 
 @pytest.mark.asyncio
@@ -503,7 +503,7 @@ async def test_pluggable_deterministic_rules():
         DeterministicRule(name="CheckA", check=lambda t, r, e: DeterministicRuleResult(passed=True)),
         DeterministicRule(name="CheckB", check=lambda t, r, e: DeterministicRuleResult(passed=False, reason="fail", severity="replan")),
     ]
-    loop = HybridReviewLoop(deterministic_rules=rules_a)
+    loop = ResultReviewLoop(deterministic_rules=rules_a)
     # CheckB fails → loop should return replan decision before reaching LLM
     assert len(loop._deterministic_rules) == 2
 ```
@@ -595,8 +595,8 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1 (Classification end-to-end)**: Query Analyst configured with `ClassificationLoop` and `ClassificationTool` makes classification decisions via index-based tool for all three modes (primary_agent, worker, uncertain). The classification labels are configurable in `QueryAnalystConfig`.
-- [ ] **Scenario 2 (Exploration end-to-end)**: Information Digester configured with `ExplorationLoop` performs multi-iteration retrieval, stops on LLM-judged sufficiency with `BaseLoop.max_iterations` hard cap, and produces `DigestedInformation` with gaps on empty results.
+- [ ] **Scenario 1 (Classification end-to-end)**: Query Analyst configured with `QueryAnalystLoop` and `ClassificationTool` makes classification decisions via index-based tool for all three modes (primary_agent, worker, uncertain). The classification labels are configurable in `QueryAnalystConfig`.
+- [ ] **Scenario 2 (Exploration end-to-end)**: Information Digester configured with `InformationDigestionLoop` performs multi-iteration retrieval, stops on LLM-judged sufficiency with `BaseLoop.max_iterations` hard cap, and produces `DigestedInformation` with gaps on empty results.
 - [ ] **Scenario 3 (Standard agents end-to-end)**: Task Analyzer, Task Assessor, Task Executor, and Primary Agent all use SDK `BaseLoop` directly (no custom loop class), produce schema-valid outputs, and support optional tools.
 - [ ] **Scenario 4 (Hybrid Review end-to-end)**: Result Reviewer produces all four statuses (accepted/retry/replan/escalate_user), deterministic failures skip LLM phase, and pluggable rule sets work without subclassing.
 - [ ] **Scenario 5 (Agent-to-agent calling)**: All seven `call_*` SDK `Tool` objects delegate through configured `Agent.run()`, respecting target agent loops and config.
@@ -628,9 +628,9 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 ### Performance Considerations
 
-- [ ] ClassificationLoop: single structured output, minimal overhead over SDK `BaseLoop`
-- [ ] ExplorationLoop: bounded by `BaseLoop.max_iterations` (default 5) — no unbounded retrieval
-- [ ] HybridReviewLoop: deterministic phase is O(n_rules); LLM phase is a single `BaseLoop.run()` call
+- [ ] QueryAnalystLoop: single structured output, minimal overhead over SDK `BaseLoop`
+- [ ] InformationDigestionLoop: bounded by `BaseLoop.max_iterations` (default 5) — no unbounded retrieval
+- [ ] ResultReviewLoop: deterministic phase is O(n_rules); LLM phase is a single `BaseLoop.run()` call
 - [ ] Agent factory: all seven agents constructable in O(1) with no network calls
 
 ## Proposed Changes
@@ -639,7 +639,7 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 #### [NEW] `tinycua/loops/__init__.py`
 
-- **Description**: Re-exports all loop types (`ClassificationLoop`, `ExplorationLoop`, `HybridReviewLoop`), `SchemaValidator`, `DeterministicRule`, `DeterministicRuleResult`, `LoopType`, error hierarchy, and re-exported SDK types (`BaseLoop`, `Agent`, `LanguageModel`, `Tool`).
+- **Description**: Re-exports all loop types (`QueryAnalystLoop`, `InformationDigestionLoop`, `ResultReviewLoop`), `SchemaValidator`, `DeterministicRule`, `DeterministicRuleResult`, `LoopType`, error hierarchy, and re-exported SDK types (`BaseLoop`, `Agent`, `LanguageModel`, `Tool`).
 - **Dependencies**: SDK modules (`BaseLoop`, `Agent`, etc.)
 
 #### [NEW] `tinycua/loops/errors.py`
@@ -652,19 +652,19 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 - **Description**: Wraps SDK `Agent.run()` with output validation and retry. Takes a `validation_fn` and `max_validation_retries`. On validation failure, retries Agent with error context in the prompt.
 - **Rationale**: Centralizes output schema enforcement without custom LLM calling.
 
-#### [NEW] `tinycua/loops/classification.py`
+#### [NEW] `tinycua/loops/query_analyst_loop.py`
 
-- **Description**: `ClassificationLoop` extends SDK `BaseLoop`. Uses SDK default iteration behavior (no forced `max_iterations=1`). Provides the `ClassificationTool` as a configurable tool: the tool accepts a `mode_index` and returns the label at that index from a configurable list. The agent uses this tool to emit a structured classification verdict. `SchemaValidator` validates the output into `ContextEnhancedQuery` + `ModeDecision`.
+- **Description**: `QueryAnalystLoop` extends SDK `BaseLoop`. Uses SDK default iteration behavior (no forced `max_iterations=1`). Provides the `ClassificationTool` as a configurable tool: the tool accepts a `mode_index` and returns the label at that index from a configurable list. The agent uses this tool to emit a structured classification verdict. `SchemaValidator` validates the output into `ContextEnhancedQuery` + `ModeDecision`.
 - **Dependencies**: SDK `BaseLoop`, `SchemaValidator`, `ClassificationTool`.
 
-#### [NEW] `tinycua/loops/exploration.py`
+#### [NEW] `tinycua/loops/information_digestion_loop.py`
 
-- **Description**: `ExplorationLoop` extends SDK `BaseLoop`, adding gap-evaluation between SDK iterations. Overrides `run()` to: (1) let SDK `BaseLoop` handle tool-calling iteration, (2) after each iteration check if LLM output indicates gaps are addressed, (3) stop on sufficiency OR `max_iterations` hard cap.
+- **Description**: `InformationDigestionLoop` extends SDK `BaseLoop`, adding gap-evaluation between SDK iterations. Overrides `run()` to: (1) let SDK `BaseLoop` handle tool-calling iteration, (2) after each iteration check if LLM output indicates gaps are addressed, (3) stop on sufficiency OR `max_iterations` hard cap.
 - **Dependencies**: SDK `BaseLoop`, `SchemaValidator`.
 
-#### [NEW] `tinycua/loops/hybrid_review.py`
+#### [NEW] `tinycua/loops/result_review_loop.py`
 
-- **Description**: `HybridReviewLoop` extends SDK `BaseLoop` with two-phase execution. Constructor accepts `deterministic_rules: list[DeterministicRule]`. Phase 1 evaluates all rules; if any fail with `escalate` or `replan`, returns immediately. Phase 2 delegates to SDK `BaseLoop` behavior for LLM semantic review.
+- **Description**: `ResultReviewLoop` extends SDK `BaseLoop` with two-phase execution. Constructor accepts `deterministic_rules: list[DeterministicRule]`. Phase 1 evaluates all rules; if any fail with `escalate` or `replan`, returns immediately. Phase 2 delegates to SDK `BaseLoop` behavior for LLM semantic review.
 - **Dependencies**: SDK `BaseLoop`, `DeterministicRule`, `DeterministicRuleResult`.
 
 ### tinycua/agents/ — Agent Factory and Configuration
@@ -697,12 +697,12 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 #### [NEW] `tinycua/agents/query_analyst.py`
 
-- **Description**: `QueryAnalyst(BaseAgentWrapper)` — composes SDK `Agent` with `ClassificationLoop` and `ClassificationTool(labels=config.classification_labels)`. `run(user_query, chat_history, session_context)` prepares input, delegates to composed agent, validates output, stores result in `self.state`.
+- **Description**: `QueryAnalyst(BaseAgentWrapper)` — composes SDK `Agent` with `QueryAnalystLoop` and `ClassificationTool(labels=config.classification_labels)`. `run(user_query, chat_history, session_context)` prepares input, delegates to composed agent, validates output, stores result in `self.state`.
 - **Rationale**: Wrapper-level concerns (preparing system/user messages, output parsing, context storage) stay out of the loop.
 
 #### [NEW] `tinycua/agents/information_digester.py`
 
-- **Description**: `InformationDigester(BaseAgentWrapper)` — composes SDK `Agent` with `ExplorationLoop` and enhanced context retrieval tool. `run(context_enhanced_query)`.
+- **Description**: `InformationDigester(BaseAgentWrapper)` — composes SDK `Agent` with `InformationDigestionLoop` and enhanced context retrieval tool. `run(context_enhanced_query)`.
 
 #### [NEW] `tinycua/agents/task_analyzer.py`
 
@@ -718,7 +718,7 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 #### [NEW] `tinycua/agents/result_reviewer.py`
 
-- **Description**: `ResultReviewer(BaseAgentWrapper)` — composes SDK `Agent` with `HybridReviewLoop(deterministic_rules=...)`. `run(task, task_result, execution_log)`.
+- **Description**: `ResultReviewer(BaseAgentWrapper)` — composes SDK `Agent` with `ResultReviewLoop(deterministic_rules=...)`. `run(task, task_result, execution_log)`.
 
 #### [NEW] `tinycua/agents/primary_agent.py`
 
@@ -860,12 +860,12 @@ class ClassificationTool:
 
 | Symbol | Location | Description |
 |--------|----------|-------------|
-| `ClassificationLoop` | `tinycua.loops.classification` | Custom loop for Query Analyst classification |
-| `ExplorationLoop` | `tinycua.loops.exploration` | Custom loop for Information Digester retrieval |
-| `HybridReviewLoop` | `tinycua.loops.hybrid_review` | Custom loop for Result Reviewer two-phase review |
+| `QueryAnalystLoop` | `tinycua.loops.query_analyst_loop` | Custom loop for Query Analyst classification |
+| `InformationDigestionLoop` | `tinycua.loops.information_digestion_loop` | Custom loop for Information Digester retrieval |
+| `ResultReviewLoop` | `tinycua.loops.result_review_loop` | Custom loop for Result Reviewer two-phase review |
 | `SchemaValidator` | `tinycua.loops.schema_validator` | Output validation with SDK Agent retry |
-| `DeterministicRule` | `tinycua.loops.hybrid_review` | Pluggable deterministic check for Hybrid Review |
-| `DeterministicRuleResult` | `tinycua.loops.hybrid_review` | Result of a deterministic check |
+| `DeterministicRule` | `tinycua.loops.result_review_loop` | Pluggable deterministic check for Hybrid Review |
+| `DeterministicRuleResult` | `tinycua.loops.result_review_loop` | Result of a deterministic check |
 | `LoopType` | `tinycua.loops` | Enum of loop strategy identifiers |
 | `LoopError` et al. | `tinycua.loops.errors` | Error hierarchy (transient, permanent, validation) |
 | `AgentKind` | `tinycua.agents.configs` | Enum of architecture agent types |
