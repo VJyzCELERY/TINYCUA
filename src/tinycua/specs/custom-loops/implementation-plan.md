@@ -673,7 +673,7 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 - **Description**: Re-exports `AgentKind`, `AgentConfigSpec`, `create_agent`, `create_all_agents`, and all agent config dataclasses.
 
-#### [NEW] `tinycua/agents/configs.py`
+#### [NEW] `tinycua/config/agents.py`
 
 - **Description**: Agent config dataclasses for all seven architecture agents. Each class extends a common base. Fields include agent-specific knobs and an `extra_tools` list for MainLoop-injected tools. Classification labels are configurable here. Examples:
   - `QueryAnalystConfig` — name, model_override, instructions_override, classification_labels, extra_tools, metadata
@@ -692,12 +692,12 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 
 #### [NEW] `tinycua/agents/base.py`
 
-- **Description**: Abstract base class `BaseAgentWrapper` for all TinyCUA internal agent wrappers. Composes (does not extend) an SDK `Agent` internally. Provides: `self.config` (typed config dataclass), `self.agent` (composed SDK `Agent`, built by subclass `_build_agent()`), `self.context` (runtime state dict), abstract `run()` method, default no-op `save_state(store)` and `restore_state(store)` hooks.
+- **Description**: Abstract base class `BaseAgentWrapper` for all TinyCUA internal agent wrappers. Composes (does not extend) an SDK `Agent` internally. Provides: `self.config` (typed config dataclass), `self.agent` (composed SDK `Agent`, built by subclass `_build_agent()`), `self.state: StateInformation` (structured runtime state — NOT a raw dict and NOT SDK `Agent.metadata`), abstract `run()` method, default no-op `save_state(store)` and `restore_state(store)` hooks.
 - **Rationale**: Common wrapper behavior (context management, state hooks, config storage) without duplicating across seven wrapper classes. Wrapper instance attributes are the canonical location for state — NOT SDK `Agent.metadata`.
 
 #### [NEW] `tinycua/agents/query_analyst.py`
 
-- **Description**: `QueryAnalyst(BaseAgentWrapper)` — composes SDK `Agent` with `ClassificationLoop` and `ClassificationTool(labels=config.classification_labels)`. `run(user_query, chat_history, session_context)` prepares input, delegates to composed agent, validates output, stores result in `self.context`.
+- **Description**: `QueryAnalyst(BaseAgentWrapper)` — composes SDK `Agent` with `ClassificationLoop` and `ClassificationTool(labels=config.classification_labels)`. `run(user_query, chat_history, session_context)` prepares input, delegates to composed agent, validates output, stores result in `self.state`.
 - **Rationale**: Wrapper-level concerns (preparing system/user messages, output parsing, context storage) stay out of the loop.
 
 #### [NEW] `tinycua/agents/information_digester.py`
@@ -750,8 +750,9 @@ async def test_agent_factory_output_fits_mainloop_metadata():
 | `tinycua/loops/` | New | Custom loop strategies extending `tinycua_sdk.agent.loop.BaseLoop`; no custom `base.py` or `linear.py` |
 | `tinycua/agents/` | New | `BaseAgentWrapper` + seven wrapper classes composing SDK `Agent` internally; factory, configs, prompts |
 | `tinycua/tools/agent_calls.py` | New | Seven agent-to-agent SDK `Tool` wrappers that call wrapper `run()` methods |
-| `tinycua/orchestration/main_loop.py` | Future | MainLoop low-level execution loop |
-| `tinycua/orchestration/tinycua_agent.py` | Future | TinyCUA wrapper class; composes SDK Agent + MainLoop |
+| `tinycua/loops/main_loop.py` | Future | MainLoop low-level execution loop (M6) |
+| `tinycua/agents/tinycua_agent.py` | Future | TinyCUA wrapper class; composes SDK Agent + MainLoop (M6) |
+| `tinycua/state/state_store.py` | Future | MainLoop continuation state store (M6) |
 | `tinycua/state/` | Unchanged | Loops consume M1 state objects as input/output |
 | `tinycua/__init__.py` | Modify | Re-export loop and agent modules |
 | `src/tinycua/docs/design/` | New (impl phase) | Design docs for all wrapper classes, configs, and loop strategies |

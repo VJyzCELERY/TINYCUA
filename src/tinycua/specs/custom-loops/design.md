@@ -142,20 +142,23 @@ M2 does not persist this state yet, but each wrapper class's `save_state(store)`
 ```
 src/tinycua/tinycua/
 ├── __init__.py
-├── agent/
 ├── cli/
+├── config/                           # NEW
+│   ├── __init__.py
+│   ├── types.py                        # AgentKind enum, TINYCUA_DEFAULT_MODEL
+│   └── agents.py                       # AgentConfigBase + 7 per-agent config dataclasses
 ├── loops/                           # NEW
 │   ├── __init__.py                  # Re-exports all loop types + SDK integration types
 │   ├── classification.py            # ClassificationLoop (extends BaseLoop)
 │   ├── exploration.py               # ExplorationLoop (extends BaseLoop)
 │   ├── hybrid_review.py             # HybridReviewLoop (extends BaseLoop)
 │   ├── schema_validator.py          # Output validation (uses SDK event/model infra)
+│   ├── main_loop.py                  # FUTURE (M6): MainLoop low-level execution loop
 │   └── errors.py                    # LoopError hierarchy (thin wrappers around SDK errors)
 ├── agents/                          # NEW
 │   ├── __init__.py
 │   ├── base.py                        # BaseAgentWrapper (abstract) — composes SDK Agent
 │   ├── factory.py                      # create_agent(), create_all_agents() — creates wrapper instances
-│   ├── configs.py                      # AgentKind enum + per-agent config dataclasses
 │   ├── prompts.py                      # System prompts derived from architecture docs
 │   ├── query_analyst.py                # QueryAnalyst wrapper class
 │   ├── information_digester.py         # InformationDigester wrapper class
@@ -163,39 +166,44 @@ src/tinycua/tinycua/
 │   ├── task_assessor.py                # TaskAssessor wrapper class
 │   ├── task_executor.py                # TaskExecutor wrapper class
 │   ├── result_reviewer.py              # ResultReviewer wrapper class
-│   └── primary_agent.py                # PrimaryAgent wrapper class
-├── orchestration/                    # FUTURE (M6)
-│   ├── main_loop.py                  # MainLoop (low-level execution loop)
-│   ├── tinycua_agent.py              # TinyCUA wrapper class (composes SDK Agent + MainLoop)
-│   └── state_store.py                # MainLoop continuation state store
+│   ├── primary_agent.py                # PrimaryAgent wrapper class
+│   └── tinycua_agent.py                # FUTURE (M6): TinyCUA external wrapper class
 ├── tools/                           # Existing / expanded
 │   └── agent_calls.py                # SDK Tool wrappers: call_query_analyst, etc.
-├── state/                           # M1 (existing)
-│   └── ...
+├── state/                           # M1 (existing) + M2 extensions
+│   ├── ...                            # Existing M1 state types
+│   ├── information.py                 # NEW: StateInformation for wrapper context state
+│   └── state_store.py                 # FUTURE (M6): MainLoop continuation state store
 └── ...
 ```
 
-**Note**: There is no `base.py` with custom `LoopBase`, `LLMBackend`, or `ToolDef` classes. There is also no `linear.py` / `LinearAgentLoop` / `SimpleLoop` wrapper. The canonical base class for loops is `tinycua_sdk.agent.loop.BaseLoop`. The canonical tool infrastructure is `tinycua_sdk.tools.decorators.Tool` and `tinycua_sdk.agent.executor.ToolExecutor`. Standard single-input/single-output agents use SDK `BaseLoop` directly. Each architecture agent is a wrapper class that composes an SDK `Agent` configured with the appropriate loop via `Agent(loop=...)`. The wrapper class exposes a domain-specific `run()` method and manages context as instance attributes.
+**Note**: There is no `base.py` with custom `LoopBase`, `LLMBackend`, or `ToolDef` classes. There is also no `linear.py` / `LinearAgentLoop` / `SimpleLoop` wrapper. The canonical base class for loops is `tinycua_sdk.agent.loop.BaseLoop`. The canonical tool infrastructure is `tinycua_sdk.tools.decorators.Tool` and `tinycua_sdk.agent.executor.ToolExecutor`. Standard single-input/single-output agents use SDK `BaseLoop` directly. Each architecture agent is a wrapper class that composes an SDK `Agent` configured with the appropriate loop via `Agent(loop=...)`. The wrapper class exposes a domain-specific `run()` method and manages its runtime state through a `StateInformation` instance.
 
-`tinycua/agents/base.py` provides `BaseAgentWrapper` — an abstract base for all internal agent wrappers. It stores the composed SDK `Agent`, config, and context state. Concrete wrappers (e.g., `QueryAnalyst`) extend it and implement domain-specific `run()`, `save_state()`, and `restore_state()`.
+`tinycua/agents/base.py` provides `BaseAgentWrapper` — an abstract base for all internal agent wrappers. It stores the composed SDK `Agent`, config, and a `StateInformation` instance (`self.state`). Concrete wrappers (e.g., `QueryAnalyst`) extend it and implement domain-specific `run()`, `save_state()`, and `restore_state()`.
 
-`tinycua/orchestration/main_loop.py` is the future home for `MainLoop` and `tinycua/orchestration/tinycua_agent.py` is the future home for the `TinyCUA` wrapper class. Neither is implemented by M2 unless the top-level orchestration milestone is also in scope.
+`tinycua/config/` holds the `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`, and all seven per-agent config dataclasses — separate from the agent wrapper code so config types are importable without depending on loop or agent implementations.
+
+`tinycua/state/information.py` defines `StateInformation` — the structured state object each wrapper uses instead of a raw `self.context: dict`. It holds fields like `session_id`, runtime context, and agent-specific data.
+
+`tinycua/loops/main_loop.py` is the future home for `MainLoop`. `tinycua/agents/tinycua_agent.py` is the future home for the `TinyCUA` external wrapper class. `tinycua/state/state_store.py` is the future home for the continuation state store. None is implemented by M2 unless the top-level orchestration milestone is also in scope.
 
 ### Affected Components
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua/loops/` | New | Custom loop strategies extending `tinycua_sdk.agent.loop.BaseLoop`; no custom wrapper for direct BaseLoop use |
+| `tinycua/config/` | New | `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`, 7 per-agent config dataclasses in `agents.py` |
 | `tinycua/agents/base.py` | New | `BaseAgentWrapper` — abstract base for all internal agent wrapper classes |
-| `tinycua/agents/<agent>.py` | New | Seven wrapper classes (QueryAnalyst, InformationDigester, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, PrimaryAgent) each composing an SDK `Agent` |
+| `tinycua/agents/<agent>.py` | New | Seven wrapper classes + `tinycua_agent.py` (future TinyCUA external wrapper) |
 | `tinycua/agents/factory.py` | New | `create_agent()` / `create_all_agents()` — creates wrapper instances from config dataclasses |
-| `tinycua/agents/configs.py` | New | `AgentKind` enum + per-agent config dataclasses |
 | `tinycua/agents/prompts.py` | New | System prompts for all seven agents |
 | `tinycua/tools/agent_calls.py` | New | Agent-to-agent SDK `Tool` wrappers that call wrapper `run()` methods |
-| `tinycua/orchestration/main_loop.py` | Future | MainLoop low-level execution loop |
-| `tinycua/orchestration/tinycua_agent.py` | Future | TinyCUA wrapper class; composes SDK Agent + MainLoop, consumes internal agent wrappers |
-| `tinycua/state/` | Unchanged | Loops consume M1 state objects as input/output |
-| `tinycua/__init__.py` | Modified | May re-export `tinycua.loops` and `tinycua.agents` submodules |
+| `tinycua/loops/main_loop.py` | Future | MainLoop low-level execution loop (M6) |
+| `tinycua/state/state_store.py` | Future | MainLoop continuation state store (M6) |
+| `tinycua/state/information.py` | New | `StateInformation` — structured runtime state for wrapper classes |
+| `tinycua/state/` | Modified | Existing M1 state types; extended with `StateInformation` |
+| `tinycua/agent/` | Remove | Existing stub directory; superseded by `tinycua/agents/` |
+| `tinycua/__init__.py` | Modified | Re-export `tinycua.loops`, `tinycua.agents`, and `tinycua.config` submodules |
 | `src/tinycua/docs/design/` | New (impl phase) | Design docs for all wrapper classes, configs, and loop strategies |
 | `tinycua_sdk` | **No changes** | Used as-is; custom loops extend SDK classes, do not modify SDK |
 
@@ -212,39 +220,59 @@ handles higher-level concerns.
 
 ```python
 from tinycua_sdk.agent import Agent
+from tinycua.state.information import StateInformation
 
 
 class BaseAgentWrapper:
     """Abstract base for all TinyCUA internal agent wrappers.
 
-    Composes (does not extend) an SDK Agent internally. Wrapper instance
-    attributes are the canonical location for context state, session
-    identifiers, and configuration — NOT SDK Agent.metadata.
+    Composes (does not extend) an SDK Agent internally. Runtime state is
+    stored in a structured `StateInformation` instance (NOT a raw dict and
+    NOT inside SDK Agent.metadata).
     """
 
     def __init__(self, config: AgentConfigBase):
         self.config = config
         self.agent: Agent | None = None     # Built by _build_agent() in subclass
-        self.context: dict[str, Any] = {}    # Runtime context/state
+        self.state = StateInformation()      # Structured runtime state
 
     async def run(self, *args, **kwargs) -> Any:
         """Domain-specific execution. Subclasses override."""
         raise NotImplementedError
 
     def save_state(self, store: Any) -> None:
-        """Save wrapper context/state to a storage backend. No-op default."""
+        """Save wrapper state to a storage backend. No-op default."""
         pass
 
     def restore_state(self, store: Any) -> None:
-        """Restore wrapper context/state from a storage backend. No-op default."""
+        """Restore wrapper state from a storage backend. No-op default."""
         pass
 ```
+
+### StateInformation (in `tinycua/state/information.py`)
+
+```python
+@dataclass
+class StateInformation:
+    """Structured runtime state for a TinyCUA agent wrapper.
+
+    Replaces a raw `self.context: dict` with typed, queryable fields.
+    Extended by wrapper subclasses for agent-specific state needs.
+    """
+    session_id: str | None = None
+    chat_history: list[dict] = field(default_factory=list)
+    last_query: dict[str, Any] = field(default_factory=dict)
+    last_result: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+```
+
+Wrapper classes can extend `StateInformation` for agent-specific fields:
 
 ### Concrete Wrapper Example: QueryAnalyst
 
 ```python
 from tinycua_sdk.agent import Agent
-from tinycua.agents.configs import QueryAnalystConfig
+from tinycua.config.agents import QueryAnalystConfig
 from tinycua.loops import ClassificationLoop, SchemaValidator
 from tinycua.tools import ClassificationTool
 
@@ -273,14 +301,17 @@ class QueryAnalyst(BaseAgentWrapper):
         session_context: dict | None = None,
     ) -> dict[str, Any]:
         """Classify user query into mode decision + context enhanced query."""
-        # Wrapper-level: prepare input, manage context
-        input_msg = {"user_query": user_query, "chat_history": chat_history or [], "session_context": session_context or {}}
+        # Wrapper-level: prepare input, update state
+        self.state.session_id = session_context.get("session_id") if session_context else None
+        self.state.chat_history = chat_history or []
+        input_msg = {"user_query": user_query, "chat_history": self.state.chat_history, "session_context": session_context or {}}
         # Delegate to composed SDK Agent
         raw = await self.agent.run(query=str(input_msg))
         # Wrapper-level: validate output
         result = SchemaValidator(validation_fn=validate_classification_output).validate(raw)
-        # Update wrapper context
-        self.context["last_classification"] = result
+        # Update wrapper state
+        self.state.last_query = {"user_query": user_query}
+        self.state.last_result = result
         return result
 ```
 
@@ -293,8 +324,8 @@ class QueryAnalyst(BaseAgentWrapper):
 | Domain control flow | Custom loop (`ClassificationLoop`, etc.) | Gap evaluation, two-phase review |
 | Input preparation | Wrapper class `run()` | Building prompt messages from domain objects |
 | Output parsing | Wrapper class `run()` | Parsing raw LLM output into typed objects |
-| Context management | Wrapper class attributes | Storing last result, session state, tool results |
-| Persistence hooks | Wrapper class `save_state()`/`restore_state()` | Delegating to SQLite/filesystem stores |
+| Context management | Wrapper `self.state` (StateInformation) | Storing last result, session state, tool results |
+| Persistence hooks | Wrapper class `save_state()`/`restore_state()` | Delegating to SQLite/filesystem stores, saving/restoring StateInformation |
 | Logging / verbosity | Wrapper class | Per-agent log level, progress callbacks |
 | Config override | Agent config dataclass | Classification labels, deterministic rules, extra tools |
 
@@ -493,7 +524,7 @@ Custom loops do not implement their own retry logic. They rely on the SDK's infr
 3. The `QueryAnalyst` wrapper configures `ClassificationTool(labels=config.classification_labels)` on the composed SDK `Agent`. The tool presents a list of classification labels to the agent; the agent selects an index (`classify(mode_index=0)`), and the tool returns the corresponding label.
 4. `SchemaValidator` validates the parsed output against the classification schema.
 5. The wrapper extracts and returns `{context_enhanced_query, mode_decision}`.
-6. Result is stored on the wrapper's `self.context` for later use/diagnostics.
+6. Result is stored on the wrapper's `self.state` for later use/diagnostics.
 
 **ClassificationTool (configured at wrapper level, not loop level)**: The tool takes a `classification_labels` list at construction. The agent calls `classify(mode_index=N)` where N is the index of the chosen classification. The tool returns the label at that index. Changing classification labels only requires updating `QueryAnalystConfig.classification_labels` — no prompt edits needed.
 
@@ -573,7 +604,7 @@ from tinycua_sdk.agent import Agent
 from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua_sdk.tools.decorators import Tool
 from tinycua.agents.base import BaseAgentWrapper
-from tinycua.agents.configs import TaskAnalyzerConfig
+from tinycua.config.agents import TaskAnalyzerConfig
 from tinycua.loops import SchemaValidator
 
 
@@ -594,9 +625,12 @@ class TaskAnalyzer(BaseAgentWrapper):
         )
 
     async def run(self, digested_information: dict) -> dict:
+        self.state.last_query = {"digested_information": digested_information}
         input_msg = f"Analyze the following information:\n{json.dumps(digested_information)}"
         raw = await self.agent.run(query=input_msg)
-        return SchemaValidator(validation_fn=validate_task_tree).validate(raw)
+        result = SchemaValidator(validation_fn=validate_task_tree).validate(raw)
+        self.state.last_result = result
+        return result
 ```
 
 **Key distinction from Exploration/Review loops**:
@@ -693,10 +727,11 @@ class ResultReviewer(BaseAgentWrapper):
     async def run(
         self, task: dict, task_result: dict, execution_log: list[dict] | None = None
     ) -> dict:
+        self.state.last_query = {"task": task, "task_result": task_result}
         input_msg = json.dumps({"task": task, "task_result": task_result, "execution_log": execution_log or []})
         raw = await self.agent.run(query=input_msg)
         result = SchemaValidator(validation_fn=validate_reviewer_decision).validate(raw)
-        self.context["last_review"] = result
+        self.state.last_result = result
         return result
 ```
     tools=[...],
@@ -800,15 +835,13 @@ from tinycua.loops import (
 )
 ```
 
-### Public API: `tinycua.agents` and agent-calling tools
+### Public API: `tinycua.agents`, `tinycua.config`, and agent-calling tools
 
 ```python
-# Agent wrapper classes
-from tinycua.agents import (
-    # Base
-    BaseAgentWrapper,
-    # Config
+# Config types (from tinycua.config)
+from tinycua.config import (
     AgentKind,
+    TINYCUA_DEFAULT_MODEL,
     AgentConfigBase,
     QueryAnalystConfig,
     InformationDigesterConfig,
@@ -817,6 +850,12 @@ from tinycua.agents import (
     TaskExecutorConfig,
     ResultReviewerConfig,
     PrimaryAgentConfig,
+)
+
+# Agent wrapper classes
+from tinycua.agents import (
+    # Base
+    BaseAgentWrapper,
     # Factory (creates wrapper instances, not raw SDK Agents)
     create_agent,
     create_all_agents,
@@ -829,6 +868,10 @@ from tinycua.agents import (
     ResultReviewer,
     PrimaryAgent,
 )
+
+# Runtime state
+from tinycua.state.information import StateInformation
+
 from tinycua.tools.agent_calls import (
     call_query_analyst,
     call_information_digester,
@@ -893,7 +936,7 @@ attributes, **not** inside `agent.config.metadata`:
 | `self.config.agent_overrides` | Per-agent config overrides (classification labels, extra tools, deterministic rules) passed from TinyCUA config down to internal agent wrappers |
 
 Internal agent wrapper classes follow the same pattern: each stores context
-(`self.context`), config (`self.config`), and exposes `save_state(store)` /
+(`self.state`), config (`self.config`), and exposes `save_state(store)` /
 `restore_state(store)`. This avoids polluting SDK `Agent.metadata` which is
 opaque and hard to trace.
 
@@ -956,7 +999,7 @@ Create `src/tinycua/docs/design/` as the canonical reference for TinyCUA's concr
    - **Alternatives Considered**: SDK default `LanguageModel()` — rejected because TinyCUA needs a specific local model. Provider alias `openai` — rejected because it resolves to the Responses API and is not the intended chat-completions provider.
 
 1c. **Decision**: The external TinyCUA runtime is a `TinyCUA` wrapper class that composes an SDK `Agent` with `MainLoop`. Dependencies (internal agent registry, state stores) are stored as wrapper instance attributes, NOT inside SDK `Agent.metadata`.
-   - **Reason**: TINYCUA should be exposed as one wrapped agent (`TinyCUA(...).run(...)`) while internal agents remain implementation details. Wrapper instance attributes are typed, traceable, and never obscured by the SDK's opaque metadata dict. Internal agent wrappers follow the same pattern (`self.context`, `self.config`).
+   - **Reason**: TINYCUA should be exposed as one wrapped agent (`TinyCUA(...).run(...)`) while internal agents remain implementation details. Wrapper instance attributes are typed, traceable, and never obscured by the SDK's opaque metadata dict. Internal agent wrappers follow the same pattern (`self.state`, `self.config`).
    - **Alternatives Considered**: Store all state in `Agent.metadata["tinycua"]` — rejected because it's opaque, hard to trace, and tightly couples TinyCUA's design to SDK internal data structures. Expose internal agents directly to users — rejected because it leaks orchestration internals. Implement MainLoop inside M2 — deferred because full resume behavior depends on session and worker orchestration milestones.
 
 1d. **Decision**: TINYCUA storage is SQLite-first for structured session state, with pluggable filesystem-backed storage when useful.

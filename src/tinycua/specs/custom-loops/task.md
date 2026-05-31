@@ -22,7 +22,10 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Create `tinycua/loops/__init__.py` re-exporting SDK types + custom loop types + errors <!-- id: 13 -->
   - [ ] Re-export `BaseLoop`, `Agent`, `LanguageModel`, `Tool` from SDK
   - [ ] Re-export `LoopType` enum (`SDK_BASE`, `CLASSIFICATION`, `EXPLORATION`, `HYBRID_REVIEW`)
-- [ ] Create `tinycua/agents/configs.py` with `AgentConfigBase` and all seven agent config dataclasses <!-- id: 14 -->
+- [ ] Create `tinycua/config/__init__.py` and `tinycua/config/types.py` <!-- id: 14a -->
+  - [ ] `AgentKind` enum with all seven architecture agent identifiers
+  - [ ] `TINYCUA_DEFAULT_MODEL = LanguageModel(provider="openai-chat-completions", model_name="qwen/qwen3.5-4b", base_url="http://localhost:1234/v1")`
+- [ ] Create `tinycua/config/agents.py` with `AgentConfigBase` and all seven agent config dataclasses <!-- id: 14 -->
   - [ ] `QueryAnalystConfig` — `classification_labels: list[str]`
   - [ ] `InformationDigesterConfig` — `max_iterations_override: int | None`
   - [ ] `TaskAnalyzerConfig`
@@ -30,12 +33,12 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
   - [ ] `TaskExecutorConfig` — `native_tools: list[Tool]`
   - [ ] `ResultReviewerConfig` — `deterministic_rules: list[DeterministicRule]`
   - [ ] `PrimaryAgentConfig`
-- [ ] Define `TINYCUA_DEFAULT_MODEL` as `LanguageModel(provider="openai-chat-completions", model_name="qwen/qwen3.5-4b", base_url="http://localhost:1234/v1")` <!-- id: 15 -->
-- [ ] Define `AgentKind` enum with all seven architecture agent identifiers <!-- id: 16 -->
-- [ ] Create `tinycua/agents/base.py` — `BaseAgentWrapper` abstract class <!-- id: 16a -->
+- [ ] Create `tinycua/state/information.py` — `StateInformation` dataclass <!-- id: 15a -->
+  - [ ] Fields: `session_id`, `chat_history`, `last_query`, `last_result`, `metadata`
+- [ ] Define MainLoop / TinyCUA wrapper contract keys as wrapper attributes (not `agent.config.metadata`) <!-- id: 17 -->
   - [ ] `self.config` — typed agent config dataclass
   - [ ] `self.agent` — composed SDK `Agent` (built by subclass `_build_agent()`)
-  - [ ] `self.context` — runtime state dict (NOT SDK `Agent.metadata`)
+  - [ ] `self.state: StateInformation` — structured runtime state (NOT SDK `Agent.metadata`)
   - [ ] Abstract `run()` method
   - [ ] `save_state(store)` / `restore_state(store)` — default no-op hooks
 - [ ] Define MainLoop / TinyCUA wrapper contract keys as wrapper attributes (not `agent.config.metadata`) <!-- id: 17 -->
@@ -65,7 +68,7 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
 - [ ] Configure Query Analyst in wrapper: create `tinycua/agents/query_analyst.py` — `QueryAnalyst(BaseAgentWrapper)` <!-- id: 31 -->
   - [ ] `_build_agent()` composes SDK `Agent` with `ClassificationLoop` and `ClassificationTool(labels=config.classification_labels)`
   - [ ] `run(user_query, chat_history, session_context)` delegates to composed agent, validates output
-  - [ ] Stores result in `self.context["last_classification"]`
+  - [ ] Stores result in `self.state`
   - [ ] `save_state(store)` / `restore_state(store)` — no-op default acceptable
 - [ ] Run integration tests — expect GREEN (Phase 2 tests pass) <!-- id: 32 -->
 - [ ] Write and run unit tests for ClassificationLoop (mock Agent) — expect GREEN <!-- id: 33 -->
