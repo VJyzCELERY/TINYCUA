@@ -219,26 +219,34 @@ handles higher-level concerns.
 ### BaseAgentWrapper
 
 ```python
+from abc import ABC, abstractmethod
+from typing import Any, Generic, TypeVar
 from tinycua_sdk.agent import Agent
 from tinycua.state.information import StateInformation
 
+S = TypeVar("S", bound=StateInformation)
 
-class BaseAgentWrapper:
+
+class BaseAgentWrapper(ABC, Generic[S]):
     """Abstract base for all TinyCUA internal agent wrappers.
 
     Composes (does not extend) an SDK Agent internally. Runtime state is
-    stored in a structured `StateInformation` instance (NOT a raw dict and
+    stored in a typed `StateInformation` subclass (NOT a raw dict and
     NOT inside SDK Agent.metadata).
+
+    Type parameter `S` is the concrete StateInformation subclass for this agent.
     """
 
-    def __init__(self, config: AgentConfigBase):
+    state: S
+
+    def __init__(self, config: AgentConfigBase, state_factory: type[S]):
         self.config = config
         self.agent: Agent | None = None     # Built by _build_agent() in subclass
-        self.state = StateInformation()      # Structured runtime state
+        self.state = state_factory()         # Agent-specific StateInformation instance
 
-    async def run(self, *args, **kwargs) -> Any:
+    @abstractmethod
+    async def run(self, *args: Any, **kwargs: Any) -> Any:
         """Domain-specific execution. Subclasses override."""
-        raise NotImplementedError
 
     def save_state(self, store: Any) -> None:
         """Save wrapper state to a storage backend. No-op default."""
@@ -251,22 +259,78 @@ class BaseAgentWrapper:
 
 ### StateInformation (in `tinycua/state/information.py`)
 
-```python
-@dataclass
-class StateInformation:
-    """Structured runtime state for a TinyCUA agent wrapper.
+`StateInformation` is an abstract base class that each agent wrapper subclasses with
+its own agent-specific fields. This gives each agent typed, self-documenting state
+instead of a generic dict.
 
-    Replaces a raw `self.context: dict` with typed, queryable fields.
-    Extended by wrapper subclasses for agent-specific state needs.
+```python
+from abc import ABC
+from dataclasses import dataclass, field
+
+
+@dataclass
+class StateInformation(ABC):
+    """Abstract base for per-agent structured runtime state.
+
+    Each agent wrapper defines a concrete subclass with fields specific to
+    that agent's domain.  Shared fields live here; agent-specific fields
+    live on the subclass.
     """
     session_id: str | None = None
     chat_history: list[dict] = field(default_factory=list)
     last_query: dict[str, Any] = field(default_factory=dict)
     last_result: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-```
 
-Wrapper classes can extend `StateInformation` for agent-specific fields:
+
+@dataclass
+class QueryAnalystState(StateInformation):
+    """State for the Query Analyst agent."""
+    mode_decision: dict[str, Any] = field(default_factory=dict)
+    context_enhanced_query: dict[str, Any] = field(default_factory=dict)
+    classification_score: float | None = None
+
+
+@dataclass
+class InformationDigesterState(StateInformation):
+    """State for the Information Digester agent."""
+    retrieval_iterations: int = 0
+    known_gaps: list[str] = field(default_factory=list)
+    context_summary: str = ""
+
+
+@dataclass
+class TaskAnalyzerState(StateInformation):
+    """State for the Task Analyzer agent."""
+    task_tree: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TaskAssessorState(StateInformation):
+    """State for the Task Assessor agent."""
+    selected_task_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class TaskExecutorState(StateInformation):
+    """State for the Task Executor agent."""
+    execution_attempts: int = 0
+    tool_results: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class ResultReviewerState(StateInformation):
+    """State for the Result Reviewer agent."""
+    deterministic_failures: list[str] = field(default_factory=list)
+    last_review_status: str | None = None
+
+
+@dataclass
+class PrimaryAgentState(StateInformation):
+    """State for the Primary Agent agent."""
+    final_response: dict[str, Any] = field(default_factory=dict)
+    citations: list[str] = field(default_factory=list)
+```
 
 ### Concrete Wrapper Example: QueryAnalyst
 
@@ -274,25 +338,19 @@ Wrapper classes can extend `StateInformation` for agent-specific fields:
 from tinycua_sdk.agent import Agent
 from tinycua.config.agents import QueryAnalystConfig
 from tinycua.loops import ClassificationLoop, SchemaValidator
+from tinycua.state.information import QueryAnalystState
 from tinycua.tools import ClassificationTool
 
 
-class QueryAnalyst(BaseAgentWrapper):
+class QueryAnalyst(BaseAgentWrapper[QueryAnalystState]):
     """Query classification agent — Classification Loop."""
 
+    state: QueryAnalystState  # typed state
+
     def __init__(self, config: QueryAnalystConfig):
-        super().__init__(config)
+        super().__init__(config, state_factory=QueryAnalystState)
         self.classification_tool = ClassificationTool(labels=config.classification_labels)
         self._build_agent()
-
-    def _build_agent(self):
-        self.agent = Agent(
-            name=self.config.name,
-            instructions=self.config.instructions,
-            llm_model=self.config.model,
-            tools=[self.classification_tool] + self.config.extra_tools,
-            loop=ClassificationLoop(),
-        )
 
     async def run(
         self,
@@ -301,16 +359,13 @@ class QueryAnalyst(BaseAgentWrapper):
         session_context: dict | None = None,
     ) -> dict[str, Any]:
         """Classify user query into mode decision + context enhanced query."""
-        # Wrapper-level: prepare input, update state
         self.state.session_id = session_context.get("session_id") if session_context else None
         self.state.chat_history = chat_history or []
         input_msg = {"user_query": user_query, "chat_history": self.state.chat_history, "session_context": session_context or {}}
-        # Delegate to composed SDK Agent
         raw = await self.agent.run(query=str(input_msg))
-        # Wrapper-level: validate output
         result = SchemaValidator(validation_fn=validate_classification_output).validate(raw)
-        # Update wrapper state
-        self.state.last_query = {"user_query": user_query}
+        self.state.mode_decision = result.get("mode_decision", {})
+        self.state.context_enhanced_query = result.get("context_enhanced_query", {})
         self.state.last_result = result
         return result
 ```
