@@ -29,20 +29,21 @@ Read in order for a linear learning experience:
 19. [`state/worker_result.md`](state/worker_result.md) — `WorkerResult` + `WorkerConfig`
 20. [`state/execution_log.md`](state/execution_log.md) — `ExecutionLog` + `ExecutionLogEntry`
 21. [`state/session.md`](state/session.md) — Design `Session` (extends existing Session)
-22. [`state/state_store.md`](state/state_store.md) — Continuation state store
-23. [`agents/base.md`](agents/base.md) — `BaseAgentOrchestrator[S]`
-24. [`agents/factory.md`](agents/factory.md) — `create_orchestrator()`, `create_all_orchestrators()`
-25. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` orchestrator
-26. [`agents/information_digester.md`](agents/information_digester.md)
-27. [`agents/task_analyzer.md`](agents/task_analyzer.md)
-28. [`agents/task_assessor.md`](agents/task_assessor.md)
-29. [`agents/task_creator.md`](agents/task_creator.md) — `TaskCreator` wraps TaskAnalyzer + TaskAssessor
-30. [`agents/task_executor.md`](agents/task_executor.md)
-31. [`agents/result_reviewer.md`](agents/result_reviewer.md)
-32. [`agents/primary_agent.md`](agents/primary_agent.md)
-33. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
-34. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
-35. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
+22. [`state/chat_record.md`](state/chat_record.md) — `ChatRecord` structured audit trail entry
+23. [`state/state_store.md`](state/state_store.md) — Continuation state store
+24. [`agents/base.md`](agents/base.md) — `BaseAgentOrchestrator[S]`
+25. [`agents/factory.md`](agents/factory.md) — `create_orchestrator()`, `create_all_orchestrators()`
+26. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` orchestrator
+27. [`agents/information_digester.md`](agents/information_digester.md)
+28. [`agents/task_analyzer.md`](agents/task_analyzer.md)
+29. [`agents/task_assessor.md`](agents/task_assessor.md)
+30. [`agents/task_creator.md`](agents/task_creator.md) — `TaskCreator` wraps TaskAnalyzer + TaskAssessor
+31. [`agents/task_executor.md`](agents/task_executor.md)
+32. [`agents/result_reviewer.md`](agents/result_reviewer.md)
+33. [`agents/primary_agent.md`](agents/primary_agent.md)
+34. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
+35. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
+36. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
 
 ---
 

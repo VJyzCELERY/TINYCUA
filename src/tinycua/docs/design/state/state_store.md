@@ -136,7 +136,7 @@ class BaseAgentOrchestrator(Generic[S]):
 
 ## See also
 
-Prev : [Design `Session`](session.md) | Next : [`BaseAgentOrchestrator[S]`](../agents/base.md)
+Prev : [`ChatRecord` Audit Trail](chat_record.md) | Next : [`BaseAgentOrchestrator[S]`](../agents/base.md)
 
 
 ## Related

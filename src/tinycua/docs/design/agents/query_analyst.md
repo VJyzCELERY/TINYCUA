@@ -587,7 +587,7 @@ Two structured objects stored on `self.state`:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Transient session | `is_transient = True`; not in `child_sessions` | Output consumed inline by TinyCUA; tree traversal skips |
+| Transient session | `is_transient = True`; not in `child_sessions`; chat_history propagates, session_context does not | Output consumed inline by TinyCUA; tree traversal skips; audit trail preserved via chat_history |
 | No session on `run()` signature | `run(user_query)` only; session via `self.session` | Session owned by orchestrator; caller links via `add_child` before `run` |
 | Parent context assembly | `_assemble_session_context()` pulls parent + active agent | QueryAnalyst has no history — must build its own picture |
 | Cascading compaction | Try 4 progressive levels before brute-force | Least destructive first; preserves as much context as possible |

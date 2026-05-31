@@ -16,7 +16,7 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 | Concern | Where |
 |---------|-------|
 | Own agent state | `agent_state: AgentState` — this session's own state; stores `agent_config` (provides context window + compaction strategy) |
-| Transient flag | `is_transient: bool` — if True, never registered in `child_sessions` (only `parent_id` set); nothing propagates upward on termination |
+| Transient flag | `is_transient: bool` — never in `child_sessions`; chat_history + token_usage still propagate, session_context does NOT |
 | Shared task | `task: Task \| None` — all sessions in the tree reference the **same** Task object |
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
 | Active session | `get_active_session()` — DFS pre-order |
@@ -24,7 +24,7 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 | Compaction | `_check_compaction()` triggered on every session_context mutation; strategy from `agent_state.agent_config.compaction_strategy` |
 | Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
 | Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
-| Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing (child never in tree). |
+| Propagation rules | Natural: final response only. Mid-progress: entire session_context. Transient: chat_history only (no session_context). |
 | Transient tree rule | `is_transient=True` → `parent_id` + `_parent` set, but NOT in `parent.child_sessions` | Tree traversal skips transient nodes; they don't block parent termination |
 
 ```
@@ -60,9 +60,11 @@ child agent internally spawns its own child session.
 ```python
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 from tinycua.state.base import StateObject
 from tinycua.state.agent_state import AgentState
+from tinycua.state.chat_record import ChatRecord
 from tinycua.state.task import Task
 
 
@@ -75,7 +77,8 @@ class Session(StateObject):
 
     Our design adds:
         - agent_state (this session's own AgentState, non-optional; includes agent_config)
-        - is_transient (transient agents: not in child_sessions, nothing propagates)
+        - is_transient (transient agents: not in child_sessions;
+          chat_history + token_usage propagate, session_context does NOT)
         - task (shared Task object, all sessions reference the same tree)
         - Tree structure (parent_id, child_sessions, _parent)
         - session_context (filtered messages for LLM, vs raw chat_history)
@@ -87,7 +90,7 @@ class Session(StateObject):
     # ── From existing Session ─────────────────────────────────────────
     session_id: str
     name: str = ""
-    chat_history: list[dict[str, Any]] = field(default_factory=list)
+    chat_history: list[ChatRecord] = field(default_factory=list)
     context: str = ""
     execution_log: Any = None  # ExecutionLog | None
 
@@ -101,10 +104,11 @@ class Session(StateObject):
 
     # ── Transient flag (our addition) ─────────────────────────────────
     is_transient: bool = False
-    # If True: output by-design consumed by next agent, not persisted.
-    # Rule: never registered in parent.child_sessions, only parent_id set.
-    # On termination: nothing propagates to parent (not chat_history,
-    # not session_context). Used for QueryAnalyst, InformationDigester.
+    # If True: output by-design consumed by next agent, not persisted in
+    # session_context. Rule: never registered in parent.child_sessions,
+    # only parent_id set. On termination: chat_history + token_usage
+    # propagate to parent, but session_context does NOT.
+    # Used for QueryAnalyst, InformationDigester.
 
     # ── Token tracking (our addition) ─────────────────────────────────
     total_token_usage: dict[str, int] | None = None
@@ -207,8 +211,9 @@ class Session(StateObject):
         Precondition: child.can_terminate() is True (no active grandchildren).
 
         Propagation rules:
-          - Transient agents (is_transient=True): nothing propagates.
-            (child was never in child_sessions, so no removal needed.)
+          - Transient agents (is_transient=True): chat_history + token_usage
+            propagate, but session_context does NOT. (Child was never in
+            child_sessions, so no removal needed.)
           - Natural termination (agent_state.status == "terminated"):
               chat_history + final response (session_context[-1]) propagate.
           - Mid-progress termination (agent_state.status != "terminated"):
@@ -220,8 +225,18 @@ class Session(StateObject):
                 f"has active child sessions"
             )
 
-        # Transient agents: skip everything (never in child_sessions)
+        # Transient agents: propagate chat_history + token_usage only.
+        # session_context does NOT propagate (output consumed inline).
+        # Never in child_sessions, so no removal needed.
         if child.is_transient:
+            self.chat_history.extend(child.chat_history)
+            if child.total_token_usage and self.total_token_usage:
+                for key, value in child.total_token_usage.items():
+                    self.total_token_usage[key] = (
+                        self.total_token_usage.get(key, 0) + value
+                    )
+            elif child.total_token_usage:
+                self.total_token_usage = dict(child.total_token_usage)
             return
 
         # Always merge chat_history upward
@@ -281,10 +296,17 @@ class Session(StateObject):
     # ── Messages ────────────────────────────────────────────────────
 
     def append_user(self, content: str) -> None:
-        """Append a user turn. Always added to both histories."""
-        turn = {"role": "user", "content": content}
-        self.chat_history.append(turn)
-        self.session_context.append(turn)
+        """Append a user turn.
+
+        chat_history: ChatRecord(type="user") — structured audit entry.
+        session_context: {"role": "user", "content": content} — LLM-compatible.
+        """
+        self.chat_history.append(ChatRecord(
+            id=str(uuid4()),
+            type="user",
+            content={"query": content},
+        ))
+        self.session_context.append({"role": "user", "content": content})
         self._check_compaction()
 
     def append_assistant(
@@ -292,29 +314,80 @@ class Session(StateObject):
         content: str,
         tool_calls: list[dict] | None = None,
         tool_results: list[dict] | None = None,
+        metadata: dict | None = None,
     ) -> None:
         """Append an assistant turn.
 
-        chat_history: full text + tool_calls + tool_results (verbatim).
-        session_context: text only — tool calls and results are discarded
-            (their effect is captured in the assistant's next response).
+        chat_history: ChatRecord(type="agent") + optional ChatRecord(type="tools")
+            for each tool call and result — full verbatim audit trail.
+        session_context: text only ({"role": "assistant", "content": content}) —
+            tool calls/results are discarded (their effect is captured in the
+            assistant's next response).
         """
-        # Full record in chat_history
-        self.chat_history.append({"role": "assistant", "content": content})
+        # ChatRecord for the assistant text
+        self.chat_history.append(ChatRecord(
+            id=str(uuid4()),
+            type="agent",
+            metadata=metadata or {},
+            content={"text": content},
+        ))
+        # ChatRecords for tool calls
         if tool_calls:
-            self.chat_history.extend(tool_calls)
+            for tc in tool_calls:
+                self.chat_history.append(ChatRecord(
+                    id=str(uuid4()),
+                    type="tools",
+                    metadata={
+                        "tool_name": tc.get("name", ""),
+                        "call_id": tc.get("id", ""),
+                        "direction": "call",
+                    },
+                    content={"arguments": tc.get("arguments", {})},
+                ))
+        # ChatRecords for tool results
         if tool_results:
-            self.chat_history.extend(tool_results)
+            for tr in tool_results:
+                self.chat_history.append(ChatRecord(
+                    id=str(uuid4()),
+                    type="tools",
+                    metadata={
+                        "tool_name": tr.get("name", ""),
+                        "call_id": tr.get("id", ""),
+                        "direction": "result",
+                    },
+                    content={"output": tr.get("output", {})},
+                ))
 
-        # Filtered record in session_context
+        # Filtered record in session_context (LLM-compatible)
         self.session_context.append({"role": "assistant", "content": content})
         self._check_compaction()
+
+    def append_orchestrator(
+        self,
+        action: str,
+        result: dict[str, Any],
+        orchestrator_name: str | None = None,
+    ) -> None:
+        """Append an orchestrator-level record to chat_history only.
+
+        session_context is NOT modified — orchestrator records are for the
+        audit trail only, not for LLM consumption.
+        """
+        self.chat_history.append(ChatRecord(
+            id=str(uuid4()),
+            type="agent_orchestrator",
+            metadata={
+                "orchestrator": orchestrator_name or "",
+                "action": action,
+            },
+            content={"result": result},
+        ))
 
     def get_messages(self) -> list[dict[str, Any]]:
         """Return session_context as the messages list for Agent.run()."""
         return list(self.session_context)
 
-    def get_chat_history(self) -> list[dict[str, Any]]:
+    def get_chat_history(self) -> list[ChatRecord]:
         """Return the complete chat_history for storage."""
         return list(self.chat_history)
 
@@ -389,14 +462,15 @@ self.session_store.save(session)
 ```python
 # QueryAnalyst auto-creates its session, marks it transient:
 analyst = QueryAnalyst(config)
-analyst.session.is_transient = True  # nothing propagates on termination
+analyst.session.is_transient = True  # not in child_sessions
 
 # Parent links it, runs it, terminates it:
 self.session.add_child(analyst.session)
 async for event in analyst.run(user_query):
     yield event
 self.session.terminate_child(analyst.session)
-# Nothing was propagated — analyst was transient.
+# chat_history + token_usage propagated (audit trail).
+# session_context did NOT propagate (output consumed inline).
 
 # CEQ is passed directly to the next agent, not stored:
 next_agent.run(analyst.state.context_enhanced_query)
@@ -424,8 +498,8 @@ self.session.terminate_child(primary.session)
 | Active session via DFS | `get_active_session()` DFS pre-order | Sequential execution means at most 1 active child |
 | Shared Task object | `task` field references same object across tree | All agents work on the same task tree; no need to sync |
 | Bottom-up termination | `can_terminate()` blocks until children are done | Child agents must finish first; guarantees clean teardown |
-| Transient agents | `is_transient=True` → not in `child_sessions`; nothing propagates | QueryAnalyst, InformationDigester: output consumed by next agent inline; parent_id set for reference but tree traversal skips them |
-| Chat history always propagates | `terminate_child()` always merges `chat_history` | Full audit trail available at root (except transient agents) |
+| Transient agents | `is_transient=True` → not in `child_sessions`; chat_history propagates, session_context does not | QueryAnalyst, InformationDigester: output consumed inline by next agent; parent_id set for reference but tree traversal skips; visual/audit trail preserved via chat_history |
+| Chat history always propagates | `terminate_child()` always merges `chat_history` (including transient) | Full audit trail available at root for every agent |
 | Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
 | Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |
 | Compaction trigger | `_check_compaction()` → `agent_state.agent_config.compaction_strategy.check_compaction(self)` | Strategy lives on agent config; Session delegates via its own agent_state |
@@ -434,7 +508,8 @@ self.session.terminate_child(primary.session)
 | Re-parent after deserialization | `set_parents()` in `from_dict()` | `_parent` excluded from serialization; re-established on load |
 | Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
 | Token usage: active | `active_token_usage` on Session | Based on current session_context; reset on compaction; reflects active window |
-| Consecutive assistant messages allowed | chat_history format | Sessions may receive multiple child results in sequence |
+| Typed chat_history | `list[ChatRecord]` on Session | Structured audit with id, type, metadata, content, timestamp — not loose dicts |
+| Consecutive records allowed | ChatRecord types can repeat | Sessions may receive multiple child results or tool calls in sequence |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
 
 
@@ -448,7 +523,7 @@ self.session.terminate_child(primary.session)
 
 ## See also
 
-Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [Continuation State Store](state_store.md)
+Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [`ChatRecord` Audit Trail](chat_record.md)
 
 
 ## Related
@@ -458,3 +533,4 @@ Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [Contin
 - [Persistence backend for Session](state_store.md)
 - [Compaction strategy inherited from agent_state.agent_config](../utility/compaction.md)
 - [Orchestrators hold self.session](../agents/base.md)
+- [ChatRecord — structured chat_history entries](chat_record.md)
