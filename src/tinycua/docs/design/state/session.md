@@ -16,7 +16,7 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 | Concern | Where |
 |---------|-------|
 | Own agent state | `agent_state: AgentState` — this session's state; also stores `agent_config` for context window |
-| Transient flag | `is_transient: bool` — if True, nothing propagates upward on termination |
+| Transient flag | `is_transient: bool` — if True, never registered in `child_sessions` (only `parent_id` set); nothing propagates upward on termination |
 | Shared task | `task: Task \| None` — all sessions in the tree reference the **same** Task object |
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
 | Active session | `get_active_session()` — DFS pre-order |
@@ -24,19 +24,24 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 | Compaction | `_check_compaction()` triggered on every session_context mutation; `compaction_strategy` is serializable |
 | Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
 | Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
-| Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing. |
+| Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing (child never in tree). |
+| Transient tree rule | `is_transient=True` → `parent_id` + `_parent` set, but NOT in `parent.child_sessions` | Tree traversal skips transient nodes; they don't block parent termination |
 
 ```
 Session tree (hierarchical parent-child structure):
 
   TinyCUA (root)
-   ├── QueryAnalyst      [transient — nothing propagates]
-   ├── InformationDigester [transient — nothing propagates]
    ├── Worker
    │   ├── TaskCreator   (→ TaskAnalyzer → TaskAssessor)
    │   ├── TaskExecutor
    │   └── ResultReviewer
    └── PrimaryAgent
+
+╔══════════════════════════════════════════════════════════════════╗
+║ Transient sessions (NOT in tree — only parent_id set):          ║
+║   QueryAnalyst                                                  ║
+║   InformationDigester                                           ║
+╚══════════════════════════════════════════════════════════════════╚
 
 Active session is determined by DFS pre-order traversal.
 
@@ -94,9 +99,10 @@ class Session(StateObject):
 
     # ── Transient flag (our addition) ─────────────────────────────────
     is_transient: bool = False
-    # If True, nothing propagates to parent on termination (not chat_history,
-    # not session_context). Used for agents whose output is passed directly
-    # to the next agent in the chain (QueryAnalyst, InformationDigester).
+    # If True: output by-design consumed by next agent, not persisted.
+    # Rule: never registered in parent.child_sessions, only parent_id set.
+    # On termination: nothing propagates to parent (not chat_history,
+    # not session_context). Used for QueryAnalyst, InformationDigester.
 
     # ── Compaction strategy (our addition) ────────────────────────────
     compaction_strategy: BaseCompaction | None = None
@@ -183,13 +189,20 @@ class Session(StateObject):
     def add_child(self, child: "Session") -> None:
         """Append a child session to the FIFO queue.
 
-        The child shares this session's Task object (same reference).
-        Its chat_history and session_context start clean.
+        Transient children (is_transient=True): parent_id and _parent are set,
+        and task is shared, but the child is NOT registered in child_sessions.
+        This means transient children:
+          - Don't appear in tree navigation (get_active_session)
+          - Don't block parent termination (can_terminate)
+          - Don't affect compaction decisions as depth
+
+        Non-transient children are appended to child_sessions as normal.
         """
         child._parent = self
         child.parent_id = self.session_id
         child.task = self.task  # shared reference
-        self.child_sessions.append(child)
+        if not child.is_transient:
+            self.child_sessions.append(child)
 
     def terminate_child(self, child: "Session") -> None:
         """Terminate a child session. Propagation depends on termination type.
@@ -198,6 +211,7 @@ class Session(StateObject):
 
         Propagation rules:
           - Transient agents (is_transient=True): nothing propagates.
+            (child was never in child_sessions, so no removal needed.)
           - Natural termination (agent_state.status == "terminated"):
               chat_history + final response (session_context[-1]) propagate.
           - Mid-progress termination (agent_state.status != "terminated"):
@@ -209,9 +223,8 @@ class Session(StateObject):
                 f"has active child sessions"
             )
 
-        # Transient agents: skip everything
+        # Transient agents: skip everything (never in child_sessions)
         if child.is_transient:
-            self.child_sessions.remove(child)
             return
 
         # Always merge chat_history upward
@@ -413,7 +426,7 @@ self.session.terminate_child(primary.session)
 | Active session via DFS | `get_active_session()` DFS pre-order | Sequential execution means at most 1 active child |
 | Shared Task object | `task` field references same object across tree | All agents work on the same task tree; no need to sync |
 | Bottom-up termination | `can_terminate()` blocks until children are done | Child agents must finish first; guarantees clean teardown |
-| Transient agents | `is_transient=True` → nothing propagates | QueryAnalyst, InformationDigester pass output directly to next agent |
+| Transient agents | `is_transient=True` → not in `child_sessions`; nothing propagates | QueryAnalyst, InformationDigester: output consumed by next agent inline; parent_id set for reference but tree traversal skips them |
 | Chat history always propagates | `terminate_child()` always merges `chat_history` | Full audit trail available at root (except transient agents) |
 | Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
 | Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |

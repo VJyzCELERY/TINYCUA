@@ -261,8 +261,8 @@ Only Worker and PrimaryAgent final responses propagate to TinyCUA's session_cont
 | Always root session | `parent_id = None`, UUID if missing | Single top-level entry point; session tree branches downward |
 | All queries through QueryAnalyst | QueryAnalyst always called first | Central routing decision; passthrough vs worker |
 | No session resume bypass | Removed `active_agent` check | QueryAnalyst always consulted; routing is always fresh |
-| Transient QueryAnalyst | `is_transient = True` | Output not stored in session; only decisions and CEQ passed forward |
-| Transient InformationDigester | `is_transient = True` | DigestedInformation passed directly to Worker |
+| Transient QueryAnalyst | `is_transient = True` → not in `child_sessions` | Output consumed inline; only classification + CEQ passed forward |
+| Transient InformationDigester | `is_transient = True` → not in `child_sessions` | DigestedInformation consumed by Worker inline |
 | Worker mode aborts task | `self.state.task = None` | Fresh task tree created from scratch |
 | Orchestrator-call tools | `call_*` SDK Tools | Worker chain invoked via natural language + tool calls |
 

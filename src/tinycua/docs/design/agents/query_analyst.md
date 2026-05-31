@@ -118,7 +118,7 @@ See [`constants/tools.md`](../constants/tools.md).
 | Agent built per-call | `Agent(...)` in `run()` | Loop receives fresh state reference each call |
 | State reference into loop | `QueryAnalystLoop(state=self.state)` | Loop reads/writes state directly — no custom events needed |
 | Stream passthrough | `yield event` on all events | Caller sees token-by-token output, usage, tool calls |
-| Transient session | `is_transient = True` | Output not stored in chat_history or session_context |
+| Transient session | `is_transient = True` → not in parent's `child_sessions` | Output consumed inline by TinyCUA; parent_id set for reference, tree traversal skips |
 | Passthrough sub-routing | `get_active_session()` determines target | No active task → PrimaryAgent; active task → active agent |
 | Worker mode aborts | Terminate all children, `session.task = None` | Fresh start for the worker chain |
 

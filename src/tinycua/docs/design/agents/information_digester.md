@@ -8,9 +8,10 @@
 ## Role
 
 `InformationDigester` retrieves and digests information from the context-enhanced
-query. It is **transient** (`is_transient = True`) — its output (DigestedInformation)
-is passed directly to the Worker, not stored in the session. Nothing propagates on
-termination.
+query. It is **transient** (`is_transient = True`) — never registered in parent's
+`child_sessions` (only `parent_id` set), so tree traversal skips it. Its output
+(DigestedInformation) is passed directly to the Worker, not stored in the session.
+Nothing propagates on termination.
 
 ---
 
