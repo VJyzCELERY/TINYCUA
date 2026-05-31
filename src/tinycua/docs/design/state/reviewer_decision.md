@@ -67,3 +67,9 @@ class ReviewerDecision(StateObject):
 ## See also
 
 Prev : [`DigestedInformation`](digested_information.md) | Next : [`WorkerResult` + `WorkerConfig`](worker_result.md)
+
+
+## Related
+
+- [Produced by ResultReviewer](../agents/result_reviewer.md)
+- [Stored in ResultReviewerState](information.md)

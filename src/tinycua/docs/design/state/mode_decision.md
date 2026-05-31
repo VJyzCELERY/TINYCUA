@@ -68,3 +68,9 @@ UncertainNextAction = Literal["ask_user", "explore"]
 ## See also
 
 Prev : [`Task` Tree + `TaskResult`](task.md) | Next : [`DigestedInformation`](digested_information.md)
+
+
+## Related
+
+- [Produced by QueryAnalyst](../agents/query_analyst.md)
+- [Stored in QueryAnalystState](information.md)

@@ -108,3 +108,9 @@ return result  # SDK sees a normal dict return
 ## See also
 
 Prev : [`TinyCUA` External Orchestrator](../agents/tinycua.md) | Next : [`BaseCompaction` Strategy](../utility/compaction.md)
+
+
+## Related
+
+- [Orchestrators are created by factory](../agents/factory.md)
+- [Tools call orchestrator.run()](../agents/base.md)

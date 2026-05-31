@@ -278,3 +278,13 @@ Only Worker and PrimaryAgent final responses propagate to TinyCUA's session_cont
 ## See also
 
 Prev : [`PrimaryAgent`](primary_agent.md) | Next : [Orchestrator-Call Tools](../tools/agent_calls.md)
+
+
+## Related
+
+- [Always called first for routing](query_analyst.md)
+- [Spawned in worker mode (transient)](information_digester.md)
+- [Passthrough target](primary_agent.md)
+- [MainLoop orchestration](../loops/main_loop.md)
+- [Session IS the state](../state/session.md)
+- [Orchestrator-call tools for delegation](../tools/agent_calls.md)

@@ -102,3 +102,11 @@ All loops rely on SDK infrastructure — no custom retry logic:
 ## See also
 
 Prev : [`LoopError` Hierarchy](../exceptions/loops.md) | Next : [`ReActAgentLoop`](react_agent.md)
+
+
+## Related
+
+- [Default ReAct behavior](react_agent.md)
+- [Classification control flow](query_analyst_loop.md)
+- [Top-level orchestration](main_loop.md)
+- [Loops receive state from orchestrator via constructor](../agents/base.md)

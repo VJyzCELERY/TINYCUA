@@ -68,3 +68,9 @@ can override via their config dataclass.
 ## See also
 
 Next : [Per-Agent Config Dataclasses](agents.md)
+
+
+## Related
+
+- [Per-agent config dataclasses using AgentKind](agents.md)
+- [BaseAgentOrchestrator — agents are looked up by AgentKind](../agents/base.md)

@@ -50,3 +50,8 @@ class ExecutionLog(StateObject):
 ## See also
 
 Prev : [`WorkerResult` + `WorkerConfig`](worker_result.md) | Next : [Design `Session`](session.md)
+
+
+## Related
+
+- [Stored on Session.execution_log](session.md)

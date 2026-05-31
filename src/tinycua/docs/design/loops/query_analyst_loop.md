@@ -92,3 +92,10 @@ user_query + chat_history + session_context
 ## See also
 
 Prev : [`ReActAgentLoop`](react_agent.md) | Next : [`InformationDigestionLoop`](information_digestion_loop.md)
+
+
+## Related
+
+- [QueryAnalyst orchestrator](../agents/query_analyst.md)
+- [ModeDecision produced by classification](../state/mode_decision.md)
+- [ClassificationTool labels](../constants/tools.md)

@@ -170,3 +170,9 @@ session = Session.from_dict(data)
 ## See also
 
 Prev : [Orchestrator-Call Tools](../tools/agent_calls.md)
+
+
+## Related
+
+- [Stored on Session.compaction_strategy](../state/session.md)
+- [Context window from AgentState.agent_config](../state/agent_state.md)

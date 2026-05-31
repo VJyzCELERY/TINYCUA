@@ -115,3 +115,9 @@ Defined in `tinycua/tools/classification.py`. Configured in `QUERY_ANALYST_BASE_
 ## See also
 
 Prev : [Per-Agent Config Dataclasses](../config/agents.md) | Next : [Agent Instruction Constants](instructions.md)
+
+
+## Related
+
+- [Config extra_tools channel](../config/agents.md)
+- [Orchestrator-call tools (complementary pattern)](../tools/agent_calls.md)

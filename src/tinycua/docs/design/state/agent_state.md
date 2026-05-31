@@ -88,3 +88,9 @@ if agent and agent.status == "running":
 ## See also
 
 Prev : [Per-Agent State Classes](information.md) | Next : [`Task` Tree + `TaskResult`](task.md)
+
+
+## Related
+
+- [Stored on Session.agent_state per node](session.md)
+- [agent_config provides context window](../config/agents.md)

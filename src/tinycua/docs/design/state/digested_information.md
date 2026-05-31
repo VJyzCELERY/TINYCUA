@@ -48,3 +48,9 @@ class DigestedInformation(StateObject):
 ## See also
 
 Prev : [`ModeDecision` + `ContextEnhancedQuery`](mode_decision.md) | Next : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md)
+
+
+## Related
+
+- [Produced by InformationDigester](../agents/information_digester.md)
+- [Stored in InformationDigesterState](information.md)

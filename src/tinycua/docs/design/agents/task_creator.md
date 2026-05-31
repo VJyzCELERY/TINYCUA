@@ -119,3 +119,11 @@ single output (validated task tree with selections).
 ## See also
 
 Prev : [`TaskAssessor`](task_assessor.md) | Next : [`TaskExecutor`](task_executor.md)
+
+
+## Related
+
+- [Wraps TaskAnalyzer internally](task_analyzer.md)
+- [Wraps TaskAssessor internally](task_assessor.md)
+- [Aggregated Task tree output](../state/task.md)
+- [Exposed as call_task_creator tool](../tools/agent_calls.md)

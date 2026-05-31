@@ -110,3 +110,10 @@ create_orchestrator(AgentKind.QUERY_ANALYST, config)
 ## See also
 
 Prev : [`BaseAgentOrchestrator[S]`](base.md) | Next : [`QueryAnalyst` Orchestrator](query_analyst.md)
+
+
+## Related
+
+- [Returns BaseAgentOrchestrator subclass](base.md)
+- [AgentKind enum for lookup](../config/types.md)
+- [Config dataclasses — defaults if None](../config/agents.md)

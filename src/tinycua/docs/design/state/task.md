@@ -98,3 +98,9 @@ class TaskResult(StateObject):
 ## See also
 
 Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [`ModeDecision` + `ContextEnhancedQuery`](mode_decision.md)
+
+
+## Related
+
+- [Shared Task object on Session.task](session.md)
+- [TaskResult is the output of each execution](worker_result.md)

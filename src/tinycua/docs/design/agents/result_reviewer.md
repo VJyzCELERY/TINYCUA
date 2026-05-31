@@ -132,3 +132,10 @@ See [`loops/result_review_loop.md`](../loops/result_review_loop.md).
 ## See also
 
 Prev : [`TaskExecutor`](task_executor.md) | Next : [`PrimaryAgent`](primary_agent.md)
+
+
+## Related
+
+- [Calls TaskCreator for task decomposition](task_creator.md)
+- [Two-phase review loop](../loops/result_review_loop.md)
+- [ReviewerDecision output](../state/reviewer_decision.md)

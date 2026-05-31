@@ -313,3 +313,11 @@ self.session.terminate_child(child.session)
 ## See also
 
 Prev : [Continuation State Store](../state/state_store.md) | Next : [Orchestrator Factory](factory.md)
+
+
+## Related
+
+- [self.session — auto-created if None](../state/session.md)
+- [AgentState on self.session](../state/agent_state.md)
+- [self.config — typed per-agent config](../config/agents.md)
+- [Loops receive self.state by reference](../loops/overview.md)

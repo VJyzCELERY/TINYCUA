@@ -115,3 +115,10 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 ## See also
 
 Prev : [`InformationDigester`](information_digester.md) | Next : [`TaskAssessor`](task_assessor.md)
+
+
+## Related
+
+- [Called through TaskCreator](task_creator.md)
+- [Produces Task tree](../state/task.md)
+- [Works with TaskAssessor for selection](task_assessor.md)

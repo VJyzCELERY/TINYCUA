@@ -457,3 +457,12 @@ self.session.terminate_child(primary.session)
 ## See also
 
 Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [Continuation State Store](state_store.md)
+
+
+## Related
+
+- [Session.agent_state per node](agent_state.md)
+- [Session.task — shared Task object](task.md)
+- [Persistence backend for Session](state_store.md)
+- [Compaction strategy stored on Session](../utility/compaction.md)
+- [Orchestrators hold self.session](../agents/base.md)

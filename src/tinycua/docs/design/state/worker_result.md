@@ -56,3 +56,9 @@ class WorkerConfig(StateObject):
 ## See also
 
 Prev : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md) | Next : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md)
+
+
+## Related
+
+- [Produced by TaskExecutor](../agents/task_executor.md)
+- [TaskResult stored per leaf task](task.md)

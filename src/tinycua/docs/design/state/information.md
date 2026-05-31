@@ -164,3 +164,11 @@ def find_state(session: Session, agent_type: str) -> StateObject | None:
 ## See also
 
 Prev : [`StateObject` Base Class + Serialization](state_object.md) | Next : [`AgentState` Lifecycle Tracking](agent_state.md)
+
+
+## Related
+
+- [Each state is stored on its own Session.agent_state](session.md)
+- [AgentState lifecycle tracking](agent_state.md)
+- [Task tree — stored by TaskAnalyzerState](task.md)
+- [ModeDecision — stored by QueryAnalystState](mode_decision.md)

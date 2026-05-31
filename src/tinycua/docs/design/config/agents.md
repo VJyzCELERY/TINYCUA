@@ -170,3 +170,10 @@ class TinyCUAConfig:
 ## See also
 
 Prev : [Config Types — `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`](types.md) | Next : [Pre-Configured Tool Sets (`*_BASE_TOOLS`)](../constants/tools.md)
+
+
+## Related
+
+- [AgentKind enum and TINYCUA_DEFAULT_MODEL](types.md)
+- [*_BASE_TOOLS referenced in each config](../constants/tools.md)
+- [*_INSTRUCTION constants used as defaults](../constants/instructions.md)
