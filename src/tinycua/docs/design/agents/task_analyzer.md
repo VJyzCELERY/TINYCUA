@@ -169,7 +169,6 @@ from tinycua.config.agents import TaskAnalyzerConfig
 from tinycua.constants.tools import TASK_ANALYZER_BASE_TOOLS
 from tinycua.loops.react_agent import ReActAgentLoop
 from tinycua.state.information import TaskAnalyzerState
-from tinycua.tools.task import TASK_INIT  # imported for optional injection
 
 
 class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
@@ -226,11 +225,7 @@ class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
     def _build_query(self, query: str | dict) -> str:
         """Normalize input to a string query for the agent."""
         if isinstance(query, dict):
-            return json.dumps({
-                "instruction": "Analyze the following digested information "
-                               "and produce a task tree.",
-                "digested_information": query,
-            })
+            return json.dumps(query)
         return query
 
     # ── Tools ────────────────────────────────────────────────────────
