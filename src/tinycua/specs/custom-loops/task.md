@@ -35,13 +35,13 @@ Implementation tasks for Agent + Loop Integration (M2). Check off items as compl
   - [ ] `PrimaryAgentConfig`
 - [ ] Create `tinycua/state/information.py` — `StateInformation` abstract base + 7 per-agent subclasses <!-- id: 15a -->
   - [ ] `StateInformation(ABC)` — base fields: `session_id`, `chat_history`, `last_query`, `last_result`, `metadata`
-  - [ ] `QueryAnalystState` — `mode_decision`, `context_enhanced_query`, `classification_score`
-  - [ ] `InformationDigesterState` — `retrieval_iterations`, `known_gaps`, `context_summary`
-  - [ ] `TaskAnalyzerState` — `task_tree`
-  - [ ] `TaskAssessorState` — `selected_task_ids`
-  - [ ] `TaskExecutorState` — `execution_attempts`, `tool_results`
-  - [ ] `ResultReviewerState` — `deterministic_failures`, `last_review_status`
-  - [ ] `PrimaryAgentState` — `final_response`, `citations`
+  - [ ] `QueryAnalystState` — `mode_decision: ModeDecision | None`, `context_enhanced_query: ContextEnhancedQuery | None`, `classification_score: float | None`
+  - [ ] `InformationDigesterState` — `digested_information: DigestedInformation | None`, `retrieval_iterations: int`
+  - [ ] `TaskAnalyzerState` — `task_tree: Task | None`
+  - [ ] `TaskAssessorState` — `selected_task_ids: list[str]`
+  - [ ] `TaskExecutorState` — `task_result: TaskResult | None`, `execution_attempts: int`, `tool_results: list[dict]`
+  - [ ] `ResultReviewerState` — `reviewer_decision: ReviewerDecision | None`, `deterministic_failures: list[str]`, `last_review_status: ReviewStatus | None`
+  - [ ] `PrimaryAgentState` — `final_response: dict`, `citations: list[str]`
 - [ ] Define MainLoop / TinyCUA wrapper contract keys as wrapper attributes (not `agent.config.metadata`) <!-- id: 17 -->
   - [ ] `self.config` — typed agent config dataclass
   - [ ] `self.agent` — composed SDK `Agent` (built by subclass `_build_agent()`)

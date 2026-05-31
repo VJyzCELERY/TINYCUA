@@ -266,6 +266,15 @@ instead of a generic dict.
 ```python
 from abc import ABC
 from dataclasses import dataclass, field
+from tinycua.state import (
+    ContextEnhancedQuery,
+    ModeDecision,
+    DigestedInformation,
+    Task,
+    TaskResult,
+    ReviewerDecision,
+    ReviewStatus,
+)
 
 
 @dataclass
@@ -273,8 +282,8 @@ class StateInformation(ABC):
     """Abstract base for per-agent structured runtime state.
 
     Each agent wrapper defines a concrete subclass with fields specific to
-    that agent's domain.  Shared fields live here; agent-specific fields
-    live on the subclass.
+    that agent's domain, using M1 typed state objects (not raw dicts).
+    Shared fields live here; agent-specific fields live on the subclass.
     """
     session_id: str | None = None
     chat_history: list[dict] = field(default_factory=list)
@@ -286,23 +295,22 @@ class StateInformation(ABC):
 @dataclass
 class QueryAnalystState(StateInformation):
     """State for the Query Analyst agent."""
-    mode_decision: dict[str, Any] = field(default_factory=dict)
-    context_enhanced_query: dict[str, Any] = field(default_factory=dict)
+    mode_decision: ModeDecision | None = None
+    context_enhanced_query: ContextEnhancedQuery | None = None
     classification_score: float | None = None
 
 
 @dataclass
 class InformationDigesterState(StateInformation):
     """State for the Information Digester agent."""
+    digested_information: DigestedInformation | None = None
     retrieval_iterations: int = 0
-    known_gaps: list[str] = field(default_factory=list)
-    context_summary: str = ""
 
 
 @dataclass
 class TaskAnalyzerState(StateInformation):
     """State for the Task Analyzer agent."""
-    task_tree: dict[str, Any] = field(default_factory=dict)
+    task_tree: Task | None = None
 
 
 @dataclass
@@ -314,6 +322,7 @@ class TaskAssessorState(StateInformation):
 @dataclass
 class TaskExecutorState(StateInformation):
     """State for the Task Executor agent."""
+    task_result: TaskResult | None = None
     execution_attempts: int = 0
     tool_results: list[dict] = field(default_factory=list)
 
@@ -321,8 +330,9 @@ class TaskExecutorState(StateInformation):
 @dataclass
 class ResultReviewerState(StateInformation):
     """State for the Result Reviewer agent."""
+    reviewer_decision: ReviewerDecision | None = None
     deterministic_failures: list[str] = field(default_factory=list)
-    last_review_status: str | None = None
+    last_review_status: ReviewStatus | None = None
 
 
 @dataclass
@@ -364,8 +374,8 @@ class QueryAnalyst(BaseAgentWrapper[QueryAnalystState]):
         input_msg = {"user_query": user_query, "chat_history": self.state.chat_history, "session_context": session_context or {}}
         raw = await self.agent.run(query=str(input_msg))
         result = SchemaValidator(validation_fn=validate_classification_output).validate(raw)
-        self.state.mode_decision = result.get("mode_decision", {})
-        self.state.context_enhanced_query = result.get("context_enhanced_query", {})
+        self.state.mode_decision = ModeDecision(**result.get("mode_decision", {}))
+        self.state.context_enhanced_query = ContextEnhancedQuery(**result.get("context_enhanced_query", {}))
         self.state.last_result = result
         return result
 ```
