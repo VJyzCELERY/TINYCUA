@@ -223,10 +223,40 @@ class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
     # ── Query construction ───────────────────────────────────────────
 
     def _build_query(self, query: str | dict) -> str:
-        """Normalize input to a string query for the agent."""
-        if isinstance(query, dict):
-            return json.dumps(query)
-        return query
+        """Normalize input to a markdown query for the agent."""
+        if isinstance(query, str):
+            return query
+        return self._dict_to_markdown(query)
+
+    def _dict_to_markdown(self, data: dict) -> str:
+        """Format structured input (e.g., DigestedInformation) as markdown."""
+        lines = ["# Task Analysis Input", ""]
+
+        if "context_summary" in data:
+            lines.append(f"## Context Summary\n{data['context_summary']}\n")
+        if "key_points" in data:
+            lines.append("## Key Points")
+            for pt in data["key_points"]:
+                lines.append(f"- {pt}")
+            lines.append("")
+        if "advisory_instructions" in data:
+            lines.append(f"## Advisory Instructions\n{data['advisory_instructions']}\n")
+        if "constraints" in data:
+            lines.append("## Constraints")
+            for c in data["constraints"]:
+                lines.append(f"- {c}")
+            lines.append("")
+        if "known_gaps" in data:
+            lines.append("## Known Gaps")
+            for g in data["known_gaps"]:
+                lines.append(f"- {g}")
+            lines.append("")
+
+        # Unknown dict shape — fallback
+        if len(lines) == 2:
+            lines.append(f"```json\n{json.dumps(data, indent=2)}\n```")
+
+        return "\n".join(lines)
 
     # ── Tools ────────────────────────────────────────────────────────
 
@@ -294,7 +324,8 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 |----------|--------|-----------|
 | All task tools except TaskInit | `TASK_ANALYZER_BASE_TOOLS` = read + write − TaskInit | Agent modifies existing tree; greenfield creation opt-in via extra_tools |
 | Reset via tools | `SetSubTask` + `EditSubTask` on root | Same effect as TaskInit without wholesale replacement |
-| Input flexible | `str | dict` | Works with DigestedInformation or plain queries |
+| Input flexible | `str \| dict` | Works with DigestedInformation or plain queries |
+| Dict → markdown | `_dict_to_markdown()` formats structured input as readable markdown | Agent reads markdown naturally; JSON fallback for unknown shapes |
 | Markdown summary output | Agent final text = analysis summary | Human-readable documentation of what changed |
 | No JSON parsing | Store raw markdown, not structured JSON | Task tree already modified by tool calls; summary is documentation |
 | Task tree display in instruction | `task.display()` when task exists | Agent sees current state before deciding what to modify |
