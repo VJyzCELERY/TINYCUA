@@ -33,11 +33,11 @@ class MainLoop(BaseLoop):
 
     def __init__(
         self,
-        state: SessionState,
+        state: Session,
         internal_orchestrators: dict[AgentKind, BaseAgentOrchestrator],
     ):
         super().__init__()
-        self.state = state
+        self.state = state  # Session IS the state — extends StateObject
         self._orchestrators = internal_orchestrators
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
@@ -100,22 +100,39 @@ State is persisted via the `StateStore` backend (SQLite by default). Checkpoint 
 ## Integration with TinyCUA Orchestrator
 
 ```python
-class TinyCUA:
-    async def run(self, user_query, session_id=None):
-        # Session resume: route directly to active orchestrator
-        if self.state.active_agent and session_id:
+class TinyCUA(BaseAgentOrchestrator[Session]):
+    async def run(self, user_query):
+        if self.state.active_agent:
             orchestrator = self.internal_orchestrators[AgentKind(self.state.active_agent)]
             async for event in orchestrator.run(**self._build_resume_input()):
                 yield event
             return
 
+        agent = Agent(
+            name="tinycua",
+            instructions=self.build_instruction({"session": self.state}),
+            llm_model=self.config.model,
+            tools=self._build_orchestrator_tools(),
+            loop=MainLoop(
+                state=self.state,  # Session IS the state
+                internal_orchestrators=self.internal_orchestrators,
+            ),
+        )
+        async for event in agent.run(query=user_query, stream=True):
+            yield event
+            return
+
         # Fresh run: full orchestration via MainLoop
         agent = Agent(
             name="tinycua",
-            instructions=self.config.instructions,
+            instructions=self.build_instruction({"session": self.session}),
             llm_model=self.config.model,
             tools=self._build_orchestrator_tools(),
-            loop=MainLoop(state=self.state, internal_orchestrators=self.internal_orchestrators),
+            loop=MainLoop(
+                state=self.state,
+                session=self.session,
+                internal_orchestrators=self.internal_orchestrators,
+            ),
         )
         async for event in agent.run(query=user_query, stream=True):
             yield event
@@ -131,3 +148,10 @@ class TinyCUA:
 | State via constructor | `MainLoop(state=self.state, ...)` | Direct reference to SessionState for phase tracking |
 | Session resume bypasses MainLoop | Direct `orchestrator.run()` in TinyCUA | Skip irrelevant phases on resume |
 | SQLite-first persistence | `SQLiteStateStore` as default | Durable, transactional, zero-config |
+
+
+---
+
+## See also
+
+Prev : [`ResultReviewLoop`](result_review_loop.md) | Next : [`StateObject` Base Class + Serialization](../state/state_object.md)

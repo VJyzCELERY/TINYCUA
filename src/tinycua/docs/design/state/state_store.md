@@ -97,3 +97,10 @@ class BaseAgentOrchestrator(Generic[S]):
 | Pluggable backends | `StateStore` ABC | In-memory for tests, filesystem for artifacts, SQLite for sessions |
 | Agent-level hooks | `save_state()` / `restore_state()` on orchestrator | Each orchestrator owns its state serialization |
 | Checkpoint-after-phase | Configurable in `OrchestrationSettings` | Control granularity of persistence |
+
+
+---
+
+## See also
+
+Prev : [Design `Session`](session.md) | Next : [`BaseAgentOrchestrator[S]`](../agents/base.md)

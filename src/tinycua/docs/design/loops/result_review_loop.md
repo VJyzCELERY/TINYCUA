@@ -111,3 +111,10 @@ Deterministic checks are the authority for schema-level validation. Failures are
 | Deterministic wins conflicts | Skip Phase 2 on failure | Safety: deterministic checks are the authority |
 | Pluggable rules | Constructor parameter | Different reviewer configs can add/replace rules |
 | State via constructor | `ResultReviewLoop(state=self.state)` | Phase 1 writes failures to state directly |
+
+
+---
+
+## See also
+
+Prev : [`InformationDigestionLoop`](information_digestion_loop.md) | Next : [`MainLoop` Orchestration](main_loop.md)

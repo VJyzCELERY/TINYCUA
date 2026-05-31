@@ -79,3 +79,10 @@ user_query + chat_history + session_context
 | ClassificationTool at orchestrator level | In `QUERY_ANALYST_BASE_TOOLS` | Loop stays focused on execution strategy; tools are an orchestrator concern |
 | State via constructor | `QueryAnalystLoop(state=self.state)` | Direct reference for state access |
 | No post-processing in loop | Orchestrator handles JSON parse | Loop controls execution; orchestrator manages typed state |
+
+
+---
+
+## See also
+
+Prev : [`ReActAgentLoop`](react_agent.md) | Next : [`InformationDigestionLoop`](information_digestion_loop.md)

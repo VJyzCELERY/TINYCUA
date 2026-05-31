@@ -1,65 +1,44 @@
-# State Information
+# Per-Agent State
 
 > **File:** `docs/design/state/information.md`
 > **Package:** `tinycua.state.information`
 > **Last Updated:** 2026-05-31
-> **Status:** Draft
 
 ---
 
 ## Role
 
-`StateInformation` is an abstract base dataclass for per-agent structured runtime state.
-Each agent orchestrator defines a concrete subclass with fields specific to that agent's domain.
+Each agent orchestrator owns a typed state object extending `StateObject` directly.
+All state objects inherit `to_dict()`/`from_dict()` serialization from `StateObject`.
 
-State is **persistent** across `run()` calls — it lives on the orchestrator instance.
-The loop receives a direct reference during Agent construction and reads/writes state
-during execution. Since it's a reference, changes are visible immediately — even if
-the stream is interrupted mid-way.
+Per-agent states are stored in `Session.states` dict for persistence.
 
 ---
 
-## Class Hierarchy
+## `SessionTracking`
+
+Session-level tracking stored as `Session.states["session"]`.
 
 ```python
-from abc import ABC
-from dataclasses import dataclass, field
-from typing import Any
-
-from tinycua.state import (
-    ContextEnhancedQuery, ModeDecision,
-    DigestedInformation, Task, TaskResult,
-    ReviewerDecision, ReviewStatus, WorkerResult,
-)
-
-
 @dataclass
-class StateInformation(ABC):
-    """Abstract base for per-agent structured runtime state.
-
-    Fields common to all agents. Subclasses add domain-specific fields.
-    """
-    session_id: str | None = None
-    chat_history: list[dict] = field(default_factory=list)
+class SessionTracking(StateObject):
+    """Session-level tracking state."""
     last_query: dict[str, Any] = field(default_factory=dict)
     last_result: dict[str, Any] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    # Streaming accumulation (populated during Agent.run(stream=True))
-    accumulated_text: list[str] = field(default_factory=list)
-    token_usage: dict[str, int | None] | None = None
-    iteration_count: int = 0
+    token_usage: dict[str, int | None] | None = None  # from response.usage events
+    orchestration_phase: str | None = None            # current phase
+    checkpoints: list[dict] = field(default_factory=list)
 ```
 
 ---
 
-## Per-Agent Subclasses
+## Per-Agent State Classes
 
 ### `QueryAnalystState`
 
 ```python
 @dataclass
-class QueryAnalystState(StateInformation):
+class QueryAnalystState(StateObject):
     mode_decision: ModeDecision | None = None
     context_enhanced_query: ContextEnhancedQuery | None = None
     classification_score: float | None = None
@@ -69,7 +48,7 @@ class QueryAnalystState(StateInformation):
 
 ```python
 @dataclass
-class InformationDigesterState(StateInformation):
+class InformationDigesterState(StateObject):
     digested_information: DigestedInformation | None = None
     retrieval_iterations: int = 0
 ```
@@ -78,7 +57,7 @@ class InformationDigesterState(StateInformation):
 
 ```python
 @dataclass
-class TaskAnalyzerState(StateInformation):
+class TaskAnalyzerState(StateObject):
     task_tree: Task | None = None
 ```
 
@@ -86,7 +65,7 @@ class TaskAnalyzerState(StateInformation):
 
 ```python
 @dataclass
-class TaskAssessorState(StateInformation):
+class TaskAssessorState(StateObject):
     selected_task_ids: list[str] = field(default_factory=list)
 ```
 
@@ -94,7 +73,7 @@ class TaskAssessorState(StateInformation):
 
 ```python
 @dataclass
-class TaskExecutorState(StateInformation):
+class TaskExecutorState(StateObject):
     task_result: TaskResult | None = None
     execution_attempts: int = 0
     tool_results: list[dict] = field(default_factory=list)
@@ -104,7 +83,7 @@ class TaskExecutorState(StateInformation):
 
 ```python
 @dataclass
-class ResultReviewerState(StateInformation):
+class ResultReviewerState(StateObject):
     reviewer_decision: ReviewerDecision | None = None
     deterministic_failures: list[str] = field(default_factory=list)
     last_review_status: ReviewStatus | None = None
@@ -114,58 +93,34 @@ class ResultReviewerState(StateInformation):
 
 ```python
 @dataclass
-class PrimaryAgentState(StateInformation):
+class PrimaryAgentState(StateObject):
     final_response: dict[str, Any] = field(default_factory=dict)
     citations: list[str] = field(default_factory=list)
-```
-
-### `SessionState` (TinyCUA)
-
-```python
-@dataclass
-class SessionState(StateInformation):
-    active_agent: str | None = None          # which orchestrator is mid-execution
-    orchestration_phase: str | None = None   # current phase: query_analysis, worker, etc.
-    mode_decision: ModeDecision | None = None
-    context_enhanced_query: ContextEnhancedQuery | None = None
-    digested_information: DigestedInformation | None = None
-    task_tree: Task | None = None
-    worker_results: list[WorkerResult] = field(default_factory=list)
-    checkpoints: list[dict] = field(default_factory=list)
 ```
 
 ---
 
 ## Usage
 
-State is set by the orchestrator after `agent.run()` stream ends:
+Each orchestrator's `__init__` initializes its state:
 
 ```python
 class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
-    state: QueryAnalystState  # typed
-
-    def __init__(self, config):
+    def __init__(self, config=None):
         self.state = QueryAnalystState()
 
-    async def run(self, user_query, ...):
-        agent = Agent(..., loop=QueryAnalystLoop(state=self.state))
-        text_parts = []
-        async for event in agent.run(query=..., stream=True):
-            if event["type"] == "response.output_text.delta":
-                text_parts.append(event["delta"])
-            yield event
-        raw = "".join(text_parts)
-        result = json.loads(raw)
-        self.state.mode_decision = ModeDecision(**result.get("mode_decision", {}))
-        self.state.last_result = result
-        # self.state.mode_decision.mode → "primary_agent" (typed access)
+    async def run(self, ...):
+        ...
+        self.state.mode_decision = ModeDecision(**result)
+        self.state.last_result = result  # stored on SessionTracking, not here
 ```
 
-The loop also reads/writes state during execution (e.g., `self.state.retrieval_iterations += 1`
-in `InformationDigestionLoop`).
+Per-agent states are stored in the Session for persistence:
 
-`save_state(store)` serializes `self.state` to the `store` backend.
-`restore_state(store)` hydrates it back.
+```python
+session.set_state("query_analyst", analyst.state)
+session.set_state("task_executor", executor.state)
+```
 
 ---
 
@@ -173,8 +128,14 @@ in `InformationDigestionLoop`).
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| ABC with per-agent subclasses | `StateInformation` + concrete classes | Typed, auto-completing; no dict access |
-| M1 typed objects | `ModeDecision`, `Task`, etc. | Consistency with existing state module |
-| Generic typing | `BaseAgentOrchestrator[S: StateInformation]` | `self.state.field_name` autocompletes |
-| Streaming fields in base | `accumulated_text`, `token_usage`, `iteration_count` | Common across all agents; populated during stream |
-| State survives interruption | Reference passed to loop, not copied | Loop writes to same object; partial state visible after error/cancel |
+| No intermediate ABC | Extends `StateObject` directly | `StateInformation` was adding unnecessary indirection |
+| `last_query`/`last_result` on SessionTracking | Session-level, not per-agent | Agents don't need these individually; session tracks them |
+| Serialization inherited | `StateObject.to_dict()` / `from_dict()` | No custom code needed per state class |
+| Stored in Session.states | Dict keyed by agent kind | Single persistence point; session serializes everything |
+
+
+---
+
+## See also
+
+Prev : [`StateObject` Base Class + Serialization](state_object.md) | Next : [`AgentState` Lifecycle Tracking](agent_state.md)

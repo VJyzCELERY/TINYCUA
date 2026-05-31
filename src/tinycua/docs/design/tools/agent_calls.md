@@ -96,3 +96,10 @@ return result  # SDK sees a normal dict return
 | Factory pattern | `call_*(internal_orchestrators) -> Tool` | Late binding of orchestrator instances |
 | Tool consumes generator | `async for event in orchestrator.run(): pass` | SDK expects a dict return from tool execute |
 | Result from state | `orchestrator.state.last_result` | State is populated after stream ends; typed and validated |
+
+
+---
+
+## See also
+
+Prev : [`TinyCUA` External Orchestrator](../agents/tinycua.md)

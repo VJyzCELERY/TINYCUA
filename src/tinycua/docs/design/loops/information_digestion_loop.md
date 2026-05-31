@@ -32,8 +32,7 @@ class InformationDigestionLoop(BaseLoop):
     def __init__(self, state: InformationDigesterState, max_iterations: int | None = None):
         super().__init__()
         self.state = state
-        if max_iterations is not None:
-            self.max_iterations = max_iterations
+        self.max_iterations = max_iterations  # None → no iteration cap
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
         """Execute iterative retrieval via SDK BaseLoop with gap evaluation.
@@ -54,10 +53,11 @@ class InformationDigestionLoop(BaseLoop):
 
 1. **LLM-judged sufficiency** (primary): Each iteration evaluates whether identified
    gaps are sufficiently addressed. Parsed from the LLM's output.
-2. **`BaseLoop.max_iterations`** (hard cap, default 5): Prevents infinite loops.
-   Configurable via `InformationDigesterConfig.max_iterations_override`.
+2. **`max_iterations` cap** (optional, default `None` = no limit): Prevents infinite loops
+   when explicitly set. Configurable via `InformationDigesterConfig.max_iterations_override`.
 
-Both must be satisfied — the loop stops when either condition is met.
+The loop stops when LLM-judged sufficiency is met, or when the `max_iterations` cap is
+reached (if set).
 
 ---
 
@@ -88,3 +88,10 @@ On empty retrieval results: `DigestedInformation.known_gaps` is populated.
 | Max iterations configurable | Constructor parameter from config | Different deployments may want different limits |
 | State via constructor | `InformationDigestionLoop(state=self.state)` | Loop increments `retrieval_iterations` directly |
 | Gap evaluation in loop | Overridden `run()` | Loop is the execution strategy; gap evaluation is control flow |
+
+
+---
+
+## See also
+
+Prev : [`QueryAnalystLoop`](query_analyst_loop.md) | Next : [`ResultReviewLoop`](result_review_loop.md)

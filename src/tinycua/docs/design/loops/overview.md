@@ -43,11 +43,11 @@ class QueryAnalystLoop(BaseLoop):
 
 | Loop | Input (via agent.run query) | Writes to state | Behavior |
 |------|-----|------|------|
-| ReActAgentLoop | Agent-specific | `accumulated_text`, `token_usage` | Default ReAct via `super().run()` |
-| QueryAnalystLoop | `{user_query, chat_history, session_context}` | `accumulated_text`, `token_usage` | Classification via ClassificationTool |
-| InformationDigestionLoop | `ContextEnhancedQuery` | `accumulated_text`, `retrieval_iterations`, `token_usage` | Iterative retrieval with gap evaluation |
-| ResultReviewLoop | `{task, task_result, execution_log}` | `accumulated_text`, `deterministic_failures`, `token_usage` | Two-phase: deterministic then LLM |
-| MainLoop | User query + session state | `accumulated_text`, `active_agent`, `checkpoints` | Full orchestration via orchestrator-call tools |
+| ReActAgentLoop | Agent-specific | — | Default ReAct via `super().run()` |
+| QueryAnalystLoop | `{user_query, chat_history, session_context}` | — | Classification via ClassificationTool |
+| InformationDigestionLoop | `ContextEnhancedQuery` | `retrieval_iterations` | Iterative retrieval with gap evaluation |
+| ResultReviewLoop | `{task, task_result, execution_log}` | `deterministic_failures` | Two-phase: deterministic then LLM |
+| MainLoop | User query + session state | `active_agent`, `token_usage` (on Session) | Full orchestration via orchestrator-call tools |
 
 ---
 
@@ -88,3 +88,10 @@ All loops rely on SDK infrastructure — no custom retry logic:
 4. The orchestrator's `run()` yields all stream events transparently
 5. Loops define their own termination conditions (classification done, gaps addressed, review complete)
 6. Loops do NOT define tools — those come from `*_BASE_TOOLS` and `config.extra_tools`
+
+
+---
+
+## See also
+
+Prev : [`LoopError` Hierarchy](../exceptions/loops.md) | Next : [`ReActAgentLoop`](react_agent.md)

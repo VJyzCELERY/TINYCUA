@@ -15,7 +15,6 @@ from tinycua_sdk.agent import Agent
 from tinycua.agents.base import BaseAgentOrchestrator
 from tinycua.config.agents import InformationDigesterConfig
 from tinycua.constants.tools import INFORMATION_DIGESTER_BASE_TOOLS
-from tinycua.constants.prompts import INFORMATION_DIGESTER_PROMPT
 from tinycua.loops.information_digestion_loop import InformationDigestionLoop
 from tinycua.state.information import InformationDigesterState
 from tinycua.state import DigestedInformation
@@ -33,14 +32,16 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
         self.state = InformationDigesterState()
 
     async def run(self, context_enhanced_query: dict) -> AsyncIterator[dict]:
-        self.state.last_query = {"context_enhanced_query": context_enhanced_query}
-        self.state.accumulated_text = []
+        # 1. Build instruction from base constant + dynamic context
+        instructions = self.build_instruction({})
 
-        input_msg = json.dumps(context_enhanced_query)
+        # 2. Build query from domain input
+        query = json.dumps(context_enhanced_query)
 
+        # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
         agent = Agent(
             name=self.config.name,
-            instructions=self.config.instructions,
+            instructions=instructions,
             llm_model=self.config.model,
             tools=[*INFORMATION_DIGESTER_BASE_TOOLS, *self.config.extra_tools],
             loop=InformationDigestionLoop(
@@ -49,14 +50,15 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
             ),
         )
 
-        async for event in agent.run(query=input_msg, stream=True):
+        # 4. Iterate stream — accumulate text, yield everything to caller
+        text_parts: list[str] = []
+        async for event in agent.run(query=query, stream=True):
             if event["type"] == "response.output_text.delta":
-                self.state.accumulated_text.append(event["delta"])
-            elif event["type"] == "response.usage":
-                self.state.token_usage = event["usage"]
+                text_parts.append(event["delta"])
             yield event
 
-        raw = "".join(self.state.accumulated_text)
+        # 5. After stream ends — parse and store typed state
+        raw = "".join(text_parts)
         result = json.loads(raw)
         self.state.digested_information = DigestedInformation(**result)
         self.state.last_result = result
@@ -66,7 +68,7 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
 
 ## Config
 
-`InformationDigesterConfig` — `name="information-digester"`, `instructions=INFORMATION_DIGESTER_PROMPT`,
+`InformationDigesterConfig` — `name="information-digester"`, `instructions=INFORMATION_DIGESTER_INSTRUCTION`,
 `max_iterations_override: int | None`. See [`config/agents.md`](../config/agents.md#informationdigesterconfig).
 
 ---
@@ -99,3 +101,10 @@ See [`constants/tools.md`](../constants/tools.md).
 | Max iterations configurable | `config.max_iterations_override` | Different deployment needs |
 | Empty results → known_gaps | Loop populates `DigestedInformation.known_gaps` | Explicit gap documentation |
 | State reference into loop | `InformationDigestionLoop(state=self.state)` | Loop tracks `retrieval_iterations` directly |
+
+
+---
+
+## See also
+
+Prev : [`QueryAnalyst` Orchestrator](query_analyst.md) | Next : [`TaskAnalyzer`](task_analyzer.md)

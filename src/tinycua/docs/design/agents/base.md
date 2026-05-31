@@ -25,9 +25,9 @@ from collections.abc import AsyncIterator
 from typing import Any, Generic, TypeVar
 
 from tinycua.config.agents import AgentConfigBase
-from tinycua.state.information import StateInformation
+from tinycua.state.base import StateObject
 
-S = TypeVar("S", bound=StateInformation)
+S = TypeVar("S", bound=StateObject)
 
 
 class BaseAgentOrchestrator(ABC, Generic[S]):
@@ -37,9 +37,10 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
     by wiring state into the constructor of the custom loop.
     """
 
-    def __init__(self, config: AgentConfigBase):
-        self.config: AgentConfigBase = config
-        self.state: S  # set by subclass — typed per-agent StateInformation
+    config: AgentConfigBase
+    state: S  # set by subclass — typed per-agent StateObject
+
+    def __init__(self, config: AgentConfigBase): ...
 
     @abstractmethod
     async def run(self, *args: Any, **kwargs: Any) -> AsyncIterator[dict]:
@@ -48,6 +49,80 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
         Returns an async iterator yielding SDK stream events transparently.
         State is accumulated during iteration and stored at stream end.
         """
+
+    # ── Instruction construction ──────────────────────────────────────
+
+    def build_instruction(self, context: dict[str, Any]) -> str:
+        """Build the complete system prompt: base instruction + dynamic context.
+
+        The static instruction constant (self.config.instructions) provides
+        the agent's role, input contract, output schema, and guardrails.
+
+        context is a dict of named sections with defined priority order.
+        Each key maps to a known context source. Missing keys and None
+        values are silently skipped — the dict can carry whatever is
+        available at call time:
+
+            context = {
+                "session":        Session,     # session metadata (NOT session_context)
+                "project_files":  str,         # AGENTS.md / rules
+                "agent_output":   dict,        # upstream agent result
+            }
+
+        Priority is defined in _build_context_section(). Subclasses may
+        override the per-key formatters without touching assembly logic.
+
+        Override points (any method, not just formatters):
+          - build_instruction() — change entire assembly strategy
+          - _build_context_section() — change key set or priority ordering
+          - _format_session() — custom session metadata injection
+          - _format_project_files() — custom project context injection
+          - _format_agent_output() — custom upstream agent output formatting
+        """
+        sections = [self.config.instructions]
+        context_section = self._build_context_section(context)
+        if context_section:
+            sections.append(context_section)
+        return "\n\n".join(sections)
+
+    def _build_context_section(self, context: dict[str, Any]) -> str | None:
+        """Build the dynamic context block from the context dict.
+
+        Processes known keys in priority order. Each key maps to a private
+        formatter method. Missing/None values are silently skipped.
+        Returns None if no context is available.
+        """
+        formatters = {
+            "session": self._format_session,
+            "project_files": self._format_project_files,
+            "agent_output": self._format_agent_output,
+        }
+        parts: list[str] = []
+        for key, formatter in formatters.items():
+            value = context.get(key)
+            if value is not None:
+                formatted = formatter(value)
+                if formatted:
+                    parts.append(formatted)
+        return "\n\n".join(parts) if parts else None
+
+    def _format_session(self, session) -> str:
+        """Format session metadata for the system prompt.
+        Distinct from session.session_context (the message list passed as
+        Agent.messages). This injects metadata like session_id, active
+        phase, and current task into the system prompt.
+        """
+        ...
+
+    def _format_project_files(self, content: str) -> str:
+        """Format project-level files (AGENTS.md etc.)."""
+        ...
+
+    def _format_agent_output(self, output: dict) -> str:
+        """Format upstream agent output for downstream consumption."""
+        ...
+
+    # ── Persistence ───────────────────────────────────────────────────
 
     def save_state(self, store: Any) -> None:
         """Save self.state to a storage backend. No-op default."""
@@ -65,8 +140,10 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
 | Concern | Location |
 |---------|----------|
 | Config | `self.config` — typed per-agent config dataclass |
-| State | `self.state` — agent-specific `StateInformation` (NOT SDK `Agent.metadata`) |
+| State | `self.state` — agent-specific `StateObject` (NOT SDK `Agent.metadata`) |
 | Identity | Orchestrator class name + `self.config.name` |
+| Base instruction | `self.config.instructions` — static constant (role, schema, guardrails) |
+| Full instruction | `self.build_instruction(**context)` — base + dynamic session/project context |
 | Pre-processing | `run()` — builds query string from domain objects |
 | Post-processing | `run()` — after stream ends: parse JSON, store state |
 | Persistence | `save_state()` / `restore_state()` |
@@ -85,43 +162,61 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
 | Concern | Location |
 |---------|----------|
 | Execution strategy | Override `run()` — define control flow, termination conditions |
-| State read/write | `self.state` — direct reference to orchestrator's `StateInformation` |
+| State read/write | `self.state` — direct reference to orchestrator's `StateObject` |
 | Iteration logic | ReAct loop, gap evaluation, classification flow |
 
 ---
 
 ## Per-Call Agent Construction
 
-Each orchestrator's `run()` builds a fresh SDK `Agent` with state wired into the loop:
+Each orchestrator's `run()` builds a fresh SDK `Agent` with state wired into the loop.
+The shape is identical across all orchestrators — only the names differ:
 
 ```python
-class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
-    config: QueryAnalystConfig
-    state: QueryAnalystState
+class SomeOrchestrator(BaseAgentOrchestrator[SomeState]):
+    config: SomeConfig
+    state: SomeState
 
-    async def run(self, user_query: str, ...) -> AsyncIterator[dict]:
+    async def run(self, domain_input: DomainType) -> AsyncIterator[dict]:
+        # 1. Build instruction from base constant + dynamic context
+        instructions = self.build_instruction({
+            "session": session,
+            "project_files": self.config.project_files,
+        })
+
+        # 2. Build query from domain input
+        query = json.dumps({"domain_field": domain_input})
+
+        # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
         agent = Agent(
             name=self.config.name,
-            instructions=self.config.instructions,
+            instructions=instructions,
             llm_model=self.config.model,
-            tools=[*QUERY_ANALYST_BASE_TOOLS, *self.config.extra_tools],
-            loop=QueryAnalystLoop(state=self.state),
+            tools=[*BASENAME_BASE_TOOLS, *self.config.extra_tools],
+            loop=SomeLoop(state=self.state),
         )
-        input_msg = json.dumps({...})
+
+        # 4. Iterate stream — accumulate text, yield everything to caller
         text_parts: list[str] = []
-        async for event in agent.run(query=input_msg, stream=True):
+        async for event in agent.run(query=query, stream=True):
             if event["type"] == "response.output_text.delta":
                 text_parts.append(event["delta"])
             yield event
+
+        # 5. After stream ends — parse and store typed state
         raw = "".join(text_parts)
         result = json.loads(raw)
-        self.state.mode_decision = ModeDecision(**result.get("mode_decision", {}))
+        self.state.domain_field = DomainType(**result)
         self.state.last_result = result
 ```
+
+See individual orchestrator docs for concrete examples:
+[`query_analyst.md`](query_analyst.md), [`information_digester.md`](information_digester.md), etc.
 
 **Key points:**
 - No `self.agent` — Agent is a local variable, rebuilt each call
 - No `_build_agent()` — construction is in `run()`
+- Instructions built via `self.build_instruction()` — static constant + dynamic context
 - `stream=True` always — all events pass through to caller
 - Text accumulated as a side-effect during passthrough
 - After stream ends: JSON parse → typed state update
@@ -133,7 +228,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
 The loop constructor receives state by direct reference:
 
 ```python
-loop = QueryAnalystLoop(state=self.state, session_context=session_context)
+loop = SomeLoop(state=self.state, extra_param=value)
 agent = Agent(..., loop=loop)
 ```
 
@@ -163,8 +258,16 @@ result = orchestrator.state.last_result
 |----------|--------|-----------|
 | Agent built per-call | `Agent(...)` in `run()` | State injected fresh into loop each call; no stale Agent references |
 | No persisted Agent | Local variable in `run()` | Agent is configuration, not state. Loop + tools define behavior |
-| State as `self.state` | Typed `StateInformation` subclass | Auto-completing, self-documenting; survives across calls |
+| State as `self.state` | Typed `StateObject` subclass | Auto-completing, self-documenting; survives across calls |
 | State injection into loop | `Loop(state=self.state, ...)` | Direct reference — loop reads/writes without LLM involvement |
 | Generic typing | `BaseAgentOrchestrator[S]` | `self.state.mode_decision` works with autocomplete |
 | Always `stream=True` | All `Agent.run()` calls stream | Real-time token access; transparent passthrough |
 | Async generator return | `yield` events, store result in state | Caller sees streaming events; final state accessible after `async for` |
+| `build_instruction(context: dict)` | Dict with priority-ordered keys, skip None | Standard format; handles missing context gracefully; no kwargs explosion |
+
+
+---
+
+## See also
+
+Prev : [Continuation State Store](../state/state_store.md) | Next : [Orchestrator Factory](factory.md)

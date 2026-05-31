@@ -47,3 +47,10 @@ class LoopOutputValidationError(LoopError):
 | Thin wrappers | Extend `Exception`, not custom hierarchy | Callers can catch `LoopError` for all loop errors or specific subtypes |
 | No custom retry logic | Rely on SDK | SDK already handles transient retries, backoff, and permanent error raising |
 | Separate package | `tinycua.exceptions` | Not coupled to loops, agents, or any specific module |
+
+
+---
+
+## See also
+
+Prev : [Agent Instruction Constants](../constants/instructions.md) | Next : [Loop Strategies Overview](../loops/overview.md)

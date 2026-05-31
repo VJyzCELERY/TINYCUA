@@ -9,13 +9,12 @@
 
 ```python
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncItevrator
 
 from tinycua_sdk.agent import Agent
 from tinycua.agents.base import BaseAgentOrchestrator
 from tinycua.config.agents import QueryAnalystConfig
 from tinycua.constants.tools import QUERY_ANALYST_BASE_TOOLS
-from tinycua.constants.prompts import QUERY_ANALYST_PROMPT
 from tinycua.loops.query_analyst_loop import QueryAnalystLoop
 from tinycua.state.information import QueryAnalystState
 from tinycua.state import ModeDecision, ContextEnhancedQuery
@@ -35,41 +34,37 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
     async def run(
         self,
         user_query: str,
-        chat_history: list[dict] | None = None,
-        session_context: dict | None = None,
+        session: Session | None = None,
     ) -> AsyncIterator[dict]:
-        """Run classification and yield all SDK stream events.
-
-        Builds a fresh Agent per call with state injected into the loop.
-        After the stream ends, parses the accumulated output into typed state.
-        """
-        self.state.session_id = session_context.get("session_id") if session_context else None
-        self.state.chat_history = chat_history or []
-        self.state.accumulated_text = []
-
-        input_msg = json.dumps({
-            "user_query": user_query,
-            "chat_history": self.state.chat_history,
-            "session_context": session_context or {},
+        # 1. Build instruction from base constant + dynamic context
+        instructions = self.build_instruction({
+            "session": session,
         })
 
+        # 2. Build query from domain input
+        query = json.dumps({
+            "user_query": user_query,
+            "session_context": session.session_context if session else None,
+        })
+
+        # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
         agent = Agent(
             name=self.config.name,
-            instructions=self.config.instructions,
+            instructions=instructions,
             llm_model=self.config.model,
             tools=[*QUERY_ANALYST_BASE_TOOLS, *self.config.extra_tools],
             loop=QueryAnalystLoop(state=self.state),
         )
 
-        async for event in agent.run(query=input_msg, stream=True):
+        # 4. Iterate stream — accumulate text, yield everything to caller
+        text_parts: list[str] = []
+        async for event in agent.run(query=query, stream=True):
             if event["type"] == "response.output_text.delta":
-                self.state.accumulated_text.append(event["delta"])
-            elif event["type"] == "response.usage":
-                self.state.token_usage = event["usage"]
-            yield event  # transparent — caller sees all SDK events
+                text_parts.append(event["delta"])
+            yield event
 
-        # Stream ended — parse and store typed state
-        raw = "".join(self.state.accumulated_text)
+        # 5. After stream ends — parse and store typed state
+        raw = "".join(text_parts)
         result = json.loads(raw)
         self.state.mode_decision = ModeDecision(**result.get("mode_decision", {}))
         self.state.context_enhanced_query = ContextEnhancedQuery(
@@ -82,7 +77,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
 
 ## Config
 
-`QueryAnalystConfig` — `name="query-analyst"`, `instructions=QUERY_ANALYST_PROMPT`.
+`QueryAnalystConfig` — `name="query-analyst"`, `instructions=QUERY_ANALYST_INSTRUCTION`.
 No agent-specific fields. See [`config/agents.md`](../config/agents.md#queryanalystconfig).
 
 ---
@@ -90,7 +85,7 @@ No agent-specific fields. See [`config/agents.md`](../config/agents.md#queryanal
 ## State
 
 `QueryAnalystState` — `mode_decision: ModeDecision | None`, `context_enhanced_query: ContextEnhancedQuery | None`,
-`classification_score: float | None`. Plus base fields `accumulated_text`, `token_usage`.
+`classification_score: float | None`.
 See [`state/information.md`](../state/information.md#queryanalyststate).
 
 ---
@@ -118,3 +113,10 @@ See [`constants/tools.md`](../constants/tools.md).
 | Agent built per-call | `Agent(...)` in `run()` | Loop receives fresh state reference each call |
 | State reference into loop | `QueryAnalystLoop(state=self.state)` | Loop reads/writes state directly — no custom events needed |
 | Stream passthrough | `yield event` on all events | Caller sees token-by-token output, usage, tool calls |
+
+
+---
+
+## See also
+
+Prev : [Orchestrator Factory](factory.md) | Next : [`InformationDigester`](information_digester.md)

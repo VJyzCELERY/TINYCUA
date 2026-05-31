@@ -52,7 +52,7 @@ class AgentConfigBase:
 @dataclass
 class QueryAnalystConfig(AgentConfigBase):
     name: str = "query-analyst"
-    instructions: str = QUERY_ANALYST_PROMPT
+    instructions: str = QUERY_ANALYST_INSTRUCTION
 ```
 
 No agent-specific fields. Classification labels are in `QUERY_ANALYST_BASE_TOOLS`.
@@ -63,8 +63,8 @@ No agent-specific fields. Classification labels are in `QUERY_ANALYST_BASE_TOOLS
 @dataclass
 class InformationDigesterConfig(AgentConfigBase):
     name: str = "information-digester"
-    instructions: str = INFORMATION_DIGESTER_PROMPT
-    max_iterations_override: int | None = None  # None → use BaseLoop default (5)
+    instructions: str = INFORMATION_DIGESTER_INSTRUCTION
+    max_iterations_override: int | None = None  # None → no iteration limit
 ```
 
 ### `TaskAnalyzerConfig`
@@ -73,7 +73,7 @@ class InformationDigesterConfig(AgentConfigBase):
 @dataclass
 class TaskAnalyzerConfig(AgentConfigBase):
     name: str = "task-analyzer"
-    instructions: str = TASK_ANALYZER_PROMPT
+    instructions: str = TASK_ANALYZER_INSTRUCTION
 ```
 
 ### `TaskAssessorConfig`
@@ -82,7 +82,7 @@ class TaskAnalyzerConfig(AgentConfigBase):
 @dataclass
 class TaskAssessorConfig(AgentConfigBase):
     name: str = "task-assessor"
-    instructions: str = TASK_ASSESSOR_PROMPT
+    instructions: str = TASK_ASSESSOR_INSTRUCTION
 ```
 
 ### `TaskExecutorConfig`
@@ -91,7 +91,7 @@ class TaskAssessorConfig(AgentConfigBase):
 @dataclass
 class TaskExecutorConfig(AgentConfigBase):
     name: str = "task-executor"
-    instructions: str = TASK_EXECUTOR_PROMPT
+    instructions: str = TASK_EXECUTOR_INSTRUCTION
 ```
 
 ### `ResultReviewerConfig`
@@ -102,7 +102,7 @@ from tinycua.loops.result_review_loop import DeterministicRule
 @dataclass
 class ResultReviewerConfig(AgentConfigBase):
     name: str = "result-reviewer"
-    instructions: str = RESULT_REVIEWER_PROMPT
+    instructions: str = RESULT_REVIEWER_INSTRUCTION
     deterministic_rules: list[DeterministicRule] = field(
         default_factory=lambda: [DEFAULT_SCHEMA_RULE, DEFAULT_FIELDS_RULE]
     )
@@ -114,7 +114,7 @@ class ResultReviewerConfig(AgentConfigBase):
 @dataclass
 class PrimaryAgentConfig(AgentConfigBase):
     name: str = "primary-agent"
-    instructions: str = PRIMARY_AGENT_PROMPT
+    instructions: str = PRIMARY_AGENT_INSTRUCTION
 ```
 
 ### `TinyCUAConfig`
@@ -129,7 +129,7 @@ class OrchestrationSettings:
 @dataclass
 class TinyCUAConfig:
     name: str = "tinycua"
-    instructions: str = TINYCUA_MAIN_PROMPT
+    instructions: str = TINYCUA_MAIN_INSTRUCTION
     model: LanguageModel = field(default_factory=lambda: TINYCUA_DEFAULT_MODEL)
     state_store: Any = None           # e.g., SQLiteStateStore instance
     artifact_store: Any = None        # e.g., FileSystemArtifactStore instance
@@ -148,3 +148,10 @@ class TinyCUAConfig:
 | `metadata: dict` in base | Free-form extensibility | Future fields can be promoted to typed fields without breaking the dict |
 | `max_iterations_override` on InformationDigester | Agent-specific field | Only this agent has a meaningful iteration cap override |
 | `deterministic_rules` on ResultReviewer | Agent-specific field | Only the review agent uses deterministic rules |
+
+
+---
+
+## See also
+
+Prev : [Config Types — `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`](types.md) | Next : [Pre-Configured Tool Sets (`*_BASE_TOOLS`)](../constants/tools.md)

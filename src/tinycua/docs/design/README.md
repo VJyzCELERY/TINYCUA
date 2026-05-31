@@ -11,7 +11,7 @@ Read in order for a linear learning experience:
 1. [`config/types.md`](config/types.md) — `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`
 2. [`config/agents.md`](config/agents.md) — Per-agent config dataclasses
  3. [`constants/tools.md`](constants/tools.md) — `*_BASE_TOOLS` pre-configured tool sets
- 4. [`constants/prompts.md`](constants/prompts.md) — System prompt contracts
+ 4. [`constants/instructions.md`](constants/instructions.md) — Agent instruction constants
  5. [`exceptions/loops.md`](exceptions/loops.md) — `LoopError` hierarchy
  6. [`loops/overview.md`](loops/overview.md) — Loop hierarchy, state injection pattern
  7. [`loops/react_agent.md`](loops/react_agent.md) — `ReActAgentLoop`
@@ -19,19 +19,28 @@ Read in order for a linear learning experience:
  9. [`loops/information_digestion_loop.md`](loops/information_digestion_loop.md)
 10. [`loops/result_review_loop.md`](loops/result_review_loop.md)
 11. [`loops/main_loop.md`](loops/main_loop.md) — `MainLoop` orchestration
-12. [`state/information.md`](state/information.md) — `StateInformation` ABC + subclasses
-13. [`state/state_store.md`](state/state_store.md) — Continuation state store
-14. [`agents/base.md`](agents/base.md) — `BaseAgentOrchestrator[S]`
-15. [`agents/factory.md`](agents/factory.md) — `create_orchestrator()`, `create_all_orchestrators()`
-16. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` orchestrator
-17. [`agents/information_digester.md`](agents/information_digester.md)
-18. [`agents/task_analyzer.md`](agents/task_analyzer.md)
-19. [`agents/task_assessor.md`](agents/task_assessor.md)
-20. [`agents/task_executor.md`](agents/task_executor.md)
-21. [`agents/result_reviewer.md`](agents/result_reviewer.md)
-22. [`agents/primary_agent.md`](agents/primary_agent.md)
-23. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
-24. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
+12. [`state/state_object.md`](state/state_object.md) — `StateObject` base class + serialization
+13. [`state/information.md`](state/information.md) — Per-agent state classes
+14. [`state/agent_state.md`](state/agent_state.md) — `AgentState` lifecycle tracking
+15. [`state/task.md`](state/task.md) — `Task` tree + `TaskResult`
+16. [`state/mode_decision.md`](state/mode_decision.md) — `ModeDecision` + `ContextEnhancedQuery`
+17. [`state/digested_information.md`](state/digested_information.md) — `DigestedInformation`
+18. [`state/reviewer_decision.md`](state/reviewer_decision.md) — `ReviewerDecision` + `ContextUpdate`
+19. [`state/worker_result.md`](state/worker_result.md) — `WorkerResult` + `WorkerConfig`
+20. [`state/execution_log.md`](state/execution_log.md) — `ExecutionLog` + `ExecutionLogEntry`
+21. [`state/session.md`](state/session.md) — Design `Session` (extends existing Session)
+22. [`state/state_store.md`](state/state_store.md) — Continuation state store
+23. [`agents/base.md`](agents/base.md) — `BaseAgentOrchestrator[S]`
+24. [`agents/factory.md`](agents/factory.md) — `create_orchestrator()`, `create_all_orchestrators()`
+25. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` orchestrator
+26. [`agents/information_digester.md`](agents/information_digester.md)
+27. [`agents/task_analyzer.md`](agents/task_analyzer.md)
+28. [`agents/task_assessor.md`](agents/task_assessor.md)
+29. [`agents/task_executor.md`](agents/task_executor.md)
+30. [`agents/result_reviewer.md`](agents/result_reviewer.md)
+31. [`agents/primary_agent.md`](agents/primary_agent.md)
+32. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
+33. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
 
 ---
 
@@ -40,7 +49,7 @@ Read in order for a linear learning experience:
 | Directory | Content |
 |-----------|---------|
 | [`config/`](config/) | `AgentKind`, `TINYCUA_DEFAULT_MODEL`, per-agent config dataclasses |
-| [`constants/`](constants/) | Pre-configured tool sets (`*_BASE_TOOLS`), system prompt contracts |
+| [`constants/`](constants/) | Pre-configured tool sets (`*_BASE_TOOLS`), agent instruction constants |
 | [`exceptions/`](exceptions/) | `LoopError` hierarchy (thin wrappers around SDK exceptions) |
 
 ## Execution
@@ -68,7 +77,7 @@ Read in order for a linear learning experience:
 
 | Directory | Content |
 |-----------|---------|
-| [`state/`](state/) | `StateInformation` ABC + subclasses (incl. `SessionState`), `StateStore` design |
+| [`state/`](state/) | `StateObject` base + per-agent state subclasses, `Session` (state container + tree), `StateStore` design |
 | [`tools/`](tools/) | Orchestrator-call tools — consume stream generator, return typed result |
 
 ---

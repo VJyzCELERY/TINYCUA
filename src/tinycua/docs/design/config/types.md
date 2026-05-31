@@ -54,3 +54,10 @@ can override via their config dataclass.
 | `TINYCUA_DEFAULT_MODEL` in `config/types` | Central constant | Single source of truth for the default model; all agents reference it |
 | Provider `openai-chat-completions` | Not alias `openai` | SDK's `openai` alias resolves to the Responses API, not the intended chat-completions endpoint |
 | `AgentKind.TINYCUA` | Enum member even though orchestrator is in `agents/` | Consistent registry lookup |
+
+
+---
+
+## See also
+
+Next : [Per-Agent Config Dataclasses](agents.md)

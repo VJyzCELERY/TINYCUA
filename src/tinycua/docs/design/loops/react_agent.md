@@ -22,7 +22,7 @@ by reference for telemetry and logging.
 
 ```python
 from tinycua_sdk.agent.loop import BaseLoop
-from tinycua.state.information import StateInformation
+from tinycua.state.base import StateObject
 
 
 class ReActAgentLoop(BaseLoop):
@@ -32,7 +32,7 @@ class ReActAgentLoop(BaseLoop):
     flow — SDK BaseLoop handles ReAct iteration, tool execution, and streaming.
     """
 
-    def __init__(self, state: StateInformation):
+    def __init__(self, state: StateObject):
         super().__init__()
         self.state = state  # direct reference to orchestrator state
 
@@ -66,12 +66,13 @@ class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
             ...,
             loop=ReActAgentLoop(state=self.state),
         )
+        text_parts: list[str] = []
         async for event in agent.run(query=input_msg, stream=True):
             if event["type"] == "response.output_text.delta":
-                self.state.accumulated_text.append(event["delta"])
+                text_parts.append(event["delta"])
             yield event
 
-        raw = "".join(self.state.accumulated_text)
+        raw = "".join(text_parts)
         result = json.loads(raw)
         self.state.task_tree = Task(**result)
         self.state.last_result = result
@@ -87,3 +88,10 @@ class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
 | Thin BaseLoop extension | Delegates entirely to `super().run()` | All behavior inherited from SDK; override for future needs |
 | State via constructor | `ReActAgentLoop(state=self.state)` | Direct reference for telemetry and logging |
 | No custom termination | SDK default ReAct termination | Simple agents produce one output and stop |
+
+
+---
+
+## See also
+
+Prev : [Loop Strategies Overview](overview.md) | Next : [`QueryAnalystLoop`](query_analyst_loop.md)

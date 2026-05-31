@@ -11,7 +11,7 @@
 
 `create_orchestrator()` and `create_all_orchestrators()` construct typed orchestrator
 instances from config dataclasses. Each orchestrator stores persistent config and
-initializes its typed `StateInformation`. No SDK `Agent` is created at this point —
+initializes its typed `StateObject` subclass. No SDK `Agent` is created at this point —
 that happens inside each orchestrator's `run()` method.
 
 ---
@@ -97,3 +97,10 @@ create_orchestrator(AgentKind.QUERY_ANALYST, config)
 | `config=None` uses defaults | Default config per agent kind | Simple creation path; overrides only when needed |
 | No Agent in factory | Agent built per-call in `run()` | Loop receives fresh state reference each invocation |
 | Excludes TinyCUA | Internal orchestrators only | TinyCUA is the top-level composer, created separately |
+
+
+---
+
+## See also
+
+Prev : [`BaseAgentOrchestrator[S]`](base.md) | Next : [`QueryAnalyst` Orchestrator](query_analyst.md)

@@ -15,7 +15,6 @@ from tinycua_sdk.agent import Agent
 from tinycua.agents.base import BaseAgentOrchestrator
 from tinycua.config.agents import ResultReviewerConfig
 from tinycua.constants.tools import RESULT_REVIEWER_BASE_TOOLS
-from tinycua.constants.prompts import RESULT_REVIEWER_PROMPT
 from tinycua.loops.result_review_loop import ResultReviewLoop
 from tinycua.state.information import ResultReviewerState
 from tinycua.state import ReviewerDecision
@@ -38,18 +37,20 @@ class ResultReviewer(BaseAgentOrchestrator[ResultReviewerState]):
         task_result: dict,
         execution_log: list[dict] | None = None,
     ) -> AsyncIterator[dict]:
-        self.state.last_query = {"task": task, "task_result": task_result}
-        self.state.accumulated_text = []
+        # 1. Build instruction from base constant + dynamic context
+        instructions = self.build_instruction({})
 
-        input_msg = json.dumps({
+        # 2. Build query from domain input
+        query = json.dumps({
             "task": task,
             "task_result": task_result,
             "execution_log": execution_log or [],
         })
 
+        # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
         agent = Agent(
             name=self.config.name,
-            instructions=self.config.instructions,
+            instructions=instructions,
             llm_model=self.config.model,
             tools=[*RESULT_REVIEWER_BASE_TOOLS, *self.config.extra_tools],
             loop=ResultReviewLoop(
@@ -58,14 +59,15 @@ class ResultReviewer(BaseAgentOrchestrator[ResultReviewerState]):
             ),
         )
 
-        async for event in agent.run(query=input_msg, stream=True):
+        # 4. Iterate stream — accumulate text, yield everything to caller
+        text_parts: list[str] = []
+        async for event in agent.run(query=query, stream=True):
             if event["type"] == "response.output_text.delta":
-                self.state.accumulated_text.append(event["delta"])
-            elif event["type"] == "response.usage":
-                self.state.token_usage = event["usage"]
+                text_parts.append(event["delta"])
             yield event
 
-        raw = "".join(self.state.accumulated_text)
+        # 5. After stream ends — parse and store typed state
+        raw = "".join(text_parts)
         result = json.loads(raw)
         self.state.reviewer_decision = ReviewerDecision(**result)
         self.state.last_review_status = result.get("status")
@@ -76,7 +78,7 @@ class ResultReviewer(BaseAgentOrchestrator[ResultReviewerState]):
 
 ## Config
 
-`ResultReviewerConfig` — `name="result-reviewer"`, `instructions=RESULT_REVIEWER_PROMPT`,
+`ResultReviewerConfig` — `name="result-reviewer"`, `instructions=RESULT_REVIEWER_INSTRUCTION`,
 `deterministic_rules: list[DeterministicRule]`.
 See [`config/agents.md`](../config/agents.md#resultreviewerconfig).
 
@@ -108,3 +110,10 @@ See [`loops/result_review_loop.md`](../loops/result_review_loop.md).
 |----------|--------|-----------|
 | Deterministic rules in config | `config.deterministic_rules` | Per-deployment customization |
 | Deterministic wins conflicts | Skip Phase 2 on failure | Schema authority |
+
+
+---
+
+## See also
+
+Prev : [`TaskExecutor`](task_executor.md) | Next : [`PrimaryAgent`](primary_agent.md)

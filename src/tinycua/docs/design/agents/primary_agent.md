@@ -15,7 +15,6 @@ from tinycua_sdk.agent import Agent
 from tinycua.agents.base import BaseAgentOrchestrator
 from tinycua.config.agents import PrimaryAgentConfig
 from tinycua.constants.tools import PRIMARY_AGENT_BASE_TOOLS
-from tinycua.constants.prompts import PRIMARY_AGENT_PROMPT
 from tinycua.loops.react_agent import ReActAgentLoop
 from tinycua.state.information import PrimaryAgentState
 
@@ -33,27 +32,31 @@ class PrimaryAgent(BaseAgentOrchestrator[PrimaryAgentState]):
 
     async def run(self, input_data: dict) -> AsyncIterator[dict]:
         """input_data is ContextEnhancedQuery or WorkerResult."""
-        self.state.last_query = {"input": input_data}
-        self.state.accumulated_text = []
 
-        input_msg = json.dumps(input_data)
+        # 1. Build instruction from base constant + dynamic context
+        instructions = self.build_instruction({})
 
+        # 2. Build query from domain input
+        query = json.dumps(input_data)
+
+        # 3. Build SDK Agent per-call — no self.agent, no _build_agent()
         agent = Agent(
             name=self.config.name,
-            instructions=self.config.instructions,
+            instructions=instructions,
             llm_model=self.config.model,
             tools=[*PRIMARY_AGENT_BASE_TOOLS, *self.config.extra_tools],
             loop=ReActAgentLoop(state=self.state),
         )
 
-        async for event in agent.run(query=input_msg, stream=True):
+        # 4. Iterate stream — accumulate text, yield everything to caller
+        text_parts: list[str] = []
+        async for event in agent.run(query=query, stream=True):
             if event["type"] == "response.output_text.delta":
-                self.state.accumulated_text.append(event["delta"])
-            elif event["type"] == "response.usage":
-                self.state.token_usage = event["usage"]
+                text_parts.append(event["delta"])
             yield event
 
-        raw = "".join(self.state.accumulated_text)
+        # 5. After stream ends — parse and store typed state
+        raw = "".join(text_parts)
         result = json.loads(raw)
         self.state.final_response = result
         self.state.citations = result.get("citations", [])
@@ -64,7 +67,7 @@ class PrimaryAgent(BaseAgentOrchestrator[PrimaryAgentState]):
 
 ## Config
 
-`PrimaryAgentConfig` — `name="primary-agent"`, `instructions=PRIMARY_AGENT_PROMPT`.
+`PrimaryAgentConfig` — `name="primary-agent"`, `instructions=PRIMARY_AGENT_INSTRUCTION`.
 See [`config/agents.md`](../config/agents.md#primaryagentconfig).
 
 ---
@@ -93,3 +96,10 @@ See [`loops/react_agent.md`](../loops/react_agent.md).
 |----------|--------|-----------|
 | No custom loop | `ReActAgentLoop` | Single input → single output |
 | Flexible input | Accepts CEQ or WorkerResult | Both modes converge here |
+
+
+---
+
+## See also
+
+Prev : [`ResultReviewer`](result_reviewer.md) | Next : [`TinyCUA` External Orchestrator](tinycua.md)
