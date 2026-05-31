@@ -25,7 +25,15 @@ from tinycua.tools.retrieval import enhanced_context_retrieval
 from tinycua.tools.native import native_benchmark_tools
 
 QUERY_ANALYST_BASE_TOOLS: list[Tool] = [
-    ClassificationTool(labels=["primary_agent", "worker", "uncertain"]),
+    ClassificationTool(labels=["passthrough", "worker", "uncertain"]),
+]
+
+QUERY_ANALYST_UNCERTAINTY_TOOLS: list[Tool] = [
+    # ask_user, explore — tools for uncertain-mode interaction
+]
+
+READ_ONLY_TASK_TOOLS: list[Tool] = [
+    # list_tasks, get_task_detail — task inspection without side effects
 ]
 
 INFORMATION_DIGESTER_BASE_TOOLS: list[Tool] = [

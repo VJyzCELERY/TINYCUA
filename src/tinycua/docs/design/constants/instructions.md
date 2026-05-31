@@ -24,7 +24,7 @@ The `Agent(...)` constructor accepts `instructions=` which defaults to these con
 
 | Constant | Agent | Loop | Key Elements |
 |----------|-------|------|-------------|
-| `QUERY_ANALYST_INSTRUCTION` | QueryAnalyst | QueryAnalystLoop | Role: fast classification. Input: `user_query`, `chat_history`, `session_context`. Output: `ContextEnhancedQuery` + `ModeDecision`. Scoring: task complexity, context dependency, safety/risk. Guardrails: anti-laziness rationales. Tool: `classify(mode_index=N)`. |
+| `QUERY_ANALYST_INSTRUCTION` | QueryAnalyst | QueryAnalystLoop | Role: fast classification + context analysis. Input: `user_query`, assembled session context. Output: markdown context (keywords, relevant snippets) + `ModeDecision`. Tools: `classify`, uncertainty tools, conditional read-only task tools. Scoring: task complexity, context dependency, safety/risk. Guardrails: anti-laziness rationales. |
 | `INFORMATION_DIGESTER_INSTRUCTION` | InformationDigester | InformationDigestionLoop | Role: precision retrieval. Input: `ContextEnhancedQuery`. Output: `DigestedInformation`. Strategy: identify gaps → retrieve → evaluate → repeat or stop. Guardrails: stop on sufficiency; record `known_gaps` on empty results. |
 | `TASK_ANALYZER_INSTRUCTION` | TaskAnalyzer | ReActAgentLoop | Role: task decomposition. Input: `DigestedInformation`. Output: `Task` tree with root + child_tasks. Constraints: each leaf has required fields; `child_tasks: None` = leaf. |
 | `TASK_ASSESSOR_INSTRUCTION` | TaskAssessor | ReActAgentLoop | Role: decomposition selection. Input: `Task` tree + `WorkerConfig`. Output: `list[task_id]`. Guardrails: only select tasks too complex for direct execution. |

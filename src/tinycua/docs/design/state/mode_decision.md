@@ -9,7 +9,8 @@
 ## Role
 
 `ContextEnhancedQuery` and `ModeDecision` are produced by the Query Analyst.
-`ContextEnhancedQuery` enriches the user query with session context.
+`ContextEnhancedQuery` wraps the agent's context-analysis output with the original
+user query for downstream consumption by InformationDigester.
 `ModeDecision` is the routing verdict with confidence scoring.
 
 ---
@@ -21,7 +22,9 @@
 ```python
 @dataclass
 class ContextEnhancedQuery(StateObject):
-    enhanced_query: str        # enhanced query text with session context
+    context: str       # agent output: markdown with relevant context, keywords, etc.
+    query: str         # original user query (passed through unchanged)
+
 
 @dataclass
 class ModeDecision(StateObject):
@@ -54,7 +57,7 @@ UncertainNextAction = Literal["ask_user", "explore"]
 |----------|--------|-----------|
 | Mode + next action separate | `mode` + `uncertain_next_action` | `uncertain_next_action` only meaningful for uncertain mode |
 | Cross-field validation | `__post_init__` check | Catch missing next_action at construction time |
-| Context injected separately | `ContextEnhancedQuery` distinct from `ModeDecision` | Query enrichment and routing are separate concerns |
+| Context + query separate | `ContextEnhancedQuery.context` + `.query` | QueryAnalyst output (context) and original query are orthogonal; downstream agents receive both |
 
 
 ---
