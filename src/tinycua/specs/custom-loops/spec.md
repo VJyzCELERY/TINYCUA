@@ -1,4 +1,4 @@
-# Feature Specification: Custom Loop Types (M2)
+# Feature Specification: Agent + Loop Integration (M2)
 
 **Status**: Draft
 **Created**: 2026-05-31
@@ -9,14 +9,17 @@
 
 ## Problem Statement
 
-- **Goals**: Provide reusable custom agent loop strategies where the default SDK loop is insufficient — Classification, Exploration, and Hybrid Review — while using `tinycua_sdk.agent.loop.BaseLoop` directly for standard single-input/single-output agents such as Task Analyzer and Task Assessor. Custom loop types are thin adapters on top of `tinycua_sdk` (`BaseLoop`, `Agent`, `LLMClient`, `LanguageModel`, `Tool`) that customize prompt structure, output schemas, and control flow (e.g., iterative retrieval, two-phase review) without reimplementing LLM orchestration, tool execution, or streaming infrastructure.
-- **Gaps**: The architecture defines agent loop types conceptually in `src/tinycua/docs/architecture/overview.md` (see the Agent Loop Types table), but there is no implementation of the custom loop strategies needed by specialized agents. Each agent spec (query-analyst.md, information-digestion.md, task-analysis.md, task-assessor.md, task-execution.md, result-reviewer.md, primary-agent.md) describes what the agent does and what it produces, but the loop mechanics — how an agent processes input, decides to continue or stop, uses tools, and produces output — are not consistently mapped to SDK primitives. M1 (State Objects) provides the data types. `tinycua_sdk` provides the standard execution infrastructure (`BaseLoop`, `Agent`, `Tool`). This feature must define only the additional custom strategies needed beyond the SDK default and explicitly map straightforward agents to direct SDK `BaseLoop` usage.
-- **Non-Goals**: This spec does NOT cover individual agent implementations (M4), system prompts (M5), agent factory (M3), agent-to-agent calling (M7), session system (M8), worker orchestration (M9), or top-level orchestrator (M10). This spec does NOT define new LLM backend abstractions, tool-calling protocols, or event streaming infrastructure — those are provided by `tinycua_sdk`. The ReAct loop pattern is provided by `tinycua_sdk.agent.loop.BaseLoop`; this spec defines domain-specific strategies on top of it. The Iterative Decomposition Loop (Task Creation) is a process-level orchestration concern, not an agent-internal loop, and is deferred to M9 (Worker Orchestration).
+- **Goals**: Implement M2 as an integrated Agent + Loop milestone: custom loop strategies, agent factory/configuration, system prompts, concrete agent definitions, and agent-to-agent calling tools are specified and tested together. In `tinycua_sdk`, loops are passed into agents as `Agent(loop=CustomLoop(), ...)`; loops do **not** wrap agents. Therefore loop creation and agent creation must be designed in tandem. Provide custom strategies where the default SDK loop is insufficient — Classification, Exploration, and Hybrid Review — while using `tinycua_sdk.agent.loop.BaseLoop` directly for standard single-input/single-output agents. All agent definitions use `tinycua_sdk` (`Agent`, `BaseLoop`, `LanguageModel`, `Tool`, `AgentPolicy`) for LLM orchestration, tool execution, streaming, cancellation, and retry. This M2 work also defines the target external TINYCUA agent shape: `tinycua = Agent(loop=MainLoop(), metadata={...})`, where `MainLoop` is the future top-level orchestration loop that coordinates all internal agents and resumes by session state.
+- **Gaps**: The architecture defines agents, prompts, tools, and loop types conceptually in `src/tinycua/docs/architecture/`, but the implementation plan previously split custom loops (M2), agent factory (M3), agents (M4), prompts (M5), and agent-to-agent calling (M7). That split does not match SDK usage because the loop is an `Agent` configuration attribute. This feature must define the integrated mapping from each architecture agent to: SDK `Agent` configuration, loop selection, prompt, tool set, output schema, and agent-calling tool wrapper.
+- **Non-Goals**: This spec does NOT implement the full session system (future M4), worker orchestration (future M5), or executable `MainLoop` top-level orchestrator (future M6). It **does** define the MainLoop target contract so M2 agent configuration is compatible with the eventual single external TINYCUA agent. This spec does NOT define new LLM backend abstractions, tool-calling protocols, or event streaming infrastructure — those are provided by `tinycua_sdk`. Full native tool implementation beyond the agent-facing SDK `Tool` contracts remains in the Tools milestone; M2 wires required tools and may use stubs/mocks for tests. The Iterative Decomposition Loop (Task Creation) is a process-level orchestration concern, not an agent-internal loop, and is deferred to Worker Orchestration.
 - **Constraints**:
-  - Loop types must consume and produce the state objects defined in M1 (`tinycua.state`).
-  - Loop types must be Python classes or callables importable by the Agent Factory (M3).
-  - Loop types MUST use `tinycua_sdk` for LLM orchestration and tool integration. Specifically: extend or compose with `tinycua_sdk.agent.loop.BaseLoop`; use `tinycua_sdk.agent.Agent` for LLM interaction; use `tinycua_sdk.agent.llm_client.LLMClient` for provider communication; use `tinycua_sdk.agent.llm_model.LanguageModel` for model configuration; use `tinycua_sdk.tools.decorators.Tool` for tool definitions.
-  - Loop types MUST NOT define custom LLM backend protocols, tool-calling loops, or streaming infrastructure — the SDK provides these.
+  - Agents and loops must consume and produce the state objects defined in M1 (`tinycua.state`).
+  - Custom loops must be passed to SDK agents via `Agent(loop=CustomLoop(), ...)`; the design MUST NOT introduce loop wrappers that own or wrap `Agent` instances.
+  - Agent factory/configuration must create SDK `Agent` objects with the correct `LanguageModel`, `Tool` objects, `AgentPolicy`, prompt/instructions, output validation, and loop.
+  - TinyCUA's default model configuration MUST use SDK provider `openai-chat-completions`, model `qwen/qwen3.5-4b`, and base URL `http://localhost:1234/v1`. Do not use provider alias `openai` in TinyCUA specs/design examples.
+  - M2 agent factory/configuration must preserve enough metadata to support the future `MainLoop` external agent, including internal agent registry, state-store hook, default session options, and orchestration settings stored under `agent.config.metadata`.
+  - Loop types and agents MUST use `tinycua_sdk` for LLM orchestration and tool integration. Specifically: extend or compose with `tinycua_sdk.agent.loop.BaseLoop`; use `tinycua_sdk.agent.Agent` for LLM interaction; use `tinycua_sdk.agent.llm_client.LLMClient` for provider communication; use `tinycua_sdk.agent.llm_model.LanguageModel` for model configuration; use `tinycua_sdk.tools.decorators.Tool` for tool definitions.
+  - Loop types and agents MUST NOT define custom LLM backend protocols, tool-calling loops, or streaming infrastructure — the SDK provides these.
   - Each loop type must expose a uniform interface by conforming to `BaseLoop.run()`.
   - Must target Python 3.12+.
   - No orchestration-level concerns (session management, inter-agent routing) inside loops — loops operate within a single agent invocation.
@@ -27,7 +30,7 @@
 
 ### Primary Scenario
 
-A developer implementing the Agent Factory (M3) instantiates each agent with the correct loop type, SDK `Agent` configuration (`LanguageModel`, `Tool` objects, `AgentPolicy`), and the loop processes input through its custom strategy on top of the SDK's execution infrastructure, producing the correct output type as defined in its architecture spec.
+A developer implementing M2 creates each architecture agent as an SDK `Agent` with the correct loop attribute (`loop=ClassificationLoop()`, `loop=ExplorationLoop()`, `loop=HybridReviewLoop()`, or default SDK `BaseLoop`), system prompt, model configuration, tools, policy, and output schema validation. The resulting agent is tested directly through `Agent.run()` so loop behavior and agent configuration are validated together.
 
 ### Acceptance Scenarios
 
@@ -36,6 +39,9 @@ A developer implementing the Agent Factory (M3) instantiates each agent with the
 3. **Given** Task Analyzer configured with the SDK's default `BaseLoop`, an SDK `Agent`, task analysis prompt, and output schema validation, **When** invoked with `DigestedInformation`, **Then** it produces a `Task` tree (root with child_tasks) where each leaf node has required fields.
 4. **Given** Task Assessor configured with the SDK's default `BaseLoop`, an SDK `Agent`, assessment prompt, and output schema validation, **When** invoked with a `Task` tree and `WorkerConfig`, **Then** it returns a selection of task IDs marked for decomposition.
 5. **Given** a Hybrid Review loop configured as the Result Reviewer composing SDK's `BaseLoop` for semantic review with pluggable deterministic rules, **When** invoked with a `TaskResult`, **Then** it produces a `ReviewerDecision` with `status` (accepted/retry/replan/escalate_user) and optional `context_updates`.
+6. **Given** the Agent Factory requests any of the seven architecture agents, **When** it builds the SDK `Agent`, **Then** the returned agent has the expected prompt, tool set, output schema validation, and `loop` attribute.
+7. **Given** an agent-to-agent calling tool such as `call_task_analyzer`, **When** another agent invokes it, **Then** it delegates to the configured target SDK `Agent.run()` and returns a schema-valid target output.
+8. **Given** the future external TINYCUA agent is created as `Agent(loop=MainLoop(), metadata={...})`, **When** `tinycua.run(...)` is called, **Then** MainLoop can use the M2 internal agent registry/configuration to route from Query Analyst through Primary Agent, Worker Mode, or Uncertain Mode without exposing internal agents to the user.
 
 ### Edge Cases
 
@@ -52,14 +58,14 @@ A developer implementing the Agent Factory (M3) instantiates each agent with the
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a **Classification Loop** that implements the Query Analyst's flow: high-level context scan → produce `ContextEnhancedQuery` → score-based mode classification → produce `ModeDecision`. The loop must accept `user_query`, `chat_history`, and `session_context` as input. Implemented as a single SDK `Agent.run()` call with a structured system prompt and no tools.
+- **FR-001**: System MUST provide a **Classification Loop** that implements the Query Analyst's flow: high-level context scan → produce `ContextEnhancedQuery` → score-based mode classification → produce `ModeDecision`. The loop must accept `user_query`, `chat_history`, and `session_context` as input. Implemented with SDK `Agent.run()` using a structured system prompt and no tools. The loop MUST NOT enforce a true one-iteration/single-pass execution limit such as `max_iterations=1`; it should use the SDK `BaseLoop` default iteration behavior and rely on prompt/schema validation to produce one structured classification result.
 - **FR-002**: The Classification Loop MUST support multi-dimensional scoring with at least three dimensions: task complexity, context dependency, and safety/risk. The loop MUST include anti-laziness safeguards: a rationale for `primary_agent` must explain why Worker decomposition is not needed; a rationale for `worker` must explain the decomposition benefit; `uncertain` mode must set `uncertain_next_action`.
 - **FR-003**: System MUST provide an **Exploration Loop** that implements the Information Digester's flow: identify information gaps → invoke Enhanced Context Retrieval → extract relevant context → remove distractions → preserve task-critical details → structure into `DigestedInformation`. The loop must accept a `ContextEnhancedQuery` and have access to an Enhanced Context Retrieval SDK `Tool`.
-- **FR-004**: The Exploration Loop MUST support iterative refinement by extending SDK's `BaseLoop`: the agent can identify gaps, retrieve via SDK tool calls, evaluate relevance, and decide to retrieve again or stop. The stop condition is when identified gaps are sufficiently addressed or the retrieval tool returns no new information. The SDK's `BaseLoop` handles the tool-calling iteration; the loop adds gap-evaluation logic.
+- **FR-004**: The Exploration Loop MUST support iterative refinement by extending SDK's `BaseLoop`: the agent can identify gaps, retrieve via SDK tool calls, evaluate relevance, and decide to retrieve again or stop. The primary stop condition is LLM-judged sufficiency: each iteration evaluates whether identified gaps are sufficiently addressed or the retrieval tool returned no new information. The SDK's `BaseLoop.max_iterations` provides a hard count-based safety cap to prevent infinite loops. The SDK's `BaseLoop` handles the tool-calling iteration; the loop adds gap-evaluation logic.
 - **FR-005**: The system MUST use the SDK's default `tinycua_sdk.agent.loop.BaseLoop` directly for agents with a single input→output contract and no custom routing, exploration, or deterministic-review phases. Task Analyzer and Task Assessor belong to this category. No custom `LinearAgentLoop`, `SimpleLoop`, or equivalent wrapper should be introduced unless future requirements need behavior beyond `BaseLoop` plus output validation.
 - **FR-006**: Standard `BaseLoop` agents MUST support optional SDK `Tool` objects through the SDK's built-in tool-calling loop. Agents configured with tools use `BaseLoop` internal iteration (think→act→observe→repeat); agents without tools perform pure reasoning via the LLM. Output schema validation may wrap the result, but the execution loop remains SDK `BaseLoop`.
 - **FR-007**: System MUST provide a **Hybrid Review Loop** that combines deterministic validation with LLM-based semantic review via SDK's `BaseLoop`. The loop must:
-  - First perform deterministic checks (schema validity, missing fields, required structure).
+  - First perform deterministic checks as pluggable rules registered at construction time (schema validity, missing fields, required structure).
   - Then perform LLM-based semantic review using SDK's `Agent.run()` (correctness against success criteria, sufficiency, context propagation needs).
   - Produce a `ReviewerDecision` with one of four statuses: `accepted`, `retry`, `replan`, `escalate_user`.
   - When `accepted`, compute `context_updates` for unfinished/upcoming tasks.
@@ -74,28 +80,51 @@ A developer implementing the Agent Factory (M3) instantiates each agent with the
   - The input and output types MUST be M1 state objects or plain dicts with documented schemas.
 - **FR-009**: All loop types MUST handle LLM invocation errors via the SDK's built-in retry infrastructure. The SDK's `BaseLoop` and `LLMClient` handle transient retries; loop types propagate permanent failures as typed exceptions.
 - **FR-010**: All loop types MUST validate their output against the expected schema before returning. If validation fails, the loop should retry via the SDK's infrastructure with the validation error in context, then fail with a clear error if all retries are exhausted.
-- **FR-011**: The Hybrid Review Loop MUST distinguish between deterministic validation failures (which should fail closed — escalate) and semantic concerns (which allow retry/replan).
+- **FR-011**: The Hybrid Review Loop MUST distinguish between deterministic validation failures (which should fail closed — escalate) and semantic concerns (which allow retry/replan). Deterministic checks MUST be pluggable rules rather than hardcoded loop internals, so different reviewer configurations can add or replace checks without subclassing the loop.
+- **FR-012**: System MUST provide an Agent Factory/configuration layer that constructs all seven architecture agents as SDK `Agent` objects with the correct `name`, `instructions`, `LanguageModel`, `Tool` list, `AgentPolicy`, output schema validation, and `loop` value. Custom loops MUST be supplied through the SDK `Agent(loop=...)` parameter. Unless an agent explicitly overrides it, the factory MUST use TinyCUA's default `LanguageModel(provider="openai-chat-completions", model_name="qwen/qwen3.5-4b", base_url="http://localhost:1234/v1")`.
+- **FR-013**: System MUST implement the system prompt/instructions for Query Analyst, Information Digester, Task Analyzer, Task Assessor, Task Executor, Result Reviewer, and Primary Agent from their architecture docs, including each agent's output contract and guardrails.
+- **FR-014**: System MUST provide concrete agent configurations for all seven architecture agents:
+  - Query Analyst — Classification loop, no tools, `ContextEnhancedQuery` + `ModeDecision` output.
+  - Information Digester — Exploration loop, Enhanced Context Retrieval SDK `Tool` contract, `DigestedInformation` output.
+  - Task Analyzer — SDK `BaseLoop`, optional information tools, `Task` tree output.
+  - Task Assessor — SDK `BaseLoop`, no tools by default, task-selection output.
+  - Task Executor — SDK `BaseLoop`, native benchmark tools, `TaskResult` output.
+  - Result Reviewer — Hybrid Review loop, pluggable deterministic rules, `ReviewerDecision` output.
+  - Primary Agent — SDK `BaseLoop`, formatting/verification tools, final response output.
+- **FR-015**: System MUST provide agent-to-agent calling tools (`call_query_analyst`, `call_information_digester`, `call_task_analyzer`, `call_task_assessor`, `call_task_executor`, `call_result_reviewer`, `call_primary_agent`) as SDK `Tool` objects that invoke configured SDK agents rather than bypassing the Agent/loop abstraction.
+- **FR-016**: Integration tests MUST instantiate and run each configured SDK `Agent` directly, verifying prompt wiring, tool wiring, loop selection, and schema validation together. Tests MUST prove that custom loops are configured as `Agent(loop=CustomLoop(), ...)`, not as wrappers around agents.
+- **FR-017**: SDK cookbook documentation for custom execution loops MUST be corrected during implementation so examples show custom loop instances being passed into `Agent(loop=...)`. In particular, `src/tinycua-sdk/docs/cookbook/execution-and-reference/custom-execution-loops.md` MUST NOT imply that `loop = CustomLoop()` affects `agent.run()` unless the loop is attached to the `Agent`.
+- **FR-018**: System MUST define the target **MainLoop** contract for the single external TINYCUA agent. MainLoop will be configured as `Agent(loop=MainLoop(), metadata={...})`, will orchestrate the internal agents described by M2, and will store its configuration/state hooks in `agent.config.metadata` rather than hardcoding global state.
+- **FR-019**: MainLoop state requirements MUST be documented for future implementation: per-session state must track `session_id`, current orchestration phase, active internal agent, active sub-session/worker state, last completed step, pending user action, `ContextEnhancedQuery`, `ModeDecision`, `DigestedInformation`, active `Task`/current task id, `WorkerResult`, and final response status. M2 does not implement persistence, but its config layout must leave clear hooks for a SQLite-first persistent session store with optional filesystem-backed storage for artifacts/snapshots/logs/attachments and in-memory storage for tests/cache.
 
 ### Key Entities
 
 All entities build on `tinycua_sdk` infrastructure:
 
 - **SDK Integration Point**: All custom loop types extend `tinycua_sdk.agent.loop.BaseLoop` and integrate with `tinycua_sdk.agent.Agent`. The SDK provides: tool-calling execution loop (`BaseLoop`), LLM provider abstraction (`LLMClient`), model configuration (`LanguageModel`), tool infrastructure (`Tool`, `ToolExecutor`), streaming, cancellation, and usage tracking. Loop types are domain-specific strategies that add prompt structure, output schemas, and control flow variants (iterative retrieval, two-phase review) on top of this infrastructure.
-- **ClassificationLoop**: Extends SDK's `BaseLoop`. Runs a single `Agent.run()` call with a structured classification system prompt. No tools. Produces `ContextEnhancedQuery` + `ModeDecision`.
+- **Agent Factory / Config Registry**: Creates SDK `Agent` instances for all seven architecture agents. It owns the mapping from agent kind to instructions, model config, tools, policy, output validator, and loop attribute.
+- **MainLoop (future top-level loop)**: The single external TINYCUA loop that will run as `Agent(loop=MainLoop(), ...)`, call internal configured agents, route according to `ModeDecision`, and resume from session continuation state. M2 defines its contract and metadata needs; implementation is deferred to the top-level orchestration milestone.
+- **System Prompt Definitions**: Prompt/instruction text derived from architecture docs and attached to each SDK `Agent.instructions` field.
+- **Agent Calling Tools**: SDK `Tool` objects that call configured target agents through `Agent.run()` and return schema-valid outputs.
+- **ClassificationLoop**: Extends SDK's `BaseLoop`. Runs SDK `Agent.run()` with a structured classification system prompt and default SDK loop iteration behavior. No tools. Produces one validated `ContextEnhancedQuery` + `ModeDecision` result without forcing a one-iteration loop.
 - **ExplorationLoop**: Extends SDK's `BaseLoop`. Overrides the loop to add gap-identification and sufficiency-evaluation logic between iterations. Uses SDK `Tool` objects for Enhanced Context Retrieval. Produces `DigestedInformation`.
 - **Direct SDK BaseLoop Usage**: Task Analyzer, Task Assessor, and any other straightforward single-input/single-output agents use `tinycua_sdk.agent.loop.BaseLoop` directly through SDK `Agent.run()`. Schema validation may be applied around the returned output, but no custom loop class is created for this pattern.
-- **HybridReviewLoop**: Extends SDK's `BaseLoop`. Two-phase execution: deterministic rules (custom, evaluated before SDK loop) then SDK `Agent.run()` for semantic review. Produces `ReviewerDecision`.
+- **HybridReviewLoop**: Extends SDK's `BaseLoop`. Two-phase execution: pluggable deterministic rules registered at construction time (evaluated before SDK loop) then SDK `Agent.run()` for semantic review. Produces `ReviewerDecision`.
 - **SchemaValidator**: Shared component that validates LLM output against type schemas, leveraging the SDK's event/model infrastructure for structured parsing and retry.
 
 ---
 
 ## Success Criteria
 
-- [ ] **Classification Loop**: A ClassificationLoop extending SDK's `BaseLoop` and using an SDK `Agent` produces `ContextEnhancedQuery` + `ModeDecision` from valid inputs. All three modes (primary_agent, worker, uncertain) are reachable depending on input characteristics.
-- [ ] **Exploration Loop**: An ExplorationLoop extending SDK's `BaseLoop` with an Enhanced Context Retrieval SDK `Tool` produces `DigestedInformation` with context_summary and key_points. Iterative retrieval works: the agent can make multiple tool-calling iterations via the SDK's `BaseLoop` before stopping.
+- [ ] **Classification Loop**: A ClassificationLoop extending SDK's `BaseLoop` and using an SDK `Agent` produces `ContextEnhancedQuery` + `ModeDecision` from valid inputs. All three modes (primary_agent, worker, uncertain) are reachable depending on input characteristics. The loop does not force `max_iterations=1` or any equivalent one-pass stop condition.
+- [ ] **Exploration Loop**: An ExplorationLoop extending SDK's `BaseLoop` with an Enhanced Context Retrieval SDK `Tool` produces `DigestedInformation` with context_summary and key_points. Iterative retrieval works: the agent can make multiple tool-calling iterations via the SDK's `BaseLoop`, stop when the LLM judges sufficiency, and still enforce `BaseLoop.max_iterations` as a hard cap.
 - [ ] **Direct SDK BaseLoop Usage**: Task Analyzer and Task Assessor use SDK `BaseLoop` directly (via SDK `Agent.run()`) and produce schema-valid outputs. No custom `LinearAgentLoop`, `SimpleLoop`, or equivalent wrapper exists for these agents.
-- [ ] **Hybrid Review Loop**: A HybridReviewLoop composing SDK's `BaseLoop` with deterministic checks produces all four `ReviewerDecision` statuses. Deterministic validation failures result in `escalate_user` or `replan` rather than `retry`.
+- [ ] **Hybrid Review Loop**: A HybridReviewLoop composing SDK's `BaseLoop` with pluggable deterministic checks produces all four `ReviewerDecision` statuses. Deterministic validation failures result in `escalate_user` or `replan` rather than `retry`.
 - [ ] **SDK Integration**: All custom loop strategies integrate with `tinycua_sdk` — they extend or compose with `BaseLoop`, use `Agent` for LLM interaction, use SDK `Tool` objects for tool definitions, and use SDK `LanguageModel`/`LLMClient` for provider communication. Standard single-output agents use SDK `BaseLoop` directly. No custom LLM backend protocols, no custom tool dataclasses, no standalone retry or streaming logic.
+- [ ] **Agent Factory + Prompts**: All seven architecture agents can be constructed as SDK `Agent` objects with correct prompts, model configuration, tools, policies, output validators, and loop attributes.
+- [ ] **Agent-to-Agent Tools**: All seven `call_*` tools exist as SDK `Tool` objects and delegate through configured SDK `Agent.run()` calls.
+- [ ] **Loop/Agent Coupling Verified**: Tests demonstrate custom loops are passed into agents with `Agent(loop=...)`; no loop implementation wraps or owns an `Agent` as the execution boundary.
+- [ ] **MainLoop Contract Preserved**: Spec/design define the future single external TINYCUA agent as `Agent(loop=MainLoop(), metadata={...})`, with internal agent registry and continuation-state hooks required by later milestones.
 - [ ] **Error Handling**: Transient LLM failures trigger retry via SDK's built-in infrastructure. Permanent failures and exhausted retries raise typed exceptions. Output validation failures trigger LLM retry with error context, then raise on exhaustion.
 - [ ] **Test Coverage**: Unit test coverage exceeds 85% for the loop module, using SDK mock patterns (mock `Agent`, mock `BaseLoop`, mock `LLMClient`).
 
@@ -106,17 +135,25 @@ All entities build on `tinycua_sdk` infrastructure:
 ### Unit Tests
 
 - Each loop type: construction with SDK `Agent` configuration, construction with invalid config (expected error).
-- ClassificationLoop: output matches ModeDecision schema for all three modes. Anti-laziness safeguards produce correct rationales. Edge: all scores low → `uncertain` with non-null `uncertain_next_action`. Verify that no custom LLM backend is created — only SDK `Agent` is used.
-- ExplorationLoop: produces DigestedInformation structure. Handles empty retrieval results (fills known_gaps). Makes multiple retrieval iterations via SDK's `BaseLoop` tool-calling. Stops when gaps are addressed. Verifies integration with SDK `Tool` objects.
+- ClassificationLoop: output matches ModeDecision schema for all three modes. Anti-laziness safeguards produce correct rationales. Edge: all scores low → `uncertain` with non-null `uncertain_next_action`. Verify that no custom LLM backend is created — only SDK `Agent` is used. Verify classification does not configure `BaseLoop` with `max_iterations=1` or an equivalent forced one-pass limit.
+- ExplorationLoop: produces DigestedInformation structure. Handles empty retrieval results (fills known_gaps). Makes multiple retrieval iterations via SDK's `BaseLoop` tool-calling. Stops when the LLM judges gaps are addressed and enforces `BaseLoop.max_iterations` as a hard cap. Verifies integration with SDK `Tool` objects.
 - Direct SDK BaseLoop usage: Task Analyzer and Task Assessor configurations use SDK `Agent.run()` with SDK `BaseLoop`, produce correct output schemas, and reject invalid input types. With SDK `Tool` objects: use tools via the SDK's tool-calling loop. Without tools: pure reasoning output. Verify that no custom loop class is introduced for this pattern.
-- HybridReviewLoop: produces all four status values. Deterministic checks fire before LLM phase. Deterministic failure on schema invalidity cannot be overridden by LLM semantic review. Context updates computed on `accepted`. Retry instructions included on `retry`. LLM review uses SDK's `Agent.run()`.
+- HybridReviewLoop: produces all four status values. Pluggable deterministic checks fire before LLM phase. Deterministic failure on schema invalidity cannot be overridden by LLM semantic review. Different rule sets can be registered without subclassing the loop. Context updates computed on `accepted`. Retry instructions included on `retry`. LLM review uses SDK's `Agent.run()`.
 - SchemaValidator: accepts valid output, rejects invalid output with descriptive error. Validates nested structures (Task tree with child_tasks).
 - SDK integration: verify that custom loops do NOT define their own `LLMBackend` protocol, `ToolDef` dataclass, or standalone LLM-calling/rety/streaming logic.
+- Agent Factory/config registry: verify each architecture agent is constructed with expected `Agent.name`, `instructions`, `tools`, output validator, and `config.loop` value.
+- Model configuration: verify default TinyCUA agents use provider `openai-chat-completions`, model `qwen/qwen3.5-4b`, and base URL `http://localhost:1234/v1`; verify no design/example code uses provider alias `openai`.
+- System prompts: verify prompt definitions include role, input contract, output schema, constraints, and guardrails from the architecture docs.
+- Agent-to-agent tools: verify each `call_*` SDK `Tool` invokes the target configured `Agent.run()` and validates/normalizes the returned output.
+- MainLoop contract: verify the config registry exposes internal agent mappings and metadata keys needed by a future `MainLoop` without requiring global state or agent wrappers.
 
 ### Integration Tests
 
 - Loop with real (mock-compatible) SDK `Agent` produces correctly structured output for each type.
 - ExplorationLoop with an SDK `Tool` for Enhanced Context Retrieval performs multi-step iteration via `BaseLoop`.
+- Each configured architecture agent runs through SDK `Agent.run()` with its real configured loop/prompt/tool set under mock-compatible LLM responses.
+- Agent-to-agent tools can call target agents through the same SDK `Agent` interface used in production.
+- Documentation verification confirms the SDK custom execution loops cookbook demonstrates `Agent(loop=CustomLoop(...))` for custom loop usage and documents that unattached loop instances are not used by `agent.run()`.
 
 ### Manual Tests
 
@@ -126,12 +163,16 @@ All entities build on `tinycua_sdk` infrastructure:
 
 ## Future Architecture Documentation Sync
 
-Do **not** update `src/tinycua/docs/architecture/` as part of this spec-only PR. During the implementation phase, update architecture documentation to align terminology and mappings with this spec:
+Do **not** update `src/tinycua/docs/architecture/` as part of this spec/design PR. During the implementation phase, update architecture documentation to align terminology and mappings with this spec:
 
 - `src/tinycua/docs/architecture/overview.md` → Agent Loop Types table should map Task Analyzer and Task Assessor to direct SDK `BaseLoop` usage rather than a separate Linear/Simple/custom loop type.
 - `src/tinycua/docs/architecture/task-analysis.md` → clarify that Task Analyzer uses an SDK `Agent` with the default SDK `BaseLoop`; any single-output guarantee comes from prompt/schema validation, not a custom loop class.
 - `src/tinycua/docs/architecture/task-assessor.md` → clarify that Task Assessor uses an SDK `Agent` with the default SDK `BaseLoop`; decomposition-selection output is schema-validated outside the loop.
 - Any architecture references to "input→output loop", "linear loop", or "simple loop" should be reviewed and normalized to "SDK BaseLoop direct usage" where no custom control flow is required.
+
+Also update SDK cookbook documentation during implementation:
+
+- `src/tinycua-sdk/docs/cookbook/execution-and-reference/custom-execution-loops.md` → custom loop examples should pass the loop instance to `Agent(loop=...)`; creating `loop = CustomLoop()` without attaching it to the agent should not be presented as affecting `agent.run()`.
 
 ---
 
@@ -139,10 +180,16 @@ Do **not** update `src/tinycua/docs/architecture/` as part of this spec-only PR.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Classification Loop | TODO | |
-| Exploration Loop | TODO | |
+| Classification Loop | TODO | Configured via `Agent(loop=ClassificationLoop(), ...)` |
+| Exploration Loop | TODO | Configured via `Agent(loop=ExplorationLoop(), ...)` |
 | Direct SDK BaseLoop mapping | TODO | Standard single-output agents use SDK `BaseLoop`; no custom loop class |
-| Hybrid Review Loop | TODO | |
+| Hybrid Review Loop | TODO | Configured via `Agent(loop=HybridReviewLoop(), ...)` |
+| Agent Factory / Config Registry | TODO | Creates SDK `Agent` instances for all seven architecture agents |
+| System Prompts | TODO | Prompt instructions from architecture docs |
+| Concrete Agent Configurations | TODO | Query Analyst, Information Digester, Task Analyzer, Task Assessor, Task Executor, Result Reviewer, Primary Agent |
+| Agent-to-Agent SDK Tools | TODO | `call_*` tools delegate to configured SDK agents |
+| SDK Cookbook custom loop correction | TODO | Document `Agent(loop=CustomLoop(...))` usage in `custom-execution-loops.md` during implementation |
+| MainLoop contract | TODO | Future external `Agent(loop=MainLoop(), metadata={...})` target with per-session continuation-state requirements |
 | Uniform BaseLoop integration | TODO | |
 | SchemaValidator with SDK retry | TODO | |
 | Architecture docs sync (future implementation phase) | TODO | Documented here only; do not update architecture docs in this PR |
@@ -152,23 +199,7 @@ Do **not** update `src/tinycua/docs/architecture/` as part of this spec-only PR.
 
 ## Open Questions
 
-1. **Should standard single-input/single-output agents use a custom Linear/Simple loop or the SDK BaseLoop directly?**
-   - **Owner**: @VJyzCELERY
-   - **Target**: 2026-06-02
-   - **Status**: Resolved
-   - **Answer**: Use SDK's `BaseLoop` directly. It already provides the shared ReAct/tool-calling infrastructure. Task Analyzer, Task Assessor, and similar agents should be configured as SDK `Agent`s with `BaseLoop`; output schema validation can wrap the result without introducing a new loop type.
-
-2. **Should the Exploration Loop's stop condition be LLM-judged ("has enough information") or count-based (max N iterations)?**
-   - **Owner**: @VJyzCELERY
-   - **Target**: 2026-06-02
-   - **Status**: Discussion
-   - **Proposed Answer**: Both — LLM judges sufficiency each iteration, but the SDK's `BaseLoop.max_iterations` provides a hard cap to prevent infinite loops.
-
-3. **Should the Hybrid Review Loop's deterministic checks be pluggable rules or hardcoded into the loop implementation?**
-   - **Owner**: @VJyzCELERY
-   - **Target**: 2026-06-02
-   - **Status**: Discussion
-   - **Proposed Answer**: Pluggable rules registered at construction time, so different reviewers can have different deterministic checks without subclassing the loop.
+None. Resolved decisions are incorporated into the functional requirements, success criteria, testing plan, and design document.
 
 ---
 
