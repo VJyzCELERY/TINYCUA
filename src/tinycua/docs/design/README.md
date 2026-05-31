@@ -42,6 +42,7 @@ Read in order for a linear learning experience:
 32. [`agents/primary_agent.md`](agents/primary_agent.md)
 33. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
 34. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
+35. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
 
 ---
 
@@ -81,6 +82,12 @@ Read in order for a linear learning experience:
 |-----------|---------|
 | [`state/`](state/) | `StateObject` base + per-agent state subclasses, `Session` (state container + tree), `StateStore` design |
 | [`tools/`](tools/) | Orchestrator-call tools — consume stream generator, return typed result |
+
+## Utility
+
+| Directory | Content |
+|-----------|---------|
+| [`utility/`](utility/) | `BaseCompaction` — serializable compaction strategy for session context |
 
 ---
 

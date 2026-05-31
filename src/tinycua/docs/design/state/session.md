@@ -21,7 +21,7 @@ The existing class provides `session_id`, `name`, `chat_history`, `context`, and
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
 | Active session | `get_active_session()` — DFS pre-order |
 | Filtered messages | `session_context` (vs raw `chat_history`) |
-| Compaction | `_check_compaction()` triggered on every session_context mutation |
+| Compaction | `_check_compaction()` triggered on every session_context mutation; `compaction_strategy` is serializable |
 | Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
 | Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
 | Propagation rules | Natural termination: final response only. Mid-progress: entire session_context. Transient: nothing. |
@@ -75,7 +75,8 @@ class Session(StateObject):
         - task (shared Task object, all sessions reference the same tree)
         - Tree structure (parent_id, child_sessions, _parent)
         - session_context (filtered messages for LLM, vs raw chat_history)
-        - Compaction (_check_compaction triggered on every context mutation)
+        - Compaction (_check_compaction triggered on every context mutation;
+          compaction_strategy injected as serializable strategy)
         - Child lifecycle (add_child / terminate_child with dual propagation rules)
     """
 
@@ -97,6 +98,11 @@ class Session(StateObject):
     # If True, nothing propagates to parent on termination (not chat_history,
     # not session_context). Used for agents whose output is passed directly
     # to the next agent in the chain (QueryAnalyst, InformationDigester).
+
+    # ── Compaction strategy (our addition) ────────────────────────────
+    compaction_strategy: BaseCompaction | None = None
+    # Serialized with the session. Passed as summarize_fn to compact().
+    # Subclasses can store persistent data (snapshots, checkpoints).
 
     # ── Token tracking (our addition) ─────────────────────────────────
     total_token_usage: dict[str, int] | None = None
@@ -309,11 +315,14 @@ class Session(StateObject):
         """Check if session_context exceeds the context window and compact if needed.
 
         Derives the context window from agent_state.agent_config.model.
-        If no context window is available, compaction is skipped.
+        Uses self.compaction_strategy as the summarize_fn. If no strategy
+        is set, compaction is skipped.
 
         Called automatically after every session_context mutation:
         append_user(), append_assistant(), terminate_child().
         """
+        if self.compaction_strategy is None:
+            return
         if self.agent_state is None or self.agent_state.agent_config is None:
             return
         context_window = getattr(
@@ -328,14 +337,14 @@ class Session(StateObject):
         ) // 4
 
         if estimated_tokens > context_window:
-            self.compact(self._default_summarize)
+            self.compact(self.compaction_strategy)
 
     def compact(self, summarize_fn: Callable[[list[dict]], str]) -> None:
         """Replace session_context with a single summarized turn.
 
         summarize_fn receives the current session_context and returns a
-        summary string. The caller defines the compaction algorithm — the
-        Session only handles the mechanical collapse.
+        summary string. Typically self.compaction_strategy (a BaseCompaction
+        instance implementing __call__). The caller can inject any callable.
 
         Reset active_token_usage on compaction (the active window changed).
         chat_history and total_token_usage are never modified.
@@ -346,13 +355,6 @@ class Session(StateObject):
         ]
         self.active_token_usage = None  # reset — active window changed
         self.compaction_count += 1
-
-    def _default_summarize(self, messages: list[dict]) -> str:
-        """Default stub — compaction algorithm defined in utility/compaction.py."""
-        # Deferred: the actual LLM-based summary is injected via the
-        # summarize_fn parameter on compact(). This stub exists so
-        # _check_compaction() has a fallback.
-        return "..."
 
     # ── Serialization ───────────────────────────────────────────────
 
@@ -434,13 +436,17 @@ self.session.terminate_child(primary.session)
 | Natural termination: final response only | `session_context[-1]` propagated if `status == "terminated"` | Only the result matters; intermediate context is noise |
 | Mid-progress termination: full context | Entire `session_context` propagated if `status != "terminated"` | Interrupted agent's full context needed for recovery |
 | Compaction trigger | `_check_compaction()` on every `session_context` mutation | Proactive; no separate compaction pass |
+| Compaction strategy | `Session.compaction_strategy: BaseCompaction` | Serialized with session; callable; extensible via subclass |
 | Context window from config | `agent_state.agent_config.model.context_window` | Per-agent configurable; derived from LanguageModel |
-| summarize_fn injected | `compact(summarize_fn)` parameter | Compaction algorithm is flexible; defined in `utility/compaction.py` |
+| No default stub | Removed `_default_summarize` — strategy injection is the contract | Stub had no logic; `compaction_strategy` must be explicitly set |
 | Re-parent after deserialization | `set_parents()` in `from_dict()` | `_parent` excluded from serialization; re-established on load |
 | Token usage: persistent | `total_token_usage` on Session | Survives compaction; propagates upward with chat_history; never resets |
 | Token usage: active | `active_token_usage` on Session | Based on current session_context; reset on compaction; reflects active window |
 | Consecutive assistant messages allowed | chat_history format | Sessions may receive multiple child results in sequence |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
+
+
+---
 
 
 ---
