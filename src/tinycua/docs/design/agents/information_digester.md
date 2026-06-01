@@ -341,12 +341,20 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                 self.state.last_result = digested.to_dict()
                 return
 
-            # ── Retry ────────────────────────────────────────────────
+            # No digest — record initial response, then retry
+            self.session.chat_history.append(ChatRecord(
+                id=str(uuid4()), type="agent",
+                metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
+                content={"text": response_text},
+            ))
             async for event in self._retry_agent(
                 agent=agent,
                 retry_query="Call digest_information with your findings.",
             ):
                 yield event
+
+            if self.state.digested_information is None:
+                self.state.last_result = None
 
         finally:
             self._cleanup_cache()
@@ -458,10 +466,6 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                     metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
                     content={"text": response_text or "(no response)"},
                 ))
-
-        # Exhausted
-        self.state.digested_information = None
-        self.state.last_result = None
 
     # ── Instruction ──────────────────────────────────────────────────
 

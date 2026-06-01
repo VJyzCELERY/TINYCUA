@@ -308,8 +308,7 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
 
     # ── Initial run ──────────────────────────────────────────────────
     query = json.dumps({"user_query": user_query})
-    first_response_text = None
-    events = []
+    events: list[dict] = []
 
     text_parts = []
     async for event in agent.run(query=query, stream=True):
@@ -320,7 +319,6 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
 
     response_text = "".join(text_parts)
     first_response_text = response_text
-
     mode_label = self._extract_mode_decision(events)
 
     if mode_label is not None:
@@ -335,26 +333,37 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
         self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
         return
 
-    # ── Retry loop ────────────────────────────────────────────────────
+    # No verdict — record initial response, then retry
+    self.session.chat_history.append(ChatRecord(
+        id=str(uuid4()), type="agent",
+        metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+        content={"text": response_text},
+    ))
     async for event in self._retry_agent(
         agent=agent,
         retry_query=(
             "Based on your analysis above, call QueryAnalystModeDecision "
             "with your final decision: 'passthrough', 'worker', or 'uncertain'."
         ),
-        first_response_text=first_response_text,
     ):
         yield event
+
+    # After retry: build final state from whatever _retry_agent stored
+    if self.state.mode_decision is None:
+        self.state.mode_decision = ModeDecision(mode="passthrough")
+        self.state.context_enhanced_query = ContextEnhancedQuery(
+            context="(no verdict produced)", query=user_query,
+        )
+        self.state.last_result = {"mode_decision": "passthrough"}
 
 
 async def _retry_agent(
     self,
     agent: Agent,
     retry_query: str,
-    first_response_text: str,
     max_retries: int = 3,
 ) -> AsyncIterator[dict]:
-    """Retry loop — only called when initial run missed the mandatory tool."""
+    """Retry until QueryAnalystModeDecision is called. Stores state on success."""
     events: list[dict] = []
 
     for attempt in range(1, max_retries + 1):
@@ -374,10 +383,6 @@ async def _retry_agent(
                 metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
             )
             self.state.mode_decision = ModeDecision(mode=mode_label)
-            self.state.context_enhanced_query = ContextEnhancedQuery(
-                context=first_response_text, query=self._user_query,
-            )
-            self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
             return
 
         if attempt < max_retries:
@@ -386,13 +391,6 @@ async def _retry_agent(
                 metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
                 content={"text": response_text or "(no response)"},
             ))
-
-    # Exhausted
-    self.state.mode_decision = ModeDecision(mode="passthrough")
-    self.state.context_enhanced_query = ContextEnhancedQuery(
-        context="(no verdict produced)", query=self._user_query,
-    )
-    self.state.last_result = {"mode_decision": "passthrough"}
 
 
 def _extract_mode_decision(self, events: list[dict]) -> str | None:
@@ -507,7 +505,12 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
             self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
             return
 
-        # ── Retry ────────────────────────────────────────────────────
+        # No verdict — record initial response, then retry
+        self.session.chat_history.append(ChatRecord(
+            id=str(uuid4()), type="agent",
+            metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+            content={"text": response_text},
+        ))
         async for event in self._retry_agent(
             agent=agent,
             retry_query=(
@@ -515,9 +518,15 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                 "QueryAnalystModeDecision with your final decision: "
                 "'passthrough', 'worker', or 'uncertain'."
             ),
-            first_response_text=first_response_text,
         ):
             yield event
+
+        if self.state.mode_decision is None:
+            self.state.mode_decision = ModeDecision(mode="passthrough")
+            self.state.context_enhanced_query = ContextEnhancedQuery(
+                context="(no verdict produced)", query=user_query,
+            )
+            self.state.last_result = {"mode_decision": "passthrough"}
 
     # ── Retry loop ────────────────────────────────────────────────────
 
@@ -525,7 +534,6 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
         self,
         agent: Agent,
         retry_query: str,
-        first_response_text: str,
         max_retries: int = 3,
     ) -> AsyncIterator[dict]:
         events: list[dict] = []
@@ -547,10 +555,6 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                     metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
                 )
                 self.state.mode_decision = ModeDecision(mode=mode_label)
-                self.state.context_enhanced_query = ContextEnhancedQuery(
-                    context=first_response_text, query=self._user_query,
-                )
-                self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
                 return
 
             if attempt < max_retries:
@@ -559,13 +563,6 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                     metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
                     content={"text": response_text or "(no response)"},
                 ))
-
-        # Exhausted
-        self.state.mode_decision = ModeDecision(mode="passthrough")
-        self.state.context_enhanced_query = ContextEnhancedQuery(
-            context="(no verdict produced)", query=self._user_query,
-        )
-        self.state.last_result = {"mode_decision": "passthrough"}
 
     # ── Context assembly ─────────────────────────────────────────────
 
