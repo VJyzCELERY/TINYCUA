@@ -2,7 +2,7 @@
 
 We are conducting research to develop an assistant-like system that can help and simplify work on computers/laptops. The purpose of this survey is to understand how you use your computer and the activities you frequently perform, in order to support the development of our agent.
 
-This survey will only take approximately 5–10 minutes. Your answers will be very helpful in developing more relevant and useful solutions.
+This survey will only take approximately 3-5 minutes. Your answers will be very helpful in developing more relevant and useful solutions.
 
 This questionnaire is intended for respondents who frequently use a PC/Laptop to complete their work. Are you one of them? 
 
@@ -44,7 +44,7 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - [ ] Provides accurate answers   
 - [ ] Responds quickly  
 - [ ] Provides clear explanations   
-- [ ] Can run more than 1 session at a time (e.g. 2 or more ChatGPT sessions simultaneously)   
+- [ ] Can run more than multiple sessions at a time (e.g. 2 or more ChatGPT sessions simultaneously)   
 - [ ] Easy to monitor what it is doing   
 - [ ] Other:\_\_\_
 
@@ -68,7 +68,7 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 
 8. If one step fails, how many times should the system automatically retry before asking for your help?  
    \- 0 times. Ask me immediately  
-   \- 1 times. Then ask me for help   
+   \- 1 time. Then ask me for help   
    \- 2 times. Then ask me for help  
    \- 3 times. Then ask me for help 
 
