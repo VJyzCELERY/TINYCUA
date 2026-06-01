@@ -344,6 +344,7 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                 return
 
             # No digest — retry
+            async for event in self._retry_agent(
                 agent=agent,
                 retry_query="Call digest_information with your findings.",
             ):

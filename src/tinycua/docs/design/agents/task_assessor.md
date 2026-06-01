@@ -116,18 +116,18 @@ async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
         yield event
 
     response_text = "".join(text_parts)
-    # First response ALWAYS becomes session context
+    # First response ALWAYS becomes session context + analysis
     self.session.append_assistant(
         content=response_text,
         metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
     )
+    self.state.analysis = response_text
 
     verdict = self._extract_verdict(events)
 
     if verdict is not None:
         self.state.verdict = verdict
-        self.state.analysis = response_text
-        self.state.last_result = {"verdict": verdict, "analysis": response_text}
+        self.state.last_result = {"verdict": verdict}
         return
 
     # No verdict — retry
@@ -141,8 +141,7 @@ async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
 
     if self.state.verdict is None:
         self.state.verdict = "stop"
-        self.state.analysis = "Assessment timed out — no verdict produced."
-        self.state.last_result = {"verdict": "stop", "analysis": self.state.analysis}
+        self.state.last_result = {"verdict": "stop"}
 
 
 async def _retry_agent(
@@ -171,7 +170,6 @@ async def _retry_agent(
                 metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
             )
             self.state.verdict = verdict
-            self.state.analysis = response_text
             return
 
         if attempt < max_retries:
@@ -301,11 +299,7 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
 
         if self.state.verdict is None:
             self.state.verdict = "stop"
-            self.state.analysis = "Assessment timed out — no verdict produced."
-            self.state.last_result = {
-                "verdict": "stop",
-                "analysis": self.state.analysis,
-            }
+            self.state.last_result = {"verdict": "stop"}
 
     # ── Retry loop ────────────────────────────────────────────────────
 
@@ -334,7 +328,6 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
                     metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
                 )
                 self.state.verdict = verdict
-                self.state.analysis = response_text
                 return
 
             if attempt < max_retries:

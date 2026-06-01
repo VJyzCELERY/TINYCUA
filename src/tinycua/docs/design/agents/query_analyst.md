@@ -318,21 +318,20 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
         yield event
 
     response_text = "".join(text_parts)
-    first_response_text = response_text
-    # First response ALWAYS becomes session context
+    # First response ALWAYS becomes session context + CEQ
     self.session.append_assistant(
         content=response_text,
         metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+    )
+    self.state.context_enhanced_query = ContextEnhancedQuery(
+        context=response_text, query=user_query,
     )
 
     mode_label = self._extract_mode_decision(events)
 
     if mode_label is not None:
         self.state.mode_decision = ModeDecision(mode=mode_label)
-        self.state.context_enhanced_query = ContextEnhancedQuery(
-            context=first_response_text, query=user_query,
-        )
-        self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
+        self.state.last_result = {"mode_decision": mode_label}
         return
 
     # No verdict — retry
@@ -345,12 +344,9 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
     ):
         yield event
 
-    # After retry: build final state from whatever _retry_agent stored
+    # After retry: only mode_decision may need fallback
     if self.state.mode_decision is None:
         self.state.mode_decision = ModeDecision(mode="passthrough")
-        self.state.context_enhanced_query = ContextEnhancedQuery(
-            context="(no verdict produced)", query=user_query,
-        )
         self.state.last_result = {"mode_decision": "passthrough"}
 
 
@@ -516,9 +512,6 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
 
         if self.state.mode_decision is None:
             self.state.mode_decision = ModeDecision(mode="passthrough")
-            self.state.context_enhanced_query = ContextEnhancedQuery(
-                context="(no verdict produced)", query=user_query,
-            )
             self.state.last_result = {"mode_decision": "passthrough"}
 
     # ── Retry loop ────────────────────────────────────────────────────
