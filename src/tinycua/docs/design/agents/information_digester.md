@@ -309,70 +309,44 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
             ]
 
             # 5. Build SDK Agent per-call
-            loop = InformationDigestionLoop(
-                state=self.state,
-                max_iterations=self.config.max_iterations_override,
-            )
             agent = Agent(
                 name=self.config.name,
                 instructions=instructions,
                 llm_model=self.config.model,
                 tools=tools,
-                loop=loop,
+                loop=InformationDigestionLoop(
+                    state=self.state,
+                    max_iterations=self.config.max_iterations_override,
+                ),
             )
 
-            # 6. Stream with retry — probe for digest_information tool call
-            first_response_text: str | None = None
-            all_events: list[dict] = []
-            max_retries = 3
+            # 6. Initial run — stream, collect events
+            events: list[dict] = []
+            text_parts: list[str] = []
+            async for event in agent.run(query=query, stream=True):
+                events.append(event)
+                if event["type"] == "response.output_text.delta":
+                    text_parts.append(event["delta"])
+                yield event
 
-            for attempt in range(1, max_retries + 1):
-                current_query = (
-                    query if attempt == 1
-                    else "Call digest_information with your findings."
+            response_text = "".join(text_parts)
+            digested = self._parse_digested_output(events)
+
+            if digested is not None:
+                self.session.append_assistant(
+                    content=response_text,
+                    metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
                 )
+                self.state.digested_information = digested
+                self.state.last_result = digested.to_dict()
+                return
 
-                text_parts: list[str] = []
-                async for event in agent.run(query=current_query, stream=True):
-                    all_events.append(event)
-                    if event["type"] == "response.output_text.delta":
-                        text_parts.append(event["delta"])
-                    yield event
-
-                response_text = "".join(text_parts)
-                if first_response_text is None:
-                    first_response_text = response_text
-
-                # Probe for digest_information
-                digested = self._parse_digested_output(all_events)
-                if digested is not None:
-                    # Success — record to both histories
-                    self.session.append_assistant(
-                        content=response_text,
-                        metadata={
-                            "orchestrator": "information_digester",
-                            "agent_name": self.config.name,
-                        },
-                    )
-                    self.state.digested_information = digested
-                    self.state.last_result = digested.to_dict()
-                    return
-
-                # Retry: record to chat_history only
-                if attempt < max_retries:
-                    self.session.chat_history.append(ChatRecord(
-                        id=str(uuid4()),
-                        type="agent",
-                        metadata={
-                            "orchestrator": "information_digester",
-                            "agent_name": self.config.name,
-                        },
-                        content={"text": response_text or "(no response)"},
-                    ))
-
-            # Max retries exhausted
-            self.state.digested_information = None
-            self.state.last_result = None
+            # ── Retry ────────────────────────────────────────────────
+            async for event in self._retry_agent(
+                agent=agent,
+                retry_query="Call digest_information with your findings.",
+            ):
+                yield event
 
         finally:
             self._cleanup_cache()
@@ -447,6 +421,47 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                 return DigestedInformation.from_json(json_str)
 
         return None
+
+    # ── Retry ──────────────────────────────────────────────────────────
+
+    async def _retry_agent(
+        self,
+        agent: Agent,
+        retry_query: str,
+        max_retries: int = 3,
+    ) -> AsyncIterator[dict]:
+        events: list[dict] = []
+
+        for attempt in range(1, max_retries + 1):
+            text_parts: list[str] = []
+            async for event in agent.run(query=retry_query, stream=True):
+                events.append(event)
+                if event["type"] == "response.output_text.delta":
+                    text_parts.append(event["delta"])
+                yield event
+
+            response_text = "".join(text_parts)
+            digested = self._parse_digested_output(events)
+
+            if digested is not None:
+                self.session.append_assistant(
+                    content=response_text,
+                    metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
+                )
+                self.state.digested_information = digested
+                self.state.last_result = digested.to_dict()
+                return
+
+            if attempt < max_retries:
+                self.session.chat_history.append(ChatRecord(
+                    id=str(uuid4()), type="agent",
+                    metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
+                    content={"text": response_text or "(no response)"},
+                ))
+
+        # Exhausted
+        self.state.digested_information = None
+        self.state.last_result = None
 
     # ── Instruction ──────────────────────────────────────────────────
 

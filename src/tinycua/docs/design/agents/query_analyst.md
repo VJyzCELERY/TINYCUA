@@ -290,87 +290,107 @@ def _get_tools(self) -> list[Tool]:
 ## Step 4: Enforcement (Internal Retry)
 
 Like TaskAssessor, QueryAnalyst enforces that its verdict tool (`QueryAnalystModeDecision`)
-must be called. If the agent finishes without calling it, the orchestrator retries
-internally:
+must be called. The retry loop is extracted into `_retry_agent()` to keep `run()` clean.
 
 ```python
 async def run(self, user_query: str) -> AsyncIterator[dict]:
+    self._user_query = user_query
     self._assemble_session_context()
     instructions = self.build_instruction({"user_query": user_query})
-    agent_query = json.dumps({"user_query": user_query})
 
+    agent = Agent(
+        name=self.config.name,
+        instructions=instructions,
+        llm_model=self.config.model,
+        tools=self._get_tools(),
+        loop=QueryAnalystLoop(state=self.state),
+    )
+
+    # ── Initial run ──────────────────────────────────────────────────
+    query = json.dumps({"user_query": user_query})
+    first_response_text = None
+    events = []
+
+    text_parts = []
+    async for event in agent.run(query=query, stream=True):
+        events.append(event)
+        if event["type"] == "response.output_text.delta":
+            text_parts.append(event["delta"])
+        yield event
+
+    response_text = "".join(text_parts)
+    first_response_text = response_text
+
+    mode_label = self._extract_mode_decision(events)
+
+    if mode_label is not None:
+        self.session.append_assistant(
+            content=response_text,
+            metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+        )
+        self.state.mode_decision = ModeDecision(mode=mode_label)
+        self.state.context_enhanced_query = ContextEnhancedQuery(
+            context=first_response_text, query=user_query,
+        )
+        self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
+        return
+
+    # ── Retry loop ────────────────────────────────────────────────────
+    async for event in self._retry_agent(
+        agent=agent,
+        retry_query=(
+            "Based on your analysis above, call QueryAnalystModeDecision "
+            "with your final decision: 'passthrough', 'worker', or 'uncertain'."
+        ),
+        first_response_text=first_response_text,
+    ):
+        yield event
+
+
+async def _retry_agent(
+    self,
+    agent: Agent,
+    retry_query: str,
+    first_response_text: str,
+    max_retries: int = 3,
+) -> AsyncIterator[dict]:
+    """Retry loop — only called when initial run missed the mandatory tool."""
     events: list[dict] = []
-    max_retries = 3
 
     for attempt in range(1, max_retries + 1):
-        agent = Agent(
-            name=self.config.name,
-            instructions=instructions,
-            llm_model=self.config.model,
-            tools=self._get_tools(),
-            loop=QueryAnalystLoop(state=self.state),
-        )
-
-        text_parts: list[str] = []
-        async for event in agent.run(query=agent_query, stream=True):
+        text_parts = []
+        async for event in agent.run(query=retry_query, stream=True):
             events.append(event)
             if event["type"] == "response.output_text.delta":
                 text_parts.append(event["delta"])
             yield event
 
-        # Probe for QueryAnalystModeDecision tool call
+        response_text = "".join(text_parts)
         mode_label = self._extract_mode_decision(events)
 
         if mode_label is not None:
-            # Success — verdict was called
-            response_text = "".join(text_parts)
-            if first_response_text is None:
-                first_response_text = response_text
             self.session.append_assistant(
                 content=response_text,
-                metadata={
-                    "orchestrator": "query_analyst",
-                    "agent_name": self.config.name,
-                },
+                metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
             )
             self.state.mode_decision = ModeDecision(mode=mode_label)
             self.state.context_enhanced_query = ContextEnhancedQuery(
-                context=first_response_text or response_text,
-                query=user_query,
+                context=first_response_text, query=self._user_query,
             )
-            self.state.last_result = {
-                "mode_decision": mode_label,
-                "context": first_response_text or response_text,
-            }
+            self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
             return
 
-        # No verdict — retry
         if attempt < max_retries:
-            response_text = "".join(text_parts) or "(no response)"
-            if first_response_text is None:
-                first_response_text = response_text
-            # Retry responses → chat_history only (audit trail)
-            # NOT appended to session_context — preserves clean LLM context
             self.session.chat_history.append(ChatRecord(
-                id=str(uuid4()),
-                type="agent",
-                metadata={
-                    "orchestrator": "query_analyst",
-                    "agent_name": self.config.name,
-                },
-                content={"text": response_text},
+                id=str(uuid4()), type="agent",
+                metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+                content={"text": response_text or "(no response)"},
             ))
-            agent_query = (
-                "Based on your analysis above, call QueryAnalystModeDecision "
-                "with your final decision: 'passthrough', 'worker', or 'uncertain'."
-            )
-            events = []  # reset for next attempt
 
-    # Max retries exhausted — default to passthrough
+    # Exhausted
     self.state.mode_decision = ModeDecision(mode="passthrough")
     self.state.context_enhanced_query = ContextEnhancedQuery(
-        context="(no verdict produced)",
-        query=user_query,
+        context="(no verdict produced)", query=self._user_query,
     )
     self.state.last_result = {"mode_decision": "passthrough"}
 
@@ -388,19 +408,19 @@ def _extract_mode_decision(self, events: list[dict]) -> str | None:
     return None
 ```
 
+Note: `self._user_query` is stored from `run()`'s argument so `_retry_agent()` can access
+it for the `ContextEnhancedQuery`.
+
 ---
 
 ## Step 5: Output
 
-Two outputs stored on `self.state`:
+Two outputs stored on `self.state` by `run()` (initial success) or `_retry_agent()` (retry success):
 
 | Object | Source | Purpose |
 |--------|--------|---------|
 | `ModeDecision` | `QueryAnalystModeDecision` tool call output | Routing verdict for TinyCUA |
-| `ContextEnhancedQuery` | Agent's final text response (markdown context) | Passed to InformationDigester in worker path |
-
-- **`context`**: The agent's markdown output — relevant context snippets, keywords, task status
-- **`query`**: The original `user_query`, passed through unchanged
+| `ContextEnhancedQuery` | First response text (initial context analysis) | Passed to InformationDigester in worker path |
 
 ---
 
@@ -448,90 +468,102 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
     # ── Main entry point ─────────────────────────────────────────────
 
     async def run(self, user_query: str) -> AsyncIterator[dict]:
-        # 1. Assemble session context from parent + active agent
+        self._user_query = user_query
         self._assemble_session_context()
-
-        # 2. Build instruction: base + task tree + active task
         instructions = self.build_instruction({"user_query": user_query})
 
-        # 3. Build query with user input only (context is in session_context)
-        agent_query = json.dumps({"user_query": user_query})
+        agent = Agent(
+            name=self.config.name,
+            instructions=instructions,
+            llm_model=self.config.model,
+            tools=self._get_tools(),
+            loop=QueryAnalystLoop(state=self.state),
+        )
 
+        # ── Initial run ──────────────────────────────────────────────
+        query = json.dumps({"user_query": user_query})
         events: list[dict] = []
-        max_retries = 3
-        first_response_text: str | None = None  # captured on first attempt only
+
+        text_parts: list[str] = []
+        async for event in agent.run(query=query, stream=True):
+            events.append(event)
+            if event["type"] == "response.output_text.delta":
+                text_parts.append(event["delta"])
+            yield event
+
+        response_text = "".join(text_parts)
+        first_response_text = response_text
+        mode_label = self._extract_mode_decision(events)
+
+        if mode_label is not None:
+            self.session.append_assistant(
+                content=response_text,
+                metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+            )
+            self.state.mode_decision = ModeDecision(mode=mode_label)
+            self.state.context_enhanced_query = ContextEnhancedQuery(
+                context=first_response_text, query=user_query,
+            )
+            self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
+            return
+
+        # ── Retry ────────────────────────────────────────────────────
+        async for event in self._retry_agent(
+            agent=agent,
+            retry_query=(
+                "Based on your analysis above, call "
+                "QueryAnalystModeDecision with your final decision: "
+                "'passthrough', 'worker', or 'uncertain'."
+            ),
+            first_response_text=first_response_text,
+        ):
+            yield event
+
+    # ── Retry loop ────────────────────────────────────────────────────
+
+    async def _retry_agent(
+        self,
+        agent: Agent,
+        retry_query: str,
+        first_response_text: str,
+        max_retries: int = 3,
+    ) -> AsyncIterator[dict]:
+        events: list[dict] = []
 
         for attempt in range(1, max_retries + 1):
-            # 4. Build SDK Agent per-call with dynamic tool selection
-            agent = Agent(
-                name=self.config.name,
-                instructions=instructions,
-                llm_model=self.config.model,
-                tools=self._get_tools(),
-                loop=QueryAnalystLoop(state=self.state),
-            )
-
-            # 5. Stream — accumulate text + events, yield everything
             text_parts: list[str] = []
-            async for event in agent.run(query=agent_query, stream=True):
+            async for event in agent.run(query=retry_query, stream=True):
                 events.append(event)
                 if event["type"] == "response.output_text.delta":
                     text_parts.append(event["delta"])
                 yield event
 
-            # 6. Probe for QueryAnalystModeDecision tool call
+            response_text = "".join(text_parts)
             mode_label = self._extract_mode_decision(events)
 
             if mode_label is not None:
-                # Success — verdict was called
-                response_text = "".join(text_parts)
-                if first_response_text is None:
-                    first_response_text = response_text
                 self.session.append_assistant(
                     content=response_text,
-                    metadata={
-                        "orchestrator": "query_analyst",
-                        "agent_name": self.config.name,
-                    },
+                    metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
                 )
                 self.state.mode_decision = ModeDecision(mode=mode_label)
                 self.state.context_enhanced_query = ContextEnhancedQuery(
-                    context=first_response_text or response_text,
-                    query=user_query,
+                    context=first_response_text, query=self._user_query,
                 )
-                self.state.last_result = {
-                    "mode_decision": mode_label,
-                    "context": first_response_text or response_text,
-                }
+                self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
                 return
 
-            # No verdict — retry with follow-up
             if attempt < max_retries:
-                response_text = "".join(text_parts) or "(no response)"
-                if first_response_text is None:
-                    first_response_text = response_text
-                # Retry responses → chat_history only (audit trail)
                 self.session.chat_history.append(ChatRecord(
-                    id=str(uuid4()),
-                    type="agent",
-                    metadata={
-                        "orchestrator": "query_analyst",
-                        "agent_name": self.config.name,
-                    },
-                    content={"text": response_text},
+                    id=str(uuid4()), type="agent",
+                    metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+                    content={"text": response_text or "(no response)"},
                 ))
-                agent_query = (
-                    "Based on your analysis above, call "
-                    "QueryAnalystModeDecision with your final decision: "
-                    "'passthrough', 'worker', or 'uncertain'."
-                )
-                events = []
 
-        # Max retries exhausted — default to passthrough
+        # Exhausted
         self.state.mode_decision = ModeDecision(mode="passthrough")
         self.state.context_enhanced_query = ContextEnhancedQuery(
-            context="(no verdict produced)",
-            query=user_query,
+            context="(no verdict produced)", query=self._user_query,
         )
         self.state.last_result = {"mode_decision": "passthrough"}
 

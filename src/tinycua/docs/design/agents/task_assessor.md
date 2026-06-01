@@ -95,74 +95,88 @@ session context and re-running the agent:
 async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
     """Assess the task tree with mandatory AssessorVerdict call."""
     instructions = self.build_instruction({"task_tree": task_tree})
-    agent_query = self._build_query(task_tree, query)
 
+    agent = Agent(
+        name=self.config.name,
+        instructions=instructions,
+        llm_model=self.config.model,
+        tools=self._get_tools(),
+        loop=ReActAgentLoop(state=self.state),
+    )
+
+    # ── Initial run ──────────────────────────────────────────────────
+    initial_query = self._build_query(task_tree, query)
     events: list[dict] = []
-    max_retries = 3
+
+    text_parts: list[str] = []
+    async for event in agent.run(query=initial_query, stream=True):
+        events.append(event)
+        if event["type"] == "response.output_text.delta":
+            text_parts.append(event["delta"])
+        yield event
+
+    response_text = "".join(text_parts)
+    verdict = self._extract_verdict(events)
+
+    if verdict is not None:
+        self.session.append_assistant(
+            content=response_text,
+            metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+        )
+        self.state.verdict = verdict
+        self.state.analysis = response_text
+        self.state.last_result = {"verdict": verdict, "analysis": response_text}
+        return
+
+    # ── Retry ────────────────────────────────────────────────────────
+    async for event in self._retry_agent(
+        agent=agent,
+        retry_query=(
+            "Based on the assessment above, call AssessorVerdict with "
+            "your final decision: 'analyze' or 'stop'."
+        ),
+    ):
+        yield event
+
+
+async def _retry_agent(
+    self,
+    agent: Agent,
+    retry_query: str,
+    max_retries: int = 3,
+) -> AsyncIterator[dict]:
+    """Retry loop — only called when initial run missed AssessorVerdict."""
+    events: list[dict] = []
 
     for attempt in range(1, max_retries + 1):
-        # Build fresh Agent (current session_context)
-        agent = Agent(
-            name=self.config.name,
-            instructions=instructions,
-            llm_model=self.config.model,
-            tools=self._get_tools(),
-            loop=ReActAgentLoop(state=self.state),
-        )
-
-        # Stream — accumulate events
         text_parts: list[str] = []
-        messages = self.session.get_messages()
-        async for event in agent.run(
-            query=agent_query,
-            messages=messages,
-            stream=True,
-        ):
+        async for event in agent.run(query=retry_query, stream=True):
             events.append(event)
             if event["type"] == "response.output_text.delta":
                 text_parts.append(event["delta"])
             yield event
 
-        # Check for AssessorVerdict call
+        response_text = "".join(text_parts)
         verdict = self._extract_verdict(events)
 
         if verdict is not None:
-            # Success — verdict was called
-            response_text = "".join(text_parts)
             self.session.append_assistant(
                 content=response_text,
-                metadata={
-                    "orchestrator": "task_assessor",
-                    "agent_name": self.config.name,
-                },
+                metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
             )
             self.state.verdict = verdict
             self.state.analysis = response_text
-            self.state.last_result = {
-                "verdict": verdict,
-                "analysis": response_text,
-            }
+            self.state.last_result = {"verdict": verdict, "analysis": response_text}
             return
 
-        # No verdict — append follow-up and retry
         if attempt < max_retries:
-            response_text = "".join(text_parts) or "(no response)"
-            # Retry responses → chat_history only (audit trail)
             self.session.chat_history.append(ChatRecord(
-                id=str(uuid4()),
-                type="agent",
-                metadata={
-                    "orchestrator": "task_assessor",
-                    "agent_name": self.config.name,
-                },
-                content={"text": response_text},
+                id=str(uuid4()), type="agent",
+                metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+                content={"text": response_text or "(no response)"},
             ))
-            agent_query = (
-                "Based on the assessment above, call AssessorVerdict with "
-                "your final decision: 'analyze' or 'stop'."
-            )
 
-    # Max retries exhausted — force stop verdict
+    # Exhausted
     self.state.verdict = "stop"
     self.state.analysis = "Assessment timed out — no verdict produced."
     self.state.last_result = {"verdict": "stop", "analysis": self.state.analysis}
@@ -241,70 +255,88 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
         query: str,
     ) -> AsyncIterator[dict]:
         instructions = self.build_instruction({"task_tree": task_tree})
-        agent_query = self._build_query(task_tree, query)
 
+        agent = Agent(
+            name=self.config.name,
+            instructions=instructions,
+            llm_model=self.config.model,
+            tools=self._get_tools(),
+            loop=ReActAgentLoop(state=self.state),
+        )
+
+        # ── Initial run ──────────────────────────────────────────────
+        initial_query = self._build_query(task_tree, query)
         events: list[dict] = []
-        max_retries = 3
+
+        text_parts: list[str] = []
+        async for event in agent.run(query=initial_query, stream=True):
+            events.append(event)
+            if event["type"] == "response.output_text.delta":
+                text_parts.append(event["delta"])
+            yield event
+
+        response_text = "".join(text_parts)
+        verdict = self._extract_verdict(events)
+
+        if verdict is not None:
+            self.session.append_assistant(
+                content=response_text,
+                metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+            )
+            self.state.verdict = verdict
+            self.state.analysis = response_text
+            self.state.last_result = {"verdict": verdict, "analysis": response_text}
+            return
+
+        # ── Retry ────────────────────────────────────────────────────
+        async for event in self._retry_agent(
+            agent=agent,
+            retry_query=(
+                "Based on the assessment above, call AssessorVerdict with "
+                "your final decision: 'analyze' or 'stop'."
+            ),
+        ):
+            yield event
+
+    # ── Retry loop ────────────────────────────────────────────────────
+
+    async def _retry_agent(
+        self,
+        agent: Agent,
+        retry_query: str,
+        max_retries: int = 3,
+    ) -> AsyncIterator[dict]:
+        events: list[dict] = []
 
         for attempt in range(1, max_retries + 1):
-            agent = Agent(
-                name=self.config.name,
-                instructions=instructions,
-                llm_model=self.config.model,
-                tools=self._get_tools(),
-                loop=ReActAgentLoop(state=self.state),
-            )
-
             text_parts: list[str] = []
-            messages = self.session.get_messages()
-            async for event in agent.run(
-                query=agent_query,
-                messages=messages,
-                stream=True,
-            ):
+            async for event in agent.run(query=retry_query, stream=True):
                 events.append(event)
                 if event["type"] == "response.output_text.delta":
                     text_parts.append(event["delta"])
                 yield event
 
+            response_text = "".join(text_parts)
             verdict = self._extract_verdict(events)
 
             if verdict is not None:
-                response_text = "".join(text_parts)
                 self.session.append_assistant(
                     content=response_text,
-                    metadata={
-                        "orchestrator": "task_assessor",
-                        "agent_name": self.config.name,
-                    },
+                    metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
                 )
                 self.state.verdict = verdict
                 self.state.analysis = response_text
-                self.state.last_result = {
-                    "verdict": verdict,
-                    "analysis": response_text,
-                }
+                self.state.last_result = {"verdict": verdict, "analysis": response_text}
                 return
 
-            # Retry: record in chat_history only (not session_context)
             if attempt < max_retries:
-                response_text = "".join(text_parts) or "(no response)"
                 self.session.chat_history.append(ChatRecord(
-                    id=str(uuid4()),
-                    type="agent",
-                    metadata={
-                        "orchestrator": "task_assessor",
-                        "agent_name": self.config.name,
-                    },
-                    content={"text": response_text},
+                    id=str(uuid4()), type="agent",
+                    metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+                    content={"text": response_text or "(no response)"},
                 ))
-                agent_query = (
-                    "Based on the assessment above, call AssessorVerdict "
-                    "with your final decision: 'analyze' or 'stop'."
-                )
-                events = []  # reset for next attempt
 
-        # Max retries exhausted
+        # Exhausted
         self.state.verdict = "stop"
         self.state.analysis = "Assessment timed out — no verdict produced."
         self.state.last_result = {
