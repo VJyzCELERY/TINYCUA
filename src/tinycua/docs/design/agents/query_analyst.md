@@ -67,11 +67,16 @@ run(user_query)
   │     Base instruction + conditional task tree + conditional active task.
   │
   ├─ 3. Build SDK Agent (per-call)
-  │     Tools: always verdict + uncertainty; + read-only task tools if task exists.
+  │     Tools: always QueryAnalystModeDecision + uncertainty;
+  │     + read-only task tools if task exists.
   │
-  ├─ 4. Stream → accumulate text, yield all events
+  ├─ 4. Stream → accumulate text + events, yield to caller
   │
-  └─ 5. Parse result → store ModeDecision + ContextEnhancedQuery
+  ├─ 5. Probe events for QueryAnalystModeDecision tool call
+  │     ├─ Found → extract verdict + response text → DONE
+  │     └─ Missing → append follow-up, rebuild agent, re-stream (max 3)
+  │
+  └─ 6. Store ModeDecision (from tool) + ContextEnhancedQuery (response text)
 ```
 
 ---
@@ -251,7 +256,7 @@ Tools are selected dynamically based on whether an active task exists:
 
 ```python
 def _get_tools(self) -> list[Tool]:
-    """Select tools based on context: always verdict + uncertainty;
+    """Select tools based on context: always QueryAnalystModeDecision + uncertainty;
     add read-only task tools if an active task exists.
     """
     from tinycua.constants.tools import (
@@ -261,54 +266,141 @@ def _get_tools(self) -> list[Tool]:
     )
 
     tools = [
-        *QUERY_ANALYST_BASE_TOOLS,        # ClassificationTool
-        *QUERY_ANALYST_UNCERTAINTY_TOOLS, # ask_user / explore tools
+        *QUERY_ANALYST_BASE_TOOLS,          # QueryAnalystModeDecision
+        *QUERY_ANALYST_UNCERTAINTY_TOOLS,   # ask_user / explore tools
         *self.config.extra_tools,
     ]
 
     parent = self.session.parent
     if parent and parent.task is not None:
         tools.extend(READ_ONLY_TASK_TOOLS)
-        # Allows QueryAnalyst to read task details when making routing decisions
 
     return tools
 ```
 
 | Tool Set | When | Purpose |
 |----------|------|---------|
-| `QUERY_ANALYST_BASE_TOOLS` | Always | `ClassificationTool(labels=["passthrough", "worker", "uncertain"])` |
+| `QUERY_ANALYST_BASE_TOOLS` | Always | `QueryAnalystModeDecision` ClassificationTool (`"passthrough"`, `"worker"`, `"uncertain"`) |
 | `QUERY_ANALYST_UNCERTAINTY_TOOLS` | Always | Tools for asking user / exploring when uncertain |
 | `READ_ONLY_TASK_TOOLS` | Active task exists | Read-only task inspection (list tasks, get task detail, etc.) |
 | `self.config.extra_tools` | Always | Injected by caller (tests, plugins) |
 
 ---
 
-## Step 5: Output Parsing
+## Step 4: Enforcement (Internal Retry)
 
-After the stream ends, parse the agent's response:
+Like TaskAssessor, QueryAnalyst enforces that its verdict tool (`QueryAnalystModeDecision`)
+must be called. If the agent finishes without calling it, the orchestrator retries
+internally:
 
 ```python
-raw = "".join(text_parts)
-result = json.loads(raw)
+async def run(self, user_query: str) -> AsyncIterator[dict]:
+    self._assemble_session_context()
+    instructions = self.build_instruction({"user_query": user_query})
+    agent_query = json.dumps({"user_query": user_query})
 
-# ModeDecision: routing verdict
-self.state.mode_decision = ModeDecision(**result.get("mode_decision", {}))
+    events: list[dict] = []
+    max_retries = 3
 
-# ContextEnhancedQuery: context output + original query
-self.state.context_enhanced_query = ContextEnhancedQuery(
-    context=result.get("context", raw),  # full markdown context output
-    query=user_query,                     # original query, passed through
-)
-self.state.last_result = result
+    for attempt in range(1, max_retries + 1):
+        agent = Agent(
+            name=self.config.name,
+            instructions=instructions,
+            llm_model=self.config.model,
+            tools=self._get_tools(),
+            loop=QueryAnalystLoop(state=self.state),
+        )
+
+        text_parts: list[str] = []
+        async for event in agent.run(query=agent_query, stream=True):
+            events.append(event)
+            if event["type"] == "response.output_text.delta":
+                text_parts.append(event["delta"])
+            yield event
+
+        # Probe for QueryAnalystModeDecision tool call
+        mode_label = self._extract_mode_decision(events)
+
+        if mode_label is not None:
+            # Success — verdict was called
+            response_text = "".join(text_parts)
+            self.session.append_assistant(
+                content=response_text,
+                metadata={
+                    "orchestrator": "query_analyst",
+                    "agent_name": self.config.name,
+                },
+            )
+            self.state.mode_decision = ModeDecision(mode=mode_label)
+            self.state.context_enhanced_query = ContextEnhancedQuery(
+                context=response_text,
+                query=user_query,
+            )
+            self.state.last_result = {
+                "mode_decision": mode_label,
+                "context": response_text,
+            }
+            return
+
+        # No verdict — retry
+        if attempt < max_retries:
+            response_text = "".join(text_parts) or "(no response)"
+            self.session.append_assistant(
+                content=response_text,
+                metadata={
+                    "orchestrator": "query_analyst",
+                    "agent_name": self.config.name,
+                },
+            )
+            self.session.session_context.append({
+                "role": "user",
+                "content": (
+                    "You must use the QueryAnalystModeDecision tool to "
+                    "make your routing decision. Call it with the "
+                    "appropriate mode."
+                ),
+            })
+            agent_query = (
+                "Based on your analysis above, call QueryAnalystModeDecision "
+                "with your final decision: 'passthrough', 'worker', or 'uncertain'."
+            )
+            events = []  # reset for next attempt
+
+    # Max retries exhausted — default to passthrough
+    self.state.mode_decision = ModeDecision(mode="passthrough")
+    self.state.context_enhanced_query = ContextEnhancedQuery(
+        context="(no verdict produced)",
+        query=user_query,
+    )
+    self.state.last_result = {"mode_decision": "passthrough"}
+
+
+def _extract_mode_decision(self, events: list[dict]) -> str | None:
+    """Extract the latest QueryAnalystModeDecision tool call from events."""
+    for event in reversed(events):
+        if event.get("type") != "response.tool_call":
+            continue
+        if event.get("tool_name") != "QueryAnalystModeDecision":
+            continue
+        label = event.get("output", "")
+        if label in ("passthrough", "worker", "uncertain"):
+            return label
+    return None
 ```
 
-The agent's `context` field is the markdown output containing:
-- Relevant context snippets from the session history
-- Keywords and key phrases
-- Task status summary (if applicable)
-- Anything that helps InformationDigester search the full context later
+---
 
-The `query` field is the original `user_query` string, passed through unchanged.
+## Step 5: Output
+
+Two outputs stored on `self.state`:
+
+| Object | Source | Purpose |
+|--------|--------|---------|
+| `ModeDecision` | `QueryAnalystModeDecision` tool call output | Routing verdict for TinyCUA |
+| `ContextEnhancedQuery` | Agent's final text response (markdown context) | Passed to InformationDigester in worker path |
+
+- **`context`**: The agent's markdown output — relevant context snippets, keywords, task status
+- **`query`**: The original `user_query`, passed through unchanged
 
 ---
 
@@ -360,40 +452,88 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
         self._assemble_session_context()
 
         # 2. Build instruction: base + task tree + active task
-        instructions = self.build_instruction({
-            "user_query": user_query,
-        })
+        instructions = self.build_instruction({"user_query": user_query})
 
         # 3. Build query with user input only (context is in session_context)
-        query = json.dumps({"user_query": user_query})
+        agent_query = json.dumps({"user_query": user_query})
 
-        # 4. Build SDK Agent per-call with dynamic tool selection
-        agent = Agent(
-            name=self.config.name,
-            instructions=instructions,
-            llm_model=self.config.model,
-            tools=self._get_tools(),
-            loop=QueryAnalystLoop(state=self.state),
-        )
+        events: list[dict] = []
+        max_retries = 3
 
-        # 5. Stream — accumulate text, yield everything
-        text_parts: list[str] = []
-        async for event in agent.run(query=query, stream=True):
-            if event["type"] == "response.output_text.delta":
-                text_parts.append(event["delta"])
-            yield event
+        for attempt in range(1, max_retries + 1):
+            # 4. Build SDK Agent per-call with dynamic tool selection
+            agent = Agent(
+                name=self.config.name,
+                instructions=instructions,
+                llm_model=self.config.model,
+                tools=self._get_tools(),
+                loop=QueryAnalystLoop(state=self.state),
+            )
 
-        # 6. Parse and store
-        raw = "".join(text_parts)
-        result = json.loads(raw)
-        self.state.mode_decision = ModeDecision(
-            **result.get("mode_decision", {})
-        )
+            # 5. Stream — accumulate text + events, yield everything
+            text_parts: list[str] = []
+            async for event in agent.run(query=agent_query, stream=True):
+                events.append(event)
+                if event["type"] == "response.output_text.delta":
+                    text_parts.append(event["delta"])
+                yield event
+
+            # 6. Probe for QueryAnalystModeDecision tool call
+            mode_label = self._extract_mode_decision(events)
+
+            if mode_label is not None:
+                # Success — verdict was called
+                response_text = "".join(text_parts)
+                self.session.append_assistant(
+                    content=response_text,
+                    metadata={
+                        "orchestrator": "query_analyst",
+                        "agent_name": self.config.name,
+                    },
+                )
+                self.state.mode_decision = ModeDecision(mode=mode_label)
+                self.state.context_enhanced_query = ContextEnhancedQuery(
+                    context=response_text,
+                    query=user_query,
+                )
+                self.state.last_result = {
+                    "mode_decision": mode_label,
+                    "context": response_text,
+                }
+                return
+
+            # No verdict — retry with follow-up
+            if attempt < max_retries:
+                response_text = "".join(text_parts) or "(no response)"
+                self.session.append_assistant(
+                    content=response_text,
+                    metadata={
+                        "orchestrator": "query_analyst",
+                        "agent_name": self.config.name,
+                    },
+                )
+                self.session.session_context.append({
+                    "role": "user",
+                    "content": (
+                        "You must use the QueryAnalystModeDecision tool to "
+                        "make your routing decision. Call it with the "
+                        "appropriate mode."
+                    ),
+                })
+                agent_query = (
+                    "Based on your analysis above, call "
+                    "QueryAnalystModeDecision with your final decision: "
+                    "'passthrough', 'worker', or 'uncertain'."
+                )
+                events = []
+
+        # Max retries exhausted — default to passthrough
+        self.state.mode_decision = ModeDecision(mode="passthrough")
         self.state.context_enhanced_query = ContextEnhancedQuery(
-            context=result.get("context", raw),
+            context="(no verdict produced)",
             query=user_query,
         )
-        self.state.last_result = result
+        self.state.last_result = {"mode_decision": "passthrough"}
 
     # ── Context assembly ─────────────────────────────────────────────
 
@@ -596,8 +736,10 @@ Two structured objects stored on `self.state`:
 | Conditional read-only task tools | `READ_ONLY_TASK_TOOLS` only when active task exists | QueryAnalyst needs task detail to classify correctly when tasks are active |
 | Passthrough sub-routing | `get_active_session()` determines target | No active task → PrimaryAgent; active task → active agent |
 | Worker mode aborts | Terminate all children, `session.task = None` | Fresh start for the worker chain |
-| ContextEnhancedQuery split | `context` (agent output) + `query` (original) | Downstream agents receive both the analysis and the raw query |
-| Markdown context output | Agent outputs rich markdown with context + keywords | Human-readable context that InformationDigester can use for retrieval |
+| ContextEnhancedQuery split | `context` (agent response) + `query` (original) | Downstream agents receive both the analysis and the raw query |
+| ModeDecision from tool call | `QueryAnalystModeDecision` tool call, not JSON parsing | Structured verdict guaranteed; no parsing fragility |
+| Mandatory verdict via retry | Orchestrator retries up to 3x if verdict not called | Same pattern as TaskAssessor; guarantees decision is always produced |
+| Default on exhaustion | `"passthrough"` after max retries | Safe fallback — routes to existing agents rather than starting fresh |
 
 
 ---

@@ -24,7 +24,10 @@ from tinycua.tools.classification import ClassificationTool
 from tinycua.tools.native import native_benchmark_tools
 
 QUERY_ANALYST_BASE_TOOLS: list[Tool] = [
-    ClassificationTool(labels=["passthrough", "worker", "uncertain"]),
+    ClassificationTool(
+        name="QueryAnalystModeDecision",
+        labels=["passthrough", "worker", "uncertain"],
+    ),
 ]
 
 QUERY_ANALYST_UNCERTAINTY_TOOLS: list[Tool] = [
@@ -105,6 +108,7 @@ class ClassificationTool:
     the agent during execution.
     """
     labels: list[str]
+    name: str = "classify"  # tool name for the SDK Agent
 
     async def execute(self, mode_index: int) -> str:
         if 0 <= mode_index < len(self.labels):
