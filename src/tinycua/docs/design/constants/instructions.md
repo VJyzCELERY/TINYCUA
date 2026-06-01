@@ -24,7 +24,10 @@ rebuilding the instruction.
 
 The `Agent(...)` constructor accepts `instructions=` which defaults to these constants via each agent's config dataclass.
 
-| Constant | Agent | Loop | Key Elements |
+> All loops below are application-layer constructs in `tinycua.loops.*`. They extend
+> `ReActLoop`, which extends the SDK's `BaseLoop`.
+
+| Constant | Agent | TinyCUA Loop | Key Elements |
 |----------|-------|------|-------------|
 | `QUERY_ANALYST_INSTRUCTION` | QueryAnalyst | QueryAnalystLoop | Role: fast classification + context analysis. Must call configurable `ClassificationTool` (MANDATORY — loop retries if missed). Input: `query`, assembled session context. Output: markdown context + classification label from `QueryAnalystConfig.classification_labels`. Root labels: `"passthrough"`, `"worker"`; no `"uncertain"` label. Conditional read-only task tools when active task exists. |
 | `INFORMATION_DIGESTER_INSTRUCTION` | InformationDigester | InformationDigestionLoop | Role: precision retrieval from cached context. Tools: `enhanced_context_retrieval` (search cache via internal agent) + `digest_information` (MUST call at least once for structured output). Input: `ContextEnhancedQuery` (analysis + user_query). Output: `DigestedInformation` (via tool call, not final text). Strategy: search cache → evaluate gaps → repeat or digest. Guardrails: mandatory digest call; record `known_gaps` on empty results. |

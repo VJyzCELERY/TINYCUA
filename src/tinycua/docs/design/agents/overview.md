@@ -23,7 +23,6 @@ design decisions.
 | [InformationDigester](information_digester.md) | Dynamic context retrieval + digest | Plain query or AgentState YAML | `InformationDigesterState` |
 | [TaskAnalyzer](task_analyzer.md) | Create/update task tree | AgentState YAML or plain query | `TaskAnalyzerState`; mutates `Session.task` |
 | [TaskAssessor](task_assessor.md) | Decide whether more task analysis is needed | AgentState YAML or plain query | `TaskAssessorState` |
-| [TaskCreator](task_creator.md) | Deprecated/optional composite wrapper | AgentState YAML or plain query | Optional; mirrors Worker flow |
 | [TaskExecutor](task_executor.md) | Execute active leaf task | AgentState YAML or plain query | `TaskExecutorState`; updates active `Task.task_result` |
 | [ResultReviewer](result_reviewer.md) | Review execution result | `TaskExecutorState` YAML or plain query | `ResultReviewerState` or active open question |
 | [PrimaryAgent](primary_agent.md) | Passthrough/final response | `QueryAnalystState` YAML or plain query | `PrimaryAgentState` |
@@ -57,7 +56,6 @@ No graph edge passes dicts or typed Python objects.
 | InformationDigester | Yes | Worker preprocessing when deeper context digestion is needed |
 | TaskAnalyzer | No | TinyCUAWorker task creation/decomposition |
 | TaskAssessor | No | TinyCUAWorker TaskDecompositionOuterLoop |
-| TaskCreator | Optional | Deprecated/optional composite over TaskAnalyzer+TaskAssessor |
 | TaskExecutor | No | TinyCUAWorker execution loop |
 | ResultReviewer | No | TinyCUAWorker execution/review loop |
 | PrimaryAgent | No | TinyCUA passthrough/output direction; inherits parent session |

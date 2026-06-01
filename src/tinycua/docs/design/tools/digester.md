@@ -131,7 +131,7 @@ tools = [retrieval_tool, digest_information, *self.session.agent_state.agent_con
 
 ## See also
 
-Prev : [AgentNode-Call Tools](agent_calls.md) | Next : [Task Tools](task.md)
+Prev : [`TaskExecutor` AgentNode Call Pattern](../agent_node/task_executor.md) | Next : [Task Tools](task.md)
 
 ## Related
 

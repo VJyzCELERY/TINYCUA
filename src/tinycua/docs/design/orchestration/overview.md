@@ -57,7 +57,8 @@ AgentNode
   └─ yields inner-loop-produced stream/final events
 
 AgentLoop
-  ├─ inner loop: extends tinycua_sdk.agent.loop.BaseLoop
+  ├─ inner loop: extends ReActLoop (tinycua application-layer base)
+  │              which extends tinycua_sdk.agent.loop.BaseLoop (SDK base)
   ├─ passed as loop= parameter to tinycua_sdk.Agent(...)
   ├─ handles LLM retry and required tool enforcement
   ├─ formats final AgentState subclass output
@@ -89,7 +90,8 @@ RouterNode / DecisionNode / Gates / Hooks
 | Node Type | Has Session? | Can call SDK `Agent.run()`? | Purpose |
 |-----------|--------------|------------------------------|---------|
 | `AgentNode` | Yes | Yes | Standard internal agent node. Couples one SDK `Agent` with one `Session`. |
-| `AgentGraph` / `Subgraph` | Yes (root Session) | Yes (via nodes) | Composite node containing its own graph; can be used as a node in a parent graph. |
+| `AgentGraph` | Yes (root Session) | Yes (via child nodes) | Composite node containing its own graph; can be used as a node in a parent graph. |
+| `Subgraph` | Yes (root Session) | Yes (via nodes) | Same as AgentGraph — a graph that acts as a single node in its parent. |
 | `ProcessNode` | No | Optional | Stateless processing step. |
 | `RouterNode` | No | No | Exact-match string routing through `dict[str, Any]`; requires `default`. |
 | `DecisionNode` | No by default | Usually no | Routes based on graph state, node results, predicates, or policy. |

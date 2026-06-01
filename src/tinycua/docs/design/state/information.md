@@ -165,6 +165,8 @@ The parent TinyCUA graph consumes this state without inspecting the worker's int
 queue. `restart_requested=True` means TinyCUA should create a new worker and schedule
 `handoff_query` against it.
 
+See [`worker_result.md`](worker_result.md) for `WorkerResult` and `AcceptedResult` type definitions.
+
 ---
 
 ## Usage

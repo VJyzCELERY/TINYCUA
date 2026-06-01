@@ -1,6 +1,6 @@
 # Task Analyzer AgentNode Spec Card
 
-Source of truth: [`agent_node/task_analyzer.md`](../agent_node/task_analyzer.md).
+Source of truth: [`agent_node/task_analyzer.md`](../agent_node/task_analyzer.md). This is a navigation summary — for implementation details, see the source-of-truth doc.
 
 ## Summary
 

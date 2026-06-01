@@ -50,13 +50,6 @@ can override via their config dataclass.
 | Provider `openai-chat-completions` | Not alias `openai` | SDK's `openai` alias resolves to the Responses API, not the intended chat-completions endpoint |
 | `AgentKind.TINYCUA` | Enum member even though AgentGraph is in `orchestration/` | Consistent registry lookup |
 
-
----
-
-
----
-
-
 ---
 
 ## See also

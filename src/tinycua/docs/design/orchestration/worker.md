@@ -227,7 +227,7 @@ all descendants that remain within the same sharing group. See
 
 ## See also
 
-Prev : [`RouterNode`](router_node.md) | Next : [`AgentNode Call Tools`](../tools/agent_calls.md)
+Prev : [`RouterNode`](router_node.md) | Next : [`InformationDigester Tools`](../tools/digester.md)
 
 ## Related
 

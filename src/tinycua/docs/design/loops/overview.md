@@ -25,14 +25,17 @@ custom `BaseLoop` subclass handles SDK events and session state from inside
 
 ---
 
-## SDK BaseLoop Contract
+## Loop Subclassing Convention
 
-TinyCUA custom loops follow the SDK `BaseLoop` subclassing convention:
+TinyCUA loops extend `ReActLoop` (application-layer base), which extends the SDK `BaseLoop`:
 
 ```text
-class SomeAgentLoop(ReActLoop):
+class ReActLoop(BaseLoop):           # application-layer base
+    def __init__(self, session): ...
+
+class SomeAgentLoop(ReActLoop):      # agent-specific loop
     def __init__(self, session: Session, ...):
-        super().__init__(...)
+        super().__init__(session)
         self.session = session
 
     async def run(

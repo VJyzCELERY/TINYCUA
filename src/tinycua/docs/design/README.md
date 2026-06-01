@@ -23,7 +23,6 @@ Read in order for a linear learning experience:
 1. [`agents/information_digester.md`](agents/information_digester.md)
 1. [`agents/task_analyzer.md`](agents/task_analyzer.md)
 1. [`agents/task_assessor.md`](agents/task_assessor.md)
-1. [`agents/task_creator.md`](agents/task_creator.md) **(deprecated/optional)**
 1. [`agents/task_executor.md`](agents/task_executor.md)
 1. [`agents/result_reviewer.md`](agents/result_reviewer.md)
 1. [`agents/primary_agent.md`](agents/primary_agent.md)
@@ -33,12 +32,11 @@ Read in order for a linear learning experience:
 1. [`agent_node/information_digester.md`](agent_node/information_digester.md)
 1. [`agent_node/task_analyzer.md`](agent_node/task_analyzer.md)
 1. [`agent_node/task_assessor.md`](agent_node/task_assessor.md)
-1. [`agent_node/task_creator.md`](agent_node/task_creator.md) — optional/deprecated composite; Worker is source of truth
 1. [`agent_node/task_executor.md`](agent_node/task_executor.md)
 1. [`agent_node/result_reviewer.md`](agent_node/result_reviewer.md)
 1. [`agent_node/primary_agent.md`](agent_node/primary_agent.md)
 1. [`loops/overview.md`](loops/overview.md) — Inner loop hierarchy (SDK Agent `loop=` policies)
-1. [`loops/react_agent.md`](loops/react_agent.md) — `ReActAgentLoop`
+1. [`loops/react_agent.md`](loops/react_agent.md) — `ReActLoop` (shared base for all agent loops)
 1. [`loops/query_analyst_loop.md`](loops/query_analyst_loop.md)
 1. [`loops/information_digestion_loop.md`](loops/information_digestion_loop.md)
 1. [`loops/task_analyzer_loop.md`](loops/task_analyzer_loop.md)
@@ -58,7 +56,6 @@ Read in order for a linear learning experience:
 1. [`state/session.md`](state/session.md) — Design `Session` (extends existing Session)
 1. [`state/chat_record.md`](state/chat_record.md) — `ChatRecord` structured audit trail entry
 1. [`state/state_store.md`](state/state_store.md) — Continuation state store
-1. [`tools/agent_calls.md`](tools/agent_calls.md) — AgentNode-call tools
 1. [`tools/digester.md`](tools/digester.md) — InformationDigester tools
 1. [`tools/task.md`](tools/task.md) — Task tools: read + write/result updates
 1. [`tools/todo.md`](tools/todo.md) — TodoList tool (short-term goal tracking, per-session)
@@ -96,7 +93,6 @@ Read in order for a linear learning experience:
 | [`agents/information_digester.md`](agents/information_digester.md) | `InformationDigester` — purpose, tools |
 | [`agents/task_analyzer.md`](agents/task_analyzer.md) | `TaskAnalyzer` — purpose, tools |
 | [`agents/task_assessor.md`](agents/task_assessor.md) | `TaskAssessor` — purpose, tools |
-| [`agents/task_creator.md`](agents/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
 | [`agents/task_executor.md`](agents/task_executor.md) | `TaskExecutor` — purpose, tools, termination |
 | [`agents/result_reviewer.md`](agents/result_reviewer.md) | `ResultReviewer` — purpose, tools, decisions |
 | [`agents/primary_agent.md`](agents/primary_agent.md) | `PrimaryAgent` — purpose, OutputGate target |
@@ -111,7 +107,6 @@ Read in order for a linear learning experience:
 | [`agent_node/information_digester.md`](agent_node/information_digester.md) | `InformationDigester` — Session + cache management |
 | [`agent_node/task_analyzer.md`](agent_node/task_analyzer.md) | `TaskAnalyzer` — Session + tool wiring |
 | [`agent_node/task_assessor.md`](agent_node/task_assessor.md) | `TaskAssessor` — Session + tool wiring |
-| [`agent_node/task_creator.md`](agent_node/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
 | [`agent_node/task_executor.md`](agent_node/task_executor.md) | `TaskExecutor` — Session + active-task lifecycle |
 | [`agent_node/result_reviewer.md`](agent_node/result_reviewer.md) | `ResultReviewer` — Session + deterministic rules |
 | [`agent_node/primary_agent.md`](agent_node/primary_agent.md) | `PrimaryAgent` — Session + final synthesis |

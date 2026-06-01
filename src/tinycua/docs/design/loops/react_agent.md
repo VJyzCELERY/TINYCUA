@@ -72,7 +72,7 @@ the Task Tree:
 
 | Task Tree (Roadmap) | TodoList (Short-Term Goals) |
 |---------------------|---------------------------|
-| Owned by session, managed by TaskAnalyzer/TaskCreator | Owned by session, managed by the executing agent |
+| Owned by session, managed by TaskAnalyzer | Owned by session, managed by the executing agent |
 | Formal decomposition with structure, status, result | Simple list with status and text |
 | Represents the full work breakdown | Represents what the agent is currently working on |
 | Only specialized agents modify it | Every agent can read/write their own |

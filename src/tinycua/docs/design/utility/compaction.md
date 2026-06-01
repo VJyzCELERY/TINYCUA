@@ -86,32 +86,16 @@ Each agent can have its own compaction policy; Session derives it automatically.
 
 ---
 
-## Extending
+## Extensibility
 
-### `SimpleCompaction` (default)
+`BaseCompaction` is designed to be subclassed. Implementations may vary in:
 
-```text
-SimpleCompaction extends BaseCompaction
-    Compress full session_context into a single summary via LLM.
-    No persistent state beyond config.
+- Compression strategy (single LLM call, checkpoint-based, parallel, etc.)
+- When to trigger compaction (token threshold, message count, etc.)
+- What to preserve during compaction (snapshots, summaries, etc.)
 
-    __call__(messages: list[dict]) → str
-        · Single LLM call → "Summarize the following conversation..."
-```
-
-### `ParallelCompaction` (advanced)
-
-```text
-ParallelCompaction extends BaseCompaction
-    Checkpoint-based compaction with snapshot accumulation.
-    Compact at configured checkpoints instead of near full context.
-    When compaction triggers, merge accumulated snapshots into a dense summary.
-
-    · snapshots: list[dict] = [] — persistent compaction checkpoints
-
-    __call__(messages: list[dict]) → str
-        · Merge accumulated snapshots → produce summary
-```
+The `__call__` method must return a compressed summary string. The `check_compaction`
+method controls when compaction triggers.
 
 ---
 
@@ -144,10 +128,6 @@ Restore:
 | Token estimation on strategy | `_estimate_tokens()` on BaseCompaction | Override for accurate counting or custom policies |
 | Session derives strategy | `session.agent_state.agent_config.compaction_strategy` | No dedicated field on Session; naturally available via agent_state |
 | Extensible via subclass | `BaseCompaction` can add persistent data | Supports advanced patterns like snapshot accumulation |
-
-
----
-
 
 ---
 

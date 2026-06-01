@@ -35,13 +35,6 @@ DigestedInformation extends StateObject
 | Known gaps explicit | `known_gaps: list[str]` | Empty results documented rather than silently omitted |
 | Advisory instructions separate | `advisory_instructions` | Guidance for downstream agents without polluting context_summary |
 
-
----
-
-
----
-
-
 ---
 
 ## See also

@@ -1,6 +1,6 @@
 # Result Reviewer AgentNode Spec Card
 
-Source of truth: [`agent_node/result_reviewer.md`](../agent_node/result_reviewer.md).
+Source of truth: [`agent_node/result_reviewer.md`](../agent_node/result_reviewer.md). This is a navigation summary — for implementation details, see the source-of-truth doc.
 
 ## Summary
 
