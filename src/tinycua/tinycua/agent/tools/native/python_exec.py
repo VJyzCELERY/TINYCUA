@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from tinycua_sdk.tools.decorators import tool
+from tinycua_sdk.tools.decorators import Tool, tool
+
+if TYPE_CHECKING:
+    from tinycua.agent.tools.context import ExecutorContext
 
 
 @tool
@@ -24,6 +27,11 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
+    return _execute_python(code, timeout)
+
+
+def _execute_python(code: str, timeout: int) -> dict[str, Any]:
+    """Core Python execution logic shared by ``run_python`` and factory tools."""
     result: dict[str, Any] = {
         "stdout": "",
         "stderr": "",
@@ -55,3 +63,30 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
         result["error"] = str(exc)
 
     return result
+
+
+def create_run_python(context: ExecutorContext) -> Tool:
+    """Create a ``run_python`` tool bound to the given *context*.
+
+    Checks ``context.config.enable_python_exec`` feature flag and clamps
+    timeout to ``context.config.python_timeout``.
+    """
+    def _execute(code: str, timeout: int = 30) -> dict[str, Any]:
+        if not context.config.enable_python_exec:
+            return {
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "timed_out": False,
+                "error": "run_python is disabled by executor configuration (enable_python_exec=False)",
+            }
+        effective_timeout = min(timeout, context.config.python_timeout)
+        return _execute_python(code, effective_timeout)
+
+    return Tool.from_callable(_execute, name="run_python")
+
+
+__all__ = [
+    "create_run_python",
+    "run_python",
+]
