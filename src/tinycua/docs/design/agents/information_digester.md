@@ -320,11 +320,24 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                 ),
             )
 
-            # 6. Stream — accumulate events for output parsing
+            # 6. Stream — accumulate events + text for output parsing
             events: list[dict] = []
+            text_parts: list[str] = []
             async for event in agent.run(query=query, stream=True):
                 events.append(event)
+                if event["type"] == "response.output_text.delta":
+                    text_parts.append(event["delta"])
                 yield event
+
+            # Record response in session
+            response_text = "".join(text_parts)
+            self.session.append_assistant(
+                content=response_text,
+                metadata={
+                    "orchestrator": "information_digester",
+                    "agent_name": self.config.name,
+                },
+            )
 
             # 7. Parse output from digest_information tool call (NOT final text)
             self.state.digested_information = self._parse_digested_output(events)

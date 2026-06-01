@@ -351,15 +351,7 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
                     "orchestrator": "query_analyst",
                     "agent_name": self.config.name,
                 },
-            )
-            self.session.session_context.append({
-                "role": "user",
-                "content": (
-                    "You must use the QueryAnalystModeDecision tool to "
-                    "make your routing decision. Call it with the "
-                    "appropriate mode."
-                ),
-            })
+                )
             agent_query = (
                 "Based on your analysis above, call QueryAnalystModeDecision "
                 "with your final decision: 'passthrough', 'worker', or 'uncertain'."
@@ -512,14 +504,6 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                         "agent_name": self.config.name,
                     },
                 )
-                self.session.session_context.append({
-                    "role": "user",
-                    "content": (
-                        "You must use the QueryAnalystModeDecision tool to "
-                        "make your routing decision. Call it with the "
-                        "appropriate mode."
-                    ),
-                })
                 agent_query = (
                     "Based on your analysis above, call "
                     "QueryAnalystModeDecision with your final decision: "

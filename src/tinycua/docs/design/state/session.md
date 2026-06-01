@@ -301,6 +301,16 @@ class Session(StateObject):
     # by orchestrators are NOT stored — only the agent's RESPONSE output
     # is recorded.
     #
+    # Every orchestrator MUST call append_assistant() after each
+    # Agent.run() stream — recording the response in both chat_history
+    # and session_context.
+    #
+    # During retry (when an agent fails to call a mandatory tool):
+    #   - Response is appended via append_assistant() (both histories).
+    #   - Follow-up query is passed to Agent.run(query=...) — the SDK
+    #     handles it internally; it is NOT added to session_context.
+    #   - Follow-up prompts are NOT appended to any history directly.
+    #
     # session_context: role/content dicts for LLM consumption.
     #   - "user" entries: ONLY real user messages.
     #   - "assistant" entries: agent responses (text only, no tool calls).
@@ -543,6 +553,8 @@ self.session.terminate_child(primary.session)
 | Typed chat_history | `list[ChatRecord]` on Session | Structured audit with id, type, metadata, content, timestamp — not loose dicts |
 | Internal queries not stored | Only `Agent.run()` responses recorded; queries discarded | Queries are internal orchestration detail; only outputs affect context |
 | Only real user → `role:user` | `append_user` only for actual user messages to QueryAnalyst | Internal agent queries are NOT user messages; session_context never gets spurious user entries |
+| Every response recorded | `append_assistant()` after every `Agent.run()` call | Session context stays consistent; subsequent retries see prior responses |
+| Retry queries not in session_context | Follow-up queries go to `Agent.run(query=...)` only — not appended separately | The `query` param drives the agent; session_context holds conversation history only |
 | Agent metadata on records | `append_assistant(metadata={...})` should include orchestrator + agent identity | Traces which orchestrator spawned each agent call in the audit trail |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
 

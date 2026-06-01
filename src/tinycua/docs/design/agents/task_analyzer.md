@@ -215,8 +215,15 @@ class TaskAnalyzer(BaseAgentOrchestrator[TaskAnalyzerState]):
                 text_parts.append(event["delta"])
             yield event
 
-        # 6. Store analysis summary (NOT parsed JSON — natural language)
+        # 6. Record response + store analysis summary
         raw = "".join(text_parts)
+        self.session.append_assistant(
+            content=raw,
+            metadata={
+                "orchestrator": "task_analyzer",
+                "agent_name": self.config.name,
+            },
+        )
         self.state.analysis_summary = raw
         self.state.last_result = {"summary": raw}
 

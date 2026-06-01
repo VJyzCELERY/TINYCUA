@@ -151,15 +151,6 @@ async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
                 content=response_text,
                 metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
             )
-            # Follow-up: tell agent to use the verdict tool
-            self.session.session_context.append({
-                "role": "user",
-                "content": (
-                    "You must use the AssessorVerdict tool to make your decision. "
-                    "Call AssessorVerdict with either 'analyze' or 'stop'."
-                ),
-            })
-            # Rebuild query for next attempt (agent already has context)
             agent_query = (
                 "Based on the assessment above, call AssessorVerdict with "
                 "your final decision: 'analyze' or 'stop'."
@@ -299,14 +290,6 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
                         "agent_name": self.config.name,
                     },
                 )
-                self.session.session_context.append({
-                    "role": "user",
-                    "content": (
-                        "You must use the AssessorVerdict tool to make "
-                        "your decision. Call AssessorVerdict with either "
-                        "'analyze' or 'stop'."
-                    ),
-                })
                 agent_query = (
                     "Based on the assessment above, call AssessorVerdict "
                     "with your final decision: 'analyze' or 'stop'."
