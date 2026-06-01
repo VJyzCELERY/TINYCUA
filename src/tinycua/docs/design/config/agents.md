@@ -26,6 +26,7 @@ AgentConfigBase (base configuration dataclass shared by all TinyCUA agents)
     · extra_tools: list[tinycua_sdk.Tool] — default [], external injection channel for tests/adapters
     · metadata: dict[str, Any] — default {}, free-form extensibility
     · compaction_strategy: BaseCompaction | None — default None, per-agent compaction; Session inherits via agent_state.agent_config
+    · hitl_enabled: bool = False — human-in-the-loop gate; per-agent control over HITL behavior
 ```
 
 | Field | Purpose |
@@ -36,6 +37,7 @@ AgentConfigBase (base configuration dataclass shared by all TinyCUA agents)
 | `extra_tools` | Externally injected tools — **empty by default**. Tests or integration adapters may use this to inject per-agent tools |
 | `metadata` | Free-form dict for future extensibility |
 | `compaction_strategy` | Per-agent compaction strategy (`BaseCompaction \| None`) — Session inherits via `agent_state.agent_config` |
+| `hitl_enabled` | Human-in-the-loop gate — `False` by default. Per-agent control over HITL behavior (e.g., QueryAnalyst indecision, ResultReviewer open-question) |
 
 ---
 
@@ -48,7 +50,6 @@ QueryAnalystConfig extends AgentConfigBase
     · name = "query-analyst"
     · instructions = QUERY_ANALYST_INSTRUCTION
     · classification_labels: list[str] = TINYCUA_INPUT_GATE_CLASSIFICATION
-    · hitl_enabled: bool = False
 ```
 
 `classification_labels` makes QueryAnalyst reusable as the root TinyCUA input gate,

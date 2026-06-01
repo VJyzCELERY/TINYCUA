@@ -30,6 +30,8 @@ token tracking, compaction, and parent/child lifecycle management.
 | Token tracking | `total_token_usage` (persistent) + `active_token_usage` (session-context) |
 | Child lifecycle | `add_child()`, `terminate_child()`, `can_terminate()` |
 | Propagation rules | Natural: final response only. Mid-progress: entire session_context. Transient: chat_history only (no session_context). |
+| **Dynamic recording** | `event_log: list[dict]` — append-only; every SDK event recorded in real time during `status == "running"` |
+| **Staging changes** | `commit_staged_changes()` — destructive mutations (propagation, deletion) are staged then committed on success |
 
 ```text
 Session tree (hierarchical parent-child structure):
@@ -330,6 +332,93 @@ async for event in primary.run(query=query_analyst_state.to_yaml() + "\n" + user
 
 ---
 
+## Dynamic Session Recording
+
+Active sessions record their agent's output **in real time** during streaming — not
+batched at the end of `AgentNode.run()`. Every streamed event from an active SDK Agent
+is written to the session's event log and context history as it arrives.
+
+```text
+AgentNode.run(query)
+  → agent.run(query, messages=self.session.session_context, stream=True)
+  → async for event in agent_run_stream:
+      self.session.record_event(event)       # append to event log immediately
+      if stream: yield event                 # passthrough to caller
+```
+
+### Rationale
+
+If the system crashes mid-generation, any tokens/events already streamed by the LLM
+are already recorded in the session. On resume, the session contains the partial
+generation — no event is silently lost. This is an in-memory requirement first;
+persistent storage (SQLite, filesystem) builds on top of the same per-event recording
+primitive.
+
+### Event Log
+
+Each session maintains an append-only event log:
+
+```text
+Session
+  · event_log: list[dict[str, Any]]  # append-only, records every SDK event
+
+record_event(event: dict) → None
+  · self.event_log.append({"timestamp": ..., "event": event})
+```
+
+The event log is:
+- **Append-only**: events are never modified or removed.
+- **Streaming-aware**: each event is recorded as it arrives, not batched.
+- **Crash-safe**: if a crash occurs, the log contains everything up to the crash point.
+  Future crash handlers can reconcile from the log.
+
+### Applies to Active Sessions Only
+
+Dynamic recording applies while `agent_state.status == "running"`. When a session is
+idle, blocked, or terminated, no recording occurs. Session propagation (`terminate_child`,
+`add_child`) happens when the session is no longer running — propagation is a
+post-termination operation, not a streaming operation, so it is not affected by dynamic
+recording.
+
+---
+
+## Staging Changes ("Commit on Completion")
+
+Destructive mutations (deletion, propagation, task-tree replacement, session
+termination) follow a **staging pattern**: the change is prepared or accumulated
+in-memory during execution but is only **committed** (persisted, propagated to parent,
+or finalized) once the owning process confirms successful completion.
+
+```text
+# Staged: the mutation is recorded on the session but not yet propagated
+session._staged_child_terminations.append(child_session)
+session._staged_task_replacement = new_task
+
+# Committed: called once AgentNode.run() completes successfully
+session.commit_staged_changes()
+  → for child in self._staged_child_terminations: child.propagate()
+  → if self._staged_task_replacement: self.propagate_task_replacement(...)
+  → self._staged_child_terminations.clear()
+```
+
+### Why Staging Matters
+
+1. **Crash safety**: If a crash occurs mid-execution, staged-but-uncommitted changes
+   are not persisted. On resume, the session is in its pre-mutation state — consistent
+   and recoverable.
+2. **Rollback**: If the agent fails or is interrupted, staged changes can be discarded
+   without corrupting parent sessions or task trees.
+3. **Concurrent access**: A second process loading the session sees only committed
+   state, not in-flight mutations.
+
+Staging applies to:
+- Child session termination/propagation
+- Task tree replacement (`share_parent_task` propagation)
+- Session context mutation (already handled by dynamic recording — no staging needed)
+- AgentState status transitions (already atomic via single field assignment)
+
+---
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
@@ -348,6 +437,8 @@ async for event in primary.run(query=query_analyst_state.to_yaml() + "\n" + user
 | Internal queries never stored as user | Only real external input gets user role/type | Prevents context pollution from orchestration queries |
 | Agent metadata on records | metadata uses `agent_node`, `agent_name`, `model` | Traces which node spawned each SDK Agent call |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles nested structures; only `set_parents()` override needed |
+| Dynamic recording | Events written to `event_log` in real time during streaming | No event lost on crash; partial generation preserved for crash handlers |
+| Commit on completion | Staged mutations committed after `AgentNode.run()` succeeds | Crash-safe; no partial propagation; second process sees only committed state |
 
 ---
 

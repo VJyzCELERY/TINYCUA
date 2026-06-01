@@ -211,6 +211,58 @@ lifecycle transitions (e.g., new task execution resets TaskExecutor's failure).
 
 ---
 
+## Running Status and Crash Recovery
+
+`status = "running"` is set **only** while an agent is actively executing inside
+`AgentNode.run()`. It is never set during idle, queued, or awaiting-human-input states.
+This makes the `running` status a reliable indicator: if persisted, any process can
+observe that a session was mid-execution at crash time.
+
+The loop sets the status at the start of `AgentNode.run()` and clears it when the loop
+produces a terminal result or raises a terminal error.
+
+### Case 1: Crash During Running
+
+When a system crash interrupts a running agent, the persisted session will still have
+`status = "running"`. On resume:
+
+1. The graph detects `agent_state.status == "running"` on the session being loaded.
+2. The running agent is treated as **unfinished** — its in-flight work is considered
+   lost (except for what was dynamically recorded — see session event log).
+3. The agent's status is reset to `"idle"` and the graph awaits the next human input
+   before routing. The agent does not automatically retry.
+4. If the agent had a child task in progress, that child's status follows the same
+   rule: `running` → `idle` on resume.
+
+### Case 2: Second Process Loads a Running Session
+
+If a session is already `running` (e.g., being processed by another worker or process)
+and a second process loads it:
+
+1. The second process detects `agent_state.status == "running"`.
+2. It must NOT reset the status or interfere. The session is actively owned.
+3. The second process should either wait (polling backoff) or reject the load with a
+   "session busy" error.
+4. A lightweight lock (e.g., `session.is_running` timestamp check with heartbeat) can
+   help distinguish a genuinely running session from a crashed one.
+
+These are documented edge cases. More complex crash-handling policies (reconciliation
+from event logs, automatic retry, partial result recovery) are deferred to
+implementation but should be designed against these primitives.
+
+### Status Lifecycle
+
+```text
+idle ──(AgentNode.run() starts)──→ running ──(loop yields final result)──→ terminated
+                                       │
+                                       └──(crash / unhandled error)──→ idle (on resume)
+```
+
+`blocked` is a terminal state entered when the agent cannot proceed without external
+intervention (e.g., permission gate, missing tool). It is distinct from `running`.
+
+---
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
@@ -225,6 +277,9 @@ lifecycle transitions (e.g., new task execution resets TaskExecutor's failure).
 | Config on AgentState | `agent_config: AgentConfigBase` | Config source of truth for AgentNode, loop, and Session compaction |
 | Stored per session node | `Session.agent_state` on each session | Results stay close to the node/session that produced them |
 | Active node via graph queue | `graph.queue[0]` | Prevents limbo states and avoids treating session-tree shape as execution order |
+| Running status scoped to execution | `running` only inside `AgentNode.run()` | Reliable crash-detection signal; never set during idle/queued/awaiting-input |
+| Crash recovery: reset to idle | `running` → `idle` on resume | Unfinished work is not auto-retried; graph awaits next human input |
+| Second-process guard | Detect `running` → wait or reject | Prevents accidental session interference between concurrent processes |
 
 ---
 

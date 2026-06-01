@@ -31,8 +31,8 @@ QueryAnalyst has no hardcoded classification labels. It reads labels from
 
 ```text
 QueryAnalystConfig
-  · classification_labels: list[str]
-  · hitl_enabled: bool = False
+  · classification_labels: list[str]  # from config/agents.md
+  · hitl_enabled: bool = False         # inherited from AgentConfigBase
 ```
 
 Common label sets:
