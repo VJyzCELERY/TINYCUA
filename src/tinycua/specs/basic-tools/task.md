@@ -2,18 +2,30 @@
 
 Implementation tasks for the basic tool layer (issue #70). Check off items as completed.
 
+## Prerequisites
+
+- [ ] Verify native tools are implemented from `native_tools/spec.md` (FR-001–FR-009) before starting M1 modifications <!-- id: 0 -->
+
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for `register_all()`, SDK execution, todo list workflow, and context injection <!-- id: 1 -->
-- [ ] Run integration tests — expect RED (failures) since implementation is not yet complete <!-- id: 2 -->
+- [ ] Write unit tests for `ExecutorContext` / `ExecutorConfig` <!-- id: 7 -->
+- [ ] Write unit tests for `TodoList` class (add, list, update, clear, edge cases) <!-- id: 8 -->
+- [ ] Write unit tests for context injection in native tools (shell, files, web, python_exec) <!-- id: 9 -->
+- [ ] Run all new tests — expect RED (failures) since implementation is not yet complete <!-- id: 2 -->
 
 ## Implementation Phase
 
-### Phase 1 — Executor Context
+### Phase 1 — Executor Context & Native Tools
 
 - [ ] Create `tinycua/agent/tools/context.py` — `ExecutorConfig` and `ExecutorContext` dataclasses <!-- id: 3 -->
   - [ ] Define `ExecutorConfig` with shell_timeout, python_timeout, fetch_timeout, max_file_size, max_fetch_size, allowed_paths, enable_fetch, enable_python_exec
   - [ ] Define `ExecutorContext` with session (None for M1), todo_list, config
+- [ ] Modify `shell.py` — `run_shell` to accept `ExecutorContext` for configurable timeout <!-- id: 3b -->
+- [ ] Modify `files.py` — `read_file`, `write_file`, `edit_file`, `list_files` to use `ExecutorContext` for max_file_size, allowed_paths <!-- id: 3c -->
+- [ ] Modify `web.py` — `fetch_url` to use `ExecutorContext` for fetch_timeout, max_fetch_size, enable_fetch <!-- id: 3d -->
+- [ ] Modify `python_exec.py` — `run_python` to use `ExecutorContext` for python_timeout, enable_python_exec <!-- id: 3e -->
+- [ ] Update `tinycua/agent/tools/__init__.py` with native tool exports <!-- id: 3f -->
 
 ### Phase 2 — TodoList Tool
 
@@ -35,12 +47,6 @@ Implementation tasks for the basic tool layer (issue #70). Check off items as co
   - [ ] `web.py` — use context for `fetch_timeout`, `max_fetch_size`, `enable_fetch`
   - [ ] `python_exec.py` — use context for `python_timeout`, `enable_python_exec`
 
-### Phase 4 — Unit Tests
-
-- [ ] Write unit tests for `ExecutorContext` / `ExecutorConfig` <!-- id: 7 -->
-- [ ] Write unit tests for `TodoList` class (add, list, update, clear, edge cases) <!-- id: 8 -->
-- [ ] Write unit tests for context injection in native tools (shell, files, web, python_exec) <!-- id: 9 -->
-
 ## Testing Phase
 
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 10 -->
@@ -60,9 +66,9 @@ Implementation tasks for the basic tool layer (issue #70). Check off items as co
 
 ## Review and Merge
 
-- [ ] Create pull request for `feat/m1-basic-tools` <!-- id: 18 -->
+- [ ] Create pull request for `feat/m1-basic-tools` (note: docs PR #79 already exists; this step is for code implementation PR) <!-- id: 18 -->
 - [ ] Address review feedback <!-- id: 19 -->
-- [ ] Merge to main branch <!-- id: 20 -->
+- [ ] Merge to `feat/tinycua-prototype` branch <!-- id: 20 -->
 
 ---
 

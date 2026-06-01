@@ -1,6 +1,6 @@
 # Feature Specification: Prototype M1 — Basic Tools
 
-**Status**: Draft
+**Status**: Under Review
 **Created**: 2026-06-02
 **Last Updated**: 2026-06-02
 **Subproject(s) Affected**: tinycua, tinycua-sdk
@@ -131,22 +131,22 @@ A developer wants to run the prototype against a benchmark task. They register a
 1. **Should task tools use a global Session singleton or receive Session via context injection?** (Deferred to M2 — requires state objects first)
    - **Owner**: @VJyzCELERY
    - **Target**: TBD (M2 planning)
-   - **Status**: Deferred
-   - **Proposed Answer**: Context injection via a shared `ExecutorContext` passed to tool factories. Avoids global state and makes testing easier.
+   - **Status**: Decided
+   - **Proposed Answer**: Context injection via a shared `ExecutorContext` passed to tool factories. Avoids global state and makes testing easier. See design.md Technical Decision #1 (line 245).
 
 2. **Should `fetch_url` and `run_python` be optional (behind feature flags)?**
    - **Owner**: @VJyzCELERY
-   - **Target**: 2026-06-03
-   - **Status**: Discussion
-   - **Proposed Answer**: Yes — these should be feature-gated since some benchmarks may not require them and they add security surface.
+   - **Target**: Resolved
+   - **Status**: Decided
+   - **Proposed Answer**: Yes — feature-gated via `ExecutorConfig.enable_fetch` and `ExecutorConfig.enable_python_exec` (see design.md Technical Decision #3, line 253).
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

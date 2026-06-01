@@ -1,7 +1,7 @@
 # Design Document: Prototype M1 — Basic Tools
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Under Review
 **Last Updated**: 2026-06-02
 
 ---
@@ -218,11 +218,10 @@ def todo_list(command: str, item: str | None = None,
 ### Phase 1 — Native Tools (shell, file, HTTP, python)
 
 - [ ] Create `tinycua/agent/tools/context.py` — `ExecutorContext`, `ExecutorConfig`
-- [ ] Create `tinycua/agent/tools/native/` package
-- [ ] Implement `shell.py` — `run_shell` with subprocess + timeout
-- [ ] Implement `files.py` — `read_file`, `write_file`, `edit_file`, `list_files`
-- [ ] Implement `web.py` — `fetch_url` using `httpx`
-- [ ] Implement `python_exec.py` — `run_python` using subprocess
+- [ ] Modify `shell.py` — `run_shell` to accept `ExecutorContext` for configurable timeout
+- [ ] Modify `files.py` — `read_file`, `write_file`, `edit_file`, `list_files` to use `ExecutorContext` for max_file_size, allowed_paths
+- [ ] Modify `web.py` — `fetch_url` to use `ExecutorContext` for fetch_timeout, max_fetch_size, enable_fetch
+- [ ] Modify `python_exec.py` — `run_python` to use `ExecutorContext` for python_timeout, enable_python_exec
 - [ ] Update `tinycua/agent/tools/__init__.py` with native tool exports
 - [ ] Write unit tests for each native tool
 
@@ -260,6 +259,10 @@ def todo_list(command: str, item: str | None = None,
 5. **Decision**: Task tree mutations (deferred to M2) should be single-task operations (one add/delete/edit at a time) rather than batch operations.
    - **Reason**: Simpler implementation and testing. Batch operations can be composed from single operations by the agent or orchestrator. Single operations also make it easier to track what changed in the execution log.
    - **Alternatives Considered**: Batch `update_task_tree(operations: list)` — more efficient for bulk changes but harder to validate and log.
+
+6. **Decision**: When both `ExecutorConfig.shell_timeout` and the tool's `timeout` parameter are provided, the tool's parameter takes precedence and is clamped to `shell_timeout` as a maximum. When no context is available, the tool uses its own parameter default. When context is available but no explicit `timeout` parameter is passed, `shell_timeout` is used. Same semantics apply to `python_timeout` / `run_python(timeout)` and `fetch_timeout` / `fetch_url(timeout)`.
+   - **Reason**: The tool parameter is the caller's explicit intent, but the config represents the operator's safety bound. Clamping ensures that a rogue or misconfigured caller cannot exceed the configured limit, while still allowing shorter timeouts when explicitly requested. Without this rule, the interaction is undefined and implementers may silently ignore one mechanism.
+   - **Alternatives Considered**: `shell_timeout` as the only source (ignores caller intent), `shell_timeout` as pure default (operator config has no enforcement power), additive (confusing and unbounded).
 
 ---
 

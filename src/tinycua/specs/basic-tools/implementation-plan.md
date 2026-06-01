@@ -26,7 +26,6 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for basic tools — SDK registration and execution."""
 
 from tinycua.agent.tools import register_all
-from tinycua_sdk import Agent
 
 
 def test_register_all_returns_all_tools():
@@ -58,6 +57,19 @@ def test_tools_work_through_sdk_executor(tmp_path):
 
     read_result = executor.execute("read_file", {"path": str(test_file)})
     assert "Hello, World!" in read_result
+
+    # Edit the file
+    edit_result = executor.execute("edit_file", {
+        "path": str(test_file),
+        "start": 1,
+        "content": "Edited line"
+    })
+    assert edit_result["success"] is True
+    assert edit_result["lines_replaced"] >= 1
+
+    # List files (covers spec.md Acceptance Scenario 4)
+    list_result = executor.execute("list_files", {"path": str(tmp_path), "pattern": "*.txt"})
+    assert "hello.txt" in list_result
 ```
 
 ### Integration Test: Todo List Operations
@@ -116,12 +128,86 @@ def test_context_injection():
     assert items[0]["item"] == "Context test"
 ```
 
+### Integration Test: Timeout Enforcement
+
+```python
+def test_shell_timeout_enforcement():
+    """A shell command exceeding the configured timeout should be killed."""
+    from tinycua.agent.tools.context import ExecutorContext, ExecutorConfig
+    from tinycua.agent.tools import register_all
+
+    config = ExecutorConfig(shell_timeout=1)
+    ctx = ExecutorContext(config=config)
+    tools = register_all(context=ctx)
+
+    shell_tool = next(t for t in tools if t.__name__ == "run_shell")
+    # timeout=30 exceeds shell_timeout=1 → should be clamped to 1
+    result = shell_tool(command="sleep 10", timeout=30)
+    assert result["timed_out"] is True
+    assert result["exit_code"] == -1
+
+
+def test_timeout_is_clamped_by_context_config():
+    """Tool timeout parameter should be clamped to context config max."""
+    from tinycua.agent.tools.context import ExecutorContext, ExecutorConfig
+    from tinycua.agent.tools import register_all
+
+    config = ExecutorConfig(shell_timeout=2)
+    ctx = ExecutorContext(config=config)
+    tools = register_all(context=ctx)
+
+    shell_tool = next(t for t in tools if t.__name__ == "run_shell")
+    result = shell_tool(command="sleep 10", timeout=30)
+    assert result["timed_out"] is True
+    assert result["exit_code"] == -1
+
+
+def test_timeout_parameter_underrides_context():
+    """Tool timeout below the context config should be respected (not clamped up)."""
+    from tinycua.agent.tools.context import ExecutorContext, ExecutorConfig
+    from tinycua.agent.tools import register_all
+
+    config = ExecutorConfig(shell_timeout=30)
+    ctx = ExecutorContext(config=config)
+    tools = register_all(context=ctx)
+
+    shell_tool = next(t for t in tools if t.__name__ == "run_shell")
+    # timeout=1 is below shell_timeout=30 → should NOT be clamped, should actually time out
+    result = shell_tool(command="sleep 10", timeout=1)
+    assert result["timed_out"] is True
+    assert result["exit_code"] == -1
+```
+
+### Integration Test: Feature Gating
+
+```python
+def test_feature_flags_disable_tools():
+    """Disabling a feature flag should make the corresponding tool unavailable."""
+    from tinycua.agent.tools.context import ExecutorContext, ExecutorConfig
+    from tinycua.agent.tools import register_all
+
+    config = ExecutorConfig(enable_fetch=False, enable_python_exec=False)
+    ctx = ExecutorContext(config=config)
+    tools = register_all(context=ctx)
+
+    fetch_tool = next(t for t in tools if t.__name__ == "fetch_url")
+    result = fetch_tool(url="http://placeholder.local/not-reached")
+    assert "error" in result or "disabled" in result
+
+    python_tool = next(t for t in tools if t.__name__ == "run_python")
+    result = python_tool(code="print('hello')")
+    assert "error" in result or "disabled" in result
+```
+
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: All 8 tools (7 native + 1 todo) are returned by `register_all()`
-- [x] **Scenario 2**: Native tools work through the SDK `ToolExecutor` (write + read round-trip)
-- [x] **Scenario 3**: Todo list full workflow (add, list, update, clear)
-- [x] **Scenario 4**: Context injection works — tools created with a shared `ExecutorContext` share state
+- **Scenario 1** (covered by integration test above): All 8 tools (7 native + 1 todo) are returned by `register_all()`
+- **Scenario 2** (covered by integration test above): Native tools work through the SDK `ToolExecutor` (write + read + edit round-trip)
+- **Scenario 3** (covered by integration test above): Todo list full workflow (add, list, update, clear)
+- **Scenario 4** (covered by integration test above): Context injection works — tools created with a shared `ExecutorContext` share state
+- **Scenario 5** (covered by integration test above): Timeout enforcement — a shell command exceeding the configured timeout is killed; conflict between tool `timeout` and `shell_timeout` resolved by clamping to config max
+- **Scenario 6** (covered by integration test above): Feature gating — disabling `enable_fetch`/`enable_python_exec` prevents the corresponding tools from working
+- **Scenario 7** (covered by integration test above): Low timeout in tool parameter is respected when below context config (no upward clamping)
 
 ## Verification Plan
 
@@ -280,8 +366,9 @@ Todo list item shape:
 ### Internal Dependencies
 
 - [ ] Depends on `tinycua-sdk`'s `@tool` decorator and `ToolExecutor`
+- [ ] Depends on `native_tools` implementation (FR-001–FR-009 from `native_tools/spec.md`) — native tools must exist before M1 modifications begin
 - [ ] Does NOT block any other features
-- [x] Does NOT depend on M2 (state objects) — Session slot reserved as `None`
+- [ ] Does NOT depend on M2 (state objects) — Session slot reserved as `None`
 
 ## Risks and Mitigations
 
