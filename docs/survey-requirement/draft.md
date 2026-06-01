@@ -11,7 +11,6 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 
 1. Have you ever experienced difficulties installing or using an application, or any other difficulties when using your computer/laptop? If yes, what difficulties have you encountered?   
 - [ ] Managing folders/files  
-- [ ] Filling out online forms (e.g., registration forms, data input forms, Google Forms, etc.)   
 - [ ] Software setup  
 - [ ] Automation scripts  
 - [ ] I have not experienced any difficulties   
@@ -41,43 +40,41 @@ This questionnaire is intended for respondents who frequently use a PC/Laptop to
 - [ ] Never use any
 
 4. What do you like about those AI agents?  
+- [ ] Understands my requests well   
 - [ ] Provides accurate answers   
 - [ ] Responds quickly  
 - [ ] Provides clear explanations   
+- [ ] Can run more than 1 session at a time (e.g. 2 or more ChatGPT sessions simultaneously)   
+- [ ] Easy to monitor what it is doing   
 - [ ] Other:\_\_\_
 
 5. What do you dislike about those AI agents?  
 - [ ] Misunderstands my requests   
 - [ ] Requires too much setup or configuration   
+- [ ] Responds to slow  
 - [ ] Frequently asks for clarification   
-- [ ] Other:\_\_\_
+- [ ] Takes actions I did not intend   
+- [ ] Difficult to monitor what it is doing   
+- [ ] Other:\_\_\_  
+- [ ] I do not have any dislike
 
-6. How important is it to you that the system can run more than 1 session at a time? (e.g. 2 or more ChatGPT sessions simultaneously)   
-   *(Scale: Not important – Very important)* 
-
-7. If the system supports multiple sessions, which session management method would you prefer?   
-   \- Automatic (The system remembers and switches between sessions as needed)   
-   \- Manual (I can view the list of sessions and load sessions manually) 
-
-8. How important is it for you that the system can perform rollback/revert/undo actions?   
-   *(Scale: Not important – Very important)* 
-
-9. Which do you prefer from the system?  
+6. Which do you prefer from the system?  
    \- Faster responses with “good enough” results   
    \- Slower responses with more refined results 
 
-10. When your request is ambiguous, which would you prefer the system to do?  
-    \- Ask me for clarification immediately  
-    \- Try to figure it out on its own first, then ask only if it gets stuck
+7. When your request is ambiguous, which would you prefer the system to do?  
+   \- Ask me for clarification immediately  
+   \- Try to figure it out on its own first, then ask only if it gets stuck
 
-11. If one step fails, how many times should the system automatically retry before asking for your help?  
-    \- 0 times. Ask me immediately  
-    \- 1-3 times. Then ask me for help   
-    \- 3-5 times. Then ask me for help 
+8. If one step fails, how many times should the system automatically retry before asking for your help?  
+   \- 0 times. Ask me immediately  
+   \- 1 times. Then ask me for help   
+   \- 2 times. Then ask me for help  
+   \- 3 times. Then ask me for help 
 
-12. In a long conversation, how important is it for you that the system remembers small details from earlier in the conversation?  
-    *(Scale: Not important – Very important)* 
+9. In a long conversation, how important is it for you that the system remembers small details from earlier in the conversation?  
+   *(Scale: Not important – Very important)* 
 
-13. Which configuration format would you prefer for setting the system effort?  
+10. Which configuration format would you prefer for setting the system effort?  
     \- Categorical labels: None / Low / Medium / High  
     \- Full numerical control where I can directly configure detailed parameters (e.g., Set effort level \= 2, Max retry limit \= 3, Max recheck limit \= 3 etc)
