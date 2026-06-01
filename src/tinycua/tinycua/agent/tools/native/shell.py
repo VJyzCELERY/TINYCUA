@@ -9,9 +9,12 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from tinycua_sdk.tools.decorators import tool
+from tinycua_sdk.tools.decorators import Tool, tool
+
+if TYPE_CHECKING:
+    from tinycua.agent.tools.context import ExecutorContext
 
 
 @tool
@@ -25,6 +28,25 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
+    return _execute_shell(command, timeout)
+
+
+def create_run_shell(context: ExecutorContext) -> Tool:
+    """Create a ``run_shell`` tool bound to the given *context*.
+
+    The returned tool clamps its *timeout* parameter to
+    ``context.config.shell_timeout``, enforcing the operator's safety
+    limit while still allowing shorter timeouts when explicitly requested.
+    """
+    def _execute(command: str, timeout: int = 30) -> dict[str, Any]:
+        effective_timeout = min(timeout, context.config.shell_timeout)
+        return _execute_shell(command, effective_timeout)
+
+    return Tool.from_callable(_execute, name="run_shell")
+
+
+def _execute_shell(command: str, timeout: int) -> dict[str, Any]:
+    """Core shell execution logic shared by ``run_shell`` and factory tools."""
     process = subprocess.Popen(
         command,
         shell=True,
@@ -70,3 +92,9 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "timed_out": False,
             "error": str(exc),
         }
+
+
+__all__ = [
+    "run_shell",
+    "create_run_shell",
+]
