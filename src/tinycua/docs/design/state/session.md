@@ -296,21 +296,26 @@ class Session(StateObject):
     # ── Messages ────────────────────────────────────────────────────
 
     # ── Message Recording Rules ──────────────────────────────────────
-    # Only the ACTUAL user input (sent to QueryAnalyst) is stored as
-    # role="user" in session_context. Internal Agent.run(query=...) calls
-    # by orchestrators are NOT stored — only the agent's RESPONSE output
-    # is recorded.
+    # 1. Only the ACTUAL user input (sent to QueryAnalyst) is stored as
+    #    role="user" in session_context. Internal Agent.run(query=...)
+    #    calls are NOT stored — only the agent's RESPONSE is recorded.
     #
-    # Every orchestrator MUST call append_assistant() after each
-    # Agent.run() stream — recording the response in both chat_history
-    # and session_context.
+    # 2. Every orchestrator MUST record its agent's response after each
+    #    Agent.run() stream:
+    #    - Success/first response: append_assistant() → BOTH chat_history
+    #      AND session_context.
+    #    - Retry responses: chat_history ONLY (direct ChatRecord append).
+    #      Retry responses must NEVER pollute session_context — they are
+    #      internal nudges, not conversation content.
     #
-    # During retry (when an agent fails to call a mandatory tool):
-    #   - Response is appended via append_assistant() (both histories).
-    #   - Follow-up query is passed to Agent.run(query=...) — the SDK
-    #     handles it internally; it is NOT added to session_context.
-    #   - Follow-up prompts are NOT appended to any history directly.
+    # 3. Orchestrator output must NOT be polluted by retry responses.
+    #    The "output" state field (context_enhanced_query, analysis, etc.)
+    #    captures the FIRST response only. Retry responses are just
+    #    nudging the agent to call its mandatory tool.
     #
+    # 4. Retry follow-up queries go to Agent.run(query=...) only —
+    #    the SDK handles them internally; they are NOT appended to
+    #    any history.
     # session_context: role/content dicts for LLM consumption.
     #   - "user" entries: ONLY real user messages.
     #   - "assistant" entries: agent responses (text only, no tool calls).
@@ -554,7 +559,8 @@ self.session.terminate_child(primary.session)
 | Internal queries not stored | Only `Agent.run()` responses recorded; queries discarded | Queries are internal orchestration detail; only outputs affect context |
 | Only real user → `role:user` | `append_user` only for actual user messages to QueryAnalyst | Internal agent queries are NOT user messages; session_context never gets spurious user entries |
 | Every response recorded | `append_assistant()` after every `Agent.run()` call | Session context stays consistent; subsequent retries see prior responses |
-| Retry queries not in session_context | Follow-up queries go to `Agent.run(query=...)` only — not appended separately | The `query` param drives the agent; session_context holds conversation history only |
+| Retry responses → chat_history only | Direct `chat_history.append(ChatRecord(...))` — NOT `append_assistant()` | Retry nudges are internal; must not leak into LLM context |
+| Output not polluted by retries | First response saved separately (`first_response_text`); retry responses ignored for output | The orchestrator's result is the initial analysis, not retry follow-ups |
 | Agent metadata on records | `append_assistant(metadata={...})` should include orchestrator + agent identity | Traces which orchestrator spawned each agent call in the audit trail |
 | Self-serializing | Inherited `StateObject.to_dict()` / `from_dict()` | `dataclasses.asdict()` handles everything; only `set_parents()` override needed |
 

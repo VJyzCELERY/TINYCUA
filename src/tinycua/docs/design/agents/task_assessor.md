@@ -147,10 +147,16 @@ async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
         # No verdict — append follow-up and retry
         if attempt < max_retries:
             response_text = "".join(text_parts) or "(no response)"
-            self.session.append_assistant(
-                content=response_text,
-                metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
-            )
+            # Retry responses → chat_history only (audit trail)
+            self.session.chat_history.append(ChatRecord(
+                id=str(uuid4()),
+                type="agent",
+                metadata={
+                    "orchestrator": "task_assessor",
+                    "agent_name": self.config.name,
+                },
+                content={"text": response_text},
+            ))
             agent_query = (
                 "Based on the assessment above, call AssessorVerdict with "
                 "your final decision: 'analyze' or 'stop'."
@@ -280,16 +286,18 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
                 }
                 return
 
-            # Retry: append follow-up
+            # Retry: record in chat_history only (not session_context)
             if attempt < max_retries:
                 response_text = "".join(text_parts) or "(no response)"
-                self.session.append_assistant(
-                    content=response_text,
+                self.session.chat_history.append(ChatRecord(
+                    id=str(uuid4()),
+                    type="agent",
                     metadata={
                         "orchestrator": "task_assessor",
                         "agent_name": self.config.name,
                     },
-                )
+                    content={"text": response_text},
+                ))
                 agent_query = (
                     "Based on the assessment above, call AssessorVerdict "
                     "with your final decision: 'analyze' or 'stop'."

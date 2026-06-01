@@ -349,13 +349,17 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
             response_text = "".join(text_parts) or "(no response)"
             if first_response_text is None:
                 first_response_text = response_text
-            self.session.append_assistant(
-                content=response_text,
+            # Retry responses → chat_history only (audit trail)
+            # NOT appended to session_context — preserves clean LLM context
+            self.session.chat_history.append(ChatRecord(
+                id=str(uuid4()),
+                type="agent",
                 metadata={
                     "orchestrator": "query_analyst",
                     "agent_name": self.config.name,
                 },
-                )
+                content={"text": response_text},
+            ))
             agent_query = (
                 "Based on your analysis above, call QueryAnalystModeDecision "
                 "with your final decision: 'passthrough', 'worker', or 'uncertain'."
@@ -506,13 +510,16 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                 response_text = "".join(text_parts) or "(no response)"
                 if first_response_text is None:
                     first_response_text = response_text
-                self.session.append_assistant(
-                    content=response_text,
+                # Retry responses → chat_history only (audit trail)
+                self.session.chat_history.append(ChatRecord(
+                    id=str(uuid4()),
+                    type="agent",
                     metadata={
                         "orchestrator": "query_analyst",
                         "agent_name": self.config.name,
                     },
-                )
+                    content={"text": response_text},
+                ))
                 agent_query = (
                     "Based on your analysis above, call "
                     "QueryAnalystModeDecision with your final decision: "
