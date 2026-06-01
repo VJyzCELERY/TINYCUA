@@ -55,7 +55,12 @@ TASK_ANALYZER_BASE_TOOLS: list[Tool] = [
     # All write tools EXCEPT TaskInit (modified in-place, not wholesale replace)
 ]
 
-TASK_ASSESSOR_BASE_TOOLS: list[Tool] = []
+TASK_ASSESSOR_BASE_TOOLS: list[Tool] = [
+    ClassificationTool(
+        name="AssessorVerdict",
+        labels=["analyze", "stop"],
+    ),
+]
 
 TASK_EXECUTOR_BASE_TOOLS: list[Tool] = [
     *native_benchmark_tools,

@@ -74,7 +74,8 @@ class TaskAnalyzerState(StateObject):
 ```python
 @dataclass
 class TaskAssessorState(StateObject):
-    selected_task_ids: list[str] = field(default_factory=list)
+    verdict: str | None = None     # "analyze" or "stop"
+    analysis: str | None = None    # agent's markdown response (→ TaskAnalyzer query)
 ```
 
 ### `TaskExecutorState`
