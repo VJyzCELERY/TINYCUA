@@ -9,15 +9,13 @@
 
 ## Role
 
-Iterative retrieval loop for the Information Digester with mandatory output
-enforcement. The loop:
+Iterative retrieval loop for the Information Digester. Runs the standard SDK
+ReAct pattern: search → evaluate gaps → repeat. No custom stop conditions —
+mandatory `digest_information` enforcement is handled at the **orchestrator level**
+via the same retry pattern as QueryAnalyst and TaskAssessor.
 
-1. Runs iterative retrieval via SDK `BaseLoop` (search → evaluate gaps → repeat)
-2. Tracks whether `digest_information` has been called at least once
-3. Prevents the agent from stopping until `digest_information` has been called
-4. Increments `self.state.retrieval_iterations` each cycle
-
-Receives `InformationDigesterState` by reference.
+Receives `InformationDigesterState` by reference — the loop increments
+`self.state.retrieval_iterations` as it iterates.
 
 ---
 
@@ -31,7 +29,7 @@ from tinycua.state.information import InformationDigesterState
 
 
 class InformationDigestionLoop(BaseLoop):
-    """Iterative retrieval with mandatory digest_information call."""
+    """Iterative retrieval loop — no custom stop enforcement."""
 
     def __init__(
         self,
@@ -41,39 +39,23 @@ class InformationDigestionLoop(BaseLoop):
         super().__init__()
         self.state = state
         self.max_iterations = max_iterations  # None → no iteration cap
-        self._digest_called = False
 
     async def run(
         self, agent, messages, tools, override_instructions=None, stream=False
     ):
         """Execute iterative retrieval via SDK BaseLoop.
 
-        - Tracks each tool_call event
-        - Sets _digest_called = True when digest_information is called
-        - Increments state.retrieval_iterations on each cycle
+        Tracks tool calls and increments state.retrieval_iterations.
+        Stops when: LLM-judged sufficiency, or max_iterations reached.
         """
         self.state.retrieval_iterations = 0
-        self._digest_called = False
 
         async for event in super().run(
             agent, messages, tools, override_instructions, stream=True
         ):
             if event.get("type") == "response.tool_call":
-                if event.get("tool_name") == "digest_information":
-                    self._digest_called = True
                 self.state.retrieval_iterations += 1
             yield event
-
-    def can_stop(self, events: list[dict]) -> bool:
-        """Override stop condition: must have called digest_information.
-
-        Returns False until at least one digest_information call has
-        been made, regardless of LLM-judged sufficiency.
-        """
-        if not self._digest_called:
-            return False
-        # Delegate to parent for sufficiency evaluation
-        return super().can_stop(events)
 ```
 
 ---
@@ -82,11 +64,12 @@ class InformationDigestionLoop(BaseLoop):
 
 1. **LLM-judged sufficiency** (primary): Agent evaluates whether information gaps
    are sufficiently addressed.
-2. **Mandatory digest call** (new): `_digest_called` must be `True` before stopping.
-   Agent CANNOT exit without producing a `digest_information` call.
-3. **`max_iterations` cap** (optional, default `None` = no limit): Hard stop even
-   without a digest call. Prevents infinite loops when the agent fails to call
-   the output tool.
+2. **`max_iterations` cap** (optional, default `None` = no limit): Hard stop
+   prevents infinite loops.
+
+The orchestrator handles mandatory `digest_information` enforcement separately.
+If the agent stops without calling `digest_information`, the orchestrator retries
+with a follow-up query.
 
 ---
 
@@ -95,7 +78,7 @@ class InformationDigestionLoop(BaseLoop):
 ```
 Input: ContextEnhancedQuery
   │
-  ├─ 1. Write full parent context to .md cache
+  ├─ 1. Write full parent context to .md cache (orchestrator)
   │
   └─ 2. Agent loop (iterative):
        │
@@ -105,18 +88,8 @@ Input: ContextEnhancedQuery
        │
        ├── Needs more info? → loop back to enhanced_context_retrieval
        │
-       ├── Sufficient? → MUST call digest_information(...)
-       │
-       └── digest_information called?
-            ├── Yes + sufficient → STOP
-            ├── Yes + not sufficient → loop back
-            └── No:
-                 ├── max_iterations not reached → loop back
-                 └── max_iterations reached → STOP (forced)
+       └── Sufficient? → call digest_information(...) [required by orchestrator]
 ```
-
-On empty retrieval results: `DigestedInformation.known_gaps` should be populated
-by the agent via the `digest_information` tool.
 
 ---
 
@@ -124,12 +97,10 @@ by the agent via the `digest_information` tool.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Mandatory digest call | `_digest_called` flag in loop | Guarantees structured output; agent can't "forget" to produce it |
-| Stop deferral | `can_stop()` returns False until digest called | Clean override of BaseLoop behavior |
+| No mandatory tool enforcement | Loop trusts agent; orchestrator handles retry | Loop stays simple; enforcement is consistent across all orchestrators |
 | Iteration tracking | `self.state.retrieval_iterations` incremented per cycle | Visible to orchestrator for debugging/monitoring |
 | Max iterations as safety net | `max_iterations_override=None` by default | Agent normally stops on sufficiency; cap prevents infinite loops |
 | State via constructor | `InformationDigestionLoop(state=self.state)` | Loop writes state directly; no event-passing overhead |
-| Gap evaluation | Evaluated by LLM, not by loop | LLM understands semantic sufficiency better than heuristic rules |
 
 
 ---

@@ -73,6 +73,30 @@ class BaseAgentOrchestrator(ABC, Generic[S]):
         State is accumulated during iteration and stored at stream end.
         """
 
+    @abstractmethod
+    async def _retry_agent(
+        self,
+        agent: Agent,
+        query: str,
+        retry_query: str,
+        max_retries: int,
+    ) -> tuple[list[dict], str | None]:
+        """Run agent with retry loop — abstract, implemented per orchestrator.
+
+        Keeps run() cognitively simple by extracting the retry loop.
+        Each orchestrator defines its own probing, recording, and output
+        extraction logic inside this method.
+
+        Args:
+            agent: Pre-built SDK Agent (instructions, tools, loop already set).
+            query: Initial query string.
+            retry_query: Query to use on retry attempts.
+            max_retries: Maximum attempts before giving up.
+
+        Returns:
+            (all_events, first_response_text)
+        """
+
     # ── Instruction construction ──────────────────────────────────────
 
     def build_instruction(self, context: dict[str, Any]) -> str:
