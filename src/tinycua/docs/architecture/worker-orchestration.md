@@ -54,7 +54,7 @@ If a task contains parallelizable work, that parallelization happens inside the 
 flowchart TD
     DI{{"Digested Information"}}
     TCR["Task Creation\n(upfront loop)"]
-    TL{{"Sequential Task List"}}
+    TL{{"Task Tree"}}
     PICK["Pick current task"]
     TC{{"Task Context"}}
     TE["Task Executor"]
@@ -67,8 +67,7 @@ flowchart TD
     RETRY["Create new Executor with failure recorded in task context"]
     REPLAN["Call Task Analyzer\nto decompose current task"]
     TA["Task Analyzer\n(ReAct, no branching)"]
-    ASK["Ask user / pause continuation state"]
-    FAIL_TERM["Terminate Worker with failure summary"]
+    FAIL["Agent stays active — open question for HITL"]
     AGG["Aggregate accepted results"]
     WR{{"Worker Result"}}
 
@@ -91,9 +90,7 @@ flowchart TD
     NEXT -->|replan| REPLAN
     REPLAN --> TA
     TA -. "updates" .-> TL
-    NEXT -->|escalate_user| ASK
-    NEXT -->|consecutive failure threshold| FAIL_TERM
-    FAIL_TERM --> ASK
+    NEXT -->|failure threshold reached| FAIL
     AGG --> WR
 ```
 
@@ -121,7 +118,9 @@ This prevents a clarification turn from accidentally restarting the whole reques
 
 ## Repeated Failure Rule
 
-The Worker terminates with a failure summary and asks the user for next steps when the consecutive-failure threshold is reached. See [result-reviewer.md](result-reviewer.md) for the counter mechanism and escalation rules.
+The Worker tracks an aggregated failure counter. Failures from child sessions roll up to the parent (parent.failure += child.failure). Any task success resets the counter to zero.
+
+When the failure threshold is reached, the Worker does not produce a terminal decision — the agent stays active with an open question, ready for human-in-the-loop interaction through passthrough routing. See [result-reviewer.md](result-reviewer.md) for the failure counter mechanism.
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues.
 

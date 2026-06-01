@@ -21,13 +21,16 @@ Work decomposition is therefore a means to context decomposition.
 
 ---
 
-## Routing Modes
+## Routing / Classification
 
-The Query Analyst produces a `Mode Decision`:
+The Query Analyst produces a `Classification` — a label chosen from configurable options:
 
-- **Primary Agent Mode:** Query Analyst (high-level scan) → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated, precise context before answering.
-- **Worker Mode:** Query Analyst (high-level scan) → Information Digester (explores Session Context via Enhanced Context Retrieval) → TINYCUA Worker → Primary Agent
-- **Uncertain Mode:** Query Analyst must choose an explicit `uncertain_next_action`, such as exploring more or asking the user.
+- **Passthrough:** Query Analyst (high-level scan) → Primary Agent. The Primary Agent may invoke Information Digestion if it needs consolidated, precise context before answering.
+- **Worker:** Query Analyst (high-level scan) → Information Digester (explores Session Context via Enhanced Context Retrieval) → TINYCUA Worker → Primary Agent
+
+`uncertain` is not a label. If the agent cannot decide, it does not produce a terminal
+classification; the loop retries or keeps the agent active (allowing HITL through
+passthrough on the next user query).
 
 Worker Mode is an internal specialized-agent orchestration presented externally as one TINYCUA agent.
 
@@ -36,8 +39,8 @@ flowchart TD
     subgraph TINY["TINYCUA"]
         QA["Query Analyst\n(Agent — high-level scan)"]
         CEQ{{"Context Enhanced Query\n(high-level)"}}
-        MD{{"Mode Decision"}}
-        ROUTE{"Selected mode"}
+        CLS{{"Classification"}}
+        ROUTE{"Selected route"}
         ID["Information Digester\n(Exploration Agent —\nsearches Session Context)"]
         DI{{"Digested Information"}}
         TW["TINYCUA Worker\n(Sub-agent Orchestration)"]
@@ -53,10 +56,10 @@ flowchart TD
     UQ --> QA
     CTX --> QA
     QA --> CEQ
-    QA --> MD
-    MD --> ROUTE
+    QA --> CLS
+    CLS --> ROUTE
 
-    ROUTE -->|primary_agent| PA
+    ROUTE -->|passthrough| PA
     CEQ --> PA
     PA --> NEED_DIGEST
     NEED_DIGEST -->|No| RESP
@@ -66,12 +69,10 @@ flowchart TD
     CEQ --> ID
     CTX -. "exploration\nvia retrieval tool" .-> ID
     ID --> DI
-    DI -->|primary_agent requested digestion| PA
-    DI -->|worker mode| TW
+    DI -->|Primary Agent requested digestion| PA
+    DI -->|worker route| TW
     TW --> WR
     WR --> PA
-
-    ROUTE -->|uncertain| QA
 ```
 
 ---
@@ -98,9 +99,9 @@ Important objects:
 - Session
 - Session Context
 - Context Enhanced Query
-- Mode Decision
+- Classification
 - Digested Information
-- Task List
+- Task Tree
 - Task Result
 - Reviewer Decision
 - Worker Result
@@ -114,7 +115,7 @@ See [state-objects.md](state-objects.md) for object definitions.
 
 | Component | File | Type | Role |
 |-----------|------|------|------|
-| Query Analyst | [query-analyst.md](query-analyst.md) | Agent Spec | Performs fast, high-level context scan and produces CEQ + Mode Decision |
+| Query Analyst | [query-analyst.md](query-analyst.md) | Agent Spec | Performs fast, high-level context scan and produces CEQ + Classification |
 | Information Digester | [information-digestion.md](information-digestion.md) | Agent Spec | Explores the current Session `Context` via Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | TINYCUA Worker | [worker-orchestration.md](worker-orchestration.md) | Process Spec | Runs Task Creation, Task Assessor, Task Analyzer, Task Executor, and Result Reviewer sequentially |
 | Task Creation | [task-creation.md](task-creation.md) | Process Spec | Upfront decomposition loop: iteratively invokes the Task Analyzer to build a nested task tree |

@@ -9,15 +9,13 @@ dependencies = [
     "rich>=13.0.0",
     "prompt-toolkit>=3.0.0",
     "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
 ]
 
+[tool.uv.sources]
+tinycua-sdk = { path = "../tinycua-sdk", editable = true }
+
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.3.0",
-    "radon>=6.0.0",
-    "pytest-asyncio>=0.23.0",
-]
 tui = [
     "textual>=0.50.0",
 ]
@@ -59,7 +57,28 @@ ban-relative-imports = "all"
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Project uses uv's dependency-groups (uv-specific) instead of PEP 621
+# [project.optional-dependencies]. All workflows use `uv run` — see AGENTS.md.
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-httpx>=0.30.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "radon>=6.0.0",
+    "python-dotenv>=1.0.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--strict-markers --disable-warnings --maxfail=2"
+markers = [
+    "integration: marks tests as requiring local LLM server",
+    "lm_studio: marks tests requiring LM Studio / local LLM provider",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:httpx.*",
+]

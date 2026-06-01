@@ -19,7 +19,7 @@ Its primary responsibilities are:
 
 1. review completion against success criteria;
 2. determine what context should update future tasks;
-3. decide whether to accept, retry, replan, or escalate.
+3. decide whether to accept, retry, or replan.
 
 ---
 
@@ -36,10 +36,10 @@ The Result Reviewer should be hybrid:
 
 **Input:**
 
-- Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `name`, `context`, `success_criteria`.
+- Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `task_name`, `task_context`, `success_criteria`.
 - `task_result` — result of the task's execution. Canonical schema in [state-objects.md](state-objects.md).
 - `execution_log` — sub-session execution log (actions and outcomes from the Task Executor's sub-session). See [session-architecture.md](session-architecture.md).
-- `shallow_task_list` — task IDs and names from the sequential roadmap for scope awareness (no full task details).
+- `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 
 The Result Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
 
@@ -60,8 +60,7 @@ flowchart TD
     PROP["Consolidate unfinished/upcoming task contexts"]
     RETRY{"Retry useful?"}
     REPLAN{"Roadmap revision or exploration needed?"}
-    FAILS{"Consecutive failures over threshold?"}
-    ESCALATE["escalate_user"]
+    FAILS{"Failure threshold reached?"}
     OUT{{"Reviewer Decision"}}
 
     INPUT --> CHECK
@@ -75,8 +74,7 @@ flowchart TD
     REPLAN -->|Yes| OUT
     REPLAN -->|No| FAILS
     FAILS -->|Yes| OUT
-    FAILS -->|No| ESCALATE
-    ESCALATE --> OUT
+    FAILS -->|No| OUT
 ```
 
 ---
@@ -96,7 +94,8 @@ This avoids dumping every previous task result into every future task. Context u
 | `accepted` | Consolidate context for unfinished/upcoming tasks. Aggregate Worker Result when no tasks remain. |
 | `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. |
 | `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. |
-| `escalate_user` | Pause the current agent sub-session and ask the user for clarification. |
+
+When the ResultReviewer cannot resolve, it does not produce a terminal decision. The agent stays active with an open question. Human-in-the-loop interaction occurs through passthrough routing.
 
 The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
 
@@ -104,7 +103,7 @@ The Worker only terminates successfully when the final unfinished task is accept
 
 ## Repeated Failure Behavior
 
-The Worker tracks a volatile universal consecutive-failure counter. Any task success resets the counter to zero. After N consecutive failures, the Worker escalates to the user with an explanation of the failure point.
+The Worker tracks an aggregated failure counter. Failures from child sessions roll up to the parent (parent.failure += child.failure). Any task success resets the counter to zero. After N aggregated failures, the Worker does not produce a terminal decision — the agent stays active, ready for human-in-the-loop interaction through passthrough routing.
 
 This is not only per-task. It protects the whole Worker from retry/replan loops.
 
@@ -117,4 +116,4 @@ This is not only per-task. It protects the whole Worker from retry/replan loops.
 | Reviewer style | Hybrid | Combines reliable validation with semantic judgment |
 | Context update | Targeted propagation | Preserves precision and avoids context pollution |
 | Replanning | Call the Task Analyzer to decompose the current task | Keeps decomposition responsibility in the Task Analyzer. During execution, the Result Reviewer calls the Task Analyzer fresh to break down the current task — not overhaul the entire roadmap. The same agent is used by Task Creation upfront. See [task-analysis.md](task-analysis.md) for the agent and [task-creation.md](task-creation.md) for upfront decomposition. |
-| Failure escalation | Consecutive failure threshold | Prevents infinite retry loops and supports HITL recovery |
+| Failure escalation | Aggregated failure threshold | Prevents infinite retry loops and supports HITL recovery through passthrough |

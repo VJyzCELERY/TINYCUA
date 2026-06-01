@@ -23,7 +23,7 @@ This is distinct from the execution-time [Result Reviewer](result-reviewer.md), 
 
 **Input:**
 
-- `Task List` — the current list of tasks (from the initial Task Analyzer pass or from a previous decomposition round)
+- `Task Tree` — the current tree of tasks (from the initial Task Analyzer pass or from a previous decomposition round)
 - `Worker Config` with `effort` — controls how many assessment passes are allowed (max depth)
 
 **Output:**
@@ -45,7 +45,7 @@ For each task in the current list, the Task Assessor evaluates complexity, nesti
 
 ```mermaid
 flowchart TD
-    TL{{"Task List\n(from previous pass)"}}
+    TL{{"Task Tree"}}
     ITER["For each task\nin the list"]
     CHECK_COMPLEX{"Is task complex?"}
     CHECK_DEPTH{"At max depth?"}

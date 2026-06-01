@@ -26,7 +26,7 @@ During execution, when the Result Reviewer needs to decompose a task, it calls t
 - `Digested Information`
 - `Worker Config` with `effort`
 
-**Output:** `Task List` — a sequential roadmap that may contain nested sub-lists. When the Task Creation loop decomposes complex tasks, the output contains container tasks (with a `tasks` sub-list) and leaf tasks (executable units). Canonical schema in [state-objects.md](state-objects.md).
+**Output:** `Task Tree` — a tree of `Task` nodes that may contain nested child tasks. When the Task Creation loop decomposes complex tasks, the output contains container tasks (with `child_tasks`) and leaf tasks (executable units with `child_tasks=None`). Canonical schema in [state-objects.md](state-objects.md).
 
 ---
 
