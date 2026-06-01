@@ -1,6 +1,6 @@
 # Task Creator Optional Composite Spec Card
 
-Source of truth: [`agent_sessions/task_creator.md`](../agent_sessions/task_creator.md).
+Source of truth: [`agent_node/task_creator.md`](../agent_node/task_creator.md).
 
 ## Summary
 

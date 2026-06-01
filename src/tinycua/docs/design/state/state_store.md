@@ -109,7 +109,7 @@ BaseAgentNode
 
 ## See also
 
-Prev : [`ChatRecord` Audit Trail](chat_record.md) | Next : [`BaseAgentNode`](../agent_sessions/base.md)
+Prev : [`ChatRecord` Audit Trail](chat_record.md) | Next : [`BaseAgentNode`](../agent_node/base.md)
 
 
 ## Related

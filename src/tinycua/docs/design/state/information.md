@@ -39,14 +39,11 @@ All subclasses inherit `to_yaml()` and participate in `from_string()` via the
 QueryAnalystState <: AgentState
   · type: str = "query_analyst"
   · classification: str | None = None       # selected label from configured ClassificationTool labels
-  · score: float | None = None
-  · confidence: float | None = None
-  · reasons: list[str] | None = None
   · context: str | None = None            # agent's context analysis markdown
   · query: str | None = None              # original user query (passed through)
 ```
 
-> `classification`, `score`, `confidence`, `reasons` come from `ClassificationTool`.
+> `classification` comes from `ClassificationTool`.
 > `context` is the first-response text (context analysis). `query` is the original
 > user query.
 

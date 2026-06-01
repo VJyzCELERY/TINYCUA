@@ -114,6 +114,6 @@ Prev : [`Task` Tree + `TaskResult`](task.md) | Next : [`DigestedInformation`](di
 
 ## Related
 
-- [QueryAnalyst AgentNode](../agent_sessions/query_analyst.md)
+- [QueryAnalyst AgentNode](../agent_node/query_analyst.md)
 - [QueryAnalystState](information.md#queryanalyststate)
 - [Classification constants](../constants/tools.md)

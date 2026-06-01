@@ -1,6 +1,6 @@
 # Query Analyst AgentNode Spec Card
 
-Source of truth: [`agent_sessions/query_analyst.md`](../agent_sessions/query_analyst.md).
+Source of truth: [`agent_node/query_analyst.md`](../agent_node/query_analyst.md).
 
 This card exists only as a navigation/summary layer. Do not duplicate detailed design
 decisions here.

@@ -207,7 +207,7 @@ Prev : [`AgentGraph System Overview`](overview.md) | Next : [`RouterNode`](route
 
 - [RouterNode](router_node.md)
 - [TinyCUAWorker AgentGraph](worker.md)
-- [QueryAnalyst input gate](../agent_sessions/query_analyst.md)
-- [PrimaryAgent passthrough target](../agent_sessions/primary_agent.md)
+- [QueryAnalyst input gate](../agent_node/query_analyst.md)
+- [PrimaryAgent passthrough target](../agent_node/primary_agent.md)
 - [Session is graph state](../state/session.md)
 - [AgentState YAML front-matter](../state/agent_state.md)

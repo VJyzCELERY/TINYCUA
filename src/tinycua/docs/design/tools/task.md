@@ -434,4 +434,4 @@ Prev : [InformationDigester Tools](digester.md) | Next : [`BaseCompaction` Strat
 - [Task tree + TaskResult](../state/task.md)
 - [Shared Task on Session.task](../state/session.md)
 - [READ_ONLY_TASK_TOOLS + WRITE_TASK_TOOLS](../constants/tools.md)
-- [Used by TaskCreator, TaskExecutor, QueryAnalyst](../agent_sessions/task_creator.md)
+- [Used by TaskCreator, TaskExecutor, QueryAnalyst](../agent_node/task_creator.md)

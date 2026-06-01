@@ -51,5 +51,5 @@ Prev : [Classification + `ContextEnhancedQuery`](mode_decision.md) | Next : [`Re
 
 ## Related
 
-- [Produced by InformationDigester](../agent_sessions/information_digester.md)
+- [Produced by InformationDigester](../agent_node/information_digester.md)
 - [Stored in InformationDigesterState](information.md)

@@ -1,6 +1,6 @@
 # Primary Agent
 
-> **File:** `docs/design/agent_sessions/primary_agent.md`
+> **File:** `docs/design/agent_node/primary_agent.md`
 > **Package:** `tinycua.agent_nodes.primary_agent`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft

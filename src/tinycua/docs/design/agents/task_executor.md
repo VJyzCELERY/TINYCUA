@@ -1,6 +1,6 @@
 # Task Executor AgentNode Spec Card
 
-Source of truth: [`agent_sessions/task_executor.md`](../agent_sessions/task_executor.md).
+Source of truth: [`agent_node/task_executor.md`](../agent_node/task_executor.md).
 
 ## Summary
 

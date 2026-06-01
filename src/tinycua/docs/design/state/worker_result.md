@@ -57,5 +57,5 @@ Prev : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md) | Next : [`E
 
 ## Related
 
-- [Produced by TaskExecutor](../agent_sessions/task_executor.md)
+- [Produced by TaskExecutor](../agent_node/task_executor.md)
 - [TaskResult stored per leaf task](task.md)

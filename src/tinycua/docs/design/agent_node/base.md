@@ -1,6 +1,6 @@
 # BaseAgentNode
 
-> **File:** `docs/design/agent_sessions/base.md`
+> **File:** `docs/design/agent_node/base.md`
 > **Package:** `tinycua.agent_nodes.base`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
@@ -10,7 +10,7 @@
 ## Role
 
 `BaseAgentNode` is the node-level wrapper that couples a TinyCUA `Session` with an SDK
-`Agent`. The term **AgentNode** replaces the older **AgentSession** terminology to
+`Agent`. The term **AgentNode** replaces the older **AgentNode** terminology to
 avoid confusion with the `Session` state object.
 
 It is intentionally not an orchestrator. Graph-level orchestration belongs to

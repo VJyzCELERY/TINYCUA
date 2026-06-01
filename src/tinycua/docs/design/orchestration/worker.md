@@ -189,6 +189,6 @@ Prev : [`RouterNode`](router_node.md) | Next : [`AgentNode Call Tools`](../tools
 
 - [Top-level TinyCUA routes worker mode here](tinycua.md)
 - [Task sharing and propagation](../state/session.md#task-sharing-and-propagation)
-- [TaskAnalyzer rules](../agent_sessions/task_analyzer.md)
-- [ResultReviewer routing](../agent_sessions/result_reviewer.md)
+- [TaskAnalyzer rules](../agent_node/task_analyzer.md)
+- [ResultReviewer routing](../agent_node/result_reviewer.md)
 - [WorkerConfig effort](../state/worker_result.md)

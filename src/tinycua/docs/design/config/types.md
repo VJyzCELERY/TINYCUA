@@ -68,4 +68,4 @@ Next : [Per-Agent Config Dataclasses](agents.md)
 ## Related
 
 - [Per-agent config dataclasses using AgentKind](agents.md)
-- [BaseAgentNode — agents are looked up by AgentKind](../agent_sessions/base.md)
+- [BaseAgentNode — agents are looked up by AgentKind](../agent_node/base.md)

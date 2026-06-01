@@ -360,5 +360,5 @@ Prev : [`ExecutionLog` + `ExecutionLogEntry`](execution_log.md) | Next : [`ChatR
 - [Session.task — shared Task object](task.md)
 - [Persistence backend for Session](state_store.md)
 - [Compaction strategy inherited from agent_state.agent_config](../utility/compaction.md)
-- [AgentNodes hold self.session](../agent_sessions/base.md)
+- [AgentNodes hold self.session](../agent_node/base.md)
 - [ChatRecord — structured chat_history entries](chat_record.md)

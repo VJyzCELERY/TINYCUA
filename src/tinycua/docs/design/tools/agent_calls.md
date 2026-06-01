@@ -58,6 +58,6 @@ Tools return serialized `AgentState` YAML, not `last_result` dictionaries.
 
 ## Related
 
-- [AgentNode factory](../agent_sessions/factory.md)
-- [BaseAgentNode](../agent_sessions/base.md)
+- [AgentNode factory](../agent_node/factory.md)
+- [BaseAgentNode](../agent_node/base.md)
 - [AgentState serialization](../state/agent_state.md)

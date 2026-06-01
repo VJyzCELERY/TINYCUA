@@ -1,6 +1,6 @@
 # AgentNode Factory
 
-> **File:** `docs/design/agent_sessions/factory.md`
+> **File:** `docs/design/agent_node/factory.md`
 > **Package:** `tinycua.agent_nodes.factory`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
@@ -14,7 +14,7 @@ config dataclasses. Each AgentNode stores config by writing it into
 `session.agent_state.agent_config`. No SDK `Agent` is created at factory time — that
 happens inside each AgentNode's `run(query: str)` method.
 
-The directory path remains `agent_sessions/` for now, but terminology is AgentNode.
+The docs path is `agent_node/` to match the AgentNode terminology.
 
 ---
 

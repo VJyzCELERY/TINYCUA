@@ -133,7 +133,7 @@ Prev : [AgentNode-Call Tools](agent_calls.md) | Next : [Task Tools](task.md)
 
 ## Related
 
-- [InformationDigester AgentNode](../agent_sessions/information_digester.md)
+- [InformationDigester AgentNode](../agent_node/information_digester.md)
 - [InformationDigesterState](../state/information.md#informationdigesterstate)
 - [EXPLORATION_TOOL](../constants/tools.md)
 - [InformationDigestionLoop](../loops/information_digestion_loop.md)

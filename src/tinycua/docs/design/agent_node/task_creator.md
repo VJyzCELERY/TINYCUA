@@ -1,6 +1,6 @@
 # Task Creator
 
-> **File:** `docs/design/agent_sessions/task_creator.md`
+> **File:** `docs/design/agent_node/task_creator.md`
 > **Package:** `tinycua.agent_nodes.task_creator`
 > **Last Updated:** 2026-06-01
 > **Status:** Deprecated/Optional Composite

@@ -1,6 +1,6 @@
 # Result Reviewer
 
-> **File:** `docs/design/agent_sessions/result_reviewer.md`
+> **File:** `docs/design/agent_node/result_reviewer.md`
 > **Package:** `tinycua.agent_nodes.result_reviewer`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
@@ -119,7 +119,6 @@ ResultReviewerState(
   failure=N,
   decision="accept" | "retry" | "replan" | None,
   reason="...",
-  confidence=0.9,
   context_updates=[{"task_id": "T-0.2", "context": "..."}],
   retry_instructions="...",
 )

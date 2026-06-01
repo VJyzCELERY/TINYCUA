@@ -1,6 +1,6 @@
 # Query Analyst
 
-> **File:** `docs/design/agent_sessions/query_analyst.md`
+> **File:** `docs/design/agent_node/query_analyst.md`
 > **Package:** `tinycua.agent_nodes.query_analyst`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
@@ -139,7 +139,6 @@ QueryAnalystState(
   status="terminated",
   failure=0,
   classification="passthrough" | "worker" | <configured label>,
-  score=..., confidence=..., reasons=[...],
   context=<first response markdown>,
   query=<original user query>,
 )

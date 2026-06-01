@@ -1,6 +1,6 @@
 # Primary Agent AgentNode Spec Card
 
-Source of truth: [`agent_sessions/primary_agent.md`](../agent_sessions/primary_agent.md).
+Source of truth: [`agent_node/primary_agent.md`](../agent_node/primary_agent.md).
 
 ## Summary
 

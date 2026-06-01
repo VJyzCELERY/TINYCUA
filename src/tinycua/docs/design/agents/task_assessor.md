@@ -1,6 +1,6 @@
 # Task Assessor AgentNode Spec Card
 
-Source of truth: [`agent_sessions/task_assessor.md`](../agent_sessions/task_assessor.md).
+Source of truth: [`agent_node/task_assessor.md`](../agent_node/task_assessor.md).
 
 ## Summary
 

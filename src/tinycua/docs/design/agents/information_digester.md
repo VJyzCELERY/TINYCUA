@@ -1,6 +1,6 @@
 # Information Digester AgentNode Spec Card
 
-Source of truth: [`agent_sessions/information_digester.md`](../agent_sessions/information_digester.md).
+Source of truth: [`agent_node/information_digester.md`](../agent_node/information_digester.md).
 
 ## Summary
 

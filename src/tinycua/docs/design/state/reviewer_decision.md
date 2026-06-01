@@ -78,6 +78,6 @@ Prev : [`DigestedInformation`](digested_information.md) | Next : [`WorkerResult`
 
 ## Related
 
-- [Produced by ResultReviewer](../agent_sessions/result_reviewer.md)
+- [Produced by ResultReviewer](../agent_node/result_reviewer.md)
 - [Stored in ResultReviewerState](information.md)
 - [Replan triggers TaskAssessor → TaskAnalyzer](../orchestration/worker.md)

@@ -199,6 +199,6 @@ Prev : [Per-Agent Config Dataclasses](../config/agents.md) | Next : [Agent Instr
 ## Related
 
 - [Config extra_tools channel](../config/agents.md)
-- [QueryAnalyst classification config](../agent_sessions/query_analyst.md)
-- [InformationDigester enhanced retrieval](../agent_sessions/information_digester.md)
+- [QueryAnalyst classification config](../agent_node/query_analyst.md)
+- [InformationDigester enhanced retrieval](../agent_node/information_digester.md)
 - [Task tools](../tools/task.md)

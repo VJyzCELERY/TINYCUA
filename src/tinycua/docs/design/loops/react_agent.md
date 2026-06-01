@@ -132,4 +132,4 @@ Prev : [Loop Strategies Overview](overview.md) | Next : [`QueryAnalystLoop`](que
 
 - [Loop hierarchy overview](overview.md)
 - [AgentGraph system overview](../orchestration/overview.md)
-- [Base AgentNode responsibility split](../agent_sessions/base.md)
+- [Base AgentNode responsibility split](../agent_node/base.md)

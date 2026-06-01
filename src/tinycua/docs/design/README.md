@@ -26,16 +26,16 @@ Read in order for a linear learning experience:
 1. [`agents/task_executor.md`](agents/task_executor.md)
 1. [`agents/result_reviewer.md`](agents/result_reviewer.md)
 1. [`agents/primary_agent.md`](agents/primary_agent.md)
-1. [`agent_sessions/base.md`](agent_sessions/base.md) — `BaseAgentNode` (outer wrapper pattern)
-1. [`agent_sessions/factory.md`](agent_sessions/factory.md) — `create_agent_node()`, `create_all_agent_nodes()`
-1. [`agent_sessions/query_analyst.md`](agent_sessions/query_analyst.md) — `QueryAnalyst` AgentNode
-1. [`agent_sessions/information_digester.md`](agent_sessions/information_digester.md)
-1. [`agent_sessions/task_analyzer.md`](agent_sessions/task_analyzer.md)
-1. [`agent_sessions/task_assessor.md`](agent_sessions/task_assessor.md)
-1. [`agent_sessions/task_creator.md`](agent_sessions/task_creator.md) — optional/deprecated composite; Worker is source of truth
-1. [`agent_sessions/task_executor.md`](agent_sessions/task_executor.md)
-1. [`agent_sessions/result_reviewer.md`](agent_sessions/result_reviewer.md)
-1. [`agent_sessions/primary_agent.md`](agent_sessions/primary_agent.md)
+1. [`agent_node/base.md`](agent_node/base.md) — `BaseAgentNode` (outer wrapper pattern)
+1. [`agent_node/factory.md`](agent_node/factory.md) — `create_agent_node()`, `create_all_agent_nodes()`
+1. [`agent_node/query_analyst.md`](agent_node/query_analyst.md) — `QueryAnalyst` AgentNode
+1. [`agent_node/information_digester.md`](agent_node/information_digester.md)
+1. [`agent_node/task_analyzer.md`](agent_node/task_analyzer.md)
+1. [`agent_node/task_assessor.md`](agent_node/task_assessor.md)
+1. [`agent_node/task_creator.md`](agent_node/task_creator.md) — optional/deprecated composite; Worker is source of truth
+1. [`agent_node/task_executor.md`](agent_node/task_executor.md)
+1. [`agent_node/result_reviewer.md`](agent_node/result_reviewer.md)
+1. [`agent_node/primary_agent.md`](agent_node/primary_agent.md)
 1. [`loops/overview.md`](loops/overview.md) — Inner loop hierarchy (SDK Agent `loop=` policies)
 1. [`loops/react_agent.md`](loops/react_agent.md) — `ReActAgentLoop`
 1. [`loops/query_analyst_loop.md`](loops/query_analyst_loop.md)
@@ -85,7 +85,7 @@ Read in order for a linear learning experience:
 | Directory | Content |
 |-----------|---------|
 | [`loops/`](loops/) | Inner loops — SDK Agent `loop=` policies (retry, enforcement, output) |
-| [`agent_sessions/`](agent_sessions/) | AgentNode wrappers — `run(query: str)` builds Agent + inner loop, yields events (directory name is legacy) |
+| [`agent_node/`](agent_node/) | AgentNode wrappers — `run(query: str)` builds Agent + inner loop, yields events (directory name is legacy) |
 
 ## Agent Specs
 
@@ -105,16 +105,16 @@ Read in order for a linear learning experience:
 
 | Directory | Content |
 |-----------|---------|
-| [`agent_sessions/base.md`](agent_sessions/base.md) | `BaseAgentNode` — outer wrapper pattern |
-| [`agent_sessions/factory.md`](agent_sessions/factory.md) | `create_agent_node()`, `create_all_agent_nodes()` |
-| [`agent_sessions/query_analyst.md`](agent_sessions/query_analyst.md) | `QueryAnalyst` — Session management, context assembly |
-| [`agent_sessions/information_digester.md`](agent_sessions/information_digester.md) | `InformationDigester` — Session + cache management |
-| [`agent_sessions/task_analyzer.md`](agent_sessions/task_analyzer.md) | `TaskAnalyzer` — Session + tool wiring |
-| [`agent_sessions/task_assessor.md`](agent_sessions/task_assessor.md) | `TaskAssessor` — Session + tool wiring |
-| [`agent_sessions/task_creator.md`](agent_sessions/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
-| [`agent_sessions/task_executor.md`](agent_sessions/task_executor.md) | `TaskExecutor` — Session + active-task lifecycle |
-| [`agent_sessions/result_reviewer.md`](agent_sessions/result_reviewer.md) | `ResultReviewer` — Session + deterministic rules |
-| [`agent_sessions/primary_agent.md`](agent_sessions/primary_agent.md) | `PrimaryAgent` — Session + final synthesis |
+| [`agent_node/base.md`](agent_node/base.md) | `BaseAgentNode` — outer wrapper pattern |
+| [`agent_node/factory.md`](agent_node/factory.md) | `create_agent_node()`, `create_all_agent_nodes()` |
+| [`agent_node/query_analyst.md`](agent_node/query_analyst.md) | `QueryAnalyst` — Session management, context assembly |
+| [`agent_node/information_digester.md`](agent_node/information_digester.md) | `InformationDigester` — Session + cache management |
+| [`agent_node/task_analyzer.md`](agent_node/task_analyzer.md) | `TaskAnalyzer` — Session + tool wiring |
+| [`agent_node/task_assessor.md`](agent_node/task_assessor.md) | `TaskAssessor` — Session + tool wiring |
+| [`agent_node/task_creator.md`](agent_node/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
+| [`agent_node/task_executor.md`](agent_node/task_executor.md) | `TaskExecutor` — Session + active-task lifecycle |
+| [`agent_node/result_reviewer.md`](agent_node/result_reviewer.md) | `ResultReviewer` — Session + deterministic rules |
+| [`agent_node/primary_agent.md`](agent_node/primary_agent.md) | `PrimaryAgent` — Session + final synthesis |
 
 ## State & Tools
 

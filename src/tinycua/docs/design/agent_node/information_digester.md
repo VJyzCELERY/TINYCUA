@@ -1,6 +1,6 @@
 # Information Digester
 
-> **File:** `docs/design/agent_sessions/information_digester.md`
+> **File:** `docs/design/agent_node/information_digester.md`
 > **Package:** `tinycua.agent_nodes.information_digester`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft

@@ -1,6 +1,6 @@
 # Task Assessor
 
-> **File:** `docs/design/agent_sessions/task_assessor.md`
+> **File:** `docs/design/agent_node/task_assessor.md`
 > **Package:** `tinycua.agent_nodes.task_assessor`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft

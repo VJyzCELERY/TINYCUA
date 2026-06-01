@@ -3,14 +3,14 @@
 > **File:** `docs/design/agents/overview.md`
 > **Package:** `tinycua.agents` (spec cards)
 > **Last Updated:** 2026-06-01
-> **Status:** Navigation layer — source of truth lives in `agent_sessions/`
+> **Status:** Navigation layer — source of truth lives in `agent_node/`
 
 ---
 
 ## Role
 
 The `agents/` docs are thin spec cards that link to each AgentNode's source-of-truth
-document under [`agent_sessions/`](../agent_sessions/). They should not duplicate full
+document under [`agent_node/`](../agent_node/). They should not duplicate full
 design decisions.
 
 ---
@@ -66,7 +66,7 @@ No graph edge passes dicts or typed Python objects.
 
 ## See also
 
-- [AgentNode source-of-truth docs](../agent_sessions/)
+- [AgentNode source-of-truth docs](../agent_node/)
 - [AgentGraph overview](../orchestration/overview.md)
 - [TinyCUA top-level graph](../orchestration/tinycua.md)
 - [TinyCUAWorker subgraph](../orchestration/worker.md)

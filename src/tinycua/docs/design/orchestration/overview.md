@@ -22,20 +22,20 @@ This document is the source of truth for the AgentGraph runtime:
 
 ---
 
-## Naming Decision: AgentNode, not AgentSession
+## Naming Decision: AgentNode, not AgentNode
 
-The previous docs used `AgentSession` for the node-level wrapper. To avoid confusion
+The previous docs used `AgentNode` for the node-level wrapper. To avoid confusion
 with the `Session` state object, the preferred term is now **AgentNode**.
 
 | Old term | New term | Why |
 |----------|----------|-----|
 | `BaseAgentOrchestrator` | `BaseAgentNode` | The class couples an agent with a session; it does not orchestrate graph flow |
-| `BaseAgentSession` | `BaseAgentNode` | Avoids ambiguity with `Session` state object |
-| AgentSession / AgentNode | AgentNode | Each internal agent is a node in the graph |
-| `agent_sessions/` docs module | `agent_nodes/` in future | Current files may remain under `agent_sessions/` temporarily, but terminology should say AgentNode |
+| `BaseAgentNode` | `BaseAgentNode` | Avoids ambiguity with `Session` state object |
+| AgentNode / AgentNode | AgentNode | Each internal agent is a node in the graph |
+| `agent_node/` docs module | `agent_nodes/` in future | Current files may remain under `agent_node/` temporarily, but terminology should say AgentNode |
 
 Use **AgentNode** for new design text. Existing file paths may remain
-`agent_sessions/` until implementation/renaming happens.
+`agent_node/` until implementation/renaming happens.
 
 ---
 
@@ -306,7 +306,7 @@ The graph consumes `session.agent_state`, not raw loop internals.
 ```text
 tinycua/
 ├── orchestration/      # AgentGraph, RouterNode, TinyCUA, TinyCUAWorker
-├── agent_nodes/        # future name for node wrappers (currently docs/agent_sessions)
+├── agent_nodes/        # future name for node wrappers (currently docs/agent_node)
 ├── loops/              # AgentLoop implementations
 ├── state/              # StateObject, AgentState subclasses, Session, Task
 ├── tools/              # Task tools, ClassificationTool, TodoList, digester tools
@@ -320,7 +320,7 @@ tinycua/
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Rename to AgentNode | Prefer `AgentNode` over `AgentSession` | Avoid confusion with `Session` state object |
+| Rename to AgentNode | Prefer `AgentNode` over `AgentNode` | Avoid confusion with `Session` state object |
 | TinyCUA is AgentGraph | Graph-level runtime, not AgentNode | Keeps routing separate from node execution |
 | Node interface | `run(query: str)` | Universal routing interface |
 | Structured output | AgentState YAML front-matter | Self-describing, reconstructable, string-compatible |
@@ -342,4 +342,4 @@ Next : [`TinyCUA AgentGraph`](tinycua.md)
 - [TinyCUAWorker AgentGraph](worker.md)
 - [AgentState serialization](../state/agent_state.md)
 - [Session task sharing](../state/session.md#task-sharing-and-propagation)
-- [Base AgentNode (currently under agent_sessions/base.md)](../agent_sessions/base.md)
+- [Base AgentNode (currently under agent_node/base.md)](../agent_node/base.md)

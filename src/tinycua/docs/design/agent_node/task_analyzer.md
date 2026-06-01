@@ -1,6 +1,6 @@
 # Task Analyzer
 
-> **File:** `docs/design/agent_sessions/task_analyzer.md`
+> **File:** `docs/design/agent_node/task_analyzer.md`
 > **Package:** `tinycua.agent_nodes.task_analyzer`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft

@@ -1,6 +1,6 @@
 # Task Executor
 
-> **File:** `docs/design/agent_sessions/task_executor.md`
+> **File:** `docs/design/agent_node/task_executor.md`
 > **Package:** `tinycua.agent_nodes.task_executor`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
