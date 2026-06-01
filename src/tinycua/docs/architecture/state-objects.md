@@ -25,8 +25,8 @@ TINYCUA decomposes work by decomposing **context exposure**. State objects shoul
 |--------|----------|----------|---------|
 | `User Query` | User | Query Analyst | Latest user instruction. |
 | `Session` | Session system | Query Analyst / Information Digester / agents | Contains `chat_history`, model-loaded `Context`, and sub-session `execution_log`. See [session-architecture.md](session-architecture.md). |
+| `Classification` | Query Analyst | Routing | Chosen label from configurable `ClassificationTool` labels. |
 | `Context Enhanced Query` | Query Analyst | Primary Agent / Information Digester | User query enriched with high-level session context during fast routing analysis. |
-| `Mode Decision` | Query Analyst | Routing (see [overview.md](overview.md)) | Chooses `primary_agent`, `worker`, or `uncertain` based on mode. |
 | `Digested Information` | Information Digester | Task Analyzer / Primary Agent | Precision-oriented summary of relevant context and advisory instruction. Canonical schema below. |
 | `Worker Config` | System/user configuration | TINYCUA Worker / Task Analyzer | Controls Worker behavior such as planning effort. |
 | `Worker Result` | TINYCUA Worker | Primary Agent | Aggregated result from accepted sequential tasks. Canonical schema below. |
@@ -62,23 +62,20 @@ Key rules:
 
 ---
 
-## Mode Decision Object
+## Classification Object
 
-The Query Analyst produces a mode decision instead of a binary small/large verdict.
+The Query Analyst uses a `ClassificationTool` with configurable labels to produce a classification.
 
 ```yaml
-mode_decision:
-  mode: primary_agent | worker | uncertain
-  score: "<numeric>"  # exact scale is implementation calibration
-  confidence: "<numeric>"  # exact scale is implementation calibration
-  reasons:
-    - "..."
-  uncertain_next_action: ask_user | explore | null
+classification:
+  label: passthrough | worker   # selected from configured labels
 ```
 
-`reasons` must include a rationale appropriate to the chosen mode (e.g., safety rationale for `primary_agent`, decomposition benefit for `worker`, or uncertainty description for `uncertain`).
+`passthrough` routes directly to the Primary Agent. `worker` routes through the full Worker pipeline.
 
-`uncertain_next_action` is required when `mode` is `uncertain`. The goal is to avoid leaving uncertainty as an open-ended state.
+`uncertain` is not a label. If the agent cannot decide, it does not produce a terminal classification; the loop retries or keeps the agent active.
+
+The configured labels depend on context — the root TinyCUA uses `["passthrough", "worker"]`, while the Worker input gate uses `["task_recreation", "task_reanalysis", "proceed_execution"]`.
 
 ---
 
@@ -237,14 +234,17 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 ```yaml
 reviewer_decision:
   task_id: "<task id>"
-  status: accepted | retry | replan | escalate_user
+  status: accept | retry | replan
   reason: "..."
-  confidence: "<numeric>"  # exact scale is implementation calibration
   context_updates:
     - target_task_id: "<target task id>"
       update: "<context update>"
   retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
+
+`escalate_user` is not a status. When the ResultReviewer cannot resolve, the agent stays
+active with an open question. Human-in-the-loop interaction occurs through passthrough
+routing on the next user query. If HITL is disabled, the agent continues exploring.
 
 ---
 
@@ -258,9 +258,9 @@ agent_state:
   active_task_id: "<active task id>"
   status: idle | running | blocked | terminated
   resume_target: "..."
-  consecutive_failures: 0
+  failure: 0                      # aggregate failure count from child sessions
 ```
 
 Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
-The consecutive failure counter resets after any successful task because failure escalation is based on N failures **in a row**.
+The failure counter aggregates failures from child sessions (parent.failure += child.failure), not just consecutive failures in a single node.

@@ -11,7 +11,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 3. [state-objects.md](state-objects.md) — Canonical shared data structures (reference as you read the other docs)
 4. [query-analyst.md](query-analyst.md) — How queries are enriched and routing decisions are made
 5. [context-retrieval.md](context-retrieval.md) — How context is retrieved when the session grows large
-6. [task-classification.md](task-classification.md) — The scoring rubric for routing decisions
+6. [task-classification.md](task-classification.md) — How classification labels determine routing
 7. [information-digestion.md](information-digestion.md) — How broad session context is narrowed for precision
 8. [worker-orchestration.md](worker-orchestration.md) — Inside the Worker: how tasks are orchestrated sequentially
 9. [task-analysis.md](task-analysis.md) — How the Task Analyzer creates a sequential task roadmap (ReAct agent, no internal routing branches)
@@ -34,7 +34,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 
 | File | Description |
 |------|-------------|
-| [query-analyst.md](query-analyst.md) | Produces high-level Context Enhanced Query and Mode Decision |
+| [query-analyst.md](query-analyst.md) | Produces high-level Context Enhanced Query and Classification |
 | [information-digestion.md](information-digestion.md) | Performs Enhanced Context Retrieval and produces precision-oriented Digested Information |
 | [primary-agent.md](primary-agent.md) | Final synthesis agent for Primary Agent and Worker modes |
 | [task-analysis.md](task-analysis.md) | Inside Worker: creates a sequential task roadmap (ReAct agent, no internal routing branches) |
@@ -66,7 +66,7 @@ If you are new to TINYCUA's architecture, read in this order for a linear learni
 
 | File | Description |
 |------|-------------|
-| [task-classification.md](task-classification.md) | Score-based routing: primary-agent, worker, or uncertain |
+| [task-classification.md](task-classification.md) | Classification via configurable labels: passthrough or worker |
 
 ## Decision Records
 

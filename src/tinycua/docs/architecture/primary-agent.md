@@ -15,7 +15,7 @@ The Primary Agent is the final agent that produces the user-facing response.
 
 It may receive:
 
-- `Context Enhanced Query` from Primary Agent Mode;
+- `Context Enhanced Query` from Passthrough route;
 - `Digested Information` after it chooses to invoke Information Digestion;
 - `Worker Result` from Worker Mode.
 
@@ -37,8 +37,8 @@ If the user continues discussing, the Primary Agent can answer conversationally.
 
 **Input:**
 
-- `mode` — routing source: `primary_agent` or `worker`.
-- `context_enhanced_query` — optional CEQ from Primary Agent mode.
+- `mode` — routing source: `passthrough` or `worker`.
+- `context_enhanced_query` — optional CEQ from Passthrough route.
 - `digested_information` — optional Digested Information after invoking Information Digestion.
 - `worker_result` — optional Worker Result from Worker mode.
 
@@ -89,4 +89,4 @@ If it decides a new action is needed, it should start a new top-level loop throu
 | Worker mode research | Restricted | Prevents bypassing Worker context controls |
 | Optional digestion | Primary Agent decision | Keeps top-level routing simpler and lets Primary Agent decide whether CEQ needs consolidation |
 | Insufficient Worker result | Ask user what next | Avoids hallucinating missing details or bypassing Worker guarantees |
-| Modes handled | Primary-agent and worker | Keeps one final response interface |
+| Modes handled | Passthrough and worker | Keeps one final response interface |

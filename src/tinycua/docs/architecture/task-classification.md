@@ -13,54 +13,56 @@ This document defines how the Query Analyst chooses the processing mode for a us
 
 ## Goal
 
-Task classification decides how much orchestration is useful. It should prevent two failure modes:
+Classification decides how much orchestration is useful. It should prevent two failure modes:
 
 - classifying too many requests as Worker tasks, causing unnecessary overhead;
 - routing complex requests to the Primary Agent when they need Worker decomposition.
 
 ---
 
-## Modes
+## Classification Labels
 
-| Mode | Use When |
-|------|----------|
-| `primary_agent` | The request can start with the Primary Agent. The Primary Agent may still invoke Information Digestion if it needs consolidated context. |
+| Label | Use When |
+|-------|----------|
+| `passthrough` | The request can go directly to the Primary Agent. The Primary Agent may still invoke Information Digestion if it needs consolidated context. |
 | `worker` | The request needs sequential task decomposition and review. |
-| `uncertain` | The Query Analyst cannot confidently choose and must select `uncertain_next_action`. |
+
+`uncertain` is not a label. If the agent cannot decide, the loop retries or keeps the agent active — indecision does not produce a terminal classification.
 
 ---
 
 ## Scoring Dimensions
 
-The Query Analyst should use a scoring rubric rather than a pure binary judgment. At the architecture level, the rubric should consider three high-level dimensions:
+The Query Analyst uses a `ClassificationTool` with configurable labels. The rubric should consider three high-level dimensions when selecting a label:
 
 - **Task complexity** — the breadth of work implied by the request;
 - **Context dependency** — how much session `Context` is needed and how ambiguous the reference is;
 - **Safety and risk** — hallucination risk if answered directly and the complexity of the expected answer.
 
-The exact thresholds belong in implementation docs. The important architectural rule is that the classifier must explain its reasoning.
+The exact thresholds belong in implementation docs.
 
 ---
 
 ## Output Shape
 
-The Query Analyst produces a `Mode Decision` object. See [state-objects.md](state-objects.md) for the canonical schema and [query-analyst.md](query-analyst.md) for the agent's output contract.
+The Query Analyst produces a `Classification` via the configured `ClassificationTool`. See [state-objects.md](state-objects.md) for the canonical schema and [query-analyst.md](query-analyst.md) for the agent's output contract.
 
 ---
 
 ## Anti-Laziness Safeguards
 
-The classifier must guard against three failure modes:
+The classifier must guard against two failure modes:
 
 - **Worker overuse**: `worker` mode requires a clear decomposition benefit and a stated reason why direct response is risky.
-- **Unsafe Primary Agent routing**: `primary_agent` mode requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed.
-- **Open-ended uncertainty**: `uncertain` mode must set `uncertain_next_action` — never leave uncertainty as a nondeterministic state.
+- **Unsafe passthrough routing**: `passthrough` requires a clear rationale for safe handling and an explanation of why Worker decomposition is not needed.
+
+If the agent cannot decide between labels, it does not produce a terminal classification. The loop retries or keeps the agent active — indecision is handled through re-evaluation, not a special `uncertain` route.
 
 ---
 
 ## Relationship to Worker Effort
 
-Worker mode decides whether to use the Worker. Worker effort decides how much upfront decomposition the Worker performs before execution.
+Classification decides whether to use the Worker. Worker effort decides how much upfront decomposition the Worker performs before execution.
 
 Effort uses planning-depth semantics modeled on LLM reasoning effort. See [state-objects.md](state-objects.md) for the `Worker Config` schema and effort-level semantics.
 
@@ -70,8 +72,8 @@ Effort uses planning-depth semantics modeled on LLM reasoning effort. See [state
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Classification style | Score-based with multi-dimensional rubric | Prevents binary small/large judgments; requires the classifier to explain its reasoning |
+| Classification approach | Configurable `ClassificationTool` with labels | Same QueryAnalyst node serves both root and worker input gates |
 | Scoring dimensions | Task complexity, context dependency, safety/risk | Covers the three axes that meaningfully distinguish routing needs |
-| Anti-laziness safeguards | Three explicit failure modes | Worker overuse, unsafe PA routing, and open-ended uncertainty cover the ways the classifier can misroute |
-| Mode definitions | Primary-agent, Worker, Uncertain | Worker requires decomposition benefit; PA requires safety rationale; uncertain must explicitly resolve |
-| Effort relationship | Separate from mode | Mode decides whether to use the Worker; effort decides how much upfront planning within it |
+| Anti-laziness safeguards | Worker overuse and unsafe passthrough | Covers the ways the classifier can misroute; indecision is handled via retry/open-question |
+| Label definitions | Passthrough and worker | Worker requires decomposition benefit; passthrough requires safety rationale |
+| Effort relationship | Separate from classification | Classification decides whether to use the Worker; effort decides how much upfront planning within it |
