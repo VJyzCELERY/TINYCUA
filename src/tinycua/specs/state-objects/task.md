@@ -44,13 +44,13 @@ Implementation tasks for State Objects (M1). Check off items as completed.
 ## Review and Merge
 
 - [ ] T-028 Address review feedback
-- [ ] T-029 Merge to base branch (feat/agent-prototype)
+- [ ] T-029 Merge to base branch (feat/tinycua-prototype)
 
 ---
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-05-30*
+*Last updated: 2026-06-02*
 
 ## Summary of Results
 - **136 tests** — all passing
