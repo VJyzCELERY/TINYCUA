@@ -3,7 +3,7 @@
 > **Category:** Reference Spec
 
 > **File:** `architecture/state-objects.md`
-> **Last Updated:** 2026-05-30
+> **Last Updated:** 2026-06-02
 > **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [primary-agent.md](primary-agent.md)
 

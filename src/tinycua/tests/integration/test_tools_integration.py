@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pytest
 
+import tinycua.agent.tools as _tools_mod
+
 from tinycua_sdk import Agent, LanguageModel  # noqa: E402
 from tinycua_sdk.tools.decorators import Tool  # noqa: E402
 
@@ -16,6 +18,11 @@ from tinycua_sdk.tools.decorators import Tool  # noqa: E402
 # ---------------------------------------------------------------------------
 # register_all
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_default_context():
+    _tools_mod._DEFAULT_CONTEXT = None
 
 
 def test_register_all_returns_all_tools():
