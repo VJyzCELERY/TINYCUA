@@ -118,5 +118,5 @@ Prev : [`ResultReviewer`](result_reviewer.md) | Next : [`Base AgentNode`](base.m
 
 - [TinyCUA passthrough routing](../orchestration/tinycua.md#passthrough-routing)
 - [QueryAnalystState](../state/information.md#queryanalyststate)
-- [ContextEnhancedQuery safety](../state/mode_decision.md#contextenhancedquery-methods)
+- [ContextEnhancedQuery safety](../state/classification.md#contextenhancedquery-methods)
 - [PrimaryAgentLoop](../loops/primary_agent_loop.md)

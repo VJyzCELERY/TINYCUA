@@ -235,7 +235,7 @@ get_chat_history() → list[ChatRecord]:
 LLM extension, but those messages must not be appended to `session_context` unchanged.
 If CEQ context is persisted, append only the context as an assistant message and avoid
 adding the query part (it should already exist from `append_user`). See
-[ContextEnhancedQuery.to_messages()](mode_decision.md#contextenhancedquery-methods).
+[ContextEnhancedQuery.to_messages()](classification.md#contextenhancedquery-methods).
 
 ---
 

@@ -219,4 +219,4 @@ Prev : [`StateObject` Base Class + Serialization](state_object.md) | Next : [`Ag
 - [Each state is stored on its own Session.agent_state](session.md)
 - [AgentState base class with serialization](agent_state.md)
 - [Task tree — stored on Session.task](task.md)
-- [Classification + ContextEnhancedQuery](mode_decision.md)
+- [Classification + ContextEnhancedQuery](classification.md)

@@ -10,8 +10,7 @@
 ## Role
 
 `BaseAgentNode` is the node-level wrapper that couples a TinyCUA `Session` with an SDK
-`Agent`. The term **AgentNode** replaces the older **AgentNode** terminology to
-avoid confusion with the `Session` state object.
+`Agent`.
 
 It is intentionally not an orchestrator. Graph-level orchestration belongs to
 `tinycua.orchestration`.
@@ -26,6 +25,9 @@ The `Session` is the source of truth for:
 - `session.todo_list`
 
 The AgentNode's job is to connect those session-owned objects to an SDK `Agent` and
+allow saving state for the stateless SDK `Agent` object, enabling the AgentNode to
+couple a `Session` and `Task` tree with an SDK `Agent` that can be orchestrated by
+the AgentGraph.
 
 ---
 

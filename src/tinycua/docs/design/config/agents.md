@@ -65,14 +65,6 @@ InformationDigesterConfig extends AgentConfigBase
     · max_iterations_override: int | None = None  (None = no iteration limit)
 ```
 
-### `TaskCreatorConfig`
-
-```text
-TaskCreatorConfig extends AgentConfigBase
-    · name = "task-creator"
-    · instructions = TASK_CREATOR_INSTRUCTION
-```
-
 ### `TaskAnalyzerConfig`
 
 ```text

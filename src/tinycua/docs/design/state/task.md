@@ -99,7 +99,7 @@ the owning `Task` already provides identity.
 
 ## See also
 
-Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [Classification + `ContextEnhancedQuery`](mode_decision.md)
+Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [Classification + `ContextEnhancedQuery`](classification.md)
 
 
 ## Related

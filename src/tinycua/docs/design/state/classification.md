@@ -1,9 +1,9 @@
 # Classification + ContextEnhancedQuery
 
-> **File:** `docs/design/state/mode_decision.md`
+> **File:** `docs/design/state/classification.md`
 > **Package:** `tinycua.state.classification`
 > **Last Updated:** 2026-06-01
-> **Status:** Legacy file path; concept renamed from ModeDecision to Classification
+> **Status:** Renamed from mode_decision.md
 
 ---
 
@@ -13,8 +13,7 @@
 QueryAnalyst. The old `ModeDecision` concept is replaced by configurable
 ClassificationTool output.
 
-The file path remains `mode_decision.md` for now to avoid breaking links, but the
-source-of-truth concept is **classification**, not ModeDecision.
+The file path is now `classification.md`, matching the renamed concept.
 
 ---
 
@@ -68,7 +67,7 @@ active depending on HITL configuration.
 ContextEnhancedQuery.to_messages() → list[dict[str, str]]
   · Returns:
       [
-          {"role": "user", "content": self.context},
+          {"role": "assistant", "content": self.context},
           {"role": "user", "content": self.query}
       ]
 ```

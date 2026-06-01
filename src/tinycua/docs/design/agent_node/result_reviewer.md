@@ -107,6 +107,9 @@ ResultReviewerState(decision="replan")
 ```
 
 The active task may change after reanalysis because DFS pre-order traversal may select
+a different task: reanalysis may decompose the current task into a sub-tree. DFS
+pre-order traversal then selects the left-most deepest leaf of the newly decomposed
+task as the active task.
 
 ---
 

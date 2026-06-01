@@ -23,14 +23,16 @@ Two tools power the InformationDigester:
 ### Role
 
 Spawns an internal transient retrieval agent. That inner agent receives **two separate
+toolsets**:
 
 ```text
 CONTEXT_CACHE_TOOLS = [grep_context, read_context]
 EXPLORATION_TOOL = [FileReadTool, FileListTool, WebSearchTool]
 ```
 
-Cache tools are scoped strictly to the InformationDigester context cache. Exploration
-insufficient.
+Cache tools (`grep_context`, `read_context`) are scoped strictly to the
+InformationDigester context cache. Exploration tools (`FileReadTool`, `FileListTool`,
+`WebSearchTool`) are used when the context cache is insufficient.
 
 ### Factory
 

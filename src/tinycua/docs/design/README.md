@@ -23,7 +23,7 @@ Read in order for a linear learning experience:
 1. [`agents/information_digester.md`](agents/information_digester.md)
 1. [`agents/task_analyzer.md`](agents/task_analyzer.md)
 1. [`agents/task_assessor.md`](agents/task_assessor.md)
-1. [`agents/task_creator.md`](agents/task_creator.md)
+1. [`agents/task_creator.md`](agents/task_creator.md) **(deprecated/optional)**
 1. [`agents/task_executor.md`](agents/task_executor.md)
 1. [`agents/result_reviewer.md`](agents/result_reviewer.md)
 1. [`agents/primary_agent.md`](agents/primary_agent.md)
@@ -50,7 +50,7 @@ Read in order for a linear learning experience:
 1. [`state/information.md`](state/information.md) — AgentState subclasses
 1. [`state/agent_state.md`](state/agent_state.md) — `AgentState` lifecycle + YAML serialization
 1. [`state/task.md`](state/task.md) — `Task` tree + `TaskResult`
-1. [`state/mode_decision.md`](state/mode_decision.md) — Classification + `ContextEnhancedQuery` (legacy file path)
+1. [`state/classification.md`](state/classification.md) — Classification + `ContextEnhancedQuery`
 1. [`state/digested_information.md`](state/digested_information.md) — `DigestedInformation`
 1. [`state/reviewer_decision.md`](state/reviewer_decision.md) — `ReviewerDecision` + `ContextUpdate`
 1. [`state/worker_result.md`](state/worker_result.md) — `WorkerResult` + `WorkerConfig`

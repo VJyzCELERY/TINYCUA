@@ -46,7 +46,7 @@ DigestedInformation extends StateObject
 
 ## See also
 
-Prev : [Classification + `ContextEnhancedQuery`](mode_decision.md) | Next : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md)
+Prev : [Classification + `ContextEnhancedQuery`](classification.md) | Next : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md)
 
 
 ## Related

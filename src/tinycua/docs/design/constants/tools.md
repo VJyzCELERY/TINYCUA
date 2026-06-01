@@ -121,7 +121,8 @@ TASK_ANALYZER_BASE_TOOLS: list[tinycua_sdk.Tool] = [
     # when worker.session.task is None.
 
 TASK_ASSESSOR_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    ClassificationTool(name="classify", labels=TASK_ASSESSOR_CLASSIFICATION)
+    ClassificationTool(name="classify", labels=TASK_ASSESSOR_CLASSIFICATION),
+    *READ_ONLY_TASK_TOOLS,
 ]
 
 TASK_EXECUTOR_BASE_TOOLS: list[tinycua_sdk.Tool] = [

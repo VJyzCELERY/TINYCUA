@@ -178,7 +178,7 @@ ContextEnhancedQuery(context=qa_state.context or "", query=qa_state.query)
 `ContextEnhancedQuery.to_messages()` is allowed for transient message extension, but
 must not be appended to chat history/session context unchanged. If context is persisted,
 append it as an assistant message and avoid re-adding the user query. See
-[mode_decision.md](../state/mode_decision.md#contextenhancedquery-methods).
+[classification.md](../state/classification.md#contextenhancedquery-methods).
 
 ---
 
@@ -223,6 +223,6 @@ Prev : [AgentNode Factory](factory.md) | Next : [`InformationDigester`](informat
 
 - [Classification constants](../constants/tools.md)
 - [QueryAnalystState](../state/information.md#queryanalyststate)
-- [ContextEnhancedQuery](../state/mode_decision.md)
+- [ContextEnhancedQuery](../state/classification.md)
 - [TinyCUA input gate](../orchestration/tinycua.md)
 - [TinyCUAWorker input gate](../orchestration/worker.md)
