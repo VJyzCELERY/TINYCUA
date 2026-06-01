@@ -21,34 +21,36 @@ Leaf tasks (`child_tasks=None`) are executable; container tasks derive status fr
 
 **File:** `tinycua/state/task.py`
 
-```python
-@dataclass
-class Task(StateObject):
-    task_id: str                      # UUID for root, T-{idx}.{subidx}... for children
-    task_name: str                    # short label
-    task_description: str             # agent-readable prose
-    task_context: str                 # task-specific structured markdown
-    success_criteria: list[str]       # completion criteria
-    confidence: float                 # agent confidence
-    parent_task_id: str | None = None
-    task_result: TaskResult | None = None
-    child_tasks: list[Task] | None = None  # None = leaf, list = container
-    # _parent: Task | None (hidden, re-established after deserialization)
+```text
+Task extends StateObject
+    · task_id: str — UUID for root, T-{idx}.{subidx}... for children
+    · task_name: str — short label
+    · task_description: str — agent-readable prose
+    · task_context: str — task-specific structured markdown
+    · success_criteria: list[str] — completion criteria
+    · confidence: float — agent confidence
+    · parent_task_id: str | None = None
+    · task_result: TaskResult | None = None
+    · child_tasks: list[Task] | None = None — None = leaf, list = container
+    · _parent: Task | None — hidden, re-established after deserialization
 ```
 
 ### `TaskResult`
 
 **File:** `tinycua/state/task_result.py`
 
-```python
-@dataclass
-class TaskResult(StateObject):
-    task_id: str
-    status: TaskStatus  # Literal["not_started","inprogress","completed","failed","blocked"]
-    result: str
-    discovered_sequence_issues: list[str] | None = None
-    uncertainty_notes: list[str] | None = None
+```text
+TaskResult extends StateObject
+    · status: TaskStatus — not_started | inprogress | completed | failed | blocked
+    · result: str
+    · discovered_sequence_issues: list[str] | None = None
+    · uncertainty_notes: list[str] | None = None
+
+TaskStatus = Literal["not_started", "inprogress", "completed", "failed", "blocked"]
 ```
+
+`TaskResult` does not carry `task_id`. It is embedded inside `Task.task_result`, so
+the owning `Task` already provides identity.
 
 ---
 
@@ -97,7 +99,7 @@ class TaskResult(StateObject):
 
 ## See also
 
-Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [`ModeDecision` + `ContextEnhancedQuery`](mode_decision.md)
+Prev : [`AgentState` Lifecycle Tracking](agent_state.md) | Next : [Classification + `ContextEnhancedQuery`](mode_decision.md)
 
 
 ## Related

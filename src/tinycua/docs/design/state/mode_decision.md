@@ -1,53 +1,98 @@
-# Mode Decision
+# Classification + ContextEnhancedQuery
 
 > **File:** `docs/design/state/mode_decision.md`
-> **Package:** `tinycua.state.mode_decision`
-> **Last Updated:** 2026-05-31
+> **Package:** `tinycua.state.classification`
+> **Last Updated:** 2026-06-01
+> **Status:** Legacy file path; concept renamed from ModeDecision to Classification
 
 ---
 
 ## Role
 
-`ContextEnhancedQuery` and `ModeDecision` are produced by the Query Analyst.
-`ContextEnhancedQuery` wraps the agent's context-analysis output with the original
-user query for downstream consumption by InformationDigester.
-`ModeDecision` is the routing verdict with confidence scoring.
+`ContextEnhancedQuery` and a generic classification result are produced by
+QueryAnalyst. The old `ModeDecision` concept is replaced by configurable
+ClassificationTool output.
+
+The file path remains `mode_decision.md` for now to avoid breaking links, but the
+source-of-truth concept is **classification**, not ModeDecision.
 
 ---
 
-## Class Contract
+## ContextEnhancedQuery Contract
 
-**File:** `tinycua/state/mode_decision.py`
-
-```python
-@dataclass
-class ContextEnhancedQuery(StateObject):
-    context: str       # agent output: markdown with relevant context, keywords, etc.
-    query: str         # original user query (passed through unchanged)
-
-
-@dataclass
-class ModeDecision(StateObject):
-    mode: ModeType                          # passthrough | worker | uncertain
-    score: float                            # confidence score for mode choice
-    confidence: float                       # overall confidence
-    reasons: list[str]                      # reasons for chosen mode
-    uncertain_next_action: UncertainNextAction | None = None  # required when uncertain
+```text
+ContextEnhancedQuery extends StateObject
+    · context: str — agent output: markdown with relevant context, keywords, etc.
+    · query: str — original user query (passed through unchanged)
 ```
 
-**Type aliases:**
-```python
-ModeType = Literal["passthrough", "worker", "uncertain"]
-UncertainNextAction = Literal["ask_user", "explore"]
+`ContextEnhancedQuery` is a structured value object embedded in `QueryAnalystState`.
+It is not itself an AgentState subclass.
+
+---
+
+## Classification Output
+
+Classification is produced by `ClassificationTool(labels=config.classification_labels)`.
+
+```text
+QueryAnalystState <: AgentState
+  · classification: str                # selected label from configured labels
+  · score: float | None
+  · confidence: float | None
+  · reasons: list[str] | None
+  · context: str | None
+  · query: str                         # original user query; required
 ```
+
+Root TinyCUA labels:
+
+```text
+["passthrough", "worker"]
+```
+
+Worker input-gate labels:
+
+```text
+["task_recreation", "task_reanalysis", "proceed_execution"]
+```
+
+`uncertain` is not a label. If the agent cannot decide, it does not produce a terminal
+classification; the loop may retry, fallback to the first configured label, or stay
+active depending on HITL configuration.
+
+---
+
+## ContextEnhancedQuery Methods
+
+### `to_messages() → list[dict]`
+
+```text
+ContextEnhancedQuery.to_messages() → list[dict[str, str]]
+  · Returns:
+      [
+          {"role": "user", "content": self.context},
+          {"role": "user", "content": self.query}
+      ]
+```
+
+**Important usage rules:**
+
+1. Do not append these messages to chat history by default.
+2. If the context is persisted, append it as `role="assistant"` because it is
+   agent-produced context.
+3. Do not re-add the `query` message to session context if the external user query is
+   already present.
+4. Use `ceq.query` as the `agent.run(query=...)` argument.
 
 ---
 
 ## Validation
 
-- `mode` must be one of `passthrough`, `worker`, `uncertain`
-- `uncertain_next_action` (if set) must be `ask_user` or `explore`
-- Cross-field: if `mode == "uncertain"`, `uncertain_next_action` is **required**
+- `classification` must be one of the labels configured for that QueryAnalyst instance.
+- `ContextEnhancedQuery.query` / `QueryAnalystState.query` must contain the original
+  user query; `None` or `""` is invalid.
+- `context` may be empty.
 
 ---
 
@@ -55,16 +100,11 @@ UncertainNextAction = Literal["ask_user", "explore"]
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Mode + next action separate | `mode` + `uncertain_next_action` | `uncertain_next_action` only meaningful for uncertain mode |
-| Cross-field validation | `__post_init__` check | Catch missing next_action at construction time |
-| Context + query separate | `ContextEnhancedQuery.context` + `.query` | QueryAnalyst output (context) and original query are orthogonal; downstream agents receive both |
-
-
----
-
-
----
-
+| ModeDecision removed | Use generic classification | QueryAnalyst can act as different input gates |
+| Labels configurable | `QueryAnalystConfig.classification_labels` | Same node supports root and worker decisions |
+| No uncertain label | Indecision = retry/open-question/fallback | Avoids special route |
+| CEQ transient by default | `to_messages()` is for message extension | Prevents context pollution |
+| Context as assistant when persisted | Role change required | Context is agent-produced |
 
 ---
 
@@ -72,8 +112,8 @@ UncertainNextAction = Literal["ask_user", "explore"]
 
 Prev : [`Task` Tree + `TaskResult`](task.md) | Next : [`DigestedInformation`](digested_information.md)
 
-
 ## Related
 
-- [Produced by QueryAnalyst](../agents/query_analyst.md)
-- [Stored in QueryAnalystState](information.md)
+- [QueryAnalyst AgentNode](../agent_sessions/query_analyst.md)
+- [QueryAnalystState](information.md#queryanalyststate)
+- [Classification constants](../constants/tools.md)

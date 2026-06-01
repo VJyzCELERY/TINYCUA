@@ -1,0 +1,177 @@
+# BaseAgentNode
+
+> **File:** `docs/design/agent_sessions/base.md`
+> **Package:** `tinycua.agent_nodes.base`
+> **Last Updated:** 2026-06-01
+> **Status:** Draft
+
+---
+
+## Role
+
+`BaseAgentNode` is the node-level wrapper that couples a TinyCUA `Session` with an SDK
+`Agent`. The term **AgentNode** replaces the older **AgentSession** terminology to
+avoid confusion with the `Session` state object.
+
+It is intentionally not an orchestrator. Graph-level orchestration belongs to
+`tinycua.orchestration`.
+
+The `Session` is the source of truth for:
+
+- `session.agent_state` (AgentState subclass output + lifecycle)
+- `session.agent_state.agent_config`
+- `session.session_context`
+- `session.chat_history`
+- `session.task`
+- `session.todo_list`
+
+The AgentNode's job is to connect those session-owned objects to an SDK `Agent` and
+
+---
+
+## Responsibility Split
+
+| Layer | Owns | Does NOT Own |
+|-------|------|--------------|
+| `AgentGraph` | Routing, graph topology, node lifecycle, cross-node state flow | Required tool retry, node-local output formatting |
+| `AgentNode` | Session wiring, per-call SDK Agent construction, event passthrough | Routing, duplicated state/config, tool-call probing |
+| Agent-specific loop | LLM retry, required tool enforcement, final AgentState formatting | Graph routing, session tree creation |
+| `Session` | AgentState, AgentConfigBase, session context, chat history, task reference | SDK runtime execution |
+| SDK `Agent` | LLM/tool streaming runtime | TinyCUA persistence/routing policy |
+
+---
+
+## Class Contract
+
+```text
+BaseAgentNode(ABC)  ← thin Session ↔ SDK Agent connector
+
+session: Session  — source of truth for state, config, context, history
+
+__init__(config: AgentConfigBase | None, session: Session | None) -> None
+  · if no session → create new Session with agent_state.agent_config = config
+  · if session exists + config → overwrite session.agent_state.agent_config
+  · stores session; does NOT retain separate self.config copy
+
+@property config -> AgentConfigBase
+  · convenience accessor → self.session.agent_state.agent_config
+
+@abstractmethod
+run(query: str) -> AsyncIterator[dict]
+  · build a fresh tinycua_sdk.Agent per call with loop=SpecificAgentLoop(session=self.session)
+  · call agent.run(query=query, messages=self.session.session_context, stream=True)
+  · yield all stream events (loop owns retry/output)
+```
+
+---
+
+## Universal Input Contract
+
+Every AgentNode uses:
+
+```text
+run(query: str) -> AsyncIterator[dict]
+```
+
+Structured data is passed as AgentState YAML front-matter:
+
+```text
+parsed = AgentState.from_string(query)
+if parsed is None:
+    # plain string
+else:
+    # parsed is correct AgentState subclass based on front-matter `type`
+```
+
+The graph never passes dicts or typed Python objects between nodes.
+
+---
+
+## Per-Call Agent Construction
+
+```text
+async run(self, query: str) -> AsyncIterator[dict]:
+  config = self.session.agent_state.agent_config
+  agent_query = self._build_query(query)
+
+  agent = tinycua_sdk.Agent(
+      name=config.name,
+      instructions=self.build_instruction(...),
+      llm_model=config.model,
+      tools=[*BASE_TOOLS, *config.extra_tools],
+      loop=SpecificAgentLoop(session=self.session),
+  )
+
+  async for event in agent.run(query=agent_query,
+                               messages=self.session.session_context,
+                               stream=True):
+      yield event
+```
+
+The final event/result is produced by the inner loop. The outer AgentNode does not
+inspect the stream to find tool calls, parse markdown/JSON, or run follow-up retries.
+
+---
+
+## Inner Loop Output Contract
+
+```text
+agent.run(...)
+  → SDK streams normal events
+  → inner loop enforces required tool calls / retry policy
+  → inner loop appends assistant messages to session when appropriate
+  → inner loop writes an AgentState subclass to session.agent_state
+  → inner loop emits final result event
+```
+
+The AgentGraph reads `node.session.agent_state` after the node run.
+
+---
+
+## AgentGraph Integration
+
+```text
+node = QueryAnalyst(session=child_session, config=override)
+async for event in node.run(query=user_query): yield event
+
+state = node.session.agent_state  # QueryAnalystState
+next_node = graph.route(state.classification)
+next_node.run(query=state.to_yaml() + "\n" + state.query)
+```
+
+Routing decisions belong to the graph, not the AgentNode.
+
+---
+
+## Interrupt / Steering Consideration
+
+AgentNodes and loops should not assume a stream is always uninterrupted. Future
+interrupt support may live in the SDK stream protocol, the loop layer, the AgentGraph
+layer, or a combination.
+
+---
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Rename node wrapper | `BaseAgentNode` | Avoids confusion with `Session` |
+| Session owns config/state | `session.agent_state.agent_config` + `session.agent_state` | No duplicated node state |
+| Thin AgentNode | Build Agent, pass context, yield events | Keeps wrapper simple |
+| Loop-owned retry | Agent-specific loops retry inside `agent.run()` | No external retry wrapper |
+| Loop-owned output formatting | Loop writes AgentState subclass | AgentNode does not probe raw events |
+| Universal input | `run(query: str)` | Enables flexible routing |
+| Graph owns routing | Graph consumes `session.agent_state` | Keeps routing separate from node execution |
+
+---
+
+## See also
+
+Prev : [Continuation State Store](../state/state_store.md) | Next : [AgentNode Factory](factory.md)
+
+## Related
+
+- [AgentGraph system overview](../orchestration/overview.md)
+- [Session owns AgentState and config](../state/session.md)
+- [AgentState serialization](../state/agent_state.md)
+- [Loop responsibility split](../loops/overview.md)

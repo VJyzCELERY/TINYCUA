@@ -1,112 +1,62 @@
-# Loop Strategies Overview
+# AgentLoop Overview
 
 > **File:** `docs/design/loops/overview.md`
 > **Package:** `tinycua.loops`
-> **Last Updated:** 2026-05-31
-> **Status:** Draft
+> **Last Updated:** 2026-06-01
 
 ---
 
-## Hierarchy
+## Role
 
-```
-tinycua_sdk.agent.loop.BaseLoop    (SDK — tool calling, streaming, cancellation)
-├── ReActAgentLoop                  (shared — default ReAct behavior)
-├── QueryAnalystLoop                (classification control flow)
-├── InformationDigestionLoop        (iterative retrieval + gap evaluation)
-├── ResultReviewLoop                (two-phase: deterministic + LLM review)
-└── MainLoop                        (full orchestration)
-```
+AgentLoops are the SDK inner loops passed as `loop=` to `tinycua_sdk.Agent(...)`.
+AgentNodes build agents and yield events; AgentLoops enforce required tool calls,
+handle retries, append assistant responses, and write typed AgentState subclasses to
+`session.agent_state`.
 
 ---
 
-## State Injection Pattern
+## Responsibility Split
 
-All custom loops receive the orchestrator's state by reference via constructor.
-State survives across Agent calls and persists if the stream is interrupted.
-
-```python
-# In orchestrator's run():
-loop = QueryAnalystLoop(state=self.state)
-agent = Agent(..., loop=loop)
-
-# In loop:
-class QueryAnalystLoop(BaseLoop):
-    def __init__(self, state: QueryAnalystState):
-        super().__init__()
-        self.state = state  # direct reference — reads/writes synchronously
-```
+| Layer | Responsibility |
+|-------|----------------|
+| AgentGraph | Route between nodes/subgraphs |
+| AgentNode | Build SDK Agent, pass `query` and `messages`, yield events |
+| AgentLoop | Retry/enforcement/output formatting; write `session.agent_state` |
+| Session | Store AgentState, context, chat history, task, TodoList |
 
 ---
 
-## Loop Input/Output
+## Loop Output Contract
 
-| Loop | Input (via agent.run query) | Writes to state | Behavior |
-|------|-----|------|------|
-| ReActAgentLoop | Agent-specific | — | Default ReAct via `super().run()` |
-| QueryAnalystLoop | `{user_query, chat_history, session_context}` | — | Classification via ClassificationTool |
-| InformationDigestionLoop | `ContextEnhancedQuery` | `retrieval_iterations` | Iterative retrieval with gap evaluation |
-| ResultReviewLoop | `{task, task_result, execution_log}` | `deterministic_failures` | Two-phase: deterministic then LLM |
-| MainLoop | User query + session state | `active_agent`, `token_usage` (on Session) | Full orchestration via orchestrator-call tools. All queries route through QueryAnalyst first. |
+Every loop writes a specific AgentState subclass:
 
----
+| Loop | Writes |
+|------|--------|
+| QueryAnalystLoop | `QueryAnalystState` |
+| InformationDigestionLoop | `InformationDigesterState` |
+| TaskAnalyzerLoop | `TaskAnalyzerState` |
+| TaskAssessorLoop | `TaskAssessorState` |
+| TaskExecutorLoop | `TaskExecutorState` |
+| ResultReviewLoop | `ResultReviewerState` or keeps reviewer active with no terminal decision |
+| PrimaryAgentLoop | `PrimaryAgentState` |
 
-## Agent Loop Mapping
-
-| Orchestrator | Loop | Custom Behavior |
-|-------|------|-----------------|
-| QueryAnalyst | QueryAnalystLoop | Classification |
-| InformationDigester | InformationDigestionLoop | Iterative retrieval |
-| TaskCreator | ReActAgentLoop | Wraps TaskAnalyzer + TaskAssessor |
-| TaskAnalyzer | ReActAgentLoop | (none — shared ReAct) |
-| TaskAssessor | ReActAgentLoop | (none — shared ReAct) |
-| TaskExecutor | ReActAgentLoop | (none — shared ReAct) |
-| ResultReviewer | ResultReviewLoop | Two-phase review |
-| PrimaryAgent | ReActAgentLoop | (none — shared ReAct) |
-| TinyCUA | MainLoop | Orchestration routing |
+The graph consumes `session.agent_state`, not `session.agent_state.last_result`.
 
 ---
 
-## Error Handling
+## Common Rules
 
-All loops rely on SDK infrastructure — no custom retry logic:
-
-| Error Case | SDK Behavior | Loop Responsibility |
-|------------|-------------|---------------------|
-| Transient LLM error | `LLMClient` retry/backoff | Propagate as `LoopTransientError` if exhausted |
-| Permanent LLM error | SDK raises immediately | Propagate as `LoopPermanentError` |
-| Output not valid JSON | — | Orchestrator raises after stream ends (future: retry loop) |
-| Invalid input | — | Raise `ValueError` before any LLM call |
-| Tool call failure | `ToolExecutor` returns error as observation | LLM decides next action |
-
----
-
-## Common Patterns
-
-1. All loops extend SDK `BaseLoop` and override `run()` for domain-specific control flow
-2. Loops receive `state` via constructor — reads/writes synchronously to orchestrator state
-3. Loops are passed to the SDK `Agent` via `Agent(loop=...)` inside the orchestrator's `run()`
-4. The orchestrator's `run()` yields all stream events transparently
-5. Loops define their own termination conditions (classification done, gaps addressed, review complete)
-6. Loops do NOT define tools — those come from `*_BASE_TOOLS` and `config.extra_tools`
-
-
----
-
-
----
-
+1. AgentNodes pass `loop=SomeAgentLoop(session=self.session)`.
+2. AgentNodes pass `messages=self.session.session_context` to `agent.run()`.
+3. Loops update `session.agent_state` directly.
+4. Loops emit one final result event when terminal.
+5. AgentNodes yield events transparently and do not parse raw events.
+6. Required classification/digest tools are enforced inside loops.
 
 ---
 
 ## See also
 
-Prev : [`LoopError` Hierarchy](../exceptions/loops.md) | Next : [`ReActAgentLoop`](react_agent.md)
-
-
-## Related
-
-- [Default ReAct behavior](react_agent.md)
-- [Classification control flow](query_analyst_loop.md)
-- [Top-level orchestration](main_loop.md)
-- [Loops receive state from orchestrator via constructor](../agents/base.md)
+- [Base AgentNode responsibility split](../agent_sessions/base.md)
+- [AgentState output serialization](../state/agent_state.md)
+- [AgentGraph overview](../orchestration/overview.md)

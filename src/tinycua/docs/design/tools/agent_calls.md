@@ -1,89 +1,47 @@
-# Orchestrator-Call Tools
+# AgentNode-Call Tools
 
 > **File:** `docs/design/tools/agent_calls.md`
 > **Package:** `tinycua.tools.agent_calls`
+> **Last Updated:** 2026-06-01
 
 ---
 
 ## Role
 
-Orchestrator-call tools are SDK `Tool` objects that allow one agent to invoke another
-through its orchestrator's `run()` method. Used by `MainLoop` in the `TinyCUA` external
-orchestrator to delegate to internal orchestrator instances.
+AgentNode-call tools are SDK `Tool` objects that allow a graph-level SDK Agent/MainLoop
+adapter to invoke an internal AgentNode through its `run(query: str)` method.
 
-Each tool calls `orchestrator.run(...)`, consumes the async generator (stream events
-are logged/forwarded), and returns the final validated result from `orchestrator.state.last_result`.
+They are an adapter pattern only. Explicit AgentGraph routing in
+[`orchestration/tinycua.md`](../orchestration/tinycua.md) and
+[`orchestration/worker.md`](../orchestration/worker.md) remains the source of truth.
 
 ---
 
-## Tool Contract
+## Contract
 
-**File:** `tinycua/tools/agent_calls.py`
-
-```python
-from tinycua_sdk.tools.decorators import Tool
-from tinycua.agents.base import BaseAgentOrchestrator
-from tinycua.config.types import AgentKind
-
-
-def call_query_analyst(
-    internal_orchestrators: dict[AgentKind, BaseAgentOrchestrator],
-) -> Tool:
-    async def execute(user_query: str, chat_history=None, session_context=None) -> dict:
-        analyst = internal_orchestrators[AgentKind.QUERY_ANALYST]
-        async for event in analyst.run(
-            user_query=user_query,
-            chat_history=chat_history or [],
-            session_context=session_context or {},
-        ):
-            pass  # Events can be logged or forwarded here
-        return analyst.state.last_result
-
-    return Tool(
-        name="call_query_analyst",
-        description="Classify user query into a mode decision",
-        execute=execute,
-    )
+```text
+call_query_analyst(agent_nodes: dict[AgentKind, BaseAgentNode]) → Tool
+  execute(query: str) → str
+    · node = agent_nodes[AgentKind.QUERY_ANALYST]
+    · consume async for event in node.run(query=query)
+    · return node.session.agent_state.to_yaml()
 ```
 
-**Rules:**
-- Tool receives an **orchestrator instance**, not a raw SDK `Agent`
-- Tool calls `orchestrator.run(...)`, never `agent.run(...)`
-- Tool **consumes the async generator** — all stream events are consumed internally
-- Tool returns `orchestrator.state.last_result` — the typed, parsed final output
-- Tool must not create a raw Agent or bypass the orchestrator's configured loop
+Tools return serialized `AgentState` YAML, not `last_result` dictionaries.
 
 ---
 
-## All Six Tools
+## Tool Table
 
-| Tool | Target Orchestrator | Returns |
-|------|---------------|---------|
-| `call_query_analyst(internal_orchestrators)` | `QueryAnalyst` | `{mode_decision: ModeDecision, context_enhanced_query: ContextEnhancedQuery}` |
-| `call_information_digester(internal_orchestrators)` | `InformationDigester` | `DigestedInformation` |
-| `call_task_creator(internal_orchestrators)` | `TaskCreator` | `Task` tree with selections |
-| `call_task_executor(internal_orchestrators)` | `TaskExecutor` | `TaskResult` |
-| `call_result_reviewer(internal_orchestrators)` | `ResultReviewer` | `ReviewerDecision` |
-| `call_primary_agent(internal_orchestrators)` | `PrimaryAgent` | `{final_response, citations}` |
-
----
-
-## Stream Consumption Pattern
-
-Each orchestrator's `run()` is an `async def` that **yields** events (async generator).
-The tool consumes the generator, discarding or logging events. The typed result is
-accessed via `orchestrator.state.last_result` after the `async for` loop completes:
-
-```python
-# Inside the tool's execute():
-async for event in orchestrator.run(...):
-    # Optionally: log, forward, or inspect events
-    pass
-
-# After stream ends — state is populated
-result = orchestrator.state.last_result
-return result  # SDK sees a normal dict return
-```
+| Tool | Target AgentNode | Returns |
+|------|------------------|---------|
+| `call_query_analyst(agent_nodes)` | `QueryAnalyst` | `QueryAnalystState.to_yaml()` |
+| `call_information_digester(agent_nodes)` | `InformationDigester` | `InformationDigesterState.to_yaml()` |
+| `call_task_analyzer(agent_nodes)` | `TaskAnalyzer` | `TaskAnalyzerState.to_yaml()` |
+| `call_task_assessor(agent_nodes)` | `TaskAssessor` | `TaskAssessorState.to_yaml()` |
+| `call_task_executor(agent_nodes)` | `TaskExecutor` | `TaskExecutorState.to_yaml()` |
+| `call_result_reviewer(agent_nodes)` | `ResultReviewer` | `ResultReviewerState.to_yaml()` if terminal |
+| `call_primary_agent(agent_nodes)` | `PrimaryAgent` | `PrimaryAgentState.to_yaml()` |
 
 ---
 
@@ -91,26 +49,15 @@ return result  # SDK sees a normal dict return
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Tools receive orchestrator, not raw Agent | `orchestrator.run()` | Preserves typed state, loop integrity, session management |
-| Factory pattern | `call_*(internal_orchestrators) -> Tool` | Late binding of orchestrator instances |
-| Tool consumes generator | `async for event in orchestrator.run(): pass` | SDK expects a dict return from tool execute |
-| Result from state | `orchestrator.state.last_result` | State is populated after stream ends; typed and validated |
-
-
----
-
+| Tools receive AgentNode | `node.run(query)` | Preserves session state, loop integrity, and node lifecycle |
+| Return YAML state | `node.session.agent_state.to_yaml()` | Compatible with universal string routing |
+| No raw SDK Agent bypass | Never call `agent.run()` directly | Keeps loop/session policy intact |
+| Adapter only | Graph docs own routing | Avoids natural-language delegation becoming source of truth |
 
 ---
-
-
----
-
-## See also
-
-Prev : [`TinyCUA` External Orchestrator](../agents/tinycua.md) | Next : [InformationDigester Tools](digester.md)
-
 
 ## Related
 
-- [Orchestrators are created by factory](../agents/factory.md)
-- [Tools call orchestrator.run()](../agents/base.md)
+- [AgentNode factory](../agent_sessions/factory.md)
+- [BaseAgentNode](../agent_sessions/base.md)
+- [AgentState serialization](../state/agent_state.md)

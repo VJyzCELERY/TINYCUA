@@ -2,7 +2,7 @@
 
 > **File:** `docs/design/exceptions/loops.md`
 > **Package:** `tinycua.exceptions.loops`
-> **Last Updated:** 2026-05-31
+> **Last Updated:** 2026-06-01
 > **Status:** Draft
 
 ---
@@ -13,18 +13,18 @@ Thin wrappers around SDK exceptions. Loops do not implement their own retry logi
 they rely on SDK infrastructure and raise these typed errors when SDK retries are
 exhausted.
 
-```python
-class LoopError(Exception):
-    """Base class for all loop errors."""
+```text
+LoopError extends Exception
+    Base class for all loop errors.
 
-class LoopTransientError(LoopError):
-    """Transient failure — caller may retry (e.g., rate limit exhausted)."""
+LoopTransientError extends LoopError
+    Transient failure — caller may retry (e.g., rate limit exhausted).
 
-class LoopPermanentError(LoopError):
-    """Permanent failure — caller should not retry (e.g., auth failure)."""
+LoopPermanentError extends LoopError
+    Permanent failure — caller should not retry (e.g., auth failure).
 
-class LoopOutputValidationError(LoopError):
-    """Output was not valid JSON after all retry attempts by the orchestrator."""
+LoopOutputValidationError extends LoopError
+    Output was not valid after all loop-owned retry/repair attempts.
 ```
 
 ---
@@ -35,7 +35,7 @@ class LoopOutputValidationError(LoopError):
 |------------|-------------|
 | `LoopTransientError` | SDK's `LLMClient` exhausts its retries on a transient error |
 | `LoopPermanentError` | SDK raises a permanent error immediately or a required tool is missing at construction |
-| `LoopOutputValidationError` | Orchestrator exhausts retry attempts on bad JSON output |
+| `LoopOutputValidationError` | AgentLoop exhausts retry/repair attempts on invalid structured output |
 | `ValueError` | Invalid input received before any LLM call |
 
 ---

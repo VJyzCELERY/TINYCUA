@@ -17,14 +17,13 @@ summary for downstream agents (Task Analyzer, Primary Agent).
 
 **File:** `tinycua/state/digested_information.py`
 
-```python
-@dataclass
-class DigestedInformation(StateObject):
-    context_summary: str                      # compressed relevant context (markdown)
-    key_points: list[str]                     # key takeaway points
-    advisory_instructions: str | None = None  # action-oriented guidance
-    constraints: list[str] | None = None      # guardrails
-    known_gaps: list[str] | None = None       # missing information
+```text
+DigestedInformation extends StateObject
+    · context_summary: str — compressed relevant context (markdown)
+    · key_points: list[str] — key takeaway points
+    · advisory_instructions: str | None = None — action-oriented guidance
+    · constraints: list[str] | None = None — guardrails
+    · known_gaps: list[str] | None = None — missing information
 ```
 
 ---
@@ -47,10 +46,10 @@ class DigestedInformation(StateObject):
 
 ## See also
 
-Prev : [`ModeDecision` + `ContextEnhancedQuery`](mode_decision.md) | Next : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md)
+Prev : [Classification + `ContextEnhancedQuery`](mode_decision.md) | Next : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md)
 
 
 ## Related
 
-- [Produced by InformationDigester](../agents/information_digester.md)
+- [Produced by InformationDigester](../agent_sessions/information_digester.md)
 - [Stored in InformationDigesterState](information.md)

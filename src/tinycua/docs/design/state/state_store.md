@@ -17,37 +17,22 @@ No per-agent key fragments — the tree is self-contained.
 
 ## Contract
 
-```python
-from abc import ABC, abstractmethod
+```text
+StateStore (ABC) — abstract persistence backend for TinyCUA session state
 
+    save(session_id: str, session: Session) → None (async, abstract)
+        · Persist the entire session tree under session_id
+        · session.to_dict() serializes recursively — root + all children,
+          agent_states, tasks, and chat histories are included
 
-class StateStore(ABC):
-    """Abstract persistence backend for TinyCUA session state."""
+    load(session_id: str) → Session | None (async, abstract)
+        · Restore the entire session tree for session_id
+        · Returns None if no state exists for this session_id
+        · Returned Session has _parent references re-established via set_parents()
 
-    @abstractmethod
-    async def save(self, session_id: str, session: "Session") -> None:
-        """Persist the entire session tree under session_id.
+    delete(session_id: str) → None (async, abstract)
 
-        session.to_dict() serializes recursively — the root and all
-        children, agent_states, tasks, and chat histories are included.
-        """
-        ...
-
-    @abstractmethod
-    async def load(self, session_id: str) -> "Session | None":
-        """Restore the entire session tree for session_id.
-
-        Returns None if no state exists for this session_id.
-        The returned Session has _parent references re-established
-        via set_parents().
-        """
-        ...
-
-    @abstractmethod
-    async def delete(self, session_id: str) -> None: ...
-
-    @abstractmethod
-    async def list_sessions(self) -> list[str]: ...
+    list_sessions() → list[str] (async, abstract)
 ```
 
 ---
@@ -64,53 +49,41 @@ class StateStore(ABC):
 
 ## TinyCUA Integration
 
-```python
-class TinyCUA:
-    def __init__(self, config: TinyCUAConfig):
-        self.state_store = config.state_store  # SQLiteStateStore(db_path="tinycua.db")
+```text
+TinyCUA.__init__(config: TinyCUAConfig)
+    · self.state_store → config.state_store
 
-    async def run(self, user_query: str, session_id: str | None = None) -> Response:
-        # Restore or create session
-        if session_id:
-            session = await self.state_store.load(session_id)
-            if session:
-                # Resume from active point in the tree
-                active = session.get_active_session()
-                if active.agent_state and active.agent_state.status == "running":
-                    return await self._resume(active)
-        else:
-            session = Session(
-                session_id=str(uuid4()),
-                agent_state=AgentState(active_agent="tinycua", status="running"),
-            )
-
-        # Run orchestration flow...
-        session.append_user(user_query)
-        async for event in self._orchestrate(session):
-            yield event
-
-        # Persist the entire tree
-        await self.state_store.save(session.session_id, session)
+TinyCUA.run(user_query: str, session_id: str | None = None) → Response (async)
+    · if session_id is provided:
+        · session → await state_store.load(session_id)
+        · if session exists:
+            · active → session.get_active_session()
+            · if active.agent_state.status == "running":
+                · return → await self._resume(active)
+    · else:
+        · session → new Session(session_id=uuid4(), agent_state=AgentState(
+          type="tinycua", status="running"))
+    · session.append_user(user_query)
+    · for each event in self._orchestrate(session): yield event
+    · await state_store.save(session.session_id, session)
 ```
 
 ---
 
-## Agent-Level Serialization
+## AgentNode-Level Serialization
 
-Each orchestrator's state lives on its session's `agent_state`. Serialization is
-handled by the session tree — no per-agent `save_state`/`restore_state` methods needed:
+Each agent's state lives on its session's `agent_state`. Serialization is handled by
+the session tree — no per-agent `save_state`/`restore_state` methods needed:
 
-```python
-class BaseAgentOrchestrator(Generic[S]):
-    # The orchestrator mutates self.state during execution.
-    # Before yielding events, it attaches self.state to the session:
-    
-    async def run(self, session: Session | None = None, **kwargs) -> AsyncGenerator:
-        if session:
-            session.agent_state = self.state
-        # ... agent execution ...
-        # After execution, self.state is already on session.agent_state
-        # (same reference). Serialization is handled by the session tree.
+```text
+BaseAgentNode
+    · Owns a session reference
+    · Loops mutate session.agent_state during execution
+
+    run(**kwargs) → AsyncGenerator (async)
+        · Execute node logic
+        · session.agent_state is already part of the session tree
+        · Serialization handled by saving the root session
 ```
 
 ---
@@ -136,7 +109,7 @@ class BaseAgentOrchestrator(Generic[S]):
 
 ## See also
 
-Prev : [`ChatRecord` Audit Trail](chat_record.md) | Next : [`BaseAgentOrchestrator[S]`](../agents/base.md)
+Prev : [`ChatRecord` Audit Trail](chat_record.md) | Next : [`BaseAgentNode`](../agent_sessions/base.md)
 
 
 ## Related

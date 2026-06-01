@@ -1,7 +1,7 @@
 # TINYCUA Design
 
-Implementation-level design documentation for TINYCUA's module layout, orchestrator classes,
-loop strategies, tool contracts, state management, and configuration.
+Implementation-level design documentation for TINYCUA's AgentGraph system, AgentNode
+nodes, loop strategies, tool contracts, state management, and configuration.
 
 Start with the directory structure below — each directory mirrors a `tinycua/` subpackage.
 Read in order for a linear learning experience:
@@ -9,43 +9,60 @@ Read in order for a linear learning experience:
 ## Linear Reading Order
 
 1. [`config/types.md`](config/types.md) — `AgentKind` enum, `TINYCUA_DEFAULT_MODEL`
-2. [`config/agents.md`](config/agents.md) — Per-agent config dataclasses
- 3. [`constants/tools.md`](constants/tools.md) — `*_BASE_TOOLS` pre-configured tool sets
- 4. [`constants/instructions.md`](constants/instructions.md) — Agent instruction constants
- 5. [`exceptions/loops.md`](exceptions/loops.md) — `LoopError` hierarchy
- 6. [`loops/overview.md`](loops/overview.md) — Loop hierarchy, state injection pattern
- 7. [`loops/react_agent.md`](loops/react_agent.md) — `ReActAgentLoop`
- 8. [`loops/query_analyst_loop.md`](loops/query_analyst_loop.md)
- 9. [`loops/information_digestion_loop.md`](loops/information_digestion_loop.md)
-10. [`loops/result_review_loop.md`](loops/result_review_loop.md)
-11. [`loops/main_loop.md`](loops/main_loop.md) — `MainLoop` orchestration
-12. [`state/state_object.md`](state/state_object.md) — `StateObject` base class + serialization
-13. [`state/information.md`](state/information.md) — Per-agent state classes
-14. [`state/agent_state.md`](state/agent_state.md) — `AgentState` lifecycle tracking
-15. [`state/task.md`](state/task.md) — `Task` tree + `TaskResult`
-16. [`state/mode_decision.md`](state/mode_decision.md) — `ModeDecision` + `ContextEnhancedQuery`
-17. [`state/digested_information.md`](state/digested_information.md) — `DigestedInformation`
-18. [`state/reviewer_decision.md`](state/reviewer_decision.md) — `ReviewerDecision` + `ContextUpdate`
-19. [`state/worker_result.md`](state/worker_result.md) — `WorkerResult` + `WorkerConfig`
-20. [`state/execution_log.md`](state/execution_log.md) — `ExecutionLog` + `ExecutionLogEntry`
-21. [`state/session.md`](state/session.md) — Design `Session` (extends existing Session)
-22. [`state/chat_record.md`](state/chat_record.md) — `ChatRecord` structured audit trail entry
-23. [`state/state_store.md`](state/state_store.md) — Continuation state store
-24. [`agents/base.md`](agents/base.md) — `BaseAgentOrchestrator[S]`
-25. [`agents/factory.md`](agents/factory.md) — `create_orchestrator()`, `create_all_orchestrators()`
-26. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` orchestrator
-27. [`agents/information_digester.md`](agents/information_digester.md)
-28. [`agents/task_analyzer.md`](agents/task_analyzer.md)
-29. [`agents/task_assessor.md`](agents/task_assessor.md)
-30. [`agents/task_creator.md`](agents/task_creator.md) — `TaskCreator` wraps TaskAnalyzer + TaskAssessor
-31. [`agents/task_executor.md`](agents/task_executor.md)
-32. [`agents/result_reviewer.md`](agents/result_reviewer.md)
-33. [`agents/primary_agent.md`](agents/primary_agent.md)
-34. [`agents/tinycua.md`](agents/tinycua.md) — `TinyCUA` external orchestrator
-35. [`tools/agent_calls.md`](tools/agent_calls.md) — Orchestrator-call tools
-36. [`tools/digester.md`](tools/digester.md) — InformationDigester tools (`enhanced_context_retrieval` + `digest_information`)
-37. [`tools/task.md`](tools/task.md) — Task tools: read (`ReadActiveTask`, `ReadTask`, `ListTask`) + write (`TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`)
-38. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
+1. [`config/agents.md`](config/agents.md) — Per-agent config dataclasses
+1. [`constants/tools.md`](constants/tools.md) — `*_BASE_TOOLS` pre-configured tool sets
+1. [`constants/instructions.md`](constants/instructions.md) — Agent instruction constants
+1. [`exceptions/loops.md`](exceptions/loops.md) — `LoopError` hierarchy
+1. [`orchestration/overview.md`](orchestration/overview.md) — AgentGraph system source of truth
+1. [`orchestration/tinycua.md`](orchestration/tinycua.md) — `TinyCUA` AgentGraph runtime
+1. [`orchestration/router_node.md`](orchestration/router_node.md) — deterministic exact-match RouterNode
+1. [`orchestration/worker.md`](orchestration/worker.md) — `TinyCUAWorker` AgentGraph runtime
+1. [`agents/overview.md`](agents/overview.md) — Agent spec card navigation
+1. [`agents/query_analyst.md`](agents/query_analyst.md) — `QueryAnalyst` spec card
+1. [`agents/information_digester.md`](agents/information_digester.md)
+1. [`agents/task_analyzer.md`](agents/task_analyzer.md)
+1. [`agents/task_assessor.md`](agents/task_assessor.md)
+1. [`agents/task_creator.md`](agents/task_creator.md)
+1. [`agents/task_executor.md`](agents/task_executor.md)
+1. [`agents/result_reviewer.md`](agents/result_reviewer.md)
+1. [`agents/primary_agent.md`](agents/primary_agent.md)
+1. [`agent_sessions/base.md`](agent_sessions/base.md) — `BaseAgentNode` (outer wrapper pattern)
+1. [`agent_sessions/factory.md`](agent_sessions/factory.md) — `create_agent_node()`, `create_all_agent_nodes()`
+1. [`agent_sessions/query_analyst.md`](agent_sessions/query_analyst.md) — `QueryAnalyst` AgentNode
+1. [`agent_sessions/information_digester.md`](agent_sessions/information_digester.md)
+1. [`agent_sessions/task_analyzer.md`](agent_sessions/task_analyzer.md)
+1. [`agent_sessions/task_assessor.md`](agent_sessions/task_assessor.md)
+1. [`agent_sessions/task_creator.md`](agent_sessions/task_creator.md) — optional/deprecated composite; Worker is source of truth
+1. [`agent_sessions/task_executor.md`](agent_sessions/task_executor.md)
+1. [`agent_sessions/result_reviewer.md`](agent_sessions/result_reviewer.md)
+1. [`agent_sessions/primary_agent.md`](agent_sessions/primary_agent.md)
+1. [`loops/overview.md`](loops/overview.md) — Inner loop hierarchy (SDK Agent `loop=` policies)
+1. [`loops/react_agent.md`](loops/react_agent.md) — `ReActAgentLoop`
+1. [`loops/query_analyst_loop.md`](loops/query_analyst_loop.md)
+1. [`loops/information_digestion_loop.md`](loops/information_digestion_loop.md)
+1. [`loops/task_analyzer_loop.md`](loops/task_analyzer_loop.md)
+1. [`loops/task_assessor_loop.md`](loops/task_assessor_loop.md)
+1. [`loops/task_executor_loop.md`](loops/task_executor_loop.md)
+1. [`loops/result_review_loop.md`](loops/result_review_loop.md)
+1. [`loops/primary_agent_loop.md`](loops/primary_agent_loop.md) — final-response formatting + citations
+1. [`loops/main_loop.md`](loops/main_loop.md) — graph execution adapter
+1. [`state/state_object.md`](state/state_object.md) — `StateObject` base class + serialization
+1. [`state/information.md`](state/information.md) — AgentState subclasses
+1. [`state/agent_state.md`](state/agent_state.md) — `AgentState` lifecycle + YAML serialization
+1. [`state/task.md`](state/task.md) — `Task` tree + `TaskResult`
+1. [`state/mode_decision.md`](state/mode_decision.md) — Classification + `ContextEnhancedQuery` (legacy file path)
+1. [`state/digested_information.md`](state/digested_information.md) — `DigestedInformation`
+1. [`state/reviewer_decision.md`](state/reviewer_decision.md) — `ReviewerDecision` + `ContextUpdate`
+1. [`state/worker_result.md`](state/worker_result.md) — `WorkerResult` + `WorkerConfig`
+1. [`state/execution_log.md`](state/execution_log.md) — `ExecutionLog` + `ExecutionLogEntry`
+1. [`state/session.md`](state/session.md) — Design `Session` (extends existing Session)
+1. [`state/chat_record.md`](state/chat_record.md) — `ChatRecord` structured audit trail entry
+1. [`state/state_store.md`](state/state_store.md) — Continuation state store
+1. [`tools/agent_calls.md`](tools/agent_calls.md) — AgentNode-call tools
+1. [`tools/digester.md`](tools/digester.md) — InformationDigester tools
+1. [`tools/task.md`](tools/task.md) — Task tools: read + write/result updates
+1. [`tools/todo.md`](tools/todo.md) — TodoList tool (short-term goal tracking, per-session)
+1. [`utility/compaction.md`](utility/compaction.md) — `BaseCompaction` serializable compaction strategy
 
 ---
 
@@ -57,34 +74,54 @@ Read in order for a linear learning experience:
 | [`constants/`](constants/) | Pre-configured tool sets (`*_BASE_TOOLS`), agent instruction constants |
 | [`exceptions/`](exceptions/) | `LoopError` hierarchy (thin wrappers around SDK exceptions) |
 
+## Orchestration
+
+| Directory | Content |
+|-----------|---------|
+| [`orchestration/`](orchestration/) | AgentGraph system, routing, graph-level TinyCUA runtime |
+
 ## Execution
 
 | Directory | Content |
 |-----------|---------|
-| [`loops/`](loops/) | Loop strategies: `ReActAgentLoop`, `QueryAnalystLoop`, `InformationDigestionLoop`, `ResultReviewLoop`, `MainLoop` |
+| [`loops/`](loops/) | Inner loops — SDK Agent `loop=` policies (retry, enforcement, output) |
+| [`agent_sessions/`](agent_sessions/) | AgentNode wrappers — `run(query: str)` builds Agent + inner loop, yields events (directory name is legacy) |
 
-## Agents
+## Agent Specs
 
 | Directory | Content |
 |-----------|---------|
-| [`agents/base.md`](agents/base.md) | `BaseAgentOrchestrator[S]` abstract class — per-call Agent construction, state injection |
-| [`agents/factory.md`](agents/factory.md) | `create_orchestrator()`, `create_all_orchestrators()` |
-| [`agents/query_analyst.md`](agents/query_analyst.md) | `QueryAnalyst` — classification orchestrator |
-| [`agents/information_digester.md`](agents/information_digester.md) | `InformationDigester` — retrieval orchestrator |
-| [`agents/task_analyzer.md`](agents/task_analyzer.md) | `TaskAnalyzer` — task decomposition |
-| [`agents/task_assessor.md`](agents/task_assessor.md) | `TaskAssessor` — decomposition selection |
-| [`agents/task_creator.md`](agents/task_creator.md) | `TaskCreator` — wraps TaskAnalyzer + TaskAssessor |
-| [`agents/task_executor.md`](agents/task_executor.md) | `TaskExecutor` — task execution |
-| [`agents/result_reviewer.md`](agents/result_reviewer.md) | `ResultReviewer` — two-phase review |
-| [`agents/primary_agent.md`](agents/primary_agent.md) | `PrimaryAgent` — final synthesis |
-| [`agents/tinycua.md`](agents/tinycua.md) | `TinyCUA` — external orchestrator + `MainLoop` + session resume |
+| [`agents/overview.md`](agents/overview.md) | Agent spec cards: tools, I/O, config, loop assignments |
+| [`agents/query_analyst.md`](agents/query_analyst.md) | `QueryAnalyst` — purpose, tools, InputGate target |
+| [`agents/information_digester.md`](agents/information_digester.md) | `InformationDigester` — purpose, tools |
+| [`agents/task_analyzer.md`](agents/task_analyzer.md) | `TaskAnalyzer` — purpose, tools |
+| [`agents/task_assessor.md`](agents/task_assessor.md) | `TaskAssessor` — purpose, tools |
+| [`agents/task_creator.md`](agents/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
+| [`agents/task_executor.md`](agents/task_executor.md) | `TaskExecutor` — purpose, tools, termination |
+| [`agents/result_reviewer.md`](agents/result_reviewer.md) | `ResultReviewer` — purpose, tools, decisions |
+| [`agents/primary_agent.md`](agents/primary_agent.md) | `PrimaryAgent` — purpose, OutputGate target |
+
+## AgentNodes
+
+| Directory | Content |
+|-----------|---------|
+| [`agent_sessions/base.md`](agent_sessions/base.md) | `BaseAgentNode` — outer wrapper pattern |
+| [`agent_sessions/factory.md`](agent_sessions/factory.md) | `create_agent_node()`, `create_all_agent_nodes()` |
+| [`agent_sessions/query_analyst.md`](agent_sessions/query_analyst.md) | `QueryAnalyst` — Session management, context assembly |
+| [`agent_sessions/information_digester.md`](agent_sessions/information_digester.md) | `InformationDigester` — Session + cache management |
+| [`agent_sessions/task_analyzer.md`](agent_sessions/task_analyzer.md) | `TaskAnalyzer` — Session + tool wiring |
+| [`agent_sessions/task_assessor.md`](agent_sessions/task_assessor.md) | `TaskAssessor` — Session + tool wiring |
+| [`agent_sessions/task_creator.md`](agent_sessions/task_creator.md) | `TaskCreator` — optional/deprecated composite; Worker is source of truth |
+| [`agent_sessions/task_executor.md`](agent_sessions/task_executor.md) | `TaskExecutor` — Session + active-task lifecycle |
+| [`agent_sessions/result_reviewer.md`](agent_sessions/result_reviewer.md) | `ResultReviewer` — Session + deterministic rules |
+| [`agent_sessions/primary_agent.md`](agent_sessions/primary_agent.md) | `PrimaryAgent` — Session + final synthesis |
 
 ## State & Tools
 
 | Directory | Content |
 |-----------|---------|
-| [`state/`](state/) | `StateObject` base + per-agent state subclasses, `Session` (state container + tree), `StateStore` design |
-| [`tools/`](tools/) | Orchestrator-call tools — consume stream generator, return typed result |
+| [`state/`](state/) | `StateObject` base + result payloads, `Session` (state container + tree, including `todo_list`), `StateStore` design |
+| [`tools/`](tools/) | SDK Tool contracts: AgentNode-call tools, task tools, digester tools, [TodoList](tools/todo.md) (short-term goal tracking, per-session) |
 
 ## Utility
 

@@ -17,16 +17,14 @@ Stored in the existing `Session.execution_log` field.
 
 **File:** `tinycua/state/execution_log.py`
 
-```python
-@dataclass
-class ExecutionLogEntry(StateObject):
-    action: str                 # action that was taken
-    outcome: str                # outcome of the action
-    decision: str | None = None # optional decision trace/reasoning
+```text
+ExecutionLogEntry extends StateObject
+    · action: str — action that was taken
+    · outcome: str — outcome of the action
+    · decision: str | None = None — optional decision trace/reasoning
 
-@dataclass
-class ExecutionLog(StateObject):
-    entries: list[ExecutionLogEntry]
+ExecutionLog extends StateObject
+    · entries: list[ExecutionLogEntry]
 ```
 
 ---

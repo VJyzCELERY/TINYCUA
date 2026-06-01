@@ -17,23 +17,20 @@
 
 **File:** `tinycua/state/worker_result.py`, `tinycua/state/worker_config.py`
 
-```python
-@dataclass
-class AcceptedResult(StateObject):
-    task_id: str       # ID of accepted task
-    name: str          # name of accepted task
-    result: str        # task output text
+```text
+AcceptedResult extends StateObject
+    · task_id: str — ID of accepted task
+    · name: str — name of accepted task
+    · result: str — task output text
 
-@dataclass
-class WorkerResult(StateObject):
-    accepted_results: list[AcceptedResult]
+WorkerResult extends StateObject
+    · accepted_results: list[AcceptedResult]
 
-@dataclass
-class WorkerConfig(StateObject):
-    effort: EffortLevel  # "none" | "high"
+WorkerConfig extends StateObject
+    · effort: EffortLevel — none | high
+
+EffortLevel = Literal["none", "high"]
 ```
-
-**Type aliases:** `EffortLevel = Literal["none", "high"]`
 
 ---
 
@@ -60,5 +57,5 @@ Prev : [`ReviewerDecision` + `ContextUpdate`](reviewer_decision.md) | Next : [`E
 
 ## Related
 
-- [Produced by TaskExecutor](../agents/task_executor.md)
+- [Produced by TaskExecutor](../agent_sessions/task_executor.md)
 - [TaskResult stored per leaf task](task.md)

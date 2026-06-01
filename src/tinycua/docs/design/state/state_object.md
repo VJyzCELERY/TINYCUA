@@ -9,7 +9,7 @@
 ## Role
 
 `StateObject` is the base class for all TINYCUA state objects. Every state class
-(Task, Session, ModeDecision, etc.) extends it and inherits JSON/dict round-trip
+(Task, Session, AgentState subclasses, classification value objects, etc.) extends it and inherits JSON/dict round-trip
 serialization via `dataclasses.asdict()` plus automatic nested deserialization.
 
 Not a dataclass itself — subclasses must be `@dataclass`-decorated.
@@ -20,36 +20,29 @@ Not a dataclass itself — subclasses must be `@dataclass`-decorated.
 
 **File:** `tinycua/state/base.py`
 
-```python
-class StateObject:
-    """Base class providing serialization for all state object dataclasses."""
+```text
+StateObject — base class providing serialization for all state object dataclasses
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a JSON-serializable dict via dataclasses.asdict()."""
-        return dataclasses.asdict(self)
+    to_dict() → dict[str, Any]
+        · Serialize to JSON-serializable dict via dataclasses.asdict()
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Deserialize with automatic nested StateObject conversion.
+    from_dict(data: dict[str, Any]) → Self (classmethod)
+        · Deserialize with automatic nested StateObject conversion
+        · Uses typing.get_type_hints() to resolve field types
+        · Handles nested StateObject subclasses (auto-deserialized recursively)
+        · Handles Optional[T] (strips None from Union)
+        · Handles list[T] (deserializes each element)
+        · Handles dict (passed through as-is)
+        · Missing fields: uses defaults, raises ValueError if required
 
-        Uses typing.get_type_hints() to resolve field types. Handles:
-        - Nested StateObject subclasses (auto-deserialized recursively)
-        - Optional[T] (strips None from Union)
-        - list[T] (deserializes each element)
-        - dict (passed through as-is)
-        - Missing fields: uses defaults, raises ValueError if required.
-        """
+    to_json(**json_kwargs) → str
+        · Serialize to JSON string via json.dumps(self.to_dict())
 
-    def to_json(self, **json_kwargs) -> str:
-        """Serialize to JSON string via json.dumps(self.to_dict())."""
+    from_json(json_str: str) → Self (classmethod)
+        · Deserialize from JSON string via json.loads → from_dict()
 
-    @classmethod
-    def from_json(cls, json_str: str) -> Self:
-        """Deserialize from JSON string via json.loads + from_dict()."""
-
-    @staticmethod
-    def _validate_enum(value: str, allowed: set[str], field_name: str) -> None:
-        """Raise ValueError if value is not in allowed set."""
+    _validate_enum(value: str, allowed: set[str], field_name: str) → None (staticmethod)
+        · Raise ValueError if value is not in allowed set
 ```
 
 ---
@@ -58,12 +51,12 @@ class StateObject:
 
 `from_dict()` handles recursive state objects automatically. Example:
 
-```python
-# Task has child_tasks: list[Task] | None and task_result: TaskResult | None
-data = {"task_id": "T-0", "child_tasks": [{"task_id": "T-0.1", ...}], ...}
-task = Task.from_dict(data)
-# child_tasks[0] is a Task instance, task_result is None
-# Parent references auto-re-established via Task.set_parents()
+```text
+· Task has field child_tasks: list[Task] | None and task_result: TaskResult | None
+· input data → {"task_id": "T-0", "child_tasks": [{"task_id": "T-0.1", ...}], ...}
+· task → Task.from_dict(data)
+· result: child_tasks[0] is a Task instance, task_result is None
+· parent references auto-re-established via Task.set_parents()
 ```
 
 ---

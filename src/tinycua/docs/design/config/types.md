@@ -11,35 +11,30 @@
 
 Identifies each of the eight architecture agents plus the external TinyCUA agent:
 
-```python
-from enum import Enum
-
-class AgentKind(str, Enum):
-    QUERY_ANALYST = "query-analyst"
-    INFORMATION_DIGESTER = "information-digester"
-    TASK_CREATOR = "task-creator"
-    TASK_ANALYZER = "task-analyzer"
-    TASK_ASSESSOR = "task-assessor"
-    TASK_EXECUTOR = "task-executor"
-    RESULT_REVIEWER = "result-reviewer"
-    PRIMARY_AGENT = "primary-agent"
-    TINYCUA = "tinycua"
+```text
+AgentKind (str, Enum)
+    · QUERY_ANALYST = "query-analyst"
+    · INFORMATION_DIGESTER = "information-digester"
+    · TASK_CREATOR = "task-creator"
+    · TASK_ANALYZER = "task-analyzer"
+    · TASK_ASSESSOR = "task-assessor"
+    · TASK_EXECUTOR = "task-executor"
+    · RESULT_REVIEWER = "result-reviewer"
+    · PRIMARY_AGENT = "primary-agent"
+    · TINYCUA = "tinycua"
 ```
 
-Used by `create_orchestrator(AgentKind, ...)` and `create_all_orchestrators()` in the factory.
+Used by `create_agent_node(AgentKind, ...)` and `create_all_agent_nodes()` in the factory.
 
 ---
 
 ## `TINYCUA_DEFAULT_MODEL`
 
-```python
-from tinycua_sdk.agent.llm_model import LanguageModel
-
-TINYCUA_DEFAULT_MODEL = LanguageModel(
-    provider="openai-chat-completions",
-    model_name="qwen/qwen3.5-4b",
-    base_url="http://localhost:1234/v1",
-)
+```text
+TINYCUA_DEFAULT_MODEL → LanguageModel with:
+    · provider: str = "openai-chat-completions"
+    · model_name: str = "qwen/qwen3.5-4b"
+    · base_url: str = "http://localhost:1234/v1"
 ```
 
 All agent configs default to this model. Use the canonical SDK provider identifier
@@ -54,7 +49,7 @@ can override via their config dataclass.
 |----------|--------|-----------|
 | `TINYCUA_DEFAULT_MODEL` in `config/types` | Central constant | Single source of truth for the default model; all agents reference it |
 | Provider `openai-chat-completions` | Not alias `openai` | SDK's `openai` alias resolves to the Responses API, not the intended chat-completions endpoint |
-| `AgentKind.TINYCUA` | Enum member even though orchestrator is in `agents/` | Consistent registry lookup |
+| `AgentKind.TINYCUA` | Enum member even though AgentGraph is in `orchestration/` | Consistent registry lookup |
 
 
 ---
@@ -73,4 +68,4 @@ Next : [Per-Agent Config Dataclasses](agents.md)
 ## Related
 
 - [Per-agent config dataclasses using AgentKind](agents.md)
-- [BaseAgentOrchestrator — agents are looked up by AgentKind](../agents/base.md)
+- [BaseAgentNode — agents are looked up by AgentKind](../agent_sessions/base.md)

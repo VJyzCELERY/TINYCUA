@@ -23,74 +23,33 @@ alongside the strategy itself.
 
 **File:** `tinycua/utility/compaction.py`
 
-```python
-from dataclasses import dataclass, field
-from typing import Any
-
-from tinycua.state.base import StateObject
-
-
-@dataclass
-class BaseCompaction(StateObject):
-    """Compression strategy — callable, serializable, extensible.
-
-    Stored on AgentConfigBase.compaction_strategy. Session accesses it through
+```text
+BaseCompaction extends StateObject — callable, serializable, extensible compression strategy
+    Stored on AgentConfigBase.compaction_strategy. Session accesses via
     self.agent_state.agent_config.compaction_strategy.
 
-    Implements __call__ so it can be invoked directly.
-    check_compaction(session) is called by Session._check_compaction()
-    to decide whether to compact.
+    · config: dict[str, Any] = {} — model, prompt template, context window threshold, etc.
 
-    Subclasses can add persistent fields for intermediate data storage.
-    For example, ParallelCompaction might store compaction snapshots that
-    accumulate over multiple compaction cycles.
-    """
+    check_compaction(session: Session) → None
+        · Called by Session._check_compaction() after every session_context mutation
+        · context_window → self._get_context_window(session)
+        · if context_window is None: return
+        · estimated_tokens → self._estimate_tokens(session.session_context)
+        · if estimated_tokens > context_window: session.compact()
+        · Override in subclasses for custom policies (e.g., checkpoint-based thresholds)
 
-    config: dict[str, Any] = field(default_factory=dict)
-    # Configuration for the compaction algorithm (model, prompt template,
-    # context window threshold, etc.).
+    _get_context_window(session: Session) → int | None
+        · Derive context window from session's agent config
+        · if session.agent_state or agent_config is None: return None
+        · return getattr(session.agent_state.agent_config.model, "context_window", None)
 
-    def check_compaction(self, session: "Session") -> None:
-        """Check if the session's context exceeds the threshold and compact.
+    _estimate_tokens(messages: list[dict[str, Any]]) → int
+        · Estimate token count from messages (sum of content lengths // 4)
+        · Override for accurate counting
 
-        Called by Session._check_compaction() after every session_context
-        mutation. Derives the context window from session.agent_state and
-        applies the strategy's policy for when compaction should trigger.
-
-        Override in subclasses for custom policies (e.g., checkpoint-based
-        thresholds instead of raw token counts).
-        """
-        context_window = self._get_context_window(session)
-        if context_window is None:
-            return
-
-        estimated_tokens = self._estimate_tokens(session.session_context)
-        if estimated_tokens > context_window:
-            session.compact()
-
-    def _get_context_window(self, session: "Session") -> int | None:
-        """Derive context window from the session's agent config."""
-        if session.agent_state is None or session.agent_state.agent_config is None:
-            return None
-        return getattr(
-            session.agent_state.agent_config.model, "context_window", None
-        )
-
-    def _estimate_tokens(self, messages: list[dict[str, Any]]) -> int:
-        """Estimate token count from messages. Override for accurate counting."""
-        return sum(
-            len(msg.get("content", "")) for msg in messages
-        ) // 4
-
-    def __call__(self, messages: list[dict[str, Any]]) -> str:
-        """Compress messages into a single summary string.
-
-        Override in subclasses. The default uses an LLM call to produce
-        a concise summary of the conversation context.
-        """
-        raise NotImplementedError(
-            "Subclasses must implement __call__"
-        )
+    __call__(messages: list[dict[str, Any]]) → str
+        · Compress messages into a single summary string
+        · Override in subclasses (default raises NotImplementedError)
 ```
 
 ---
@@ -99,25 +58,21 @@ class BaseCompaction(StateObject):
 
 `Session` accesses the strategy through its `agent_state.agent_config`:
 
-```python
-# In AgentConfigBase:
-compaction_strategy: BaseCompaction | None = None
+```text
+AgentConfigBase field:
+    · compaction_strategy: BaseCompaction | None = None
 
-# In Session:
-# No dedicated compaction_strategy field — derived from agent_state.agent_config
+Session methods (no dedicated field — derived from agent_state.agent_config):
 
-def _check_compaction(self) -> None:
-    """Delegate compaction check to the strategy from agent config."""
-    strategy = self.agent_state.agent_config.compaction_strategy
-    if strategy is not None:
-        strategy.check_compaction(self)
+    _check_compaction() → None
+        · strategy → self.agent_state.agent_config.compaction_strategy
+        · if strategy is not None: strategy.check_compaction(self)
 
-def compact(self) -> None:
-    """Replace session_context by delegating to the compaction strategy."""
-    strategy = self.agent_state.agent_config.compaction_strategy
-    summary = strategy(self.session_context)
-    self.session_context = [{"role": "user", "content": summary}]
-    self.compaction_count += 1
+    compact() → None
+        · strategy → self.agent_state.agent_config.compaction_strategy
+        · summary → strategy(self.session_context)
+        · self.session_context → [{"role": "user", "content": summary}]
+        · self.compaction_count += 1
 ```
 
 The strategy owns the full compaction lifecycle:
@@ -135,36 +90,27 @@ Each agent can have its own compaction policy; Session derives it automatically.
 
 ### `SimpleCompaction` (default)
 
-```python
-@dataclass
-class SimpleCompaction(BaseCompaction):
-    """Compress the full session_context into a single summary via LLM.
+```text
+SimpleCompaction extends BaseCompaction
+    Compress full session_context into a single summary via LLM.
     No persistent state beyond config.
-    """
 
-    def __call__(self, messages: list[dict]) -> str:
-        # Single LLM call: "Summarize the following conversation..."
-        ...
+    __call__(messages: list[dict]) → str
+        · Single LLM call → "Summarize the following conversation..."
 ```
 
 ### `ParallelCompaction` (advanced)
 
-```python
-@dataclass
-class ParallelCompaction(BaseCompaction):
-    """Checkpoint-based compaction with snapshot accumulation.
+```text
+ParallelCompaction extends BaseCompaction
+    Checkpoint-based compaction with snapshot accumulation.
+    Compact at configured checkpoints instead of near full context.
+    When compaction triggers, merge accumulated snapshots into a dense summary.
 
-    Instead of compacting near the full context, compact at configured
-    checkpoints. When compaction triggers, merge accumulated snapshots
-    into a dense summary.
-    """
+    · snapshots: list[dict] = [] — persistent compaction checkpoints
 
-    snapshots: list[dict] = field(default_factory=list)
-    # Persistent compaction checkpoints
-
-    def __call__(self, messages: list[dict]) -> str:
-        # Merge accumulated snapshots, produce summary
-        ...
+    __call__(messages: list[dict]) → str
+        · Merge accumulated snapshots → produce summary
 ```
 
 ---
@@ -176,14 +122,14 @@ class ParallelCompaction(BaseCompaction):
 Since the strategy lives on `AgentConfigBase`, it is serialized as part of the agent
 state (`agent_state.agent_config`), which is stored on the session.
 
-```python
-# Save:
-session.to_dict()
-# → {"agent_state": {"agent_config": {"compaction_strategy": {"config": {...}, "snapshots": [...]}}}, ...}
+```text
+Save:
+    · session.to_dict()
+    · → {"agent_state": {"agent_config": {"compaction_strategy": {"config": {...}, "snapshots": [...]}}}, ...}
 
-# Restore:
-session = Session.from_dict(data)
-# session.agent_state.agent_config.compaction_strategy is a ParallelCompaction
+Restore:
+    · session → Session.from_dict(data)
+    · session.agent_state.agent_config.compaction_strategy is a ParallelCompaction instance
 ```
 
 ---
