@@ -30,7 +30,6 @@ ReviewerDecision extends StateObject
     · task_id: str — ID of reviewed task
     · status: ReviewStatus — accept | retry | replan
     · reason: str — reason for decision
-    · confidence: float — confidence in decision
     · context_updates: list[ContextUpdate] | None = None
     · retry_instructions: str | None = None
 ```

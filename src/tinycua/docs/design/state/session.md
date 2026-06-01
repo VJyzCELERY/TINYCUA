@@ -21,7 +21,7 @@ token tracking, compaction, and parent/child lifecycle management.
 | Task | `task: Task \| None` — explicit inheritance only. Child sessions do NOT auto-inherit unless graph assigns it. |
 | Task sharing scope | `share_parent_task: bool = True` — controls whether task replacement propagates through this session's task-sharing group |
 | Tree structure | `parent_id`, `child_sessions`, `_parent` |
-| Active session | `get_active_session()` — DFS pre-order |
+| Active graph node | `graph.queue[0]` — owned by AgentGraph, not Session |
 | Filtered messages | `session_context` (vs raw `chat_history`) |
 | **User-input-only rule** | **Only external human input** → `role="user"` / `type="user"`. All internal agent conversation → `role="assistant"` / `type="agent"` or `type="tools"`. Internal `Agent.run()` queries are NEVER stored. |
 | **TodoList** | `todo_list: list[dict]` — per-session short-term goal tracking. Each item: `{"status": "completed" \| "incomplete", "todo": str}`. Distinct from Task Tree. |
@@ -49,7 +49,8 @@ Session tree (hierarchical parent-child structure):
 ║   Enhanced-context retrieval inner agents                       ║
 ╚══════════════════════════════════════════════════════════════════╝
 
-Active session is determined by DFS pre-order traversal.
+Execution-active node is determined by the AgentGraph queue. The session tree records
+persistent ownership/history; it is not the execution queue.
 ```
 
 ---
@@ -80,7 +81,7 @@ Session <: StateObject   ── extends tinycua_sdk.state.session.Session
   · share_parent_task: bool = True           # participates in parent's task-sharing group unless set False
   · todo_list: list[dict[str,str]] | None     # per-session short-term goals
   · parent_id: str | None                    # FK to parent session
-  · child_sessions: list[Session]            # FIFO queue; at most 1 active in sequential execution
+  · child_sessions: list[Session]            # persisted session tree children, not the graph execution queue
   · session_context: list[dict[str,Any]]     # filtered messages for LLM consumption
   · compaction_count: int = 0
   · _parent: Session | None                  # hidden reference, excluded from serialization
@@ -94,7 +95,7 @@ Session <: StateObject   ── extends tinycua_sdk.state.session.Session
 parent → Session | None
 is_root → bool
 root() → Session
-get_active_session() → Session              # DFS pre-order: deepest leaf = active
+get_active_session() → Session              # session-tree helper only; graph active node is graph.queue[0]
 set_parents() → None                        # re-establish _parent after deserialization
 ```
 
@@ -333,8 +334,8 @@ async for event in primary.run(query=query_analyst_state.to_yaml() + "\n" + user
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| One session per persistent node | Each non-transient node has a `Session` holding its `agent_state` | No central `states` dict — walk the tree to find active node |
-| Active session via DFS | `get_active_session()` DFS pre-order | Sequential execution means at most 1 active child |
+| One session per persistent node | Each non-transient node has a `Session` holding its `agent_state` | Results are stored on the producing node/session |
+| Active node via graph queue | AgentGraph uses `graph.queue[0]`; `get_active_session()` is only a tree helper | Execution order belongs to graph orchestration, not session-tree traversal |
 | Shared Task object | `task` field references same object when explicitly assigned | Agents can work on same task tree without sync copies |
 | Explicit task inheritance | `add_child()` does not copy task automatically | Prevents accidental task coupling |
 | Task-sharing boundary | `share_parent_task: bool = True` | Supports scoped propagation for nested worker graphs |

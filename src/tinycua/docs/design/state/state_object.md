@@ -81,7 +81,7 @@ StateObject — base class providing serialization for all state object dataclas
 
 ## See also
 
-Prev : [`MainLoop` Orchestration](../loops/main_loop.md) | Next : [Per-Agent State Classes](information.md)
+Prev : [`AgentLoop` Overview](../loops/overview.md) | Next : [Per-Agent State Classes](information.md)
 
 
 ## Related

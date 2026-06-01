@@ -14,6 +14,7 @@ Read in order for a linear learning experience:
 1. [`constants/instructions.md`](constants/instructions.md) — Agent instruction constants
 1. [`exceptions/loops.md`](exceptions/loops.md) — `LoopError` hierarchy
 1. [`orchestration/overview.md`](orchestration/overview.md) — AgentGraph system source of truth
+1. [`orchestration/graph_queue.md`](orchestration/graph_queue.md) — queue-based active-node tracking
 1. [`orchestration/tinycua.md`](orchestration/tinycua.md) — `TinyCUA` AgentGraph runtime
 1. [`orchestration/router_node.md`](orchestration/router_node.md) — deterministic exact-match RouterNode
 1. [`orchestration/worker.md`](orchestration/worker.md) — `TinyCUAWorker` AgentGraph runtime
@@ -45,7 +46,6 @@ Read in order for a linear learning experience:
 1. [`loops/task_executor_loop.md`](loops/task_executor_loop.md)
 1. [`loops/result_review_loop.md`](loops/result_review_loop.md)
 1. [`loops/primary_agent_loop.md`](loops/primary_agent_loop.md) — final-response formatting + citations
-1. [`loops/main_loop.md`](loops/main_loop.md) — graph execution adapter
 1. [`state/state_object.md`](state/state_object.md) — `StateObject` base class + serialization
 1. [`state/information.md`](state/information.md) — AgentState subclasses
 1. [`state/agent_state.md`](state/agent_state.md) — `AgentState` lifecycle + YAML serialization
@@ -78,14 +78,14 @@ Read in order for a linear learning experience:
 
 | Directory | Content |
 |-----------|---------|
-| [`orchestration/`](orchestration/) | AgentGraph system, routing, graph-level TinyCUA runtime |
+| [`orchestration/`](orchestration/) | AgentGraph system, queue-based active-node tracking, routing, graph-level TinyCUA runtime. TinyCUA itself is not an SDK `Agent`; it routes to AgentNodes/subgraphs. |
 
 ## Execution
 
 | Directory | Content |
 |-----------|---------|
 | [`loops/`](loops/) | Inner loops — SDK Agent `loop=` policies (retry, enforcement, output) |
-| [`agent_node/`](agent_node/) | AgentNode wrappers — `run(query: str)` builds Agent + inner loop, yields events (directory name is legacy) |
+| [`agent_node/`](agent_node/) | AgentNode wrappers — `run(query: str)` builds Agent + inner loop, yields events |
 
 ## Agent Specs
 

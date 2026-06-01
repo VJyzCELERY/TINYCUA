@@ -21,8 +21,8 @@ subclass instance. If the string has no YAML front-matter, it is treated as a pl
 string — no reconstruction is attempted.
 
 Stored directly on `Session.agent_state` — each session node holds its own agent's
-state and config. To find which agent is currently active, walk the session tree to
-the deepest leaf via `session.get_active_session()`.
+state and config. The graph active node is tracked by the AgentGraph queue
+(`graph.queue[0]`), not by walking the session tree.
 
 ---
 
@@ -54,7 +54,8 @@ AgentState (base)
  ├── TaskAssessorState
  ├── TaskExecutorState
  ├── ResultReviewerState
- └── PrimaryAgentState
+ ├── PrimaryAgentState
+ └── TinyCUAWorkerState
 ```
 
 Each subclass adds its own output fields (see [information.md](information.md)).
@@ -126,6 +127,7 @@ _AGENT_STATE_REGISTRY: dict[str, type[AgentState]] = {
     "task_executor": TaskExecutorState,
     "result_reviewer": ResultReviewerState,
     "primary_agent": PrimaryAgentState,
+    "tinycua_worker": TinyCUAWorkerState,
 }
 ```
 
@@ -152,7 +154,7 @@ query = qa_state.to_yaml() + "\n" + user_query
 parsed = AgentState.from_string(query)
 if parsed is not None:
     # parsed is a QueryAnalystState instance with all fields populated
-    ceq = ContextEnhancedQuery(context=parsed.context, query=parsed.user_query)
+    ceq = ContextEnhancedQuery(context=parsed.context, query=parsed.query)
     self.session.append_agent_context(ceq.context)
 else:
     # Plain string — no structured data
@@ -221,8 +223,8 @@ lifecycle transitions (e.g., new task execution resets TaskExecutor's failure).
 | Failure as aggregate | `failure: int` accumulated from children | Each node defines its own escalation behavior; no single global threshold |
 | Task tracked on Session | `task` on `Session`, not `active_task_id` on AgentState | Single source of truth; all agents share the same task tree |
 | Config on AgentState | `agent_config: AgentConfigBase` | Config source of truth for AgentNode, loop, and Session compaction |
-| Stored per session node | `Session.agent_state` on each session | Walk the tree to find who's active; no central dict needed |
-| Resume via tree walk | `get_active_session()` → `agent_state` | Deepest leaf IS the active agent; no explicit routing key |
+| Stored per session node | `Session.agent_state` on each session | Results stay close to the node/session that produced them |
+| Active node via graph queue | `graph.queue[0]` | Prevents limbo states and avoids treating session-tree shape as execution order |
 
 ---
 

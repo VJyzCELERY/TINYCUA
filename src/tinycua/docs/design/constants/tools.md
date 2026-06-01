@@ -27,8 +27,8 @@ TINYCUA_INPUT_GATE_CLASSIFICATION: list[str] = [
 ]
 
 TINYCUA_WORKER_INPUT_GATE_CLASSIFICATION: list[str] = [
-    "task_recreation",     # TaskAnalyzer gets TaskInit
-    "task_reanalysis",     # TaskAnalyzer does NOT get TaskInit
+    "task_recreation",     # clear current task tree and terminate worker for restart
+    "task_reanalysis",     # analyze tasks; TaskInit only if worker has no task yet
     "proceed_execution",   # skip analysis/decomposition and execute/review
 ]
 
@@ -117,7 +117,8 @@ TASK_ANALYZER_BASE_TOOLS: list[tinycua_sdk.Tool] = [
     SwapTask,
     UpdateTaskResult,
 ]
-    # TaskInit is excluded by default. Worker injects TaskInit only for "task_recreation".
+    # TaskInit is excluded by default. Worker injects TaskInit only for task_reanalysis
+    # when worker.session.task is None.
 
 TASK_ASSESSOR_BASE_TOOLS: list[tinycua_sdk.Tool] = [
     ClassificationTool(name="classify", labels=TASK_ASSESSOR_CLASSIFICATION)
@@ -185,7 +186,7 @@ tools = [*BASE_TOOLS, *self.session.agent_state.agent_config.extra_tools]
 | No uncertain label | Root classifications are `passthrough` / `worker` | Indecision = active/open-question behavior |
 | No escalate_user label | Reviewer classifications are `accept` / `retry` / `replan` | HITL through non-termination |
 | Split exploration/context tools | `EXPLORATION_TOOL` separate from cache tools | Context tools are cache-scoped; exploration tools are broader read-only |
-| TaskInit conditional | Inject only on worker `task_recreation` | Prevents destructive reset during normal analysis |
+| TaskInit conditional | Inject only when worker task analysis starts without a task tree | Allows initial creation while preventing destructive reset during normal analysis |
 | TaskExecutor scoped tools | `UpdateActiveTaskResult`, not `UpdateTaskResult` | Executor can only update current active task |
 | ResultReviewer specialized tools | Minimal review-write surface | Reviewer can reset active task and add context without arbitrary edits |
 | `extra_tools` separate | Empty by default | Single injection channel; keeps base tools clean |

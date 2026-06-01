@@ -25,7 +25,8 @@ AgentState (base)                     # type, status, failure, agent_config
  ├── TaskAssessorState               # verdict, analysis
  ├── TaskExecutorState               # task_result, execution_attempts
  ├── ResultReviewerState             # reviewer_decision, context_updates
- └── PrimaryAgentState               # final_response, citations
+  ├── PrimaryAgentState               # final_response, citations
+  └── TinyCUAWorkerState              # worker graph result/restart signal
 ```
 
 All subclasses inherit `to_yaml()` and participate in `from_string()` via the
@@ -83,8 +84,10 @@ classification: task_recreation  # or task_reanalysis or proceed_execution
 <query>
 ```
 
-When the parsed `QueryAnalystState.classification == "task_recreation"`, `TaskInit` tool is injected via
-`config.extra_tools`. Otherwise, TaskAnalyzer only has structural write tools.
+When a worker input gate classifies `task_recreation`, the Worker graph clears the
+current task tree and terminates itself so TinyCUA can create a fresh Worker. When a
+worker input gate classifies `task_reanalysis`, `TaskInit` is injected only if
+`worker.session.task is None`; otherwise TaskAnalyzer only has structural write tools.
 
 ---
 
@@ -119,7 +122,6 @@ ResultReviewerState <: AgentState
   · type: str = "result_reviewer"
   · decision: Literal["accept", "retry", "replan"] | None = None
   · reason: str | None = None
-  · confidence: float | None = None
   · context_updates: list[dict] | None = None   # [{"task_id": str, "context": str}, ...]
   · retry_instructions: str | None = None
 ```
@@ -146,6 +148,22 @@ PrimaryAgent is **not transient** — it inherits the parent session. When it re
 a `QueryAnalystState` via front-matter, it appends the context to the parent's
 `session_context` as an assistant message and executes the user's query against the
 full parent context.
+
+---
+
+## TinyCUAWorkerState
+
+```text
+TinyCUAWorkerState <: AgentState
+  · type: str = "tinycua_worker"
+  · restart_requested: bool = False
+  · handoff_query: str | None = None
+  · worker_result: WorkerResult | None = None
+```
+
+The parent TinyCUA graph consumes this state without inspecting the worker's internal
+queue. `restart_requested=True` means TinyCUA should create a new worker and schedule
+`handoff_query` against it.
 
 ---
 

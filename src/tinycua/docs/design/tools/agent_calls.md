@@ -8,10 +8,11 @@
 
 ## Role
 
-AgentNode-call tools are SDK `Tool` objects that allow a graph-level SDK Agent/MainLoop
-adapter to invoke an internal AgentNode through its `run(query: str)` method.
+AgentNode-call tools are optional SDK `Tool` adapter objects that invoke an internal
+AgentNode through its `run(query: str)` method.
 
-They are an adapter pattern only. Explicit AgentGraph routing in
+They are an adapter pattern only, mainly useful for tests or legacy integration paths.
+Explicit AgentGraph routing in
 [`orchestration/tinycua.md`](../orchestration/tinycua.md) and
 [`orchestration/worker.md`](../orchestration/worker.md) remains the source of truth.
 

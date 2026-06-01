@@ -9,7 +9,8 @@
 ## Role
 
 `WorkerResult` aggregates accepted task results for Primary Agent consumption.
-`WorkerConfig` controls worker effort level during task creation.
+`WorkerConfig` controls worker effort level during task creation. `TinyCUAWorkerState`
+captures graph-level worker termination/restart signals for the parent TinyCUA graph.
 
 ---
 
@@ -30,7 +31,17 @@ WorkerConfig extends StateObject
     · effort: EffortLevel — none | high
 
 EffortLevel = Literal["none", "high"]
+
+TinyCUAWorkerState extends AgentState
+    · type: str = "tinycua_worker"
+    · restart_requested: bool = False
+    · handoff_query: str | None = None
+    · worker_result: WorkerResult | None = None
 ```
+
+`handoff_query` is not the removed base `AgentState.last_query` field. It is a
+worker-specific graph hand-off payload used only when an existing worker terminates
+itself so TinyCUA can create a fresh worker for the same user intent.
 
 ---
 
@@ -40,6 +51,7 @@ EffortLevel = Literal["none", "high"]
 |----------|--------|-----------|
 | Accepted only | `accepted_results` | Only approved results reach Primary Agent |
 | Separated from WorkerConfig | Two classes | Configuration and output are distinct concerns |
+| Worker restart state | `TinyCUAWorkerState.restart_requested + handoff_query` | Lets TinyCUA recreate a worker without peeking into internal worker queue |
 
 
 ---

@@ -15,27 +15,25 @@ and each SDK agent delegates execution policy to an agent-specific loop.
 
 This document is the source of truth for the AgentGraph runtime:
 
-1. **AgentGraph / Orchestrator** — top-level routing and graph execution.
+1. **AgentGraph / Orchestrator** — top-level queue, routing, and graph execution.
 2. **AgentNode** — outer wrapper: builds SDK Agent, calls `agent.run()`, yields events.
 3. **AgentLoop** — inner loop: low-level streaming policy inside `agent.run(...)`.
 4. **RouterNode / DecisionNode / Gates / Hooks** — graph-level routing and transforms.
 
 ---
 
-## Naming Decision: AgentNode, not AgentNode
+## Naming Decision: AgentNode
 
-The previous docs used `AgentNode` for the node-level wrapper. To avoid confusion
-with the `Session` state object, the preferred term is now **AgentNode**.
+The node-level wrapper is called **AgentNode**. This avoids confusing the wrapper
+with the `Session` state object that it owns.
 
-| Old term | New term | Why |
-|----------|----------|-----|
-| `BaseAgentOrchestrator` | `BaseAgentNode` | The class couples an agent with a session; it does not orchestrate graph flow |
-| `BaseAgentNode` | `BaseAgentNode` | Avoids ambiguity with `Session` state object |
-| AgentNode / AgentNode | AgentNode | Each internal agent is a node in the graph |
-| `agent_node/` docs module | `agent_nodes/` in future | Current files may remain under `agent_node/` temporarily, but terminology should say AgentNode |
+| Term | Meaning |
+|------|---------|
+| `BaseAgentNode` | Base wrapper that couples one SDK `Agent` with one `Session` |
+| `AgentNode` | Internal graph node that owns an agent/session pair |
+| `agent_node/` docs module | Documentation package for AgentNode wrappers |
 
-Use **AgentNode** for new design text. Existing file paths may remain
-`agent_node/` until implementation/renaming happens.
+Use **AgentNode** for design text and `agent_node/` for the current docs path.
 
 ---
 
@@ -44,8 +42,10 @@ Use **AgentNode** for new design text. Existing file paths may remain
 ```text
 AgentGraph / Orchestrator
   ├─ owns graph topology and decision routing
+  ├─ owns an execution queue; queue[0] is the active node
   ├─ owns input/output gates and graph hooks
   ├─ creates/links AgentNodes
+  ├─ does not require its own SDK Agent object
   ├─ forwards YAML-front-matter state strings between nodes
   └─ persists/resumes the root Session tree
 
@@ -75,7 +75,7 @@ RouterNode / DecisionNode / Gates / Hooks
 
 | Layer | Owns | Does NOT Own |
 |-------|------|--------------|
-| `AgentGraph` / Orchestrator | Routing, branching, node lifecycle, graph-level cancellation/resume, parent/child session tree | Required tool retry, node-local config duplication |
+| `AgentGraph` / Orchestrator | Execution queue, routing, branching, node lifecycle, graph-level cancellation/resume, parent/child session tree | Required tool retry, node-local config duplication, subgraph-internal queue inspection |
 | `AgentNode` | Session↔Agent coupling, per-call SDK Agent construction, event passthrough, config override into session | Graph topology, decision routing, retry/output formatting, separate `self.state`/`self.config` |
 | `AgentLoop` | Streaming policy, LLM retry, required tool enforcement, output formatting, writing `session.agent_state` | Creating graph nodes, owning persistent session tree |
 | `RouterNode` / `DecisionNode` | Deterministic graph routing | Persistent session ownership, SDK Agent calls |
@@ -120,6 +120,32 @@ TinyCUA RootAgentGraph
 Subgraph boundaries are regular graph boundaries: they can have their own gates,
 hooks, propagation rules, and session trees. A subgraph's output is consumed from its
 root `session.agent_state` or through an explicit OutputGate.
+
+The parent graph sees a subgraph as one queue item. It does not inspect the subgraph's
+internal active node. For example, TinyCUA can know that `TinyCUAWorkerGraph` is active
+without knowing whether the worker is internally executing TaskExecutor or
+ResultReviewer.
+
+---
+
+## Queue-Based Active Node
+
+Every AgentGraph owns a queue of pending nodes/subgraphs/process steps. The current
+active node is always the first item:
+
+```text
+active = graph.queue[0] if graph.queue else None
+```
+
+Queue items may hold AgentNodes, AgentGraphs, RouterNodes, gates, hooks, or factories.
+Adding an AgentNode to the queue does not create its `Session`; session creation is
+lazy and happens only when that item reaches index `0` and is executed.
+
+After each active node finishes, control returns to the graph. The graph reads the
+node's result state and mutates the queue (`pop`, `insert`, `replace tail`, or `clear`).
+AgentNodes do not choose the next graph node themselves.
+
+See [AgentGraph Queue System](graph_queue.md) for the full contract.
 
 ---
 
@@ -200,7 +226,6 @@ type: query_analyst
 status: terminated
 failure: 0
 classification: worker
-confidence: 0.91
 context: |
   Relevant context analysis...
 query: "Implement the worker graph"
@@ -227,7 +252,7 @@ If a string does not have front-matter, it is treated as plain text.
 |-----------|---------------------------|
 | `QueryAnalyst` | Classifies + enriches directly; emits `QueryAnalystState` |
 | `InformationDigester` | Parses `QueryAnalystState`; emits `InformationDigesterState` |
-| `TaskAnalyzer` | Parses worker/input states; may receive TaskInit depending on classification |
+| `TaskAnalyzer` | Parses worker/input states; may receive TaskInit only when Worker has no task tree |
 | `TaskAssessor` | Parses `TaskAnalyzerState`; emits `TaskAssessorState` |
 | `TaskExecutor` | Parses optional state, otherwise uses task tools; emits `TaskExecutorState` |
 | `ResultReviewer` | Parses `TaskExecutorState`; emits `ResultReviewerState` or stays active |
@@ -244,12 +269,9 @@ the graph can route any query to any node at any time.
 User: "This plan is wrong, re-plan subtask T-0.1"
   → InputGate(QueryAnalystNode)
   → classification = "passthrough"
-  → current active node = TaskExecutorNode
-  → graph routes user query to TaskExecutorNode
-  → TaskExecutor writes TaskExecutorState(status=blocked)
-  → ResultReviewer parses TaskExecutorState
-  → decision = "replan"
-  → Worker routes TaskAssessor → TaskAnalyzer
+  → current top-level active node = TinyCUAWorkerGraph
+  → TinyCUA routes user query to TinyCUAWorkerGraph
+  → Worker inspects its own queue and routes internally to TaskExecutor/ResultReviewer/replan
 ```
 
 No graph edge needs a type-specific Python parameter. The receiver owns parsing.
@@ -260,8 +282,8 @@ No graph edge needs a type-specific Python parameter. The receiver owns parsing.
 
 1. `AgentNode` owns a `Session`; termination/propagation follows
    `Session.terminate_child(...)`.
-2. `AgentGraph` owns a root/subgraph session. Adjacent nodes are linked to that graph
-   session.
+2. `AgentGraph` owns a root/subgraph session and an execution queue. Adjacent nodes are
+   linked to that graph session only when activated.
 3. `ProcessNode`, `RouterNode`, gates, and hooks do not automatically create sessions.
 4. Transient AgentNodes can be used as gate/subgraph nodes when output is consumed
    inline.
@@ -306,7 +328,7 @@ The graph consumes `session.agent_state`, not raw loop internals.
 ```text
 tinycua/
 ├── orchestration/      # AgentGraph, RouterNode, TinyCUA, TinyCUAWorker
-├── agent_nodes/        # future name for node wrappers (currently docs/agent_node)
+├── agent_node/         # AgentNode wrapper implementations
 ├── loops/              # AgentLoop implementations
 ├── state/              # StateObject, AgentState subclasses, Session, Task
 ├── tools/              # Task tools, ClassificationTool, TodoList, digester tools
@@ -320,11 +342,12 @@ tinycua/
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Rename to AgentNode | Prefer `AgentNode` over `AgentNode` | Avoid confusion with `Session` state object |
-| TinyCUA is AgentGraph | Graph-level runtime, not AgentNode | Keeps routing separate from node execution |
+| Node wrapper name | `AgentNode` | Avoids confusion with the owned `Session` state object |
+| TinyCUA is AgentGraph | Graph-level runtime, not AgentNode and not SDK Agent | Keeps routing separate from node execution; passthrough/fallback routes to PrimaryAgent |
 | Node interface | `run(query: str)` | Universal routing interface |
 | Structured output | AgentState YAML front-matter | Self-describing, reconstructable, string-compatible |
 | Graph consumes state | `session.agent_state`, not `last_result` | Agent-specific output lives directly on state subclasses |
+| Active node tracking | `graph.queue[0]` | Prevents limbo states and makes resume/routing deterministic |
 | RouterNode | Exact match + default | Deterministic routing when LLM classification is unnecessary |
 | Flexible routing | Any node reachable through passthrough + state parsing | Enables interruption, replan, steering |
 | Task sharing explicit | Task assignment + `share_parent_task` | Prevents accidental cross-worker propagation |
@@ -339,6 +362,7 @@ Next : [`TinyCUA AgentGraph`](tinycua.md)
 ## Related
 
 - [RouterNode](router_node.md)
+- [AgentGraph Queue System](graph_queue.md)
 - [TinyCUAWorker AgentGraph](worker.md)
 - [AgentState serialization](../state/agent_state.md)
 - [Session task sharing](../state/session.md#task-sharing-and-propagation)

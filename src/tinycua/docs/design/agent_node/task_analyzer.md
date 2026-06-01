@@ -24,11 +24,15 @@ accordingly.
 `TaskInit` is destructive because it replaces the entire task tree. It is excluded
 from `TASK_ANALYZER_BASE_TOOLS` by default.
 
-TinyCUAWorker injects `TaskInit` only when its input gate classification is:
+TinyCUAWorker injects `TaskInit` only for task analysis when no task tree exists:
 
 ```text
-classification == "task_recreation"
+classification == "task_reanalysis" and worker.session.task is None
 ```
+
+`task_recreation` is handled at the Worker graph level: the existing worker clears its
+task tree, terminates itself and its children, and returns a restart request to TinyCUA.
+It does not route directly to TaskAnalyzer with `TaskInit`.
 
 Otherwise, TaskAnalyzer modifies the existing tree using structural tools only:
 `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, and
@@ -87,7 +91,7 @@ TASK_ANALYZER_BASE_TOOLS = [
     UpdateTaskResult,
 ]
 
-if worker_classification == "task_recreation":
+if worker_classification == "task_reanalysis" and worker.session.task is None:
     tools += [TaskInit]
 ```
 
@@ -117,7 +121,7 @@ a human-readable summary of what changed and why.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Worker-orchestrated | Called by TinyCUAWorker | Task planning belongs inside worker subgraph |
-| Conditional TaskInit | Only for `task_recreation` | Prevents accidental destructive reset |
+| Conditional TaskInit | Only for task analysis when no task tree exists | Allows initial creation while preventing accidental destructive reset |
 | Completed tasks protected | Avoid editing; prune if needed | Completed work should remain stable |
 | Tool-based mutation | Task tools update `session.task` | Task tree is source of truth |
 | AgentState output | `TaskAnalyzerState` | Serializable summary for downstream nodes |

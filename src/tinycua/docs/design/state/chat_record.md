@@ -60,7 +60,7 @@ Graph-level action (routing decision, gate output, task creation).
 | Field | Type | Example |
 |-------|------|---------|
 | `metadata` | `{"graph_node": str, "action": str}` | `{"graph_node": "input_gate", "action": "route"}` |
-| `content` | `{"result": ...}` | `{"classification": "worker", "score": 0.92}` |
+| `content` | `{"result": ...}` | `{"classification": "worker"}` |
 
 ### `agent`
 

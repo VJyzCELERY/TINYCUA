@@ -49,9 +49,10 @@ BaseAgentNode(ABC)  ← thin Session ↔ SDK Agent connector
 session: Session  — source of truth for state, config, context, history
 
 __init__(config: AgentConfigBase | None, session: Session | None) -> None
-  · if no session → create new Session with agent_state.agent_config = config
-  · if session exists + config → overwrite session.agent_state.agent_config
-  · stores session; does NOT retain separate self.config copy
+   · if no session → create new Session with agent_state.agent_config = config
+   · if session exists + config → overwrite session.agent_state.agent_config
+   · stores session; does NOT retain separate self.config copy
+   · build and cache the base instruction once: self._instruction = self._build_instruction()
 
 @property config -> AgentConfigBase
   · convenience accessor → self.session.agent_state.agent_config
@@ -96,7 +97,7 @@ async run(self, query: str) -> AsyncIterator[dict]:
 
   agent = tinycua_sdk.Agent(
       name=config.name,
-      instructions=self.build_instruction(...),
+      instructions=self._instruction,   # built once in __init__, cached for provider prompt caching
       llm_model=config.model,
       tools=[*BASE_TOOLS, *config.extra_tools],
       loop=SpecificAgentLoop(session=self.session),
@@ -143,6 +144,25 @@ Routing decisions belong to the graph, not the AgentNode.
 
 ---
 
+## Instruction Prompt Caching
+
+Each AgentNode builds its complete instruction string once in `__init__` and caches it
+as `self._instruction`. The cached instruction is reused across every `run()` call for
+the lifetime of the node. This enables provider-level prompt caching (e.g., Anthropic
+prefix caching, OpenAI prompt caching) to hit on the system message across consecutive
+LLM calls.
+
+Instruction strings should be kept **minimally dynamic**. Dynamic context that changes
+between calls (task-tree snapshot, session metadata, project files) should be passed in
+per-call messages — not by rebuilding the instruction string. This keeps the
+instruction prefix stable so the provider can reuse the cached computation.
+
+When a node transitions across a major lifecycle boundary (e.g., Worker recreation), a
+new AgentNode instance is created, which naturally builds a fresh instruction. Within a
+single node's lifetime, the instruction is immutable.
+
+---
+
 ## Interrupt / Steering Consideration
 
 AgentNodes and loops should not assume a stream is always uninterrupted. Future
@@ -157,6 +177,7 @@ layer, or a combination.
 |----------|--------|-----------|
 | Rename node wrapper | `BaseAgentNode` | Avoids confusion with `Session` |
 | Session owns config/state | `session.agent_state.agent_config` + `session.agent_state` | No duplicated node state |
+| Cached instruction | Built once in `__init__` → `self._instruction` | Enables provider-level prompt caching; avoids per-call string rebuild |
 | Thin AgentNode | Build Agent, pass context, yield events | Keeps wrapper simple |
 | Loop-owned retry | Agent-specific loops retry inside `agent.run()` | No external retry wrapper |
 | Loop-owned output formatting | Loop writes AgentState subclass | AgentNode does not probe raw events |

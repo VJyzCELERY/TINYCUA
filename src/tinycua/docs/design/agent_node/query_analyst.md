@@ -191,6 +191,9 @@ The QueryAnalyst instruction must strongly state:
 - You must decide one of the configured labels using the classification tool.
 - For TinyCUA root, classify small tasks/chat/steering as `passthrough` and large task
   creation/execution requests as `worker`.
+- For TinyCUA root, only use graph-level active-node context. If `TinyCUAWorker` is
+  active, QueryAnalyst should treat the worker as the active node and must not assume
+  visibility into the worker's internal TaskExecutor/ResultReviewer queue.
 - For worker input gate, classify whether to recreate tasks, reanalyze tasks, or proceed
   directly to execution.
 - The first response should be useful context for the next agent.
@@ -204,7 +207,7 @@ The QueryAnalyst instruction must strongly state:
 | InputGate target | QueryAnalyst is called first | Normalizes input before routing |
 | Configurable labels | `QueryAnalystConfig.classification_labels` | Same node can act as TinyCUA or Worker gate |
 | No uncertain label | Indecision = no terminal decision / fallback passthrough | Simpler routing; HITL through active node |
-| Transient session | `is_transient=True` | Output consumed inline; tree traversal skips it |
+| Transient session | `is_transient=True` | Output consumed inline; not a durable graph queue/session-tree child |
 | First response as context | Retry text cannot replace context | Prevents retry nudges from polluting downstream context |
 | Mandatory query | Original user query must always be present | Downstream nodes need the real query |
 | Read-only task tools only | Can inspect but not mutate tasks | Input gate must not change task state |

@@ -29,7 +29,8 @@ TaskCreator(BaseAgentNode)  ← optional composite over TaskAnalyzer + TaskAsses
 
 run(query: str) -> AsyncIterator[dict]
   · parse input AgentState YAML front-matter with AgentState.from_string(query)
-  · if Worker classification == "task_recreation": call TaskAnalyzer with TaskInit
+  · if Worker classification == "task_recreation": terminate/restart at Worker level, not here
+  · if Worker classification == "task_reanalysis" and no task exists: call TaskAnalyzer with TaskInit
   · if effort applies: run TaskAssessor → TaskAnalyzer outer loop
   · propagate task replacement via Session.share_parent_task rules
   · write TaskAnalyzerState or a future TaskCreatorState to session.agent_state
@@ -42,8 +43,9 @@ It must not hide or contradict Worker-level routing.
 ## TaskInit Rule
 
 `TaskCreator` must inject `TaskInit` into TaskAnalyzer only when Worker input-gate
-classification is `task_recreation`. It must not give TaskInit to TaskAnalyzer for
-normal reanalysis/decomposition.
+classification is `task_reanalysis` and the Worker has no task tree yet. It must not
+handle `task_recreation` by creating a replacement tree in-place; that route belongs to
+the Worker restart hand-off.
 
 ---
 
@@ -63,7 +65,7 @@ See [Session task sharing](../state/session.md#task-sharing-and-propagation).
 | Worker is source of truth | Task creation flow documented in TinyCUAWorker | Avoid duplicate/contradictory orchestration specs |
 | TaskCreator optional | Composite wrapper only | Allows simpler implementation if useful |
 | No independent semantics | Must mirror Worker rules | Prevents drift |
-| TaskInit conditional | Only on `task_recreation` | Prevents destructive resets |
+| TaskInit conditional | Only when reanalysis starts without a task tree | Prevents destructive resets |
 
 ---
 

@@ -6,7 +6,7 @@ Source of truth: [`agent_node/task_analyzer.md`](../agent_node/task_analyzer.md)
 
 - Worker-orchestrated AgentNode.
 - Parses AgentState YAML front-matter.
-- `TaskInit` is injected only for worker classification `task_recreation`.
+- `TaskInit` is injected only for worker `task_reanalysis` when no task tree exists.
 - Avoids editing completed tasks; may prune completed tasks when needed.
 - Mutates `session.task` via task tools.
 - Emits `TaskAnalyzerState` to `session.agent_state`.

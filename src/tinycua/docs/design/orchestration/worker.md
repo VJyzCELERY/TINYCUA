@@ -13,6 +13,10 @@
 decomposition, execution, review, retry, and replan. It can be used as a node inside
 the top-level `TinyCUA` graph.
 
+The parent TinyCUA graph treats the worker as one opaque queue item. TinyCUA does not
+inspect the worker's internal active child; TaskExecutor/ResultReviewer routing is
+owned by the worker's own queue.
+
 If it has a parent session, the worker explicitly inherits the parent's task reference
 and participates in parent task sharing (`share_parent_task=True` by default). Task
 replacement propagates according to the `Session.share_parent_task` algorithm.
@@ -24,7 +28,7 @@ replacement propagates according to the `Session.share_parent_task` algorithm.
 ```text
 TinyCUAWorker AgentGraph
   ├── InputGate(QueryAnalystNode)     # classification configured for worker routing
-  ├── TaskAnalyzerNode                # with or without TaskInit depending on input-gate classification
+  ├── TaskAnalyzerNode                # with TaskInit only when no task tree exists
   ├── TaskDecompositionOuterLoop      # TaskAssessor → TaskAnalyzer, repeated by WorkerEffort
   ├── TaskExecutorNode
   └── ResultReviewerNode              # accept | retry | replan | open-question
@@ -37,6 +41,23 @@ be wrapped as a composite node without changing external Worker behavior.
 
 ---
 
+## Worker Queue
+
+TinyCUAWorker also uses a queue. Its parent only sees `TinyCUAWorkerGraph`, while the
+worker internally tracks active children:
+
+```text
+TinyCUA queue:       [TinyCUAWorker]
+Worker inner queue:  [QueryAnalyst, TaskExecutor, ResultReviewer]
+```
+
+If a new user query reaches TinyCUA while the worker is active, TinyCUA routes the
+query to the existing worker. The worker then prepends its own input gate and decides
+whether to passthrough to the current child, analyze tasks, proceed with execution, or
+terminate for recreation.
+
+---
+
 ## Input Gate
 
 The worker has its own QueryAnalyst input gate using worker-specific classification
@@ -44,8 +65,8 @@ labels:
 
 ```text
 TINYCUA_WORKER_INPUT_GATE_CLASSIFICATION = [
-    "task_recreation",      # run TaskAnalyzer with TaskInit
-    "task_reanalysis",      # run TaskAnalyzer without TaskInit against existing task
+    "task_recreation",      # terminate current worker/task tree so TinyCUA can recreate worker
+    "task_reanalysis",      # analyze task tree; inject TaskInit only if no task exists
     "proceed_execution",    # skip analysis/decomposition; go to executor/reviewer loop
 ]
 ```
@@ -60,14 +81,13 @@ hardcoding a separate QueryAnalyst implementation.
 ```text
 InputGate(QueryAnalyst)
   ├── task_recreation
-  │     → TaskAnalyzer(with TaskInit)
-  │     → TaskDecompositionOuterLoop(if effort applies)
-  │     → TaskExecutor
-  │     → ResultReviewer
-  │     → ReviewRoute
+  │     → clear existing Task tree
+  │     → terminate Worker and children
+  │     → return restart request with handoff_query
   │
   ├── task_reanalysis
-  │     → TaskAnalyzer(without TaskInit)
+  │     → if session.task is None: TaskAnalyzer(with TaskInit)
+  │     → else: TaskAnalyzer(without TaskInit)
   │     → TaskDecompositionOuterLoop(if effort applies)
   │     → TaskExecutor
   │     → ResultReviewer
@@ -107,8 +127,8 @@ TaskDecompositionOuterLoop(effort):
       3. TaskAnalyzer updates tree from assessor analysis
 ```
 
-TaskAnalyzer can receive `TaskInit` only on the initial `task_recreation` route. Normal
-decomposition passes do **not** include `TaskInit`.
+TaskAnalyzer can receive `TaskInit` only when the worker has no existing task tree.
+Normal decomposition passes do **not** include `TaskInit`.
 
 ---
 
@@ -117,10 +137,33 @@ decomposition passes do **not** include `TaskInit`.
 - Avoid editing already completed tasks.
 - If completed tasks obstruct planning, prune them from the working task tree rather
   than rewriting their content.
-- `TaskInit` is only available when worker input classification is `task_recreation`.
-- In all other cases, TaskAnalyzer uses structural task tools (`SetSubTask`,
+- `task_recreation` is destructive: clear the existing task tree, terminate the worker
+  and its child sessions, and return a restart request to TinyCUA with the query that
+  caused the termination.
+- `TaskInit` is available to `task_reanalysis` only when `worker.session.task is None`.
+- When a task already exists, TaskAnalyzer uses structural task tools (`SetSubTask`,
   `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`) but
   not wholesale task replacement.
+
+---
+
+## Recreation Hand-Off
+
+When the worker input gate classifies a query as `task_recreation`, the current worker
+does not attempt to build a replacement task tree in-place. It terminates its current
+work boundary:
+
+```text
+task_recreation(query):
+  · terminate/clear worker child queue
+  · clear or terminate worker.session.task
+  · write TinyCUAWorkerState(status="terminated", restart_requested=True, handoff_query=query)
+  · return control to TinyCUA
+```
+
+TinyCUA then creates a fresh worker and schedules the handoff query against it. This
+keeps the old worker's state closed and avoids mixing old task-tree state with a new
+task creation pass.
 
 ---
 
@@ -175,7 +218,8 @@ all descendants that remain within the same sharing group. See
 | Own input gate | QueryAnalyst with worker-specific labels | Same ClassificationTool mechanism, different decision space |
 | TaskCreation not mandatory node | Worker graph owns TaskAnalyzer ↔ TaskAssessor loop | Simpler source of truth; can wrap later if needed |
 | OuterLoop outside SDK Agent | Graph-level loop over AgentNodes | Deterministic effort control; no hidden LLM loop |
-| TaskInit only on recreation | Conditional tool injection | Prevents destructive task resets during normal analysis |
+| Recreation terminates worker | Current worker clears task tree and returns handoff query | Fresh worker starts cleanly; avoids mixing old and new task state |
+| TaskInit only when no task exists | Conditional tool injection during task analysis | Allows initial creation while preventing destructive task resets during normal analysis |
 | Execution/review loop in Worker | Worker routes TaskExecutor ↔ ResultReviewer | Result review decisions are graph-routing decisions |
 | No escalate_user | Open question keeps reviewer active | HITL through passthrough, not special mode |
 

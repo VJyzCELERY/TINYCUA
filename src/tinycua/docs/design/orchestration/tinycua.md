@@ -10,10 +10,13 @@
 ## Role
 
 `TinyCUA` is the top-level **AgentGraph** and the single external entry point. It owns
-cross-node result flow.
+the root execution queue and cross-node result flow.
 
-It is not an AgentNode. Internal agents such as `QueryAnalyst`, `TinyCUAWorker`, and
-`PrimaryAgent` are nodes/subgraphs under the top-level graph.
+It is not an AgentNode and it does not construct a top-level SDK `Agent` object. Its
+job is deterministic graph orchestration: route input to AgentNodes/subgraphs, create
+or activate nodes when needed, and persist the root session tree. Internal agents such
+as `QueryAnalyst`, `TinyCUAWorker`, and `PrimaryAgent` are nodes/subgraphs under the
+top-level graph.
 
 All external user queries route through the graph's **InputGate**, whose target is a
 `QueryAnalystNode` configured with `TINYCUA_INPUT_GATE_CLASSIFICATION`:
@@ -34,8 +37,10 @@ TinyCUA  ← top-level AgentGraph, implements composite Node interface
 
 __init__(config: TinyCUAConfig | None, session: Session | None) -> None
   · create or attach root session
-  · create internal AgentNodes / subgraphs
+  · seed or update the root graph queue
+  · create internal AgentNodes / subgraphs lazily when they become queue[0]
   · configure root QueryAnalyst with TINYCUA_INPUT_GATE_CLASSIFICATION
+  · do not create a top-level SDK Agent or AgentLoop
 
 run(user_query: str) -> AsyncIterator[dict]
   · append user query to root session via session.append_user(user_query)
@@ -51,6 +56,32 @@ or defaults to passthrough according to HITL policy.
 
 ---
 
+## Queue Shape
+
+TinyCUA tracks the active node with its root queue. A common worker-capable shape is:
+
+```text
+[QueryAnalyst, InformationDigester, TinyCUAWorker]
+```
+
+Only index `0` is active. Queued future nodes do not create sessions until activated.
+For example, `InformationDigester` may be present in the queue while its session does
+not exist yet.
+
+If the graph already has an active worker and a new external user query arrives, the
+input gate is temporarily prepended:
+
+```text
+Before input: [TinyCUAWorker]
+During input: [QueryAnalyst, TinyCUAWorker]
+```
+
+TinyCUA knows the graph-level active node is `TinyCUAWorker`; it does not know or
+inspect whether the worker's internal queue is currently at TaskExecutor,
+ResultReviewer, or another child.
+
+---
+
 ## Routing Model
 
 ```text
@@ -58,11 +89,12 @@ User Query
   → InputGate(QueryAnalystNode)
       output: QueryAnalystState(type="query_analyst", classification="passthrough"|"worker", context, query)
       ├── passthrough
-      │     ├── no active worker/reviewer/executor → PrimaryAgentNode
-      │     └── active node exists                → current active AgentNode
+      │     ├── no active worker/subgraph → PrimaryAgentNode(terminal)
+      │     └── active worker exists      → existing TinyCUAWorkerGraph
       │
       └── worker
-            → TinyCUAWorkerGraph
+            ├── no active worker    → InformationDigester → TinyCUAWorkerGraph
+            └── active worker exists → InformationDigester → existing TinyCUAWorkerGraph
 ```
 
 Routing consumes `session.agent_state` objects, not `last_result` dictionaries and not
@@ -84,9 +116,9 @@ user_query
 
 The root InputGate can decide:
 
-1. `passthrough` to `PrimaryAgentNode`
-2. `passthrough` to the current active AgentNode (TaskExecutor, ResultReviewer, etc.)
-3. `worker` to `TinyCUAWorkerGraph`
+1. `passthrough` to `PrimaryAgentNode` as a terminal node when no worker/subgraph is active
+2. `passthrough` to the existing active `TinyCUAWorkerGraph` when a worker is active
+3. `worker` to `InformationDigester → TinyCUAWorkerGraph` (new or existing worker)
 
 `uncertain` is intentionally removed. Human-in-the-loop is represented by an active
 node ending with an open question and not terminating; the next user query routes back
@@ -98,11 +130,11 @@ through QueryAnalyst and then passthrough to that active node.
 
 ```text
 _route_passthrough(qa_state: QueryAnalystState):
-  · active = root_session.get_active_session()
-  · if active is root_session or no active worker node exists:
-      → PrimaryAgentNode.run(qa_state.to_yaml() + "\n" + qa_state.query)
+  · active = root_queue.peek_after_input_gate()
+  · if active is TinyCUAWorkerGraph:
+      queue.replace_after_active([existing_worker.with_input(qa_state.to_yaml() + "\n" + qa_state.query)])
   · else:
-      → active_node.run(qa_state.to_yaml() + "\n" + qa_state.query)
+      queue.replace_after_active([PrimaryAgentNode(terminal=True).with_input(qa_state.to_yaml() + "\n" + qa_state.query)])
 ```
 
 If passthrough targets `PrimaryAgentNode`, PrimaryAgent parses `QueryAnalystState`,
@@ -118,16 +150,29 @@ already called `session.append_user(user_query)`.
 
 ```text
 _route_worker(qa_state: QueryAnalystState):
-  · create/activate TinyCUAWorkerGraph
+  · if an existing worker is queued/active, reuse it as an opaque graph node
+  · otherwise schedule a new TinyCUAWorkerGraph
   · explicitly share parent task if needed:
       worker.session.task = root_session.task
       worker.session.share_parent_task = True
-  · pass QueryAnalystState as YAML front-matter:
-      worker.run(qa_state.to_yaml() + "\n" + qa_state.query)
+  · queue InformationDigester before the worker:
+      [InformationDigester.with_input(qa_state.to_yaml() + "\n" + qa_state.query), worker]
 ```
 
 `TinyCUAWorker` owns worker-specific input gate classification, task creation,
 decomposition, execution, review, retry, and replan. See [worker.md](worker.md).
+
+### Worker Restart Result
+
+If an existing worker terminates with:
+
+```text
+TinyCUAWorkerState(restart_requested=True, handoff_query=<query>)
+```
+
+TinyCUA removes that worker from the root queue, creates a fresh worker, and schedules
+the `handoff_query` against the new worker. TinyCUA does not inspect the terminated
+worker's internal queue or child AgentNodes.
 
 ---
 
@@ -142,12 +187,9 @@ the graph can route passthrough to the currently active node.
 User: "This plan is wrong, I need to re-plan subtask T-0.1"
   → InputGate(QueryAnalystNode)
   → classification = "passthrough"
-  → current active = TaskExecutorNode
-  → graph routes user query to TaskExecutorNode
-  → TaskExecutor writes TaskExecutorState(status=blocked)
-  → ResultReviewer receives TaskExecutorState
-  → ResultReviewer decision = "replan"
-  → TinyCUAWorker routes TaskAssessor → TaskAnalyzer
+  → current top-level active = TinyCUAWorkerGraph
+  → TinyCUA routes passthrough to TinyCUAWorkerGraph
+  → Worker internally decides whether the input goes to TaskExecutor, ResultReviewer, or replanning
 ```
 
 Structured payloads cross graph edges only as strings with AgentState YAML
@@ -188,6 +230,8 @@ share a single final-response shape.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | TinyCUA is AgentGraph | Plain graph-level runtime, not `BaseAgentNode` | Keeps graph routing separate from node wrappers |
+| No top-level SDK Agent | TinyCUA routes to AgentNodes/subgraphs directly | Passthrough/fallback behavior belongs to `PrimaryAgentNode`, not a graph-level agent |
+| Active node tracking | Root queue first item | TinyCUA always knows the active top-level node without inspecting nested worker state |
 | Root input gate | `QueryAnalystNode` configured with `["passthrough", "worker"]` | Central routing decision without special uncertainty label |
 | No uncertainty label | Indecision = active node/open question or passthrough fallback | Same HITL pattern as ResultReviewer; no extra route needed |
 | Worker is subgraph | `TinyCUAWorkerGraph` handles task lifecycle | Encapsulates worker-specific routing and review loop |
@@ -206,6 +250,7 @@ Prev : [`AgentGraph System Overview`](overview.md) | Next : [`RouterNode`](route
 ## Related
 
 - [RouterNode](router_node.md)
+- [AgentGraph Queue System](graph_queue.md)
 - [TinyCUAWorker AgentGraph](worker.md)
 - [QueryAnalyst input gate](../agent_node/query_analyst.md)
 - [PrimaryAgent passthrough target](../agent_node/primary_agent.md)

@@ -38,9 +38,6 @@ Classification is produced by `ClassificationTool(labels=config.classification_l
 ```text
 QueryAnalystState <: AgentState
   · classification: str                # selected label from configured labels
-  · score: float | None
-  · confidence: float | None
-  · reasons: list[str] | None
   · context: str | None
   · query: str                         # original user query; required
 ```

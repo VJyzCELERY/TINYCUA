@@ -23,7 +23,7 @@ AgentConfigBase (base configuration dataclass shared by all TinyCUA agents)
     · name: str — required, SDK Agent name
     · instructions: str — required, system prompt
     · model: LanguageModel — default TINYCUA_DEFAULT_MODEL
-    · extra_tools: list[tinycua_sdk.Tool] — default [], external injection channel (MainLoop uses this)
+    · extra_tools: list[tinycua_sdk.Tool] — default [], external injection channel for tests/adapters
     · metadata: dict[str, Any] — default {}, free-form extensibility
     · compaction_strategy: BaseCompaction | None — default None, per-agent compaction; Session inherits via agent_state.agent_config
 ```
@@ -33,7 +33,7 @@ AgentConfigBase (base configuration dataclass shared by all TinyCUA agents)
 | `name` | SDK `Agent` name — set by concrete config default |
 | `instructions` | System prompt — set by concrete config default |
 | `model` | `LanguageModel` — defaults to `TINYCUA_DEFAULT_MODEL` |
-| `extra_tools` | Externally injected tools — **empty by default**. MainLoop uses this to inject per-agent tools |
+| `extra_tools` | Externally injected tools — **empty by default**. Tests or integration adapters may use this to inject per-agent tools |
 | `metadata` | Free-form dict for future extensibility |
 | `compaction_strategy` | Per-agent compaction strategy (`BaseCompaction \| None`) — Session inherits via `agent_state.agent_config` |
 
@@ -123,13 +123,15 @@ OrchestrationSettings (standalone dataclass, not AgentConfigBase)
 
 TinyCUAConfig (standalone dataclass, not AgentConfigBase)
     · name: str = "tinycua"
-    · instructions: str = TINYCUA_MAIN_INSTRUCTION
-    · model: LanguageModel — default TINYCUA_DEFAULT_MODEL
     · state_store: Any = None  (e.g., SQLiteStateStore)
     · artifact_store: Any = None  (e.g., FileSystemArtifactStore)
     · agent_node_overrides: dict[AgentKind, AgentConfigBase] = {}
     · orchestration: OrchestrationSettings — default OrchestrationSettings()
 ```
+
+`TinyCUAConfig` intentionally has no `instructions`, `model`, or `extra_tools` for a
+top-level SDK `Agent`: TinyCUA is a graph/orchestration runtime, not an agent wrapper.
+Model and instruction settings belong to the AgentNode configs that TinyCUA routes to.
 
 ---
 
@@ -138,7 +140,7 @@ TinyCUAConfig (standalone dataclass, not AgentConfigBase)
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | One config per agent | Dataclass per agent kind | Typed, auto-completing; no dict-based config lookup |
-| `extra_tools` in base | Shared field, empty default | Single injection channel for MainLoop or tests |
+| `extra_tools` in base | Shared field, empty default | Single injection channel for tests/adapters |
 | `metadata: dict` in base | Free-form extensibility | Future fields can be promoted to typed fields without breaking the dict |
 | `compaction_strategy` in base | `BaseCompaction \| None` on `AgentConfigBase` | Each agent can have its own compaction strategy; Session derives from `agent_state.agent_config` |
 | `max_iterations_override` on InformationDigester | Agent-specific field | Only this agent has a meaningful iteration cap override |
