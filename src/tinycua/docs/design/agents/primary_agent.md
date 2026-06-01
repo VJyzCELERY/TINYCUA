@@ -8,6 +8,7 @@ Source of truth: [`agent_node/primary_agent.md`](../agent_node/primary_agent.md)
 - Inherits parent session directly.
 - Parses `QueryAnalystState` YAML front-matter.
 - Appends QueryAnalyst context as assistant message; does not duplicate user query.
+- Uses `explore(query)` for transient context exploration instead of spawning an InformationDigester node/session.
 - Emits `PrimaryAgentState`.
 
 ## Related

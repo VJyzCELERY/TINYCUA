@@ -18,8 +18,8 @@ or activate nodes when needed, and persist the root session tree. Internal agent
 as `QueryAnalyst`, `TinyCUAWorker`, and `PrimaryAgent` are nodes/subgraphs under the
 top-level graph.
 
-All external user queries route through the graph's **InputGate**, whose target is a
-`QueryAnalystNode` configured with `TINYCUA_INPUT_GATE_CLASSIFICATION`:
+External user queries normally route through the graph's **InputGate**, whose target is
+a `QueryAnalystNode` configured with `TINYCUA_INPUT_GATE_CLASSIFICATION`:
 
 ```text
 TINYCUA_INPUT_GATE_CLASSIFICATION = ["passthrough", "worker"]
@@ -44,7 +44,9 @@ __init__(config: TinyCUAConfig | None, session: Session | None) -> None
 
 run(user_query: str) -> AsyncIterator[dict]
   · append user query to root session via session.append_user(user_query)
-  · InputGate: run QueryAnalyst, consume events, read query_analyst.session.agent_state
+  · if active node requires direct continuation / steering passthrough:
+      route user_query directly to active node without QueryAnalyst
+  · otherwise InputGate: run QueryAnalyst, consume events, read query_analyst.session.agent_state
   · route on QueryAnalystState.classification:
       passthrough → _route_passthrough(query_analyst_state)
       worker → _route_worker(query_analyst_state)
@@ -68,8 +70,8 @@ Only index `0` is active. Queued future nodes do not create sessions until activ
 For example, `InformationDigester` may be present in the queue while its session does
 not exist yet.
 
-If the graph already has an active worker and a new external user query arrives, the
-input gate is temporarily prepended:
+If the graph already has an active worker and a new external user query arrives on the
+normal classification path, the input gate is temporarily prepended:
 
 ```text
 Before input: [TinyCUAWorker]
@@ -104,8 +106,9 @@ raw SDK stream events.
 
 ## InputGate
 
-`QueryAnalyst` is the TinyCUA InputGate target. Every external user query is converted
-into a `QueryAnalystState` before graph routing.
+`QueryAnalyst` is the TinyCUA InputGate target for normal top-level routing. External
+user queries are converted into a `QueryAnalystState` before graph routing unless the
+current active node requires direct continuation / steering passthrough.
 
 ```text
 user_query
@@ -121,8 +124,8 @@ The root InputGate can decide:
 3. `worker` to `InformationDigester → TinyCUAWorkerGraph` (new or existing worker)
 
 `uncertain` is intentionally removed. Human-in-the-loop is represented by an active
-node ending with an open question and not terminating; the next user query routes back
-through QueryAnalyst and then passthrough to that active node.
+node ending with an open question and not terminating; the next user query passes back
+to that active node either by direct continuation or by QueryAnalyst passthrough.
 
 ---
 
@@ -143,6 +146,49 @@ runs `agent.run(query=qa_state.query, messages=parent.session_context)`.
 
 The original query is **not** re-added to session history because `TinyCUA.run()`
 already called `session.append_user(user_query)`.
+
+---
+
+## Passthrough Reliability Considerations
+
+Passthrough must be reliable because it carries steering, human-in-the-loop replies,
+and continuation input back to the currently active agent.
+
+### Running Active Agent Bypass
+
+If the current active AgentNode has `session.agent_state.status == "running"`, TinyCUA
+should treat the next external input as steering / continuation input for that active
+agent. In that case, route directly to the active node and skip QueryAnalyst.
+
+```text
+if active.session.agent_state.status == "running":
+    active.run(user_query)   # no QueryAnalyst classification
+```
+
+If the input is out of scope, the active agent is responsible for terminating itself
+gracefully or handing control back through its normal output state. The graph should not
+pre-judge steering intent by running another classifier first.
+
+### Idle Active Agent and HITL Signals
+
+An idle active agent may still be waiting for human input even if it did not terminate.
+Design should allow an agent to emit a supplemental "HITL required" / "human next input
+requested" signal without changing the core `AgentStatus` enum. When that signal is
+present, the next user input should pass through to that agent instead of being treated
+as a fresh top-level request.
+
+This signal is not yet a finalized schema field; the design requirement is that
+passthrough routing must have a reliable way to distinguish:
+
+- idle because the agent is waiting for the human;
+- idle because the agent has finished or should be terminated;
+- idle because status was underspecified and needs monitoring.
+
+### Internal Continuation Resolution
+
+If an active agent is non-terminal but does not clearly request HITL, TinyCUA may use a
+monitoring hook to resolve ambiguity before deciding whether the next input should
+passthrough or start a new QueryAnalyst route. See [Base AgentNode](../agent_node/base.md#agentmonitor--monitoring-hook-consideration).
 
 ---
 
@@ -179,8 +225,9 @@ worker's internal queue or child AgentNodes.
 ## Flexible Routing Philosophy
 
 TinyCUA's graph is designed so that **any node is reachable from any point**, not just
-through a rigid linear pipeline. The InputGate always sees external queries first, but
-the graph can route passthrough to the currently active node.
+through a rigid linear pipeline. The InputGate normally sees external queries first,
+but direct continuation / steering may bypass it when the active node is already
+running or clearly waiting for human input.
 
 ```text
 # Replan example: user interrupts during task execution
@@ -239,6 +286,7 @@ share a single final-response shape.
 | Universal `run(query: str)` | Every AgentNode receives a plain string | Enables flexible routing |
 | Structured pass-through | AgentState YAML front-matter | Self-describing and reconstructable via `AgentState.from_string()` |
 | Passthrough to PrimaryAgent | Append QA context as assistant; run original query | Preserves QueryAnalyst context without duplicating user input |
+| Passthrough reliability | Running/HITL active nodes receive direct continuation | Steering and human replies should not be reclassified as fresh tasks |
 | Task sharing explicit | Worker receives parent task by assignment | Prevents accidental task coupling; propagation controlled by `share_parent_task` |
 
 ---

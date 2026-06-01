@@ -195,6 +195,55 @@ Routing decisions belong to the graph, not the AgentNode.
 
 ---
 
+## AgentMonitor / Monitoring Hook Consideration
+
+Some agent continuations are ambiguous: an AgentNode may become idle without clearly
+writing a terminal state, or the assistant's last response may ask a question without
+explicitly signaling that human input is required. To make passthrough reliable,
+AgentNodes may use an internal monitoring hook.
+
+Conceptually, the monitor is available inside every AgentNode, but it is **not** a
+durable AgentNode and does not own a Session.
+
+### Monitor Trigger
+
+The monitor may run when all of the following are true:
+
+1. the active agent is non-terminal or idle without a clear final status;
+2. no explicit HITL-required / human-next-input signal has already been emitted;
+3. the graph needs to decide whether continuation should stay with this agent.
+
+If the agent already emitted a HITL-required signal, the monitor does not run.
+
+### Monitor Responsibilities
+
+The monitor inspects the active agent's latest response and session-local context to
+classify the ambiguous state:
+
+- **HITL requested:** the latest response is asking the user a question or requesting
+  clarification. The monitor emits the missing HITL-required signal so the next user
+  input passthroughs to the same active agent.
+- **Finished output:** the latest response is actually a completed answer/result. The
+  monitor lets normal termination/finalization proceed.
+- **HITL disabled but question asked:** if HITL is disabled and the active agent asks
+  for human input, the monitor should answer the agent or provide a continuation query
+  so the active agent can keep running without waiting for the user.
+
+When it needs information to answer or continue the agent, the monitor may explore
+information available to that session.
+
+### Monitor Isolation Rules
+
+The MonitorAgent is transient:
+
+- it has no durable Session;
+- it is not stored in memory as an AgentNode;
+- it is not visible in `chat_history` or `session_context`;
+- it may be logged or recorded in a future audit/event system, but current design does
+  not expose it as conversation history.
+
+---
+
 ## Instruction Prompt Caching
 
 Each AgentNode builds its complete instruction string once in `__init__` and caches it
@@ -234,6 +283,7 @@ layer, or a combination.
 | Loop-owned output formatting | Loop writes AgentState subclass | AgentNode does not probe raw events |
 | Universal input | `run(query: str)` | Enables flexible routing |
 | Graph owns routing | Graph consumes `session.agent_state` | Keeps routing separate from node execution |
+| Monitoring hook | Transient MonitorAgent, no durable session | Resolves ambiguous idle/HITL states without polluting chat history |
 
 ---
 

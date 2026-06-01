@@ -63,10 +63,40 @@ already called `session.append_user(user_query)`.
 PRIMARY_AGENT_BASE_TOOLS = [
     *SHARED_AGENT_BASE_TOOLS,
 ]
+
+PRIMARY_AGENT_RUNTIME_TOOLS = [
+    *PRIMARY_AGENT_BASE_TOOLS,
+    explore,
+]
 ```
 
 PrimaryAgent shares the general execution surface with TaskExecutor (shell, file,
 search, TodoList, etc.) but has no task-result write tools by default.
+
+### `explore(query)` Tool
+
+When PrimaryAgent needs broader context exploration, it does **not** spawn an
+`InformationDigester` AgentNode or create a new durable Session. Instead, it uses a
+single tool:
+
+```text
+explore(query: str) -> str
+```
+
+`explore(query)` spawns one transient SDK `Agent` that has the same
+`enhanced_context_retrieval` capability used by InformationDigester. That transient
+agent searches the relevant session context and returns concise findings as a tool
+result to PrimaryAgent.
+
+This path is intentionally not equivalent to routing through InformationDigester:
+
+- no `InformationDigester` AgentNode is created;
+- no InformationDigester Session is created or persisted;
+- no `InformationDigesterState` / `DigestedInformation` output is produced;
+- PrimaryAgent receives exploration findings as normal tool output.
+
+PrimaryAgent can still support `InformationDigesterState` input if the graph routes
+one to it, but PrimaryAgent's own exploratory behavior uses `explore(query)`.
 
 ---
 
@@ -106,6 +136,7 @@ an optional OutputGate for response-envelope formatting.
 | Append context as assistant | QA context is agent-produced | Avoids incorrectly storing internal context as user input |
 | Do not duplicate query | Use CEQ query as `agent.run(query=...)` only | External user query already exists in session context |
 | Shared tools | `SHARED_AGENT_BASE_TOOLS` | Direct tasks need general tool surface |
+| Exploration tool | `explore(query)` transient agent | Allows broad context exploration without creating InformationDigester node/session |
 | AgentState output | `PrimaryAgentState` | Typed final response and citations |
 
 ---

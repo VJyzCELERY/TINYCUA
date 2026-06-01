@@ -153,8 +153,10 @@ See [AgentGraph Queue System](graph_queue.md) for the full contract.
 
 ## InputGate
 
-An `InputGate` is a graph boundary node that always receives external or subgraph input
-before that input reaches currently active nodes.
+An `InputGate` is a graph boundary node that normally receives external or subgraph
+input before that input reaches currently active nodes. Direct continuation / steering
+passthrough may bypass the InputGate when an active node is already running or clearly
+waiting for human input.
 
 ```text
 external user query

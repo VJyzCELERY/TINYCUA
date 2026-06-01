@@ -142,6 +142,8 @@ RESULT_REVIEWER_BASE_TOOLS: list[tinycua_sdk.Tool] = [
 PRIMARY_AGENT_BASE_TOOLS: list[tinycua_sdk.Tool] = [
     *SHARED_AGENT_BASE_TOOLS,
 ]
+    # PrimaryAgent also builds explore(query) dynamically in run(). explore(query)
+    # spawns one transient exploration Agent with enhanced_context_retrieval.
 ```
 
 ---
@@ -190,6 +192,7 @@ tools = [*BASE_TOOLS, *self.session.agent_state.agent_config.extra_tools]
 | TaskInit conditional | Inject only when worker task analysis starts without a task tree | Allows initial creation while preventing destructive reset during normal analysis |
 | TaskExecutor scoped tools | `UpdateActiveTaskResult`, not `UpdateTaskResult` | Executor can only update current active task |
 | ResultReviewer specialized tools | Minimal review-write surface | Reviewer can reset active task and add context without arbitrary edits |
+| PrimaryAgent exploration | `explore(query)` dynamic tool | Allows context exploration without spawning InformationDigester node/session |
 | `extra_tools` separate | Empty by default | Single injection channel; keeps base tools clean |
 
 ---
