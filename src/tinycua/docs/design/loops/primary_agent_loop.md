@@ -18,9 +18,9 @@ and citations, appends the assistant response according to session policy, and w
 ## SDK Loop Shape
 
 ```text
-class PrimaryAgentLoop(BaseLoop):
+class PrimaryAgentLoop(ReActLoop):
     def __init__(self, session: Session):
-        super().__init__()
+        super().__init__(session)
         self.session = session
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):

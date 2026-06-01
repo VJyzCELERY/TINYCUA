@@ -18,9 +18,9 @@ handles retry prompts for missing review classification when appropriate, writes
 ## SDK Loop Shape
 
 ```text
-class ResultReviewLoop(BaseLoop):
+class ResultReviewLoop(ReActLoop):
     def __init__(self, session: Session, max_review_retries: int = 3):
-        super().__init__()
+        super().__init__(session)
         self.session = session
         self.max_review_retries = max_review_retries
 

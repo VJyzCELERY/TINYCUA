@@ -30,7 +30,7 @@ custom `BaseLoop` subclass handles SDK events and session state from inside
 TinyCUA custom loops follow the SDK `BaseLoop` subclassing convention:
 
 ```text
-class SomeAgentLoop(BaseLoop):
+class SomeAgentLoop(ReActLoop):
     def __init__(self, session: Session, ...):
         super().__init__(...)
         self.session = session

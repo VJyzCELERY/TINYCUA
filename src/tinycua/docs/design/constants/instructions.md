@@ -1,6 +1,6 @@
 # Agent Instructions
 
-> **File:** `docs/design/instructions.md`
+> **File:** `docs/design/constants/instructions.md`
 > **Package:** `tinycua.constants.instructions`
 > **Last Updated:** 2026-06-01
 > **Status:** Draft
@@ -28,9 +28,9 @@ The `Agent(...)` constructor accepts `instructions=` which defaults to these con
 |----------|-------|------|-------------|
 | `QUERY_ANALYST_INSTRUCTION` | QueryAnalyst | QueryAnalystLoop | Role: fast classification + context analysis. Must call configurable `ClassificationTool` (MANDATORY — loop retries if missed). Input: `query`, assembled session context. Output: markdown context + classification label from `QueryAnalystConfig.classification_labels`. Root labels: `"passthrough"`, `"worker"`; no `"uncertain"` label. Conditional read-only task tools when active task exists. |
 | `INFORMATION_DIGESTER_INSTRUCTION` | InformationDigester | InformationDigestionLoop | Role: precision retrieval from cached context. Tools: `enhanced_context_retrieval` (search cache via internal agent) + `digest_information` (MUST call at least once for structured output). Input: `ContextEnhancedQuery` (analysis + user_query). Output: `DigestedInformation` (via tool call, not final text). Strategy: search cache → evaluate gaps → repeat or digest. Guardrails: mandatory digest call; record `known_gaps` on empty results. |
-| `TASK_ANALYZER_INSTRUCTION` | TaskAnalyzer | ReActAgentLoop | Role: task decomposition + modification. Input: `DigestedInformation` or plain query. Tools: read tools + task-management writes + `UpdateTaskResult` (except `TaskInit` by default; excludes `UpdateActiveTaskResult`). Output: markdown analysis summary (what was created/modified/deleted). Strategy: inspect current tree → plan changes → execute via tool calls → document result. |
+| `TASK_ANALYZER_INSTRUCTION` | TaskAnalyzer | TaskAnalyzerLoop | Role: task decomposition + modification. Input: `DigestedInformation` or plain query. Tools: read tools + task-management writes + `UpdateTaskResult` (except `TaskInit` by default; excludes `UpdateActiveTaskResult`). Output: markdown analysis summary (what was created/modified/deleted). Strategy: inspect current tree → plan changes → execute via tool calls → document result. |
 | `TASK_ASSESSOR_INSTRUCTION` | TaskAssessor | TaskAssessorLoop | Role: assess task tree completeness. Tools: `AssessorVerdict` (MUST call — `"analyze"` or `"stop"`). Input: task tree + analysis query. Output: verdict + response text (→ TaskAnalyzer query). Enforcement: loop retries up to 3x if verdict not called. |
-| `TASK_EXECUTOR_INSTRUCTION` | TaskExecutor | ReActAgentLoop | Role: active task execution. Input: plain `query: str`. Tools: `ReadActiveTask`, `ListTask`, `UpdateActiveTaskResult`. Output: writes `TaskResult` onto the current active task via tool call. Guardrails: dynamically load task state; terminate only after `completed`, `failed`, or `blocked`. |
+| `TASK_EXECUTOR_INSTRUCTION` | TaskExecutor | TaskExecutorLoop | Role: active task execution. Input: plain `query: str`. Tools: `ReadActiveTask`, `ListTask`, `UpdateActiveTaskResult`. Output: writes `TaskResult` onto the current active task via tool call. Guardrails: dynamically load task state; terminate only after `completed`, `failed`, or `blocked`. |
 | `RESULT_REVIEWER_INSTRUCTION` | ResultReviewer | ResultReviewLoop | Role: result review. Input: `TaskExecutorState` or plain review query. Output: `ResultReviewerState`. Classifications: accept/retry/replan. No `escalate_user`; indecision keeps reviewer active with open question. |
 | `PRIMARY_AGENT_INSTRUCTION` | PrimaryAgent | PrimaryAgentLoop | Role: passthrough/final synthesis. Input: `QueryAnalystState` YAML or plain query. Output: `PrimaryAgentState` final response + citations. |
 

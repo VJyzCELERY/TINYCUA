@@ -27,9 +27,9 @@ The loop defines the behavior inside SDK `Agent.run()`.
 ## SDK Loop Shape
 
 ```text
-class QueryAnalystLoop(BaseLoop):
-    def __init__(self, session: Session, max_classification_retries: int = 3):
-        super().__init__()
+class QueryAnalystLoop(ReActLoop):
+    def __init__(self, session: Session):
+        super().__init__(session)
         self.session = session
         self.max_classification_retries = max_classification_retries
 

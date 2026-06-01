@@ -1,4 +1,4 @@
-# ReActAgentLoop
+# ReActLoop
 
 > **File:** `docs/design/loops/react_agent.md`
 > **Package:** `tinycua.loops.react_agent`
@@ -9,8 +9,12 @@
 
 ## Role
 
-`ReActAgentLoop` is the shared base/helper loop for agents that use standard ReAct
-behavior. It receives a `Session`, not a duplicated AgentNode state object.
+`ReActLoop` is the shared base loop for all TinyCUA agents. It extends the SDK
+`BaseLoop` and stores the `Session` reference, giving every agent-specific loop
+consistent access to session state, task tree, todo list, and config.
+
+Every agent-specific loop extends `ReActLoop` and only overrides what differs
+(required tool enforcement, output formatting, termination rules).
 
 Agent-specific loops may subclass or wrap this behavior to add:
 
@@ -81,11 +85,11 @@ off items during ReAct execution.
 ## Class Contract
 
 ```text
-ReActAgentLoop(BaseLoop)  ← extends tinycua_sdk.agent.loop.BaseLoop
+ReActLoop(BaseLoop)  ← extends tinycua_sdk.agent.loop.BaseLoop
 
 __init__(session: Session) -> None
   · holds a reference to the TinyCUA Session
-  · loop has access to session.todo_list for TodoList tool integration
+  · provides access to session.todo_list, session.task, session.agent_state
 
 run(agent, messages, tools, override_instructions=None, stream=False) -> AsyncIterator
   · delegates to super().run(...) for standard SDK ReAct behavior
@@ -100,7 +104,7 @@ pattern for all internal loops.
 ## Agent-Specific Extension Pattern
 
 ```text
-class SpecificAgentLoop(ReActAgentLoop):
+class SpecificAgentLoop(ReActLoop):
     async run(agent, messages, tools, ...) -> AsyncIterator:
         → delegated streaming with required tool retry
         → format final structured result
@@ -117,7 +121,7 @@ output formatting live inside the loop, not in the AgentNode.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Session via constructor | `ReActAgentLoop(session=session)` | Loop can access config, state, task tree, and history from one source |
+| Session via constructor | `ReActLoop(session=session)` | Loop can access config, state, task tree, and history from one source |
 | Shared base | Reusable for simple ReAct agents | Avoids duplicating SDK delegation logic |
 | Agent-specific subclasses | Query/assessor/executor/etc. specialize behavior | Required tool retry and output formatting differ per agent |
 | Final result event | Loop emits `tinycua.final_result` | AgentNode does not parse raw tool-call events |

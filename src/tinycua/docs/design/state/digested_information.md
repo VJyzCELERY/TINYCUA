@@ -20,7 +20,7 @@ summary for downstream agents (Task Analyzer, Primary Agent).
 ```text
 DigestedInformation extends StateObject
     · context_summary: str — compressed relevant context (markdown)
-    · key_points: list[str] — key takeaway points
+    · key_points: list[str] | None = None — key takeaway points
     · advisory_instructions: str | None = None — action-oriented guidance
     · constraints: list[str] | None = None — guardrails
     · known_gaps: list[str] | None = None — missing information

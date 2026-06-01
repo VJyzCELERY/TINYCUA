@@ -9,13 +9,12 @@
 
 ## `AgentKind` Enum
 
-Identifies each of the eight architecture agents plus the external TinyCUA agent:
+Identifies each internal agent plus the TinyCUA graph:
 
 ```text
 AgentKind (str, Enum)
     · QUERY_ANALYST = "query-analyst"
     · INFORMATION_DIGESTER = "information-digester"
-    · TASK_CREATOR = "task-creator"
     · TASK_ANALYZER = "task-analyzer"
     · TASK_ASSESSOR = "task-assessor"
     · TASK_EXECUTOR = "task-executor"

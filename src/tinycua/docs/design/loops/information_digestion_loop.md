@@ -17,9 +17,9 @@ mandatory `digest_information` tool call, and write `InformationDigesterState`.
 ## SDK Loop Shape
 
 ```text
-class InformationDigestionLoop(BaseLoop):
-    def __init__(self, session: Session, max_digest_retries: int = 3):
-        super().__init__()
+class InformationDigestionLoop(ReActLoop):
+    def __init__(self, session: Session):
+        super().__init__(session)
         self.session = session
         self.max_digest_retries = max_digest_retries
 

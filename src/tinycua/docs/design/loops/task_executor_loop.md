@@ -17,9 +17,9 @@ updates, and writes `TaskExecutorState` reflecting the current active task outco
 ## SDK Loop Shape
 
 ```text
-class TaskExecutorLoop(BaseLoop):
+class TaskExecutorLoop(ReActLoop):
     def __init__(self, session: Session):
-        super().__init__()
+        super().__init__(session)
         self.session = session
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):

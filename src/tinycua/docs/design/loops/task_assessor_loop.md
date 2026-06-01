@@ -17,9 +17,9 @@ response as the analysis text passed back to TaskAnalyzer.
 ## SDK Loop Shape
 
 ```text
-class TaskAssessorLoop(BaseLoop):
-    def __init__(self, session: Session, max_verdict_retries: int = 3):
-        super().__init__()
+class TaskAssessorLoop(ReActLoop):
+    def __init__(self, session: Session):
+        super().__init__(session)
         self.session = session
         self.max_verdict_retries = max_verdict_retries
 

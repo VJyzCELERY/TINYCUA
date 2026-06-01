@@ -25,8 +25,8 @@ AgentState (base)                     # type, status, failure, agent_config
  ├── TaskAssessorState               # verdict, analysis
  ├── TaskExecutorState               # task_result, execution_attempts
  ├── ResultReviewerState             # reviewer_decision, context_updates
-  ├── PrimaryAgentState               # final_response, citations
-  └── TinyCUAWorkerState              # worker graph result/restart signal
+ ├── PrimaryAgentState               # final_response, citations
+ └── TinyCUAWorkerState              # worker graph result/restart signal
 ```
 
 All subclasses inherit `to_yaml()` and participate in `from_string()` via the

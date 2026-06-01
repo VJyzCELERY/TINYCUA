@@ -21,9 +21,9 @@ not parse or reconstruct a task tree from the assistant text.
 ## SDK Loop Shape
 
 ```text
-class TaskAnalyzerLoop(BaseLoop):
+class TaskAnalyzerLoop(ReActLoop):
     def __init__(self, session: Session):
-        super().__init__()
+        super().__init__(session)
         self.session = session
 
     async def run(self, agent, messages, tools, override_instructions=None, stream=False):
