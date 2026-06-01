@@ -2,7 +2,7 @@
 
 > **File:** `docs/design/orchestration/overview.md`
 > **Package:** `tinycua.orchestration`
-> **Last Updated:** 2026-06-01
+> **Last Updated:** 2026-06-02
 > **Status:** Draft — primary source of truth for TinyCUA runtime structure
 
 ---
@@ -142,6 +142,15 @@ active = graph.queue[0] if graph.queue else None
 Queue items may hold AgentNodes, AgentGraphs, RouterNodes, gates, hooks, or factories.
 Adding an AgentNode to the queue does not create its `Session`; session creation is
 lazy and happens only when that item reaches index `0` and is executed.
+
+Route handlers should add work through `AgentGraph.add_node(...)`, which constructs the
+queue item, assigns runtime-only handles, applies lazy/reuse session policy, and
+performs the requested placement. Raw list mutation is kept behind graph queue methods.
+
+Lazy loading is universal: queued future work should remain a descriptor until it
+becomes active or is explicitly inspected. Restoring a graph may load durable session
+state, but it should not eagerly reconstruct every AgentNode, subgraph, SDK `Agent`, or
+tool wrapper. This keeps resume and routing fast as the session tree grows.
 
 After each active node finishes, control returns to the graph. The graph reads the
 node's result state and mutates the queue (`pop`, `insert`, `replace tail`, or `clear`).

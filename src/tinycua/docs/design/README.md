@@ -102,7 +102,7 @@ Read in order for a linear learning experience:
 | Directory | Content |
 |-----------|---------|
 | [`agent_node/base.md`](agent_node/base.md) | `BaseAgentNode` — outer wrapper pattern |
-| [`agent_node/factory.md`](agent_node/factory.md) | `create_agent_node()`, `create_all_agent_nodes()` |
+| [`agent_node/factory.md`](agent_node/factory.md) | `create_agent_node()`, `create_all_agent_nodes()`, `load_agent_node()` |
 | [`agent_node/query_analyst.md`](agent_node/query_analyst.md) | `QueryAnalyst` — Session management, context assembly |
 | [`agent_node/information_digester.md`](agent_node/information_digester.md) | `InformationDigester` — Session + cache management |
 | [`agent_node/task_analyzer.md`](agent_node/task_analyzer.md) | `TaskAnalyzer` — Session + tool wiring |
