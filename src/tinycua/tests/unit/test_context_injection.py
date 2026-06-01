@@ -7,7 +7,6 @@ and other shared configuration.
 
 from __future__ import annotations
 
-import pytest
 
 
 # ---------------------------------------------------------------------------

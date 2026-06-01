@@ -79,6 +79,7 @@ __all__ = [
     "list_files",
     "read_file",
     "register_all",
+    "reset_default_todo",
     "run_python",
     "run_shell",
     "todo_list",

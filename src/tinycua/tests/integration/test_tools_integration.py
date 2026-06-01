@@ -6,8 +6,6 @@ They are written FIRST (RED phase) and will fail until implementation is complet
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 
 import pytest
 

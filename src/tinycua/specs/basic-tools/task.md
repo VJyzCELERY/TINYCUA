@@ -61,8 +61,8 @@ Implementation tasks for the basic tool layer (issue #70). Check off items as co
 
 ## Documentation Phase
 
-- [ ] Update `tinycua/docs/` if applicable <!-- id: 16 -->
-- [ ] Update `CHANGELOG.md` or release notes <!-- id: 17 -->
+- [x] Update `tinycua/docs/` if applicable — N/A: no structural docs changes needed for this feature <!-- id: 16 -->
+- [x] Update `CHANGELOG.md` or release notes — N/A: changelog not yet established for prototype <!-- id: 17 -->
 
 ## Review and Merge
 
