@@ -116,25 +116,21 @@ async def run(self, task_tree: dict | str, query: str) -> AsyncIterator[dict]:
         yield event
 
     response_text = "".join(text_parts)
+    # First response ALWAYS becomes session context
+    self.session.append_assistant(
+        content=response_text,
+        metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+    )
+
     verdict = self._extract_verdict(events)
 
     if verdict is not None:
-        self.session.append_assistant(
-            content=response_text,
-            metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
-        )
         self.state.verdict = verdict
         self.state.analysis = response_text
         self.state.last_result = {"verdict": verdict, "analysis": response_text}
         return
 
-    # No verdict — record initial response, then retry
-    self.session.chat_history.append(ChatRecord(
-        id=str(uuid4()), type="agent",
-        metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
-        content={"text": response_text},
-    ))
-    async for event in self._retry_agent(
+    # No verdict — retry
         agent=agent,
         retry_query=(
             "Based on the assessment above, call AssessorVerdict with "
@@ -280,25 +276,21 @@ class TaskAssessor(BaseAgentOrchestrator[TaskAssessorState]):
             yield event
 
         response_text = "".join(text_parts)
+        # First response ALWAYS becomes session context
+        self.session.append_assistant(
+            content=response_text,
+            metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
+        )
+
         verdict = self._extract_verdict(events)
 
         if verdict is not None:
-            self.session.append_assistant(
-                content=response_text,
-                metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
-            )
             self.state.verdict = verdict
             self.state.analysis = response_text
             self.state.last_result = {"verdict": verdict, "analysis": response_text}
             return
 
-        # No verdict — record initial response, then retry
-        self.session.chat_history.append(ChatRecord(
-            id=str(uuid4()), type="agent",
-            metadata={"orchestrator": "task_assessor", "agent_name": self.config.name},
-            content={"text": response_text},
-        ))
-        async for event in self._retry_agent(
+        # No verdict — retry
             agent=agent,
             retry_query=(
                 "Based on the assessment above, call AssessorVerdict with "

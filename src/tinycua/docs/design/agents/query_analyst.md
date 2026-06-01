@@ -319,13 +319,15 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
 
     response_text = "".join(text_parts)
     first_response_text = response_text
+    # First response ALWAYS becomes session context
+    self.session.append_assistant(
+        content=response_text,
+        metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+    )
+
     mode_label = self._extract_mode_decision(events)
 
     if mode_label is not None:
-        self.session.append_assistant(
-            content=response_text,
-            metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
-        )
         self.state.mode_decision = ModeDecision(mode=mode_label)
         self.state.context_enhanced_query = ContextEnhancedQuery(
             context=first_response_text, query=user_query,
@@ -333,12 +335,7 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
         self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
         return
 
-    # No verdict — record initial response, then retry
-    self.session.chat_history.append(ChatRecord(
-        id=str(uuid4()), type="agent",
-        metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
-        content={"text": response_text},
-    ))
+    # No verdict — retry
     async for event in self._retry_agent(
         agent=agent,
         retry_query=(
@@ -491,13 +488,15 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
 
         response_text = "".join(text_parts)
         first_response_text = response_text
+        # First response ALWAYS becomes session context
+        self.session.append_assistant(
+            content=response_text,
+            metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
+        )
+
         mode_label = self._extract_mode_decision(events)
 
         if mode_label is not None:
-            self.session.append_assistant(
-                content=response_text,
-                metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
-            )
             self.state.mode_decision = ModeDecision(mode=mode_label)
             self.state.context_enhanced_query = ContextEnhancedQuery(
                 context=first_response_text, query=user_query,
@@ -505,13 +504,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
             self.state.last_result = {"mode_decision": mode_label, "context": first_response_text}
             return
 
-        # No verdict — record initial response, then retry
-        self.session.chat_history.append(ChatRecord(
-            id=str(uuid4()), type="agent",
-            metadata={"orchestrator": "query_analyst", "agent_name": self.config.name},
-            content={"text": response_text},
-        ))
-        async for event in self._retry_agent(
+        # No verdict — retry
             agent=agent,
             retry_query=(
                 "Based on your analysis above, call "

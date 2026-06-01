@@ -330,24 +330,20 @@ class InformationDigester(BaseAgentOrchestrator[InformationDigesterState]):
                 yield event
 
             response_text = "".join(text_parts)
+            # First response ALWAYS becomes session context
+            self.session.append_assistant(
+                content=response_text,
+                metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
+            )
+
             digested = self._parse_digested_output(events)
 
             if digested is not None:
-                self.session.append_assistant(
-                    content=response_text,
-                    metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
-                )
                 self.state.digested_information = digested
                 self.state.last_result = digested.to_dict()
                 return
 
-            # No digest — record initial response, then retry
-            self.session.chat_history.append(ChatRecord(
-                id=str(uuid4()), type="agent",
-                metadata={"orchestrator": "information_digester", "agent_name": self.config.name},
-                content={"text": response_text},
-            ))
-            async for event in self._retry_agent(
+            # No digest — retry
                 agent=agent,
                 retry_query="Call digest_information with your findings.",
             ):
