@@ -324,6 +324,8 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
         if mode_label is not None:
             # Success — verdict was called
             response_text = "".join(text_parts)
+            if first_response_text is None:
+                first_response_text = response_text
             self.session.append_assistant(
                 content=response_text,
                 metadata={
@@ -333,18 +335,20 @@ async def run(self, user_query: str) -> AsyncIterator[dict]:
             )
             self.state.mode_decision = ModeDecision(mode=mode_label)
             self.state.context_enhanced_query = ContextEnhancedQuery(
-                context=response_text,
+                context=first_response_text or response_text,
                 query=user_query,
             )
             self.state.last_result = {
                 "mode_decision": mode_label,
-                "context": response_text,
+                "context": first_response_text or response_text,
             }
             return
 
         # No verdict — retry
         if attempt < max_retries:
             response_text = "".join(text_parts) or "(no response)"
+            if first_response_text is None:
+                first_response_text = response_text
             self.session.append_assistant(
                 content=response_text,
                 metadata={
@@ -451,6 +455,7 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
 
         events: list[dict] = []
         max_retries = 3
+        first_response_text: str | None = None  # captured on first attempt only
 
         for attempt in range(1, max_retries + 1):
             # 4. Build SDK Agent per-call with dynamic tool selection
@@ -476,6 +481,8 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
             if mode_label is not None:
                 # Success — verdict was called
                 response_text = "".join(text_parts)
+                if first_response_text is None:
+                    first_response_text = response_text
                 self.session.append_assistant(
                     content=response_text,
                     metadata={
@@ -485,18 +492,20 @@ class QueryAnalyst(BaseAgentOrchestrator[QueryAnalystState]):
                 )
                 self.state.mode_decision = ModeDecision(mode=mode_label)
                 self.state.context_enhanced_query = ContextEnhancedQuery(
-                    context=response_text,
+                    context=first_response_text or response_text,
                     query=user_query,
                 )
                 self.state.last_result = {
                     "mode_decision": mode_label,
-                    "context": response_text,
+                    "context": first_response_text or response_text,
                 }
                 return
 
             # No verdict — retry with follow-up
             if attempt < max_retries:
                 response_text = "".join(text_parts) or "(no response)"
+                if first_response_text is None:
+                    first_response_text = response_text
                 self.session.append_assistant(
                     content=response_text,
                     metadata={
@@ -720,7 +729,7 @@ Two structured objects stored on `self.state`:
 | Conditional read-only task tools | `READ_ONLY_TASK_TOOLS` only when active task exists | QueryAnalyst needs task detail to classify correctly when tasks are active |
 | Passthrough sub-routing | `get_active_session()` determines target | No active task → PrimaryAgent; active task → active agent |
 | Worker mode aborts | Terminate all children, `session.task = None` | Fresh start for the worker chain |
-| ContextEnhancedQuery split | `context` (agent response) + `query` (original) | Downstream agents receive both the analysis and the raw query |
+| ContextEnhancedQuery split | `context` = first response text (initial analysis), `query` = original | First response has the context; retry responses are just verdict follow-ups — not mixed in |
 | ModeDecision from tool call | `QueryAnalystModeDecision` tool call, not JSON parsing | Structured verdict guaranteed; no parsing fragility |
 | Mandatory verdict via retry | Orchestrator retries up to 3x if verdict not called | Same pattern as TaskAssessor; guarantees decision is always produced |
 | Default on exhaustion | `"passthrough"` after max retries | Safe fallback — routes to existing agents rather than starting fresh |
