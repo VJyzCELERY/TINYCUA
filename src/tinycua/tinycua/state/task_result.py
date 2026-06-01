@@ -18,7 +18,7 @@ class TaskResult(StateObject):
 
     Attributes:
         task_id: ID of the executed task.
-        status: Completion status - completed, failed, or blocked.
+        status: Completion status - not_started, inprogress, completed, failed, or blocked.
         result: Task execution result text.
         discovered_sequence_issues: Optional list of sequencing issues found.
         uncertainty_notes: Optional list of uncertainty notes.

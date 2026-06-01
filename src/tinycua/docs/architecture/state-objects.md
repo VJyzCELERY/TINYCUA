@@ -202,7 +202,7 @@ Additional fields may be introduced if justified by a later design decision.
 ```yaml
 task_result:
   task_id: "<task id>"
-  status: completed | failed | blocked
+  status: not_started | inprogress | completed | failed | blocked
   result: "..."
   discovered_sequence_issues:
     - "..."
@@ -234,7 +234,7 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 ```yaml
 reviewer_decision:
   task_id: "<task id>"
-  status: accept | retry | replan
+  status: accepted | retry | replan | escalate_user
   reason: "..."
   context_updates:
     - target_task_id: "<target task id>"
@@ -242,7 +242,7 @@ reviewer_decision:
   retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
 
-`escalate_user` is not a status. When the ResultReviewer cannot resolve, the agent stays
+When the ResultReviewer cannot resolve with `escalate_user`, the agent stays
 active with an open question. Human-in-the-loop interaction occurs through passthrough
 routing on the next user query. If HITL is disabled, the agent continues exploring.
 
@@ -258,9 +258,9 @@ agent_state:
   active_task_id: "<active task id>"
   status: idle | running | blocked | terminated
   resume_target: "..."
-  failure: 0                      # aggregate failure count from child sessions
+  consecutive_failures: 0         # local consecutive failure counter
 ```
 
 Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
-The failure counter aggregates failures from child sessions (parent.failure += child.failure), not just consecutive failures in a single node.
+The consecutive_failures counter tracks local consecutive failures in a single node, not aggregated from child sessions.
