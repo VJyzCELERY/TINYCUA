@@ -76,17 +76,66 @@ Every AgentNode uses:
 run(query: str) -> AsyncIterator[dict]
 ```
 
-Structured data is passed as AgentState YAML front-matter:
+The graph passes structured data between nodes by prepending AgentState YAML
+front-matter to the query string. This keeps routing information self-describing
+while maintaining the single-string interface.
+
+`AgentState.from_string(query)` separates the front-matter block from the trailing
+content:
 
 ```text
-parsed = AgentState.from_string(query)
-if parsed is None:
-    # plain string
-else:
-    # parsed is correct AgentState subclass based on front-matter `type`
+parsed = AgentState.from_string(query)   # → AgentState subclass or None
+remaining = AgentState.strip_string(query)  # → content after front-matter, if any
 ```
 
+If no front-matter is present, `parsed` is `None` and `remaining` is the entire
+string.
+
 The graph never passes dicts or typed Python objects between nodes.
+
+### Front-Matter Rule
+
+YAML front-matter is a **graph-level routing and classification helper only**. It is
+never consumed as structured data by the agent itself. The agent always receives a
+plain string query — the raw YAML block is stripped before the query reaches the SDK
+`Agent`.
+
+Each AgentNode documents which AgentState types it **natively supports** (e.g.,
+TaskExecutor handles `ResultReviewerState`, PrimaryAgent handles `QueryAnalystState`).
+When a supported state is received, the node extracts relevant fields and may use
+them to adapt behavior. When an **unsupported** state is received, the node treats
+the entire input as a plain query — no structured extraction happens.
+
+### Unsupported State Handling
+
+When a node receives an AgentState type it does not support (e.g., TaskExecutor
+receives `TaskAssessorState`), it falls back to rendering the state's fields as
+descriptive markdown text. The front-matter is discarded; only the rendered
+markdown + trailing content reaches the agent:
+
+```text
+run(query):
+  parsed = AgentState.from_string(query)
+  remaining = AgentState.strip_string(query)
+
+  if parsed is None:
+      agent_query = query                         # plain string, pass through
+  elif isinstance(parsed, SUPPORTED_STATE_TYPES):
+      agent_query = _build_query(parsed, remaining)  # structured extraction
+  else:
+      agent_query = _fallback_query(parsed, remaining)  # render as markdown text
+```
+
+The fallback rendering converts the state's typed fields into human-readable
+prose or bullet points (e.g., `TaskAssessorState(verdict="analyze", analysis="...")`
+becomes `"Assessment verdict: analyze\n\nAnalysis: ..."`). No raw YAML, no
+structured field names — the agent sees only plain conversational text.
+
+This ensures that:
+- Front-matter remains a graph-internal routing mechanism
+- No raw YAML leaks into the agent's conversational context
+- Unsupported states degrade gracefully instead of being silently ignored or
+  causing parse errors
 
 ---
 
