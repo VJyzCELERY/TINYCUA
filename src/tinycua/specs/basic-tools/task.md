@@ -66,7 +66,7 @@ Implementation tasks for the basic tool layer (issue #70). Check off items as co
 
 ## Review and Merge
 
-- [ ] Create pull request for `feat/m1-basic-tools` (note: docs PR #79 already exists; this step is for code implementation PR) <!-- id: 18 -->
+- [x] Create pull request for `feat/m1-basic-tools` (PR #79) <!-- id: 18 -->
 - [ ] Address review feedback <!-- id: 19 -->
 - [ ] Merge to `feat/tinycua-prototype` branch <!-- id: 20 -->
 

@@ -15,6 +15,16 @@ if TYPE_CHECKING:
     from tinycua.agent.tools.context import ExecutorContext
 
 
+_HTTP_CLIENT: httpx.Client | None = None
+
+
+def _get_client() -> httpx.Client:
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None:
+        _HTTP_CLIENT = httpx.Client(timeout=10.0)
+    return _HTTP_CLIENT
+
+
 def _process_response(response: httpx.Response, max_size: int, url: str) -> str | dict[str, Any]:
     """Process an HTTP response: check status, truncate if needed.
 
@@ -75,15 +85,15 @@ def _execute_fetch(
 ) -> str | dict[str, Any]:
     """Core HTTP fetch logic shared by ``fetch_url`` and factory tools."""
     try:
-        with httpx.Client() as client:
-            response = client.request(
-                method=method.upper(),
-                url=url,
-                headers=headers or {},
-                timeout=timeout,
-                follow_redirects=True,
-            )
-            return _process_response(response, max_size, url)
+        client = _get_client()
+        response = client.request(
+            method=method.upper(),
+            url=url,
+            headers=headers or {},
+            timeout=timeout,
+            follow_redirects=True,
+        )
+        return _process_response(response, max_size, url)
 
     except httpx.TimeoutException:
         return {"error": f"Request timed out after {timeout}s for URL: {url}"}

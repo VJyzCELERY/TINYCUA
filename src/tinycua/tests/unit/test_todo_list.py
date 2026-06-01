@@ -125,8 +125,8 @@ class TestTodoListTool:
 
     def setup_method(self) -> None:
         """Reset the singleton before each test."""
-        from tinycua.agent.tools.todo.todo_list import reset_default_todo
-        reset_default_todo()
+        from tinycua.agent.tools.todo.todo_list import _reset_default_todo
+        _reset_default_todo()
 
     def test_tool_add(self):
         """todo_list tool add command works."""

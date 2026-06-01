@@ -24,7 +24,7 @@ from tinycua.agent.tools.native import (
     run_shell,
     write_file,
 )
-from tinycua.agent.tools.todo import create_todo_list, reset_default_todo, todo_list
+from tinycua.agent.tools.todo import create_todo_list, todo_list
 
 if TYPE_CHECKING:
     from tinycua.agent.tools.context import ExecutorContext
@@ -79,7 +79,6 @@ __all__ = [
     "list_files",
     "read_file",
     "register_all",
-    "reset_default_todo",
     "run_python",
     "run_shell",
     "todo_list",

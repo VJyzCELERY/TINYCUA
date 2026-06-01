@@ -180,7 +180,7 @@ def create_todo_list(context: ExecutorContext) -> Tool:
     return Tool.from_callable(_execute, name="todo_list")
 
 
-def reset_default_todo() -> None:
+def _reset_default_todo() -> None:
     """Reset the module-level todo list singleton (for testing)."""
     global _DEFAULT_TODO
     _DEFAULT_TODO = TodoList()
@@ -189,6 +189,5 @@ def reset_default_todo() -> None:
 __all__ = [
     "TodoList",
     "create_todo_list",
-    "reset_default_todo",
     "todo_list",
 ]

@@ -120,9 +120,9 @@ A developer wants to run the prototype against a benchmark task. They register a
 |------|--------|-------|
 | Native tools (shell, file, http, python) | In Progress | Spec'd in `native_tools/spec.md` |
 | Task tools (read/mutate) | Deferred to M2 (#71) | Requires state objects (Session, Task, TaskResult) from M2 |
-| TodoList tool | Draft | New — to be implemented in this milestone |
-| SDK tool wrappers/registration | Draft | New — to be implemented in this milestone |
-| Tests | Draft | To be written alongside implementation |
+| TodoList tool | Implemented | `tinycua/agent/tools/todo/todo_list.py` |
+| SDK tool wrappers/registration | Implemented | `register_all()` in `tools/__init__.py` |
+| Tests | Implemented | 124 tests — 3 integration, 4 unit test classes |
 
 ---
 
