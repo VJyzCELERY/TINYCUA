@@ -6,11 +6,11 @@ from tinycua_sdk.tools.decorators import Tool
 
 
 def test_native_base_tools_importable():
-    """NATIVE_BASE_TOOLS is importable and is a list."""
+    """NATIVE_BASE_TOOLS is importable and is a list of seven native tools."""
     from tinycua.constants.tools import NATIVE_BASE_TOOLS
 
     assert isinstance(NATIVE_BASE_TOOLS, list)
-    assert len(NATIVE_BASE_TOOLS) == 6
+    assert len(NATIVE_BASE_TOOLS) == 7
 
 
 def test_native_base_tools_are_tool_instances():
@@ -29,7 +29,7 @@ def test_native_base_tools_names():
 
     tool_names = sorted(t.name for t in NATIVE_BASE_TOOLS)
     expected = sorted(
-        ["run_shell", "read_file", "write_file", "list_files", "fetch_url", "run_python"]
+        ["run_shell", "read_file", "write_file", "edit_file", "list_files", "fetch_url", "run_python"]
     )
     assert tool_names == expected
 

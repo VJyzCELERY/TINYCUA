@@ -9,10 +9,10 @@ import pytest
 def test_tool_registers_with_agent():
     """All seven tools can be registered with an SDK Agent."""
     from tinycua_sdk.tools.decorators import Tool
-    from tinycua.agent.tools.native.shell import run_shell
-    from tinycua.agent.tools.native.files import read_file, write_file, list_files, edit_file
-    from tinycua.agent.tools.native.web import fetch_url
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.shell import run_shell
+    from tinycua.tools.native.files import read_file, write_file, list_files, edit_file
+    from tinycua.tools.native.web import fetch_url
+    from tinycua.tools.native.python_exec import run_python
 
     tools = [run_shell, read_file, write_file, list_files, fetch_url, run_python, edit_file]
     for tool_func in tools:
@@ -22,8 +22,8 @@ def test_tool_registers_with_agent():
 
 def test_tool_schemas_valid_json_schema():
     """Each tool generates valid JSON Schema for function calling."""
-    from tinycua.agent.tools.native.shell import run_shell
-    from tinycua.agent.tools.native.files import read_file, write_file
+    from tinycua.tools.native.shell import run_shell
+    from tinycua.tools.native.files import read_file, write_file
 
     for tool in [run_shell, read_file, write_file]:
         params = tool.parameters
@@ -38,7 +38,7 @@ async def test_tool_executor_invokes_tool():
     """ToolExecutor.execute() successfully invokes a tool."""
     from tinycua_sdk import Agent, LanguageModel
     from tinycua_sdk.agent.executor import ToolExecutor
-    from tinycua.agent.tools.native.files import write_file
+    from tinycua.tools.native.files import write_file
 
     agent = Agent(llm_model=LanguageModel())
 

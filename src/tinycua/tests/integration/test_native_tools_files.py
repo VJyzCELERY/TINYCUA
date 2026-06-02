@@ -14,7 +14,7 @@ def test_read_file_full():
         f.write("line 1\nline 2\nline 3\n")
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path)
         assert result == "line 1\nline 2\nline 3\n"
@@ -28,7 +28,7 @@ def test_read_file_start_only():
         f.write("line 1\nline 2\nline 3\nline 4\n")
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path, start=2)
         assert result == "line 2\nline 3\nline 4\n"
@@ -42,7 +42,7 @@ def test_read_file_start_and_offset():
         f.write("line 1\nline 2\nline 3\nline 4\n")
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path, start=2, offset=2)
         assert result == "line 2\nline 3\n"
@@ -56,7 +56,7 @@ def test_read_file_start_plus_offset_exceeds_file():
         f.write("line 1\nline 2\nline 3\n")
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path, start=2, offset=5)
         assert isinstance(result, dict)
@@ -73,7 +73,7 @@ def test_read_file_truncation():
         f.write("x" * 150 * 1024)
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path)
         assert "[Truncated:" in result
@@ -87,7 +87,7 @@ def test_read_file_range_no_truncation():
         f.write("x" * 150 * 1024)
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         # Read first 5 lines — should NOT be truncated even though file > 100KB
         result = read_file(path, start=1, offset=5)
@@ -98,9 +98,9 @@ def test_read_file_range_no_truncation():
 
 def test_read_file_not_found():
     """Error dict returned for missing file."""
-    from tinycua.agent.tools.native.files import read_file
+    from tinycua.tools.native.files import read_file
 
-    result = read_file("/nonexistent/path/file.txt")
+    result = read_file("/tmp/nonexistent_path_file.txt")
     assert isinstance(result, dict)
     assert "error" in result
     assert "not found" in result["error"].lower()
@@ -112,7 +112,7 @@ def test_read_file_invalid_start_line():
         f.write("only one line\n")
         path = f.name
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path, start=100)
         assert isinstance(result, dict)
@@ -127,7 +127,7 @@ def test_read_file_empty():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
         path = f.name  # write nothing
     try:
-        from tinycua.agent.tools.native.files import read_file
+        from tinycua.tools.native.files import read_file
 
         result = read_file(path)
         assert result == ""
@@ -136,19 +136,25 @@ def test_read_file_empty():
 
 
 def test_read_file_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from TINYCUA_TOOL_ROOT."""
     original_cwd = os.getcwd()
+    original_root = os.environ.get("TINYCUA_TOOL_ROOT")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
             os.chdir(tmpdir)
             Path("test.txt").write_text("hello world\n")
 
-            from tinycua.agent.tools.native.files import read_file
+            from tinycua.tools.native.files import read_file
 
             result = read_file("test.txt")
             assert result == "hello world\n"
     finally:
         os.chdir(original_cwd)
+        if original_root is not None:
+            os.environ["TINYCUA_TOOL_ROOT"] = original_root
+        else:
+            os.environ.pop("TINYCUA_TOOL_ROOT", None)
 
 
 # --- write_file ---
@@ -158,7 +164,7 @@ def test_write_file_create():
     """Create a new file with content."""
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "output.txt")
-        from tinycua.agent.tools.native.files import write_file
+        from tinycua.tools.native.files import write_file
 
         result = write_file(filepath, "hello world")
         assert result["success"] is True
@@ -172,7 +178,7 @@ def test_write_file_overwrite():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "existing.txt")
         Path(filepath).write_text("old content")
-        from tinycua.agent.tools.native.files import write_file
+        from tinycua.tools.native.files import write_file
 
         result = write_file(filepath, "new content")
         assert result["success"] is True
@@ -183,7 +189,7 @@ def test_write_file_creates_parent_dirs():
     """Missing parent directories are created automatically."""
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "deep/nested/dir/output.txt")
-        from tinycua.agent.tools.native.files import write_file
+        from tinycua.tools.native.files import write_file
 
         result = write_file(filepath, "deep content")
         assert result["success"] is True
@@ -191,18 +197,24 @@ def test_write_file_creates_parent_dirs():
 
 
 def test_write_file_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from TINYCUA_TOOL_ROOT."""
     original_cwd = os.getcwd()
+    original_root = os.environ.get("TINYCUA_TOOL_ROOT")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
             os.chdir(tmpdir)
-            from tinycua.agent.tools.native.files import write_file
+            from tinycua.tools.native.files import write_file
 
             result = write_file("relative_output.txt", "hello")
             assert result["success"] is True
             assert Path(tmpdir, "relative_output.txt").read_text() == "hello"
     finally:
         os.chdir(original_cwd)
+        if original_root is not None:
+            os.environ["TINYCUA_TOOL_ROOT"] = original_root
+        else:
+            os.environ.pop("TINYCUA_TOOL_ROOT", None)
 
 
 # --- edit_file ---
@@ -213,7 +225,7 @@ def test_edit_file_single_line():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "edit.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=2, content="REPLACED", offset=1)
         assert result["success"] is True
@@ -227,7 +239,7 @@ def test_edit_file_multiple_lines():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "edit_multi.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\nline 4\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=2, content="A\nB", offset=2)
         assert result["success"] is True
@@ -240,7 +252,7 @@ def test_edit_file_to_end():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "edit_end.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=2, content="TAIL")
         assert result["success"] is True
@@ -251,7 +263,7 @@ def test_edit_file_nonexistent_file():
     """Error when editing a file that does not exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "does_not_exist.txt")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=1, content="content")
         assert result["success"] is False
@@ -263,7 +275,7 @@ def test_edit_file_invalid_start_line():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "short.txt")
         Path(filepath).write_text("only one line\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=100, content="content")
         assert result["success"] is False
@@ -276,7 +288,7 @@ def test_edit_file_start_plus_offset_exceeds_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "short_multi.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.tools.native.files import edit_file
 
         result = edit_file(filepath, start=2, content="A\nB\nC\nD\nE", offset=5)
         assert result["success"] is False
@@ -293,7 +305,7 @@ def test_list_files_all():
         Path(tmpdir, "a.txt").touch()
         Path(tmpdir, "b.txt").touch()
         Path(tmpdir, "c.py").touch()
-        from tinycua.agent.tools.native.files import list_files
+        from tinycua.tools.native.files import list_files
 
         result = list_files(tmpdir)
         assert isinstance(result, list)
@@ -307,7 +319,7 @@ def test_list_files_with_pattern():
         Path(tmpdir, "a.txt").touch()
         Path(tmpdir, "b.txt").touch()
         Path(tmpdir, "c.py").touch()
-        from tinycua.agent.tools.native.files import list_files
+        from tinycua.tools.native.files import list_files
 
         result = list_files(tmpdir, "*.py")
         assert len(result) == 1
@@ -316,9 +328,9 @@ def test_list_files_with_pattern():
 
 def test_list_files_directory_not_found():
     """Error dict returned for nonexistent directory."""
-    from tinycua.agent.tools.native.files import list_files
+    from tinycua.tools.native.files import list_files
 
-    result = list_files("/nonexistent/path")
+    result = list_files("/tmp/nonexistent_directory_path")
     assert isinstance(result, dict)
     assert "error" in result
 
@@ -326,23 +338,29 @@ def test_list_files_directory_not_found():
 def test_list_files_empty_directory():
     """Empty directory returns empty list."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        from tinycua.agent.tools.native.files import list_files
+        from tinycua.tools.native.files import list_files
 
         result = list_files(tmpdir)
         assert result == []
 
 
 def test_list_files_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from TINYCUA_TOOL_ROOT."""
     original_cwd = os.getcwd()
+    original_root = os.environ.get("TINYCUA_TOOL_ROOT")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
             os.chdir(tmpdir)
             Path("subdir").mkdir()
             Path("subdir", "file.txt").touch()
-            from tinycua.agent.tools.native.files import list_files
+            from tinycua.tools.native.files import list_files
 
             result = list_files("subdir")
             assert len(result) == 1
     finally:
         os.chdir(original_cwd)
+        if original_root is not None:
+            os.environ["TINYCUA_TOOL_ROOT"] = original_root
+        else:
+            os.environ.pop("TINYCUA_TOOL_ROOT", None)

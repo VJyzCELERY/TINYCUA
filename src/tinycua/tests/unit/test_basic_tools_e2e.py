@@ -105,14 +105,15 @@ def test_tool_result_to_dict():
 
 
 def test_tool_constants_importable():
-    """NATIVE_BASE_TOOLS is importable and contains the six native tools."""
+    """NATIVE_BASE_TOOLS is importable and contains the seven native tools."""
     from tinycua.constants.tools import NATIVE_BASE_TOOLS
 
-    assert len(NATIVE_BASE_TOOLS) == 6
+    assert len(NATIVE_BASE_TOOLS) == 7
     tool_names = [t.name for t in NATIVE_BASE_TOOLS]
     assert "run_shell" in tool_names
     assert "read_file" in tool_names
     assert "write_file" in tool_names
+    assert "edit_file" in tool_names
     assert "list_files" in tool_names
     assert "fetch_url" in tool_names
     assert "run_python" in tool_names

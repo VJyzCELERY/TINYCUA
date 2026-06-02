@@ -3,7 +3,7 @@
 
 def test_run_python_runtime_error():
     """Runtime error in code returns stderr with traceback."""
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.python_exec import run_python
 
     result = run_python("raise ValueError('test error')")
     assert result["exit_code"] != 0
@@ -13,7 +13,7 @@ def test_run_python_runtime_error():
 
 def test_run_python_import_success():
     """Code with import statement works."""
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.python_exec import run_python
 
     result = run_python("import math; print(math.pi)")
     assert result["exit_code"] == 0
@@ -22,7 +22,7 @@ def test_run_python_import_success():
 
 def test_run_python_multiline_code():
     """Multiline Python code executes correctly."""
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.python_exec import run_python
 
     code = """
 x = 5
@@ -36,7 +36,7 @@ print(f"x+y={x+y}")
 
 def test_run_python_unicode_output():
     """Unicode output is handled correctly."""
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.python_exec import run_python
 
     result = run_python("print('héllo wörld 🔥')")
     assert result["exit_code"] == 0
@@ -45,7 +45,7 @@ def test_run_python_unicode_output():
 
 def test_run_python_very_large_output():
     """Large stdout output is handled."""
-    from tinycua.agent.tools.native.python_exec import run_python
+    from tinycua.tools.native.python_exec import run_python
 
     result = run_python("print('x' * 50000)")
     assert result["exit_code"] == 0

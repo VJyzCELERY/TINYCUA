@@ -2,9 +2,11 @@
 
 Provides native tools for shell execution, file I/O, web fetching,
 and Python code execution, as well as CUA-specific tools.
+
+Backward-compatible re-exports from tinycua.tools.
 """
 
-from tinycua.agent.tools.native import (
+from tinycua.tools import (
     edit_file,
     fetch_url,
     list_files,

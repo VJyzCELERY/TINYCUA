@@ -32,8 +32,8 @@ class TestNativeToolsE2E:
     @pytest.mark.asyncio
     async def test_agent_reads_file_and_writes_result(self):
         """Agent reads numbers.txt, sums with run_python, writes result.txt."""
-        from tinycua.agent.tools.native.files import read_file, write_file, list_files
-        from tinycua.agent.tools.native.python_exec import run_python
+        from tinycua.tools.native.files import read_file, write_file, list_files
+        from tinycua.tools.native.python_exec import run_python
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()
@@ -66,7 +66,7 @@ class TestNativeToolsE2E:
     @pytest.mark.asyncio
     async def test_agent_lists_and_reads_files(self):
         """Agent lists files with list_files then reads relevant ones."""
-        from tinycua.agent.tools.native.files import list_files, read_file
+        from tinycua.tools.native.files import list_files, read_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()
@@ -97,7 +97,7 @@ class TestNativeToolsE2E:
     @pytest.mark.asyncio
     async def test_agent_calls_run_shell(self):
         """Agent calls run_shell to execute a shell command."""
-        from tinycua.agent.tools.native.shell import run_shell
+        from tinycua.tools.native.shell import run_shell
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()

@@ -1,6 +1,6 @@
 """File I/O tools.
 
-Provides ``read_file``, ``write_file``, and ``list_files``
+Provides ``read_file``, ``write_file``, ``edit_file``, and ``list_files``
 for file system interaction with path resolution and error handling.
 """
 
@@ -240,6 +240,146 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "chars_written": 0,
             "error": str(exc),
         }
+
+
+# --- edit_file ---
+
+
+@tool
+def edit_file(
+    path: str,
+    start: int,
+    content: str,
+    offset: int | None = None,
+) -> dict[str, Any]:
+    """Replace a range of lines in an existing file.
+
+    Args:
+        path: Path to the file. Absolute paths start with '/', relative
+            paths are resolved from the current working directory.
+        start: The 1-indexed line number to start replacing from (inclusive).
+        content: The new content to insert (replaces the specified lines).
+        offset: The number of lines to replace. If None, replaces from
+            *start* to the end of the file.
+
+    Returns:
+        A dict with keys: success, path, start_line, lines_replaced,
+        bytes_written, error.
+    """
+    try:
+        resolved = _resolve_path(path)
+    except PermissionError as exc:
+        return {
+            "success": False,
+            "path": path,
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": str(exc),
+        }
+
+    if not resolved.exists():
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"File not found: {path}",
+        }
+
+    try:
+        original = resolved.read_text()
+        original = original.replace("\r\n", "\n")
+    except PermissionError:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"Permission denied: {path}",
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": str(exc),
+        }
+
+    # Split into lines, handling trailing newline correctly.
+    trailing_newline = original.endswith("\n")
+    if trailing_newline:
+        lines = original.split("\n")[:-1]
+    else:
+        lines = original.split("\n")
+    total_lines = len(lines)
+
+    if start < 1:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"Invalid start line: {start}. Must be >= 1.",
+        }
+
+    if start > total_lines:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds.",
+        }
+
+    start_idx = start - 1  # convert to 0-indexed
+
+    if offset is not None:
+        if start_idx + offset > total_lines:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "start_line": start,
+                "lines_replaced": 0,
+                "bytes_written": 0,
+                "error": f"Start line {start} + offset {offset} exceeds file length "
+                f"({total_lines} lines). Range out of bounds.",
+            }
+        end_idx = start_idx + offset
+    else:
+        end_idx = total_lines
+
+    lines_replaced = end_idx - start_idx
+    new_lines = content.split("\n")
+    # If new content ends with newline, trim the trailing empty element
+    if content.endswith("\n") and new_lines and new_lines[-1] == "":
+        new_lines = new_lines[:-1]
+
+    result_lines = lines[:start_idx] + new_lines + lines[end_idx:]
+    result = "\n".join(result_lines)
+    # Preserve trailing newline only when NOT replacing to end of file.
+    # When replacing to end (offset is None), the new content's own
+    # trailing newline (if any) will dictate the result.
+    if trailing_newline and offset is not None:
+        result += "\n"
+
+    bytes_written = len(result.encode("utf-8"))
+    resolved.write_text(result, encoding="utf-8")
+
+    return {
+        "success": True,
+        "path": str(resolved),
+        "start_line": start,
+        "lines_replaced": lines_replaced,
+        "bytes_written": bytes_written,
+        "error": None,
+    }
 
 
 # --- list_files ---

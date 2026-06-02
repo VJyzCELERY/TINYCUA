@@ -11,7 +11,7 @@ def test_fetch_url_http_500(httpx_mock):
         status_code=500,
         text="Internal Server Error",
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/error")
     assert isinstance(result, dict)
@@ -26,7 +26,7 @@ def test_fetch_url_http_403(httpx_mock):
         url="https://example.com/forbidden",
         status_code=403,
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/forbidden")
     assert isinstance(result, dict)
@@ -42,7 +42,7 @@ def test_fetch_url_custom_method(httpx_mock):
         text="updated",
         status_code=200,
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/resource", method="PUT")
     assert result == "updated"
@@ -56,7 +56,7 @@ def test_fetch_url_redirect(httpx_mock):
         status_code=200,
         text="final destination",
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/redirect")
     assert result == "final destination"
@@ -70,7 +70,7 @@ def test_fetch_url_empty_response(httpx_mock):
         text="",
         status_code=200,
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/empty")
     assert result == ""
@@ -82,7 +82,7 @@ def test_fetch_url_connection_error(httpx_mock):
         httpx.ConnectError("Connection refused"),
         url="https://example.com/down",
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/down")
     assert isinstance(result, dict)
@@ -98,7 +98,7 @@ def test_fetch_url_truncation_exact_boundary(httpx_mock):
         text=body,
         status_code=200,
     )
-    from tinycua.agent.tools.native.web import fetch_url
+    from tinycua.tools.native.web import fetch_url
 
     result = fetch_url("https://example.com/exact", max_size=1024)
     assert "[truncated" not in result.lower()
