@@ -93,7 +93,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 #### Digester Retrieval Tool Interface
 
 - **FR-009**: System MUST provide a digester retrieval tool interface with:
-  - `enhanced_context_retrieval(cache_path, model, exploration_tools)` — A factory function that accepts a `cache_path` (str), `model` (LanguageModel from SDK), and `exploration_tools` (list of Tool). Returns a `Tool` instance. When called, the returned tool spawns inner transient retrieval agents to gather context, then caches and returns the result.
+  - `create_enhanced_context_retrieval(cache_path, model, exploration_tools)` — A factory function that accepts a `cache_path` (str), `model` (LanguageModel from SDK), and `exploration_tools` (list of Tool). Returns a `Tool` instance. When called, the returned tool spawns inner transient retrieval agents to gather context, then caches and returns the result.
   - `digest_information(context_summary, key_points, advisory_instructions, constraints, known_gaps)` — Produces a structured digest string prefixed with `DIGEST_INFO::`. Accepts: `context_summary` (str), `key_points` (list[str]), `advisory_instructions` (str | None), `constraints` (list[str] | None), `known_gaps` (list[str] | None). Returns a str.
 
 #### Tool Constants / Mappings
@@ -122,7 +122,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - [ ] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
 - [ ] **TodoList tool works**: Add, read, mark, edit, delete, clear all operate correctly on `session.todo_list`.
 - [ ] **Tool constants module exists**: All `*_BASE_TOOLS` constants are defined and importable.
-- [ ] **Digester retrieval tool interface exists**: `enhanced_context_retrieval` and `digest_information` are defined.
+- [ ] **Digester retrieval tool interface exists**: `create_enhanced_context_retrieval` and `digest_information` are defined.
 - [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest tests/test_tools* tests/test_todo*`
 - [ ] **A future Task Executor can call the tool layer** without knowing CLI or graph internals.
 
@@ -162,7 +162,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 | Python Execution Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
 | Task Tools (Read+Write) | DEFERRED → M2 | Depends on Task/TaskResult state objects in SDK |
 | TodoList Tool | TODO | Per-session short-term goal tracking |
-| Digester Tool Interface | TODO | enhanced_context_retrieval + digest_information |
+| Digester Tool Interface | TODO | create_enhanced_context_retrieval + digest_information |
 | Tool Constants | TODO | *_BASE_TOOLS mappings for all agent nodes |
 | SDK Tool Wrappers | TODO | Ensure all tools are @tool-decorated and SDK-compatible |
 

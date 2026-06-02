@@ -53,9 +53,10 @@ from tinycua_sdk.tools.decorators import Tool
 
 @pytest.fixture
 def session():
-    """Create a mock session with todo_list for tool testing."""
-    _session = MagicMock()
-    _session.todo_list = None
+    """Create a real session with todo_list for tool testing."""
+    from tinycua_sdk import Session
+    _session = Session()
+    _session.todo_list = []
     return _session
 
 
@@ -108,14 +109,42 @@ def test_todo_tool_add_read_clear(session):
 
 def test_native_tools_integration(tmp_path):
     """Native execution tools work and return structured results."""
-    from tinycua.tools.native.files import write_file, read_file
+    from unittest.mock import patch, MagicMock
+    from tinycua.tools.native.files import write_file, read_file, list_files
+    from tinycua.tools.native.shell import run_shell
+    from tinycua.tools.native.python_exec import run_python
+    from tinycua.tools.native.web import fetch_url
 
+    # File tools
     test_file = tmp_path / "test_m1_integration.txt"
     result = write_file(path=str(test_file), content="hello world")
     assert result["success"] is True
 
     content = read_file(path=str(test_file))
     assert "hello world" in content
+
+    # list_files
+    files = list_files(path=str(tmp_path), pattern="*.txt")
+    assert str(test_file) in files
+
+    # Shell execution
+    shell_result = run_shell(command=f"echo hello")
+    assert shell_result["exit_code"] == 0
+    assert "hello" in shell_result["stdout"]
+
+    # Python execution
+    py_result = run_python(code="print('hello')")
+    assert py_result["exit_code"] == 0
+    assert "hello" in py_result["stdout"]
+
+    # HTTP fetch
+    with patch("tinycua.tools.native.web.httpx.Client") as mock_client:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "hello from web"
+        mock_client.return_value.__enter__.return_value.send.return_value = mock_response
+        url_result = fetch_url(url="http://example.com")
+        assert "hello from web" in url_result
 ```
 
 ### Key Test Scenarios
@@ -252,7 +281,7 @@ def test_native_tools_integration(tmp_path):
 | `tinycua/tools/native/` | New | Native execution tools (adapted from agent/tools/native) |
 | `tinycua/tools/task/` | Deferred → M2 | Task read/write tools (deferred to M2) |
 | `tinycua/tools/todo.py` | New | TodoList tool with sub-command dispatch |
-| `tinycua/tools/digester.py` | New | enhanced_context_retrieval + digest_information |
+| `tinycua/tools/digester.py` | New | create_enhanced_context_retrieval + digest_information |
 | `tinycua/constants/` | New | Package for tool constant definitions |
 | `tinycua/constants/tools.py` | New | `*_BASE_TOOLS` constants for all agent nodes |
 | `tinycua/tools/__init__.py` | New | Public exports for all tool functions |

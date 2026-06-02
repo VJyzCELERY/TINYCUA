@@ -30,7 +30,7 @@ tinycua/tinycua/
 │   │   ├── web.py               # fetch_url
 │   │   └── python_exec.py       # run_python
 │   ├── todo.py                  # TodoList tool
-│   └── digester.py              # enhanced_context_retrieval, digest_information
+│   └── digester.py              # create_enhanced_context_retrieval, digest_information
 ├── constants/
 │   └── tools.py                 # *_BASE_TOOLS constants for all agent nodes
 ```
@@ -44,7 +44,7 @@ tinycua/tinycua/
 | `tinycua/tools/` | New | New top-level package for tool implementations (separate from agent glue) |
 | `tinycua/tools/result.py` | New | Native ToolResult dataclass |
 | `tinycua/tools/todo.py` | New | TodoList tool with sub-command dispatch |
-| `tinycua/tools/digester.py` | New | enhanced_context_retrieval + digest_information |
+| `tinycua/tools/digester.py` | New | create_enhanced_context_retrieval + digest_information |
 | `tinycua/constants/tools.py` | New | *_BASE_TOOLS constant definitions |
 
 **Design docs addressed** (under `docs/design/`):
@@ -183,7 +183,6 @@ All tools catch unexpected exceptions internally and return error dicts — no u
 ### Phase 3 — Digester Retrieval Tool Interface
 
 - [ ] Implement `tinycua/tools/digester.py` — `create_enhanced_context_retrieval` factory + `digest_information`
-- [ ] Define `CONTEXT_CACHE_TOOLS` and `EXPLORATION_TOOL` constants
 
 ### Phase 4 — Tool Constants
 
@@ -213,7 +212,7 @@ All tools catch unexpected exceptions internally and return error dicts — no u
    - **Reason**: Keeps tool count low. All list operations through one interface. Consistent with the design doc.
    - **Alternatives Considered**: Separate tools per action (AddTodo, ReadTodo, etc.) — more granular but increases tool count unnecessarily.
 
-4. **Decision**: `enhanced_context_retrieval` is a factory function returning a `Tool`, not a standalone tool.
+4. **Decision**: `create_enhanced_context_retrieval` is a factory function returning a `Tool`, not a standalone tool.
    - **Reason**: The inner agent needs `cache_path` and `model` configured at construction time. A factory captures these dependencies and produces a ready-to-use tool instance.
    - **Alternatives Considered**: Tool with all parameters at call time — too many parameters for the LLM to manage correctly.
 
