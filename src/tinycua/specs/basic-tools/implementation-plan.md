@@ -120,9 +120,9 @@ def test_native_tools_integration(tmp_path):
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: All M1 native tools are importable and register with SDK Agent as `Tool` instances
-- [ ] **Scenario 2**: `ToolResult` model is importable and has all required fields
-- [ ] **Scenario 3**: Native execution tools return correct structured results
+- [x] **Scenario 1**: All M1 native tools are importable and register with SDK Agent as `Tool` instances
+- [x] **Scenario 2**: `ToolResult` model is importable and has all required fields
+- [x] **Scenario 3**: Native execution tools return correct structured results
 - [ ] **Scenario 4**: No orchestration-layer tools (TodoList, digester, per-agent constants) are implemented in M1
 
 ## Verification Plan
@@ -192,7 +192,7 @@ def test_native_tools_integration(tmp_path):
 
 #### [NEW] `tinycua/constants/tools.py`
 
-- **[Description]**: M1-scoped constants: `NATIVE_BASE_TOOLS` (the six native execution tools), `READ_ONLY_TASK_TOOLS` (forward reference to M2 — placeholder only). Per-agent `*_BASE_TOOLS` (`SHARED_AGENT_BASE_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL`) are deferred to M2.
+- **[Description]**: M1-scoped constants: `NATIVE_BASE_TOOLS` (the seven native execution tools), `READ_ONLY_TASK_TOOLS` (forward reference to M2 — placeholder only). Per-agent `*_BASE_TOOLS` (`SHARED_AGENT_BASE_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL`) are deferred to M2.
 - **[Rationale]**: `NATIVE_BASE_TOOLS` provides a convenient stateless reference for native tool registration. `READ_ONLY_TASK_TOOLS` documents the M2 forward contract.
 
 #### [MODIFY] `tinycua/__init__.py`

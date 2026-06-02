@@ -19,7 +19,7 @@ def test_tool_result_model_importable():
 
 def test_all_native_tools_register_with_agent():
     """All M1 native tools can be registered with an SDK Agent as Tool instances."""
-    from tinycua.tools.native.files import list_files, read_file, write_file
+    from tinycua.tools.native.files import edit_file, list_files, read_file, write_file
     from tinycua.tools.native.python_exec import run_python
     from tinycua.tools.native.shell import run_shell
     from tinycua.tools.native.web import fetch_url
@@ -28,6 +28,7 @@ def test_all_native_tools_register_with_agent():
         run_shell,
         read_file,
         write_file,
+        edit_file,
         list_files,
         fetch_url,
         run_python,
