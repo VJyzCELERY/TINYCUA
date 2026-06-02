@@ -155,11 +155,11 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Native Tool Result Model | TODO | To be implemented |
-| Shell Execution Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
-| File Read/Write/List Tools | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
-| HTTP Fetch Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
-| Python Execution Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
+| Native Tool Result Model | TODO | To be implemented (new dataclass) |
+| Shell Execution Tool | Done (native_tools) | Existing — verify SDK compat |
+| File Read/Write/List Tools | Done (native_tools) | Existing — verify SDK compat |
+| HTTP Fetch Tool | Done (native_tools) | Existing — verify SDK compat |
+| Python Execution Tool | Done (native_tools) | Existing — verify SDK compat |
 | Task Tools (Read+Write) | DEFERRED → M2 | Depends on Task/TaskResult state objects in SDK |
 | TodoList Tool | TODO | Per-session short-term goal tracking |
 | Digester Tool Interface | TODO | create_enhanced_context_retrieval + digest_information |
@@ -171,18 +171,18 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 ## Open Questions _(optional)_
 
 1. **Should ToolResult be a Pydantic model or a simple dataclass?**
-   - **Status**: Discussion
-   - **Proposed Answer**: Dataclass with a `.to_dict()` method — Pydantic adds an unnecessary dependency since we don't need validation at this level.
+   - **Status**: Resolved → see design.md decision #2
+   - **Resolution**: Dataclass with `.to_dict()` method — no Pydantic dependency.
 
 2. **Where should the native tool result model live?**
-   - **Status**: Discussion
-   - **Proposed Answer**: `tinycua/tools/result.py` — alongside the tool implementations.
+   - **Status**: Resolved → see design.md decision #1
+   - **Resolution**: `tinycua/tools/result.py` — alongside tool implementations.
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
+- [x] Implementation details are advisory only (spec defines WHAT, design defines HOW)
 - [ ] All mandatory sections completed
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Requirements are testable and unambiguous
