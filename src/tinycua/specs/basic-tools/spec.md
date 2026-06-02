@@ -12,9 +12,9 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Provide the foundational tool layer that the Task Executor, Task Analyzer, and other agents will use to interact with the environment, manage tasks, and track progress. After M1, the prototype can execute sandboxed local tool actions and return structured observations — no agents or graph orchestration are required yet.
+- **Goals**: Provide the foundational tool layer that the Task Executor, Task Analyzer, and other agents will use to interact with the environment. After M1, the prototype can execute sandboxed local tool actions and return structured observations — no agents, graph orchestration, or session-dependent state are required yet.
 - **Gaps**: The architecture has design docs for task tools, todo tools, digester tools, and tool constants, but these remain unimplemented as callable code. The `native_tools` spec covers only shell/file/web/python execution; the broader tool ecosystem (task read/write, todo, digester interface, tool result model, SDK wrappers) has no implementation spec.
-- **Non-Goals**: Agent execution, custom loops, AgentNode classes, graph orchestration, CLI, and WildClawBench batch runner. Durable persistence of tool results. Full browser/GUI automation unless required for the selected benchmark subset; if required, only define the minimal adapter contract and complete benchmark-specific support in a later milestone.
+- **Non-Goals**: Agent execution, custom loops, AgentNode classes, graph orchestration, CLI, and WildClawBench batch runner. Durable persistence of tool results. **Session-dependent tools (TodoList, digester retrieval interface, per-agent tool constants) are deferred to M2** — M1 delivers only stateless tool primitives. Full browser/GUI automation unless required for the selected benchmark subset; if required, only define the minimal adapter contract and complete benchmark-specific support in a later milestone.
 - **Constraints**: All tools must be implemented as `tinycua_sdk` `@tool`-decorated functions compatible with the SDK's `Agent` and `AgentExecutor`. Must work with both local (LM Studio) and remote (OpenAI) providers. Must be safe for benchmark execution (no arbitrary code execution without boundaries).
 
 ---
@@ -23,7 +23,7 @@
 
 ### Primary Scenario
 
-A future Task Executor agent receives a benchmark task (e.g., "read the file at /data/input.csv, compute the average of column 'price', and write the result to /data/output.txt"). The agent uses native tools (`read_file`, `run_shell`, `run_python`, `write_file`) to execute the work and uses the `TodoList` tool to track its progress during execution. All tool calls produce structured output the agent can interpret.
+A future Task Executor agent receives a benchmark task (e.g., "read the file at /data/input.csv, compute the average of column 'price', and write the result to /data/output.txt"). The agent uses native tools (`read_file`, `run_shell`, `run_python`, `write_file`) to execute the work. All tool calls produce structured output the agent can interpret.
 
 ### Acceptance Scenarios
 
@@ -32,9 +32,8 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 3. **Given** a file write tool, **When** called with a path and content, **Then** the file is created or overwritten and a success confirmation is returned.
 4. **Given** an HTTP fetch tool, **When** called with a valid URL, **Then** the response body is returned (truncated if too large).
 5. **Given** a Python execution tool, **When** called with valid code, **Then** it executes and returns `{stdout, stderr, exit_code}`.
-6. **Given** the `TodoList` tool, **When** used to add/read/update/clear items, **Then** it maintains per-session short-term goal tracking.
-7. **Given** the tool constants module, **When** imported, **Then** it provides pre-configured `*_BASE_TOOLS` lists for each agent node type.
-8. **Given** any tool call, **When** the agent receives the tool result, **Then** the result is a JSON-serializable value that the SDK can normalize for the LLM.
+6. **Given** the `ToolResult` model, **When** instantiated with tool output, **Then** the result is a JSON-serializable value usable by future `ExecutionLog`.
+7. **Given** any tool call, **When** the agent receives the tool result, **Then** the result is a JSON-serializable value that the SDK can normalize for the LLM.
 
 ### Edge Cases
 
@@ -42,7 +41,6 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - What happens when `read_file` is given a path that does not exist or is a directory?
 - What happens when `fetch_url` receives a non-200 response or invalid URL?
 - What happens when `run_python` code has a syntax error or infinite loop?
-- What happens when `TodoList` is called before initialization?
 - What happens when large outputs are returned (file too large, URL response too large)?
 
 ---
@@ -86,32 +84,30 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 - **FR-007**: System MUST provide a `run_python` tool that executes Python code in an isolated subprocess with a configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`. *(Existing native_tools impl at `tinycua/agent/tools/native/python_exec.py`)*
 
-#### TodoList Tool
-
-- **FR-008**: System MUST provide a `TodoList` tool with sub-commands: `add`, `read`, `mark_complete`, `mark_incomplete`, `edit`, `delete`, `clear`. Stored per-session on `session.todo_list`. Included in `SHARED_AGENT_BASE_TOOLS`.
-
-#### Digester Retrieval Tool Interface
-
-- **FR-009**: System MUST provide a digester retrieval tool interface with:
-  - `create_enhanced_context_retrieval(cache_path, model, exploration_tools)` — A factory function that accepts a `cache_path` (str), `model` (LanguageModel from SDK), and `exploration_tools` (list of Tool). Returns a `Tool` instance. When called, the returned tool spawns inner transient retrieval agents to gather context, then caches and returns the result.
-  - `digest_information(context_summary, key_points, advisory_instructions, constraints, known_gaps)` — Produces a structured digest string prefixed with `DIGEST_INFO::`. Accepts: `context_summary` (str), `key_points` (list[str]), `advisory_instructions` (str | None), `constraints` (list[str] | None), `known_gaps` (list[str] | None). Returns a str.
-
 #### Tool Constants / Mappings
 
-- **FR-010**: System MUST provide module-level `*_BASE_TOOLS` constants for each agent node type (QueryAnalyst, InformationDigester, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, PrimaryAgent) as specified in `docs/design/constants/tools.md`.
+- **FR-008**: System SHOULD provide a `NATIVE_BASE_TOOLS` constant listing the six native execution tools (run_shell, read_file, write_file, list_files, fetch_url, run_python). This is a stateless convenience reference — no session required.
+- **FR-009**: System MAY define a `READ_ONLY_TASK_TOOLS` constant as a forward reference to M2 task read tools (ReadActiveTask, ReadTask, ListTask). This is a placeholder only — not implemented until M2.
 
 #### SDK Compatibility
 
-- **FR-011**: All tools MUST be decorated with `@tool` from `tinycua_sdk` and return JSON-serializable output.
-- **FR-012**: All tools MUST handle errors gracefully — returning error information in the tool result rather than raising unhandled exceptions.
-- **FR-013**: Shell and Python execution MUST be bounded by configurable timeouts to prevent runaway processes.
+- **FR-010**: All tools MUST be decorated with `@tool` from `tinycua_sdk` and return JSON-serializable output.
+- **FR-011**: All tools MUST handle errors gracefully — returning error information in the tool result rather than raising unhandled exceptions.
+- **FR-012**: Shell and Python execution MUST be bounded by configurable timeouts to prevent runaway processes.
 
-> **Note — M2 Deferral**: Task read/write tools (`ReadActiveTask`, `ReadTask`, `ListTask`, `TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`) are **deferred to M2**. The `tinycua-sdk` does not currently export `Task` or `TaskResult` classes — only `Session` with a dict-based `task_tree`. The task tools depend on proper state objects that will be implemented in M2. See `src/tinycua/specs/basic-tools/design.md` for the deferred design.
+> **Note — M2 Deferral**: The following tool groups are **deferred to M2** because they require session state or state objects not yet available:
+> - **Task read/write tools** (`ReadActiveTask`, `ReadTask`, `ListTask`, `TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`) — depend on `Task`/`TaskResult` state objects in the SDK.
+> - **TodoList tool** — depends on `session.todo_list`.
+> - **Digester retrieval tool interface** — depends on session context cache.
+> - **Per-agent `*_BASE_TOOLS` constants** (all constants referencing session-dependent tools or agent nodes).
+>
+> See `src/tinycua/specs/basic-tools/design.md` for the deferred design.
 
 ### Key Entities
 
 - **ToolResult**: A structured model with `success`, `output`, `error`, `metadata`, `duration`. Native result format for all tool executions, usable by ExecutionLog.
-- **TodoList**: A per-session flat list of `{status, todo}` items representing the agent's short-term work-in-progress tracking.
+- **Native execution tools**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` — stateless tool primitives that require no session state.
+- **Tool constants** (M1-scoped): `NATIVE_BASE_TOOLS` (native tools list), `READ_ONLY_TASK_TOOLS` (forward reference, M2).
 
 ---
 
@@ -120,10 +116,9 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - [ ] **Native tool result model exists**: `ToolResult` is importable from `tinycua.tools` and has all required fields.
 - [ ] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
 - [ ] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
-- [ ] **TodoList tool works**: Add, read, mark, edit, delete, clear all operate correctly on `session.todo_list`.
-- [ ] **Tool constants module exists**: All `*_BASE_TOOLS` constants are defined and importable.
-- [ ] **Digester retrieval tool interface exists**: `create_enhanced_context_retrieval` and `digest_information` are defined.
-- [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest tests/test_tools* tests/test_todo*`
+- [ ] **Native tool constants exist**: `NATIVE_BASE_TOOLS` is defined (and `READ_ONLY_TASK_TOOLS` may exist as a forward reference).
+- [ ] **No session-dependent tools in M1**: TodoList, digester tools, and per-agent `*_BASE_TOOLS` are NOT implemented in M1 — deferred to M2.
+- [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest`
 - [ ] **A future Task Executor can call the tool layer** without knowing CLI or graph internals.
 
 ---
@@ -137,13 +132,13 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - Test error paths: file not found, invalid command, timeout, syntax error — all return error results.
 - Test edge cases: empty file, empty command, empty URL.
 - Test timeout enforcement: long-running commands and infinite loops are terminated.
-- Test TodoList: all 7 sub-commands, pre-initialization behavior, empty list handling.
+- Test `ToolResult` model: all fields, `.to_dict()` serialization.
 
 ### Integration Tests
 
 - Register all tools with a real SDK `Agent` and verify tool schema generation.
 - Verify tool execution through `AgentExecutor.execute()`.
-- Test end-to-end: native tools + todo tool work together in a multi-step scenario.
+- Test end-to-end: native tools work together in a multi-step scenario.
 
 ### Manual Tests _(if applicable)_
 
@@ -161,9 +156,10 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 | HTTP Fetch Tool | Done (native_tools) | Existing — verify SDK compat |
 | Python Execution Tool | Done (native_tools) | Existing — verify SDK compat |
 | Task Tools (Read+Write) | DEFERRED → M2 | Depends on Task/TaskResult state objects in SDK |
-| TodoList Tool | TODO | Per-session short-term goal tracking |
-| Digester Tool Interface | TODO | create_enhanced_context_retrieval + digest_information |
-| Tool Constants | TODO | *_BASE_TOOLS mappings for all agent nodes |
+| TodoList Tool | DEFERRED → M2 | Depends on session.todo_list |
+| Digester Tool Interface | DEFERRED → M2 | Depends on session context cache |
+| Per-Agent *BASE_TOOLS Constants | DEFERRED → M2 | Reference session-dependent tools and agent nodes |
+| Native Tool Constants (NATIVE_BASE_TOOLS) | TODO | Stateless tool reference list |
 | SDK Tool Wrappers | TODO | Ensure all tools are @tool-decorated and SDK-compatible |
 
 ---

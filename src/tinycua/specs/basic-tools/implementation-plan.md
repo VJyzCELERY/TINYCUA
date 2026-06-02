@@ -1,13 +1,13 @@
 # Implementation: M1 — Basic Tools
 
-Implement the foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), a TodoList tool, a digester retrieval tool interface, and tool constants/mappings. All tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
+Implement the foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), the `ToolResult` model, and minimal stateless tool constants. Session-dependent tools (TodoList, digester retrieval interface, per-agent tool constants) are deferred to M2. All M1 tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
 
 ## Context
 
 - **Spec Reference**: `./spec.md`
 - **Design Reference**: `./design.md`
 - **Priority**: P0
-- **Estimated Effort**: XL
+- **Estimated Effort**: L *(reduced from XL — TodoList, digester, per-agent constants deferred to M2)*
 
 ## Environment Pre-requisites
 
@@ -51,15 +51,6 @@ from tinycua_sdk import Agent
 from tinycua_sdk.tools.decorators import Tool
 
 
-@pytest.fixture
-def session():
-    """Create a real session with todo_list for tool testing."""
-    from tinycua_sdk import Session
-    _session = Session()
-    _session.todo_list = []
-    return _session
-
-
 def test_tool_result_model_importable():
     """ToolResult is importable from tinycua.tools and has all required fields."""
     from tinycua.tools.result import ToolResult
@@ -72,39 +63,19 @@ def test_tool_result_model_importable():
     assert isinstance(result.duration, float)
 
 
-def test_all_tools_register_with_agent():
-    """All M1 tools can be registered with an SDK Agent as Tool instances."""
+def test_all_native_tools_register_with_agent():
+    """All M1 native tools can be registered with an SDK Agent as Tool instances."""
     from tinycua.tools.native.shell import run_shell
     from tinycua.tools.native.files import read_file, write_file, list_files
     from tinycua.tools.native.web import fetch_url
     from tinycua.tools.native.python_exec import run_python
-    from tinycua.tools.todo import TodoList
-    from tinycua.tools.digester import digest_information
 
     tools = [
         run_shell, read_file, write_file, list_files, fetch_url, run_python,
-        TodoList, digest_information,
     ]
     for t in tools:
         assert isinstance(t, Tool), f"{t.name} should be a Tool instance"
     assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)
-
-
-def test_todo_tool_add_read_clear(session):
-    """TodoList add/read/clear work through the SDK."""
-    from tinycua.tools.todo import TodoList
-
-    with patch("tinycua.tools.todo._session", session):
-        session.todo_list = []
-
-        result = TodoList(action="add", todo="Write tests")
-        assert "Write tests" in result
-
-        result2 = TodoList(action="read")
-        assert "Write tests" in result2
-
-        result3 = TodoList(action="clear")
-        assert "cleared" in result3.lower() or "empty" in result3.lower()
 
 
 def test_native_tools_integration(tmp_path):
@@ -149,10 +120,10 @@ def test_native_tools_integration(tmp_path):
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: All M1 tools are importable and register with SDK Agent as `Tool` instances
+- [ ] **Scenario 1**: All M1 native tools are importable and register with SDK Agent as `Tool` instances
 - [ ] **Scenario 2**: `ToolResult` model is importable and has all required fields
 - [ ] **Scenario 3**: Native execution tools return correct structured results
-- [ ] **Scenario 4**: TodoList add/read/clear cycle works
+- [ ] **Scenario 4**: No session-dependent tools (TodoList, digester, per-agent constants) are implemented in M1
 
 ## Verification Plan
 
@@ -211,21 +182,7 @@ def test_native_tools_integration(tmp_path):
 - **[Description]**: `run_python` — execute Python code in subprocess with timeout
 - **[Rationale]**: Adapted from `tinycua/agent/tools/native/python_exec.py`
 
-> **Note — M2 Deferral**: Task Tools (read/write tools and `_mutation.py` helpers) are deferred to M2 pending `Task`/`TaskResult` state object implementation in the SDK. See `src/tinycua/specs/basic-tools/spec.md` for details.
-
-### TodoList Tool
-
-#### [NEW] `tinycua/tools/todo.py`
-
-- **[Description]**: `TodoList` tool with sub-commands: `add`, `read`, `mark_complete`, `mark_incomplete`, `edit`, `delete`, `clear`
-- **[Rationale]**: Per-session short-term goal tracking stored on `session.todo_list`
-
-### Digester Retrieval Tool Interface
-
-#### [NEW] `tinycua/tools/digester.py`
-
-- **[Description]**: `create_enhanced_context_retrieval` factory + `digest_information` tool
-- **[Rationale]**: Digester interface for context retrieval and structured digest output
+> **Note — M2 Deferral**: Task Tools, TodoList, digester tools, and per-agent `*_BASE_TOOLS` constants are all deferred to M2. See `src/tinycua/specs/basic-tools/spec.md` for details.
 
 ### Tool Constants
 
@@ -235,8 +192,8 @@ def test_native_tools_integration(tmp_path):
 
 #### [NEW] `tinycua/constants/tools.py`
 
-- **[Description]**: All `*_BASE_TOOLS` constants for every agent node type: `SHARED_AGENT_BASE_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL` (note: `READ_ONLY_TASK_TOOLS` and `WRITE_TASK_TOOLS` are deferred to M2)
-- **[Rationale]**: Module-level constants for per-node tool assignment
+- **[Description]**: M1-scoped constants: `NATIVE_BASE_TOOLS` (the six native execution tools), `READ_ONLY_TASK_TOOLS` (forward reference to M2 — placeholder only). Per-agent `*_BASE_TOOLS` (`SHARED_AGENT_BASE_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL`) are deferred to M2.
+- **[Rationale]**: `NATIVE_BASE_TOOLS` provides a convenient stateless reference for native tool registration. `READ_ONLY_TASK_TOOLS` documents the M2 forward contract.
 
 #### [MODIFY] `tinycua/__init__.py`
 
@@ -251,24 +208,16 @@ def test_native_tools_integration(tmp_path):
 
 #### [NEW] `tests/unit/test_basic_tools_e2e.py`
 
-- **[Description]**: End-to-end integration tests for M1 Basic Tools through the SDK
-- **[Dependencies]**: All tool modules
+- **[Description]**: End-to-end integration tests for M1 native tools through the SDK
+- **[Dependencies]**: All native tool modules
 
 #### [NEW] `tests/unit/test_tool_result.py`
 
 - **[Description]**: Unit tests for `ToolResult` model
 
-#### [NEW] `tests/unit/test_todo.py`
-
-- **[Description]**: Unit tests for `TodoList` tool (all 7 sub-commands, pre-init behavior, empty list)
-
-#### [NEW] `tests/unit/test_digester.py`
-
-- **[Description]**: Unit tests for digester tool interface
-
 #### [NEW] `tests/unit/test_tool_constants.py`
 
-- **[Description]**: Unit tests for tool constants module
+- **[Description]**: Unit tests for `NATIVE_BASE_TOOLS` and `READ_ONLY_TASK_TOOLS` constants
 
 ## Architecture Changes
 
@@ -279,12 +228,13 @@ def test_native_tools_integration(tmp_path):
 | `tinycua/tools/` | New | New top-level package for tool implementations |
 | `tinycua/tools/result.py` | New | Native ToolResult dataclass |
 | `tinycua/tools/native/` | New | Native execution tools (adapted from agent/tools/native) |
-| `tinycua/tools/task/` | Deferred → M2 | Task read/write tools (deferred to M2) |
-| `tinycua/tools/todo.py` | New | TodoList tool with sub-command dispatch |
-| `tinycua/tools/digester.py` | New | create_enhanced_context_retrieval + digest_information |
 | `tinycua/constants/` | New | Package for tool constant definitions |
-| `tinycua/constants/tools.py` | New | `*_BASE_TOOLS` constants for all agent nodes |
+| `tinycua/constants/tools.py` | New | NATIVE_BASE_TOOLS + READ_ONLY_TASK_TOOLS (forward ref) |
 | `tinycua/tools/__init__.py` | New | Public exports for all tool functions |
+| `tinycua/tools/todo.py` | Deferred → M2 | TodoList tool with sub-command dispatch |
+| `tinycua/tools/digester.py` | Deferred → M2 | create_enhanced_context_retrieval + digest_information |
+| `tinycua/tools/task/` | Deferred → M2 | Task read/write tools |
+| (per-agent *BASE_TOOLS) | Deferred → M2 | SHARED_AGENT_BASE_TOOLS, etc. |
 
 ## Data Model Changes
 
@@ -299,11 +249,7 @@ class ToolResult:
     duration: float = 0.0
 ```
 
-```python
-# Session state extensions
-session.todo_list: list[dict] | None = None
-# Each item: {"status": "incomplete" | "completed", "todo": str}
-```
+> **Note — M2 Deferral**: Session state extensions (`session.todo_list: list[dict] | None`, digester cache state, Task tree state) are deferred to M2.
 
 ## API Changes
 
@@ -319,9 +265,8 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 | `list_files` | `tinycua.tools.native.files` | List files matching glob pattern |
 | `fetch_url` | `tinycua.tools.native.web` | Fetch URL content |
 | `run_python` | `tinycua.tools.native.python_exec` | Execute Python code in subprocess |
-| `TodoList` | `tinycua.tools.todo` | Per-session goal tracking |
-| `digest_information` | `tinycua.tools.digester` | Produce structured digest |
-| `create_enhanced_context_retrieval` | `tinycua.tools.digester` | Factory for retrieval tool |
+
+> **Note — M2 Deferred APIs**: `TodoList` (session-dependent goal tracking), `digest_information` (structured digest), `create_enhanced_context_retrieval` (retrieval tool factory), all per-agent `*_BASE_TOOLS` constants.
 
 ## Dependencies
 
@@ -335,14 +280,13 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 ### Internal Dependencies
 
 - [ ] Blocks Agent node implementations (TaskExecutor, TaskAnalyzer, etc.)
-- [ ] Task tools (deferred to M2) depend on `tinycua-sdk` Task/TaskResult state objects
+- [ ] Task tools, TodoList, digester, and per-agent constants (all deferred to M2) depend on M1 for native tool primitives and the ToolResult model
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | SDK compatibility gaps | Medium | All tools tested through `AgentExecutor.execute()` in integration tests |
-| Session state management errors in tools | Medium | Tools receive session via closure |
 | `run_shell` dangerous commands | High | Scope: benchmarks run in controlled environments only; future sandboxing needed |
 | `run_python` infinite loops | Medium | Configurable timeout (default 30s) enforced by subprocess kill |
 

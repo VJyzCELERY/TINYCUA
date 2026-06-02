@@ -2,6 +2,10 @@
 
 Implementation tasks for M1 Basic Tools. Check off items as completed.
 
+**Scope change**: M1 now delivers only stateless tool primitives — ToolResult model, native execution tools (shell, file, web, python), and minimal non-session-dependent tool constants. Session-dependent tools (TodoList, digester interface, per-agent `*_BASE_TOOLS`) are **deferred to M2**.
+
+---
+
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests (defined in `implementation-plan.md` — `tests/unit/test_basic_tools_e2e.py`) <!-- id: 0 -->
@@ -13,7 +17,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 - [ ] Create `tinycua/tools/__init__.py` — public exports <!-- id: 2 -->
   - [ ] Export `ToolResult` from `tinycua.tools.result`
-  - [ ] Export all tool functions from their modules
+  - [ ] Export all native tool functions from their modules
 - [ ] Create `tinycua/tools/result.py` — `ToolResult` dataclass <!-- id: 3 -->
   - [ ] Fields: `success` (bool), `output` (str), `error` (str | None), `metadata` (dict | None), `duration` (float)
   - [ ] `.to_dict()` method for JSON serialization
@@ -37,76 +41,56 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 - [ ] Create `tinycua/tools/native/python_exec.py` — `run_python` (adapted from `agent/tools/native/python_exec.py`) <!-- id: 9 -->
   - [ ] Subprocess execution with timeout, syntax error handling, infinite loop protection
 
-> **Note — M2 Deferral**: Task Tools (Phases 3–5 in the original plan) are deferred to M2. This includes all task mutation helpers, read tools, and write tools. See `src/tinycua/specs/basic-tools/spec.md` for details.
+### Phase 3 — Tool Constants (M1-scoped)
 
-### Phase 3 — TodoList Tool
+- [ ] Create `tinycua/constants/__init__.py` <!-- id: 10 -->
+- [ ] Create `tinycua/constants/tools.py` — M1-scoped constants only <!-- id: 11 -->
+  - [ ] `NATIVE_BASE_TOOLS` — list of the six native execution tools (run_shell, read_file, write_file, list_files, fetch_url, run_python)
+  - [ ] `READ_ONLY_TASK_TOOLS` — forward reference to M2 (placeholder, not implemented yet)
+  - [ ] Note: per-agent `*_BASE_TOOLS` (SHARED_AGENT_BASE_TOOLS, TASK_EXECUTOR_BASE_TOOLS, etc.) are deferred to M2
+- [ ] Write unit tests: `tests/unit/test_tool_constants.py` <!-- id: 12 -->
+  - [ ] Test `NATIVE_BASE_TOOLS` contains expected native tool functions
+  - [ ] Test `READ_ONLY_TASK_TOOLS` exists as a forward reference
 
-- [ ] Create `tinycua/tools/todo.py` — TodoList tool <!-- id: 17 -->
-  - [ ] Sub-commands: `add`, `read`, `mark_complete`, `mark_incomplete`, `edit`, `delete`, `clear`
-  - [ ] Store on `session.todo_list`
-  - [ ] Pre-initialization behavior: auto-init on first add
-  - [ ] Formatted markdown checklist output
-- [ ] Write unit tests: `tests/unit/test_todo.py` <!-- id: 18 -->
-  - [ ] Test all 7 sub-commands
-  - [ ] Test pre-init behavior (read/delete/clear on None)
-  - [ ] Test empty list handling
-  - [ ] Test invalid index handling
+### Phase 4 — Update Existing Package Exports
 
-### Phase 4 — Digester Retrieval Tool Interface
-
-- [ ] Create `tinycua/tools/digester.py` <!-- id: 19 -->
-  - [ ] `create_enhanced_context_retrieval(cache_path, model, exploration_tools)` — factory returning a Tool
-  - [ ] `digest_information(context_summary, key_points, advisory_instructions, constraints, known_gaps)` — structured digest (prefixes with `DIGEST_INFO::`)
-- [ ] Write unit tests: `tests/unit/test_digester.py` <!-- id: 20 -->
-  - [ ] Test `digest_information` output format
-  - [ ] Test `create_enhanced_context_retrieval` returns a Tool
-
-### Phase 5 — Tool Constants
-
-- [ ] Create `tinycua/constants/__init__.py` <!-- id: 21 -->
-- [ ] Create `tinycua/constants/tools.py` — all `*_BASE_TOOLS` constants <!-- id: 22 -->
-  - [ ] `SHARED_AGENT_BASE_TOOLS`
-  - [ ] `TASK_EXECUTOR_BASE_TOOLS`
-  - [ ] `RESULT_REVIEWER_BASE_TOOLS`
-  - [ ] `QUERY_ANALYST_BASE_TOOLS`
-  - [ ] `INFORMATION_DIGESTER_BASE_TOOLS`
-  - [ ] `TASK_ANALYZER_BASE_TOOLS`
-  - [ ] `TASK_ASSESSOR_BASE_TOOLS`
-  - [ ] `PRIMARY_AGENT_BASE_TOOLS`
-  - [ ] `CONTEXT_CACHE_TOOLS`
-  - [ ] `EXPLORATION_TOOL`
-- [ ] Write unit tests: `tests/unit/test_tool_constants.py` <!-- id: 23 -->
-  - [ ] Test each constant is a list
-  - [ ] Test each list contains expected tool instances
-
-### Phase 6 — Update Existing Package Exports
-
-- [ ] Update `tinycua/agent/tools/__init__.py` — add new tool imports for backward compat <!-- id: 24 -->
-- [ ] Update `tinycua/tools/__init__.py` — ensure all tools are publicly exported <!-- id: 25 -->
+- [ ] Update `tinycua/agent/tools/__init__.py` — add native tool imports for backward compat <!-- id: 13 -->
+- [ ] Update `tinycua/tools/__init__.py` — ensure all native tools are publicly exported <!-- id: 14 -->
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 26 -->
-- [ ] Write additional unit tests for edge cases discovered during implementation <!-- id: 27 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 28 -->
-- [ ] Run specific test suite: `cd src/tinycua && uv run pytest tests/test_tools* tests/test_todo*` <!-- id: 29 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
+- [ ] Write additional unit tests for edge cases discovered during implementation <!-- id: 16 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 17 -->
 
 ## Verification Phase
 
-- [ ] Verify all tools importable from `tinycua.tools` <!-- id: 30 -->
-- [ ] Verify all tools register with SDK Agent via `AgentExecutor` <!-- id: 31 -->
-- [ ] Verify native tools work end-to-end: write → read → list → delete cycle <!-- id: 32 -->
-- [ ] Verify TodoList tool works end-to-end: add → read → mark → edit → delete → clear <!-- id: 34 -->
+- [ ] Verify all native tools importable from `tinycua.tools` <!-- id: 18 -->
+- [ ] Verify all native tools register with SDK Agent via `AgentExecutor` <!-- id: 19 -->
+- [ ] Verify native tools work end-to-end: write → read → list → shell → python <!-- id: 20 -->
+- [ ] Verify `NATIVE_BASE_TOOLS` constant is importable and correct <!-- id: 21 -->
+- [ ] Verify no session-dependent tools (TodoList, digester) are present in M1 <!-- id: 22 -->
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua/README.md` if needed (optional) <!-- id: 35 -->
+- [ ] Update `src/tinycua/README.md` if needed (optional) <!-- id: 23 -->
 
 ## Review and Merge
 
-- [ ] Create pull request for code review <!-- id: 36 -->
-- [ ] Address review feedback <!-- id: 37 -->
-- [ ] Merge to main branch <!-- id: 38 -->
+- [ ] Create pull request for code review <!-- id: 24 -->
+- [ ] Address review feedback <!-- id: 25 -->
+- [ ] Merge to main branch <!-- id: 26 -->
+
+---
+
+## M2 Forward Reference
+
+The following are **deferred to M2** (see `src/tinycua/specs/basic-tools/spec.md` and `#71`):
+
+- **TodoList tool**: `tinycua/tools/todo.py` with sub-commands add/read/mark/delete/clear — depends on `session.todo_list`
+- **Digester tool interface**: `tinycua/tools/digester.py` with `create_enhanced_context_retrieval` + `digest_information` — depends on session context cache
+- **Per-agent `*_BASE_TOOLS`**: SHARED_AGENT_BASE_TOOLS, TASK_EXECUTOR_BASE_TOOLS, RESULT_REVIEWER_BASE_TOOLS, QUERY_ANALYST_BASE_TOOLS, INFORMATION_DIGESTER_BASE_TOOLS, TASK_ANALYZER_BASE_TOOLS, TASK_ASSESSOR_BASE_TOOLS, PRIMARY_AGENT_BASE_TOOLS, CONTEXT_CACHE_TOOLS, EXPLORATION_TOOL
+- **Task tools**: ReadActiveTask, ReadTask, ListTask, TaskInit, SetSubTask, AddSubTask, DeleteSubTask, EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult — depend on Task/TaskResult state objects
 
 ---
 
