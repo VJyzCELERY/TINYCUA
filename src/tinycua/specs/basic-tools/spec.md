@@ -15,7 +15,7 @@
 - **Goals**: Provide the foundational tool layer that the Task Executor, Task Analyzer, and other agents will use to interact with the environment, manage tasks, and track progress. After M1, the prototype can execute sandboxed local tool actions and return structured observations — no agents or graph orchestration are required yet.
 - **Gaps**: The architecture has design docs for task tools, todo tools, digester tools, and tool constants, but these remain unimplemented as callable code. The `native_tools` spec covers only shell/file/web/python execution; the broader tool ecosystem (task read/write, todo, digester interface, tool result model, SDK wrappers) has no implementation spec.
 - **Non-Goals**: Agent execution, custom loops, AgentNode classes, graph orchestration, CLI, and WildClawBench batch runner. Durable persistence of tool results. Full browser/GUI automation unless required for the selected benchmark subset; if required, only define the minimal adapter contract and complete benchmark-specific support in a later milestone.
-- **Constraints**: All tools must be implemented as `tinycua_sdk` `@tool`-decorated functions compatible with the SDK's `Agent` and `ToolExecutor`. Must work with both local (LM Studio) and remote (OpenAI) providers. Must be safe for benchmark execution (no arbitrary code execution without boundaries).
+- **Constraints**: All tools must be implemented as `tinycua_sdk` `@tool`-decorated functions compatible with the SDK's `Agent` and `AgentExecutor`. Must work with both local (LM Studio) and remote (OpenAI) providers. Must be safe for benchmark execution (no arbitrary code execution without boundaries).
 
 ---
 
@@ -169,7 +169,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 ### Integration Tests
 
 - Register all tools with a real SDK `Agent` and verify tool schema generation.
-- Verify tool execution through `ToolExecutor.execute()`.
+- Verify tool execution through `AgentExecutor.execute()`.
 - Test end-to-end: native tools + task tools + todo tool work together in a multi-step scenario.
 
 ### Manual Tests _(if applicable)_

@@ -41,7 +41,7 @@ Implement the complete foundational tool layer for the TINYCUA prototype: native
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/integration/test_basic_tools_e2e.py
+# Test file: src/tinycua/tests/unit/test_basic_tools_e2e.py
 """Integration tests for M1 Basic Tools — end-to-end through the SDK."""
 
 import os
@@ -288,7 +288,7 @@ def test_native_tools_integration(tmp_path):
 
 ### Tests
 
-#### [NEW] `tests/integration/test_basic_tools_e2e.py`
+#### [NEW] `tests/unit/test_basic_tools_e2e.py`
 
 - **[Description]**: End-to-end integration tests for M1 Basic Tools through the SDK
 - **[Dependencies]**: All tool modules
@@ -360,7 +360,7 @@ session.todo_list: list[dict] | None = None
 
 ### New Tool APIs
 
-All tools are `@tool`-decorated functions callable through `tinycua_sdk.ToolExecutor.execute()`:
+All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExecutor.execute()`:
 
 | Tool Name | Module | Description |
 |-----------|--------|-------------|
@@ -391,7 +391,7 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.ToolExec
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, ToolExecutor, Task/TaskResult/Session models |
+| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor, Task/TaskResult/Session models |
 | httpx | >=0.27.0 | HTTP fetch tool |
 
 ### Internal Dependencies
@@ -405,7 +405,7 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.ToolExec
 |------|--------|------------|
 | Task tree re-indexing bugs | High | Comprehensive unit tests for all mutation paths; test `_reindex_tree` independently |
 | Circular swap detection failure | High | `_is_ancestor` check before swap; unit tests verify ancestor detection |
-| SDK compatibility gaps | Medium | All tools tested through `ToolExecutor.execute()` in integration tests |
+| SDK compatibility gaps | Medium | All tools tested through `AgentExecutor.execute()` in integration tests |
 | Session state management errors in tools | Medium | Tools receive session via closure; mutation tools use atomic clone-swap pattern |
 | `run_shell` dangerous commands | High | Scope: benchmarks run in controlled environments only; future sandboxing needed |
 | `run_python` infinite loops | Medium | Configurable timeout (default 30s) enforced by subprocess kill |

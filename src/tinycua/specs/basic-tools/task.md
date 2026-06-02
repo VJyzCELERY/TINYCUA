@@ -4,7 +4,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests (defined in `implementation-plan.md` — `tests/integration/test_basic_tools_e2e.py`) <!-- id: 0 -->
+- [ ] Write integration tests (defined in `implementation-plan.md` — `tests/unit/test_basic_tools_e2e.py`) <!-- id: 0 -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 
 ## Implementation Phase
@@ -151,7 +151,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 ## Verification Phase
 
 - [ ] Verify all tools importable from `tinycua.tools` <!-- id: 30 -->
-- [ ] Verify all tools register with SDK Agent via `ToolExecutor` <!-- id: 31 -->
+- [ ] Verify all tools register with SDK Agent via `AgentExecutor` <!-- id: 31 -->
 - [ ] Verify native tools work end-to-end: write → read → list → delete cycle <!-- id: 32 -->
 - [ ] Verify task tools work end-to-end: init → set → add → swap → delete → re-read <!-- id: 33 -->
 - [ ] Verify TodoList tool works end-to-end: add → read → mark → edit → delete → clear <!-- id: 34 -->

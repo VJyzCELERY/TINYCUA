@@ -82,20 +82,29 @@ class ToolResult:
 
 ### Task Data Model
 
-The `Task` and `TaskResult` entities are defined in `tinycua_sdk`. This design does not redefine them — it documents how the tools interact with them.
+The `Session.task_tree` is a raw ``dict[str, Any] | None`` defined in ``tinycua_sdk``. The `Task` and `TaskResult` entities are not provided by the SDK — they are implemented as helper functions and type aliases within the `tinycua.tools.task` package.
 
 ```python
-# Task (defined in tinycua_sdk)
-# Fields: task_id, task_name, task_description, task_context, success_criteria,
-#         confidence, parent_task_id, child_tasks, task_result
-# Key methods: at_id(task_id) -> Task | None  (DFS traversal)
-#              traverse() -> Task | None       (DFS pre-order, next non-completed leaf)
-#              display() -> str                (markdown tree with status markers)
-#              root() -> Task                  (follow parent_task_id chain to root)
-
-# TaskResult (defined in tinycua_sdk)
-# Fields: status (TaskStatus), result (str), discovered_sequence_issues (list[str] | None),
-#         uncertainty_notes (list[str] | None)
+# TaskNode (internal type alias, not a model)
+# Dict shape stored in Session.task_tree:
+# {
+#     "task_id": str,
+#     "task_name": str,
+#     "task_description": str,
+#     "task_context": str,
+#     "success_criteria": list[str],
+#     "confidence": float,
+#     "parent_task_id": str | None,
+#     "child_tasks": list[dict] | None,
+#     "status": str,          # "not_started" | "in_progress" | "completed" | "failed" | "blocked"
+#     "result": str | None,
+# }
+#
+# Key helpers (in tinycua.tools.task):
+# - _find_by_id(tree: dict, task_id: str) -> dict | None         (DFS traversal)
+# - _traverse(tree: dict) -> dict | None                          (DFS pre-order, next non-completed leaf)
+# - _display(tree: dict) -> str                                   (markdown tree with status markers)
+# - _find_root(tree: dict, task_id: str) -> dict                  (follow parent_task_id chain to root)
 ```
 
 ### TodoList Storage
@@ -308,9 +317,9 @@ All tools catch unexpected exceptions internally and return error dicts — no u
    - **Reason**: The tool sets are static per agent node type. Module-level constants are importable and testable without instantiation.
    - **Alternatives Considered**: Computed per AgentNode.run() — more flexible but harder to test and reason about.
 
-7. **Decision**: Tools receive `session` via closure, not as a parameter.
-   - **Reason**: Matches the SDK's tool registration pattern. The tool executor binds the session at construction time, keeping the tool interface clean for the LLM.
-   - **Alternatives Considered**: Session as a tool parameter — visible to the LLM, which should not manage session state.
+7. **Decision**: Tools access `session` via a module-level `_session` variable, initialized by a factory or setter before tool registration.
+   - **Reason**: Keeps tool signatures clean for the LLM (no session parameter) while remaining mockable in tests via `unittest.mock.patch`. The factory/initializer pattern (`set_session(session)` / `create_tools(session)`) allows per-session isolation without exposing session to the LLM.
+   - **Alternatives Considered**: Closure-based injection — cleaner conceptually but harder to test without a factory registry. Session as a tool parameter — visible to the LLM, which should not manage session state.
 
 ---
 
@@ -322,7 +331,7 @@ All tools catch unexpected exceptions internally and return error dicts — no u
 | `run_python` infinite loops | Medium | Medium | Configurable timeout (default 30s) enforced by subprocess kill. |
 | Task tree re-indexing bugs | Medium | High | Comprehensive unit tests for all mutation paths. Re-indexing logic tested independently. |
 | Circular swap detection failure | Low | High | `_is_ancestor` check before swap. Unit tests verify ancestor detection. |
-| SDK compatibility gaps | Medium | Medium | All tools tested through `ToolExecutor.execute()` in integration tests. |
+| SDK compatibility gaps | Medium | Medium | All tools tested through `AgentExecutor.execute()` in integration tests. |
 | Session state management errors | Low | Medium | Tools receive session via closure; mutation tools use atomic swap pattern. |
 
 ---
