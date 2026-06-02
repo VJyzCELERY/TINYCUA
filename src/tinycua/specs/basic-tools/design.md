@@ -228,10 +228,10 @@ def digest_information(
 | Command timeout | `{"stdout": "...", "stderr": "...", "exit_code": -1, "timed_out": true}` |
 | Python execution error | `{"stdout": "", "stderr": "<traceback>", "exit_code": 1, "timed_out": false}` |
 | HTTP error | `{"error": "HTTP <code>: <reason>"}` |
-| Invalid task ID | `ValueError("Task not found: <task_id>")` |
-| Delete root task | `ValueError("Cannot delete root task")` |
-| Circular swap | `ValueError("Cannot swap ancestor with descendant")` |
-| Active task not found | `ValueError("No active task available.")` |
+| Invalid task ID | `{"error": "Task not found: <task_id>"}` |
+| Delete root task | `{"error": "Cannot delete root task"}` |
+| Circular swap | `{"error": "Cannot swap ancestor with descendant"}` |
+| Active task not found | `{"error": "No active task available."}` |
 | Invalid TodoList index | Descriptive error string |
 
 All tools catch unexpected exceptions internally and return error dicts — no unhandled exceptions propagate to the agent loop.

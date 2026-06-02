@@ -60,23 +60,28 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 - **FR-001**: System MUST provide a structured `ToolResult` model with fields: `success` (bool), `output` (str), `error` (str | None), `metadata` (dict), `duration` (float). This model MUST be usable by future `ExecutionLog`.
 
+> **Note**: FR-002 through FR-007 describe native execution tools (shell, file I/O, HTTP, Python).
+> These tools already exist in the `native_tools` specification at `src/tinycua/specs/native_tools/spec.md`
+> and have implementations at `tinycua/agent/tools/native/`. For M1 Basic Tools, these will be
+> adapted/verified for SDK compatibility rather than built from scratch.
+
 #### Shell Execution Tool
 
-- **FR-002**: System MUST provide a `run_shell` tool that executes a shell command with configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`.
+- **FR-002**: System MUST provide a `run_shell` tool that executes a shell command with configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`. *(Existing native_tools impl at `tinycua/agent/tools/native/shell.py`)*
 
 #### File Tools
 
-- **FR-003**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string. Large files must be truncated with a clear indicator. Supports optional `start` (1-indexed line) and `offset` (line count) for range reads.
-- **FR-004**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path, creating parent directories if needed. Returns `{success, path, chars_written}`.
-- **FR-005**: System MUST provide a `list_files` tool that lists files matching a glob pattern in a directory, returning a list of matching paths.
+- **FR-003**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string. Large files must be truncated with a clear indicator. Supports optional `start` (1-indexed line) and `offset` (line count) for range reads. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
+- **FR-004**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path, creating parent directories if needed. Returns `{success, path, chars_written}`. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
+- **FR-005**: System MUST provide a `list_files` tool that lists files matching a glob pattern in a directory, returning a list of matching paths. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 
 #### HTTP Fetch Tool
 
-- **FR-006**: System MUST provide a `fetch_url` tool that performs an HTTP request (GET by default, configurable method and headers) and returns the response body. Large responses must be truncated.
+- **FR-006**: System MUST provide a `fetch_url` tool that performs an HTTP request (GET by default, configurable method and headers) and returns the response body. Large responses must be truncated. *(Existing native_tools impl at `tinycua/agent/tools/native/web.py`)*
 
 #### Python Execution Tool
 
-- **FR-007**: System MUST provide a `run_python` tool that executes Python code in an isolated subprocess with a configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`.
+- **FR-007**: System MUST provide a `run_python` tool that executes Python code in an isolated subprocess with a configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`. *(Existing native_tools impl at `tinycua/agent/tools/native/python_exec.py`)*
 
 #### Task Tools — Read
 
