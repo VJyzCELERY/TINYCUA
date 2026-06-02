@@ -36,7 +36,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
   - [x] `read_file`: full-file with truncation, line-range support, error paths
   - [x] `write_file`: parent dir creation, success/error returns
   - [x] `list_files`: glob pattern, error paths
-  - [x] Note: `edit_file` stays in `agent/tools/native/` (not part of basic tools spec)
+  - [x] `edit_file`: line/offset-based editing with start/end parameters, error paths
 - [x] Create `tinycua/tools/native/web.py` — `fetch_url` (adapted from `agent/tools/native/web.py`) <!-- id: 8 -->
   - [x] Support GET/POST, configurable headers, timeout, max_size truncation
 - [x] Create `tinycua/tools/native/python_exec.py` — `run_python` (adapted from `agent/tools/native/python_exec.py`) <!-- id: 9 -->
@@ -46,7 +46,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 - [x] Create `tinycua/constants/__init__.py` <!-- id: 10 -->
 - [x] Create `tinycua/constants/tools.py` — M1-scoped constants only <!-- id: 11 -->
-  - [x] `NATIVE_BASE_TOOLS` — list of the six native execution tools (run_shell, read_file, write_file, list_files, fetch_url, run_python)
+  - [x] `NATIVE_BASE_TOOLS` — list of the seven native execution tools (run_shell, read_file, write_file, edit_file, list_files, fetch_url, run_python)
   - [x] `READ_ONLY_TASK_TOOLS` — forward reference to M2 (placeholder, not implemented yet)
   - [x] Note: per-agent `*_BASE_TOOLS` (SHARED_AGENT_BASE_TOOLS, TASK_EXECUTOR_BASE_TOOLS, etc.) are deferred to M2
 - [x] Write unit tests: `tests/unit/test_tool_constants.py` <!-- id: 12 -->

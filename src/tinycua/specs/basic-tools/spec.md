@@ -86,7 +86,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 #### Tool Constants / Mappings
 
-- **FR-008**: System SHOULD provide a `NATIVE_BASE_TOOLS` constant listing the six native execution tools (run_shell, read_file, write_file, list_files, fetch_url, run_python). This is a stateless convenience reference.
+- **FR-008**: System SHOULD provide a `NATIVE_BASE_TOOLS` constant listing the seven native execution tools (run_shell, read_file, write_file, edit_file, list_files, fetch_url, run_python). This is a stateless convenience reference.
 - **FR-009**: System MAY define a `READ_ONLY_TASK_TOOLS` constant as a forward reference to M2 task read tools (ReadActiveTask, ReadTask, ListTask). This is a placeholder only — not implemented until M2.
 
 #### SDK Compatibility
@@ -106,7 +106,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 ### Key Entities
 
 - **ToolResult**: A structured model with `success`, `output`, `error`, `metadata`, `duration`. Native result format for all tool executions, usable by ExecutionLog.
-- **Native execution tools**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` — stateless tool primitives that require no orchestration-layer state.
+- **Native execution tools**: `run_shell`, `read_file`, `write_file`, `edit_file`, `list_files`, `fetch_url`, `run_python` — stateless tool primitives that require no orchestration-layer state.
 - **Tool constants** (M1-scoped): `NATIVE_BASE_TOOLS` (native tools list), `READ_ONLY_TASK_TOOLS` (forward reference, M2).
 
 ---
@@ -114,7 +114,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
 - [x] **Native tool result model exists**: `ToolResult` is importable from `tinycua.tools` and has all required fields.
-- [x] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
+- [x] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `edit_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
 - [x] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
 - [x] **Native tool constants exist**: `NATIVE_BASE_TOOLS` is defined (and `READ_ONLY_TASK_TOOLS` may exist as a forward reference).
 - [x] **No orchestration-layer tools in M1**: TodoList, digester tools, and per-agent `*_BASE_TOOLS` are NOT implemented in M1 — deferred to M2.
