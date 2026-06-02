@@ -4,27 +4,27 @@ Implementation tasks for Chat Completions Reasoning Content Normalization. Check
 
 ## TDD Phase (Tests First)
 
-- [ ] Write unit tests for streaming reasoning content normalization in `test_openai_chat_client.py` <!-- id: 0 -->
-- [ ] Write unit tests for non-streaming reasoning content normalization in `test_openai_chat_client.py` <!-- id: 1 -->
-- [ ] Run tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
+- [x] Write unit tests for streaming reasoning content normalization in `test_openai_chat_client.py` <!-- id: 0 -->
+- [x] Write unit tests for non-streaming reasoning content normalization in `test_openai_chat_client.py` <!-- id: 1 -->
+- [x] Run tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
 
 ## Implementation Phase
 
-- [ ] Add `reasoning_content: str | None` field to `LLMResponse` in `events.py` <!-- id: 3 -->
-- [ ] Add `ReasoningDeltaEvent` and `ReasoningDoneEvent` to imports in `open_ai_chat_completions.py` <!-- id: 4 -->
-- [ ] Add `reasoning_parts` and `reasoning_done_emitted` fields to `ChoiceAccumulator` <!-- id: 5 -->
-- [ ] Extend `_normalize_chunk_content` to inspect `reasoning_content` and emit `ReasoningDeltaEvent` <!-- id: 6 -->
-- [ ] Extend `_normalize_chunk_finalize` to emit `ReasoningDoneEvent` before `ContentDoneEvent` <!-- id: 7 -->
-- [ ] Extend `_normalize_non_streaming_response` to extract `reasoning_content` from message <!-- id: 8 -->
+- [x] Add `reasoning_content: str | None` field to `LLMResponse` in `events.py` <!-- id: 3 -->
+- [x] Add `ReasoningDeltaEvent` and `ReasoningDoneEvent` to imports in `open_ai_chat_completions.py` <!-- id: 4 -->
+- [x] Add `reasoning_parts` and `reasoning_done_emitted` fields to `ChoiceAccumulator` <!-- id: 5 -->
+- [x] Extend `_normalize_chunk_content` to inspect `reasoning_content` and emit `ReasoningDeltaEvent` <!-- id: 6 -->
+- [x] Extend `_normalize_chunk_finalize` to emit `ReasoningDoneEvent` before `ContentDoneEvent` <!-- id: 7 -->
+- [x] Extend `_normalize_non_streaming_response` to extract `reasoning_content` from message <!-- id: 8 -->
 
 ## Testing Phase
 
-- [ ] Run tests — expect GREEN (all pass) <!-- id: 9 -->
-- [ ] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 10 -->
+- [x] Run tests — expect GREEN (all pass) <!-- id: 9 -->
+- [x] Run full test suite: `cd src/tinycua-sdk && uv run pytest` <!-- id: 10 -->
 
 ## Verification Phase
 
-- [ ] Verify backward compatibility — existing streaming and non-streaming tests pass <!-- id: 11 -->
+- [x] Verify backward compatibility — existing streaming and non-streaming tests pass <!-- id: 11 -->
 
 ## Review and Merge
 
