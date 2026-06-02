@@ -10,6 +10,7 @@ from tinycua_sdk.agent import (
     LLMClient,
 )
 from tinycua_sdk.models.attachment import ContentPart, FileAttachment, StreamingFileAttachment
+from tinycua_sdk.models.session import Session
 from tinycua_sdk.skills.models import Skill
 from tinycua_sdk.skills.registry import SkillRegistry
 from tinycua_sdk.tools.decorators import Tool, tool
@@ -24,6 +25,7 @@ __all__ = [
     "FileAttachment",
     "LanguageModel",
     "LLMClient",
+    "Session",
     "Skill",
     "SkillRegistry",
     "StreamingFileAttachment",

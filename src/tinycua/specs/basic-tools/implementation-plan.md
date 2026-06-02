@@ -46,9 +46,18 @@ Define the integration tests that prove the feature works. These are written FIR
 
 import os
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from tinycua_sdk import Agent
 from tinycua_sdk.tools.decorators import Tool
+
+
+@pytest.fixture
+def session():
+    """Create a mock session with task_tree and todo_list for tool testing."""
+    _session = MagicMock()
+    _session.task_tree = None
+    _session.todo_list = None
+    return _session
 
 
 def test_tool_result_model_importable():
@@ -89,53 +98,58 @@ def test_all_tools_register_with_agent():
     assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)
 
 
-def test_todo_tool_add_read_clear():
+def test_todo_tool_add_read_clear(session):
     """TodoList add/read/clear work through the SDK."""
     from tinycua.tools.todo import TodoList
 
-    # Add an item
-    result = TodoList(action="add", todo="Write tests")
-    assert "Write tests" in result
+    with patch("tinycua.tools.todo._session", session):
+        session.todo_list = []
 
-    # Read the list
-    result2 = TodoList(action="read")
-    assert "Write tests" in result2
+        result = TodoList(action="add", todo="Write tests")
+        assert "Write tests" in result
 
-    # Clear
-    result3 = TodoList(action="clear")
-    assert "cleared" in result3.lower() or "empty" in result3.lower()
+        result2 = TodoList(action="read")
+        assert "Write tests" in result2
+
+        result3 = TodoList(action="clear")
+        assert "cleared" in result3.lower() or "empty" in result3.lower()
 
 
-def test_task_tree_init_and_read():
+def test_task_tree_init_and_read(session):
     """TaskInit creates a tree and ReadTask/ListTask can inspect it."""
     from tinycua.tools.task.write import TaskInit
     from tinycua.tools.task.read import ReadTask, ListTask
 
-    init_result = TaskInit(
-        primary_task_data={
-            "name": "Root Task",
-            "description": "The root",
-            "success_criteria": ["done"],
-            "confidence": 1.0,
-            "task_context": "context",
-        },
-        sub_tasks=[
-            {"task_name": "Child 1", "task_description": "First child",
-             "task_context": "", "success_criteria": ["done"], "confidence": 0.8},
-        ]
-    )
-    assert "root_id" in init_result
-    assert init_result["total"] == 2
+    with patch("tinycua.tools.task._session", session):
+        session.task_tree = None
 
-    listed = ListTask()
-    assert "Root Task" in listed
-    assert "Child 1" in listed
+        init_result = TaskInit(
+            primary_task_data={
+                "name": "Root Task",
+                "description": "The root",
+                "success_criteria": ["done"],
+                "confidence": 1.0,
+                "task_context": "context",
+            },
+            sub_tasks=[
+                {"task_name": "Child 1", "task_description": "First child",
+                 "task_context": "", "success_criteria": ["done"], "confidence": 0.8},
+            ]
+        )
+        assert "root_id" in init_result
+        assert init_result["total"] == 2
+
+        listed = ListTask()
+        assert "Root Task" in listed
+        assert "Child 1" in listed
 
 
-def test_read_active_task_returns_none_when_no_tree():
+def test_read_active_task_returns_none_when_no_tree(session):
     """ReadActiveTask returns None when no task tree exists."""
     from tinycua.tools.task.read import ReadActiveTask
-    assert ReadActiveTask() is None
+    with patch("tinycua.tools.task._session", session):
+        session.task_tree = None
+        assert ReadActiveTask() is None
 
 
 def test_native_tools_integration(tmp_path):

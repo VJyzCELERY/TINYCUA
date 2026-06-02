@@ -75,9 +75,9 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 ### Phase 5 — Task Write Tools
 
 - [ ] Create `tinycua/tools/task/write.py` — all 8 task mutation tools <!-- id: 15 -->
-  - [ ] `TaskInit(primary_task_data, sub_task)` — replace entire tree
-  - [ ] `SetSubTask(parent_task_id, sub_task)` — replace parent's children
-  - [ ] `AddSubTask(parent_task_id, sub_task)` — append children
+  - [ ] `TaskInit(primary_task_data, sub_tasks)` — replace entire tree
+  - [ ] `SetSubTask(parent_task_id, sub_tasks)` — replace parent's children
+  - [ ] `AddSubTask(parent_task_id, sub_tasks)` — append children
   - [ ] `DeleteSubTask(task_id)` — delete task + descendants (root forbidden)
   - [ ] `EditSubTask(task_id, task_data)` — edit metadata only
   - [ ] `SwapTask(task_id_1, task_id_2)` — swap with ancestor circularity check
@@ -88,6 +88,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
   - [ ] Test `SetSubTask` replace, empty (toggle to leaf), invalid parent
   - [ ] Test `AddSubTask` append to existing, append to leaf (container toggle)
   - [ ] Test `DeleteSubTask` single, multiple, root (forbidden), branch
+  - [ ] Test `DeleteSubTask` with duplicate task IDs in batch list — expect second deletion to raise "not found"
   - [ ] Test `EditSubTask` valid metadata fields, structural fields (rejected)
   - [ ] Test `SwapTask` siblings, cross-parent, ancestor circularity (rejected)
   - [ ] Test `UpdateTaskResult` valid/arbitrary task
