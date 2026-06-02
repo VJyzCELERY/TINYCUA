@@ -193,10 +193,13 @@ All tools catch unexpected exceptions internally and return error dicts — no u
 ### Phase 5 — Integration & Verification
 
 - [ ] All tools importable and callable through SDK
-- [ ] Update `tinycua/agent/tools/__init__.py` — add new tool imports for backward compat
-- [ ] Update `tinycua/tools/__init__.py` — ensure all tools are publicly exported
 - [ ] End-to-end test: native tools + todo tool in scenario
 - [ ] `cd src/tinycua && uv run pytest tests/test_tools* tests/test_todo*` passes
+
+### Phase 6 — Update Existing Package Exports
+
+- [ ] Update `tinycua/agent/tools/__init__.py` — add new tool imports for backward compat
+- [ ] Update `tinycua/tools/__init__.py` — ensure all tools are publicly exported
 
 ---
 
