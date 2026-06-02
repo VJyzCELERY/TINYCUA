@@ -1,6 +1,6 @@
 # Implementation: M1 — Basic Tools
 
-Implement the foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), the `ToolResult` model, and minimal stateless tool constants. Session-dependent tools (TodoList, digester retrieval interface, per-agent tool constants) are deferred to M2. All M1 tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
+Implement the foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), the `ToolResult` model, and minimal stateless tool constants. Orchestration-layer tools (TodoList, digester retrieval interface, per-agent tool constants) are deferred to M2. All M1 tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
 
 ## Context
 
@@ -123,7 +123,7 @@ def test_native_tools_integration(tmp_path):
 - [ ] **Scenario 1**: All M1 native tools are importable and register with SDK Agent as `Tool` instances
 - [ ] **Scenario 2**: `ToolResult` model is importable and has all required fields
 - [ ] **Scenario 3**: Native execution tools return correct structured results
-- [ ] **Scenario 4**: No session-dependent tools (TodoList, digester, per-agent constants) are implemented in M1
+- [ ] **Scenario 4**: No orchestration-layer tools (TodoList, digester, per-agent constants) are implemented in M1
 
 ## Verification Plan
 
@@ -249,7 +249,7 @@ class ToolResult:
     duration: float = 0.0
 ```
 
-> **Note — M2 Deferral**: Session state extensions (`session.todo_list: list[dict] | None`, digester cache state, Task tree state) are deferred to M2.
+> **Note — M2 Deferral**: State extensions (TodoList storage, digester cache state, Task tree state) are deferred to M2.
 
 ## API Changes
 
@@ -266,7 +266,7 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 | `fetch_url` | `tinycua.tools.native.web` | Fetch URL content |
 | `run_python` | `tinycua.tools.native.python_exec` | Execute Python code in subprocess |
 
-> **Note — M2 Deferred APIs**: `TodoList` (session-dependent goal tracking), `digest_information` (structured digest), `create_enhanced_context_retrieval` (retrieval tool factory), all per-agent `*_BASE_TOOLS` constants.
+> **Note — M2 Deferred APIs**: `TodoList` (orchestration-layer goal tracking), `digest_information` (structured digest), `create_enhanced_context_retrieval` (retrieval tool factory), all per-agent `*_BASE_TOOLS` constants.
 
 ## Dependencies
 
@@ -275,7 +275,6 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 | Package | Version | Purpose |
 |---------|---------|---------|
 | tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor |
-| tinycua | >=0.1.0 | Session model (tool state container) |
 | httpx | >=0.27.0 | HTTP fetch tool |
 
 ### Internal Dependencies

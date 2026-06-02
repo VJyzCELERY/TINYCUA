@@ -2,15 +2,9 @@
 
 Implementation tasks for M1 Basic Tools. Check off items as completed.
 
-**Scope change**: M1 now delivers only stateless tool primitives — ToolResult model, native execution tools (shell, file, web, python), and minimal non-session-dependent tool constants. Session-dependent tools (TodoList, digester interface, per-agent `*_BASE_TOOLS`) are **deferred to M2**.
+**Scope**: M1 delivers only stateless tool primitives — ToolResult model, native execution tools (shell, file, web, python), and minimal tool constants. Orchestration-layer tools (TodoList, digester interface, per-agent `*_BASE_TOOLS`) are **deferred to M2**.
 
 ---
-
-## Pre-Implementation — SDK Verification
-
-- [ ] Verify `tinycua` provides `Session` model with `task_tree` and `todo_list` attributes <!-- id: pre-0 -->
-  - Run: `uv run python -c "from tinycua.session import Session; s = Session(); print(s.task_tree, s.todo_list)"`
-  - Expected: prints `None None` (no errors on import/instantiation)
 
 ## TDD Phase (Tests First)
 
@@ -75,7 +69,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 - [ ] Verify all native tools register with SDK Agent via `AgentExecutor` <!-- id: 19 -->
 - [ ] Verify native tools work end-to-end: write → read → list → shell → python <!-- id: 20 -->
 - [ ] Verify `NATIVE_BASE_TOOLS` constant is importable and correct <!-- id: 21 -->
-- [ ] Verify no session-dependent tools (TodoList, digester) are present in M1 <!-- id: 22 -->
+- [ ] Verify no orchestration-layer tools (TodoList, digester) are present in M1 <!-- id: 22 -->
 
 ## Documentation Phase
 
@@ -93,8 +87,8 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 The following are **deferred to M2** (see `src/tinycua/specs/basic-tools/spec.md` and `#71`):
 
-- **TodoList tool**: `tinycua/tools/todo.py` with sub-commands add/read/mark/delete/clear — depends on `session.todo_list`
-- **Digester tool interface**: `tinycua/tools/digester.py` with `create_enhanced_context_retrieval` + `digest_information` — depends on session context cache
+- **TodoList tool**: `tinycua/tools/todo.py` with sub-commands add/read/mark/delete/clear — depends on orchestration-layer TodoList state
+- **Digester tool interface**: `tinycua/tools/digester.py` with `create_enhanced_context_retrieval` + `digest_information` — depends on digester context cache
 - **Per-agent `*_BASE_TOOLS`**: SHARED_AGENT_BASE_TOOLS, TASK_EXECUTOR_BASE_TOOLS, RESULT_REVIEWER_BASE_TOOLS, QUERY_ANALYST_BASE_TOOLS, INFORMATION_DIGESTER_BASE_TOOLS, TASK_ANALYZER_BASE_TOOLS, TASK_ASSESSOR_BASE_TOOLS, PRIMARY_AGENT_BASE_TOOLS, CONTEXT_CACHE_TOOLS, EXPLORATION_TOOL
 - **Task tools**: ReadActiveTask, ReadTask, ListTask, TaskInit, SetSubTask, AddSubTask, DeleteSubTask, EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult — depend on Task/TaskResult state objects
 
