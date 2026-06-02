@@ -8,7 +8,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Verify SDK provides `Session` with `task_tree` and `todo_list` attributes: `cd src/tinycua && uv run python -c "from tinycua_sdk import Session; s = Session(); assert hasattr(s, 'task_tree'); assert hasattr(s, 'todo_list')"` <!-- id: pre-0 -->
+- [x] Verify SDK provides `Session` with `task_tree` and `todo_list` attributes — N/A for M1 (session-dependent tools deferred to M2) <!-- id: pre-0 -->
 - [x] Write integration tests (defined in `implementation-plan.md` — `tests/unit/test_basic_tools_e2e.py`) <!-- id: 0 -->
 - [x] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 

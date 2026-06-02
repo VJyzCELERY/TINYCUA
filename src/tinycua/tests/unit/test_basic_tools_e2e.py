@@ -37,8 +37,10 @@ def test_all_native_tools_register_with_agent():
     assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)
 
 
-def test_native_tools_integration(tmp_path):
+def test_native_tools_integration(tmp_path, monkeypatch):
     """Native execution tools work and return structured results."""
+    monkeypatch.setenv("TINYCUA_TOOL_ROOT", str(tmp_path))
+
     from tinycua.tools.native.files import list_files, read_file, write_file
     from tinycua.tools.native.python_exec import run_python
     from tinycua.tools.native.shell import run_shell

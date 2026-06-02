@@ -17,14 +17,29 @@ _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 
 
 def _resolve_path(path: str) -> Path:
-    """Resolve a path to an absolute Path.
+    """Resolve a path to an absolute Path, enforcing the tool sandbox root.
 
-    If the path starts with ``/`` it is treated as absolute; otherwise it
-    is resolved relative to ``os.getcwd()``.
+    The sandbox root is determined by the ``TINYCUA_TOOL_ROOT`` environment
+    variable, falling back to ``os.getcwd()``. Paths that resolve outside
+    the sandbox root are rejected.
+
+    Args:
+        path: The path to resolve. Absolute paths start with ``/``.
+
+    Returns:
+        The resolved absolute Path.
+
+    Raises:
+        PermissionError: If the resolved path escapes the sandbox root.
     """
+    root = Path(os.environ.get("TINYCUA_TOOL_ROOT", os.getcwd())).resolve()
     if path.startswith("/"):
-        return Path(path)
-    return Path(os.getcwd()) / path
+        candidate = Path(path).resolve()
+    else:
+        candidate = (root / path).resolve()
+    if not candidate.is_relative_to(root):
+        raise PermissionError(f"Path escapes tool root: {path}")
+    return candidate
 
 
 # --- Helper functions for read_file ---
@@ -64,7 +79,10 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
 
     Returns an error dict if the file cannot be read.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except PermissionError as exc:
+        return {"error": str(exc)}
 
     if not resolved.exists():
         return {"error": f"File not found: {path}"}
@@ -120,6 +138,8 @@ def read_file(
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
     if offset is not None:
+        if offset < 0:
+            return {"error": f"Invalid offset: {offset}. Must be >= 0."}
         actual_start = start if start is not None else 1
         if actual_start < 1:
             return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
@@ -177,7 +197,15 @@ def write_file(path: str, content: str) -> dict[str, Any]:
     Returns:
         A dict with keys: success, path, chars_written, error.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except PermissionError as exc:
+        return {
+            "success": False,
+            "path": path,
+            "chars_written": 0,
+            "error": str(exc),
+        }
 
     # Create parent directories
     try:
@@ -229,7 +257,10 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
     Returns:
         A list of absolute file paths on success, or an error dict on failure.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except PermissionError as exc:
+        return {"error": str(exc)}
 
     if not resolved.exists():
         return {"error": f"Directory not found: {path}"}

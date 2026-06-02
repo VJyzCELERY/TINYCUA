@@ -1,6 +1,6 @@
 # Feature Specification: M1 — Basic Tools
 
-**Status**: Draft
+**Status**: Implemented
 **Created**: 2026-06-02
 **Last Updated**: 2026-06-02
 **Subproject(s) Affected**: tinycua
@@ -113,13 +113,13 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Native tool result model exists**: `ToolResult` is importable from `tinycua.tools` and has all required fields.
-- [ ] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
-- [ ] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
-- [ ] **Native tool constants exist**: `NATIVE_BASE_TOOLS` is defined (and `READ_ONLY_TASK_TOOLS` may exist as a forward reference).
-- [ ] **No orchestration-layer tools in M1**: TodoList, digester tools, and per-agent `*_BASE_TOOLS` are NOT implemented in M1 — deferred to M2.
-- [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest`
-- [ ] **A future Task Executor can call the tool layer** without knowing CLI or graph internals.
+- [x] **Native tool result model exists**: `ToolResult` is importable from `tinycua.tools` and has all required fields.
+- [x] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
+- [x] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
+- [x] **Native tool constants exist**: `NATIVE_BASE_TOOLS` is defined (and `READ_ONLY_TASK_TOOLS` may exist as a forward reference).
+- [x] **No orchestration-layer tools in M1**: TodoList, digester tools, and per-agent `*_BASE_TOOLS` are NOT implemented in M1 — deferred to M2.
+- [x] **Tool tests pass**: `cd src/tinycua && uv run pytest`
+- [x] **A future Task Executor can call the tool layer** without knowing CLI or graph internals.
 
 ---
 
@@ -150,7 +150,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Native Tool Result Model | TODO | To be implemented (new dataclass) |
+| Native Tool Result Model | Done | Implemented — `ToolResult` dataclass with `.to_dict()` |
 | Shell Execution Tool | Done (native_tools) | Existing — verify SDK compat |
 | File Read/Write/List Tools | Done (native_tools) | Existing — verify SDK compat |
 | HTTP Fetch Tool | Done (native_tools) | Existing — verify SDK compat |
@@ -159,8 +159,8 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 | TodoList Tool | DEFERRED → M2 | Depends on orchestration-layer TodoList state |
 | Digester Tool Interface | DEFERRED → M2 | Depends on digester context cache |
 | Per-Agent *BASE_TOOLS Constants | DEFERRED → M2 | Reference orchestration-layer tools and agent nodes |
-| Native Tool Constants (NATIVE_BASE_TOOLS) | TODO | Stateless tool reference list |
-| SDK Tool Wrappers | TODO | Ensure all tools are @tool-decorated and SDK-compatible |
+| Native Tool Constants (NATIVE_BASE_TOOLS) | Done | Implemented — `tinycua/constants/tools.py` |
+| SDK Tool Wrappers | Done | All tools are `@tool`-decorated and SDK-compatible |
 
 ---
 
