@@ -9,6 +9,10 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 ## Implementation Phase
 
+### Pre-Implementation: SDK Model Readiness
+
+- [ ] Verify `tinycua_sdk` provides `Task`/`TaskResult`/`Session` models with required fields and methods (blocks Phase 2-4 if unavailable) <!-- id: pre-0 -->
+
 ### Phase 1 — Native Tool Result Model
 
 - [ ] Create `tinycua/tools/__init__.py` — public exports <!-- id: 2 -->

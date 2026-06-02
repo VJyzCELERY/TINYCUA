@@ -54,6 +54,14 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 ## Requirements _(mandatory)_
 
+### Non-Functional Requirements
+
+- **NFR-001 — Concurrency Model**: Tool execution need not be thread-safe for M1. Each agent loop executes tools sequentially within a single session. If concurrent execution is introduced later, session state access must be protected.
+- **NFR-002 — Task Tree Scale**: Task trees are expected to contain at most ~1000 nodes. Re-indexing and traversal operations must complete within reasonable time at this scale (target: <100ms for a full re-index).
+- **NFR-003 — Tool Call Latency**: Native execution tools (shell, file, web, python) should return within their configured timeout. Read-only task tools should complete in <10ms. Write task tools (with re-indexing) should complete in <100ms.
+- **NFR-004 — Idempotency**: Read-only tools (ReadActiveTask, ReadTask, ListTask, read_file, list_files) MUST be idempotent. Write tools are NOT required to be idempotent.
+- **NFR-005 — Determinism**: Tool results for the same inputs and same session state MUST be deterministic (except run_shell, run_python, fetch_url which depend on external systems).
+
 ### Functional Requirements
 
 #### Native Tool Result Model
@@ -107,7 +115,9 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 #### Digester Retrieval Tool Interface
 
-- **FR-021**: System MUST provide a digester retrieval tool interface with `enhanced_context_retrieval` (spawns inner transient retrieval agents) and `digest_information` (produces structured digest output).
+- **FR-021**: System MUST provide a digester retrieval tool interface with:
+  - `enhanced_context_retrieval(cache_path, model, exploration_tools)` — A factory function that accepts a `cache_path` (str), `model` (LanguageModel from SDK), and `exploration_tools` (list of Tool). Returns a `Tool` instance. When called, the returned tool spawns inner transient retrieval agents to gather context, then caches and returns the result.
+  - `digest_information(context_summary, key_points, advisory_instructions, constraints, known_gaps)` — Produces a structured digest string prefixed with `DIGEST_INFO::`. Accepts: `context_summary` (str), `key_points` (list[str]), `advisory_instructions` (str | None), `constraints` (list[str] | None), `known_gaps` (list[str] | None). Returns a str.
 
 #### Tool Constants / Mappings
 

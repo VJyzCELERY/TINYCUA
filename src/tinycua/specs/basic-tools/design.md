@@ -34,7 +34,8 @@ tinycua/tinycua/
 │   │   ├── read.py              # ReadActiveTask, ReadTask, ListTask
 │   │   ├── write.py             # TaskInit, SetSubTask, AddSubTask, DeleteSubTask,
 │   │   │                        #   EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult
-│   │   └── _mutation.py         # _apply_task_mutation, _reindex_tree (internal helpers)
+│   │   └── _mutation.py         # _apply_task_mutation, _reindex_tree, _remove_by_id,
+│   │                            #   _collect_ids, _find_parent_and_child, _is_ancestor (internal helpers)
 │   ├── todo.py                  # TodoList tool
 │   └── digester.py              # enhanced_context_retrieval, digest_information
 ├── constants/

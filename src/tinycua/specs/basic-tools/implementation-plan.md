@@ -51,8 +51,7 @@ from tinycua_sdk import Agent
 from tinycua_sdk.tools.decorators import Tool
 
 
-@pytest.mark.asyncio
-async def test_tool_result_model_importable():
+def test_tool_result_model_importable():
     """ToolResult is importable from tinycua.tools and has all required fields."""
     from tinycua.tools.result import ToolResult
 
@@ -64,8 +63,7 @@ async def test_tool_result_model_importable():
     assert isinstance(result.duration, float)
 
 
-@pytest.mark.asyncio
-async def test_all_tools_register_with_agent():
+def test_all_tools_register_with_agent():
     """All M1 tools can be registered with an SDK Agent as Tool instances."""
     from tinycua.tools.native.shell import run_shell
     from tinycua.tools.native.files import read_file, write_file, list_files
@@ -91,8 +89,7 @@ async def test_all_tools_register_with_agent():
     assert all(hasattr(t, "name") and hasattr(t, "parameters") for t in tools)
 
 
-@pytest.mark.asyncio
-async def test_todo_tool_add_read_clear():
+def test_todo_tool_add_read_clear():
     """TodoList add/read/clear work through the SDK."""
     from tinycua.tools.todo import TodoList
 
@@ -109,8 +106,7 @@ async def test_todo_tool_add_read_clear():
     assert "cleared" in result3.lower() or "empty" in result3.lower()
 
 
-@pytest.mark.asyncio
-async def test_task_tree_init_and_read(tmp_path):
+def test_task_tree_init_and_read():
     """TaskInit creates a tree and ReadTask/ListTask can inspect it."""
     from tinycua.tools.task.write import TaskInit
     from tinycua.tools.task.read import ReadTask, ListTask
@@ -123,7 +119,7 @@ async def test_task_tree_init_and_read(tmp_path):
             "confidence": 1.0,
             "task_context": "context",
         },
-        sub_task=[
+        sub_tasks=[
             {"task_name": "Child 1", "task_description": "First child",
              "task_context": "", "success_criteria": ["done"], "confidence": 0.8},
         ]
@@ -136,24 +132,22 @@ async def test_task_tree_init_and_read(tmp_path):
     assert "Child 1" in listed
 
 
-@pytest.mark.asyncio
-async def test_read_active_task_returns_none_when_no_tree():
+def test_read_active_task_returns_none_when_no_tree():
     """ReadActiveTask returns None when no task tree exists."""
     from tinycua.tools.task.read import ReadActiveTask
     assert ReadActiveTask() is None
 
 
-@pytest.mark.asyncio
-async def test_native_tools_integration():
+def test_native_tools_integration(tmp_path):
     """Native execution tools work and return structured results."""
     from tinycua.tools.native.files import write_file, read_file
 
-    result = write_file(path="/tmp/test_m1_integration.txt", content="hello world")
+    test_file = tmp_path / "test_m1_integration.txt"
+    result = write_file(path=str(test_file), content="hello world")
     assert result["success"] is True
 
-    content = read_file(path="/tmp/test_m1_integration.txt")
+    content = read_file(path=str(test_file))
     assert "hello world" in content
-    os.remove("/tmp/test_m1_integration.txt")
 ```
 
 ### Key Test Scenarios
