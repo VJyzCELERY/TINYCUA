@@ -18,19 +18,32 @@ M1 (Basic Tools) implements the foundational tool layer for the TINYCUA prototyp
 
 ### Component Overview
 
+> **Path convention**: All paths below are relative to the `tinycua` Python package root (i.e., under `src/tinycua/tinycua/`). For example, `tinycua/tools/result.py` is located at `src/tinycua/tinycua/tools/result.py` on disk.
+
 ```
-tinycua/tinycua/
-├── tools/
-│   ├── __init__.py              # Public exports (all tool functions + ToolResult)
-│   ├── result.py                # Native ToolResult model
-│   ├── native/
-│   │   ├── __init__.py          # Re-exports from individual modules
-│   │   ├── shell.py             # run_shell
-│   │   ├── files.py             # read_file, write_file, list_files
-│   │   ├── web.py               # fetch_url
-│   │   └── python_exec.py       # run_python
-├── constants/
-│   └── tools.py                 # Tool constants (NATIVE_BASE_TOOLS, READ_ONLY_TASK_TOOLS ref)
+tinycua/
+├── __init__.py                   # Package root
+├── agent/
+│   ├── __init__.py
+│   └── tools/
+│       ├── __init__.py           # Backward-compat exports
+│       └── native/
+│           ├── __init__.py       # Re-exports from individual modules
+│           ├── shell.py          # run_shell (existing)
+│           ├── files.py          # read_file, write_file, list_files (existing)
+│           ├── web.py            # fetch_url (existing)
+│           └── python_exec.py    # run_python (existing)
+├── tools/                        # [NEW] — Canonical tool implementations
+│   ├── __init__.py               # Public exports (all tool functions + ToolResult)
+│   ├── result.py                 # Native ToolResult model
+│   └── native/
+│       ├── __init__.py           # Re-exports from individual modules
+│       ├── shell.py              # run_shell (adapted from agent/tools/native/shell.py)
+│       ├── files.py              # read_file, write_file, list_files (adapted from agent/tools/native/files.py)
+│       ├── web.py                # fetch_url (adapted from agent/tools/native/web.py)
+│       └── python_exec.py        # run_python (adapted from agent/tools/native/python_exec.py)
+└── constants/                    # [NEW]
+    └── tools.py                  # Tool constants (NATIVE_BASE_TOOLS, READ_ONLY_TASK_TOOLS ref)
 
 # M2 additions (deferred): tinycua/tools/todo.py, tinycua/tools/digester.py,
 # per-agent *BASE_TOOLS in tinycua/constants/tools.py
