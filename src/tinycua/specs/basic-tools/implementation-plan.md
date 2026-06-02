@@ -1,6 +1,6 @@
 # Implementation: M1 — Basic Tools
 
-Implement the complete foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), task tree read/write tools, a TodoList tool, a digester retrieval tool interface, and tool constants/mappings. All tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
+Implement the foundational tool layer for the TINYCUA prototype: native execution tools (shell, file, web, python), a TodoList tool, a digester retrieval tool interface, and tool constants/mappings. All tools are implemented as `tinycua_sdk` `@tool`-decorated functions.
 
 ## Context
 
@@ -53,9 +53,8 @@ from tinycua_sdk.tools.decorators import Tool
 
 @pytest.fixture
 def session():
-    """Create a mock session with task_tree and todo_list for tool testing."""
+    """Create a mock session with todo_list for tool testing."""
     _session = MagicMock()
-    _session.task_tree = None
     _session.todo_list = None
     return _session
 
@@ -78,19 +77,11 @@ def test_all_tools_register_with_agent():
     from tinycua.tools.native.files import read_file, write_file, list_files
     from tinycua.tools.native.web import fetch_url
     from tinycua.tools.native.python_exec import run_python
-    from tinycua.tools.task.read import ReadActiveTask, ReadTask, ListTask
-    from tinycua.tools.task.write import (
-        TaskInit, SetSubTask, AddSubTask, DeleteSubTask,
-        EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult,
-    )
     from tinycua.tools.todo import TodoList
     from tinycua.tools.digester import digest_information
 
     tools = [
         run_shell, read_file, write_file, list_files, fetch_url, run_python,
-        ReadActiveTask, ReadTask, ListTask,
-        TaskInit, SetSubTask, AddSubTask, DeleteSubTask,
-        EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult,
         TodoList, digest_information,
     ]
     for t in tools:
@@ -115,43 +106,6 @@ def test_todo_tool_add_read_clear(session):
         assert "cleared" in result3.lower() or "empty" in result3.lower()
 
 
-def test_task_tree_init_and_read(session):
-    """TaskInit creates a tree and ReadTask/ListTask can inspect it."""
-    from tinycua.tools.task.write import TaskInit
-    from tinycua.tools.task.read import ReadTask, ListTask
-
-    with patch("tinycua.tools.task._session", session):
-        session.task_tree = None
-
-        init_result = TaskInit(
-            primary_task_data={
-                "name": "Root Task",
-                "description": "The root",
-                "success_criteria": ["done"],
-                "confidence": 1.0,
-                "task_context": "context",
-            },
-            sub_tasks=[
-                {"task_name": "Child 1", "task_description": "First child",
-                 "task_context": "", "success_criteria": ["done"], "confidence": 0.8},
-            ]
-        )
-        assert "root_id" in init_result
-        assert init_result["total"] == 2
-
-        listed = ListTask()
-        assert "Root Task" in listed
-        assert "Child 1" in listed
-
-
-def test_read_active_task_returns_none_when_no_tree(session):
-    """ReadActiveTask returns None when no task tree exists."""
-    from tinycua.tools.task.read import ReadActiveTask
-    with patch("tinycua.tools.task._session", session):
-        session.task_tree = None
-        assert ReadActiveTask() is None
-
-
 def test_native_tools_integration(tmp_path):
     """Native execution tools work and return structured results."""
     from tinycua.tools.native.files import write_file, read_file
@@ -168,10 +122,8 @@ def test_native_tools_integration(tmp_path):
 
 - [ ] **Scenario 1**: All M1 tools are importable and register with SDK Agent as `Tool` instances
 - [ ] **Scenario 2**: `ToolResult` model is importable and has all required fields
-- [ ] **Scenario 3**: Task tree creation (`TaskInit`) + read tools (`ReadTask`, `ListTask`) work together
-- [ ] **Scenario 4**: `ReadActiveTask` returns `None` when no task tree exists
-- [ ] **Scenario 5**: Native execution tools return correct structured results
-- [ ] **Scenario 6**: TodoList add/read/clear cycle works
+- [ ] **Scenario 3**: Native execution tools return correct structured results
+- [ ] **Scenario 4**: TodoList add/read/clear cycle works
 
 ## Verification Plan
 
@@ -183,12 +135,11 @@ def test_native_tools_integration(tmp_path):
 
 ### Manual Verification
 
-- [ ] `cd src/tinycua && uv run pytest tests/**/test_tool* tests/**/test_task* tests/**/test_todo*` passes
+- [ ] `cd src/tinycua && uv run pytest tests/**/test_tool* tests/**/test_todo*` passes
 - [ ] All tools are importable from `tinycua.tools` public exports
 
 ### Performance Considerations
 
-- [ ] Task re-indexing is O(n) per mutation — acceptable for benchmark-scale task trees (<1000 nodes)
 - [ ] Timeout enforcement on shell/python prevents runaway processes
 
 ## Proposed Changes
@@ -231,26 +182,7 @@ def test_native_tools_integration(tmp_path):
 - **[Description]**: `run_python` — execute Python code in subprocess with timeout
 - **[Rationale]**: Adapted from `tinycua/agent/tools/native/python_exec.py`
 
-### Task Tools
-
-#### [NEW] `tinycua/tools/task/__init__.py`
-
-- **[Description]**: Re-exports from read/write modules
-
-#### [NEW] `tinycua/tools/task/_mutation.py`
-
-- **[Description]**: Internal helpers: `_apply_task_mutation`, `_reindex_tree`, `_remove_by_id`, `_collect_ids`, `_find_parent_and_child`, `_is_ancestor`
-- **[Rationale]**: Shared mutation pattern for all task write tools
-
-#### [NEW] `tinycua/tools/task/read.py`
-
-- **[Description]**: Read-only task tools: `ReadActiveTask`, `ReadTask`, `ListTask`
-- **[Rationale]**: Task tree inspection without side effects
-
-#### [NEW] `tinycua/tools/task/write.py`
-
-- **[Description]**: Task mutation tools: `TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`
-- **[Rationale]**: All 8 task write tools following the `_apply_task_mutation` pattern
+> **Note — M2 Deferral**: Task Tools (read/write tools and `_mutation.py` helpers) are deferred to M2 pending `Task`/`TaskResult` state object implementation in the SDK. See `src/tinycua/specs/basic-tools/spec.md` for details.
 
 ### TodoList Tool
 
@@ -274,7 +206,7 @@ def test_native_tools_integration(tmp_path):
 
 #### [NEW] `tinycua/constants/tools.py`
 
-- **[Description]**: All `*_BASE_TOOLS` constants for every agent node type: `SHARED_AGENT_BASE_TOOLS`, `READ_ONLY_TASK_TOOLS`, `WRITE_TASK_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL`
+- **[Description]**: All `*_BASE_TOOLS` constants for every agent node type: `SHARED_AGENT_BASE_TOOLS`, `TASK_EXECUTOR_BASE_TOOLS`, `RESULT_REVIEWER_BASE_TOOLS`, `QUERY_ANALYST_BASE_TOOLS`, `INFORMATION_DIGESTER_BASE_TOOLS`, `TASK_ANALYZER_BASE_TOOLS`, `TASK_ASSESSOR_BASE_TOOLS`, `PRIMARY_AGENT_BASE_TOOLS`, `CONTEXT_CACHE_TOOLS`, `EXPLORATION_TOOL` (note: `READ_ONLY_TASK_TOOLS` and `WRITE_TASK_TOOLS` are deferred to M2)
 - **[Rationale]**: Module-level constants for per-node tool assignment
 
 #### [MODIFY] `tinycua/__init__.py`
@@ -297,18 +229,6 @@ def test_native_tools_integration(tmp_path):
 
 - **[Description]**: Unit tests for `ToolResult` model
 
-#### [NEW] `tests/unit/test_task_tools_read.py`
-
-- **[Description]**: Unit tests for read-only task tools
-
-#### [NEW] `tests/unit/test_task_tools_write.py`
-
-- **[Description]**: Unit tests for task mutation tools (happy + error + edge cases)
-
-#### [NEW] `tests/unit/test_task_mutation.py`
-
-- **[Description]**: Unit tests for `_apply_task_mutation`, `_reindex_tree`, `_remove_by_id`, `_collect_ids` helpers
-
 #### [NEW] `tests/unit/test_todo.py`
 
 - **[Description]**: Unit tests for `TodoList` tool (all 7 sub-commands, pre-init behavior, empty list)
@@ -330,7 +250,7 @@ def test_native_tools_integration(tmp_path):
 | `tinycua/tools/` | New | New top-level package for tool implementations |
 | `tinycua/tools/result.py` | New | Native ToolResult dataclass |
 | `tinycua/tools/native/` | New | Native execution tools (adapted from agent/tools/native) |
-| `tinycua/tools/task/` | New | Task read/write tools with re-indexing mutation helpers |
+| `tinycua/tools/task/` | Deferred → M2 | Task read/write tools (deferred to M2) |
 | `tinycua/tools/todo.py` | New | TodoList tool with sub-command dispatch |
 | `tinycua/tools/digester.py` | New | enhanced_context_retrieval + digest_information |
 | `tinycua/constants/` | New | Package for tool constant definitions |
@@ -370,17 +290,6 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 | `list_files` | `tinycua.tools.native.files` | List files matching glob pattern |
 | `fetch_url` | `tinycua.tools.native.web` | Fetch URL content |
 | `run_python` | `tinycua.tools.native.python_exec` | Execute Python code in subprocess |
-| `ReadActiveTask` | `tinycua.tools.task.read` | Get next active leaf task |
-| `ReadTask` | `tinycua.tools.task.read` | Get task by ID |
-| `ListTask` | `tinycua.tools.task.read` | List task tree as markdown |
-| `TaskInit` | `tinycua.tools.task.write` | Initialize new task tree |
-| `SetSubTask` | `tinycua.tools.task.write` | Replace parent's child_tasks |
-| `AddSubTask` | `tinycua.tools.task.write` | Append children to parent |
-| `DeleteSubTask` | `tinycua.tools.task.write` | Delete task(s) and descendants |
-| `EditSubTask` | `tinycua.tools.task.write` | Edit task metadata |
-| `SwapTask` | `tinycua.tools.task.write` | Swap two task positions |
-| `UpdateTaskResult` | `tinycua.tools.task.write` | Update any task's result |
-| `UpdateActiveTaskResult` | `tinycua.tools.task.write` | Update active task's result |
 | `TodoList` | `tinycua.tools.todo` | Per-session goal tracking |
 | `digest_information` | `tinycua.tools.digester` | Produce structured digest |
 | `create_enhanced_context_retrieval` | `tinycua.tools.digester` | Factory for retrieval tool |
@@ -391,22 +300,20 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor, Task/TaskResult/Session models |
+| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor, Session model |
 | httpx | >=0.27.0 | HTTP fetch tool |
 
 ### Internal Dependencies
 
-- [ ] Depends on `tinycua-sdk` Task/TaskResult/Session models for task tools
 - [ ] Blocks Agent node implementations (TaskExecutor, TaskAnalyzer, etc.)
+- [ ] Task tools (deferred to M2) depend on `tinycua-sdk` Task/TaskResult state objects
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Task tree re-indexing bugs | High | Comprehensive unit tests for all mutation paths; test `_reindex_tree` independently |
-| Circular swap detection failure | High | `_is_ancestor` check before swap; unit tests verify ancestor detection |
 | SDK compatibility gaps | Medium | All tools tested through `AgentExecutor.execute()` in integration tests |
-| Session state management errors in tools | Medium | Tools receive session via closure; mutation tools use atomic clone-swap pattern |
+| Session state management errors in tools | Medium | Tools receive session via closure |
 | `run_shell` dangerous commands | High | Scope: benchmarks run in controlled environments only; future sandboxing needed |
 | `run_python` infinite loops | Medium | Configurable timeout (default 30s) enforced by subprocess kill |
 

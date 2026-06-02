@@ -23,7 +23,7 @@
 
 ### Primary Scenario
 
-A future Task Executor agent receives a benchmark task (e.g., "read the file at /data/input.csv, compute the average of column 'price', and write the result to /data/output.txt"). The agent uses native tools (`read_file`, `run_shell`, `run_python`, `write_file`) to execute the work, uses task tools (`ReadActiveTask`, `ListTask`) to inspect its task tree, uses `UpdateActiveTaskResult` to report results, and uses the `TodoList` tool to track its progress during execution. All tool calls produce structured output the agent can interpret.
+A future Task Executor agent receives a benchmark task (e.g., "read the file at /data/input.csv, compute the average of column 'price', and write the result to /data/output.txt"). The agent uses native tools (`read_file`, `run_shell`, `run_python`, `write_file`) to execute the work and uses the `TodoList` tool to track its progress during execution. All tool calls produce structured output the agent can interpret.
 
 ### Acceptance Scenarios
 
@@ -32,11 +32,9 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 3. **Given** a file write tool, **When** called with a path and content, **Then** the file is created or overwritten and a success confirmation is returned.
 4. **Given** an HTTP fetch tool, **When** called with a valid URL, **Then** the response body is returned (truncated if too large).
 5. **Given** a Python execution tool, **When** called with valid code, **Then** it executes and returns `{stdout, stderr, exit_code}`.
-6. **Given** task read tools (`ReadActiveTask`, `ReadTask`, `ListTask`), **When** called, **Then** they return structured task tree information without side effects.
-7. **Given** task mutation tools (`TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`), **When** called, **Then** they mutate the task tree safely with re-indexing and return structured results.
-8. **Given** the `TodoList` tool, **When** used to add/read/update/clear items, **Then** it maintains per-session short-term goal tracking.
-9. **Given** the tool constants module, **When** imported, **Then** it provides pre-configured `*_BASE_TOOLS` lists for each agent node type.
-10. **Given** any tool call, **When** the agent receives the tool result, **Then** the result is a JSON-serializable value that the SDK can normalize for the LLM.
+6. **Given** the `TodoList` tool, **When** used to add/read/update/clear items, **Then** it maintains per-session short-term goal tracking.
+7. **Given** the tool constants module, **When** imported, **Then** it provides pre-configured `*_BASE_TOOLS` lists for each agent node type.
+8. **Given** any tool call, **When** the agent receives the tool result, **Then** the result is a JSON-serializable value that the SDK can normalize for the LLM.
 
 ### Edge Cases
 
@@ -44,9 +42,6 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - What happens when `read_file` is given a path that does not exist or is a directory?
 - What happens when `fetch_url` receives a non-200 response or invalid URL?
 - What happens when `run_python` code has a syntax error or infinite loop?
-- What happens when task mutation tools receive invalid task IDs?
-- What happens when `DeleteSubTask` is called on the root task?
-- What happens when `SwapTask` creates a circular reference?
 - What happens when `TodoList` is called before initialization?
 - What happens when large outputs are returned (file too large, URL response too large)?
 
@@ -57,9 +52,9 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 ### Non-Functional Requirements
 
 - **NFR-001 — Concurrency Model**: Tool execution need not be thread-safe for M1. Each agent loop executes tools sequentially within a single session. If concurrent execution is introduced later, session state access must be protected.
-- **NFR-002 — Task Tree Scale**: Task trees are expected to contain at most ~1000 nodes. Re-indexing and traversal operations must complete within reasonable time at this scale (target: <100ms for a full re-index).
-- **NFR-003 — Tool Call Latency**: Native execution tools (shell, file, web, python) should return within their configured timeout. Read-only task tools should complete in <10ms. Write task tools (with re-indexing) should complete in <100ms.
-- **NFR-004 — Idempotency**: Read-only tools (ReadActiveTask, ReadTask, ListTask, read_file, list_files) MUST be idempotent. Write tools are NOT required to be idempotent.
+- **NFR-002 — Task Tree Scale**: Not applicable to M1 (task tools deferred to M2).
+- **NFR-003 — Tool Call Latency**: Native execution tools (shell, file, web, python) should return within their configured timeout.
+- **NFR-004 — Idempotency**: Read-only tools (read_file, list_files) MUST be idempotent. Write tools are NOT required to be idempotent.
 - **NFR-005 — Determinism**: Tool results for the same inputs and same session state MUST be deterministic (except run_shell, run_python, fetch_url which depend on external systems).
 
 ### Functional Requirements
@@ -91,49 +86,31 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 - **FR-007**: System MUST provide a `run_python` tool that executes Python code in an isolated subprocess with a configurable timeout, returning `{stdout, stderr, exit_code, timed_out, error}`. *(Existing native_tools impl at `tinycua/agent/tools/native/python_exec.py`)*
 
-#### Task Tools — Read
-
-- **FR-008**: System MUST provide `ReadActiveTask` that returns the next active (non-completed) leaf task from the task tree via DFS pre-order traversal. Returns `None` if no active task or no task tree.
-- **FR-009**: System MUST provide `ReadTask(task_id)` that returns a specific task by ID from the task tree. Returns `None` if not found.
-- **FR-010**: System MUST provide `ListTask` that returns the entire task tree as formatted markdown with status markers.
-
-#### Task Tools — Write
-
-- **FR-011**: System MUST provide `TaskInit` that replaces the entire session task tree with a new root + optional immediate children.
-- **FR-012**: System MUST provide `SetSubTask(parent_task_id, sub_tasks)` that replaces a parent's entire `child_tasks` list.
-- **FR-013**: System MUST provide `AddSubTask(parent_task_id, sub_tasks)` that appends new children to an existing parent.
-- **FR-014**: System MUST provide `DeleteSubTask(task_id)` that deletes a task and all its descendants. Root task cannot be deleted.
-- **FR-015**: System MUST provide `EditSubTask(task_id, task_data)` that edits metadata fields (`task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`) of an existing task. Structural fields (`task_id`, `parent_task_id`, `child_tasks`, `task_result`) are NOT editable through this tool.
-- **FR-016**: System MUST provide `SwapTask(task_id_1, task_id_2)` that swaps the positions of two tasks. Must prevent ancestor circularity.
-- **FR-017**: System MUST provide `UpdateTaskResult(task_id, result_data)` that updates the `task_result` of any task by explicit ID. Intended for TaskAnalyzer.
-- **FR-018**: System MUST provide `UpdateActiveTaskResult(result_data)` that updates only the current active leaf task's `task_result`. Intended for TaskExecutor.
-- **FR-019**: All write tools MUST follow a safe re-indexing pattern (`_apply_task_mutation`) that clones, mutates, re-indexes (DFS), and atomically swaps the task tree.
-
 #### TodoList Tool
 
-- **FR-020**: System MUST provide a `TodoList` tool with sub-commands: `add`, `read`, `mark_complete`, `mark_incomplete`, `edit`, `delete`, `clear`. Stored per-session on `session.todo_list`. Included in `SHARED_AGENT_BASE_TOOLS`.
+- **FR-008**: System MUST provide a `TodoList` tool with sub-commands: `add`, `read`, `mark_complete`, `mark_incomplete`, `edit`, `delete`, `clear`. Stored per-session on `session.todo_list`. Included in `SHARED_AGENT_BASE_TOOLS`.
 
 #### Digester Retrieval Tool Interface
 
-- **FR-021**: System MUST provide a digester retrieval tool interface with:
+- **FR-009**: System MUST provide a digester retrieval tool interface with:
   - `enhanced_context_retrieval(cache_path, model, exploration_tools)` — A factory function that accepts a `cache_path` (str), `model` (LanguageModel from SDK), and `exploration_tools` (list of Tool). Returns a `Tool` instance. When called, the returned tool spawns inner transient retrieval agents to gather context, then caches and returns the result.
   - `digest_information(context_summary, key_points, advisory_instructions, constraints, known_gaps)` — Produces a structured digest string prefixed with `DIGEST_INFO::`. Accepts: `context_summary` (str), `key_points` (list[str]), `advisory_instructions` (str | None), `constraints` (list[str] | None), `known_gaps` (list[str] | None). Returns a str.
 
 #### Tool Constants / Mappings
 
-- **FR-022**: System MUST provide module-level `*_BASE_TOOLS` constants for each agent node type (QueryAnalyst, InformationDigester, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, PrimaryAgent) as specified in `docs/design/constants/tools.md`.
+- **FR-010**: System MUST provide module-level `*_BASE_TOOLS` constants for each agent node type (QueryAnalyst, InformationDigester, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, PrimaryAgent) as specified in `docs/design/constants/tools.md`.
 
 #### SDK Compatibility
 
-- **FR-023**: All tools MUST be decorated with `@tool` from `tinycua_sdk` and return JSON-serializable output.
-- **FR-024**: All tools MUST handle errors gracefully — returning error information in the tool result rather than raising unhandled exceptions.
-- **FR-025**: Shell and Python execution MUST be bounded by configurable timeouts to prevent runaway processes.
+- **FR-011**: All tools MUST be decorated with `@tool` from `tinycua_sdk` and return JSON-serializable output.
+- **FR-012**: All tools MUST handle errors gracefully — returning error information in the tool result rather than raising unhandled exceptions.
+- **FR-013**: Shell and Python execution MUST be bounded by configurable timeouts to prevent runaway processes.
+
+> **Note — M2 Deferral**: Task read/write tools (`ReadActiveTask`, `ReadTask`, `ListTask`, `TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`) are **deferred to M2**. The `tinycua-sdk` does not currently export `Task` or `TaskResult` classes — only `Session` with a dict-based `task_tree`. The task tools depend on proper state objects that will be implemented in M2. See `src/tinycua/specs/basic-tools/design.md` for the deferred design.
 
 ### Key Entities
 
 - **ToolResult**: A structured model with `success`, `output`, `error`, `metadata`, `duration`. Native result format for all tool executions, usable by ExecutionLog.
-- **Task**: The core entity of the task tree. Has `task_id`, `task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`, `parent_task_id`, `child_tasks`, `task_result`. Task IDs are positional (e.g., `T-0`, `T-0.1`) and encode tree position.
-- **TaskResult**: The result of executing a task. Has `status` (not_started/inprogress/completed/failed/blocked), `result`, `discovered_sequence_issues`, `uncertainty_notes`.
 - **TodoList**: A per-session flat list of `{status, todo}` items representing the agent's short-term work-in-progress tracking.
 
 ---
@@ -143,13 +120,10 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - [ ] **Native tool result model exists**: `ToolResult` is importable from `tinycua.tools` and has all required fields.
 - [ ] **All native execution tools work**: `run_shell`, `read_file`, `write_file`, `list_files`, `fetch_url`, `run_python` all return correct structured results for valid inputs.
 - [ ] **Errors handled gracefully**: Each tool returns structured error information for invalid inputs, timeouts, and edge cases — no unhandled exceptions.
-- [ ] **Task read tools work**: `ReadActiveTask`, `ReadTask`, `ListTask` return correct task tree information without side effects.
-- [ ] **Task write tools work**: All 8 mutation tools (`TaskInit` through `UpdateActiveTaskResult`) correctly mutate the task tree and re-index IDs.
-- [ ] **Task tool safety enforced**: Root cannot be deleted. Active task write is scoped correctly. Re-indexing happens after every write.
 - [ ] **TodoList tool works**: Add, read, mark, edit, delete, clear all operate correctly on `session.todo_list`.
 - [ ] **Tool constants module exists**: All `*_BASE_TOOLS` constants are defined and importable.
 - [ ] **Digester retrieval tool interface exists**: `enhanced_context_retrieval` and `digest_information` are defined.
-- [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest tests/test_tools* tests/test_task_tools* tests/test_todo*`
+- [ ] **Tool tests pass**: `cd src/tinycua && uv run pytest tests/test_tools* tests/test_todo*`
 - [ ] **A future Task Executor can call the tool layer** without knowing CLI or graph internals.
 
 ---
@@ -161,8 +135,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - Each native tool tested in isolation with mocked/isolated external dependencies (temp dirs, mock HTTP).
 - Test happy paths: valid inputs produce expected structured outputs.
 - Test error paths: file not found, invalid command, timeout, syntax error — all return error results.
-- Test edge cases: empty file, empty command, empty URL, invalid task IDs, root delete prevention.
-- Test task tree operations: init, set, add, delete, edit, swap — verify tree structure and re-indexing.
+- Test edge cases: empty file, empty command, empty URL.
 - Test timeout enforcement: long-running commands and infinite loops are terminated.
 - Test TodoList: all 7 sub-commands, pre-initialization behavior, empty list handling.
 
@@ -170,7 +143,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 - Register all tools with a real SDK `Agent` and verify tool schema generation.
 - Verify tool execution through `AgentExecutor.execute()`.
-- Test end-to-end: native tools + task tools + todo tool work together in a multi-step scenario.
+- Test end-to-end: native tools + todo tool work together in a multi-step scenario.
 
 ### Manual Tests _(if applicable)_
 
@@ -187,8 +160,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 | File Read/Write/List Tools | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
 | HTTP Fetch Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
 | Python Execution Tool | Done (native_tools) | Existing in `tests/` and `tinycua/agent/tools/native/` |
-| Task Read Tools | TODO | ReadActiveTask, ReadTask, ListTask |
-| Task Write Tools | TODO | TaskInit, SetSubTask, AddSubTask, DeleteSubTask, EditSubTask, SwapTask, UpdateTaskResult, UpdateActiveTaskResult |
+| Task Tools (Read+Write) | DEFERRED → M2 | Depends on Task/TaskResult state objects in SDK |
 | TodoList Tool | TODO | Per-session short-term goal tracking |
 | Digester Tool Interface | TODO | enhanced_context_retrieval + digest_information |
 | Tool Constants | TODO | *_BASE_TOOLS mappings for all agent nodes |
