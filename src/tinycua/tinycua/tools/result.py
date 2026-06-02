@@ -5,7 +5,7 @@ Provides ``ToolResult``, a structured dataclass for all tool executions.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
