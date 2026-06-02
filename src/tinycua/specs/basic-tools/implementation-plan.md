@@ -99,7 +99,7 @@ def test_native_tools_integration(tmp_path):
     assert str(test_file) in files
 
     # Shell execution
-    shell_result = run_shell(command=f"echo hello")
+    shell_result = run_shell(command="echo hello")
     assert shell_result["exit_code"] == 0
     assert "hello" in shell_result["stdout"]
 
