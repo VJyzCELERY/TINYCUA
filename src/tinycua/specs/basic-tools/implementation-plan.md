@@ -113,7 +113,7 @@ def test_native_tools_integration(tmp_path):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = "hello from web"
-        mock_client.return_value.__enter__.return_value.send.return_value = mock_response
+        mock_client.return_value.__enter__.return_value.request.return_value = mock_response
         url_result = fetch_url(url="http://example.com")
         assert "hello from web" in url_result
 ```

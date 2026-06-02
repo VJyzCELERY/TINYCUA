@@ -1,7 +1,7 @@
 # Design Document: M1 — Basic Tools
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-02
 
 ---
