@@ -169,8 +169,8 @@ def test_native_tools_integration(tmp_path):
 
 #### [NEW] `tinycua/tools/native/files.py`
 
-- **[Description]**: `read_file`, `write_file`, `list_files` — file I/O with SDK-compatible signatures
-- **[Rationale]**: Adapted from `tinycua/agent/tools/native/files.py` (without `edit_file`)
+- **[Description]**: `read_file`, `write_file`, `edit_file`, `list_files` — file I/O with SDK-compatible signatures
+- **[Rationale]**: Adapted from `tinycua/agent/tools/native/files.py` (including `edit_file`)
 
 #### [NEW] `tinycua/tools/native/web.py`
 

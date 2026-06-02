@@ -15,7 +15,7 @@
 - **Goals**: Provide the foundational tool layer that the Task Executor, Task Analyzer, and other agents will use to interact with the environment. After M1, the prototype can execute sandboxed local tool actions and return structured observations — no agents, graph orchestration, or orchestration-layer state are required yet.
 - **Gaps**: The architecture has design docs for task tools, todo tools, digester tools, and tool constants, but these remain unimplemented as callable code. The `native_tools` spec covers only shell/file/web/python execution; the broader tool ecosystem (task read/write, todo, digester interface, tool result model, SDK wrappers) has no implementation spec.
 - **Non-Goals**: Agent execution, custom loops, AgentNode classes, graph orchestration, CLI, and WildClawBench batch runner. Durable persistence of tool results. **Orchestration-layer tools (TodoList, digester retrieval interface, per-agent tool constants) are deferred to M2** — M1 delivers only stateless tool primitives. Full browser/GUI automation unless required for the selected benchmark subset; if required, only define the minimal adapter contract and complete benchmark-specific support in a later milestone.
-- **Constraints**: All tools must be implemented as `tinycua_sdk` `@tool`-decorated functions compatible with the SDK's `Agent` and `AgentExecutor`. Must work with both local (LM Studio) and remote (OpenAI) providers. Must be safe for benchmark execution (no arbitrary code execution without boundaries).
+- **Constraints**: All tools must be implemented as `tinycua_sdk` `@tool`-decorated functions compatible with the SDK's `Agent` and `AgentExecutor`. Must work with both local (LM Studio) and remote (OpenAI) providers. Must be safe for benchmark execution (no arbitrary code execution without boundaries). File tools enforce a sandbox boundary via `TINYCUA_TOOL_ROOT` (defaults to CWD). All file paths must resolve within this root.
 
 ---
 
@@ -75,6 +75,10 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 - **FR-003**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string. Large files must be truncated with a clear indicator. Supports optional `start` (1-indexed line) and `offset` (line count) for range reads. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 - **FR-004**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path, creating parent directories if needed. Returns `{success, path, chars_written}`. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 - **FR-005**: System MUST provide a `list_files` tool that lists files matching a glob pattern in a directory, returning a list of matching paths. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
+
+#### File Edit Tool
+
+- **FR-005a**: System MUST provide an `edit_file` tool that replaces a range of lines in an existing file starting at a given 1-indexed line number. Supports an optional `offset` to limit how many lines are replaced (if `None`, replaces from `start` to end of file). The `offset` must be a positive integer (> 0). Returns `{success, path, start_line, lines_replaced, bytes_written, error}`. The file must already exist. Invalid start lines, non-positive offsets, and out-of-bounds ranges MUST return structured error dicts.
 
 #### HTTP Fetch Tool
 

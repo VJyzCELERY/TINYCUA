@@ -45,7 +45,10 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "error": None,
         }
     except subprocess.TimeoutExpired:
-        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # process already exited
         stdout, stderr = process.communicate()
         return {
             "stdout": stdout or "",

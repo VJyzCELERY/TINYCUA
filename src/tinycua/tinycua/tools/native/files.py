@@ -119,7 +119,8 @@ def read_file(
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
-            paths are resolved from the current working directory.
+            paths are resolved from the TINYCUA_TOOL_ROOT directory
+            (falling back to the current working directory if unset).
         start: The 1-indexed line number to start reading from (inclusive).
         offset: The number of lines to read from start.
             If None (and start is set), reads to end of file.
@@ -191,7 +192,8 @@ def write_file(path: str, content: str) -> dict[str, Any]:
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
-            paths are resolved from the current working directory.
+            paths are resolved from the TINYCUA_TOOL_ROOT directory
+            (falling back to the current working directory if unset).
         content: The content to write to the file.
 
     Returns:
@@ -256,11 +258,12 @@ def edit_file(
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
-            paths are resolved from the current working directory.
+            paths are resolved from the TINYCUA_TOOL_ROOT directory
+            (falling back to the current working directory if unset).
         start: The 1-indexed line number to start replacing from (inclusive).
         content: The new content to insert (replaces the specified lines).
-        offset: The number of lines to replace. If None, replaces from
-            *start* to the end of the file.
+        offset: The number of lines to replace. Must be a positive integer.
+            If None, replaces from *start* to the end of the file.
 
     Returns:
         A dict with keys: success, path, start_line, lines_replaced,
@@ -341,6 +344,15 @@ def edit_file(
     start_idx = start - 1  # convert to 0-indexed
 
     if offset is not None:
+        if offset <= 0:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "start_line": start,
+                "lines_replaced": 0,
+                "bytes_written": 0,
+                "error": f"Invalid offset: {offset}. Must be a positive integer (> 0).",
+            }
         if start_idx + offset > total_lines:
             return {
                 "success": False,
@@ -391,7 +403,8 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
 
     Args:
         path: Directory path. Absolute paths start with '/', relative
-            paths are resolved from the current working directory.
+            paths are resolved from the TINYCUA_TOOL_ROOT directory
+            (falling back to the current working directory if unset).
         pattern: Glob pattern for filtering files (default: '*').
 
     Returns:

@@ -26,20 +26,14 @@ tinycua/
 ├── agent/
 │   ├── __init__.py
 │   └── tools/
-│       ├── __init__.py           # Backward-compat exports
-│       └── native/
-│           ├── __init__.py       # Re-exports from individual modules
-│           ├── shell.py          # run_shell (existing)
-│           ├── files.py          # read_file, write_file, list_files (existing)
-│           ├── web.py            # fetch_url (existing)
-│           └── python_exec.py    # run_python (existing)
+│       └── __init__.py           # Backward-compat re-exports from tinycua.tools
 ├── tools/                        # [NEW] — Canonical tool implementations
 │   ├── __init__.py               # Public exports (all tool functions + ToolResult)
 │   ├── result.py                 # Native ToolResult model
 │   └── native/
 │       ├── __init__.py           # Re-exports from individual modules
 │       ├── shell.py              # run_shell (adapted from agent/tools/native/shell.py)
-│       ├── files.py              # read_file, write_file, list_files (adapted from agent/tools/native/files.py)
+│       ├── files.py              # read_file, write_file, edit_file, list_files
 │       ├── web.py                # fetch_url (adapted from agent/tools/native/web.py)
 │       └── python_exec.py        # run_python (adapted from agent/tools/native/python_exec.py)
 └── constants/                    # [NEW]
@@ -111,6 +105,12 @@ def write_file(path: str, content: str) -> dict:
     """Write content to file, creating parent dirs if needed."""
 
 @tool
+def edit_file(path: str, start: int, content: str,
+              offset: int | None = None) -> dict:
+    """Replace a range of lines in an existing file.
+    Returns {success, path, start_line, lines_replaced, bytes_written, error}."""
+
+@tool
 def list_files(path: str, pattern: str = "*") -> list[str] | dict:
     """List files matching glob in directory."""
 
@@ -179,6 +179,10 @@ All tools catch unexpected exceptions internally and return error dicts — no u
 2. **Decision**: `ToolResult` as a simple `@dataclass` with `.to_dict()`, not a Pydantic model.
    - **Reason**: No validation needed at this level. Pydantic adds a dependency and overhead for what is fundamentally a plain data carrier. The SDK already handles JSON serialization.
    - **Alternatives Considered**: Pydantic BaseModel — overkill for a simple result container.
+
+3. **Decision**: File tools resolve all paths against `TINYCUA_TOOL_ROOT` to prevent unintended filesystem access.
+   - **Reason**: Security sandbox. The `_resolve_path` helper checks that resolved paths stay within the root, rejecting escapes (including via symlinks). When `TINYCUA_TOOL_ROOT` is unset, falls back to CWD.
+   - **Alternatives Considered**: No sandbox — rejected due to benchmark safety requirements.
 
 > **Note — M2 Deferred Decisions**: The following technical decisions are recorded here for completeness but are **deferred to M2** implementation:
 > - **TodoList sub-command dispatch**: Single tool with `action` parameter vs. separate tools per action — design doc choice is single tool.

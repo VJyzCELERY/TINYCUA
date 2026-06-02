@@ -10,8 +10,6 @@ keeps tests resilient to model non-determinism (reasoning content vs
 content placement, wording variation, etc.).
 """
 
-import asyncio
-import json
 import os
 import tempfile
 from pathlib import Path
