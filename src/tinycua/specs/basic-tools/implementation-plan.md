@@ -8,6 +8,7 @@ Implement the basic tool layer for the TINYCUA prototype: native benchmark tools
 - **Design Reference**: `./design.md`
 - **Priority**: P0
 - **Estimated Effort**: M
+- **Status**: Complete (all code implemented, all tests passing)
 
 ## Environment Pre-requisites
 
@@ -17,12 +18,12 @@ Implement the basic tool layer for the TINYCUA prototype: native benchmark tools
 
 ## Success Criteria — Integration Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the integration tests that prove the feature works. These were written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ### Integration Test: Full SDK Registration & Execution
 
 ```python
-# Test file: src/tinycua/tests/test_tools_integration.py
+# Test file: src/tinycua/tests/integration/test_tools_integration.py
 """Integration tests for basic tools — SDK registration and execution."""
 
 from tinycua.agent.tools import register_all
@@ -213,19 +214,19 @@ def test_feature_flags_disable_tools():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for `ExecutorContext` and `ExecutorConfig` dataclasses
-- [ ] Unit tests for `TodoList` — add, list, update, clear, edge cases
-- [ ] Unit tests for each native tool — verify they still work individually
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for `ExecutorContext` and `ExecutorConfig` dataclasses
+- [x] Unit tests for `TodoList` — add, list, update, clear, edge cases
+- [x] Unit tests for each native tool — verify they still work individually
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] N/A — tools are deterministic and fully testable in code
+- [x] N/A — tools are deterministic and fully testable in code
 
 ### Performance Considerations
 
-- [ ] N/A — no performance-sensitive paths introduced
+- [x] N/A — no performance-sensitive paths introduced
 
 ## Proposed Changes
 
@@ -365,8 +366,8 @@ Todo list item shape:
 
 ### Internal Dependencies
 
-- [ ] Depends on `tinycua-sdk`'s `@tool` decorator and `ToolExecutor`
-- [ ] Depends on `native_tools` implementation (FR-001–FR-009 from `native_tools/spec.md`) — native tools must exist before M1 modifications begin
+- [x] Depends on `tinycua-sdk`'s `@tool` decorator and `ToolExecutor`
+- [x] Depends on `native_tools` implementation (FR-001–FR-009 from `native_tools/spec.md`) — native tools must exist before M1 modifications begin
 - [ ] Does NOT block any other features
 - [ ] Does NOT depend on M2 (state objects) — Session slot reserved as `None`
 
