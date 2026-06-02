@@ -8,8 +8,8 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 ## Pre-Implementation — SDK Verification
 
-- [ ] Verify `tinycua_sdk` provides `Session` model with `task_tree` and `todo_list` attributes <!-- id: pre-0 -->
-  - Run: `uv run python -c "from tinycua_sdk.models.session import Session; s = Session(); print(s.task_tree, s.todo_list)"`
+- [ ] Verify `tinycua` provides `Session` model with `task_tree` and `todo_list` attributes <!-- id: pre-0 -->
+  - Run: `uv run python -c "from tinycua.session import Session; s = Session(); print(s.task_tree, s.todo_list)"`
   - Expected: prints `None None` (no errors on import/instantiation)
 
 ## TDD Phase (Tests First)

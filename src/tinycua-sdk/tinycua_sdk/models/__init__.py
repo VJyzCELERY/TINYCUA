@@ -13,7 +13,6 @@ from tinycua_sdk.models.response import (
     Usage,
 )
 from tinycua_sdk.models.result import RunResult, ToolCall
-from tinycua_sdk.models.session import Session
 
 __all__ = [
     "ContentPart",
@@ -32,5 +31,4 @@ __all__ = [
     "OutputItem",
     "RunResult",
     "ToolCall",
-    "Session",
 ]

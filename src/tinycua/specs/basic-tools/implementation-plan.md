@@ -274,7 +274,8 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor, Session model |
+| tinycua-sdk | >=0.1.0 | Tool decorator, Agent, AgentExecutor |
+| tinycua | >=0.1.0 | Session model (tool state container) |
 | httpx | >=0.27.0 | HTTP fetch tool |
 
 ### Internal Dependencies
