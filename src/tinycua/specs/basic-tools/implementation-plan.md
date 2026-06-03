@@ -240,12 +240,15 @@ def test_native_tools_integration(tmp_path):
 
 ```python
 # New types or modified interfaces
+from dataclasses import dataclass, field
+from typing import Any
+
 @dataclass
 class ToolResult:
     success: bool
     output: str
     error: str | None = None
-    metadata: dict | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     duration: float = 0.0
 ```
 

@@ -4,8 +4,6 @@ Provides ``run_python`` for executing Python code in a subprocess and
 capturing stdout, stderr, and exit codes with configurable timeout.
 """
 
-from __future__ import annotations
-
 import os
 import signal
 import subprocess

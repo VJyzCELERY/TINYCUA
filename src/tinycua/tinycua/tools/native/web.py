@@ -4,8 +4,6 @@ Provides ``fetch_url`` for making HTTP requests with configurable
 methods, headers, timeout, and response truncation.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import httpx

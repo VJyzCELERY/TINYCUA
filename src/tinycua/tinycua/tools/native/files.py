@@ -4,8 +4,6 @@ Provides ``read_file``, ``write_file``, ``edit_file``, and ``list_files``
 for file system interaction with path resolution and error handling.
 """
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 from typing import Any
@@ -107,6 +105,58 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
     return (lines, content, trailing_newline)
 
 
+def _validate_read_range(
+    start: int | None, offset: int | None, total_lines: int
+) -> str | None:
+    """Validate start/offset range for read_file. Returns error string or None."""
+    if offset is not None and offset < 0:
+        return f"Invalid offset: {offset}. Must be >= 0."
+    actual_start = start if start is not None else 1
+    if actual_start < 1:
+        return f"Invalid start line: {actual_start}. Must be >= 1."
+    if actual_start > total_lines:
+        return f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
+    if offset is not None:
+        start_idx = actual_start - 1
+        if start_idx + offset > total_lines:
+            return (
+                f"Start line {actual_start} + offset {offset} exceeds file length "
+                f"({total_lines} lines). Range out of bounds."
+            )
+    return None
+
+
+def _read_file_bounded_range(
+    lines: list[str], start: int | None, offset: int, total_lines: int, trailing_newline: bool
+) -> str:
+    """Read a bounded range of lines from a file."""
+    actual_start = start if start is not None else 1
+    start_idx = actual_start - 1
+    # Zero-line read: return empty string immediately
+    if offset == 0:
+        return ""
+    selected = lines[start_idx : start_idx + offset]
+    result_str = "\n".join(selected)
+    if start_idx + offset < total_lines:
+        result_str += "\n"
+    elif trailing_newline:
+        result_str += "\n"
+    return result_str
+
+
+def _read_file_start_only(
+    lines: list[str], start: int, trailing_newline: bool
+) -> str:
+    """Read from start line to end of file, with truncation if needed."""
+    result_str = "\n".join(lines[start - 1 :])
+    if trailing_newline:
+        result_str += "\n"
+    result_bytes = result_str.encode("utf-8")
+    if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+        return result_str
+    return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+
+
 # --- read_file ---
 
 
@@ -149,50 +199,20 @@ def read_file(
     total_lines = len(lines)
     content_bytes = content.encode("utf-8")
 
+    # Validate range parameters
+    range_error = _validate_read_range(start, offset, total_lines)
+    if range_error is not None:
+        return {"error": range_error}
+
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
     if offset is not None:
-        if offset < 0:
-            return {"error": f"Invalid offset: {offset}. Must be >= 0."}
-        actual_start = start if start is not None else 1
-        if actual_start < 1:
-            return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
-        if actual_start > total_lines:
-            return {
-                "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        start_idx = actual_start - 1
-        if start_idx + offset > total_lines:
-            return {
-                "error": f"Start line {actual_start} + offset {offset} exceeds file length "
-                f"({total_lines} lines). Range out of bounds."
-            }
-        selected = lines[start_idx : start_idx + offset]
-        result_str = "\n".join(selected)
-        # Add trailing newline if we're not reading to the end of file
-        # (i.e., there are more lines after our selection)
-        if start_idx + offset < total_lines:
-            result_str += "\n"
-        elif trailing_newline:
-            result_str += "\n"
-        return result_str
+        return _read_file_bounded_range(lines, start, offset, total_lines, trailing_newline)
 
     # --- Start-only mode: unbounded read from N to end ---
     # This is still subject to truncation since the range is open-ended.
     if start is not None:
-        if start < 1:
-            return {"error": f"Invalid start line: {start}. Must be >= 1."}
-        if start > total_lines:
-            return {
-                "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        result_str = "\n".join(lines[start - 1 :])
-        if trailing_newline:
-            result_str += "\n"
-        result_bytes = result_str.encode("utf-8")
-        if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
-            return result_str
-        return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+        return _read_file_start_only(lines, start, trailing_newline)
 
     # --- Full-file mode: no start, no offset ---
     if len(content_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
@@ -270,6 +290,120 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         }
 
 
+# --- Helper functions for edit_file ---
+
+
+def _make_edit_error(
+    path: str, start: int, error: str
+) -> dict[str, Any]:
+    """Create a standard error dict for edit_file."""
+    return {
+        "success": False,
+        "path": path,
+        "start_line": start,
+        "lines_replaced": 0,
+        "bytes_written": 0,
+        "error": error,
+    }
+
+
+def _validate_edit_params(
+    path: str, start: int, offset: int | None
+) -> dict[str, Any] | None:
+    """Validate types for edit_file. Returns error dict or None."""
+    if not isinstance(path, str):
+        return _make_edit_error(str(path), start, f"path must be a string, got {type(path).__name__}")
+    if not isinstance(start, int):
+        return _make_edit_error(str(path), start, f"start must be an integer, got {type(start).__name__}")
+    if offset is not None and not isinstance(offset, int):
+        return _make_edit_error(str(path), start, f"offset must be an integer or None, got {type(offset).__name__}")
+    return None
+
+
+def _read_edit_file(path: str) -> tuple[str, Path, list[str], bool] | dict[str, Any]:
+    """Read and parse a file for editing. Returns (original, resolved, lines, trailing_newline) or error dict."""
+    try:
+        resolved = _resolve_path(path)
+    except PermissionError as exc:
+        return {"error": str(exc)}
+
+    if not resolved.exists():
+        return {"error": f"File not found: {path}"}
+
+    try:
+        original = resolved.read_text()
+        original = original.replace("\r\n", "\n")
+    except PermissionError:
+        return {"error": f"Permission denied: {path}"}
+    except Exception as exc:
+        return {"error": f"Failed to read file: {exc}"}
+
+    trailing_newline = original.endswith("\n")
+    if trailing_newline:
+        lines = original.split("\n")[:-1]
+    else:
+        lines = original.split("\n")
+
+    return (original, resolved, lines, trailing_newline)
+
+
+def _validate_edit_range(
+    start: int, offset: int | None, total_lines: int
+) -> str | None:
+    """Validate start/offset range for edit_file. Returns error string or None."""
+    if start < 1:
+        return f"Invalid start line: {start}. Must be >= 1."
+    if start > total_lines:
+        return f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
+    if offset is not None and offset <= 0:
+        return f"Invalid offset: {offset}. Must be a positive integer (> 0)."
+    if offset is not None:
+        start_idx = start - 1
+        if start_idx + offset > total_lines:
+            return (
+                f"Start line {start} + offset {offset} exceeds file length "
+                f"({total_lines} lines). Range out of bounds."
+            )
+    return None
+
+
+def _apply_edit(
+    lines: list[str], start_idx: int, offset: int | None, content: str, trailing_newline: bool
+) -> tuple[str, int]:
+    """Apply edit to lines and return (result, lines_replaced)."""
+    if offset is not None:
+        end_idx = start_idx + offset
+    else:
+        end_idx = len(lines)
+
+    lines_replaced = end_idx - start_idx
+    new_lines = content.split("\n")
+    has_new_trailing_newline = content.endswith("\n")
+    if has_new_trailing_newline and new_lines and new_lines[-1] == "":
+        new_lines = new_lines[:-1]
+
+    result_lines = lines[:start_idx] + new_lines + lines[end_idx:]
+    result = "\n".join(result_lines)
+    preserve_original = offset is not None and trailing_newline
+    if preserve_original or (offset is None and has_new_trailing_newline):
+        result += "\n"
+
+    return result, lines_replaced
+
+
+def _write_edit_result(
+    resolved: Path, result: str, path: str, start: int
+) -> dict[str, Any] | None:
+    """Write the edited file. Returns error dict or None on success."""
+    try:
+        resolved.write_text(result, encoding="utf-8")
+    except PermissionError:
+        return _make_edit_error(str(resolved), start, f"Permission denied: {path}")
+    except Exception as exc:
+        return _make_edit_error(str(resolved), start, str(exc))
+    return None
+
+
 # --- edit_file ---
 
 
@@ -296,171 +430,32 @@ def edit_file(
         bytes_written, error.
     """
     # Validate types before proceeding
-    if not isinstance(path, str):
-        return {
-            "success": False,
-            "path": str(path),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"path must be a string, got {type(path).__name__}",
-        }
-    if not isinstance(start, int):
-        return {
-            "success": False,
-            "path": str(path),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"start must be an integer, got {type(start).__name__}",
-        }
-    if offset is not None and not isinstance(offset, int):
-        return {
-            "success": False,
-            "path": str(path),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"offset must be an integer or None, got {type(offset).__name__}",
-        }
+    param_error = _validate_edit_params(path, start, offset)
+    if param_error is not None:
+        return param_error
 
-    try:
-        resolved = _resolve_path(path)
-    except PermissionError as exc:
-        return {
-            "success": False,
-            "path": path,
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": str(exc),
-        }
+    # Read and parse the file
+    read_result = _read_edit_file(path)
+    if isinstance(read_result, dict):
+        return _make_edit_error(path, start, read_result["error"])
+    original, resolved, lines, trailing_newline = read_result
 
-    if not resolved.exists():
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"File not found: {path}",
-        }
-
-    try:
-        original = resolved.read_text()
-        original = original.replace("\r\n", "\n")
-    except PermissionError:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"Permission denied: {path}",
-        }
-    except Exception as exc:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": str(exc),
-        }
-
-    # Split into lines, handling trailing newline correctly.
-    trailing_newline = original.endswith("\n")
-    if trailing_newline:
-        lines = original.split("\n")[:-1]
-    else:
-        lines = original.split("\n")
+    # Validate range
     total_lines = len(lines)
+    range_error = _validate_edit_range(start, offset, total_lines)
+    if range_error is not None:
+        return _make_edit_error(str(resolved), start, range_error)
 
-    if start < 1:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"Invalid start line: {start}. Must be >= 1.",
-        }
+    # Apply the edit
+    start_idx = start - 1
+    result, lines_replaced = _apply_edit(lines, start_idx, offset, content, trailing_newline)
 
-    if start > total_lines:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds.",
-        }
-
-    start_idx = start - 1  # convert to 0-indexed
-
-    if offset is not None:
-        if offset <= 0:
-            return {
-                "success": False,
-                "path": str(resolved),
-                "start_line": start,
-                "lines_replaced": 0,
-                "bytes_written": 0,
-                "error": f"Invalid offset: {offset}. Must be a positive integer (> 0).",
-            }
-        if start_idx + offset > total_lines:
-            return {
-                "success": False,
-                "path": str(resolved),
-                "start_line": start,
-                "lines_replaced": 0,
-                "bytes_written": 0,
-                "error": f"Start line {start} + offset {offset} exceeds file length "
-                f"({total_lines} lines). Range out of bounds.",
-            }
-        end_idx = start_idx + offset
-    else:
-        end_idx = total_lines
-
-    lines_replaced = end_idx - start_idx
-    new_lines = content.split("\n")
-    # If new content ends with newline, trim the trailing empty element
-    # but remember that the content had a trailing newline
-    has_new_trailing_newline = content.endswith("\n")
-    if has_new_trailing_newline and new_lines and new_lines[-1] == "":
-        new_lines = new_lines[:-1]
-
-    result_lines = lines[:start_idx] + new_lines + lines[end_idx:]
-    result = "\n".join(result_lines)
-    # Preserve trailing newline based on context:
-    # - If replacing a bounded range (offset is not None), preserve original trailing newline
-    # - If replacing to end of file (offset is None), use new content's trailing newline
-    preserve_original = offset is not None and trailing_newline
-    if preserve_original or (offset is None and has_new_trailing_newline):
-        result += "\n"
+    # Write the result
+    write_error = _write_edit_result(resolved, result, path, start)
+    if write_error is not None:
+        return write_error
 
     bytes_written = len(result.encode("utf-8"))
-    try:
-        resolved.write_text(result, encoding="utf-8")
-    except PermissionError:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": f"Permission denied: {path}",
-        }
-    except Exception as exc:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "start_line": start,
-            "lines_replaced": 0,
-            "bytes_written": 0,
-            "error": str(exc),
-        }
-
     return {
         "success": True,
         "path": str(resolved),

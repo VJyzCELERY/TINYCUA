@@ -4,8 +4,6 @@ Provides ``run_shell`` for executing arbitrary shell commands and
 capturing stdout, stderr, and exit codes with configurable timeout.
 """
 
-from __future__ import annotations
-
 import os
 import signal
 import subprocess
