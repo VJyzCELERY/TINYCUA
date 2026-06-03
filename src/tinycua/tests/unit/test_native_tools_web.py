@@ -49,10 +49,16 @@ def test_fetch_url_custom_method(httpx_mock):
 
 
 def test_fetch_url_redirect(httpx_mock):
-    """Redirects are followed."""
+    """Redirects are followed via a 302 redirect chain."""
     httpx_mock.add_response(
         method="GET",
         url="https://example.com/redirect",
+        status_code=302,
+        headers={"Location": "https://example.com/final"},
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/final",
         status_code=200,
         text="final destination",
     )

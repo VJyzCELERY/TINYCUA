@@ -60,6 +60,18 @@ def fetch_url(
     Returns:
         The response body as a string on success, or an error dict on failure.
     """
+    # Input validation
+    if not isinstance(url, str):
+        return {"error": f"Invalid url type: expected str, got {type(url).__name__}"}
+    if not isinstance(method, str):
+        return {"error": f"Invalid method type: expected str, got {type(method).__name__}"}
+    if not isinstance(headers, dict | type(None)):
+        return {"error": f"Invalid headers type: expected dict or None, got {type(headers).__name__}"}
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        return {"error": f"Invalid timeout: {timeout}. Must be a positive number."}
+    if not isinstance(max_size, int) or max_size < 0:
+        return {"error": f"Invalid max_size: {max_size}. Must be a non-negative integer."}
+
     try:
         with httpx.Client() as client:
             response = client.request(

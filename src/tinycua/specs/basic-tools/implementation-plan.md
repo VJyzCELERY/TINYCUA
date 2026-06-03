@@ -135,7 +135,7 @@ def test_native_tools_integration(tmp_path):
 
 ### Manual Verification
 
-- [x] `cd src/tinycua && uv run pytest tests/**/test_tool* tests/**/test_todo*` passes
+- [x] `cd src/tinycua && uv run pytest` passes
 - [x] All tools are importable from `tinycua.tools` public exports
 
 ### Performance Considerations

@@ -227,7 +227,7 @@ def test_list_files_absolute_paths(tmp_path):
 
     result = list_files(str(tmp_path))
     assert len(result) == 1
-    assert result[0].startswith("/")
+    assert Path(result[0]).is_absolute()
 
 
 # --- Sandbox escape regression tests ---

@@ -26,7 +26,13 @@ tinycua/
 ├── agent/
 │   ├── __init__.py
 │   └── tools/
-│       └── __init__.py           # Backward-compat re-exports from tinycua.tools
+│       ├── __init__.py           # Backward-compat re-exports from tinycua.tools
+│       └── native/               # Backward-compat shim modules re-exporting from tinycua.tools.native
+│           ├── __init__.py       # Re-exports from canonical tinycua.tools.native
+│           ├── shell.py          # Shim → tinycua.tools.native.shell
+│           ├── files.py          # Shim → tinycua.tools.native.files
+│           ├── web.py            # Shim → tinycua.tools.native.web
+│           └── python_exec.py    # Shim → tinycua.tools.native.python_exec
 ├── tools/                        # [NEW] — Canonical tool implementations
 │   ├── __init__.py               # Public exports (all tool functions + ToolResult)
 │   ├── result.py                 # Native ToolResult model
@@ -47,7 +53,7 @@ tinycua/
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua/agent/tools/native/` | Existing | Shell, file, web, python tools already exist from native_tools spec — verify SDK compatibility |
+| `tinycua/agent/tools/native/` | Backward-compat shims | Re-exports from `tinycua.tools.native.*` — do not add canonical implementations here |
 | `tinycua/agent/tools/__init__.py` | Modified | Update exports to include all new tools |
 | `tinycua/tools/` | New | New top-level package for tool implementations (separate from agent glue) |
 | `tinycua/tools/result.py` | New | Native ToolResult dataclass |

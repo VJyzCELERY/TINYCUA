@@ -28,7 +28,12 @@ class ToolResult:
     duration: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serializable dict representation.
+        """Return a dict representation of this ToolResult.
+
+        Returns a plain dictionary mirroring the dataclass fields.  Callers
+        must ensure that ``metadata`` values are JSON-serializable before
+        passing the result to ``json.dumps()`` — this method does **not**
+        validate or normalise metadata contents.
 
         Returns:
             A dictionary with all ToolResult fields.
