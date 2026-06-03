@@ -35,6 +35,20 @@ static instruction, configurable instruction append, and dynamic system context 
 separate system messages where supported, while keeping those parts structured
 internally for portability.
 
+Canonical TinyCUA node prompt rendering may look like:
+
+```text
+[
+  {"role": "system", "content": <constant node instruction>},
+  {"role": "system", "content": <configurable instruction append>},
+  {"role": "system", "content": <node-built dynamic system context>},
+  {"role": "assistant", "content": <internal context / continuation>},
+]
+```
+
+If a provider requires one system message, this is a rendering concern at the boundary;
+TinyCUA should keep prompt parts structured internally.
+
 ## Design Rules
 
 1. Do not require SDK changes.

@@ -35,6 +35,20 @@ Node config contributes only append-only instruction content. The node combines 
 hardcoded static instruction and optional dynamic system context in a structured
 `SystemPromptBundle` before rendering messages.
 
+```text
+SystemPromptBundle.to_messages():
+  → {"role": "system", "content": static_instruction}
+  → {"role": "system", "content": custom_instruction_append}
+  → {"role": "system", "content": dynamic_system_context}
+```
+
+The dynamic system context is built by the node, not arbitrary user text. Examples:
+
+- current active task
+- node-local state summary
+- output schema reminders
+- active tool policy
+
 Current SDK canonical messages allow multiple system messages to pass through. If a
 future provider requires a single system message, TinyCUA should merge prompt parts at
 render time while keeping them separate internally.

@@ -78,6 +78,10 @@ what context to pass to the strategy. A node may pass additional dynamic compact
 instructions separately if the strategy supports them, but the compaction target should
 usually be assistant/user/tool context rather than static system prompts.
 
+If a node needs compaction-specific guidance, it should pass that guidance as strategy
+configuration or as a separate system prompt for the compaction Agent, not as part of the
+messages being compacted. The compacted output remains one assistant-role summary.
+
 ## Related
 
 - [`../config/session_config.md`](../config/session_config.md)

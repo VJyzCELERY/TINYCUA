@@ -31,23 +31,38 @@ Nodes build LLM input from structured prompt parts:
 SystemPromptBundle
   · static_instruction                 # hardcoded node contract
   · configurable_instruction_append    # append-only customization
-  · dynamic_system_context             # optional; generally avoided
+  · dynamic_system_context             # optional node-built instruction/context
 ```
 
 Preferred rendering when supported by the provider/SDK path is multiple system messages:
 
 ```text
 [
-  {"role": "system", "content": static_instruction},
-  {"role": "system", "content": configurable_instruction_append},
-  {"role": "system", "content": dynamic_system_context},
+  {"role": "system", "content": static_instruction},                 # constant
+  {"role": "system", "content": configurable_instruction_append},    # config append
+  {"role": "system", "content": dynamic_system_context},             # e.g. current active task
   ...conversation messages...
 ]
 ```
 
 TinyCUA should keep the parts structured internally. If a provider needs one system
 message, merge at render time without relying on parsing separators back out of the text.
-Most dynamic context should be assistant-role context/continuation, not system prompt.
+Dynamic system context is allowed for node-built high-priority execution constraints
+such as current active task, node-local state, output schema reminders, or active tool
+policy. Most descriptive context should still be assistant-role context/continuation, not
+system prompt.
+
+Example TaskExecutor input:
+
+```text
+[
+  {"role": "system", "content": TASK_EXECUTOR_STATIC_INSTRUCTION},
+  {"role": "system", "content": config.custom_instruction_append},
+  {"role": "system", "content": "Current active task: T-0.1 ..."},
+  {"role": "assistant", "content": "Relevant prior task context ..."},
+  {"role": "assistant", "content": "I will now execute the active task."},
+]
+```
 
 ## Node Contract
 

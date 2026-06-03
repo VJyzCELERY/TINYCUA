@@ -327,22 +327,27 @@ Node message construction should keep system prompt categories distinct:
 SystemPromptBundle
   · static_instruction: str                  # hardcoded role/behavior contract
   · configurable_instruction_append: str     # append-only node customization
-  · dynamic_system_context: str | None       # optional, generally avoided
+  · dynamic_system_context: str | None       # optional node-built system context
 ```
 
 Preferred rendering when supported:
 
 ```text
 [
-  {"role": "system", "content": static_instruction},
-  {"role": "system", "content": configurable_instruction_append},
-  {"role": "system", "content": dynamic_system_context},
-  {"role": "user", "content": external_user_query},
-  {"role": "assistant", "content": previous_node_result},
+  {"role": "system", "content": static_instruction},                 # constant
+  {"role": "system", "content": configurable_instruction_append},    # config append
+  {"role": "system", "content": dynamic_system_context},             # e.g. current active task
+  {"role": "user", "content": external_user_query},                  # only actual user input
+  {"role": "assistant", "content": previous_node_result},            # internal context
+  {"role": "assistant", "content": continuation_prompt},             # internal continuation
 ]
 ```
 
-Dynamic system context should be used sparingly. Most dynamic context should be passed as assistant-role continuation/context messages so it can be audited, propagated, and compacted consistently.
+Dynamic system context is allowed when a node needs to provide high-priority execution
+constraints such as current active task, active tool policy, output schema reminder, or
+node-local state that should be interpreted as instruction rather than conversation.
+Most descriptive context should still be passed as assistant-role context/continuation so
+it can be audited, propagated, and compacted consistently.
 
 If a provider cannot safely accept multiple system messages, TinyCUA should merge the structured prompt parts at render time. TinyCUA should not depend on parsing separators from rendered system text to recover structure.
 
