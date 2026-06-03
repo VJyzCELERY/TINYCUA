@@ -129,18 +129,18 @@ def test_native_tools_integration(tmp_path):
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for each tool module — test error handling, edge cases, fallbacks
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for each tool module — test error handling, edge cases, fallbacks
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] `cd src/tinycua && uv run pytest tests/**/test_tool* tests/**/test_todo*` passes
-- [ ] All tools are importable from `tinycua.tools` public exports
+- [x] `cd src/tinycua && uv run pytest tests/**/test_tool* tests/**/test_todo*` passes
+- [x] All tools are importable from `tinycua.tools` public exports
 
 ### Performance Considerations
 
-- [ ] Timeout enforcement on shell/python prevents runaway processes
+- [x] Timeout enforcement on shell/python prevents runaway processes
 
 ## Proposed Changes
 

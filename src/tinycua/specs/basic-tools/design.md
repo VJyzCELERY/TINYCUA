@@ -142,25 +142,25 @@ All tools catch unexpected exceptions internally and return error dicts — no u
 
 ### Phase 1 — ToolResult Model + Tool Constants
 
-- [ ] Create `tinycua/tools/result.py` with `ToolResult` dataclass
-- [ ] Create `tinycua/constants/tools.py` with `NATIVE_BASE_TOOLS` and `READ_ONLY_TASK_TOOLS` (forward ref)
+- [x] Create `tinycua/tools/result.py` with `ToolResult` dataclass
+- [x] Create `tinycua/constants/tools.py` with `NATIVE_BASE_TOOLS` and `READ_ONLY_TASK_TOOLS` (forward ref)
 
 ### Phase 2 — Native Tools (already in progress via native_tools spec)
 
-- [ ] Verify existing native tools are SDK-compatible (`@tool` decorated, JSON-serializable return)
-- [ ] Move/adapt tool implementations from `tinycua/agent/tools/native/` to `tinycua/tools/native/`
-- [ ] Ensure all error paths return structured error dicts
+- [x] Verify existing native tools are SDK-compatible (`@tool` decorated, JSON-serializable return)
+- [x] Move/adapt tool implementations from `tinycua/agent/tools/native/` to `tinycua/tools/native/`
+- [x] Ensure all error paths return structured error dicts
 
 ### Phase 3 — Integration & Verification
 
-- [ ] All tools importable and callable through SDK
-- [ ] End-to-end test: native tools work together in scenario
-- [ ] `cd src/tinycua && uv run pytest` passes
+- [x] All tools importable and callable through SDK
+- [x] End-to-end test: native tools work together in scenario
+- [x] `cd src/tinycua && uv run pytest` passes
 
 ### Phase 4 — Update Existing Package Exports
 
-- [ ] Update `tinycua/agent/tools/__init__.py` — add new tool imports for backward compat
-- [ ] Update `tinycua/tools/__init__.py` — ensure all tools are publicly exported
+- [x] Update `tinycua/agent/tools/__init__.py` — add new tool imports for backward compat
+- [x] Update `tinycua/tools/__init__.py` — ensure all tools are publicly exported
 
 > **Note — M2 Deferral**: The following phases from the original plan are **deferred to M2**:
 > - **Task Tools** (original Phase 2): All task read/write tools (`ReadActiveTask`, `ReadTask`, `ListTask`, `TaskInit`, `SetSubTask`, `AddSubTask`, `DeleteSubTask`, `EditSubTask`, `SwapTask`, `UpdateTaskResult`, `UpdateActiveTaskResult`) and the `_mutation.py` internal helpers. See `src/tinycua/specs/basic-tools/spec.md` for details.

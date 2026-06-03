@@ -382,7 +382,26 @@ def edit_file(
         result += "\n"
 
     bytes_written = len(result.encode("utf-8"))
-    resolved.write_text(result, encoding="utf-8")
+    try:
+        resolved.write_text(result, encoding="utf-8")
+    except PermissionError:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"Permission denied: {path}",
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": str(exc),
+        }
 
     return {
         "success": True,
