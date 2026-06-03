@@ -5,14 +5,24 @@
 
 ## Role
 
-`SessionConfig` stores session-level behavior such as compaction. It is separate from
-outer SDK `Agent` config and node-specific config.
+`SessionConfig` stores session-level behavior such as which compaction strategy to use.
+It is separate from outer SDK `Agent` config and node-specific config.
 
 ```text
 SessionConfig
-  · compaction_strategy
+  · compaction_strategy: CompactionStrategy | None
   · metadata: dict
 ```
+
+`SessionConfig` selects the strategy; it does not own all compaction behavior. The
+`CompactionStrategy` class owns its own implementation/configuration and may internally
+use an Agent. Compaction accepts `messages: list[dict]` and returns one assistant-role
+summary message.
+
+If no strategy is configured, future implementation may use `SimpleCompaction` as the
+default simple strategy. `SimpleCompaction` inherits parent Agent configuration where
+available, falls back to documented defaults, runs a tool-less compaction Agent, and
+returns `{"role": "assistant", "content": response}`.
 
 ## Factory Interaction
 
@@ -30,3 +40,4 @@ rules.
 
 - [`../models/session.md`](../models/session.md)
 - [`node_config.md`](node_config.md)
+- [`../utility/compaction.md`](../utility/compaction.md)

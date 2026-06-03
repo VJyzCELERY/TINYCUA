@@ -100,6 +100,12 @@ Design rules:
 5. Preserve SDK streaming behavior: `stream=True` returns an async iterator; `stream=False` returns the final string.
 6. If a SDK override parameter is not fully specified in TinyCUA docs yet, preserve compatibility and treat it conservatively rather than implying SDK changes.
 
+### System Message Compatibility
+
+The SDK canonical message type supports `{"role": "system", "content": ...}`. Current OpenAI Chat Completions and Responses translators pass system messages through rather than collapsing them inside TinyCUA. Therefore TinyCUA may render distinct system prompt segments as multiple system messages where supported.
+
+TinyCUA should still keep an internal structured representation of system prompt parts instead of relying on parsing rendered system text back into parts. If a future provider requires one system message, TinyCUA can render the structured parts into one message at the boundary without losing internal separation.
+
 ---
 
 ## TinyCUALoop
@@ -313,6 +319,35 @@ Messages passed as node input are not automatically re-stored. Nodes store new o
 
 ---
 
+## System Prompt Construction
+
+Node message construction should keep system prompt categories distinct:
+
+```text
+SystemPromptBundle
+  · static_instruction: str                  # hardcoded role/behavior contract
+  · configurable_instruction_append: str     # append-only node customization
+  · dynamic_system_context: str | None       # optional, generally avoided
+```
+
+Preferred rendering when supported:
+
+```text
+[
+  {"role": "system", "content": static_instruction},
+  {"role": "system", "content": configurable_instruction_append},
+  {"role": "system", "content": dynamic_system_context},
+  {"role": "user", "content": external_user_query},
+  {"role": "assistant", "content": previous_node_result},
+]
+```
+
+Dynamic system context should be used sparingly. Most dynamic context should be passed as assistant-role continuation/context messages so it can be audited, propagated, and compacted consistently.
+
+If a provider cannot safely accept multiple system messages, TinyCUA should merge the structured prompt parts at render time. TinyCUA should not depend on parsing separators from rendered system text to recover structure.
+
+---
+
 ## Message Role Policy
 
 Only actual external user input uses role `user`.
@@ -348,6 +383,69 @@ final_retry_continuation =
 ```
 
 Hardcoded constants preserve TinyCUA's required behavior. Append-only configuration lets users tailor behavior without removing node contracts.
+
+---
+
+## CompactionStrategy
+
+Compaction is selected by `SessionConfig`, but the compaction class owns compaction behavior and configuration.
+
+```text
+CompactionStrategy
+  · compact(messages: list[dict]) → dict
+```
+
+Contract:
+
+1. Input is a list of message dicts, normally from `session_context` or a node-selected subset of context.
+2. Output is exactly one assistant-role message:
+
+   ```text
+   {"role": "assistant", "content": "<summary of compacted context>"}
+   ```
+
+3. Compaction summarizes context only. Continuation prompts remain the responsibility of the node that resumes after compaction.
+4. Compaction should generally avoid compacting system-role messages. The caller/node decides what context to pass to the strategy.
+5. A strategy MAY include its own internal Agent or non-agent summarization logic. This is the explicit exception to the TinyCUALoop rule that the loop does not create internal Agents for normal node execution.
+6. `SessionConfig` dictates which strategy is used; the strategy class is the authority for its own model/tool/instruction/config details.
+
+Example node-selected compaction input:
+
+```text
+node_context = [m for m in session.session_context if m["role"] != "system"]
+summary_msg = session.session_config.compaction_strategy.compact(node_context)
+session.session_context = [summary_msg]
+```
+
+### SimpleCompaction
+
+`SimpleCompaction` is the default/simple strategy implementation.
+
+```text
+SimpleCompaction extends CompactionStrategy
+```
+
+Behavior:
+
+1. Inherit the parent SDK Agent configuration where available, especially language model
+   and provider configuration.
+2. Use a documented default fallback configuration when no parent Agent/config is
+   available.
+3. Run a small tool-less compaction Agent. It receives the selected session messages as
+   its message context.
+4. Its instruction/system prompt states that it is a compaction agent.
+5. Its continuation prompt asks it to summarize the session context into a compact,
+   reusable summary.
+6. It exposes no tools.
+7. It returns the final response as the compaction output:
+
+   ```text
+   {"role": "assistant", "content": response}
+   ```
+
+`SimpleCompaction` still follows the general strategy rule: it compacts context only.
+The node that requested compaction remains responsible for any continuation prompt after
+the compacted assistant summary is inserted back into `session_context`.
 
 ---
 
@@ -597,6 +695,10 @@ The draft directory is temporary review material. Before merge, convert the draf
    - **Reason**: No extra state is needed; the paused node remains queued behind prepended work.
 6. **All node streams visible when stream=True**
    - **Reason**: Streaming should show the TinyCUA process, not only final response.
+7. **Compaction strategy may own internal Agent**
+   - **Reason**: Compaction is a separate summarization strategy selected by SessionConfig; it is not normal node execution inside TinyCUALoop.
+8. **System prompt parts stay structured internally**
+   - **Reason**: Multiple system messages are supported by current SDK canonical message handling, but structured prompt parts remain portable if a future provider needs single-message rendering.
 
 ---
 

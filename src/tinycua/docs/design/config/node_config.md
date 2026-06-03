@@ -29,6 +29,16 @@ hardcoded_continuation_constant + custom_continuation_append
 hardcoded_retry_constant + custom_retry_append
 ```
 
+## System Prompt Rendering
+
+Node config contributes only append-only instruction content. The node combines it with
+hardcoded static instruction and optional dynamic system context in a structured
+`SystemPromptBundle` before rendering messages.
+
+Current SDK canonical messages allow multiple system messages to pass through. If a
+future provider requires a single system message, TinyCUA should merge prompt parts at
+render time while keeping them separate internally.
+
 ## NodeToolPolicy
 
 ```text

@@ -108,6 +108,13 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 - **FR-037**: Roadmap draft milestones MUST be sequential and PR-sized by default, with design docs covered, full/partial coverage, contract implemented, contract deferred, expected PR scope, and exit criteria.
 - **FR-038**: Roadmap draft MUST avoid sub-issue drafts by default; optional sub-issue draft files are allowed only if a milestone cannot reasonably be PR-sized.
 - **FR-039**: Planning docs MUST state the roadmap draft directory is temporary review material to convert into a real GitHub issue and delete before merge unless the user decides otherwise.
+- **FR-040**: Documentation MUST define a `CompactionStrategy` class contract that accepts `messages: list[dict]` and returns exactly one assistant-role message containing the compaction summary.
+- **FR-041**: Documentation MUST state that `SessionConfig` selects the compaction strategy, but the compaction strategy class owns compaction behavior/configuration, including whether it internally uses an Agent.
+- **FR-042**: Documentation MUST document compaction as the explicit exception to the “TinyCUALoop does not create internal Agents” rule: a compaction strategy MAY create/use its own Agent internally.
+- **FR-043**: Documentation MUST state compaction should generally avoid compacting system-role messages; callers/nodes choose what context to pass to the compaction strategy.
+- **FR-044**: Documentation MUST clarify that compaction summarizes context only; node continuation prompts remain node responsibility.
+- **FR-045**: Documentation MUST define system prompt categories and rendering: static system instruction, append-only configurable instruction, and dynamic system context, preferably as separate system messages where supported by SDK/provider behavior.
+- **FR-046**: Documentation MUST define `SimpleCompaction` as the default simple `CompactionStrategy` implementation that inherits parent Agent configuration when available, falls back to defaults otherwise, uses no tools, and returns the compaction agent's final response as one assistant-role summary message.
 
 ### Key Entities
 
@@ -117,6 +124,9 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 - **RouteMap**: DecisionNode-owned dispatch table from decision label to queue mutation handler.
 - **NodeInput / NodePayload**: Internal typed input and payload models for safe node-to-node communication.
 - **Session / SessionConfig**: Per-node/root state and session-level behavior configuration.
+- **CompactionStrategy**: Session-context compaction class selected by SessionConfig; compacts message lists into one assistant summary message and may own an internal Agent.
+- **SimpleCompaction**: Default/simple CompactionStrategy that runs a tool-less compaction Agent over selected session messages using parent Agent configuration where available.
+- **SystemPromptBundle**: Conceptual message assembly structure that keeps static, configurable, and dynamic system prompt sections distinct before rendering to LLM messages.
 - **PropagationRule**: Explicit policy controlling what moves between node sessions and parent/root sessions.
 - **NodeToolPolicy**: Per-node tool scoping policy.
 - **NodeStreamPolicy**: Per-node streaming visibility and metadata policy.

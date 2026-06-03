@@ -23,6 +23,32 @@ Concrete nodes are TinyCUA-specific classes. Each may have its own config datacl
 instruction constants, continuation constants, retry policy, message strategy, tool
 scope, stream policy, and propagation rule.
 
+## System Prompt Categories
+
+Nodes build LLM input from structured prompt parts:
+
+```text
+SystemPromptBundle
+  · static_instruction                 # hardcoded node contract
+  · configurable_instruction_append    # append-only customization
+  · dynamic_system_context             # optional; generally avoided
+```
+
+Preferred rendering when supported by the provider/SDK path is multiple system messages:
+
+```text
+[
+  {"role": "system", "content": static_instruction},
+  {"role": "system", "content": configurable_instruction_append},
+  {"role": "system", "content": dynamic_system_context},
+  ...conversation messages...
+]
+```
+
+TinyCUA should keep the parts structured internally. If a provider needs one system
+message, merge at render time without relying on parsing separators back out of the text.
+Most dynamic context should be assistant-role context/continuation, not system prompt.
+
 ## Node Contract
 
 ```text
@@ -75,6 +101,12 @@ NodeRetryPolicy
 ```
 
 Retry prompts are assistant-role continuations.
+
+## Compaction Boundary
+
+Nodes may invoke session compaction when their session context exceeds policy limits.
+Compaction produces one assistant-role summary message. The node remains responsible for
+building the continuation message used after compaction.
 
 ## Related
 

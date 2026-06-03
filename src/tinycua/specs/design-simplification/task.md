@@ -34,6 +34,8 @@ Implementation tasks for the docs-only TinyCUA design simplification PR.
 - [ ] Update `docs/design/tools/todo.md` for TinyCUA node usage <!-- id: 21 -->
 - [ ] Update `docs/design/utility/compaction.md` for SessionConfig compaction <!-- id: 22 -->
 - [ ] Merge `docs/design/exceptions/loops.md` error framing into TinyCUALoop/node docs <!-- id: 23 -->
+- [ ] Update system prompt guidance across node/config docs <!-- id: 23a -->
+- [ ] Update compaction strategy contract across utility/session/config docs <!-- id: 23b -->
 
 ## Phase 3: Rename State to Models
 

@@ -68,10 +68,29 @@ modify SDK APIs.
   - `SessionConfig`
   - base node config dataclass
   - append-only instruction/continuation fields
+  - system prompt bundle/rendering model
   - `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` shapes
 - **Contract deferred**: concrete per-node behavior.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: config model tests pass and docs contract is represented in code.
+
+### 2a. CompactionStrategy Contract
+
+- **Design docs covered**:
+  - `docs/design/utility/compaction.md` — full
+  - `docs/design/config/session_config.md` — partial
+  - `docs/design/models/session.md` — partial
+- **Contract implemented**:
+  - `CompactionStrategy.compact(messages: list[dict]) -> dict`
+  - one assistant-role summary message output
+  - strategy-owned configuration, including optional internal Agent usage
+  - `SimpleCompaction` default/simple strategy
+  - SimpleCompaction inherits parent Agent config when available and falls back to defaults otherwise
+  - SimpleCompaction uses a tool-less compaction Agent and returns `{"role": "assistant", "content": response}`
+  - system-role messages excluded by default from compaction targets
+- **Contract deferred**: advanced/custom compaction strategies beyond `SimpleCompaction`.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: sessions can compact selected context through a strategy without altering chat history or node continuation handling.
 
 ### 3. NodeInput and NodePayload Transport
 

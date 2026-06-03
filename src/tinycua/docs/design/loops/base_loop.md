@@ -27,6 +27,14 @@ stream: bool
 
 TinyCUA must preserve this contract.
 
+## System Messages
+
+The SDK canonical message model includes system messages. Current OpenAI Chat
+Completions and Responses translators pass system messages through. TinyCUA may render
+static instruction, configurable instruction append, and dynamic system context as
+separate system messages where supported, while keeping those parts structured
+internally for portability.
+
 ## Design Rules
 
 1. Do not require SDK changes.

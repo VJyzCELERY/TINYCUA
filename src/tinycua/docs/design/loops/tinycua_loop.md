@@ -10,6 +10,10 @@ the root session and NodeQueue, and runs TinyCUA-specific nodes using `agent._ca
 
 It replaces the target role of AgentGraph plus per-agent AgentLoop subclasses.
 
+Normal node execution does not create internal SDK Agents. `CompactionStrategy` is the
+explicit exception: a session compaction strategy may own/use its own Agent internally
+because compaction is strategy-owned summarization, not node execution.
+
 ## Execution Flow
 
 ```text

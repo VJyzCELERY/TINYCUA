@@ -42,7 +42,25 @@ session_context = selected, deduped LLM-reusable messages
 
 Propagation is controlled by `PropagationRule`; see [`../loops/propagation.md`](../loops/propagation.md).
 
+## Compaction
+
+Session compaction is selected by `session_config.compaction_strategy`. The strategy
+takes `messages: list[dict]` and returns one assistant-role summary message. The strategy
+may own its own internal Agent; this is not normal TinyCUALoop node execution.
+
+The default/simple strategy may be `SimpleCompaction`, which inherits parent Agent
+configuration when available, uses a fallback config otherwise, runs a tool-less
+compaction Agent over selected session messages, and stores that final response as:
+
+```text
+{"role": "assistant", "content": response}
+```
+
+System-role messages should generally be excluded from compaction targets unless the
+caller intentionally passes dynamic system context for summarization.
+
 ## Related
 
 - [`state_object.md`](state_object.md)
 - [`chat_record.md`](chat_record.md)
+- [`../utility/compaction.md`](../utility/compaction.md)

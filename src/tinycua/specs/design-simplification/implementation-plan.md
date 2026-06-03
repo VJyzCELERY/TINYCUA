@@ -35,6 +35,8 @@ No automated tests are required for this docs-only PR.
 - [ ] Search for stale target-architecture terms: `AgentGraph`, `RouterNode`, `AgentNode`, `PrimaryNode`, `Worker QueryAnalyst`, YAML front-matter transport.
 - [ ] Count markdown files under `src/tinycua/docs/design/`; target is under 30 after cleanup.
 - [ ] Verify no source code or test files changed.
+- [ ] Verify compaction docs define strategy-owned behavior and one assistant-message output.
+- [ ] Verify system prompt docs distinguish static, configurable, and dynamic system prompt segments.
 
 ### Manual Verification
 
