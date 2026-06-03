@@ -82,3 +82,16 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning:httpx.*",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "tinycua_sdk.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true

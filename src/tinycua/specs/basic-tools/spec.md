@@ -72,7 +72,7 @@ A future Task Executor agent receives a benchmark task (e.g., "read the file at 
 
 #### File Tools
 
-- **FR-003**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string. Large files must be truncated with a clear indicator. Supports optional `start` (1-indexed line) and `offset` (line count) for range reads. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
+- **FR-003**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string on success, or a structured error dictionary on failure. Large files must be truncated with a clear indicator. Supports optional `start` (1-indexed line) and `offset` (line count) for range reads. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 - **FR-004**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path, creating parent directories if needed. Returns `{success, path, chars_written}`. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 - **FR-005**: System MUST provide a `list_files` tool that lists files matching a glob pattern in a directory, returning a list of matching paths. *(Existing native_tools impl at `tinycua/agent/tools/native/files.py`)*
 

@@ -55,7 +55,7 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
         if _IS_POSIX:
             popen_kwargs["preexec_fn"] = os.setsid
         else:
-            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
         process = subprocess.Popen(
             [sys.executable, "-c", code],

@@ -78,7 +78,7 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 
 ## Review and Merge
 
-- [ ] Create pull request for code review <!-- id: 24 -->
+- [x] Create pull request for code review <!-- id: 24 -->
 - [ ] Address review feedback <!-- id: 25 -->
 - [ ] Merge to main branch <!-- id: 26 -->
 

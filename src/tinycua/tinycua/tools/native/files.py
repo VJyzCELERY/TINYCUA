@@ -497,7 +497,12 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
         return {"error": f"Not a directory: {path}"}
 
     try:
-        files = [str(p) for p in sorted(resolved.glob(pattern)) if p.is_file()]
+        root = Path(os.environ.get("TINYCUA_TOOL_ROOT", os.getcwd())).resolve()
+        files = [
+            str(p)
+            for p in sorted(resolved.glob(pattern))
+            if p.is_file() and p.resolve().is_relative_to(root)
+        ]
         return files
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
