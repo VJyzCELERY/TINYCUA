@@ -25,44 +25,44 @@ scope, stream policy, and propagation rule.
 
 ## System Prompt Categories
 
-Nodes build LLM input from structured prompt parts:
+Nodes build LLM input from structured prompt fragments managed through
+`SystemPrompt` / `SystemPromptBuilder`. Fragments are kept distinct internally and
+rendered into **one final system-role message** for the actual LLM call.
 
 ```text
-SystemPromptBundle
-  · static_instruction                 # hardcoded node contract
-  · configurable_instruction_append    # append-only customization
-  · dynamic_system_context             # optional node-built instruction/context
+SystemPrompt
+  · priority: int
+  · kind: "static" | "configurable" | "dynamic"
+  · content: str
+  · metadata: dict
+
+SystemPromptBuilder
+  · fragments: list[SystemPrompt]
+  · add_static(content)               # hardcoded node contract
+  · add_configurable_append(content)  # append-only customization
+  · add_dynamic_context(content)      # optional node-built instruction/context
+  · build() → {"role": "system", "content": ordered_merged_content}
 ```
 
-Preferred rendering when supported by the provider/SDK path is multiple system messages:
+Internal fragments are ordered by explicit priority. The final LLM call receives one
+system dict followed by conversation/continuation messages:
 
 ```text
 [
-  {"role": "system", "content": static_instruction},                 # constant
-  {"role": "system", "content": configurable_instruction_append},    # config append
-  {"role": "system", "content": dynamic_system_context},             # e.g. current active task
-  ...conversation messages...
-]
-```
-
-TinyCUA should keep the parts structured internally. If a provider needs one system
-message, merge at render time without relying on parsing separators back out of the text.
-Dynamic system context is allowed for node-built high-priority execution constraints
-such as current active task, node-local state, output schema reminders, or active tool
-policy. Most descriptive context should still be assistant-role context/continuation, not
-system prompt.
-
-Example TaskExecutor input:
-
-```text
-[
-  {"role": "system", "content": TASK_EXECUTOR_STATIC_INSTRUCTION},
-  {"role": "system", "content": config.custom_instruction_append},
-  {"role": "system", "content": "Current active task: T-0.1 ..."},
+  SystemPromptBuilder([
+    SystemPrompt(kind="static", content=constant_node_instruction),
+    SystemPrompt(kind="configurable", content=configurable_instruction_append),
+    SystemPrompt(kind="dynamic", content="Current active task: T-0.1 ..."),
+  ]).build(),
   {"role": "assistant", "content": "Relevant prior task context ..."},
   {"role": "assistant", "content": "I will now execute the active task."},
 ]
 ```
+
+Dynamic system context is allowed for node-built high-priority execution constraints
+such as current active task, node-local state, output schema reminders, or active tool
+policy. Most descriptive context should still be assistant-role context/continuation, not
+system prompt.
 
 ## Node Contract
 
@@ -116,6 +116,13 @@ NodeRetryPolicy
 ```
 
 Retry prompts are assistant-role continuations.
+
+## Todo
+
+Every node has access to its session's `Todo` — a small, isolated, linear, non-complex
+todo list. Nodes may read, check off, and extend the list to operate in a plan-then-execute
+manner. Todo is per-session and does not span across sessions. The global parent session
+`Task` is the overall goal; Todo is the local step-by-step execution plan.
 
 ## Compaction Boundary
 

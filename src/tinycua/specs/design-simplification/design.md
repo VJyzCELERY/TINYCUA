@@ -102,9 +102,9 @@ Design rules:
 
 ### System Message Compatibility
 
-The SDK canonical message type supports `{"role": "system", "content": ...}`. Current OpenAI Chat Completions and Responses translators pass system messages through rather than collapsing them inside TinyCUA. Therefore TinyCUA may render distinct system prompt segments as multiple system messages where supported.
+The SDK canonical message type supports `{"role": "system", "content": ...}`. Current OpenAI Chat Completions and Responses translators pass system messages through. However, TinyCUA should prefer sending **one final system message** to each LLM call for provider portability and deterministic prompt layout.
 
-TinyCUA should still keep an internal structured representation of system prompt parts instead of relying on parsing rendered system text back into parts. If a future provider requires one system message, TinyCUA can render the structured parts into one message at the boundary without losing internal separation.
+TinyCUA should keep an internal structured representation of system prompt parts through `SystemPrompt` / `SystemPromptBuilder` instead of relying on parsing rendered system text back into parts. `build_messages()` renders the fragments into one ordered system-role message at the LLM boundary.
 
 ---
 
@@ -317,26 +317,63 @@ session_context = selected, deduped LLM-reusable messages
 
 Messages passed as node input are not automatically re-stored. Nodes store new outputs and selected reusable context according to propagation/persistence policy.
 
+## Task and Todo
+
+A `Task` is the global parent session overall goal — the high-level objective of an entire session. It lives at the root session level and is not duplicated per node.
+
+A `Todo` is a small, isolated, linear, non-complex todo list stored per session. Every node can access its session's `Todo` to plan then execute in a structured manner. It is not a full task-planning or project-management system — just a simple ordered list the node can read, check off, and extend during execution.
+
+```text
+Task   → global parent session goal (one per root session)
+Todo   → per-session linear todo list (one per session, node-scoped)
+```
+
+Example execution flow using Todo:
+
+```text
+TinyCUATaskExecutorNode.ensure_session()
+  → session.todo = [
+      "Read relevant file contents",
+      "Implement the requested change",
+      "Run tests to verify",
+    ]
+  → node reads first item, executes it, marks it done
+  → node reads second item, executes it, marks it done
+  → ...
+```
+
+Nodes are not required to use Todo, but every node's session provides access to one. The node itself decides whether to populate, read, or ignore it.
+
 ---
 
 ## System Prompt Construction
 
-Node message construction should keep system prompt categories distinct:
+Node message construction should keep system prompt categories distinct internally and render them into one system message for the actual LLM call:
 
 ```text
-SystemPromptBundle
-  · static_instruction: str                  # hardcoded role/behavior contract
-  · configurable_instruction_append: str     # append-only node customization
-  · dynamic_system_context: str | None       # optional node-built system context
+SystemPrompt
+  · priority: int
+  · kind: "static" | "configurable" | "dynamic"
+  · content: str
+  · metadata: dict
+
+SystemPromptBuilder
+  · fragments: list[SystemPrompt]
+  · add_static(content)
+  · add_configurable_append(content)
+  · add_dynamic_context(content)
+  · build() → {"role": "system", "content": ordered_merged_content}
 ```
 
-Preferred rendering when supported:
+Internal fragments are ordered by explicit priority. The final LLM call receives one system dict followed by conversation/continuation messages:
 
 ```text
 [
-  {"role": "system", "content": static_instruction},                 # constant
-  {"role": "system", "content": configurable_instruction_append},    # config append
-  {"role": "system", "content": dynamic_system_context},             # e.g. current active task
+  SystemPromptBuilder([
+    SystemPrompt(kind="static", content=constant_node_instruction),
+    SystemPrompt(kind="configurable", content=configurable_instruction_append),
+    SystemPrompt(kind="dynamic", content="Current active task: T-0.1 ..."),
+  ]).build(),
   {"role": "user", "content": external_user_query},                  # only actual user input
   {"role": "assistant", "content": previous_node_result},            # internal context
   {"role": "assistant", "content": continuation_prompt},             # internal continuation
@@ -349,7 +386,7 @@ node-local state that should be interpreted as instruction rather than conversat
 Most descriptive context should still be passed as assistant-role context/continuation so
 it can be audited, propagated, and compacted consistently.
 
-If a provider cannot safely accept multiple system messages, TinyCUA should merge the structured prompt parts at render time. TinyCUA should not depend on parsing separators from rendered system text to recover structure.
+The session/history layer may store prompt fragments or metadata separately for audit and debugging. The LLM-bound `build_messages()` helper is responsible for rendering exactly one system prompt message so prompt structure remains internal and provider-portable.
 
 ---
 

@@ -32,14 +32,16 @@ hardcoded_retry_constant + custom_retry_append
 ## System Prompt Rendering
 
 Node config contributes only append-only instruction content. The node combines it with
-hardcoded static instruction and optional dynamic system context in a structured
-`SystemPromptBundle` before rendering messages.
+hardcoded static instruction and optional dynamic system context through
+`SystemPrompt` / `SystemPromptBuilder`. Prompt fragments are kept separate internally and
+rendered into **one final system-role message** for LLM calls.
 
 ```text
-SystemPromptBundle.to_messages():
-  → {"role": "system", "content": static_instruction}
-  → {"role": "system", "content": custom_instruction_append}
-  → {"role": "system", "content": dynamic_system_context}
+SystemPromptBuilder
+  → add_static(hardcoded_instruction)
+  → add_configurable_append(custom_instruction_append)
+  → add_dynamic_context(dynamic_system_context)
+  .build() → {"role": "system", "content": ordered_merged_content}
 ```
 
 The dynamic system context is built by the node, not arbitrary user text. Examples:
@@ -49,9 +51,8 @@ The dynamic system context is built by the node, not arbitrary user text. Exampl
 - output schema reminders
 - active tool policy
 
-Current SDK canonical messages allow multiple system messages to pass through. If a
-future provider requires a single system message, TinyCUA should merge prompt parts at
-render time while keeping them separate internally.
+TinyCUA keeps prompt parts structured internally and always renders one system message
+at the LLM boundary for provider portability.
 
 ## NodeToolPolicy
 

@@ -15,12 +15,24 @@ Session
   · chat_history: list[ChatRecord]
   · session_context: list[dict]
   · agent_state: AgentState | None
-  · task: Task | None
-  · todo_list
+  · task: Task | None               # global parent session overall goal
+  · todo: Todo | None                # per-session linear plan-then-execute list
 ```
 
 Each node manages its own session/message context. A node session may be fresh,
 inherited, reused, scoped from parent/root, or enhanced through retrieval tools.
+
+## Task vs Todo
+
+| Concept | Scope | Purpose |
+|---------|-------|---------|
+| `Task` | Global parent session | Overall goal of the entire session. The high-level "what needs to be done." |
+| `Todo` | Per-session isolated | Small, linear, non-complex list for plan-then-execute. The low-level "how to get there now." |
+
+`Task` is the parent session's single overall objective (e.g., "Implement user authentication").
+`Todo` is a simple ordered list the current node can use to break its immediate work into
+checkable steps (e.g., ["Read auth module", "Add login endpoint", "Write tests"]). Nodes
+are not required to use Todo, but every session provides access to one.
 
 ## SDK Messages
 
