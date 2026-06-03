@@ -14,6 +14,8 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+_IS_POSIX = os.name == "posix"
+
 
 @tool
 def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
@@ -46,13 +48,20 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
 
     process = None
     try:
+        popen_kwargs: dict[str, Any] = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "encoding": "utf-8",
+        }
+        if _IS_POSIX:
+            popen_kwargs["preexec_fn"] = os.setsid
+        else:
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+
         process = subprocess.Popen(
             [sys.executable, "-c", code],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            preexec_fn=os.setsid,
+            **popen_kwargs,
         )
 
         stdout, stderr = process.communicate(timeout=timeout)
@@ -66,7 +75,10 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
     except subprocess.TimeoutExpired:
         try:
             if process is not None:
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                if _IS_POSIX:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                else:
+                    process.kill()
         except ProcessLookupError:
             pass  # process already exited
         stdout, stderr = process.communicate() if process else ("", "")

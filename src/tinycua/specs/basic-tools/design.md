@@ -79,7 +79,7 @@ class ToolResult:
     success: bool                    # True if tool completed without error
     output: str                      # Primary output (stdout, file content, etc.)
     error: str | None = None         # Error message if execution failed
-    metadata: dict | None = None     # Extra info: exit_code, timed_out, chars_written, etc.
+    metadata: dict[str, Any] = field(default_factory=dict)  # Extra info: exit_code, timed_out, chars_written, etc.
     duration: float = 0.0            # Execution duration in seconds
 ```
 

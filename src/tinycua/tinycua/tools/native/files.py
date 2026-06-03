@@ -30,8 +30,11 @@ def _resolve_path(path: str) -> Path:
         The resolved absolute Path.
 
     Raises:
+        TypeError: If *path* is not a string.
         PermissionError: If the resolved path escapes the sandbox root.
     """
+    if not isinstance(path, str):
+        raise TypeError(f"path must be a string, got {type(path).__name__}")
     root = Path(os.environ.get("TINYCUA_TOOL_ROOT", os.getcwd())).resolve()
     if path.startswith("/"):
         candidate = Path(path).resolve()
@@ -128,6 +131,16 @@ def read_file(
     Returns:
         The file content as a string on success, or an error dict on failure.
     """
+    # Validate path type before proceeding
+    if not isinstance(path, str):
+        return {"error": f"path must be a string, got {type(path).__name__}"}
+
+    # Validate start and offset types
+    if start is not None and not isinstance(start, int):
+        return {"error": f"start must be an integer or None, got {type(start).__name__}"}
+    if offset is not None and not isinstance(offset, int):
+        return {"error": f"offset must be an integer or None, got {type(offset).__name__}"}
+
     result = _read_lines(path)
     if isinstance(result, dict):
         return result  # error dict
@@ -203,6 +216,15 @@ def write_file(path: str, content: str) -> dict[str, Any]:
     Returns:
         A dict with keys: success, path, chars_written, error.
     """
+    # Validate types before proceeding
+    if not isinstance(path, str):
+        return {
+            "success": False,
+            "path": str(path),
+            "chars_written": 0,
+            "error": f"path must be a string, got {type(path).__name__}",
+        }
+
     try:
         resolved = _resolve_path(path)
     except PermissionError as exc:
@@ -273,6 +295,35 @@ def edit_file(
         A dict with keys: success, path, start_line, lines_replaced,
         bytes_written, error.
     """
+    # Validate types before proceeding
+    if not isinstance(path, str):
+        return {
+            "success": False,
+            "path": str(path),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"path must be a string, got {type(path).__name__}",
+        }
+    if not isinstance(start, int):
+        return {
+            "success": False,
+            "path": str(path),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"start must be an integer, got {type(start).__name__}",
+        }
+    if offset is not None and not isinstance(offset, int):
+        return {
+            "success": False,
+            "path": str(path),
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"offset must be an integer or None, got {type(offset).__name__}",
+        }
+
     try:
         resolved = _resolve_path(path)
     except PermissionError as exc:
@@ -436,6 +487,10 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
     Returns:
         A list of absolute file paths on success, or an error dict on failure.
     """
+    # Validate types before proceeding
+    if not isinstance(path, str):
+        return {"error": f"path must be a string, got {type(path).__name__}"}
+
     try:
         resolved = _resolve_path(path)
     except PermissionError as exc:

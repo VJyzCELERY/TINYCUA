@@ -19,8 +19,8 @@ Implementation tasks for M1 Basic Tools. Check off items as completed.
 - [x] Create `tinycua/tools/__init__.py` — public exports <!-- id: 2 -->
   - [x] Export `ToolResult` from `tinycua.tools.result`
   - [x] Export all native tool functions from their modules
-- [x] Create `tinycua/tools/result.py` — `ToolResult` dataclass <!-- id: 3 -->
-  - [x] Fields: `success` (bool), `output` (str), `error` (str | None), `metadata` (dict | None), `duration` (float)
+  - [x] Create `tinycua/tools/result.py` — `ToolResult` dataclass <!-- id: 3 -->
+  - [x] Fields: `success` (bool), `output` (str), `error` (str | None), `metadata` (dict[str, Any] = field(default_factory=dict)), `duration` (float)
   - [x] `.to_dict()` method for JSON serialization
 - [x] Write unit tests: `tests/unit/test_tool_result.py` <!-- id: 4 -->
   - [x] Test all fields with default values
