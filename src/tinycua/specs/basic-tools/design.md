@@ -111,7 +111,7 @@ def edit_file(path: str, start: int, content: str,
     Returns {success, path, start_line, lines_replaced, bytes_written, error}."""
 
 @tool
-def list_files(path: str, pattern: str = "*") -> list[str] | dict:
+def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict:
     """List files matching glob in directory."""
 
 @tool

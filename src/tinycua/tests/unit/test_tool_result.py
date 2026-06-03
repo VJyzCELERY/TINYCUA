@@ -13,7 +13,7 @@ def test_tool_result_defaults():
     assert result.success is True
     assert result.output == "hello"
     assert result.error is None
-    assert result.metadata is None
+    assert result.metadata == {}
     assert result.duration == 0.0
 
 
@@ -66,7 +66,7 @@ def test_tool_result_to_dict_json_serializable():
 
 
 def test_tool_result_with_none_metadata():
-    """to_dict handles None metadata correctly."""
+    """to_dict handles empty metadata correctly."""
     result = ToolResult(success=True, output="ok")
     d = result.to_dict()
-    assert d["metadata"] is None
+    assert d["metadata"] == {}

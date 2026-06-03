@@ -25,17 +25,36 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
-    process = subprocess.Popen(
-        command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        preexec_fn=os.setsid,
-    )
+    # Validate inputs before spawning
+    if not isinstance(command, str):
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": f"Invalid command type: expected str, got {type(command).__name__}",
+        }
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": f"Invalid timeout: {timeout}. Must be a positive number.",
+        }
 
+    process = None
     try:
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            preexec_fn=os.setsid,
+        )
+
         stdout, stderr = process.communicate(timeout=timeout)
         return {
             "stdout": stdout or "",
@@ -46,10 +65,11 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
         }
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            if process is not None:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
         except ProcessLookupError:
             pass  # process already exited
-        stdout, stderr = process.communicate()
+        stdout, stderr = process.communicate() if process else ("", "")
         return {
             "stdout": stdout or "",
             "stderr": stderr or "",

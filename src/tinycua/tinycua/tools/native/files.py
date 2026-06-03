@@ -114,8 +114,8 @@ def read_file(
     """Read the contents of a file, optionally specifying a line range.
 
     When neither *start* nor *offset* are set, the entire file is read with
-    an internal 100 KB truncation limit. When a range is specified (start
-    and/or offset), truncation is bypassed.
+    an internal 100 KB truncation limit. Bounded reads with *offset* explicitly
+    set bypass truncation; start-only open-ended reads remain truncation-limited.
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
@@ -156,7 +156,11 @@ def read_file(
             }
         selected = lines[start_idx : start_idx + offset]
         result_str = "\n".join(selected)
-        if trailing_newline:
+        # Add trailing newline if we're not reading to the end of file
+        # (i.e., there are more lines after our selection)
+        if start_idx + offset < total_lines:
+            result_str += "\n"
+        elif trailing_newline:
             result_str += "\n"
         return result_str
 
@@ -370,15 +374,18 @@ def edit_file(
     lines_replaced = end_idx - start_idx
     new_lines = content.split("\n")
     # If new content ends with newline, trim the trailing empty element
-    if content.endswith("\n") and new_lines and new_lines[-1] == "":
+    # but remember that the content had a trailing newline
+    has_new_trailing_newline = content.endswith("\n")
+    if has_new_trailing_newline and new_lines and new_lines[-1] == "":
         new_lines = new_lines[:-1]
 
     result_lines = lines[:start_idx] + new_lines + lines[end_idx:]
     result = "\n".join(result_lines)
-    # Preserve trailing newline only when NOT replacing to end of file.
-    # When replacing to end (offset is None), the new content's own
-    # trailing newline (if any) will dictate the result.
-    if trailing_newline and offset is not None:
+    # Preserve trailing newline based on context:
+    # - If replacing a bounded range (offset is not None), preserve original trailing newline
+    # - If replacing to end of file (offset is None), use new content's trailing newline
+    preserve_original = offset is not None and trailing_newline
+    if preserve_original or (offset is None and has_new_trailing_newline):
         result += "\n"
 
     bytes_written = len(result.encode("utf-8"))

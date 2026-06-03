@@ -81,8 +81,10 @@ class TestNativeToolsE2E:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()
+            original_tool_root = os.environ.get("TINYCUA_TOOL_ROOT")
             try:
                 os.chdir(tmpdir)
+                os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
                 Path("numbers.txt").write_text("10\n10\n10\n10\n10\n")
 
                 agent = Agent(
@@ -114,6 +116,10 @@ class TestNativeToolsE2E:
                     )
             finally:
                 os.chdir(original_cwd)
+                if original_tool_root is not None:
+                    os.environ["TINYCUA_TOOL_ROOT"] = original_tool_root
+                else:
+                    os.environ.pop("TINYCUA_TOOL_ROOT", None)
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -128,8 +134,10 @@ class TestNativeToolsE2E:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()
+            original_tool_root = os.environ.get("TINYCUA_TOOL_ROOT")
             try:
                 os.chdir(tmpdir)
+                os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
                 Path("data").mkdir()
                 Path("data/a.csv").write_text("id,name\n1,Alice\n")
                 Path("data/b.csv").write_text("id,name\n2,Bob\n")
@@ -160,6 +168,10 @@ class TestNativeToolsE2E:
                 # the tool layer worked.
             finally:
                 os.chdir(original_cwd)
+                if original_tool_root is not None:
+                    os.environ["TINYCUA_TOOL_ROOT"] = original_tool_root
+                else:
+                    os.environ.pop("TINYCUA_TOOL_ROOT", None)
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -174,8 +186,10 @@ class TestNativeToolsE2E:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_cwd = os.getcwd()
+            original_tool_root = os.environ.get("TINYCUA_TOOL_ROOT")
             try:
                 os.chdir(tmpdir)
+                os.environ["TINYCUA_TOOL_ROOT"] = tmpdir
 
                 agent = Agent(
                     name="e2e-shell-agent",
@@ -198,3 +212,7 @@ class TestNativeToolsE2E:
                 )
             finally:
                 os.chdir(original_cwd)
+                if original_tool_root is not None:
+                    os.environ["TINYCUA_TOOL_ROOT"] = original_tool_root
+                else:
+                    os.environ.pop("TINYCUA_TOOL_ROOT", None)

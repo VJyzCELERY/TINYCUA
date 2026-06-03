@@ -1,8 +1,5 @@
 """Integration tests verifying tools work through the SDK's ToolExecutor."""
 
-import os
-import tempfile
-
 import pytest
 
 
@@ -34,7 +31,7 @@ def test_tool_schemas_valid_json_schema():
 
 
 @pytest.mark.asyncio
-async def test_tool_executor_invokes_tool():
+async def test_tool_executor_invokes_tool(tmp_path):
     """ToolExecutor.execute() successfully invokes a tool."""
     from tinycua_sdk import Agent, LanguageModel
     from tinycua_sdk.agent.executor import ToolExecutor
@@ -42,12 +39,11 @@ async def test_tool_executor_invokes_tool():
 
     agent = Agent(llm_model=LanguageModel())
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "executor_test.txt")
-        result = await ToolExecutor.execute(
-            write_file,
-            {"path": filepath, "content": "executor test"},
-            agent,
-        )
-        assert result["success"] is True
-        assert os.path.exists(filepath)
+    filepath = tmp_path / "executor_test.txt"
+    result = await ToolExecutor.execute(
+        write_file,
+        {"path": str(filepath), "content": "executor test"},
+        agent,
+    )
+    assert result["success"] is True
+    assert filepath.exists()

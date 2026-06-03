@@ -6,6 +6,8 @@ capturing stdout, stderr, and exit codes with configurable timeout.
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 from typing import Any
@@ -24,34 +26,70 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
-    result: dict[str, Any] = {
-        "stdout": "",
-        "stderr": "",
-        "exit_code": 0,
-        "timed_out": False,
-        "error": None,
-    }
+    # Validate inputs before spawning
+    if not isinstance(code, str):
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": f"Invalid code type: expected str, got {type(code).__name__}",
+        }
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": f"Invalid timeout: {timeout}. Must be a positive number.",
+        }
 
+    process = None
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             [sys.executable, "-c", code],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
+            encoding="utf-8",
+            preexec_fn=os.setsid,
         )
-        result["stdout"] = completed.stdout or ""
-        result["stderr"] = completed.stderr or ""
-        result["exit_code"] = completed.returncode
 
+        stdout, stderr = process.communicate(timeout=timeout)
+        return {
+            "stdout": stdout or "",
+            "stderr": stderr or "",
+            "exit_code": process.returncode,
+            "timed_out": False,
+            "error": None,
+        }
     except subprocess.TimeoutExpired:
-        result["exit_code"] = -1
-        result["timed_out"] = True
-        result["error"] = f"Execution timed out after {timeout}s"
+        try:
+            if process is not None:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # process already exited
+        stdout, stderr = process.communicate() if process else ("", "")
+        return {
+            "stdout": stdout or "",
+            "stderr": stderr or "",
+            "exit_code": -1,
+            "timed_out": True,
+            "error": f"Execution timed out after {timeout}s",
+        }
     except subprocess.SubprocessError as exc:
-        result["exit_code"] = -1
-        result["error"] = str(exc)
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": str(exc),
+        }
     except Exception as exc:
-        result["exit_code"] = -1
-        result["error"] = str(exc)
-
-    return result
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "timed_out": False,
+            "error": str(exc),
+        }

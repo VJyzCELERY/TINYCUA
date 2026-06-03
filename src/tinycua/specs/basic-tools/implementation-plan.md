@@ -66,12 +66,12 @@ def test_tool_result_model_importable():
 def test_all_native_tools_register_with_agent():
     """All M1 native tools can be registered with an SDK Agent as Tool instances."""
     from tinycua.tools.native.shell import run_shell
-    from tinycua.tools.native.files import read_file, write_file, list_files
+    from tinycua.tools.native.files import read_file, write_file, edit_file, list_files
     from tinycua.tools.native.web import fetch_url
     from tinycua.tools.native.python_exec import run_python
 
     tools = [
-        run_shell, read_file, write_file, list_files, fetch_url, run_python,
+        run_shell, read_file, write_file, edit_file, list_files, fetch_url, run_python,
     ]
     for t in tools:
         assert isinstance(t, Tool), f"{t.name} should be a Tool instance"
@@ -123,7 +123,7 @@ def test_native_tools_integration(tmp_path):
 - [x] **Scenario 1**: All M1 native tools are importable and register with SDK Agent as `Tool` instances
 - [x] **Scenario 2**: `ToolResult` model is importable and has all required fields
 - [x] **Scenario 3**: Native execution tools return correct structured results
-- [ ] **Scenario 4**: No orchestration-layer tools (TodoList, digester, per-agent constants) are implemented in M1
+- [x] **Scenario 4**: No orchestration-layer tools (TodoList, digester, per-agent constants) are implemented in M1
 
 ## Verification Plan
 
@@ -262,6 +262,7 @@ All tools are `@tool`-decorated functions callable through `tinycua_sdk.AgentExe
 | `run_shell` | `tinycua.tools.native.shell` | Execute shell command with timeout |
 | `read_file` | `tinycua.tools.native.files` | Read file contents (full or line-range) |
 | `write_file` | `tinycua.tools.native.files` | Write content to file |
+| `edit_file` | `tinycua.tools.native.files` | Replace a range of lines in an existing file |
 | `list_files` | `tinycua.tools.native.files` | List files matching glob pattern |
 | `fetch_url` | `tinycua.tools.native.web` | Fetch URL content |
 | `run_python` | `tinycua.tools.native.python_exec` | Execute Python code in subprocess |
