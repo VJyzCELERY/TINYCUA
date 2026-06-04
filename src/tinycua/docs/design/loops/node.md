@@ -16,6 +16,7 @@ Node
     ├── TinyCUATaskAssessorNode
     ├── TinyCUATaskExecutorNode
     ├── TinyCUAResultReviewerNode
+    ├── TinyCUAResultAggregationNode
     └── TinyCUAResponseNode
 ```
 
@@ -103,9 +104,87 @@ Node
 
 ## TinyCUAResponseNode
 
-`TinyCUAResponseNode` is TinyCUA's final response/synthesis node. It derives from
-`ProcessNode`; it is not a generic `PrimaryNode`. It may suspend itself to request
-`TinyCUAInformationDigesterNode` and then resume.
+`TinyCUAResponseNode` is TinyCUA's final consolidated continuation/synthesis node. It
+derives from `ProcessNode`; it is not a generic `PrimaryNode`. It may suspend itself to
+request `TinyCUAInformationDigesterNode` and then resume.
+
+Its LLM input is built primarily from accumulated root/session_context plus the latest
+propagated node output. It may maintain a session for audit/todo/tool execution, but its
+message policy treats it as a continuation of the current TinyCUA session.
+
+On every call, `ResponseNode` first analyzes whether available context is sufficient:
+- If sufficient, answer.
+- If insufficient, use allowed tools directly or request information digestion if enabled.
+
+## TinyCUAResultAggregationNode
+
+`TinyCUAResultAggregationNode` is a `ProcessNode` entered only after the root task is
+accepted/done. It traverses the root task tree, inspects each task context/result/artifacts
+reviewer decisions, consolidates information, and emits response-ready context for
+`ResponseNode`.
+
+### Responsibility Separation
+
+#### ResultReviewer responsibilities
+
+```text
+ResultReviewer:
+  - review executor output
+  - decide accept/retry/replan/open_question
+  - update active TaskResult
+  - update active task context
+  - trigger task-tree transition
+```
+
+#### ResultAggregationNode responsibilities
+
+```text
+ResultAggregationNode:
+  - entered only after root task is accepted/done
+  - traverse the root task tree
+  - inspect each task context/result/artifacts/reviewer decisions
+  - consolidate information
+  - summarize until aggregation is complete
+  - emit response-ready context for ResponseNode
+```
+
+#### ResponseNode responsibilities
+
+```text
+ResponseNode:
+  - synthesize/present the user-facing answer from aggregated context
+```
+
+### AggregatedResult Model
+
+```text
+AggregatedResult
+  · root_task_id: str
+  · task_summaries: list[str]
+  · accepted_results: list[TaskResult]
+  · artifacts: list[dict]
+  · final_context: str
+  · response_continuation: str
+  · metadata: dict
+```
+
+### Flow
+
+```text
+TaskExecutor
+  → ResultReviewer
+      accept
+        → task-tree update
+        → if root task done:
+             ResultAggregationNode
+             ResponseNode
+      retry
+        → TaskExecutor
+      replan
+        → TaskAnalyzer
+      open_question
+        → mandatory_passthrough to ResultReviewer
+```
 
 ## Retry
 
@@ -115,10 +194,11 @@ continuations.
 
 ## Todo
 
-Every node has access to its session's `Todo` — a small, isolated, linear, non-complex
-todo list. Nodes may read, check off, and extend the list to operate in a plan-then-execute
-manner. Todo is per-session and does not span across sessions. The global parent session
-`Task` is the overall goal; Todo is the local step-by-step execution plan.
+Every TinyCUA node session MUST have a Todo. Todo tools are generic node tools available
+to all TinyCUA nodes unless disabled by `NodeToolPolicy`. Nodes SHOULD structure their
+work through Plan -> Analyze -> Act, using Todo as the local step tracker. Task is the
+broader session goal; Todo is the smaller local execution driver. Every node's session
+provides access to a Todo so the node can plan then execute in a structured manner.
 
 ## Compaction Boundary
 

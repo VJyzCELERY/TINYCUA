@@ -18,6 +18,7 @@
   - No SDK modification or SDK API redesign.
   - No TUI, CLI, HITL UX, interrupt UX, resume UX, or datastore persistence roadmap scope.
   - No immediate GitHub issue creation; roadmap content is drafted for PR review first.
+  - Provider prompt caching optimization is not a design goal.
 - **Constraints**:
   - TinyCUA MUST build around the current `tinycua-sdk` contract: `Agent.run(query, messages=None, instructions=None, stream=False, file_attachments=None)` calls `loop.run(agent, messages, tools, override_instructions, stream)`.
   - The final docs MUST not imply SDK changes are needed for TinyCUA architecture implementation.
@@ -43,6 +44,7 @@ SDK Agent
         ├── TinyCUATaskAssessorNode
         ├── TinyCUATaskExecutorNode
         ├── TinyCUAResultReviewerNode
+        ├── TinyCUAResultAggregationNode
         └── TinyCUAResponseNode
 ```
 
@@ -62,6 +64,9 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 - SDK caller passes `stream=True`: design must require node LLM/tool events to be streamable to the caller across all nodes.
 - A node receives a plain string internally: design must convert it to an assistant-role message unless it is the actual external user entry.
 - A user query contains YAML/front-matter-looking text: design must not parse it as trusted internal structured input.
+- QueryAnalyst routes to `worker` while an existing `WorkerNode` is already queued: design must not spawn a duplicate WorkerNode but instead forward input to the existing one.
+- `ResultReviewer` returns `open_question`: design must install a `mandatory_passthrough` targeting the same reviewer so the next user message reaches it deterministically.
+- A resumed/interrupted run prepends `QueryAnalystNode` while a `WorkerNode` is already queued: design must handle existing WorkerNode reuse without duplication.
 
 ---
 
@@ -116,6 +121,17 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 - **FR-045**: Documentation MUST define `SystemPrompt` / `SystemPromptBuilder` or equivalent internal system prompt management that stores ordered prompt fragments separately but renders one final system-role message for LLM calls.
 - **FR-046**: Documentation MUST define `SimpleCompaction` as the default simple `CompactionStrategy` implementation that inherits parent Agent configuration when available, falls back to defaults otherwise, uses no tools, and returns the compaction agent's final response as one assistant-role summary message.
 - **FR-047**: Documentation MUST distinguish `Task` (global parent session overall goal) from `Todo` (small, isolated, linear, non-complex todo list per session that helps nodes plan then execute). Every Node MUST be able to access its session's Todo list.
+- **FR-048**: Documentation MUST define `TinyCUALoop` queue bootstrap: each run ensures `QueryAnalyst` at the front and a terminal `ResponseNode` path at the end.
+- **FR-049**: Documentation MUST define `QueryAnalyst` prechecks before LLM classification, including `mandatory_passthrough` and existing `WorkerNode` reuse.
+- **FR-050**: Documentation MUST define `mandatory_passthrough` as a deterministic continuation directive available to every node.
+- **FR-051**: Documentation MUST define `ResultReviewer` `open_question` continuation using `mandatory_passthrough`.
+- **FR-052**: Documentation MUST define active task selection through DFS pre-order traversal of the Task tree.
+- **FR-053**: Documentation MUST define TaskTree completion/update rules after `ResultReviewer` accept.
+- **FR-054**: Documentation MUST add `TinyCUAResultAggregationNode` as a `ProcessNode` entered only after the root task is accepted/done.
+- **FR-055**: Documentation MUST separate `ResultReviewer`, `ResultAggregationNode`, and `ResponseNode` responsibilities.
+- **FR-056**: Documentation MUST define `enhanced_context_retrieval` cache/file-search behavior.
+- **FR-057**: Documentation MUST define `ResponseNode` as a consolidated continuation/synthesis node.
+- **FR-058**: Documentation MUST state provider prompt caching optimization is not a design goal.
 
 ### Key Entities
 
@@ -133,6 +149,8 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 - **PropagationRule**: Explicit policy controlling what moves between node sessions and parent/root sessions.
 - **NodeToolPolicy**: Per-node tool scoping policy.
 - **NodeStreamPolicy**: Per-node streaming visibility and metadata policy.
+- **MandatoryPassthrough**: Deterministic continuation directive that any node can emit, targeting a specific node/session for the next user input.
+- **AggregatedResult**: Consolidated output from `ResultAggregationNode` that traverses the accepted task tree and produces response-ready context for `ResponseNode`.
 
 ---
 

@@ -37,6 +37,38 @@ task unless TinyCUA assigns or scopes it.
 Task replacement propagation follows session/task sharing rules and MUST NOT cross
 configured boundaries.
 
+## Active Task Selection
+
+Active task selection uses DFS pre-order traversal of the root Task tree:
+
+```text
+TinyCUALoop.get_active_task() -> Task | None
+TinyCUALoop.set_active_task(task_id) -> None
+TinyCUALoop.update_active_task_result(...)
+```
+
+Active task is resolved by DFS pre-order traversal of the root Task tree. The first
+unfinished task matching the active-task predicate is selected. `active_child_id` is a
+traversal hint maintained by the loop.
+
+## TaskTree Completion/Update Rules
+
+On `ResultReviewer` accept:
+
+```text
+on_result_reviewer_accept(active_task):
+  1. Mark current task result as accepted.
+  2. Update active task context/result.
+  3. If current task is complete, go up to parent.
+     - If no parent exists, root task is done; route to ResultAggregationNode.
+  4. If current task is unfinished, DFS pre-order to the next unfinished child.
+  5. If no unfinished child exists:
+     - If current task has no children, execute current task.
+     - If all children complete, re-evaluate current task completion.
+       - If complete, mark complete and continue upward.
+       - If incomplete, update task instruction/context with remaining criteria and execute current task.
+```
+
 ## Related
 
 - [`session.md`](session.md)

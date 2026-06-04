@@ -100,3 +100,10 @@ messages being compacted. The compacted output remains one assistant-role summar
 
 - [`../config/session_config.md`](../config/session_config.md)
 - [`../models/session.md`](../models/session.md)
+
+## Provider Prompt Caching Non-Goal
+
+TinyCUA context management may interact with provider prompt caching in provider-specific
+ways. This design does not optimize provider cache hit rates, cost, or speed. Provider
+prompt caching is not a design goal. The primary goal is context quality and better model
+output.

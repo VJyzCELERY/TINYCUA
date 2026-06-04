@@ -67,6 +67,28 @@ No automated tests are required for this docs-only PR.
 
 - Rewrite from scratch with detailed task IDs.
 
+### Phase 0a — Synchronize Planning Docs
+
+#### MODIFY `src/tinycua/specs/design-simplification/spec.md`
+
+- Update spec.md with FR-048+ continuation/task-tree/aggregation/retrieval-cache requirements.
+- Add new edge cases for duplicate WorkerNode, open_question, and resumed WorkerNode reuse.
+- Add `MandatoryPassthrough` and `AggregatedResult` to Key Entities.
+- Add provider prompt caching to non-goals.
+
+#### MODIFY `src/tinycua/specs/design-simplification/design.md`
+
+- Update design.md with corresponding blueprint sections: Queue Bootstrap, QueryAnalyst Prechecks, Mandatory Passthrough, TaskTree Active Task Lifecycle, ResultAggregationNode, Tool Scope, ResponseNode Consolidated Continuation, Provider Prompt Caching Non-Goal.
+- Add AggregatedResult model and enhanced_context_retrieval cache behavior.
+
+#### MODIFY `src/tinycua/specs/design-simplification/implementation-plan.md`
+
+- Add Phase 0a and Phase 6a/7a tasks for this clarification pass.
+
+#### MODIFY `src/tinycua/specs/design-simplification/task.md`
+
+- Add task items for Phase 0a synchronization and Phase 6a/7a roadmap/PR body synchronization.
+
 ### Phase 1 — Create New Design Docs
 
 Create these docs before deleting old docs:
@@ -140,6 +162,13 @@ Roadmap draft requirements:
 - Avoid sub-issue drafts unless a milestone cannot reasonably fit one PR.
 - Mark draft directory as temporary review material to convert/delete before merge.
 
+### Phase 6a — Roadmap Synchronization
+
+#### MODIFY `src/tinycua/docs/roadmap/tinycua_architecture_implementation/tinycua_architecture_implementation_main_issue_draft.md`
+
+- Add/update roadmap milestones for mandatory_passthrough, active task lifecycle, ResultAggregationNode, retrieval cache, and ResponseNode continuation.
+- Update E2E verification gate with new architecture contract checks.
+
 ### Phase 7 — Final Verification, Commit, Push, PR Update
 
 - Verify docs-only diff.
@@ -148,6 +177,16 @@ Roadmap draft requirements:
 - Commit and push (user granted permission).
 - Squash/cleanup PR commit history if needed (user granted permission).
 - Update PR title/body to match new docs scope (user granted permission).
+
+### Phase 7a — PR Body Synchronization
+
+#### UPDATE PR #86 body
+
+- Update PR body so the public PR description matches the new architecture scope.
+- Add summary/solution additions for mandatory_passthrough, queue bootstrap, active task lifecycle, ResultAggregationNode, enhanced_context_retrieval cache, and ResponseNode consolidated continuation.
+- Add scope additions for FR-048 through FR-058.
+- Add out-of-scope clarification for architecture-level continuation routing vs HITL UX.
+- Add review notes for TaskTree/ResultAggregationNode, QueryAnalyst/mandatory_passthrough, and roadmap synchronization.
 
 ---
 

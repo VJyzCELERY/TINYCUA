@@ -15,9 +15,31 @@ which nodes can see those tools.
 | TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when task is missing or recreation is requested |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
-| TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools |
+| TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools + `enhanced_context_retrieval` + exploration/web/context search tools when enabled |
 | TinyCUAResultReviewerNode | review/decision tools |
-| TinyCUAResponseNode | selected outer Agent tools + information-digestion request capability |
+| TinyCUAResponseNode | same base toolset as TinyCUATaskExecutorNode + final response/synthesis behavior + optional information-digestion request capability only when enabled |
+
+## TaskExecutor Direct Context Retrieval
+
+`TaskExecutor` does not spawn `InformationDigesterNode`. If `TaskExecutor` needs more
+context, it calls `enhanced_context_retrieval` directly.
+
+## ResponseNode Same Base Toolset
+
+`ResponseNode` has the same base toolset as `TaskExecutor`, plus final response/synthesis
+behavior and optional information-digestion request capability only when enabled.
+
+## Enhanced Context Retrieval
+
+`enhanced_context_retrieval` is a tool available to `InformationDigesterNode`,
+`TaskExecutor`, and `ResponseNode`:
+
+- Receives the current session or selected session_context.
+- Lazily creates a scoped context cache file when called.
+- The cache contains only selected context for that session/tool call.
+- Retrieval runs as a ReAct-style search over the cache.
+- Search/read tools are limited to grep/search within the cache and paginated cache reads.
+- `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
 ## Related
 

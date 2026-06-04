@@ -10,6 +10,20 @@ Implementation tasks for the docs-only TinyCUA design simplification PR.
 - [ ] Rewrite `task.md` from scratch with detailed task IDs <!-- id: 3 -->
 - [ ] Verify planning docs preserve SDK contract and prohibit SDK modifications <!-- id: 4 -->
 
+## Phase 0a: Synchronize Planning Docs
+
+- [ ] Update `spec.md` with FR-048 through FR-058 continuation/task-tree/aggregation/retrieval-cache requirements <!-- id: 59 -->
+- [ ] Update `spec.md` with new edge cases for duplicate WorkerNode, open_question, and resumed WorkerNode reuse <!-- id: 60 -->
+- [ ] Update `spec.md` Key Entities with MandatoryPassthrough and AggregatedResult <!-- id: 61 -->
+- [ ] Update `spec.md` non-goals with provider prompt caching <!-- id: 62 -->
+- [ ] Update `design.md` with Queue Bootstrap, QueryAnalyst Prechecks, Mandatory Passthrough, TaskTree lifecycle, ResultAggregationNode, ResponseNode Consolidated Continuation, Provider Prompt Caching Non-Goal sections <!-- id: 63 -->
+- [ ] Update `design.md` Tool Scoping with TaskExecutor enhanced_context_retrieval and ResponseNode same base toolset <!-- id: 64 -->
+- [ ] Update `design.md` Node Hierarchy with TinyCUAResultAggregationNode <!-- id: 65 -->
+- [ ] Update `design.md` Task and Todo with universal Todo workflow driver <!-- id: 66 -->
+- [ ] Update `design.md` with AggregatedResult model and enhanced_context_retrieval cache behavior <!-- id: 67 -->
+- [ ] Update `implementation-plan.md` with Phase 0a, 6a, 7a tasks <!-- id: 68 -->
+- [ ] Update `task.md` with Phase 0a, 6a, 7a task items <!-- id: 69 -->
+
 ## Phase 1: Create New Architecture Docs
 
 - [ ] Create `docs/design/loops/base_loop.md` <!-- id: 5 -->
@@ -74,6 +88,11 @@ Implementation tasks for the docs-only TinyCUA design simplification PR.
 - [ ] Avoid sub-issue drafts unless a milestone cannot reasonably fit one PR <!-- id: 47 -->
 - [ ] Document roadmap draft directory as temporary review material to convert/delete before merge <!-- id: 48 -->
 
+## Phase 6a: Roadmap Synchronization
+
+- [ ] Update roadmap milestones for mandatory_passthrough, active task lifecycle, ResultAggregationNode, retrieval cache, and ResponseNode continuation <!-- id: 70 -->
+- [ ] Update E2E verification gate with new architecture contract checks <!-- id: 71 -->
+
 ## Phase 7: Final Verification
 
 - [ ] Count markdown files under `docs/design`; target 30 or fewer <!-- id: 49 -->
@@ -89,6 +108,13 @@ Implementation tasks for the docs-only TinyCUA design simplification PR.
 - [ ] Update PR title and body <!-- id: 56 -->
 - [ ] Address review feedback <!-- id: 57 -->
 - [ ] Before merge, convert roadmap draft to real GitHub issue and delete draft directory unless user decides otherwise <!-- id: 58 -->
+
+## Phase 7a: PR Body Synchronization
+
+- [ ] Update PR #86 body with new architecture scope summary/solution additions <!-- id: 72 -->
+- [ ] Update PR #86 body with FR-048 through FR-058 scope additions <!-- id: 73 -->
+- [ ] Update PR #86 body with out-of-scope clarification for architecture continuation routing <!-- id: 74 -->
+- [ ] Update PR #86 body with review notes for TaskTree/ResultAggregationNode, QueryAnalyst/mandatory_passthrough, and roadmap synchronization <!-- id: 75 -->
 
 ---
 

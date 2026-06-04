@@ -123,24 +123,129 @@ TinyCUA MUST keep an internal structured representation of system prompt parts t
 
 `TinyCUALoop` extends SDK `BaseLoop`. It uses `agent._call_llm(...)` for node LLM calls and does not create separate SDK Agent instances per node by default.
 
-Conceptual execution:
+### Queue Bootstrap and Continuation Routing
+
+Every `TinyCUALoop.run(...)`:
+
+1. Merge SDK messages into root session input context.
+2. Prepend or ensure `TinyCUAQueryAnalystNode` as the run entry node.
+   - If `QueryAnalyst` is already current from an interrupted run, do not duplicate it.
+3. Ensure a terminal node exists at the end of the queue.
+   - If an existing terminal path exists, do nothing.
+   - If no terminal path exists, append default `TinyCUAResponseNode`.
+
+### QueryAnalyst Prechecks
+
+Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic prechecks:
+
+1. If a valid `mandatory_passthrough` exists, forward the user continuation to the target node/session.
+2. If an existing `WorkerNode` is already queued before the terminal `ResponseNode` when routing to `worker`, do not spawn a new `WorkerNode`; forward/assign the current `NodeInput` to the existing `WorkerNode` and advance/remove `QueryAnalyst`.
+3. If no valid mandatory passthrough exists and no existing WorkerNode reuse applies, run normal `QueryAnalyst` LLM classification.
+
+### Mandatory Passthrough
+
+`mandatory_passthrough` is a deterministic continuation directive available to every node:
+
+```text
+MandatoryPassthrough
+  · target_node_id: str
+  · target_session_id: str | None
+  · reason: str
+  · payload: NodeInput | NodePayload | None
+  · allow_query_analyst_restart: bool = true
+```
+
+When `QueryAnalyst` encounters a valid `mandatory_passthrough`:
+- Forward the user continuation to the target node/session.
+- Do not run LLM classification.
+- If `allow_query_analyst_restart` is true and the target is no longer valid, fall back to normal classification.
+
+### TaskTree and Active Task Lifecycle
+
+Active task selection uses DFS pre-order traversal of the root Task tree:
+
+```text
+TinyCUALoop.get_active_task() -> Task | None
+TinyCUALoop.set_active_task(task_id) -> None
+TinyCUALoop.update_active_task_result(...)
+```
+
+Active task is resolved by DFS pre-order traversal of the root Task tree. The first unfinished task matching the active-task predicate is selected. `active_child_id` is a traversal hint maintained by the loop.
+
+### TaskTree Completion/Update Rules
+
+On `ResultReviewer` accept:
+
+```text
+on_result_reviewer_accept(active_task):
+  1. Mark current task result as accepted.
+  2. Update active task context/result.
+  3. If current task is complete, go up to parent.
+     - If no parent exists, root task is done; route to ResultAggregationNode.
+  4. If current task is unfinished, DFS pre-order to the next unfinished child.
+  5. If no unfinished child exists:
+     - If current task has no children, execute current task.
+     - If all children are complete, re-evaluate current task completion.
+       - If complete, mark complete and continue upward.
+       - If incomplete, update task instruction/context with remaining criteria and execute current task.
+```
+
+### ResultAggregationNode
+
+`TinyCUAResultAggregationNode` is a `ProcessNode` entered only after the root task is accepted/done:
+
+```text
+TaskExecutor
+  → ResultReviewer
+      accept
+        → task-tree update
+        → if root task done:
+             ResultAggregationNode
+             ResponseNode
+      retry
+        → TaskExecutor
+      replan
+        → TaskAnalyzer
+      open_question
+        → mandatory_passthrough to ResultReviewer
+```
+
+`ResultAggregationNode` traverses the root task tree, inspects each task context/result/artifacts/reviewer decisions, consolidates information, and emits response-ready context for `ResponseNode`.
+
+### ResponseNode Consolidated Continuation
+
+`TinyCUAResponseNode` is the final consolidated continuation/synthesis node. Its LLM input is built primarily from accumulated root/session_context plus the latest propagated node output. It may maintain a session for audit/todo/tool execution, but its message policy treats it as a continuation of the current TinyCUA session.
+
+On every call, `ResponseNode` first analyzes whether available context is sufficient.
+- If sufficient, answer.
+- If insufficient, use allowed tools directly or request information digestion if enabled.
+
+### Provider Prompt Caching Non-Goal
+
+TinyCUA context management may interact with provider prompt caching in provider-specific ways. This design does not optimize provider cache hit rates, cost, or speed. The primary goal is context quality and better model output.
+
+### Execution Flow
 
 ```text
 TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
   1. Merge SDK messages into root session input context according to session policy.
-  2. Ensure NodeQueue contains an entry node and terminal response path.
-  3. While queue is not empty:
-       node = queue.current
-       node_session = node.ensure_session(...)
-       node_input = queue.input_for_current()
-       input_messages = node.build_messages(root_session, node_input)
-       instructions = node.build_instruction(override_instructions)
-       scoped_tools = node.tool_policy.resolve(node_tools, outer_agent_tools=tools)
-       result = call/stream agent._call_llm(input_messages, scoped_tools)
-       validate/retry according to node retry policy
-       record chat history and selected session context
+  2. Prepend or ensure TinyCUAQueryAnalystNode as the run entry node.
+     - If QueryAnalyst is already current from an interrupted run, do not duplicate it.
+  3. Ensure a terminal node exists at the end of the queue.
+     - If an existing terminal path exists, do nothing.
+     - If no terminal path exists, append default TinyCUAResponseNode.
+  4. While queue is not empty:
+        node = queue.current
+        node_session = node.ensure_session(...)
+        node_input = queue.input_for_current()
+        input_messages = node.build_messages(root_session, node_input)
+        instructions = node.build_instruction(override_instructions)
+        scoped_tools = node.tool_policy.resolve(node_tools, outer_agent_tools=tools)
+        result = call/stream agent._call_llm(input_messages, scoped_tools)
+        validate/retry according to node retry policy
+        record chat history and selected session context
         node.on_complete(queue, result)
-  4. Return final TinyCUAResponseNode string or stream events.
+  5. Return final TinyCUAResponseNode string or stream events.
 ```
 
 ---
@@ -197,6 +302,7 @@ Node
     ├── TinyCUATaskAssessorNode
     ├── TinyCUATaskExecutorNode
     ├── TinyCUAResultReviewerNode
+    ├── TinyCUAResultAggregationNode
     └── TinyCUAResponseNode
 ```
 
@@ -270,9 +376,49 @@ Passthrough is available only when there is a worker-spawned node to receive the
 
 ## TinyCUAResponseNode
 
-`TinyCUAResponseNode` is TinyCUA's final response/synthesis node. It derives from `ProcessNode`; it is not a generic `PrimaryNode` primitive.
+`TinyCUAResponseNode` is TinyCUA's final consolidated continuation/synthesis node. It derives from `ProcessNode`; it is not a generic `PrimaryNode` primitive.
 
-It may be terminal and suspendable. If it needs more information, it can request `TinyCUAInformationDigesterNode` through queue suspension:
+Its LLM input is built primarily from accumulated root/session_context plus the latest propagated node output. It may maintain a session for audit/todo/tool execution, but its message policy treats it as a continuation of the current TinyCUA session.
+
+On every call, `ResponseNode` first analyzes whether available context is sufficient:
+- If sufficient, answer.
+- If insufficient, use allowed tools directly or request information digestion if enabled.
+
+It may also suspend itself to request `TinyCUAInformationDigesterNode`:
+
+```text
+ResponseNode session_context
+  → NodeInput(messages=response_node.session_context, payloads=[InformationDigestRequest])
+  → InformationDigesterNode(parent=ResponseNode)
+  → digest result propagates back to ResponseNode
+  → ResponseNode resumes final synthesis
+```
+
+### ResultAggregationNode
+
+`TinyCUAResultAggregationNode` is a `ProcessNode` entered only after the root task is accepted/done. It traverses the root task tree, inspects each task context/result/artifacts/reviewer decisions, consolidates information, and emits response-ready context for `ResponseNode`.
+
+Responsibilities:
+
+```text
+ResultReviewer:
+  - review executor output
+  - decide accept/retry/replan/open_question
+  - update active TaskResult
+  - update active task context
+  - trigger task-tree transition
+
+ResultAggregationNode:
+  - entered only after root task is accepted/done
+  - traverse the root task tree
+  - inspect each task context/result/artifacts/reviewer decisions
+  - consolidate information
+  - summarize until aggregation is complete
+  - emit response-ready context for ResponseNode
+
+ResponseNode:
+  - synthesize/present the user-facing answer from aggregated context
+```
 
 ```text
 ResponseNode session_context
@@ -291,6 +437,35 @@ Suspension handoff protocol:
 3. The digester propagates selected digest output to its parent response node session.
 4. The response node resumes only after the propagated digest is available in its
    `session_context`.
+
+`InformationDigesterNode` is optional and invoked only when direct accumulated context/tool access is insufficient. `ResponseNode` should first evaluate whether accumulated context is enough. `TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning `InformationDigesterNode`.
+
+### AggregatedResult Model
+
+```text
+AggregatedResult
+  · root_task_id: str
+  · task_summaries: list[str]
+  · accepted_results: list[TaskResult]
+  · artifacts: list[dict]
+  · final_context: str
+  · response_continuation: str
+  · metadata: dict
+```
+
+### Enhanced Context Retrieval Cache Behavior
+
+`enhanced_context_retrieval` is a tool available to `InformationDigesterNode`, `TaskExecutor`, and `ResponseNode`:
+
+```text
+enhanced_context_retrieval:
+  - Receives the current session or selected session_context.
+  - Lazily creates a scoped context cache file when called.
+  - The cache contains only selected context for that session/tool call.
+  - Retrieval runs as a ReAct-style search over the cache.
+  - Search/read tools are limited to grep/search within the cache and paginated cache reads.
+  - InformationDigesterNode may call the tool, but the tool owns cache creation.
+```
 
 ---
 
@@ -351,7 +526,7 @@ Messages passed as node input are not automatically re-stored. Nodes store new o
 
 A `Task` is the global parent session overall goal — the high-level objective of an entire session. It lives at the root session level and is not duplicated per node.
 
-A `Todo` is a small, isolated, linear, non-complex todo list stored per session. Every node can access its session's `Todo` to plan then execute in a structured manner. It is not a full task-planning or project-management system — just a simple ordered list the node can read, check off, and extend during execution.
+A `Todo` is a small, isolated, linear, non-complex todo list stored per session. Every TinyCUA node session MUST have a Todo. Todo tools are generic node tools available to all TinyCUA nodes unless disabled by `NodeToolPolicy`. Nodes SHOULD structure their work through Plan -> Analyze -> Act, using Todo as the local step tracker. Task is the broader session goal; Todo is the smaller local execution driver.
 
 ```text
 Task   → global parent session goal (one per root session)
@@ -621,9 +796,11 @@ Deny wins over allow. `selected` includes only named outer tools from
 | TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskAnalyzerNode | task structure tools, optionally TaskInit/TaskCreate |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
-| TinyCUATaskExecutorNode | task tools + selected outer Agent tools |
+| TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools + `enhanced_context_retrieval` + exploration/web/context search tools when enabled |
 | TinyCUAResultReviewerNode | review/decision tools |
-| TinyCUAResponseNode | selected outer Agent tools + information-digestion request capability |
+| TinyCUAResponseNode | same base toolset as TinyCUATaskExecutorNode + final response/synthesis behavior + optional information-digestion request capability only when enabled |
+
+TaskExecutor does not spawn InformationDigesterNode. If TaskExecutor needs more context, it calls `enhanced_context_retrieval` directly.
 
 ---
 

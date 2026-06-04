@@ -19,8 +19,12 @@ because compaction is strategy-owned summarization, not node execution.
 ```text
 TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
   1. Merge SDK messages into root session input context according to session policy.
-  2. Ensure NodeQueue has an entry node and terminal response path.
-  3. While queue is not empty:
+  2. Prepend or ensure TinyCUAQueryAnalystNode as the run entry node.
+     - If QueryAnalyst is already current from an interrupted run, do not duplicate it.
+  3. Ensure a terminal node exists at the end of the queue.
+     - If an existing terminal path exists, do nothing.
+     - If no terminal path exists, append default TinyCUAResponseNode.
+  4. While queue is not empty:
         node = queue.current
         node_session = node.ensure_session(...)
         node_input = queue.input_for_current()
@@ -31,8 +35,16 @@ TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
         validate/retry according to node retry policy
         record chat history and selected session context
         node.on_complete(queue, result)
-  4. Return final TinyCUAResponseNode string or stream events.
+  5. Return final TinyCUAResponseNode string or stream events.
 ```
+
+### QueryAnalyst Worker-Route Rule
+
+When `QueryAnalyst` routes to `worker`:
+- If an existing `WorkerNode` is already queued before the terminal `ResponseNode`, do not spawn a new `WorkerNode`. Forward/assign the current `NodeInput` to the existing `WorkerNode`. Advance/remove `QueryAnalyst`.
+- If no `WorkerNode` exists, spawn a new `WorkerNode` before the terminal `ResponseNode`.
+
+An existing `WorkerNode` counts as part of the worker-owned queue segment for stale detection and clearing.
 
 `node.on_complete()` is responsible for all queue transitions. It calls
 `queue.advance()` when the current node is finished, or performs route-specific mutations

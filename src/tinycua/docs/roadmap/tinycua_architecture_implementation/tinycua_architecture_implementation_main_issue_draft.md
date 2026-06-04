@@ -140,9 +140,10 @@ modify SDK APIs.
   - `advance()`
   - `spawn_after_current()`
   - terminal response handling skeleton
+- **Queue bootstrap invariant**: QueryAnalyst at front, terminal ResponseNode at end
 - **Contract deferred**: suspension/prepend.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: queue can run a minimal process-node sequence.
+- **Exit criteria**: queue can run a minimal process-node sequence with correct bootstrap.
 
 ### 6. NodeQueue Suspension and Prepend
 
@@ -182,9 +183,11 @@ modify SDK APIs.
   - `TinyCUAQueryAnalystNode`
   - top-level labels: `passthrough`, `worker`
   - route to response path or worker path
+  - mandatory_passthrough precheck before LLM classification
+  - existing WorkerNode reuse before spawning a new WorkerNode
 - **Contract deferred**: Worker decision node.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: top-level query classification routes queue deterministically.
+- **Exit criteria**: top-level query classification routes queue deterministically with passthrough and worker-reuse logic.
 
 ### 9. TinyCUAWorkerNode Deterministic Routing
 
@@ -196,6 +199,8 @@ modify SDK APIs.
   - no Worker QueryAnalyst
   - task-missing deterministic path to TaskAnalyzer with TaskInit/TaskCreate
   - worker-spawned-node detection
+  - existing WorkerNode as part of worker-owned queue segment
+  - worker-spawned segment clearing rules
 - **Contract deferred**: optional LLM worker decision.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: Worker can initialize task analysis without LLM decision when task is missing.
@@ -270,9 +275,53 @@ modify SDK APIs.
   - `TinyCUATaskExecutorNode`
   - `TinyCUAResultReviewerNode`
   - accept/retry/replan/open-question flow
-- **Contract deferred**: final response synthesis.
+- **Contract deferred**: final response synthesis, task-tree update rules.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: executor/reviewer path can complete or route retry/replan.
+
+### 14a. Mandatory Passthrough and Continuation Routing
+
+- **Design docs covered**:
+  - `docs/design/loops/route_map.md` — full
+  - `docs/design/models/reviewer_decision.md` — full
+  - `docs/design/loops/tinycua_loop.md` — full
+- **Contract implemented**:
+  - `MandatoryPassthrough` model/directive
+  - `open_question` continuation target
+  - deterministic target node/session routing
+  - explicit restart fallback to QueryAnalyst
+- **Contract deferred**: none for architecture scope.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: open_question routes back to ResultReviewer deterministically.
+
+### 14b. TaskTree Active Task Lifecycle
+
+- **Design docs covered**:
+  - `docs/design/models/task.md` — full
+  - `docs/design/loops/tinycua_loop.md` — full
+- **Contract implemented**:
+  - DFS pre-order active task selection
+  - `get_active_task` / `set_active_task` helpers
+  - task-tree completion/update algorithm
+- **Contract deferred**: none for architecture scope.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: active task traversal and task-tree update rules are implemented.
+
+### 14c. ResultAggregationNode
+
+- **Design docs covered**:
+  - `docs/design/loops/node.md` — full
+  - `docs/design/config/node_config.md` — full
+  - `docs/design/models/task.md` — full
+- **Contract implemented**:
+  - entered only after root task accepted/done
+  - traverses root TaskTree
+  - consolidates context/results/artifacts
+  - emits `AggregatedResult`
+  - passes response-ready context to ResponseNode
+- **Contract deferred**: none for architecture scope.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: accepted root task enters ResultAggregationNode and produces AggregatedResult.
 
 ### 15. TinyCUAResponseNode
 
@@ -283,9 +332,12 @@ modify SDK APIs.
   - final response synthesis
   - terminal output normalization to `str`
   - selected outer Agent tools according to NodeToolPolicy
+  - consolidated continuation behavior
+  - context sufficiency check
+  - same base toolset as TaskExecutor
 - **Contract deferred**: suspension to InformationDigester.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: passthrough path can produce final response.
+- **Exit criteria**: passthrough path can produce final response with consolidated continuation.
 
 ### 16. ResponseNode Information-Digestion Suspension Path
 
@@ -298,6 +350,7 @@ modify SDK APIs.
   - pass ResponseNode session context through NodeInput
   - prepend InformationDigester with parent=ResponseNode
   - digest propagates back and ResponseNode resumes
+  - marked as optional support path (not primary response flow)
 - **Contract deferred**: advanced nested suspension.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: ResponseNode can gather information mid-response, receive propagated digest context in its parent session, and resume final synthesis using that digest.
@@ -328,9 +381,12 @@ modify SDK APIs.
   - NodeToolPolicy resolution
   - selected outer Agent tools
   - node-specific tool restrictions
+  - TaskExecutor direct `enhanced_context_retrieval`
+  - ResponseNode same base toolset as TaskExecutor
+  - `enhanced_context_retrieval` cache behavior
 - **Contract deferred**: none for architecture scope.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: nodes only see allowed tools.
+- **Exit criteria**: nodes only see allowed tools; TaskExecutor uses enhanced_context_retrieval directly.
 
 ### 19. Retry, Validation, and Monitor Hook
 
@@ -380,9 +436,13 @@ modify SDK APIs.
   - propagation
   - tool scoping
   - streaming
+  - resume with existing WorkerNode does not duplicate worker
+  - open_question routes back to ResultReviewer
+  - accepted root task enters ResultAggregationNode
+  - ResponseNode receives AggregatedResult
 - **Contract deferred**: out-of-scope UX/persistence/SDK work.
 - **Expected PR scope**: verification gate after prior milestone PRs are complete.
-- **Exit criteria**: `create_tinycua_agent(...).run(...)` works across documented architecture paths.
+- **Exit criteria**: `create_tinycua_agent(...).run(...)` works across documented architecture paths including new continuation, task-tree, and aggregation contracts.
 
 ## Dependencies
 

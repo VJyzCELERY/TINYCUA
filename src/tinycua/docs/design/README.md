@@ -51,6 +51,7 @@ SDK Agent
         ├── TinyCUATaskAssessorNode        : ProcessNode
         ├── TinyCUATaskExecutorNode        : ProcessNode
         ├── TinyCUAResultReviewerNode      : ProcessNode
+        ├── TinyCUAResultAggregationNode   : ProcessNode
         └── TinyCUAResponseNode            : ProcessNode, terminal/suspendable
 ```
 

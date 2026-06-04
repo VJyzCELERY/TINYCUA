@@ -48,6 +48,31 @@ TinyCUAWorkerNode.route_map:
 Route handlers are callables. By convention they are named methods on the concrete
 `DecisionNode`, but standalone callables are valid when tests and ownership are clear.
 
+## Mandatory Passthrough
+
+`mandatory_passthrough` is a deterministic continuation directive available to every node.
+It overrides LLM classification to route the next user input directly to a target
+node/session.
+
+```text
+MandatoryPassthrough
+  · target_node_id: str
+  · target_session_id: str | None
+  · reason: str
+  · payload: NodeInput | NodePayload | None
+  · allow_query_analyst_restart: bool = true
+```
+
+### QueryAnalyst Prechecks
+
+Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic prechecks:
+
+1. If a valid `mandatory_passthrough` exists, forward the user continuation to the target node/session.
+2. If no valid mandatory passthrough exists, run normal `QueryAnalyst` classification.
+
+This ensures continuation and HITL flows are deterministic. Relying on LLM classification
+to choose passthrough can drop or reroute user input away from the intended active node/session.
+
 ## Related
 
 - [`node.md`](node.md)

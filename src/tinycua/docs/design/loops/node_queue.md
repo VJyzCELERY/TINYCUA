@@ -82,6 +82,19 @@ When `TinyCUAResponseNode` suspends itself for information digestion:
 `TinyCUAResponseNode` is the usual terminal response node. If the queue loses its
 terminal path, `ensure_terminal(...)` MUST append a default response node.
 
+## Queue Bootstrap
+
+Every `TinyCUALoop.run(...)` enforces these invariants:
+
+1. Prepend or ensure `TinyCUAQueryAnalystNode` as the run entry node.
+   - If `QueryAnalyst` is already current from an interrupted run, do not duplicate it.
+2. Ensure a terminal node exists at the end of the queue.
+   - If an existing terminal path exists, do nothing.
+   - If no terminal path exists, append default `TinyCUAResponseNode`.
+
+This ensures predictable queue state for crash recovery, HITL continuation, stale queue
+recovery, and terminal safety.
+
 ## Related
 
 - [`tinycua_loop.md`](tinycua_loop.md)
