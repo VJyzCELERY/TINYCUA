@@ -45,9 +45,12 @@ modify SDK APIs.
 ### 1. Agent Factory Contract
 
 - **Design docs covered**:
+  - `docs/design/README.md` — partial
+  - `docs/design/loops/overview.md` — full
   - `docs/design/loops/base_loop.md` — partial
   - `docs/design/loops/tinycua_loop.md` — partial
   - `docs/design/config/session_config.md` — partial
+  - `docs/design/constants/instructions.md` — partial
 - **Contract implemented**:
   - `create_tinycua_agent(session=None, agent_config=None, session_config=None, ...) -> Agent`
   - returns SDK `Agent(loop=TinyCUALoop(...))`
@@ -68,13 +71,16 @@ modify SDK APIs.
   - `SessionConfig`
   - base node config dataclass
   - append-only instruction/continuation fields
-  - system prompt bundle/rendering model
+  - `SystemPrompt` / `SystemPromptBuilder` rendering model
   - `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` shapes
 - **Contract deferred**: concrete per-node behavior.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: config model tests pass and docs contract is represented in code.
 
 ### 2a. CompactionStrategy Contract
+
+> Numbered as `2a` because compaction is selected by `SessionConfig` from milestone 2,
+> but remains a separate PR-sized contract before transport and node execution work.
 
 - **Design docs covered**:
   - `docs/design/utility/compaction.md` — full
@@ -96,6 +102,7 @@ modify SDK APIs.
 
 - **Design docs covered**:
   - `docs/design/models/state_object.md` — partial
+  - `docs/design/models/execution_log.md` — partial
   - `docs/design/models/agent_state.md` — partial
   - `docs/design/loops/node.md` — partial
 - **Contract implemented**:
@@ -148,7 +155,7 @@ modify SDK APIs.
   - resume by queue position, no dedicated suspended state
 - **Contract deferred**: ResponseNode-specific information digestion path.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: prepended node runs before paused parent and propagates selected output.
+- **Exit criteria**: prepended node runs before suspended parent and propagates selected output.
 
 ### 7. TinyCUALoop SDK Integration
 
@@ -184,6 +191,7 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/worker_concept.md` — partial
   - `docs/design/tools/task.md` — partial
+  - `docs/design/models/worker_result.md` — partial
 - **Contract implemented**:
   - no Worker QueryAnalyst
   - task-missing deterministic path to TaskAnalyzer with TaskInit/TaskCreate
@@ -210,6 +218,7 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
   - `docs/design/tools/digester.md` — full
+  - `docs/design/models/information.md` — partial
   - `docs/design/models/digested_information.md` — full
 - **Contract implemented**:
   - `TinyCUAInformationDigesterNode`
@@ -225,7 +234,9 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
   - `docs/design/tools/task.md` — partial
+  - `docs/design/tools/todo.md` — partial
   - `docs/design/models/task.md` — partial
+  - `docs/design/models/todo.md` — partial
 - **Contract implemented**:
   - `TinyCUATaskAnalyzerNode`
   - `TinyCUATaskAssessorNode`
@@ -239,7 +250,9 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
   - `docs/design/tools/task.md` — full
+  - `docs/design/tools/todo.md` — partial
   - `docs/design/models/reviewer_decision.md` — full
+  - `docs/design/models/todo.md` — partial
 - **Contract implemented**:
   - `TinyCUATaskExecutorNode`
   - `TinyCUAResultReviewerNode`
@@ -282,6 +295,7 @@ modify SDK APIs.
   - `docs/design/loops/propagation.md` — full
   - `docs/design/models/session.md` — full
   - `docs/design/models/chat_record.md` — full
+  - `docs/design/models/state_store.md` — partial
 - **Contract implemented**:
   - PropagationRule engine
   - chat_history vs session_context separation
@@ -319,6 +333,10 @@ modify SDK APIs.
 - **Contract deferred**: HITL UX.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: invalid node output retries and exhaustion behavior are covered.
+- **Exit criteria**:
+  - invalid node output retries and retry exhaustion behavior are covered
+  - validation pass/fail flow is covered for required tool calls and output schema
+  - optional monitor hook lifecycle is covered without introducing HITL UX scope
 
 ### 19. Streaming Across Nodes
 
@@ -335,7 +353,10 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: streamed runs surface node LLM/tool events and non-streamed runs return final string.
 
-### 20. End-to-End Architecture Integration
+### 20. End-to-End Architecture Integration Verification Gate
+
+> **Integration Verification Gate** — requires milestones 1-19 complete. This is a
+> verification gate, not a standalone feature PR by default.
 
 - **Design docs covered**:
   - all core `docs/design` architecture docs — full coverage audit
@@ -348,7 +369,7 @@ modify SDK APIs.
   - tool scoping
   - streaming
 - **Contract deferred**: out-of-scope UX/persistence/SDK work.
-- **Expected PR scope**: one PR.
+- **Expected PR scope**: verification gate after prior milestone PRs are complete.
 - **Exit criteria**: `create_tinycua_agent(...).run(...)` works across documented architecture paths.
 
 ## Dependencies

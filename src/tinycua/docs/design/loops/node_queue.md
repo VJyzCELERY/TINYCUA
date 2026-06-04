@@ -12,14 +12,27 @@ automatic context sharing.
 ```text
 NodeQueue
   · items: list[Node]
-  · current → Node | None
-  · advance() → None
-  · spawn_after_current(nodes) → None
-  · suspend_current_and_prepend(nodes) → None
-  · clear_after_current() → None
-  · ensure_terminal(default_response_node) → None
+  · current → Node | None          # returns items[0] when present
+  · advance() → Node | None          # propagates current session before removal
+  · spawn_after_current(nodes) → None # keeps current session active
+  · suspend_current_and_prepend(nodes) → None # preserves suspended node session
+  · clear_after_current() → None     # drops queued nodes without mutating sessions
+  · ensure_terminal(default_response_node) → None # guarantees terminal current path
   · is_empty() → bool
 ```
+
+Operation side effects:
+
+- `advance()` calls `propagate()` on `items[0]` if the node completed and has not already
+  propagated, removes `items[0]`, and returns the new `current` node or `None`.
+- `spawn_after_current(nodes)` inserts nodes after `items[0]`. It does not change
+  `current`; the loop re-reads `queue.current` after `on_complete()`.
+- `suspend_current_and_prepend(nodes)` keeps the current node queued, inserts the new
+  nodes before it, and makes the first prepended node the new `current`.
+- `clear_after_current()` removes nodes after `items[0]`; removed node sessions are not
+  mutated, but no further propagation occurs unless it happened before removal.
+- `ensure_terminal(default_response_node)` appends the default response node when the
+  queue would otherwise have no terminal response path.
 
 ## Suspension and Prepend
 
@@ -43,7 +56,7 @@ resumes.
 ## Terminal Handling
 
 `TinyCUAResponseNode` is the usual terminal response node. If the queue loses its
-terminal path, `ensure_terminal(...)` may append a default response node.
+terminal path, `ensure_terminal(...)` MUST append a default response node.
 
 ## Related
 

@@ -18,7 +18,7 @@ TinyCUAWorkerNode enters
 1. Does task exist?
    ├── No
    │   → spawn TinyCUATaskAnalyzerNode with TaskInit/TaskCreate tools
-   │   → terminate WorkerNode
+   │   → WorkerNode calls `queue.advance()` and does not re-insert itself
    └── Yes
        → continue
 
@@ -37,7 +37,7 @@ TinyCUAWorkerNode enters
 |-------|----------|
 | `task_recreation` | Clear worker-spawned nodes and spawn TaskAnalyzer with TaskInit/TaskCreate. |
 | `task_reanalysis` | Clear worker-spawned nodes and spawn TaskAnalyzer without TaskInit/TaskCreate. |
-| `passthrough` | Terminate WorkerNode and forward input to the next worker-spawned node. |
+| `passthrough` | WorkerNode calls `queue.advance()`, does not re-insert itself, and forwards input to the next worker-spawned node. |
 | `proceed_execution` | Spawn/continue TaskExecutor and ResultReviewer path. |
 
 Passthrough is only available when a worker-spawned node exists to receive it.

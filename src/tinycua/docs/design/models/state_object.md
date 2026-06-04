@@ -32,14 +32,31 @@ StateObject
 
 ```text
 NodePayload <: StateObject
+  · payload_type: str
+  · source_node: str | None
+  · content: str | dict | StateObject | list[dict]
+  · metadata: dict
   · to_message() → assistant-role message
   · to_messages() → list[dict]
 
 NodeInput <: StateObject
+  · input_type: str
+  · source_node: str | None
+  · target_node: str | None
   · messages: list[dict]
   · payloads: list[NodePayload]
+  · metadata: dict
   · to_messages() → list[dict]
 ```
+
+`NodeInputLike = str | NodeInput | NodePayload | list[dict]`.
+
+Conversion rules:
+
+- external user strings become `{"role": "user", "content": query}`
+- internal strings become `{"role": "assistant", "content": text}`
+- `NodeInput` and `NodePayload` are trusted internal transport objects
+- user strings are never parsed as structured internal input
 
 ## Related
 

@@ -8,6 +8,25 @@
 Each concrete TinyCUA node has its own config dataclass. Node config controls node
 behavior, not SDK model/provider configuration.
 
+## NodeMessageStrategy
+
+`NodeMessageStrategy` controls how a node selects reusable session context and formats
+non-system continuation messages. It does not change the system prompt rendering contract.
+
+```text
+NodeMessageStrategy
+  · include_chat_history: bool = false
+  · include_session_context: bool = true
+  · max_context_messages: int | None
+  · dedupe_by_origin_record_id: bool = true
+  · continuation_role: "assistant"
+```
+
+Nodes may specialize this strategy, but internal node handoffs and continuations remain
+assistant-role messages unless a provider-specific tool role is required.
+
+## Base Config
+
 ```text
 NodeConfigBase
   · custom_instruction_append: str | None
@@ -32,12 +51,12 @@ hardcoded_retry_constant + custom_retry_append
 ## System Prompt Rendering
 
 Node config contributes only append-only instruction content. The node combines it with
-hardcoded static instruction and optional dynamic system context through
-`SystemPrompt` / `SystemPromptBuilder`. Prompt fragments are kept separate internally and
-rendered into **one final system-role message** for LLM calls.
+hardcoded static instruction and optional dynamic system context through the prompt
+builder defined in [`../loops/node.md`](../loops/node.md). Prompt fragments are kept
+separate internally and rendered into **one final system-role message** for LLM calls.
 
 ```text
-SystemPromptBuilder
+Prompt builder
   → add_static(hardcoded_instruction)
   → add_configurable_append(custom_instruction_append)
   → add_dynamic_context(dynamic_system_context)
@@ -75,6 +94,20 @@ NodeStreamPolicy
 ```
 
 When `stream=True`, LLM/tool events from every node are streamable to the caller.
+
+## NodeRetryPolicy
+
+```text
+NodeRetryPolicy
+  · max_attempts
+  · required_tool_calls
+  · required_output_schema
+  · validation_fn
+  · retry_continuation_builder
+  · on_retry_exhausted
+```
+
+Retry prompts are assistant-role continuations.
 
 ## Per-Node Configs
 

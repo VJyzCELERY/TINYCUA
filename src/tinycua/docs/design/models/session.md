@@ -60,6 +60,11 @@ Session compaction is selected by `session_config.compaction_strategy`. The stra
 takes `messages: list[dict]` and returns one assistant-role summary message. The strategy
 may own its own internal Agent; this is not normal TinyCUALoop node execution.
 
+Nodes invoke compaction with `session.compact_context()` when SessionConfig context limits
+are exceeded. The session delegates to the configured strategy and replaces the selected
+`session_context` window with the returned assistant summary. The node that requested
+compaction builds any continuation prompt after compaction.
+
 The default/simple strategy may be `SimpleCompaction`, which inherits parent Agent
 configuration when available, uses a fallback config otherwise, runs a tool-less
 compaction Agent over selected session messages, and stores that final response as:
@@ -68,11 +73,12 @@ compaction Agent over selected session messages, and stores that final response 
 {"role": "assistant", "content": response}
 ```
 
-System-role messages should generally be excluded from compaction targets unless the
-caller intentionally passes dynamic system context for summarization.
+System-role messages are excluded from compaction targets by default unless the caller
+intentionally passes dynamic system context for summarization.
 
 ## Related
 
 - [`state_object.md`](state_object.md)
 - [`chat_record.md`](chat_record.md)
+- [`todo.md`](todo.md)
 - [`../utility/compaction.md`](../utility/compaction.md)

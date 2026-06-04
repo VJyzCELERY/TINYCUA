@@ -49,13 +49,12 @@ No SDK modification is required by this design.
 
 | Directory | Purpose |
 |-----------|---------|
-| `loops/` | TinyCUALoop, NodeQueue, node, routing, propagation, streaming behavior |
-| `config/` | NodeConfig, SessionConfig, tool/stream/retry policies |
+| `loops/` | TinyCUALoop, NodeQueue, node, routing, propagation, streaming, error handling |
+| `config/` | NodeConfig, SessionConfig, tool/stream/retry policies and message strategy |
 | `models/` | Session, StateObject, AgentState outputs, NodeInput/NodePayload, task/data models |
 | `constants/` | Instruction, continuation, and tool constants |
 | `tools/` | Task, todo, and information digestion tools |
 | `utility/` | Compaction strategy notes |
-| `loops/` | Also contains loop/node error concepts. |
 
 ## Removed Target Concepts
 

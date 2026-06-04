@@ -18,25 +18,25 @@ because compaction is strategy-owned summarization, not node execution.
 
 ```text
 TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
-  1. Merge SDK messages into root session context according to session policy.
-  2. Ensure NodeQueue has an entry node and response path.
+  1. Merge SDK messages into root session input context according to session policy.
+  2. Ensure NodeQueue has an entry node and terminal response path.
   3. While queue is not empty:
-       node = queue.current
-       node.ensure_session(root_session)
-       input_messages = node.build_messages(...)
-       instructions = node.build_instruction(override_instructions)
-       scoped_tools = node.tool_policy.resolve(tools)
-       response = agent._call_llm(input_messages, scoped_tools)
-       node.validate_or_retry(response)
-       node.record_output(response)
-       node.propagate()
-       node.on_complete(queue, response)
-  4. Return final TinyCUAResponseNode output or stream events.
+        node = queue.current
+        node_session = node.ensure_session(...)
+        input_messages = node.build_messages(root_session, node_input)
+        instructions = node.build_instruction(override_instructions)
+        scoped_tools = node.tool_policy.resolve(node_tools, outer_agent_tools=tools)
+        result = call/stream agent._call_llm(input_messages, scoped_tools)
+        validate/retry according to node retry policy
+        record chat history and selected session context
+        propagate according to PropagationRule
+        node.on_complete(queue, result)
+  4. Return final TinyCUAResponseNode string or stream events.
 ```
 
 ## SDK Messages
 
-SDK-provided `messages` are input context. TinyCUA should merge/record them into the root
+SDK-provided `messages` are input context. TinyCUA MUST merge/record them into the root
 session according to dedupe and provenance rules. The current external user query is
 already included by SDK `Agent.run`.
 

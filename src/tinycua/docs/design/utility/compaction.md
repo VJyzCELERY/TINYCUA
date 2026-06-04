@@ -33,6 +33,14 @@ Output is exactly one assistant-role message:
 Compaction summarizes information into one reusable context message. It does not create
 the continuation prompt for the next LLM call; continuation is node responsibility.
 
+## Invocation
+
+Nodes request compaction by calling `session.compact_context()` when
+`SessionConfig.max_context_messages` or `SessionConfig.max_context_tokens` would be
+exceeded. The session selects the message window, calls the configured
+`CompactionStrategy.compact(messages)`, and updates `session_context` with the returned
+assistant summary. `chat_history` remains unchanged as the audit trail.
+
 ## Internal Agent Exception
 
 Normal TinyCUA node execution does not create internal SDK Agents inside
@@ -73,10 +81,10 @@ system prompts or include any dynamic system context needed for the summary.
 
 ## System Messages
 
-Compaction should generally avoid compacting system-role messages. Nodes/callers decide
-what context to pass to the strategy. A node may pass additional dynamic compaction
-instructions separately if the strategy supports them, but the compaction target should
-usually be assistant/user/tool context rather than static system prompts.
+Compaction excludes system-role messages by default. Nodes/callers decide what context to
+pass to the strategy. A node may pass additional dynamic compaction instructions
+separately if the strategy supports them, but the compaction target is normally
+assistant/user/tool context rather than static system prompts.
 
 If a node needs compaction-specific guidance, it should pass that guidance as strategy
 configuration or as a separate system prompt for the compaction Agent, not as part of the

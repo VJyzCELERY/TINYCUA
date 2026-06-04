@@ -30,21 +30,17 @@ TinyCUA must preserve this contract.
 ## System Messages
 
 The SDK canonical message model includes system messages. Current OpenAI Chat
-Completions and Responses translators pass system messages through. TinyCUA should
-prefer sending **one final system message** per LLM call for provider portability and
+Completions and Responses translators pass system messages through. TinyCUA MUST
+send **one final system message** per LLM call for provider portability and
 deterministic prompt layout.
 
-TinyCUA keeps system prompt fragments structured internally through
-`SystemPrompt` / `SystemPromptBuilder`. `build_messages()` renders the fragments into
-one ordered system-role message at the LLM boundary:
+TinyCUA keeps system prompt fragments structured internally through the prompt builder
+defined in [`node.md`](node.md). `build_messages()` renders the fragments into one
+ordered system-role message at the LLM boundary:
 
 ```text
 [
-  SystemPromptBuilder([
-    SystemPrompt(kind="static", content=<constant node instruction>),
-    SystemPrompt(kind="configurable", content=<configurable instruction append>),
-    SystemPrompt(kind="dynamic", content=<node-built dynamic system context>),
-  ]).build(),
+  {"role": "system", "content": <ordered merged system prompt>},
   {"role": "assistant", "content": <internal context / continuation>},
 ]
 ```

@@ -59,10 +59,24 @@ system dict followed by conversation/continuation messages:
 ]
 ```
 
-Dynamic system context is allowed for node-built high-priority execution constraints
-such as current active task, node-local state, output schema reminders, or active tool
-policy. Most descriptive context should still be assistant-role context/continuation, not
-system prompt.
+Dynamic system context is limited to node-built high-priority execution constraints:
+current active task, node-local state needed for correctness, output schema reminders,
+active tool policy, and safety/termination constraints. Descriptive context, summaries,
+handoffs, retries, and ordinary continuations MUST be assistant-role messages, not system
+prompt fragments.
+
+## Input
+
+Nodes accept:
+
+```text
+NodeInputLike = str | NodeInput | NodePayload | list[dict]
+```
+
+External strings become user-role messages. Internal strings become assistant-role
+messages. `NodeInput` and `NodePayload` are trusted internal objects; user strings are
+not parsed as structured internal input. See [`../models/state_object.md`](../models/state_object.md)
+for model fields and conversion rules.
 
 ## Node Contract
 
@@ -83,18 +97,6 @@ Node
   · on_complete(queue, response)
 ```
 
-## Input
-
-Nodes accept:
-
-```text
-NodeInputLike = str | NodeInput | NodePayload | list[dict]
-```
-
-External strings become user-role messages. Internal strings become assistant-role
-messages. `NodeInput` and `NodePayload` are trusted internal objects; user strings are
-not parsed as structured internal input.
-
 ## TinyCUAResponseNode
 
 `TinyCUAResponseNode` is TinyCUA's final response/synthesis node. It derives from
@@ -103,19 +105,9 @@ not parsed as structured internal input.
 
 ## Retry
 
-Node retry behavior is policy-driven:
-
-```text
-NodeRetryPolicy
-  · max_attempts
-  · required_tool_calls
-  · required_output_schema
-  · validation_fn
-  · retry_continuation_builder
-  · on_retry_exhausted
-```
-
-Retry prompts are assistant-role continuations.
+Node retry behavior is policy-driven by the retry policy defined in
+[`../config/node_config.md`](../config/node_config.md). Retry prompts are assistant-role
+continuations.
 
 ## Todo
 
@@ -126,9 +118,14 @@ manner. Todo is per-session and does not span across sessions. The global parent
 
 ## Compaction Boundary
 
-Nodes may invoke session compaction when their session context exceeds policy limits.
-Compaction produces one assistant-role summary message. The node remains responsible for
-building the continuation message used after compaction.
+Nodes invoke compaction through `session.compact_context()` when
+`len(session.session_context)` or estimated context tokens exceed `SessionConfig` limits.
+The session delegates to `session.session_config.compaction_strategy.compact(messages)`.
+
+Compaction produces one assistant-role summary message and replaces only the selected
+`session_context` window; `chat_history` remains an audit trail and is not destructively
+compacted. The node that requested compaction remains responsible for building the
+assistant-role continuation message used after compaction.
 
 ## Related
 

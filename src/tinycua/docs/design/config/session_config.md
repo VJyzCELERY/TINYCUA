@@ -11,6 +11,8 @@ It is separate from outer SDK `Agent` config and node-specific config.
 ```text
 SessionConfig
   · compaction_strategy: CompactionStrategy | None
+  · max_context_messages: int | None
+  · max_context_tokens: int | None
   · metadata: dict
 ```
 
@@ -18,6 +20,12 @@ SessionConfig
 `CompactionStrategy` class owns its own implementation/configuration and may internally
 use an Agent. Compaction accepts `messages: list[dict]` and returns one assistant-role
 summary message.
+
+Nodes trigger compaction through `session.compact_context()` when
+`max_context_messages` or `max_context_tokens` would be exceeded. The session chooses the
+message window to compact according to session policy, delegates summary creation to the
+configured strategy, and updates `session_context` with the returned assistant summary.
+`chat_history` is not destructively compacted.
 
 If no strategy is configured, future implementation may use `SimpleCompaction` as the
 default simple strategy. `SimpleCompaction` inherits parent Agent configuration where

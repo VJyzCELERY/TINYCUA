@@ -7,6 +7,16 @@
 
 Information models hold outputs from query analysis and information digestion.
 
+```text
+InformationState
+  · information_id: str
+  · source_node: str | None
+  · summary: str
+  · key_points: list[str]
+  · related_message_ids: list[str]
+  · metadata: dict
+```
+
 These are output/result models. Internal handoff should prefer `NodeInput` and
 `NodePayload` instead of YAML/front-matter strings.
 
@@ -18,5 +28,7 @@ Examples:
 
 ## Related
 
+- [`classification.md`](classification.md)
 - [`digested_information.md`](digested_information.md)
+- [`agent_state.md`](agent_state.md)
 - [`../tools/digester.md`](../tools/digester.md)

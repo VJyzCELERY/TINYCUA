@@ -102,9 +102,9 @@ Design rules:
 
 ### System Message Compatibility
 
-The SDK canonical message type supports `{"role": "system", "content": ...}`. Current OpenAI Chat Completions and Responses translators pass system messages through. However, TinyCUA should prefer sending **one final system message** to each LLM call for provider portability and deterministic prompt layout.
+The SDK canonical message type supports `{"role": "system", "content": ...}`. Current OpenAI Chat Completions and Responses translators pass system messages through. TinyCUA MUST send **one final system message** to each LLM call for provider portability and deterministic prompt layout.
 
-TinyCUA should keep an internal structured representation of system prompt parts through `SystemPrompt` / `SystemPromptBuilder` instead of relying on parsing rendered system text back into parts. `build_messages()` renders the fragments into one ordered system-role message at the LLM boundary.
+TinyCUA MUST keep an internal structured representation of system prompt parts through `SystemPrompt` / `SystemPromptBuilder` instead of relying on parsing rendered system text back into parts. `build_messages()` renders the fragments into one ordered system-role message at the LLM boundary.
 
 ---
 
@@ -162,7 +162,7 @@ TinyCUAResponseNode requests more information:
   suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=TinyCUAResponseNode)])
 
 After:
-  [TinyCUAInformationDigesterNode(active), TinyCUAResponseNode(paused)]
+  [TinyCUAInformationDigesterNode(active), TinyCUAResponseNode(suspended)]
 
 Digester completes and propagates to parent:
   [TinyCUAResponseNode(active/resumed)]
@@ -231,7 +231,7 @@ TinyCUAWorkerNode enters
 1. Does task exist?
    ├── No
    │   → spawn TinyCUATaskAnalyzerNode with TaskInit/TaskCreate tools
-   │   → terminate WorkerNode
+   │   → WorkerNode calls `queue.advance()` and does not re-insert itself
    └── Yes
        → continue
 
@@ -348,7 +348,7 @@ Nodes are not required to use Todo, but every node's session provides access to 
 
 ## System Prompt Construction
 
-Node message construction should keep system prompt categories distinct internally and render them into one system message for the actual LLM call:
+Node message construction MUST keep system prompt categories distinct internally and render them into one system message for the actual LLM call:
 
 ```text
 SystemPrompt
@@ -447,7 +447,7 @@ Contract:
    ```
 
 3. Compaction summarizes context only. Continuation prompts remain the responsibility of the node that resumes after compaction.
-4. Compaction should generally avoid compacting system-role messages. The caller/node decides what context to pass to the strategy.
+4. Compaction excludes system-role messages by default. The caller/node decides what context to pass to the strategy.
 5. A strategy MAY include its own internal Agent or non-agent summarization logic. This is the explicit exception to the TinyCUALoop rule that the loop does not create internal Agents for normal node execution.
 6. `SessionConfig` dictates which strategy is used; the strategy class is the authority for its own model/tool/instruction/config details.
 
@@ -614,7 +614,6 @@ docs/design/
 ├── constants/
 │   ├── instructions.md
 │   └── tools.md
-├── exceptions/
 ├── loops/
 │   ├── overview.md
 │   ├── base_loop.md
@@ -734,7 +733,7 @@ The draft directory is temporary review material. Before merge, convert the draf
 4. **NodeInput/NodePayload replaces YAML transport**
    - **Reason**: Avoids user injection and supports typed internal context.
 5. **Suspension is queue-position based**
-   - **Reason**: No extra state is needed; the paused node remains queued behind prepended work.
+- **Reason**: No extra state is needed; the suspended node remains queued behind prepended work.
 6. **All node streams visible when stream=True**
    - **Reason**: Streaming should show the TinyCUA process, not only final response.
 7. **Compaction strategy may own internal Agent**

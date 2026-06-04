@@ -34,7 +34,8 @@ TinyCUAWorkerNode.route_map:
   proceed_execution → route_proceed_execution()
 ```
 
-Route handlers should usually be named methods on the concrete node.
+Route handlers are callables. By convention they are named methods on the concrete
+`DecisionNode`, but standalone callables are valid when tests and ownership are clear.
 
 ## Related
 
