@@ -1,141 +1,47 @@
-# InformationDigester Tools
+# Information Digestion Tools
 
-> **File:** `docs/design/tools/digester.md`
-> **Package:** `tinycua.tools.digester`
-> **Last Updated:** 2026-06-01
-> **Status:** Draft
+> **Status:** Target architecture
 
----
+`TinyCUAInformationDigesterNode` uses information-digestion tools to gather and summarize
+context for downstream nodes or a suspended `TinyCUAResponseNode`.
 
-## Overview
+`InformationDigesterNode` is optional and invoked only when direct accumulated context/tool access is insufficient. InformationDigesterNode is optional and invoked only when direct context/tool access is insufficient. `ResponseNode` should first evaluate whether accumulated context is enough. `TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning `InformationDigesterNode`.
 
-Two tools power the InformationDigester:
+Primary tools:
 
-| Tool | Purpose | Required? |
-|------|---------|-----------|
-| `enhanced_context_retrieval` | Spawn inner transient retrieval agents over context cache + read-only exploration tools | No |
-| `digest_information` | Produce structured digest output | **Yes** — at least one call |
+| Tool | Purpose |
+|------|---------|
+| `enhanced_context_retrieval` | Search scoped context and read-only exploration surfaces. |
+| `digest_information` | Produce structured digested information. |
 
----
+### Enhanced Context Retrieval Cache Behavior
 
-## `enhanced_context_retrieval`
+`enhanced_context_retrieval` lazily creates a scoped session-context cache file and runs
+a limited ReAct-style search over that cache using grep/search and paginated read tools:
 
-### Role
+- Receives the current session or selected session_context.
+- Lazily creates a scoped context cache file when called.
+- The cache contains only selected context for that session/tool call.
+- Retrieval runs as a ReAct-style search over the cache.
+- Search/read tools are limited to grep/search within the cache and paginated cache reads. All search and read operations are limited to the cache.
+- `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
-Spawns an internal transient retrieval agent. That inner agent receives **two separate
-toolsets**:
+When spawned by `TinyCUAResponseNode`, the digester receives a copied, selected subset of
+the response node's current `session_context` via `NodeInput(messages=[...])`, plus an
+optional digest request payload. It should not duplicate those input messages in its own
+reusable context; it stores and propagates only new digest output.
 
-```text
-CONTEXT_CACHE_TOOLS = [grep_context, read_context]
-EXPLORATION_TOOL = [FileReadTool, FileListTool, WebSearchTool]
-```
+The digester always creates a **fresh node session** — it does not inherit or reuse the
+suspended parent/root session. It avoids eager loading of parent/root context and accesses
+it lazily through `enhanced_context_retrieval` when needed.
 
-Cache tools (`grep_context`, `read_context`) are scoped strictly to the
-InformationDigester context cache. Exploration tools (`FileReadTool`, `FileListTool`,
-`WebSearchTool`) are used when the context cache is insufficient.
-
-### Factory
-
-```text
-create_enhanced_context_retrieval(
-    cache_path: str,
-    model: LanguageModel,
-    exploration_tools: list[Tool] = EXPLORATION_TOOL,
-) → tinycua_sdk.Tool
-
-  · grep_context(pattern: str, offset: int? = None, limit: int? = None) → str
-      - searches only cache_path
-
-  · read_context(offset: int = 0, limit: int = 200) → str
-      - reads only cache_path
-
-  · enhanced_context_retrieval(search_query: str) → str
-      - inner_agent = Agent(
-          name="context-searcher",
-          instructions=CONTEXT_SEARCHER_INSTRUCTION,
-          llm_model=model,
-          tools=[grep_context, read_context, *exploration_tools],
-          loop=BaseLoop(),
-        )
-      - run inner_agent on search_query
-      - return final text findings
-```
-
-### Inner Agent Protocol
-
-```text
-enhanced_context_retrieval(search_query)
-  → internal transient Agent("context-searcher")
-      1. First understand cached session context using grep_context/read_context.
-      2. If cache is insufficient, use EXPLORATION_TOOL for read-only exploration.
-      3. Return concise evidence-focused findings.
-```
-
-The retrieval tool can be called multiple times in parallel by InformationDigester for
-different search queries.
-
----
-
-## `digest_information`
-
-### Role
-
-The primary output mechanism for InformationDigester. The loop extracts structured
-digest data from this tool's call result and writes `InformationDigesterState`.
-
-```text
-DIGEST_OUTPUT_PREFIX = "DIGEST_INFO::"
-
-digest_information(
-    context_summary: str,
-    key_points: list[str],
-    advisory_instructions: str | None = None,
-    constraints: list[str] | None = None,
-    known_gaps: list[str] | None = None,
-) → str
-    · result = DigestedInformation(...)
-    · return f"{DIGEST_OUTPUT_PREFIX}{result.to_json()}"
-```
-
-`InformationDigestionLoop` enforces that this tool is called at least once. Last call
-wins if the agent refines its digest.
-
----
-
-## Integration
-
-```text
-cache_path = self._write_context_cache()
-retrieval_tool = create_enhanced_context_retrieval(
-    cache_path=cache_path,
-    model=self.session.agent_state.agent_config.model,
-    exploration_tools=EXPLORATION_TOOL,
-)
-tools = [retrieval_tool, digest_information, *self.session.agent_state.agent_config.extra_tools]
-```
-
----
-
-## Design Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Split cache/exploration tools | `CONTEXT_CACHE_TOOLS` + `EXPLORATION_TOOL` | Cache access remains scoped; exploration remains read-only |
-| Inner transient agent | `Agent` with BaseLoop | Focused retrieval tasks without polluting parent session_context |
-| Parallel retrieval allowed | Multiple retrieval calls | Digester can fan out multiple queries |
-| Digest via tool | `digest_information`, not final text parsing | Structured output guaranteed |
-| Last digest wins | Later digest call replaces earlier | Allows refinement |
-| Config from session | `session.agent_state.agent_config` | Session is source of truth |
-
----
-
-## See also
-
-Prev : [`TaskExecutor` AgentNode Call Pattern](../agent_node/task_executor.md) | Next : [Task Tools](task.md)
+The digester uses the selected-output propagation profile targeting its suspended parent.
+The digest lands in the parent response node's `session_context` before the response node
+resumes final synthesis. `chat_history` remains available for audit, but is not passed
+wholesale to the digester unless explicitly selected by the response node.
 
 ## Related
 
-- [InformationDigester AgentNode](../agent_node/information_digester.md)
-- [InformationDigesterState](../state/information.md#informationdigesterstate)
-- [EXPLORATION_TOOL](../constants/tools.md)
-- [InformationDigestionLoop](../loops/information_digestion_loop.md)
+- [`../loops/node.md`](../loops/node.md)
+- [`../loops/node_queue.md`](../loops/node_queue.md)
+- [`../models/digested_information.md`](../models/digested_information.md)

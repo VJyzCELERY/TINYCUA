@@ -1,209 +1,49 @@
-# Tool Constants
+# Tool Constants and Node Tool Scope
 
-> **File:** `docs/design/constants/tools.md`
-> **Package:** `tinycua.constants.tools`
-> **Last Updated:** 2026-06-01
-> **Status:** Draft
+> **Status:** Target architecture
 
----
+TinyCUA nodes expose tools through the tool policy defined in
+[`../config/node_config.md`](../config/node_config.md).
 
-## Overview
+The outer SDK `Agent(tools=[...])` remains the caller-provided tool pool. TinyCUA chooses
+which nodes can see those tools.
 
-Each AgentNode has a module-level `*_BASE_TOOLS` constant — a list of pre-configured
-SDK `Tool` instances. These are the node's inherent tools, separated from
-`config.extra_tools` (external injection only).
+| Node | Tool Scope |
+|------|------------|
+| TinyCUAQueryAnalystNode | classification + read-only task/context tools |
+| TinyCUAInformationDigesterNode | enhanced retrieval + digest tools |
+| TinyCUAWorkerNode | worker decision tools only |
+| TinyCUATaskCreateNode | deterministic root task creation tools (TaskInit/TaskCreate) |
+| TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when recreation is requested |
+| TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
+| TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools + `enhanced_context_retrieval` + exploration/web/context search tools when enabled |
+| TinyCUAResultReviewerNode | review/decision tools |
+| TinyCUAResponseNode | same base toolset as TinyCUATaskExecutorNode + final response/synthesis behavior + optional information-digestion request capability only when enabled |
 
----
+## TaskExecutor Direct Context Retrieval
 
-## Classification Constants
+`TaskExecutor` does not spawn `InformationDigesterNode`. TaskExecutor does not spawn InformationDigesterNode. If `TaskExecutor` needs more
+context, it calls `enhanced_context_retrieval` directly.
 
-QueryAnalyst uses a configurable `ClassificationTool`. Labels are supplied by
-`QueryAnalystConfig.classification_labels`.
+## ResponseNode Same Base Toolset
 
-```text
-TINYCUA_INPUT_GATE_CLASSIFICATION: list[str] = [
-    "passthrough",
-    "worker",
-]
+`ResponseNode` has the same base toolset as `TaskExecutor`, plus final response/synthesis
+behavior and optional information-digestion request capability only when enabled.
 
-TINYCUA_WORKER_INPUT_GATE_CLASSIFICATION: list[str] = [
-    "task_recreation",     # clear current task tree and terminate worker for restart
-    "task_reanalysis",     # analyze tasks; TaskInit only if worker has no task yet
-    "proceed_execution",   # skip analysis/decomposition and execute/review
-]
+## Enhanced Context Retrieval
 
-TASK_ASSESSOR_CLASSIFICATION: list[str] = ["analyze", "stop"]
+`enhanced_context_retrieval` is a tool available to `InformationDigesterNode`,
+`TaskExecutor`, and `ResponseNode`:
 
-RESULT_REVIEWER_CLASSIFICATION: list[str] = ["accept", "retry", "replan"]
-```
-
-`uncertain` and `escalate_user` are intentionally absent. Indecision means the node
-does not produce a terminal decision and remains active with an open question.
-
----
-
-## Shared Tool Sets
-
-```text
-READ_ONLY_TASK_TOOLS: list[tinycua_sdk.Tool] = [
-    ReadActiveTask,
-    ReadTask,
-    ListTask,
-]
-
-WRITE_TASK_TOOLS: list[tinycua_sdk.Tool] = [
-    TaskInit,
-    SetSubTask,
-    AddSubTask,
-    DeleteSubTask,
-    EditSubTask,
-    SwapTask,
-    UpdateTaskResult,
-]
-
-# General read-only exploration tools available to transient exploration agents.
-EXPLORATION_TOOL: list[tinycua_sdk.Tool] = [
-    FileReadTool(),
-    FileListTool(),
-    WebSearchTool(),
-]
-
-# Shared execution surface for PrimaryAgent and TaskExecutor.
-SHARED_AGENT_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    ShellTool(),
-    FileReadTool(),
-    FileWriteTool(),
-    TODO_LIST_TOOL,
-    # ... other general-purpose tools
-]
-```
-
-### InformationDigester inner-agent tool split
-
-InformationDigester's `enhanced_context_retrieval` tool spawns inner transient agents.
-Those inner agents receive:
-
-```text
-CONTEXT_CACHE_TOOLS = [grep_context, read_context]  # scoped strictly to cache file
-EXPLORATION_TOOL = [FileReadTool, FileListTool, WebSearchTool]  # general read-only exploration
-```
-
-The cache tools and exploration tools are intentionally separate. `grep_context` and
-`read_context` can only operate on the context cache, while `EXPLORATION_TOOL` may
-inspect external project/web sources as read-only exploratory context.
-
----
-
-## AgentNode Base Tools
-
-```text
-QUERY_ANALYST_BASE_TOOLS(config): list[tinycua_sdk.Tool] = [
-    ClassificationTool(name="classify", labels=config.classification_labels)
-]
-
-QUERY_ANALYST_READ_TOOLS: list[tinycua_sdk.Tool] = READ_ONLY_TASK_TOOLS
-
-INFORMATION_DIGESTER_BASE_TOOLS: list[tinycua_sdk.Tool] = []
-    # Tools built dynamically in run():
-    # → enhanced_context_retrieval(cache_path, model, tools=[*CONTEXT_CACHE_TOOLS, *EXPLORATION_TOOL])
-    # → digest_information
-
-TASK_ANALYZER_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    *READ_ONLY_TASK_TOOLS,
-    SetSubTask,
-    AddSubTask,
-    DeleteSubTask,
-    EditSubTask,
-    SwapTask,
-    UpdateTaskResult,
-]
-    # TaskInit is excluded by default. Worker injects TaskInit only for task_reanalysis
-    # when worker.session.task is None.
-
-TASK_ASSESSOR_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    ClassificationTool(name="classify", labels=TASK_ASSESSOR_CLASSIFICATION),
-    *READ_ONLY_TASK_TOOLS,
-]
-
-TASK_EXECUTOR_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    *SHARED_AGENT_BASE_TOOLS,
-    ReadActiveTask,
-    ListTask,
-    UpdateActiveTaskResult,
-]
-
-RESULT_REVIEWER_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    *READ_ONLY_TASK_TOOLS,
-    UpdateActiveTaskResult,       # retry path may reset active task to not_started
-    ReviewContextUpdateTool,      # specialized minimal context-update tool
-    ClassificationTool(name="classify", labels=RESULT_REVIEWER_CLASSIFICATION),
-]
-
-PRIMARY_AGENT_BASE_TOOLS: list[tinycua_sdk.Tool] = [
-    *SHARED_AGENT_BASE_TOOLS,
-]
-    # PrimaryAgent also builds explore(query) dynamically in run(). explore(query)
-    # spawns one transient exploration Agent with enhanced_context_retrieval.
-```
-
----
-
-## `ClassificationTool`
-
-```text
-ClassificationTool implements tinycua_sdk.Tool
-  · labels: list[str]          # configured at construction
-  · name: str = "classify"
-  · execute(label_index: int) → str:
-      · if 0 ≤ label_index < len(labels): return labels[label_index]
-      · raise ValueError if out of range
-```
-
-Labels live in config/constants, not prompt text. The same QueryAnalyst implementation
-can therefore act as TinyCUA root input gate, TinyCUAWorker input gate, or any future
-DecisionNode-like input gate.
-
----
-
-## Tool Source Pattern
-
-Every AgentNode's `run()` builds the SDK Agent per-call, merging base tools and
-caller-injected extras:
-
-```text
-tools = [*BASE_TOOLS, *self.session.agent_state.agent_config.extra_tools]
-```
-
-| Source | Location | Purpose |
-|--------|----------|---------|
-| `*_BASE_TOOLS` | `tinycua.constants.tools` | Pre-configured code-level tool set |
-| `config.extra_tools` | Agent config dataclass | External injection (empty by default) |
-
----
-
-## Design Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| QueryAnalyst labels configurable | `QueryAnalystConfig.classification_labels` | Same node can act as root or worker input gate |
-| No uncertain label | Root classifications are `passthrough` / `worker` | Indecision = active/open-question behavior |
-| No escalate_user label | Reviewer classifications are `accept` / `retry` / `replan` | HITL through non-termination |
-| Split exploration/context tools | `EXPLORATION_TOOL` separate from cache tools | Context tools are cache-scoped; exploration tools are broader read-only |
-| TaskInit conditional | Inject only when worker task analysis starts without a task tree | Allows initial creation while preventing destructive reset during normal analysis |
-| TaskExecutor scoped tools | `UpdateActiveTaskResult`, not `UpdateTaskResult` | Executor can only update current active task |
-| ResultReviewer specialized tools | Minimal review-write surface | Reviewer can reset active task and add context without arbitrary edits |
-| PrimaryAgent exploration | `explore(query)` dynamic tool | Allows context exploration without spawning InformationDigester node/session |
-| `extra_tools` separate | Empty by default | Single injection channel; keeps base tools clean |
-
----
-
-## See also
-
-Prev : [Per-Agent Config Dataclasses](../config/agents.md) | Next : [Agent Instruction Constants](instructions.md)
+- Receives the current session or selected session_context.
+- Lazily creates a scoped context cache file when called.
+- The cache contains only selected context for that session/tool call.
+- Retrieval runs as a ReAct-style search over the cache.
+- Search/read tools are limited to grep/search within the cache and paginated cache reads.
+- `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
 ## Related
 
-- [Config extra_tools channel](../config/agents.md)
-- [QueryAnalyst classification config](../agent_node/query_analyst.md)
-- [InformationDigester enhanced retrieval](../agent_node/information_digester.md)
-- [Task tools](../tools/task.md)
+- [`../config/node_config.md`](../config/node_config.md)
+- [`../tools/digester.md`](../tools/digester.md)
+- [`../tools/task.md`](../tools/task.md)
