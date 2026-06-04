@@ -2,7 +2,9 @@
 
 > **Status:** Target architecture
 
-Task tools are exposed according to node tool scope.
+Task tools are exposed according to node tool scope. Structural task tool calls directly
+mutate the root `session.task` through TinyCUALoop task helpers; nodes do not return
+opaque mutation instructions for TinyCUALoop to apply later.
 
 | Node | Task Tool Scope |
 |------|-----------------|

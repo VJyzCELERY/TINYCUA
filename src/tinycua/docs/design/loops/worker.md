@@ -109,9 +109,11 @@ Route handler inserts replacement path:
    TaskExecutor, ResultReviewer, ResponseNode]
 ```
 
-If clearing removes the terminal `ResponseNode`, the route handler or
-`ensure_terminal(...)` MUST restore a terminal response path. This guarantees
-the queue always has a valid terminal output node.
+Any route handler that calls `clear_after_current()` MUST call
+`queue.ensure_terminal(default_response_node)` before returning if the clear removed the
+terminal response path. `ensure_terminal(...)` is the helper used by the route handler;
+TinyCUALoop's run-entry bootstrap is only a fallback for run startup and recovery. This
+guarantees the queue always has a valid terminal output node.
 
 Passthrough advances the Worker and forwards input to the next worker-owned node.
 

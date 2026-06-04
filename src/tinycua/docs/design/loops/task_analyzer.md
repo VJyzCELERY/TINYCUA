@@ -26,6 +26,10 @@ applies a mode-specific continuation prompt.
 - Final response is treated as a summary of task changes/actions.
 - After completion, the task tree must not be `None`.
 
+**Mutation mechanism**: `TaskAnalyzerNode` task-structure tool calls directly mutate
+`session.task` through TinyCUALoop task helpers; `TaskAnalyzerNode` does not return
+opaque mutation instructions for TinyCUALoop to apply later.
+
 ## Tools
 
 | Mode | Tool Scope |
