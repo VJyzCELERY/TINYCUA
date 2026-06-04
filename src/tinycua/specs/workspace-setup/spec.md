@@ -57,11 +57,11 @@ A developer clones the repository, runs `uv run tinycua` from `src/tinycua/`, an
 
 ## Success Criteria _(mandatory)_
 
-- [ ] **uv sync works**: `cd src/tinycua && uv sync` completes without error
-- [ ] **CLI entry point works**: `uv run tinycua` prints a message and exits with code 0
-- [ ] **Gitignore excludes artifacts**: WildClawBench artifacts are not tracked by git
-- [ ] **Prototype docs exist**: `docs/prototype/README.md` exists and describes the structure
-- [ ] **Lint passes**: `make lint` from `src/tinycua/` passes without errors
+- [x] **uv sync works**: `cd src/tinycua && uv sync` completes without error
+- [x] **CLI entry point works**: `uv run tinycua` prints a message and exits with code 0
+- [x] **Gitignore excludes artifacts**: WildClawBench artifacts are not tracked by git
+- [x] **Prototype docs exist**: `docs/prototype/README.md` exists and describes the structure
+- [x] **Lint passes**: `make lint` from `src/tinycua/` passes without errors
 
 ---
 
@@ -88,10 +88,10 @@ A developer clones the repository, runs `uv run tinycua` from `src/tinycua/`, an
 
 | Item | Status | Notes |
 |------|--------|-------|
-| pyproject.toml entry point | TODO | |
-| .gitignore rules | TODO | |
-| docs/prototype/ scaffolding | TODO | |
-| uv run verification | TODO | |
+| pyproject.toml entry point | DONE | Verified via `uv run tinycua` |
+| .gitignore rules | DONE | Verified via `git check-ignore` |
+| docs/prototype/ scaffolding | DONE | `docs/prototype/README.md` exists |
+| uv run verification | DONE | CLI exits with code 0 |
 
 ---
 
