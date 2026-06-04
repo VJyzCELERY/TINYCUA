@@ -49,9 +49,9 @@ cd src/tinycua && uv run tinycua
 # Expected: prints "tinycua: workspace is ready." and exits 0
 
 # Scenario 3: WildClawBench artifacts are gitignored
-cd src/tinycua && mkdir -p benchmark_results && touch test.benchmark.json
-git status
-# Expected: benchmark_results/ and *.benchmark.json not shown
+mkdir -p src/tinycua/benchmark_results
+touch src/tinycua/test.benchmark.json
+git check-ignore -v src/tinycua/benchmark_results/ src/tinycua/test.benchmark.json
 rm -rf src/tinycua/benchmark_results src/tinycua/test.benchmark.json
 
 # Scenario 4: Prototype docs exist
@@ -117,11 +117,17 @@ cd src/tinycua && make lint
 - **Prototype documentation scaffold**: Explains the `docs/prototype/` directory structure and purpose
 - **Rationale**: FR-004 requires prototype documentation
 
+#### [REFORMAT] `src/tinycua/tinycua/agent/tools/native/` (lint compliance)
+
+- **Files**: `__init__.py`, `files.py`, `web.py` — reformatted only
+- **Rationale**: `make lint` acceptance check required these files to pass linting; no behavior changes
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `src/tinycua/tinycua/cli/` | New | CLI subpackage with no-op entry point |
+| `src/tinycua/tinycua/agent/tools/native/` | Reformatted | Lint compliance — no behavior changes |
 | `.gitignore` | Modified | WildClawBench artifact exclusions added |
 | `src/tinycua/docs/prototype/` | New | Prototype documentation directory |
 

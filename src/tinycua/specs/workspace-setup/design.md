@@ -28,7 +28,7 @@ TINYCUA (root)
 │       │   ├── cli/
 │       │   │   ├── __init__.py
 │       │   │   └── main.py     # no-op CLI entry point
-│       │   └── agent/          # existing (unchanged)
+│       │   └── agent/          # existing (reformatted for lint compliance; no behavior changes)
 │       ├── tests/
 │       ├── docs/
 │       │   └── prototype/
@@ -44,6 +44,7 @@ TINYCUA (root)
 | `src/tinycua/tinycua/cli/__init__.py` | New | Package init for CLI module |
 | `src/tinycua/tinycua/cli/main.py` | New | No-op CLI entry point |
 | `src/tinycua/docs/prototype/README.md` | New | Prototype documentation scaffold |
+| `src/tinycua/tinycua/agent/tools/native/` | Reformatted | Lint compliance — no behavior changes |
 | `.gitignore` (root) | Modified | Add WildClawBench artifact exclusions |
 
 ---
