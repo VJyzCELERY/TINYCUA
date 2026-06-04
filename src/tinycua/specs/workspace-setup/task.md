@@ -26,7 +26,7 @@ Implementation tasks for Workspace Setup. Check off items as completed.
 
 - [x] Run `cd src/tinycua && uv sync` — expect no errors <!-- id: 6 -->
 - [x] Run `cd src/tinycua && uv run tinycua` — expect "tinycua: workspace is ready." and exit 0 <!-- id: 7 -->
-- [ ] Run `cd src/tinycua && make lint` — expect no errors <!-- id: 8 -->
+- [x] Run `cd src/tinycua && make lint` — expect no errors <!-- id: 8 -->
 
 ## Verification Phase
 
