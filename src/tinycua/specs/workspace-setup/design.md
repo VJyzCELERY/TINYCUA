@@ -34,8 +34,6 @@ TINYCUA (root)
 │       │   └── prototype/
 │       │       └── README.md   # prototype docs structure
 │       └── Makefile
-└── docs/
-    └── prototype/              # (if root-level prototype docs are needed)
 ```
 
 ### Affected Components

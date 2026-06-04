@@ -65,11 +65,11 @@ cd src/tinycua && make lint
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: `uv sync` installs dependencies and creates `.venv`
-- [x] **Scenario 2**: `uv run tinycua` prints message and exits 0
-- [x] **Scenario 3**: WildClawBench artifacts excluded from `git status`
-- [x] **Scenario 4**: `docs/prototype/README.md` exists with content
-- [x] **Scenario 5**: `make lint` passes on new code
+- [ ] **Scenario 1**: `uv sync` installs dependencies and creates `.venv`
+- [ ] **Scenario 2**: `uv run tinycua` prints message and exits 0
+- [ ] **Scenario 3**: WildClawBench artifacts excluded from `git status`
+- [ ] **Scenario 4**: `docs/prototype/README.md` exists with content
+- [ ] **Scenario 5**: `make lint` passes on new code
 
 ## Verification Plan
 
