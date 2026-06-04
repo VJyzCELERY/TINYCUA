@@ -28,7 +28,7 @@ A developer clones the repository, runs `uv run tinycua` from `src/tinycua/`, an
 2. **Given** a synced workspace, **When** the developer runs `uv run tinycua`, **Then** the CLI prints a confirmation message and exits with code 0.
 3. **Given** the workspace, **When** WildClawBench artifacts (e.g., `benchmark_results/`, `*.benchmark.json`) are produced, **Then** they are excluded from `git status` via `.gitignore`.
 4. **Given** the workspace, **When** the developer inspects `docs/prototype/`, **Then** a `README.md` exists explaining the prototype documentation structure.
-5. **Given** the workspace, **When** the developer runs `make lint` from the project root, **Then** linting passes without errors on the new entry point code.
+5. **Given** the workspace, **When** the developer runs `cd src/tinycua && make lint`, **Then** linting passes without errors on the new entry point code.
 
 ### Edge Cases
 
