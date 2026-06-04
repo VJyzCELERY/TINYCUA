@@ -13,7 +13,8 @@ which nodes can see those tools.
 | TinyCUAQueryAnalystNode | classification + read-only task/context tools |
 | TinyCUAInformationDigesterNode | enhanced retrieval + digest tools |
 | TinyCUAWorkerNode | worker decision tools only |
-| TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when task is missing or recreation is requested |
+| TinyCUATaskCreateNode | deterministic root task creation tools (TaskInit/TaskCreate) |
+| TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when recreation is requested |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
 | TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools + `enhanced_context_retrieval` + exploration/web/context search tools when enabled |
 | TinyCUAResultReviewerNode | review/decision tools |

@@ -12,7 +12,9 @@ Node
 │   └── TinyCUAWorkerNode
 └── ProcessNode
     ├── TinyCUAInformationDigesterNode
+    ├── TinyCUATaskCreateNode
     ├── TinyCUATaskAnalyzerNode
+    ├── TinyCUAAnalysisEffortNode
     ├── TinyCUATaskAssessorNode
     ├── TinyCUATaskExecutorNode
     ├── TinyCUAResultReviewerNode
@@ -181,10 +183,35 @@ TaskExecutor
       retry
         → TaskExecutor
       replan
-        → TaskAnalyzer
+        → TaskAssessor(scope=active_task_or_local_region)
+        → TaskAnalyzer(mode=local_replan, init_enabled=false)
+        → TaskExecutor
       open_question
         → mandatory_passthrough to ResultReviewer
 ```
+
+### ResultReviewer Replan Separation
+
+ResultReviewer replan is a local execution-time recovery path, NOT a full upfront
+planning process. The replan path MUST NOT spawn `AnalysisEffortNode` and MUST NOT
+run the Worker-owned effort-gated upfront TaskAnalysisLoop.
+
+```text
+Worker-owned task_creation/recreation/reanalysis:
+  TaskCreate or TaskAnalysis
+  → AnalysisEffortNode
+  → optional repeated [TaskAssessor, TaskAnalysis]
+  → TaskExecutor
+
+ResultReviewer replan:
+  TaskAssessor(scope=active_task_or_local_region)
+  → TaskAnalyzer(mode=local_replan, init_enabled=false)
+  → TaskExecutor
+```
+
+Worker effort planning is configurable and can perform multiple global decomposition
+passes. Reviewer replan is narrowly scoped to the current active task or local task
+region and does not include `AnalysisEffortNode`.
 
 ## Retry
 

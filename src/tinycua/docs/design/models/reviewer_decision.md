@@ -23,6 +23,21 @@ ReviewerDecision
 - Update active task context
 - Trigger task-tree transition
 
+## Replan Path
+
+When `ResultReviewer` returns `replan`:
+
+```text
+ResultReviewer decision = replan
+  → spawn/prepend TaskAssessor(scope=active_task_or_local_region)
+  → TaskAnalyzer(mode=local_replan, init_enabled=false)
+  → TaskExecutor
+```
+
+Replan is a local execution-time recovery path. It MUST NOT spawn
+`AnalysisEffortNode` and MUST NOT run the Worker-owned effort-gated upfront
+TaskAnalysisLoop. See [`../loops/node.md`](../loops/node.md) for the full flow.
+
 ## Open Question Behavior
 
 `open_question` means no terminal decision yet. It keeps the relevant node active for

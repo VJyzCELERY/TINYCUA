@@ -133,7 +133,9 @@ Retry prompts are assistant-role continuations. Exhaustion behavior:
 |--------|--------------------------------------------|
 | `TinyCUAQueryAnalystNodeConfig` | `allowed_labels: list[str] = ["passthrough", "worker"]`; `classification_schema: dict | None` |
 | `TinyCUAInformationDigesterNodeConfig` | `retrieval_enabled: bool = true`; `max_digest_sources: int | None`; `digest_schema: dict | None` |
-| `TinyCUAWorkerNodeConfig` | `worker_labels: list[str]`; `allow_passthrough_when_child_exists: bool = true`; `deterministic_prechecks: bool = true` |
+| `TinyCUAWorkerNodeConfig` | `worker_labels: list[str]`; `allow_passthrough_when_child_exists: bool = true`; `deterministic_prechecks: bool = true`; `effort: WorkerEffort = "none"` |
+| `TinyCUAAnalysisEffortNodeConfig` | `effort: WorkerEffort = "none"` |
+| `TinyCUATaskCreateNodeConfig` | `task_schema: dict \| None` |
 | `TinyCUATaskAnalyzerNodeConfig` | `allow_task_create: bool = true`; `allow_task_recreate: bool = true`; `task_schema: dict | None` |
 | `TinyCUATaskAssessorNodeConfig` | `assessment_schema: dict | None`; `allow_task_updates: bool = true` |
 | `TinyCUATaskExecutorNodeConfig` | `execution_schema: dict | None`; `allow_outer_tools: bool = true` |

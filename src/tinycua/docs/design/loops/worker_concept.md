@@ -23,11 +23,8 @@ segment for stale detection and clearing.
 TinyCUAWorkerNode enters
 
 1. Does task exist?
-   ├── No
-   │   → spawn TinyCUATaskAnalyzerNode with TaskInit/TaskCreate tools
-   │   → WorkerNode calls `queue.advance()` and does not re-insert itself
-   └── Yes
-       → continue
+   ├── No → task_creation route (see Routes)
+   └── Yes → continue
 
 2. Are worker-spawned nodes queued/active?
    ├── Yes
@@ -42,12 +39,31 @@ TinyCUAWorkerNode enters
 
 | Route | Behavior |
 |-------|----------|
-| `task_recreation` | Clear worker-spawned nodes and spawn TaskAnalyzer with TaskInit/TaskCreate. |
-| `task_reanalysis` | Clear worker-spawned nodes and spawn TaskAnalyzer without TaskInit/TaskCreate. |
+| `task_creation` | Deterministic first-time creation: spawn TinyCUATaskCreateNode to create root task, then TaskAnalyzerNode (without TaskInit/TaskCreate tools), then AnalysisEffortNode. |
+| `task_recreation` | Clear worker-spawned nodes; spawn TaskAnalyzerNode with TaskInit/TaskCreate tools (LLM-assisted), then AnalysisEffortNode. |
+| `task_reanalysis` | Clear worker-spawned nodes; spawn TaskAnalyzerNode without TaskInit/TaskCreate tools, then AnalysisEffortNode. |
 | `passthrough` | WorkerNode calls `queue.advance()`, does not re-insert itself, and forwards input to the next worker-spawned node. |
 | `proceed_execution` | Spawn/continue TaskExecutor and ResultReviewer path. |
 
 Passthrough is only available when a worker-spawned node exists to receive it.
+
+## Worker Planning Queue Shape
+
+```text
+task_creation:
+  [TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+
+task_recreation:
+  [TaskAnalyzerNode(+TaskInit/TaskCreate), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+
+task_reanalysis:
+  [TaskAnalyzerNode(no TaskInit/TaskCreate), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+```
+
+`AnalysisEffortNode` is always inserted after the initial `TaskCreate` or `TaskAnalyzer`
+pass and controls how many additional `[TaskAssessor, TaskAnalyzer]` rounds precede
+execution. See [`analysis_effort.md`](analysis_effort.md) for the effort-gated loop
+contract.
 
 ## Related
 
