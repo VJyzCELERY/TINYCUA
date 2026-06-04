@@ -54,10 +54,14 @@ system dict followed by conversation/continuation messages:
     SystemPrompt(kind="configurable", content=configurable_instruction_append),
     SystemPrompt(kind="dynamic", content="Current active task: T-0.1 ..."),
   ]).build(),
+  {"role": "user", "content": "External user query when selected for this node call."},
   {"role": "assistant", "content": "Relevant prior task context ..."},
   {"role": "assistant", "content": "I will now execute the active task."},
 ]
 ```
+
+External user messages come from SDK input merged into root/session context or explicit
+`NodeInput`. They are not recreated as user messages for internal node handoffs.
 
 Dynamic system context is limited to node-built high-priority execution constraints:
 current active task, node-local state needed for correctness, output schema reminders,
@@ -89,7 +93,7 @@ Node
   · is_terminal: bool
   · ensure_session(root_or_parent_session)
   · build_instruction(override_instructions?)
-  · build_messages(input: NodeInputLike)
+  · build_messages(root_session: Session, input: NodeInputLike)
   · validate_output(response)
   · build_retry_continuation(error)
   · record_output(response)

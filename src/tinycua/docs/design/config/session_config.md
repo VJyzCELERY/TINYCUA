@@ -28,9 +28,10 @@ configured strategy, and updates `session_context` with the returned assistant s
 `chat_history` is not destructively compacted.
 
 If no strategy is configured, future implementation may use `SimpleCompaction` as the
-default simple strategy. `SimpleCompaction` inherits parent Agent configuration where
-available, falls back to documented defaults, runs a tool-less compaction Agent, and
-returns `{"role": "assistant", "content": response}`.
+default simple strategy. `create_tinycua_agent(...)` or session setup initializes
+`SimpleCompaction` with a parent SDK Agent configuration snapshot when available. It falls
+back to documented defaults, runs a tool-less compaction Agent, and returns
+`{"role": "assistant", "content": response}`.
 
 ## Factory Interaction
 
@@ -43,6 +44,11 @@ create_tinycua_agent(session=None, agent_config=None, session_config=None, ...)
 If `session is None`, a new root session is created. If `session_config` is provided, it
 overrides or updates the generated/provided session's config according to documented
 rules.
+
+When the selected compaction strategy is `SimpleCompaction`, factory/session setup passes
+a copy of the parent SDK Agent's model/provider configuration into the strategy before the
+session is used. The strategy does not need the live Agent object during
+`compact(messages)`.
 
 ## Related
 

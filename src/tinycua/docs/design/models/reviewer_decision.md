@@ -7,12 +7,15 @@
 
 Reviewer decision models capture `TinyCUAResultReviewerNode` output.
 
-Common outcomes:
+```text
+ReviewerDecision
+  · outcome: Literal["accept", "retry", "replan", "open_question"]
+  · rationale: str | None
+  · target_task_id: str | None
+  · metadata: dict
+```
 
-- accept
-- retry
-- replan
-- open question / no terminal decision
+`open_question` means no terminal decision yet.
 
 Open question behavior keeps the relevant node active for continuation rather than
 forcing a terminal result.

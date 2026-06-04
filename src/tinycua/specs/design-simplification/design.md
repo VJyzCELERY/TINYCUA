@@ -14,6 +14,17 @@ This PR is documentation-only. It reorganizes design docs and creates a reviewab
 
 ---
 
+## Document Authority / Source of Truth
+
+This file is the blueprint and design-decision record for the design-simplification PR.
+`src/tinycua/docs/design/` is the refined implementation-facing target design. Refined
+docs may add detail, specialize examples, or clarify implementation contracts as long as
+they preserve the same semantics. Treat a difference as an issue only when it creates
+incompatible implementation behavior, contradicts a MUST-level design decision, duplicates
+competing sources of truth, or leaves the canonical implementation contract ambiguous.
+
+---
+
 ## Current Architecture Problem
 
 Current docs describe a layered graph system:
@@ -121,14 +132,14 @@ TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
   3. While queue is not empty:
        node = queue.current
        node_session = node.ensure_session(...)
+       node_input = queue.input_for_current()
        input_messages = node.build_messages(root_session, node_input)
        instructions = node.build_instruction(override_instructions)
        scoped_tools = node.tool_policy.resolve(node_tools, outer_agent_tools=tools)
        result = call/stream agent._call_llm(input_messages, scoped_tools)
        validate/retry according to node retry policy
        record chat history and selected session context
-       propagate according to PropagationRule
-       node.on_complete(queue, result)
+        node.on_complete(queue, result)
   4. Return final TinyCUAResponseNode string or stream events.
 ```
 
@@ -142,7 +153,8 @@ TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
 NodeQueue
   · items: list[Node]
   · current → Node | None
-  · advance() → None
+  · input_for_current() → NodeInputLike
+  · advance() → Node | None
   · spawn_after_current(nodes) → None
   · suspend_current_and_prepend(nodes) → None
   · clear_after_current() → None
@@ -203,9 +215,17 @@ RouteMap
 Route
   · label: str
   · handler: Callable[[NodeQueue, DecisionResult], None]
+
+DecisionResult
+  · label: str
+  · confidence: float | None
+  · rationale: str | None
+  · raw_output: str | dict | None
+  · metadata: dict
 ```
 
 RouteMap is not an independent orchestration layer. It is owned by concrete DecisionNode classes.
+`DecisionResult.label` is validated against `RouteMap.routes` before dispatch.
 
 ```text
 TinyCUAQueryAnalystNode.route_map:
@@ -261,6 +281,16 @@ ResponseNode session_context
   → digest result propagates back to ResponseNode
   → ResponseNode resumes final synthesis
 ```
+
+Suspension handoff protocol:
+
+1. `TinyCUAResponseNode` copies a selected subset of its `session_context` into
+   `NodeInput(messages=[...])`; it may add an `InformationDigestRequest` payload.
+2. The copied input is assigned to the prepended digester node. The digester may read it
+   but does not re-store those copied messages as reusable context.
+3. The digester propagates selected digest output to its parent response node session.
+4. The response node resumes only after the propagated digest is available in its
+   `session_context`.
 
 ---
 
@@ -450,6 +480,7 @@ Contract:
 4. Compaction excludes system-role messages by default. The caller/node decides what context to pass to the strategy.
 5. A strategy MAY include its own internal Agent or non-agent summarization logic. This is the explicit exception to the TinyCUALoop rule that the loop does not create internal Agents for normal node execution.
 6. `SessionConfig` dictates which strategy is used; the strategy class is the authority for its own model/tool/instruction/config details.
+7. `Session.compact_context(window: list[dict] | None = None) -> dict | None` selects or accepts a compactable context window, calls the strategy, replaces that `session_context` window with the returned assistant summary, and returns the summary.
 
 Example node-selected compaction input:
 
@@ -469,8 +500,8 @@ SimpleCompaction extends CompactionStrategy
 
 Behavior:
 
-1. Inherit the parent SDK Agent configuration where available, especially language model
-   and provider configuration.
+1. Receive a parent SDK Agent configuration snapshot during `create_tinycua_agent(...)` or
+   session setup where available, especially language model and provider configuration.
 2. Use a documented default fallback configuration when no parent Agent/config is
    available.
 3. Run a small tool-less compaction Agent. It receives the selected session messages as
@@ -497,15 +528,18 @@ Node retry remains part of the architecture.
 
 ```text
 NodeRetryPolicy
-  · max_attempts
-  · required_tool_calls
-  · required_output_schema
-  · validation_fn
-  · retry_continuation_builder
-  · on_retry_exhausted
+  · max_attempts: int = 3
+  · required_tool_calls: list[str] = []
+  · required_output_schema: dict | type[StateObject] | None = None
+  · validation_fn: Callable[[LLMResult], ValidationResult] | None = None
+  · retry_continuation_builder: Callable[[ValidationError, int], str] | None = None
+  · on_retry_exhausted: Literal["raise", "record_failure", "route_failure"] = "record_failure"
 ```
 
 The loop owns mechanics: call LLM, stream events, repeat attempts, and log retry continuations. The node owns policy: what is valid, how to retry, and how to handle exhaustion.
+On exhaustion, `record_failure` writes failure state to the node session and propagates
+according to `PropagationRule.failure`; `route_failure` uses the node's failure route when
+defined and otherwise records failure; `raise` raises a loop-visible node error.
 
 ---
 
@@ -516,8 +550,8 @@ TinyCUA suffixes indicate ownership and behavioral scope:
 | Suffix | Meaning | Examples |
 |--------|---------|----------|
 | `Rule` | Cross-node or cross-session data movement contract. Rules describe what may move across boundaries. | `PropagationRule` |
-| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` |
-| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy`, `NodeMessageStrategy` |
+| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy`, `NodeMessagePolicy` |
+| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy` |
 
 Use `Policy` for lightweight per-node/session decisions, `Rule` for boundary/propagation
 contracts, and `Strategy` when implementations are swappable algorithms.
@@ -528,7 +562,12 @@ contracts, and `Strategy` when implementations are swappable algorithms.
 
 The old AgentMonitor concept remains as an optional transient hook. It is not a durable queue node by default.
 
-It may inspect an ambiguous active node and decide whether the node should continue internally, wait for user input, terminate, or escalate failure. Monitor-generated continuation messages are assistant-role internal messages.
+Trigger points are before a node LLM call, after a node result before validation/retry,
+and after retry exhaustion before failure propagation. Inputs include node/session ids,
+attempt number, resolved tools, LLM-bound messages, result or validation error, and stream
+mode. The hook may return an assistant-role continuation or no-op. Monitor invocations do
+not create sessions and are not written to `chat_history` or `session_context` unless the
+owning node explicitly records a derived message under normal recording policy.
 
 ---
 
@@ -539,21 +578,21 @@ It may inspect an ambiguous active node and decide whether the node should conti
 ```text
 PropagationRule
   · chat_history: none | parent | root
-  · session_context: none | parent | root
+  · session_context_target: none | parent | root | parent_and_root
   · session_context_mode: none | final | full | selected
-  · token_usage: none | parent | root
-  · failure: none | parent | root
+  · token_usage: none | parent | root | parent_and_root
+  · failure: none | parent | root | parent_and_root
   · dedupe: bool
 ```
 
 Profiles:
 
-| Profile | chat_history | session_context | token_usage | failure |
-|---------|--------------|-----------------|-------------|---------|
-| transient_legacy | parent/root | none | parent/root | parent/root |
-| natural_termination_legacy | parent/root | final | parent/root | parent/root |
-| mid_progress_legacy | parent/root | full | parent/root | parent/root |
-| selected_internal_output | root | selected | root | root |
+| Profile | chat_history | session_context_target | session_context_mode | token_usage | failure |
+|---------|--------------|------------------------|----------------------|-------------|---------|
+| transient_legacy | parent_and_root | none | none | parent_and_root | parent_and_root |
+| natural_termination_legacy | parent_and_root | parent_and_root | final | parent_and_root | parent_and_root |
+| mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root |
+| selected_internal_output | root | root | selected | root | root |
 
 QueryAnalyst and InformationDigester may now propagate selected deduped context to root/parent while preserving full audit in chat history.
 
@@ -565,13 +604,15 @@ Each node controls its tool exposure.
 
 ```text
 NodeToolPolicy
-  · node_tools
+  · node_tools: list[Tool]
   · include_agent_tools: none | selected | all
-  · allowed_agent_tool_names
-  · denied_agent_tool_names
+  · allowed_agent_tool_names: list[str]
+  · denied_agent_tool_names: list[str]
 ```
 
 The outer SDK `Agent(tools=[...])` remains the source of caller-provided tools. TinyCUA chooses which of those tools each node can see.
+Deny wins over allow. `selected` includes only named outer tools from
+`allowed_agent_tool_names`; `all` includes all outer tools except denied names.
 
 | Node | Tool Scope |
 |------|------------|
@@ -579,6 +620,7 @@ The outer SDK `Agent(tools=[...])` remains the source of caller-provided tools. 
 | TinyCUAInformationDigesterNode | enhanced retrieval + digest tools |
 | TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskAnalyzerNode | task structure tools, optionally TaskInit/TaskCreate |
+| TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
 | TinyCUATaskExecutorNode | task tools + selected outer Agent tools |
 | TinyCUAResultReviewerNode | review/decision tools |
 | TinyCUAResponseNode | selected outer Agent tools + information-digestion request capability |
@@ -605,6 +647,9 @@ NodeStreamPolicy
 ```
 
 LLM/tool SSE events are visible by default. TinyCUA lifecycle events such as `tinycua.node.started`, `tinycua.node.suspended`, `tinycua.node.resumed`, `tinycua.retry.started`, and `tinycua.queue.updated` are separately controlled by `emit_internal_events`.
+When `final_response_only=True`, intermediate node LLM/tool events are suppressed from
+the user-visible stream and only `TinyCUAResponseNode` final-response events are emitted;
+lifecycle events remain governed by `emit_internal_events`.
 
 ---
 
@@ -748,7 +793,7 @@ The draft directory is temporary review material. Before merge, convert the draf
 4. **NodeInput/NodePayload replaces YAML transport**
    - **Reason**: Avoids user injection and supports typed internal context.
 5. **Suspension is queue-position based**
-- **Reason**: No extra state is needed; the suspended node remains queued behind prepended work.
+   - **Reason**: No extra state is needed; the suspended node remains queued behind prepended work.
 6. **All node streams visible when stream=True**
    - **Reason**: Streaming should show the TinyCUA process, not only final response.
 7. **Compaction strategy may own internal Agent**

@@ -229,7 +229,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: digester produces structured digest from NodeInput/session context.
 
-### 12. TaskAnalyzer and TaskAssessor Nodes
+### 12. TaskAnalyzer Node
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
@@ -239,13 +239,26 @@ modify SDK APIs.
   - `docs/design/models/todo.md` — partial
 - **Contract implemented**:
   - `TinyCUATaskAnalyzerNode`
-  - `TinyCUATaskAssessorNode`
   - task creation/reanalysis tool scope
+- **Contract deferred**: task assessment and executor/reviewer loop.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: task tree can be created or reanalyzed by the scoped TaskAnalyzer node.
+
+### 13. TaskAssessor Node
+
+- **Design docs covered**:
+  - `docs/design/loops/node.md` — partial
+  - `docs/design/tools/task.md` — partial
+  - `docs/design/models/task.md` — partial
+- **Contract implemented**:
+  - `TinyCUATaskAssessorNode`
+  - task assessment/read/update tool scope
+  - assessment output validation
 - **Contract deferred**: executor/reviewer loop.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: task tree can be created/analyzed/assessed by scoped nodes.
+- **Exit criteria**: task assessment can read/update task state without creating or recreating tasks.
 
-### 13. TaskExecutor and ResultReviewer Nodes
+### 14. TaskExecutor and ResultReviewer Nodes
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
@@ -261,7 +274,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: executor/reviewer path can complete or route retry/replan.
 
-### 14. TinyCUAResponseNode
+### 15. TinyCUAResponseNode
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — full
@@ -274,7 +287,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: passthrough path can produce final response.
 
-### 15. ResponseNode Information-Digestion Suspension Path
+### 16. ResponseNode Information-Digestion Suspension Path
 
 - **Design docs covered**:
   - `docs/design/loops/node_queue.md` — full
@@ -287,9 +300,9 @@ modify SDK APIs.
   - digest propagates back and ResponseNode resumes
 - **Contract deferred**: advanced nested suspension.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: ResponseNode can gather information mid-response and resume.
+- **Exit criteria**: ResponseNode can gather information mid-response, receive propagated digest context in its parent session, and resume final synthesis using that digest.
 
-### 16. Propagation and Dedupe
+### 17. Propagation and Dedupe
 
 - **Design docs covered**:
   - `docs/design/loops/propagation.md` — full
@@ -306,7 +319,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: node outputs propagate without duplicate session_context entries.
 
-### 17. Tool Scoping
+### 18. Tool Scoping
 
 - **Design docs covered**:
   - `docs/design/config/node_config.md` — full
@@ -319,11 +332,11 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: nodes only see allowed tools.
 
-### 18. Retry, Validation, and Monitor Hook
+### 19. Retry, Validation, and Monitor Hook
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — full
-  - `docs/design/loops/tinycua_loop.md` — partial
+  - `docs/design/loops/tinycua_loop.md` — full
   - `docs/design/models/agent_state.md` — partial
 - **Contract implemented**:
   - NodeRetryPolicy
@@ -332,13 +345,12 @@ modify SDK APIs.
   - optional transient NodeMonitor/AgentMonitor hook
 - **Contract deferred**: HITL UX.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: invalid node output retries and exhaustion behavior are covered.
 - **Exit criteria**:
   - invalid node output retries and retry exhaustion behavior are covered
   - validation pass/fail flow is covered for required tool calls and output schema
   - optional monitor hook lifecycle is covered without introducing HITL UX scope
 
-### 19. Streaming Across Nodes
+### 20. Streaming Across Nodes
 
 - **Design docs covered**:
   - `docs/design/loops/base_loop.md` — full
@@ -353,9 +365,9 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: streamed runs surface node LLM/tool events and non-streamed runs return final string.
 
-### 20. End-to-End Architecture Integration Verification Gate
+### 21. End-to-End Architecture Integration Verification Gate
 
-> **Integration Verification Gate** — requires milestones 1-19 complete. This is a
+> **Integration Verification Gate** — requires milestones 1-20 complete. This is a
 > verification gate, not a standalone feature PR by default.
 
 - **Design docs covered**:

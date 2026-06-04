@@ -20,11 +20,16 @@ Task
 
 TaskResult
   · task_id: str
-  · status: Literal["accepted", "retry", "replan", "open_question", "failed"]
+  · execution_status: Literal["not_started", "running", "succeeded", "failed", "blocked"]
+  · reviewer_decision: ReviewerDecision | None
   · summary: str
   · artifacts: list[dict]
   · metadata: dict
 ```
+
+`TaskResult.execution_status` describes task execution state. Review outcomes use the
+canonical `ReviewerDecision` values (`accept`, `retry`, `replan`, `open_question`) and are
+stored separately in `reviewer_decision`.
 
 Task sharing remains explicit. Child/per-node sessions do not automatically inherit a
 task unless TinyCUA assigns or scopes it.
@@ -35,5 +40,6 @@ configured boundaries.
 ## Related
 
 - [`session.md`](session.md)
+- [`reviewer_decision.md`](reviewer_decision.md)
 - [`../tools/task.md`](../tools/task.md)
 - [`../loops/worker_concept.md`](../loops/worker_concept.md)

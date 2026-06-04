@@ -11,6 +11,13 @@ maps validated decision labels to named route handlers that mutate `NodeQueue`.
 It replaces `RouterNode` without becoming a standalone orchestration layer.
 
 ```text
+DecisionResult
+  · label: str
+  · confidence: float | None
+  · rationale: str | None
+  · raw_output: str | dict | None
+  · metadata: dict
+
 Route
   · label: str
   · handler: Callable[[NodeQueue, DecisionResult], None]
@@ -19,6 +26,10 @@ RouteMap
   · routes: dict[str, Route]
   · dispatch(label, queue, result)
 ```
+
+`DecisionResult.label` is the validated route label. Decision nodes may keep raw LLM or
+deterministic decision output in `raw_output`, but route dispatch uses only labels present
+in the owning `RouteMap.routes` table.
 
 ## Examples
 

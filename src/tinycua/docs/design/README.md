@@ -6,6 +6,16 @@ This directory documents the planned TinyCUA architecture: a SDK `Agent` configu
 with `TinyCUALoop`, which extends SDK `BaseLoop` and runs a sequential `NodeQueue` of
 TinyCUA-specific nodes.
 
+## Document Authority / Source of Truth
+
+`src/tinycua/specs/design-simplification/design.md` is the blueprint and design-decision
+record for this PR. `src/tinycua/docs/design/` is the refined implementation-facing target
+design. Refined docs may add detail, specialize examples, or clarify implementation
+contracts as long as they preserve the same semantics. Treat a difference as an issue only
+when it creates incompatible implementation behavior, contradicts a MUST-level design
+decision, duplicates competing sources of truth, or leaves the canonical implementation
+contract ambiguous.
+
 ## Reading Order
 
 1. [`loops/base_loop.md`](loops/base_loop.md) — SDK `BaseLoop` contract TinyCUA builds around
@@ -18,6 +28,14 @@ TinyCUA-specific nodes.
 8. [`config/node_config.md`](config/node_config.md) — node config dataclasses and policies
 9. [`config/session_config.md`](config/session_config.md) — session-level configuration
 10. [`models/session.md`](models/session.md) — root/per-node sessions and message context
+11. [`models/state_object.md`](models/state_object.md) — `NodeInput`, `NodePayload`, and serialization base
+12. [`models/chat_record.md`](models/chat_record.md) and [`models/execution_log.md`](models/execution_log.md) — audit and execution records
+13. [`models/task.md`](models/task.md), [`models/todo.md`](models/todo.md), and [`models/reviewer_decision.md`](models/reviewer_decision.md) — task/todo/review models
+14. [`models/classification.md`](models/classification.md), [`models/worker_result.md`](models/worker_result.md), [`models/information.md`](models/information.md), and [`models/digested_information.md`](models/digested_information.md) — decision and information models
+15. [`constants/instructions.md`](constants/instructions.md) and [`constants/tools.md`](constants/tools.md) — instruction and tool-scope constants
+16. [`tools/task.md`](tools/task.md), [`tools/todo.md`](tools/todo.md), and [`tools/digester.md`](tools/digester.md) — node tool families
+17. [`utility/compaction.md`](utility/compaction.md) — compaction strategy contract
+18. [`models/agent_state.md`](models/agent_state.md) and [`models/state_store.md`](models/state_store.md) — lifecycle output and persistence notes
 
 ## Architecture Summary
 
@@ -63,8 +81,8 @@ TinyCUA uses suffixes to signal how a behavior object is owned and applied:
 | Suffix | Meaning | Examples |
 |--------|---------|----------|
 | `Rule` | Cross-node or cross-session data movement contract. Rules describe what may move across boundaries. | `PropagationRule` |
-| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` |
-| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy`, `NodeMessageStrategy` |
+| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy`, `NodeMessagePolicy` |
+| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy` |
 
 Use `Policy` for lightweight per-node/session decisions, `Rule` for boundary/propagation
 contracts, and `Strategy` when implementations are swappable algorithms.

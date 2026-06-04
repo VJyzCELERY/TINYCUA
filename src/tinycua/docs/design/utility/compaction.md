@@ -41,6 +41,10 @@ exceeded. The session selects the message window, calls the configured
 `CompactionStrategy.compact(messages)`, and updates `session_context` with the returned
 assistant summary. `chat_history` remains unchanged as the audit trail.
 
+`Session.compact_context(window: list[dict] | None = None) -> dict | None` returns the
+assistant summary when compaction runs, mutates only the selected `session_context` window,
+and returns `None` when no strategy/window is available.
+
 ## Internal Agent Exception
 
 Normal TinyCUA node execution does not create internal SDK Agents inside
@@ -61,8 +65,8 @@ SimpleCompaction extends CompactionStrategy
 
 Behavior:
 
-1. Inherit parent SDK Agent configuration when available, especially language model and
-   provider configuration.
+1. Receive a parent SDK Agent configuration snapshot during `create_tinycua_agent(...)` or
+   session setup when available, especially language model and provider configuration.
 2. Use a documented default fallback configuration when no parent Agent/config exists.
 3. Run a small compaction Agent over the selected session messages.
 4. Use no tools.
@@ -77,7 +81,9 @@ Behavior:
 
 The compaction Agent receives selected session context as `messages`. The caller/node is
 responsible for deciding which messages to pass, including whether to exclude static
-system prompts or include any dynamic system context needed for the summary.
+system prompts or include any dynamic system context needed for the summary. The strategy
+uses its stored config snapshot; it does not require the live parent Agent during
+`compact(messages)`.
 
 ## System Messages
 

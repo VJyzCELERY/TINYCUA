@@ -26,7 +26,10 @@ ChatRecord
 `role` is the LLM/provider message role. `record_type` is the audit category, such as
 `node_output`, `internal_continuation`, `tool_result`, `retry`, or `queue_lifecycle`.
 
-`origin_record_id` supports dedupe when context is propagated or passed as node input.
+`origin_record_id` supports dedupe when context is propagated or passed as node input. A
+new record starts with `origin_record_id=None`; copied or propagated records preserve the
+source record's `record_id` in `origin_record_id`. Dedupe compares `origin_record_id` when
+present and falls back to `record_id`.
 
 ## Related
 

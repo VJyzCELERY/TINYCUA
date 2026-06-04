@@ -159,7 +159,7 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 
 ### Manual Verification
 
-- Verify `docs/design/` file count target is under 30 after cleanup.
+- Verify `docs/design/` file count target is 30 or fewer after cleanup.
 - Verify migration table covers all old design docs.
 - Search for stale terms and confirm they appear only in migration/history contexts.
 - Verify `docs/design/README.md` reading order matches new architecture.

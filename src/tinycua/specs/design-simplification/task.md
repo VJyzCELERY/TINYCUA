@@ -76,7 +76,7 @@ Implementation tasks for the docs-only TinyCUA design simplification PR.
 
 ## Phase 7: Final Verification
 
-- [ ] Count markdown files under `docs/design`; target under 30 <!-- id: 49 -->
+- [ ] Count markdown files under `docs/design`; target 30 or fewer <!-- id: 49 -->
 - [ ] Search stale terms and verify only migration/history usage remains <!-- id: 50 -->
 - [ ] Verify no source code or test files changed <!-- id: 51 -->
 - [ ] Inspect `git status`, `git diff`, and `git log --oneline -10` <!-- id: 52 -->

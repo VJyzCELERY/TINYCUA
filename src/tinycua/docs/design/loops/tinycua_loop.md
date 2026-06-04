@@ -23,16 +23,21 @@ TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
   3. While queue is not empty:
         node = queue.current
         node_session = node.ensure_session(...)
+        node_input = queue.input_for_current()
         input_messages = node.build_messages(root_session, node_input)
         instructions = node.build_instruction(override_instructions)
         scoped_tools = node.tool_policy.resolve(node_tools, outer_agent_tools=tools)
         result = call/stream agent._call_llm(input_messages, scoped_tools)
         validate/retry according to node retry policy
         record chat history and selected session context
-        propagate according to PropagationRule
         node.on_complete(queue, result)
   4. Return final TinyCUAResponseNode string or stream events.
 ```
+
+`node.on_complete()` is responsible for all queue transitions. It calls
+`queue.advance()` when the current node is finished, or performs route-specific mutations
+such as spawning, clearing, or suspension/prepend. The loop never calls `advance()` after
+`on_complete()`; it simply re-reads `queue.current` on the next iteration.
 
 ## SDK Messages
 
@@ -44,6 +49,25 @@ already included by SDK `Agent.run`.
 
 When `stream=True`, LLM/tool events from every node are visible to the caller. TinyCUA
 lifecycle events are controlled separately by `NodeStreamPolicy.emit_internal_events`.
+
+## Monitor Hook
+
+`AgentMonitor` / `NodeMonitor` is an optional transient hook, not a durable queue node.
+
+Trigger points:
+
+1. before a node LLM call, after `build_messages()` and tool resolution
+2. after a node LLM/tool result, before validation/retry handling
+3. after retry exhaustion, before failure propagation
+
+Inputs include node id/name, session id, attempt number, resolved tools, LLM-bound
+messages, raw result or validation error, and stream mode. The hook may return an
+assistant-role continuation message or no-op. Returned continuations enter the retry or
+next-attempt message flow according to `NodeRetryPolicy`.
+
+Monitor hook invocations are transient: they are not queue nodes, do not create sessions,
+and are not written to `chat_history` or `session_context` unless the owning node
+explicitly records a derived message according to its normal recording policy.
 
 ## Error Handling
 

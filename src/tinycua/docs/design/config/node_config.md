@@ -8,22 +8,23 @@
 Each concrete TinyCUA node has its own config dataclass. Node config controls node
 behavior, not SDK model/provider configuration.
 
-## NodeMessageStrategy
+## NodeMessagePolicy
 
-`NodeMessageStrategy` controls how a node selects reusable session context and formats
+`NodeMessagePolicy` controls how a node selects reusable session context and formats
 non-system continuation messages. It does not change the system prompt rendering contract.
 
 ```text
-NodeMessageStrategy
+NodeMessagePolicy
   · include_chat_history: bool = false
   · include_session_context: bool = true
   · max_context_messages: int | None
   · dedupe_by_origin_record_id: bool = true
-  · continuation_role: "assistant"
+  · continuation_role: Literal["assistant"] = "assistant"
 ```
 
-Nodes may specialize this strategy, but internal node handoffs and continuations remain
-assistant-role messages unless a provider-specific tool role is required.
+Internal node handoffs and continuations are assistant-role messages. Provider-required
+tool roles are handled by provider/tool message translation, not by changing
+`continuation_role`.
 
 ## Base Config
 
@@ -36,7 +37,7 @@ NodeConfigBase
   · tool_policy: NodeToolPolicy
   · stream_policy: NodeStreamPolicy
   · retry_policy: NodeRetryPolicy
-  · message_strategy: NodeMessageStrategy
+  · message_policy: NodeMessagePolicy
   · metadata: dict
 ```
 
@@ -77,11 +78,19 @@ at the LLM boundary for provider portability.
 
 ```text
 NodeToolPolicy
-  · node_tools
+  · node_tools: list[Tool]
   · include_agent_tools: none | selected | all
-  · allowed_agent_tool_names
-  · denied_agent_tool_names
+  · allowed_agent_tool_names: list[str]
+  · denied_agent_tool_names: list[str]
 ```
+
+Resolution order:
+
+1. Start with `node_tools`.
+2. If `include_agent_tools=none`, include no outer SDK Agent tools.
+3. If `selected`, include outer tools whose names are in `allowed_agent_tool_names`.
+4. If `all`, include all outer tools except those in `denied_agent_tool_names`.
+5. Deny wins over allow when a tool name appears in both lists.
 
 ## NodeStreamPolicy
 
@@ -94,31 +103,42 @@ NodeStreamPolicy
 ```
 
 When `stream=True`, LLM/tool events from every node are streamable to the caller.
+When `final_response_only=True`, intermediate node LLM/tool events are suppressed from
+the user-visible stream and only `TinyCUAResponseNode` final-response events are emitted.
+Lifecycle events remain governed by `emit_internal_events`.
 
 ## NodeRetryPolicy
 
 ```text
 NodeRetryPolicy
-  · max_attempts
-  · required_tool_calls
-  · required_output_schema
-  · validation_fn
-  · retry_continuation_builder
-  · on_retry_exhausted
+  · max_attempts: int = 3
+  · required_tool_calls: list[str] = []
+  · required_output_schema: dict | type[StateObject] | None = None
+  · validation_fn: Callable[[LLMResult], ValidationResult] | None = None
+  · retry_continuation_builder: Callable[[ValidationError, int], str] | None = None
+  · on_retry_exhausted: Literal["raise", "record_failure", "route_failure"] = "record_failure"
 ```
 
-Retry prompts are assistant-role continuations.
+Retry prompts are assistant-role continuations. Exhaustion behavior:
+
+- `raise`: raise a node execution error to the loop
+- `record_failure`: write failure state to the node session and propagate according to
+  `PropagationRule.failure`
+- `route_failure`: call the node's failure route from `on_complete()` when defined;
+  otherwise behave like `record_failure`
 
 ## Per-Node Configs
 
-- `TinyCUAQueryAnalystNodeConfig`
-- `TinyCUAInformationDigesterNodeConfig`
-- `TinyCUAWorkerNodeConfig`
-- `TinyCUATaskAnalyzerNodeConfig`
-- `TinyCUATaskAssessorNodeConfig`
-- `TinyCUATaskExecutorNodeConfig`
-- `TinyCUAResultReviewerNodeConfig`
-- `TinyCUAResponseNodeConfig`
+| Config | Additional fields beyond `NodeConfigBase` |
+|--------|--------------------------------------------|
+| `TinyCUAQueryAnalystNodeConfig` | `allowed_labels: list[str] = ["passthrough", "worker"]`; `classification_schema: dict | None` |
+| `TinyCUAInformationDigesterNodeConfig` | `retrieval_enabled: bool = true`; `max_digest_sources: int | None`; `digest_schema: dict | None` |
+| `TinyCUAWorkerNodeConfig` | `worker_labels: list[str]`; `allow_passthrough_when_child_exists: bool = true`; `deterministic_prechecks: bool = true` |
+| `TinyCUATaskAnalyzerNodeConfig` | `allow_task_create: bool = true`; `allow_task_recreate: bool = true`; `task_schema: dict | None` |
+| `TinyCUATaskAssessorNodeConfig` | `assessment_schema: dict | None`; `allow_task_updates: bool = true` |
+| `TinyCUATaskExecutorNodeConfig` | `execution_schema: dict | None`; `allow_outer_tools: bool = true` |
+| `TinyCUAResultReviewerNodeConfig` | `review_labels: list[str] = ["accept", "retry", "replan", "open_question"]`; `review_schema: dict | None` |
+| `TinyCUAResponseNodeConfig` | `allow_information_digest_request: bool = true`; `final_response_schema: dict | None` |
 
 ## Related
 

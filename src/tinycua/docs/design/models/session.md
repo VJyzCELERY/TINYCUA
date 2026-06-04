@@ -17,10 +17,12 @@ Session
   · agent_state: AgentState | None
   · task: Task | None               # global parent session overall goal
   · todo: Todo | None                # per-session linear plan-then-execute list
+  · compact_context(window: list[dict] | None = None) → dict | None
 ```
 
 Each node manages its own session/message context. A node session may be fresh,
-inherited, reused, scoped from parent/root, or enhanced through retrieval tools.
+inherited, reused, scoped from parent, scoped from root, or enhanced through retrieval
+tools.
 
 ## Task vs Todo
 
@@ -60,14 +62,18 @@ Session compaction is selected by `session_config.compaction_strategy`. The stra
 takes `messages: list[dict]` and returns one assistant-role summary message. The strategy
 may own its own internal Agent; this is not normal TinyCUALoop node execution.
 
-Nodes invoke compaction with `session.compact_context()` when SessionConfig context limits
-are exceeded. The session delegates to the configured strategy and replaces the selected
-`session_context` window with the returned assistant summary. The node that requested
-compaction builds any continuation prompt after compaction.
+Nodes invoke compaction with `session.compact_context(window=None)` when SessionConfig
+context limits are exceeded. If `window` is omitted, the session selects a compactable
+window from `session_context` according to policy. The method delegates to the configured
+strategy, replaces the selected `session_context` window with the returned assistant
+summary, and returns that summary. If no strategy is configured or no compaction is
+needed, it returns `None`. The node that requested compaction builds any continuation
+prompt after compaction.
 
-The default/simple strategy may be `SimpleCompaction`, which inherits parent Agent
-configuration when available, uses a fallback config otherwise, runs a tool-less
-compaction Agent over selected session messages, and stores that final response as:
+The default/simple strategy may be `SimpleCompaction`, initialized by
+`create_tinycua_agent(...)` or session setup with a parent SDK Agent configuration snapshot
+when available. It uses a fallback config otherwise, runs a tool-less compaction Agent over
+selected session messages, and stores that final response as:
 
 ```text
 {"role": "assistant", "content": response}

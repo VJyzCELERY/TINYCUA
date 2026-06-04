@@ -7,7 +7,7 @@ Task tools are exposed according to node tool scope.
 | Node | Task Tool Scope |
 |------|-----------------|
 | TinyCUAQueryAnalystNode | read-only task inspection only |
-| TinyCUAWorkerNode | decision support only |
+| TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskAnalyzerNode | structural task tools; TaskInit/TaskCreate only when task is missing or recreation is requested |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
 | TinyCUATaskExecutorNode | active task execution and task result update tools |

@@ -41,9 +41,15 @@ ordered system-role message at the LLM boundary:
 ```text
 [
   {"role": "system", "content": <ordered merged system prompt>},
+  {"role": "user", "content": <external user query when selected for this node call>},
   {"role": "assistant", "content": <internal context / continuation>},
 ]
 ```
+
+SDK-provided user messages are first merged into the root session/input context. A node
+LLM call includes external user messages only when `NodeMessagePolicy` or assigned
+`NodeInput` selects them for that node. Internal node handoffs remain assistant-role
+messages.
 
 The session/history layer may store prompt fragments or metadata separately. The
 LLM-bound output always has exactly one system prompt message.
