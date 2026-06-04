@@ -67,15 +67,19 @@ modify SDK APIs.
   - `docs/design/config/session_config.md` — full
   - `docs/design/config/node_config.md` — partial
   - `docs/design/models/session.md` — partial
+  - `docs/design/models/todo.md` — full
 - **Contract implemented**:
   - `SessionConfig`
   - base node config dataclass
   - append-only instruction/continuation fields
   - `SystemPrompt` / `SystemPromptBuilder` rendering model
   - `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` shapes
+  - `Todo` and `TodoItem` models
+  - every Session initializes/provides a Todo
+  - generic Todo tools exposed according to NodeToolPolicy unless disabled
 - **Contract deferred**: concrete per-node behavior.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: config model tests pass and docs contract is represented in code.
+- **Exit criteria**: config model tests pass and docs contract is represented in code, including Todo session invariant.
 
 ### 2a. CompactionStrategy Contract
 
@@ -177,38 +181,46 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/route_map.md` — full
   - `docs/design/loops/node.md` — partial
+  - `docs/design/loops/query_analyst.md` — full
+  - `docs/design/loops/expected_scenarios.md` — partial
   - `docs/design/models/classification.md` — partial
 - **Contract implemented**:
   - DecisionNode-owned RouteMap
   - `TinyCUAQueryAnalystNode`
-  - top-level labels: `passthrough`, `worker`
-  - route to response path or worker path
+  - top-level labels: `passthrough`, `worker`, `uncertain`
+  - `uncertain` keeps QueryAnalyst active and waits for user continuation
+  - route to response path, worker path, or uncertain path
   - mandatory_passthrough precheck before LLM classification
   - existing WorkerNode reuse before spawning a new WorkerNode
 - **Contract deferred**: Worker decision node.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: top-level query classification routes queue deterministically with passthrough and worker-reuse logic.
+- **Exit criteria**: top-level query classification routes queue deterministically with passthrough, worker-reuse, and uncertain-mode logic.
 
 ### 9. TinyCUAWorkerNode Deterministic Routing
 
 - **Design docs covered**:
   - `docs/design/loops/worker_concept.md` — partial
+  - `docs/design/loops/worker.md` — partial
+  - `docs/design/loops/task_create.md` — full
   - `docs/design/tools/task.md` — partial
   - `docs/design/models/worker_result.md` — partial
 - **Contract implemented**:
   - no Worker QueryAnalyst
-  - task-missing deterministic path to TaskAnalyzer with TaskInit/TaskCreate
+  - task-missing deterministic path to `TinyCUATaskCreateNode`
+  - `TinyCUATaskCreateNode` creates the root task with TaskInit/TaskCreate tools
+  - then `TinyCUATaskAnalyzerNode(mode=initial_analysis)` runs without TaskInit/TaskCreate tools
   - worker-spawned-node detection
   - existing WorkerNode as part of worker-owned queue segment
   - worker-spawned segment clearing rules
 - **Contract deferred**: optional LLM worker decision.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: Worker can initialize task analysis without LLM decision when task is missing.
+- **Exit criteria**: Worker can initialize task creation and analysis without LLM decision when task is missing.
 
 ### 10. TinyCUAWorkerNode Optional LLM Decision
 
 - **Design docs covered**:
   - `docs/design/loops/worker_concept.md` — full
+  - `docs/design/loops/worker.md` — full
   - `docs/design/models/classification.md` — full
 - **Contract implemented**:
   - worker labels: `task_recreation`, `task_reanalysis`, `proceed_execution`
@@ -218,26 +230,45 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: Worker LLM decision mutates the queue correctly.
 
+### 10a. AnalysisEffortNode
+
+- **Design docs covered**:
+  - `docs/design/loops/analysis_effort.md` — full
+  - `docs/design/loops/worker.md` — partial
+  - `docs/design/models/worker_result.md` — full
+- **Contract implemented**:
+  - `TinyCUAAnalysisEffortNode` — deterministic no-LLM ProcessNode
+  - maps `WorkerEffort = none | low | medium | high` to `pass_limit` thresholds
+  - prepends `[TaskAssessor, TaskAnalyzer]` until the threshold is reached
+  - ensures TaskExecutor is spawned before advancing
+- **Contract deferred**: none for architecture scope.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: effort configuration controls the number of assessment/analysis passes before execution.
+
 ### 11. InformationDigesterNode
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
+  - `docs/design/loops/information_digester.md` — full
   - `docs/design/tools/digester.md` — full
+  - `docs/design/tools/enhanced_context_retrieval.md` — full
   - `docs/design/models/information.md` — partial
   - `docs/design/models/digested_information.md` — full
 - **Contract implemented**:
   - `TinyCUAInformationDigesterNode`
+  - shared `enhanced_context_retrieval` tool contract (consumed by InformationDigester, TaskExecutor, and ResponseNode)
   - enhanced context retrieval tool integration
   - digest output model
   - selected digest propagation
 - **Contract deferred**: ResponseNode suspension path.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: digester produces structured digest from NodeInput/session context.
+- **Exit criteria**: digester produces structured digest from NodeInput/session context; `enhanced_context_retrieval` tool is available for downstream consumers.
 
 ### 12. TaskAnalyzer Node
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
+  - `docs/design/loops/task_analyzer.md` — full
   - `docs/design/tools/task.md` — partial
   - `docs/design/tools/todo.md` — partial
   - `docs/design/models/task.md` — partial
@@ -253,6 +284,7 @@ modify SDK APIs.
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
+  - `docs/design/loops/task_assessor.md` — full
   - `docs/design/tools/task.md` — partial
   - `docs/design/models/task.md` — partial
 - **Contract implemented**:
@@ -263,10 +295,27 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: task assessment can read/update task state without creating or recreating tasks.
 
-### 14. TaskExecutor and ResultReviewer Nodes
+### 14. TaskTree Active Task Lifecycle
+
+- **Design docs covered**:
+  - `docs/design/models/task.md` — full
+  - `docs/design/loops/task_executor.md` — partial
+  - `docs/design/loops/result_reviewer.md` — partial
+  - `docs/design/loops/tinycua_loop.md` — full
+- **Contract implemented**:
+  - DFS pre-order active task selection
+  - `get_active_task` / `set_active_task` helpers
+  - task-tree completion/update algorithm
+- **Contract deferred**: none for architecture scope.
+- **Expected PR scope**: one PR.
+- **Exit criteria**: active task traversal and task-tree update rules are implemented.
+
+### 15. TaskExecutor and ResultReviewer Nodes
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
+  - `docs/design/loops/task_executor.md` — full
+  - `docs/design/loops/result_reviewer.md` — full
   - `docs/design/tools/task.md` — full
   - `docs/design/tools/todo.md` — partial
   - `docs/design/models/reviewer_decision.md` — full
@@ -275,11 +324,11 @@ modify SDK APIs.
   - `TinyCUATaskExecutorNode`
   - `TinyCUAResultReviewerNode`
   - accept/retry/replan/open-question flow
-- **Contract deferred**: final response synthesis, task-tree update rules.
+- **Contract deferred**: final response synthesis.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: executor/reviewer path can complete or route retry/replan.
+- **Exit criteria**: executor/reviewer path can complete or route retry/replan, using task-tree lifecycle from milestone 14 and shared `enhanced_context_retrieval` from milestone 11.
 
-### 14a. Mandatory Passthrough and Continuation Routing
+### 15a. Mandatory Passthrough and Continuation Routing
 
 - **Design docs covered**:
   - `docs/design/loops/route_map.md` — full
@@ -294,23 +343,11 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: open_question routes back to ResultReviewer deterministically.
 
-### 14b. TaskTree Active Task Lifecycle
-
-- **Design docs covered**:
-  - `docs/design/models/task.md` — full
-  - `docs/design/loops/tinycua_loop.md` — full
-- **Contract implemented**:
-  - DFS pre-order active task selection
-  - `get_active_task` / `set_active_task` helpers
-  - task-tree completion/update algorithm
-- **Contract deferred**: none for architecture scope.
-- **Expected PR scope**: one PR.
-- **Exit criteria**: active task traversal and task-tree update rules are implemented.
-
-### 14c. ResultAggregationNode
+### 16. ResultAggregationNode
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — full
+  - `docs/design/loops/result_aggregation.md` — full
   - `docs/design/config/node_config.md` — full
   - `docs/design/models/task.md` — full
 - **Contract implemented**:
@@ -323,10 +360,11 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: accepted root task enters ResultAggregationNode and produces AggregatedResult.
 
-### 15. TinyCUAResponseNode
+### 17. TinyCUAResponseNode
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — full
+  - `docs/design/loops/response.md` — full
   - `docs/design/loops/tinycua_loop.md` — partial
 - **Contract implemented**:
   - final response synthesis
@@ -339,7 +377,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: passthrough path can produce final response with consolidated continuation.
 
-### 16. ResponseNode Information-Digestion Suspension Path
+### 18. ResponseNode Information-Digestion Suspension Path
 
 - **Design docs covered**:
   - `docs/design/loops/node_queue.md` — full
@@ -355,7 +393,7 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: ResponseNode can gather information mid-response, receive propagated digest context in its parent session, and resume final synthesis using that digest.
 
-### 17. Propagation and Dedupe
+### 19. Propagation and Dedupe
 
 - **Design docs covered**:
   - `docs/design/loops/propagation.md` — full
@@ -372,24 +410,25 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: node outputs propagate without duplicate session_context entries.
 
-### 18. Tool Scoping
+### 20. Tool Scoping
 
 - **Design docs covered**:
   - `docs/design/config/node_config.md` — full
   - `docs/design/constants/tools.md` — full
+  - `docs/design/tools/enhanced_context_retrieval.md` — full
 - **Contract implemented**:
   - NodeToolPolicy resolution
   - selected outer Agent tools
   - node-specific tool restrictions
-  - TaskExecutor direct `enhanced_context_retrieval`
+  - verify TaskExecutor and ResponseNode consume shared `enhanced_context_retrieval` from milestone 11
   - ResponseNode same base toolset as TaskExecutor
   - `enhanced_context_retrieval` cache behavior
   - enhanced_context_retrieval cache file-search behavior
 - **Contract deferred**: none for architecture scope.
 - **Expected PR scope**: one PR.
-- **Exit criteria**: nodes only see allowed tools; TaskExecutor uses enhanced_context_retrieval directly.
+- **Exit criteria**: nodes only see allowed tools; shared `enhanced_context_retrieval` contract verified across consumers.
 
-### 19. Retry, Validation, and Monitor Hook
+### 21. Retry, Validation, and Monitor Hook
 
 - **Design docs covered**:
   - `docs/design/loops/node.md` — full
@@ -407,7 +446,7 @@ modify SDK APIs.
   - validation pass/fail flow is covered for required tool calls and output schema
   - optional monitor hook lifecycle is covered without introducing HITL UX scope
 
-### 20. Streaming Across Nodes
+### 22. Streaming Across Nodes
 
 - **Design docs covered**:
   - `docs/design/loops/base_loop.md` — full
@@ -422,9 +461,9 @@ modify SDK APIs.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: streamed runs surface node LLM/tool events and non-streamed runs return final string.
 
-### 21. End-to-End Architecture Integration Verification Gate
+### 23. End-to-End Architecture Integration Verification Gate
 
-> **Integration Verification Gate** — requires milestones 1-20 complete. This is a
+> **Integration Verification Gate** — requires milestones 1-22 complete. This is a
 > verification gate, not a standalone feature PR by default.
 
 - **Design docs covered**:
