@@ -44,3 +44,8 @@ dev/
 reviews/
 tmp/
 *.lock
+
+# WildClawBench artifacts
+benchmark_results/
+*.benchmark.json
+*.benchmark.yaml
