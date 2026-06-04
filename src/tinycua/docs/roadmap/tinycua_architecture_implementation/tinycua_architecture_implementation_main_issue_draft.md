@@ -74,6 +74,7 @@ modify SDK APIs.
   - append-only instruction/continuation fields
   - `SystemPrompt` / `SystemPromptBuilder` rendering model
   - `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` shapes
+  - `NodeMessagePolicy` shape (fields: `include_chat_history`, `include_session_context`, `max_context_messages`, `dedupe_by_origin_record_id`, `continuation_role`)
   - `Todo` and `TodoItem` models
   - every Session initializes/provides a Todo
   - generic Todo tools exposed according to NodeToolPolicy unless disabled
@@ -114,6 +115,7 @@ modify SDK APIs.
   - `NodePayload.to_message()` / `to_messages()`
   - `NodeInput(messages=[...], payloads=[...])`
   - no untrusted string parsing for internal input
+- **Contract deferred**: ExecutionLog recording and AgentState lifecycle output are implemented in later lifecycle/audit milestones.
 - **Contract deferred**: concrete payload types for every node.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: transport converts to assistant-role messages and safely handles strings/list messages.
@@ -188,6 +190,8 @@ modify SDK APIs.
   - DecisionNode-owned RouteMap
   - `TinyCUAQueryAnalystNode`
   - top-level labels: `passthrough`, `worker`, `uncertain`
+  - DecisionNodes use the two-step process: analysis LLM call → verdict/classification tool call → validated RouteMap dispatch.
+  - The latest valid verdict tool call determines the route label; invalid/missing labels retry through `NodeRetryPolicy`.
   - `uncertain` keeps QueryAnalyst active and waits for user continuation
   - route to response path, worker path, or uncertain path
   - mandatory_passthrough precheck before LLM classification
@@ -212,6 +216,7 @@ modify SDK APIs.
   - worker-spawned-node detection
   - existing WorkerNode as part of worker-owned queue segment
   - worker-spawned segment clearing rules
+  - any route handler that calls `clear_after_current()` must call `queue.ensure_terminal(default_response_node)` before returning if clearing removed the terminal response path.
 - **Contract deferred**: optional LLM worker decision.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: Worker can initialize task creation and analysis without LLM decision when task is missing.
@@ -225,6 +230,8 @@ modify SDK APIs.
 - **Contract implemented**:
   - worker labels: `task_recreation`, `task_reanalysis`, `proceed_execution`
   - dynamic `passthrough` label only when a worker-spawned node exists
+  - DecisionNodes use the two-step process: analysis LLM call → verdict/classification tool call → validated RouteMap dispatch.
+  - The latest valid verdict tool call determines the route label; invalid/missing labels retry through `NodeRetryPolicy`.
   - route handlers for each worker route
 - **Contract deferred**: full downstream process-node implementations.
 - **Expected PR scope**: one PR.
@@ -250,8 +257,9 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/loops/node.md` — partial
   - `docs/design/loops/information_digester.md` — full
-  - `docs/design/tools/digester.md` — full
-  - `docs/design/tools/enhanced_context_retrieval.md` — full
+  - `docs/design/tools/digester.md` — partial/enhanced retrieval behavior
+  - `docs/design/loops/information_digester.md` — partial/node consumption
+  - `docs/design/constants/tools.md` — partial/shared tool scope
   - `docs/design/models/information.md` — partial
   - `docs/design/models/digested_information.md` — full
 - **Contract implemented**:
@@ -276,6 +284,7 @@ modify SDK APIs.
 - **Contract implemented**:
   - `TinyCUATaskAnalyzerNode`
   - task creation/reanalysis tool scope
+  - TaskAnalyzer task-structure tool calls directly mutate root `session.task` through TinyCUALoop task helpers; TaskAnalyzer does not return opaque mutation instructions for later loop application.
 - **Contract deferred**: task assessment and executor/reviewer loop.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: task tree can be created or reanalyzed by the scoped TaskAnalyzer node.
@@ -406,6 +415,8 @@ modify SDK APIs.
   - source metadata
   - dedupe/origin ids
   - legacy propagation profiles
+  - `ChatRecord` append-only audit model with provenance/visibility fields.
+  - `SessionContextEntry.segment = prior | input | output` and propagation behavior based on segment metadata.
 - **Contract deferred**: datastore persistence.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: node outputs propagate without duplicate session_context entries.
@@ -415,7 +426,8 @@ modify SDK APIs.
 - **Design docs covered**:
   - `docs/design/config/node_config.md` — full
   - `docs/design/constants/tools.md` — full
-  - `docs/design/tools/enhanced_context_retrieval.md` — full
+  - `docs/design/tools/digester.md` — partial/enhanced retrieval behavior
+  - `docs/design/loops/information_digester.md` — partial/node consumption
 - **Contract implemented**:
   - NodeToolPolicy resolution
   - selected outer Agent tools
@@ -439,6 +451,7 @@ modify SDK APIs.
   - assistant-role retry continuations
   - validation per node
   - optional transient NodeMonitor/AgentMonitor hook
+  - ResultReviewer retry failure threshold: default 5, configurable, tracked at TinyCUALoop/root-session level, reset on accept, distinct from `NodeRetryPolicy.max_attempts`.
 - **Contract deferred**: HITL UX.
 - **Expected PR scope**: one PR.
 - **Exit criteria**:
