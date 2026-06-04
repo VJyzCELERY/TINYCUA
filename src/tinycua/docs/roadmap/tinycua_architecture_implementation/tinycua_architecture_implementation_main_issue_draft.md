@@ -384,6 +384,7 @@ modify SDK APIs.
   - TaskExecutor direct `enhanced_context_retrieval`
   - ResponseNode same base toolset as TaskExecutor
   - `enhanced_context_retrieval` cache behavior
+  - enhanced_context_retrieval cache file-search behavior
 - **Contract deferred**: none for architecture scope.
 - **Expected PR scope**: one PR.
 - **Exit criteria**: nodes only see allowed tools; TaskExecutor uses enhanced_context_retrieval directly.

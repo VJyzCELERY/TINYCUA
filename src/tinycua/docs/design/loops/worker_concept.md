@@ -10,6 +10,13 @@ worker subgraph and worker QueryAnalyst input gate.
 
 There is no separate Worker QueryAnalyst in the target architecture.
 
+## Existing WorkerNode Reuse
+
+When QueryAnalyst routes to worker, if an existing WorkerNode is already queued before the
+terminal ResponseNode, do not spawn a new WorkerNode. Forward/assign the current NodeInput
+to the existing WorkerNode. An existing WorkerNode counts as part of the worker-owned queue
+segment for stale detection and clearing.
+
 ## Flow
 
 ```text

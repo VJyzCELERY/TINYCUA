@@ -5,7 +5,7 @@
 `TinyCUAInformationDigesterNode` uses information-digestion tools to gather and summarize
 context for downstream nodes or a suspended `TinyCUAResponseNode`.
 
-`InformationDigesterNode` is optional and invoked only when direct accumulated context/tool access is insufficient. `ResponseNode` should first evaluate whether accumulated context is enough. `TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning `InformationDigesterNode`.
+`InformationDigesterNode` is optional and invoked only when direct accumulated context/tool access is insufficient. InformationDigesterNode is optional and invoked only when direct context/tool access is insufficient. `ResponseNode` should first evaluate whether accumulated context is enough. `TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning `InformationDigesterNode`.
 
 Primary tools:
 
@@ -23,7 +23,7 @@ a limited ReAct-style search over that cache using grep/search and paginated rea
 - Lazily creates a scoped context cache file when called.
 - The cache contains only selected context for that session/tool call.
 - Retrieval runs as a ReAct-style search over the cache.
-- Search/read tools are limited to grep/search within the cache and paginated cache reads.
+- Search/read tools are limited to grep/search within the cache and paginated cache reads. All search and read operations are limited to the cache.
 - `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
 When spawned by `TinyCUAResponseNode`, the digester receives a copied, selected subset of

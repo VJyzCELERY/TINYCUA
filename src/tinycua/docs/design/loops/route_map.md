@@ -65,7 +65,7 @@ MandatoryPassthrough
 
 ### QueryAnalyst Prechecks
 
-Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic prechecks:
+Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic prechecks. QueryAnalyst prechecks run before LLM classification:
 
 1. If a valid `mandatory_passthrough` exists, forward the user continuation to the target node/session.
 2. If no valid mandatory passthrough exists, run normal `QueryAnalyst` classification.

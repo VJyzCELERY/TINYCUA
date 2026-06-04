@@ -16,6 +16,8 @@ because compaction is strategy-owned summarization, not node execution.
 
 ## Execution Flow
 
+Always ensure QueryAnalyst is at the front of the queue and a terminal ResponseNode is at the end.
+
 ```text
 TinyCUALoop.run(agent, messages, tools, override_instructions, stream):
   1. Merge SDK messages into root session input context according to session policy.

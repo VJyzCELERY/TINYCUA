@@ -194,8 +194,7 @@ continuations.
 
 ## Todo
 
-Every TinyCUA node session MUST have a Todo. Todo tools are generic node tools available
-to all TinyCUA nodes unless disabled by `NodeToolPolicy`. Nodes SHOULD structure their
+Every TinyCUA node session MUST have a Todo. Todo tools are generic node tools available to all TinyCUA nodes unless disabled by `NodeToolPolicy`. Nodes SHOULD structure their
 work through Plan -> Analyze -> Act, using Todo as the local step tracker. Task is the
 broader session goal; Todo is the smaller local execution driver. Every node's session
 provides access to a Todo so the node can plan then execute in a structured manner.
