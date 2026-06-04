@@ -1,0 +1,98 @@
+# TinyCUAInformationDigesterNode
+
+> **Package:** `tinycua.loops.information_digester`
+> **Status:** Target architecture
+
+## Role
+
+`TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that gathers and digests
+context for downstream nodes. It is optional and invoked only when direct accumulated
+context/tool access is insufficient.
+
+## Non-Responsibilities
+
+- Does not execute tasks.
+- Does not create or mutate tasks.
+- Does not synthesize final user responses (it provides digested context for
+  ResponseNode).
+
+## Inputs
+
+- `NodeInput` with copied, selected subset of parent node's `session_context` messages.
+- Optional digest request payload.
+- When spawned by ResponseNode: copied session_context from the suspended response
+  node's session.
+
+## Outputs / State Produced
+
+- Digested information for downstream consumption.
+- If no useful context is found, returns/propagates a continuation-style fallback:
+  "the user asked `<user_query>`, no useful extra information was found, so downstream
+  should proceed with the user request and plan carefully before action."
+
+## Tools
+
+| Tool Scope | Description |
+|------------|-------------|
+| `enhanced_context_retrieval` | Search scoped context and read-only exploration surfaces. |
+| `digest_information` | Produce structured digested information. |
+
+### Enhanced Context Retrieval Cache Behavior
+
+`enhanced_context_retrieval` lazily creates a scoped session-context cache file and runs
+a limited ReAct-style search over that cache:
+
+- Receives the current session or selected session_context.
+- Lazily creates a scoped context cache file when called.
+- The cache contains only selected context for that session/tool call.
+- Search/read tools are limited to grep/search within the cache and paginated cache reads.
+
+## Fallback Behavior
+
+When no useful context is found:
+
+```text
+Fallback continuation:
+  "The user asked <user_query>. No useful extra information was found.
+   Downstream should proceed with the user request and plan carefully
+   before action."
+```
+
+This fallback is propagated as a continuation prompt to ensure downstream nodes
+(R ResponseNode or other consumers) are aware that no additional context was found and
+should proceed with the original request.
+
+## Queue Behavior / `on_complete()`
+
+```text
+InformationDigester completes:
+  → Propagate digested output to parent node's session via selected-output
+    propagation rule.
+  → Advance queue; parent node resumes.
+```
+
+## Propagation
+
+- Uses selected-output propagation profile targeting its suspended parent.
+- The digest lands in the parent node's `session_context`.
+- `chat_history` remains available for audit but is not passed wholesale to the
+  digester unless explicitly selected.
+- Does not re-store copied input messages in its own reusable context; stores and
+  propagates only new digest output.
+
+## Failure / Retry Behavior
+
+Retry according to `NodeRetryPolicy`. Digest failure may prevent ResponseNode from
+having sufficient context for final synthesis.
+
+## Related Config
+
+- `NodeToolPolicy` — `enhanced_context_retrieval` and `digest_information` scope.
+- `NodeRetryPolicy` — retry behavior.
+
+## Related
+
+- [`node.md`](node.md)
+- [`node_queue.md`](node_queue.md)
+- [`../tools/digester.md`](../tools/digester.md)
+- [`../models/digested_information.md`](../models/digested_information.md)

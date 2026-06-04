@@ -37,8 +37,10 @@ in the owning `RouteMap.routes` table.
 TinyCUAQueryAnalystNode.route_map:
   passthrough → route_passthrough()
   worker      → route_worker()
+  uncertain   → route_uncertain()
 
 TinyCUAWorkerNode.route_map:
+  task_creation     → route_task_creation()
   task_recreation   → route_task_recreation()
   task_reanalysis   → route_task_reanalysis()
   passthrough       → route_passthrough()

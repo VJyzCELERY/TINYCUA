@@ -10,7 +10,7 @@ signals.
 
 ```text
 WorkerResult
-  · label: Literal["task_recreation", "task_reanalysis", "passthrough", "proceed_execution"]
+  · label: Literal["task_creation", "task_recreation", "task_reanalysis", "passthrough", "proceed_execution"]
   · confidence: float | None
   · rationale: str | None
   · target_node_id: str | None

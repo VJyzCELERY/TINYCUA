@@ -40,7 +40,8 @@ AnalysisEffortNode(pass_count=0, pass_limit=effort_to_pass_limit(config.effort))
 
 `AnalysisEffortNode` tracks `pass_count` and prepends `[TinyCUATaskAssessorNode,
 TinyCUATaskAnalyzerNode]` until the configured threshold is reached. When the
-threshold is reached, `AnalysisEffortNode` advances and allows `TaskExecutor` to run.
+threshold is reached, `AnalysisEffortNode` MUST spawn TaskExecutor before
+terminating/advancing, so the queue cannot accidentally drain without execution.
 
 ## Queue Shape for Worker Planning Paths
 

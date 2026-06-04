@@ -13,16 +13,26 @@ There is no separate worker QueryAnalyst node.
 Top-level labels:
 
 ```text
-passthrough | worker
+passthrough | worker | uncertain
 ```
+
+- `passthrough`: forward user input to an already active or queued node/session.
+- `worker`: route to TinyCUAWorkerNode for task planning/execution.
+- `uncertain`: QueryAnalyst remains active and waits for user continuation.
 
 Worker labels are dynamic:
 
 ```text
-task_recreation | task_reanalysis | proceed_execution
+task_creation | task_recreation | task_reanalysis | passthrough | proceed_execution
 ```
 
-`passthrough` is added only when a worker-spawned node exists to receive it.
+- `task_creation`: deterministic first-time creation when no task exists.
+- `task_recreation`: rebuild/replace existing task tree.
+- `task_reanalysis`: refine existing task tree without full replacement.
+- `passthrough`: forward input to an already active or queued worker-owned node/session.
+  Added only when a worker-spawned node exists to receive it.
+- `proceed_execution`: edge case when task and active task exist but no executor is
+  queued/active.
 
 ## Related
 
