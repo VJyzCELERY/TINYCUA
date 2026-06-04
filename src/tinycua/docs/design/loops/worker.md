@@ -88,12 +88,53 @@ proceed_execution:
   [TaskExecutor, ResultReviewer, ResponseNode]
 ```
 
+### Worker Reuse Queue Example
+
+When QueryAnalyst routes to an existing WorkerNode and the Worker chooses
+`task_recreation`, the queue transition is:
+
+```text
+Before (QueryAnalyst routes to existing WorkerNode):
+  [QueryAnalyst, WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
+
+QueryAnalyst routes to existing WorkerNode:
+  [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
+
+Worker chooses task_recreation:
+  clear_after_current()
+  -> [WorkerNode(current)]
+
+Route handler inserts replacement path:
+  [WorkerNode, TaskAnalyzerNode(+TaskInit/TaskCreate), AnalysisEffortNode,
+   TaskExecutor, ResultReviewer, ResponseNode]
+```
+
+If clearing removes the terminal `ResponseNode`, the route handler or
+`ensure_terminal(...)` MUST restore a terminal response path. This guarantees
+the queue always has a valid terminal output node.
+
 Passthrough advances the Worker and forwards input to the next worker-owned node.
 
 ## Propagation
 
 - Preserves the original input query for downstream nodes.
 - Optionally adds transformed/filter output but must not replace the original query.
+
+## Transient Routing Node Behavior
+
+Worker is a transient routing/continuation node. It receives context, decides
+routing, and forwards selected output to the next node. It does not
+backward-propagate its own output directly. Its output becomes durable when the
+next node receives it as input and later propagates its own input segment upward.
+
+```text
+Worker -> TaskAnalyzerNode -> TaskExecutor
+
+Worker forwards: [user_query, WorkerDecision]
+TaskAnalyzer context: TaskAnalyzer prior + user_query + WorkerDecision + TaskAnalyzerOutput
+TaskAnalyzer termination: parent gets TaskAnalyzer prior + user_query + WorkerDecision;
+                          TaskExecutor gets TaskAnalyzerOutput
+```
 
 ## Failure / Retry Behavior
 

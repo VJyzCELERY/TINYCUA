@@ -149,11 +149,15 @@ Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic precheck
 ```text
 MandatoryPassthrough
   · target_node_id: str
-  · target_session_id: str | None
+  · target_session_id: str | None        # stale-continuation guard (expected active session)
   · reason: str
   · payload: NodeInput | NodePayload | None
   · allow_query_analyst_restart: bool = true
 ```
+
+`target_session_id` is the expected active session for `target_node_id`. If present and
+the target node has a different current session id, the passthrough is stale/invalid and
+falls back according to `allow_query_analyst_restart` (see `loops/route_map.md`).
 
 When `QueryAnalyst` encounters a valid `mandatory_passthrough`:
 - Forward the user continuation to the target node/session.

@@ -65,6 +65,23 @@ MandatoryPassthrough
   · allow_query_analyst_restart: bool = true
 ```
 
+### target_session_id Semantics
+
+`target_session_id` is the expected active session for `target_node_id`. It serves as a
+stale-continuation guard:
+
+- **Present and matches**: The passthrough is valid; forward input to the target
+  node/session.
+- **Present but mismatched**: The target node exists but has a different current session
+  id than expected. The passthrough is stale/invalid — fall back according to
+  `allow_query_analyst_restart`:
+  - `allow_query_analyst_restart=true`: Re-enter QueryAnalyst for fresh classification.
+  - `allow_query_analyst_restart=false`: Drop the continuation silently.
+- **None**: No session guard; always forward to the target node's current session.
+
+Cross-session passthrough (routing to a session other than the target node's current
+session) is out of scope unless separately specified.
+
 ### QueryAnalyst Prechecks
 
 Before LLM classification, `TinyCUAQueryAnalystNode` runs deterministic prechecks. QueryAnalyst prechecks run before LLM classification:

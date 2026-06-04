@@ -31,6 +31,10 @@ the response node's current `session_context` via `NodeInput(messages=[...])`, p
 optional digest request payload. It should not duplicate those input messages in its own
 reusable context; it stores and propagates only new digest output.
 
+The digester always creates a **fresh node session** — it does not inherit or reuse the
+suspended parent/root session. It avoids eager loading of parent/root context and accesses
+it lazily through `enhanced_context_retrieval` when needed.
+
 The digester uses the selected-output propagation profile targeting its suspended parent.
 The digest lands in the parent response node's `session_context` before the response node
 resumes final synthesis. `chat_history` remains available for audit, but is not passed

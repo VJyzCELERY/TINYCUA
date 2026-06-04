@@ -70,6 +70,9 @@ Active task ownership belongs to `TinyCUALoop` / task helpers, which store:
 TaskExecutor receives the active task as input but must not mutate the active task
 reference or task tree structure.
 
+See the full handoff protocol in
+[`../models/task.md`](../models/task.md#active-task-handoff-protocol).
+
 ## Related Config
 
 - `NodeToolPolicy` — execution tool scope with tree mutation restrictions.

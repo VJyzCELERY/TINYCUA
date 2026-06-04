@@ -21,6 +21,9 @@ quality gate between execution and response.
 - TaskExecutor execution result.
 - Active task context and result.
 
+See the full handoff protocol in
+[`../models/task.md`](../models/task.md#active-task-handoff-protocol).
+
 ## Outputs / State Produced
 
 - `ReviewerDecision` with one of: `accept`, `retry`, `replan`, `open_question`.

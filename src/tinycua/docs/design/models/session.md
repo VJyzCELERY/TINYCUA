@@ -48,9 +48,35 @@ Only actual external user input is role `user`. Internal TinyCUA node communicat
 assistant-role continuation. Tool messages may use provider-required tool roles.
 
 ```text
-chat_history    = audit trail with source node metadata
-session_context = selected, deduped LLM-reusable messages
+chat_history    = durable append-only audit transcript (ChatRecord)
+session_context = mutable, selected, deduped LLM-reusable messages
 ```
+
+`session_context` entries may carry `chat_record_id` / provenance fields referencing
+durable `ChatRecord` entries. Normal LLM context propagation is separate from durable
+audit recording — see [`chat_record.md`](chat_record.md).
+
+## Segmented Context
+
+Each node's session context is segmented for propagation control. Records carry
+metadata so implementation does not rely on index slicing:
+
+```text
+SessionContextEntry (extends ChatRecord or dict)
+  · segment: Literal["prior", "input", "output"]
+  · origin_record_id: str | None
+  · source_node_id: str | None
+  · source_session_id: str | None
+  · created_seq: int
+```
+
+- **prior**: Inherited from parent propagation or previous nodes.
+- **input**: Received as `NodeInput` when this node was entered.
+- **output**: New records produced by this node's execution.
+
+On node termination, `propagate_to_parent` excludes the `output_segment`; the
+`output_segment` is forwarded to the next node as `NodeInput`. See
+[`../loops/propagation.md`](../loops/propagation.md) for the full contract.
 
 ## Propagation
 

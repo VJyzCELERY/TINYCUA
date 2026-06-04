@@ -51,6 +51,44 @@ Active task is resolved by DFS pre-order traversal of the root Task tree. The fi
 unfinished task matching the active-task predicate is selected. `active_child_id` is a
 traversal hint maintained by the loop.
 
+## Active Task Handoff Protocol
+
+This section consolidates the end-to-end handoff contract across the task model,
+TaskExecutor, and ResultReviewer. See also
+[`../loops/task_executor.md`](../loops/task_executor.md) and
+[`../loops/result_reviewer.md`](../loops/result_reviewer.md).
+
+```text
+TinyCUALoop owns root task and active task id.
+
+Before TaskExecutor runs:
+  1. TinyCUALoop resolves get_active_task().
+  2. Injects a read-only active task reference/id into NodeInput.
+  3. TaskExecutor receives the active task snapshot/id (read-only).
+
+TaskExecutor emits result:
+  4. Execution result is tagged with the active task id.
+
+ResultReviewer decides:
+  5. accept: Recomputes the next DFS active task.
+     - If root task done → advance to ResultAggregationNode → ResponseNode.
+     - If root task not done → advance to TaskExecutor (next active task).
+  6. retry: Preserves the same active task; advances to TaskExecutor (retry).
+  7. open_question: Preserves the same active task; keeps ResultReviewer active
+     with mandatory_passthrough targeting this node/session.
+  8. replan: Recomputes after local task updates (TaskAssessor + TaskAnalyzer).
+```
+
+### Ownership Rules
+
+- **TinyCUALoop / task helpers**: Own the root task tree and current active task id.
+  Own task interaction helpers. Can select, set, and update active task.
+- **TaskExecutor**: Receives active task as input. Must not mutate active task
+  reference or task tree structure. Must not select the active task.
+- **ResultReviewer**: Updates active task status/result based on review decision.
+  Can trigger active task recomputation (accept, replan) or preserve it (retry,
+  open_question). Must not mutate task tree structure beyond status/result updates.
+
 ## TaskTree Completion/Update Rules
 
 On `ResultReviewer` accept:

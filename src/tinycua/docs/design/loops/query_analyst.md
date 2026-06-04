@@ -21,6 +21,27 @@ after user continuation.
 - `NodeInput` derived from root session context and SDK-provided messages.
 - User continuation messages routed back via `mandatory_passthrough`.
 
+## Context Assembly (Transient)
+
+QueryAnalyst assembles a broad transient reasoning window for LLM input. This
+assembled window is ephemeral and must not be backward-propagated wholesale.
+
+```text
+QueryAnalyst LLM input window (transient):
+  root.session_context
+  + active/queued node contexts by priority, e.g. Node3 -> Node2 -> Node1
+  + current user query
+
+QueryAnalyst forwarded output (durable):
+  user_query
+  + QueryAnalystResponse / continuation prompt
+```
+
+The assembled prompt window is used only for the current LLM classification call.
+QueryAnalyst does not commit the entire assembled window to parent/root. Its output
+is forwarded to the next node as `NodeInput` and becomes parent-visible when that
+next node propagates its input segment upward per the segmented context model.
+
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
@@ -89,6 +110,24 @@ passthrough to the active QueryAnalyst rather than duplicating it.
 
 - Preserves the original input query for downstream nodes.
 - Optionally adds transformed/filter output but must not replace the original query.
+- As a transient routing node, QueryAnalyst does not backward-propagate its assembled
+  context window. Its output becomes durable through the next node's input propagation.
+
+## Transient Routing Node Behavior
+
+QueryAnalyst is a transient routing/continuation node. It assembles context for
+reasoning, forwards selected output to the next node, and does not
+backward-propagate its own output directly. Its output becomes durable when the
+next node receives it as input and later propagates its own input segment upward.
+
+```text
+QueryAnalyst -> Node1 -> Node2
+
+QueryAnalyst forwards: [user_query, QueryAnalystResponse]
+Node1 context: Node1 prior + user_query + QueryAnalystResponse + Node1Output
+Node1 termination: parent gets Node1 prior + user_query + QueryAnalystResponse;
+                   Node2 gets Node1Output
+```
 
 ## Failure / Retry Behavior
 

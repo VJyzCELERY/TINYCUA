@@ -23,6 +23,24 @@ context/tool access is insufficient.
 - When spawned by ResponseNode: copied session_context from the suspended response
   node's session.
 
+## Session Scope
+
+InformationDigester always creates a **fresh node session**. It does not inherit
+or reuse the suspended parent/root session. Specific rules:
+
+- **Fresh session**: Digester creates a new session with its own `session_id`. It
+  does not copy or inherit the parent `session_id` or root session.
+- **Selected input only**: Digester receives only the selected `NodeInput` messages
+  from the parent. It does not receive the full parent `session_context`.
+- **Lazy context access**: Digester accesses root/parent context lazily through
+  `enhanced_context_retrieval` when needed, rather than eagerly loading broad
+  context into its session.
+- **Own output only**: Digester stores only its own new local output (the digest)
+  in its session. It does not re-store copied input messages in its reusable context.
+- **Forward to parent**: On termination, Digester forwards its output to the
+  suspended parent node rather than committing it directly upward to root/parent.
+  The digest becomes part of the parent's input via selected-output propagation.
+
 ## Outputs / State Produced
 
 - Digested information for downstream consumption.

@@ -27,12 +27,64 @@ PropagationRule
 | mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root |
 | selected_internal_output | root | root | selected | root | root |
 
+## Segmented Session Context Model
+
+Each node's session context is segmented for propagation:
+
+```text
+session_context = prior_context + input_segment + output_segment
+
+on node termination:
+  propagate_to_parent = session_context excluding output_segment
+  forward_to_next_node = output_segment
+```
+
+- **prior_context**: Context accumulated before this node's input (inherited from
+  parent propagation or previous nodes).
+- **input_segment**: Records received as `NodeInput` when this node was entered.
+- **output_segment**: New records produced by this node's execution.
+
+Records carry segment metadata so implementation does not rely on index slicing:
+
+```text
+ChatRecord / SessionContextEntry
+  · segment: Literal["prior", "input", "output"]
+  · origin_record_id: str | None
+  - source_node_id: str | None
+  · source_session_id: str | None
+  · created_seq: int
+```
+
+### Propagation on Node Termination
+
+When a node completes and the queue advances:
+
+1. **Upward propagation (to parent/root)**: The node's `session_context`
+   *excluding* `output_segment` propagates to parent and/or root per the
+   `PropagationRule`. This commits the node's prior context and input segment
+   without duplicating the output that the next node will receive.
+2. **Forwarding (to next node)**: The `output_segment` becomes the next node's
+   `NodeInput`. The next node then owns it as its `input_segment` and may
+   produce additional `output_segment` records.
+
+### Terminal Output Exception
+
+Since the final `ResponseNode` output has no successor node, `TinyCUALoop`
+finalization explicitly commits/returns the terminal output. The terminal
+`output_segment` is returned to the SDK caller and appended to root
+`session_context` as the final durable record.
+
 ## Chat History vs Session Context
 
 ```text
-chat_history    = audit trail, including internal node messages and source metadata
-session_context = selected, deduped LLM-reusable context
+chat_history    = durable append-only audit transcript (ChatRecord)
+session_context = mutable, selected, deduped LLM-reusable context
 ```
+
+`chat_history` records node I/O provenance and is not the LLM memory itself.
+`session_context` is mutable and can compact/lose prior messages; `chat_history`
+preserves provenance. Session context entries may carry `chat_record_id` references
+back to durable `ChatRecord` entries for traceability.
 
 Node input messages are not automatically stored again. Nodes store new outputs and
 selected reusable context only.
@@ -58,3 +110,24 @@ Dedupe precedence:
 
 - [`node_queue.md`](node_queue.md)
 - [`../models/session.md`](../models/session.md)
+
+## Transient Routing Nodes
+
+`QueryAnalyst` and `Worker` are transient routing/continuation nodes. They
+assemble/receive context, decide, and forward selected output to the next node;
+they generally do not backward-propagate their own output directly. Their output
+becomes durable through the next node's input propagation per the segmented
+context model.
+
+```text
+QueryAnalyst -> Node1 -> Node2
+
+QueryAnalyst forwards: [user_query, QueryAnalystResponse]
+Node1 context: Node1 prior + user_query + QueryAnalystResponse + Node1Output
+Node1 termination: parent gets Node1 prior + user_query + QueryAnalystResponse;
+                   Node2 gets Node1Output
+```
+
+This pattern applies to all transient routing nodes: their output enters the
+next node's `input_segment` and only propagates upward when that next node
+terminates and commits its non-output segment to the parent.
