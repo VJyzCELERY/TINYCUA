@@ -8,34 +8,34 @@ Implementation tasks for Workspace Setup. Check off items as completed.
 
 ## Implementation Phase
 
-- [ ] Add WildClawBench artifact rules to root `.gitignore` <!-- id: 1 -->
-  - [ ] Add `benchmark_results/` directory pattern
-  - [ ] Add `*.benchmark.json` file pattern
-  - [ ] Add `*.benchmark.yaml` file pattern
-- [ ] Create `src/tinycua/tinycua/cli/__init__.py` <!-- id: 2 -->
-  - [ ] Empty package init file
-- [ ] Create `src/tinycua/tinycua/cli/main.py` <!-- id: 3 -->
-  - [ ] Define `main()` function with `print("tinycua: workspace is ready.")`
-  - [ ] Exit via `raise SystemExit(0)`
-- [ ] Verify `src/tinycua/pyproject.toml` entry point <!-- id: 4 -->
-  - [ ] Confirm `[project.scripts] tinycua = "tinycua.cli.main:main"` exists (already present)
-- [ ] Create `src/tinycua/docs/prototype/README.md` <!-- id: 5 -->
-  - [ ] Document the prototype directory structure and purpose
+- [x] Add WildClawBench artifact rules to root `.gitignore` <!-- id: 1 -->
+  - [x] Add `benchmark_results/` directory pattern
+  - [x] Add `*.benchmark.json` file pattern
+  - [x] Add `*.benchmark.yaml` file pattern
+- [x] Create `src/tinycua/tinycua/cli/__init__.py` <!-- id: 2 -->
+  - [x] Empty package init file
+- [x] Create `src/tinycua/tinycua/cli/main.py` <!-- id: 3 -->
+  - [x] Define `main()` function with `print("tinycua: workspace is ready.")`
+  - [x] Exit via `raise SystemExit(0)`
+- [x] Verify `src/tinycua/pyproject.toml` entry point <!-- id: 4 -->
+  - [x] Confirm `[project.scripts] tinycua = "tinycua.cli.main:main"` exists (already present)
+- [x] Create `src/tinycua/docs/prototype/README.md` <!-- id: 5 -->
+  - [x] Document the prototype directory structure and purpose
 
 ## Testing Phase
 
-- [ ] Run `cd src/tinycua && uv sync` — expect no errors <!-- id: 6 -->
-- [ ] Run `cd src/tinycua && uv run tinycua` — expect "tinycua: workspace is ready." and exit 0 <!-- id: 7 -->
+- [x] Run `cd src/tinycua && uv sync` — expect no errors <!-- id: 6 -->
+- [x] Run `cd src/tinycua && uv run tinycua` — expect "tinycua: workspace is ready." and exit 0 <!-- id: 7 -->
 - [ ] Run `cd src/tinycua && make lint` — expect no errors <!-- id: 8 -->
 
 ## Verification Phase
 
-- [ ] Verify WildClawBench artifacts are gitignored <!-- id: 9 -->
-  - [ ] Create `benchmark_results/` and `*.benchmark.json` in `src/tinycua/`
-  - [ ] Run `git status` and confirm they are not shown
-  - [ ] Clean up test artifacts
-- [ ] Verify `docs/prototype/README.md` exists with content <!-- id: 10 -->
-- [ ] Verify `git diff` shows only intended changes <!-- id: 11 -->
+- [x] Verify WildClawBench artifacts are gitignored <!-- id: 9 -->
+  - [x] Create `benchmark_results/` and `*.benchmark.json` in `src/tinycua/`
+  - [x] Run `git status` and confirm they are not shown
+  - [x] Clean up test artifacts
+- [x] Verify `docs/prototype/README.md` exists with content <!-- id: 10 -->
+- [x] Verify `git diff` shows only intended changes <!-- id: 11 -->
 
 ## Documentation Phase
 
