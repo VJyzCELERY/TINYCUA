@@ -85,11 +85,11 @@ def main() -> None:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add `tinycua/cli/` package with `__init__.py` and `main.py`
-- [ ] Verify `[project.scripts]` in `src/tinycua/pyproject.toml` points to `tinycua.cli.main:main`
-- [ ] Add WildClawBench artifact rules to root `.gitignore`
-- [ ] Create `src/tinycua/docs/prototype/README.md` with structure documentation
-- [ ] Verify `uv run tinycua` works from `src/tinycua/`
+- [x] Add `tinycua/cli/` package with `__init__.py` and `main.py`
+- [x] Verify `[project.scripts]` in `src/tinycua/pyproject.toml` points to `tinycua.cli.main:main`
+- [x] Add WildClawBench artifact rules to root `.gitignore`
+- [x] Create `src/tinycua/docs/prototype/README.md` with structure documentation
+- [x] Verify `uv run tinycua` works from `src/tinycua/`
 
 ### Phase 2 — Enhancements _(post-MVP)_
 
