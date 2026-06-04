@@ -30,9 +30,7 @@ def _resolve_path(path: str) -> Path:
 # --- Helper functions for read_file ---
 
 
-def _truncate_content(
-    content_bytes: bytes, max_bytes: int, start_line: int = 1
-) -> str:
+def _truncate_content(content_bytes: bytes, max_bytes: int, start_line: int = 1) -> str:
     """Truncate *content_bytes* to *max_bytes* and append a truncation notice.
 
     Truncation is performed at a byte boundary. Any trailing incomplete
@@ -90,7 +88,9 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
 
 
 @tool
-def read_file(path: str, start: int | None = None, offset: int | None = None) -> str | dict[str, Any]:
+def read_file(
+    path: str, start: int | None = None, offset: int | None = None
+) -> str | dict[str, Any]:
     """Read the contents of a file, optionally specifying a line range.
 
     When neither *start* nor *offset* are set, the entire file is read with

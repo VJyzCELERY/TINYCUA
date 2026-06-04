@@ -12,7 +12,9 @@ import httpx
 from tinycua_sdk.tools.decorators import tool
 
 
-def _process_response(response: httpx.Response, max_size: int, url: str) -> str | dict[str, Any]:
+def _process_response(
+    response: httpx.Response, max_size: int, url: str
+) -> str | dict[str, Any]:
     """Process an HTTP response: check status, truncate if needed.
 
     Args:
