@@ -46,7 +46,7 @@ Implementation tasks for Workspace Setup. Check off items as completed.
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 16 -->
+- [x] Create pull request <!-- id: 16 -->
 - [ ] Address review feedback <!-- id: 17 -->
 - [ ] Merge to main branch <!-- id: 18 -->
 
