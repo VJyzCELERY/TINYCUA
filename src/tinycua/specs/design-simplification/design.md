@@ -509,6 +509,21 @@ The loop owns mechanics: call LLM, stream events, repeat attempts, and log retry
 
 ---
 
+## Naming Convention: Rule vs Policy vs Strategy
+
+TinyCUA suffixes indicate ownership and behavioral scope:
+
+| Suffix | Meaning | Examples |
+|--------|---------|----------|
+| `Rule` | Cross-node or cross-session data movement contract. Rules describe what may move across boundaries. | `PropagationRule` |
+| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` |
+| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy`, `NodeMessageStrategy` |
+
+Use `Policy` for lightweight per-node/session decisions, `Rule` for boundary/propagation
+contracts, and `Strategy` when implementations are swappable algorithms.
+
+---
+
 ## AgentMonitor / NodeMonitor Consideration
 
 The old AgentMonitor concept remains as an optional transient hook. It is not a durable queue node by default.

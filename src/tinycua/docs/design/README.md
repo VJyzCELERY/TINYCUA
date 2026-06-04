@@ -56,6 +56,19 @@ No SDK modification is required by this design.
 | `tools/` | Task, todo, and information digestion tools |
 | `utility/` | Compaction strategy notes |
 
+## Naming Convention: Rule vs Policy vs Strategy
+
+TinyCUA uses suffixes to signal how a behavior object is owned and applied:
+
+| Suffix | Meaning | Examples |
+|--------|---------|----------|
+| `Rule` | Cross-node or cross-session data movement contract. Rules describe what may move across boundaries. | `PropagationRule` |
+| `Policy` | Declarative behavior configuration evaluated by a node/session/loop. Policies do not own large algorithms. | `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy` |
+| `Strategy` | Pluggable algorithm or implementation choice that owns behavior details and may have its own configuration. | `CompactionStrategy`, `NodeMessageStrategy` |
+
+Use `Policy` for lightweight per-node/session decisions, `Rule` for boundary/propagation
+contracts, and `Strategy` when implementations are swappable algorithms.
+
 ## Removed Target Concepts
 
 The previous graph docs are preserved only through migration notes in the spec/design
