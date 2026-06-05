@@ -109,6 +109,7 @@ The `task` dict contains fields parsed from the task markdown file:
     "task_id": "01_Productivity_Flow_task_1",
     "category": "01_Productivity_Flow",
     "workspace_path": "/path/to/workspace",
+    "file_path": "/absolute/path/to/task.md",  # upstream file path (adapter-relevant for debugging/provenance)
     "prompt": "Full task description...",
     "timeout_seconds": 600,
     "automated_checks": "def grade(transcript, workspace_path):\n    ...",
@@ -171,6 +172,8 @@ Each line should be a JSON object with this structure. The `content` field suppo
             },
             {
                 "type": "tool_use",
+                "id": "call_abc123",
+                "name": "write_file",
                 "input": {
                     "command": "write_file",
                     "path": "/tmp_workspace/output.txt",
@@ -225,7 +228,7 @@ Each line should be a JSON object with this structure. The `content` field suppo
 | Block Type | Shape | Description |
 |------------|-------|-------------|
 | `text` | `{"type": "text", "text": "..."}` | Plain text content |
-| `tool_use` | `{"type": "tool_use", "input": {...}}` | Agent-initiated tool call (OpenAI-style) |
+| `tool_use` | `{"type": "tool_use", "id": "...", "name": "...", "input": {...}}` | Agent-initiated tool call (OpenAI-style) |
 | `toolCall` | `{"type": "toolCall", "arguments": {...}}` | Agent-initiated tool call (alternate format) |
 
 ### Key Fields
@@ -242,6 +245,8 @@ Each line should be a JSON object with this structure. The `content` field suppo
 | `message.usage.cacheWrite` | `int` | Cache write tokens |
 | `message.usage.totalTokens` | `int` | Total tokens |
 | `message.usage.cost.total` | `float` | Total cost in USD |
+| `tool_use.id` | `str` | Call ID matching the originating toolResult record |
+| `tool_use.name` | `str` | Tool/function name (e.g., `"write_file"`) |
 | `toolResult.callId` | `str` | ID matching the originating tool_use/toolCall block |
 | `toolResult.content` | `str \| list` | Tool execution output |
 
@@ -541,6 +546,8 @@ def _build_content_blocks(
 
         blocks.append({
             "type": "tool_use",
+            "id": tc.get("id") or tc.get("call_id", ""),
+            "name": func.get("name", ""),
             "input": args,
         })
     return blocks
