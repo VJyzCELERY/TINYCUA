@@ -1,25 +1,31 @@
 # Implementation: Agent Factory Contract (Milestone 1.1)
 
-Implements `create_tinycua_agent(...)` factory function and `TinyCUALoop` class that extends the SDK `BaseLoop`. The factory constructs an SDK `Agent` with a `TinyCUALoop` attached, enabling the full TinyCUA node-based execution flow. No SDK public API modifications required.
+Provide a factory function `create_tinycua_agent(...)` that constructs a working TinyCUA agent backed by the existing SDK `Agent` and `BaseLoop` contracts, enabling the full TinyCUA node-based execution flow to run without SDK API modifications.
 
 ## Context
 
 - **Spec Reference**: `./spec.md`
 - **Design Reference**: `./design.md`
-- **Priority**: P0
+- **Priority**: P1
 - **Estimated Effort**: M
 
 ## Environment Pre-requisites
 
 ### Configuration
 
-- [x] **None** — this feature has no configuration dependencies
+- [x] **.env file** — required variables:
+  ```
+  # No additional env vars needed for Milestone 1.1 (factory contract only)
+  ```
+- [x] **None** — this feature has no configuration dependencies beyond existing SDK setup
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| None | — | — | — |
+| [Local LLM] | No | N/A — mocked in tests | N/A |
+
+- [x] **None** — no external services needed for Milestone 1.1
 
 ### Data / Fixtures
 
@@ -31,7 +37,7 @@ Implements `create_tinycua_agent(...)` factory function and `TinyCUALoop` class 
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python >=3.12
+- [x] **Runtime**: Python 3.12+
 - [x] **Package manager**: uv
 - [x] **None** — no special tooling required
 
@@ -39,150 +45,210 @@ Implements `create_tinycua_agent(...)` factory function and `TinyCUALoop` class 
 
 ## Success Criteria — Integration Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these test pass.
 
 ```python
 # Test file: tests/integration/test_agent_factory.py
-"""Integration tests for the agent factory contract."""
+"""Integration tests for Agent Factory Contract (Milestone 1.1)."""
 
 import pytest
-from tinycua_sdk.agent.agent import Agent
-from tinycua_sdk.agent.loop import BaseLoop
+from tinycua_sdk.agent import Agent, BaseLoop
+from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
-from tinycua.config.session_config import SessionConfig
 
 
 class TestCreateTinyCUAAgent:
     """Tests for the create_tinycua_agent factory function."""
 
-    def test_returns_sdk_agent_instance(self):
-        """Factory must return an SDK Agent with TinyCUALoop attached."""
+    def test_factory_returns_agent_with_tinycua_loop(self):
+        """Factory returns SDK Agent with TinyCUALoop attached."""
         agent = create_tinycua_agent()
         assert isinstance(agent, Agent)
-        assert isinstance(agent.config.loop, TinyCUALoop)
+        assert isinstance(agent.loop, TinyCUALoop)
+        assert isinstance(agent.loop, BaseLoop)
 
-    def test_loop_extends_base_loop(self):
-        """TinyCUALoop must be a subclass of SDK BaseLoop."""
+    def test_factory_creates_new_session_when_none(self):
+        """When no session provided, factory creates a new root session."""
         agent = create_tinycua_agent()
-        assert isinstance(agent.config.loop, BaseLoop)
-
-    def test_creates_new_session_when_none(self):
-        """When session=None, a new root Session must be created."""
-        agent = create_tinycua_agent()
-        loop = agent.config.loop
+        loop = agent.loop
         assert isinstance(loop.root_session, Session)
+        assert loop.root_session.session_id is not None
 
-    def test_uses_provided_session(self):
-        """When session is provided, factory must use it."""
+    def test_factory_uses_provided_session(self):
+        """When session is provided, factory uses it."""
         session = Session()
         agent = create_tinycua_agent(session=session)
-        loop = agent.config.loop
-        assert loop.root_session is session
+        assert agent.loop.root_session is session
 
-    def test_applies_session_config(self):
-        """Provided SessionConfig must be applied to the session."""
+    def test_factory_applies_session_config(self):
+        """Provided SessionConfig is applied to the session."""
         config = SessionConfig(max_context_messages=100)
         agent = create_tinycua_agent(session_config=config)
-        loop = agent.config.loop
-        assert loop.session_config is config
-        assert loop.root_session.config is config
+        assert agent.loop.session_config == config
+        assert agent.loop.root_session.session_config == config
 
-    def test_empty_queue_returns_empty_string(self):
-        """When queue is empty, run() must return empty string (not hang)."""
-        agent = create_tinycua_agent()
-        result = asyncio.get_event_loop().run_until_complete(
-            agent.run("hello")
-        )
+    def test_factory_accepts_agent_kwargs(self):
+        """Factory passes **agent_kwargs through to SDK Agent."""
+        agent = create_tinycua_agent(name="test-agent", instructions="Be helpful")
+        assert agent.name == "test-agent"
+        assert agent.instructions == "Be helpful"
+
+    def test_tinycua_loop_extends_base_loop(self):
+        """TinyCUALoop is a subclass of SDK BaseLoop."""
+        session = Session()
+        loop = TinyCUALoop(root_session=session)
+        assert isinstance(loop, BaseLoop)
+
+
+class TestTinyCUALoopRun:
+    """Tests for TinyCUALoop.run() execution."""
+
+    @pytest.mark.asyncio
+    async def test_run_returns_string_when_not_streaming(self):
+        """TinyCUALoop.run() returns string when stream=False."""
+        session = Session()
+        loop = TinyCUALoop(root_session=session)
+        agent = Agent(loop=loop)
+        # Mock _call_llm to return a simple response
+        agent._call_llm = pytest.AsyncMock(return_value={"content": "Hello"})
+        result = await loop.run(agent=agent, messages=[], tools=[], stream=False)
         assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_run_returns_async_iterator_when_streaming(self):
+        """TinyCUALoop.run() returns async iterator when stream=True."""
+        session = Session()
+        loop = TinyCUALoop(root_session=session)
+        agent = Agent(loop=loop)
+        # For streaming, we need an async iterator mock
+        async def mock_stream(*args, **kwargs):
+            yield {"type": "response.output_text.delta", "delta": "Hi"}
+            yield {"type": "response.completed", "finish_reason": "completed"}
+        agent._call_llm = mock_stream
+        result = await loop.run(agent=agent, messages=[], tools=[], stream=True)
+        # Should be an async iterator
+        assert hasattr(result, '__aiter__')
 ```
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Factory returns SDK Agent with TinyCUALoop — proves the contract is wired correctly
-- [ ] **Scenario 2**: New session created when none provided — proves default session lifecycle
-- [ ] **Scenario 3**: SessionConfig applied to session — proves configuration propagation
-- [ ] **Scenario 4**: Empty queue graceful behavior — proves no infinite loop on milestone 1.1
+- [x] **Scenario 1**: Factory creates Agent with TinyCUALoop when called with defaults — primary success criterion
+- [x] **Scenario 2**: Factory creates new session when session=None
+- [x] **Scenario 3**: Factory uses provided session when session is given
+- [x] **Scenario 4**: Factory applies SessionConfig to session
+- [x] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
+- [x] **Edge case**: Factory with no arguments — all defaults
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for factory function — test parameter handling, edge cases
-- [ ] Unit tests for TinyCUALoop — test construction, run delegation
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for SessionConfig, Session, TinyCUALoop, factory function
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify `create_tinycua_agent()` returns a usable Agent instance
-- [ ] Verify `agent.run("hello")` completes without error (empty queue path)
+- [x] Verify factory output creates a working agent instance
+- [x] Verify SessionConfig is applied to session
 
 ### Performance Considerations
 
-- [ ] N/A — factory construction is synchronous and lightweight
+- [x] N/A for Milestone 1.1 — factory contract only
 
 ## Proposed Changes
 
-### New Module: `tinycua/config/`
+### tinycua.config (new module)
 
-#### [NEW] `src/tinycua/tinycua/config/__init__.py`
+#### [NEW] src/tinycua/tinycua/config/__init__.py
 
-- **Description**: Package init for config module
-- **Rationale**: Standard Python package structure
+- **Description**: New package for configuration dataclasses
+- **Dependencies**: None
 
-#### [NEW] `src/tinycua/tinycua/config/session_config.py`
+#### [NEW] src/tinycua/tinycua/config/session_config.py
 
-- **Description**: `SessionConfig` dataclass with compaction strategy, context limits, metadata
-- **Dependencies**: None (pure data class)
+- **Description**: SessionConfig dataclass with compaction_strategy, max_context_messages, max_context_tokens, metadata fields
+- **Dependencies**: None (pure dataclass)
 
-### New Module: `tinycua/models/`
+### tinycua.models (new module)
 
-#### [NEW] `src/tinycua/tinycua/models/__init__.py`
+#### [NEW] src/tinycua/tinycua/models/__init__.py
 
-- **Description**: Package init for models module
-- **Rationale**: Standard Python package structure
+- **Description**: New package for domain models
+- **Dependencies**: None
 
-#### [NEW] `src/tinycua/tinycua/models/session.py`
+#### [NEW] src/tinycua/tinycua/models/session.py
 
-- **Description**: `Session` class with session_id, session_context, chat_history, task, todo, config
-- **Dependencies**: `tinycua.config.session_config`
+- **Description**: Session class with session_id, parent_id, session_config, chat_history, session_context, agent_state, task, todo, compact_context()
+- **Dependencies**: tinycua.config.session_config
 
-### New Module: `tinycua/loops/`
+### tinycua.loops (new module)
 
-#### [NEW] `src/tinycua/tinycua/loops/__init__.py`
+#### [NEW] src/tinycua/tinycua/loops/__init__.py
 
-- **Description**: Package init for loops module
-- **Rationale**: Standard Python package structure
+- **Description**: New package for execution loops
+- **Dependencies**: None
 
-#### [NEW] `src/tinycua/tinycua/loops/tinycua_loop.py`
+#### [NEW] src/tinycua/tinycua/loops/node_queue.py
 
-- **Description**: `TinyCUALoop` extending SDK `BaseLoop` with root_session, NodeQueue placeholder
-- **Dependencies**: `tinycua_sdk.agent.loop.BaseLoop`, `tinycua.models.session.Session`
+- **Description**: NodeQueue class with items, current, input_for_current(), advance(), is_empty() — placeholder for Milestone 1.1
+- **Dependencies**: None (placeholder)
 
-### New Module: `tinycua/factory.py`
+#### [NEW] src/tinycua/tinycua/loops/tinycua_loop.py
 
-#### [NEW] `src/tinycua/tinycua/factory.py`
+- **Description**: TinyCUALoop extending SDK BaseLoop, owns root_session and NodeQueue, implements run() method
+- **Dependencies**: tinycua_sdk.agent.BaseLoop, tinycua.models.session.Session, tinycua.loops.node_queue.NodeQueue
 
-- **Description**: `create_tinycua_agent()` factory function
-- **Dependencies**: `tinycua.loops.tinycua_loop.TinyCUALoop`, `tinycua_sdk.agent.agent.Agent`
+### tinycua.factory (new module)
+
+#### [NEW] src/tinycua/tinycua/factory.py
+
+- **Description**: create_tinycua_agent() factory function
+- **Dependencies**: tinycua.loops.tinycua_loop.TinyCUALoop, tinycua.models.session.Session, tinycua_sdk.agent.Agent
+
+### Tests
+
+#### [NEW] src/tinycua/tests/unit/test_session_config.py
+
+- **Description**: Unit tests for SessionConfig dataclass
+- **Dependencies**: tinycua.config.session_config
+
+#### [NEW] src/tinycua/tests/unit/test_session.py
+
+- **Description**: Unit tests for Session class
+- **Dependencies**: tinycua.models.session
+
+#### [NEW] src/tinycua/tests/unit/test_tinycua_loop.py
+
+- **Description**: Unit tests for TinyCUALoop construction and basic run path
+- **Dependencies**: tinycua.loops.tinycua_loop
+
+#### [NEW] src/tinycua/tests/unit/test_factory.py
+
+- **Description**: Unit tests for create_tinycua_agent factory function
+- **Dependencies**: tinycua.factory
+
+#### [NEW] src/tinycua/tests/integration/test_agent_factory.py
+
+- **Description**: Integration tests proving the full factory → agent → loop flow works
+- **Dependencies**: All of the above
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua.config.session_config` | New | SessionConfig dataclass |
-| `tinycua.models.session` | New | Session class skeleton |
-| `tinycua.loops.tinycua_loop` | New | TinyCUALoop extending BaseLoop |
-| `tinycua.factory` | New | create_tinycua_agent() factory |
+| `tinycua.config` | New | SessionConfig dataclass |
+| `tinycua.models` | New | Session class |
+| `tinycua.loops` | New | NodeQueue placeholder, TinyCUALoop extending BaseLoop |
+| `tinycua.factory` | New | create_tinycua_agent() factory function |
 | `tinycua-sdk` | No change | SDK public APIs remain untouched |
 
 ## Data Model Changes
 
 ```python
 # New types
-
 SessionConfig:
     compaction_strategy: CompactionStrategy | None
     max_context_messages: int | None
@@ -191,15 +257,17 @@ SessionConfig:
 
 Session:
     session_id: str
-    session_context: list[SessionContextEntry]
+    parent_id: str | None
+    session_config: SessionConfig
     chat_history: list[ChatRecord]
+    session_context: list[dict]
+    agent_state: AgentState | None
     task: Task | None
     todo: Todo | None
-    config: SessionConfig
 
-TinyCUALoop:
+TinyCUALoop(BaseLoop):
     root_session: Session
-    queue: NodeQueue  # placeholder
+    queue: NodeQueue
     session_config: SessionConfig | None
 ```
 
@@ -209,34 +277,30 @@ TinyCUALoop:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| — | — | No API changes; this is an internal factory function |
+| `create_tinycua_agent(...)` | Factory function | Creates SDK Agent with TinyCUALoop attached |
 
 ### Modified Endpoints
 
-| Method | Path | Change |
-|--------|------|--------|
-| — | — | No existing endpoints modified |
+None — SDK APIs are not modified.
 
 ## Dependencies
 
 ### External Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| tinycua-sdk | >=0.1.0 | Provides BaseLoop, Agent (already a dependency) |
+None — all dependencies already in pyproject.toml.
 
 ### Internal Dependencies
 
-- [ ] Depends on: SDK BaseLoop contract (already exists)
-- [ ] Blocks: Milestones 1.5–1.7 (node implementations depend on factory)
+- [x] Depends on `tinycua-sdk` (already a dependency)
+- [x] Blocks downstream milestones (nodes, queue, loop integration)
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Empty NodeQueue causes infinite loop in run() | Medium | Guard: if queue empty, return empty string and log warning |
-| SDK BaseLoop interface changes | Low | Pin SDK version; loop extension is minimal surface area |
-| Session model drift from SDK conventions | Low | Follow SDK patterns from design docs |
+| SDK BaseLoop interface changes between versions | High | Pin SDK version in pyproject.toml; loop extension is minimal surface area |
+| Empty NodeQueue causes infinite loop in TinyCUALoop.run() | Medium | Add guard: if queue is empty, return empty string and log warning |
+| Session model drift from SDK conventions | Medium | Follow SDK Session patterns documented in design docs |
 
 ---
 

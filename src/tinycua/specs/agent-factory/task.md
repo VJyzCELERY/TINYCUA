@@ -1,63 +1,50 @@
 # Tasks: Agent Factory Contract (Milestone 1.1)
 
-Implementation tasks for Agent Factory Contract. Check off items as completed.
+Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for factory contract (see implementation-plan.md success criteria) <!-- id: 0 -->
-  - [ ] test_returns_sdk_agent_instance
-  - [ ] test_loop_extends_base_loop
-  - [ ] test_creates_new_session_when_none
-  - [ ] test_uses_provided_session
-  - [ ] test_applies_session_config
-  - [ ] test_empty_queue_returns_empty_string
+- [ ] Write integration tests (defined in implementation-plan.md) <!-- id: 0 -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 
 ## Implementation Phase
 
-- [ ] Create `tinycua/config/session_config.py` with SessionConfig dataclass <!-- id: 2 -->
-  - [ ] Define `SessionConfig` dataclass with compaction_strategy, max_context_messages, max_context_tokens, metadata
-  - [ ] Create `tinycua/config/__init__.py` package init
-- [ ] Create `tinycua/models/session.py` with Session class skeleton <!-- id: 3 -->
-  - [ ] Define `Session` class with session_id, session_context, chat_history, task, todo, config
-  - [ ] Create `tinycua/models/__init__.py` package init
-- [ ] Create `tinycua/loops/tinycua_loop.py` with TinyCUALoop extending BaseLoop <!-- id: 4 -->
-  - [ ] Import BaseLoop from tinycua_sdk
-  - [ ] Implement `__init__` with root_session, session_config, max_iterations, queue placeholder
-  - [ ] Implement `run()` method — merge messages into session, handle empty queue, return empty string
-  - [ ] Create `tinycua/loops/__init__.py` package init
-- [ ] Create `tinycua/factory.py` with `create_tinycua_agent()` function <!-- id: 5 -->
-  - [ ] Implement `create_tinycua_agent(session, session_config, **agent_kwargs) -> Agent`
-  - [ ] Handle `session=None` → create new Session
-  - [ ] Apply session_config if provided
-  - [ ] Create TinyCUALoop with session
-  - [ ] Return Agent(loop=loop, **agent_kwargs)
+- [ ] Create `tinycua/config/__init__.py` and `tinycua/config/session_config.py` with `SessionConfig` dataclass <!-- id: 2 -->
+  - [ ] Define `compaction_strategy`, `max_context_messages`, `max_context_tokens`, `metadata` fields
+  - [ ] Add unit tests for SessionConfig
+- [ ] Create `tinycua/models/__init__.py` and `tinycua/models/session.py` with `Session` class <!-- id: 3 -->
+  - [ ] Implement `session_id`, `parent_id`, `session_config`, `chat_history`, `session_context`, `agent_state`, `task`, `todo` fields
+  - [ ] Implement `compact_context()` stub (returns None for Milestone 1.1)
+  - [ ] Add unit tests for Session
+- [ ] Create `tinycua/loops/__init__.py` and `tinycua/loops/node_queue.py` with `NodeQueue` placeholder <!-- id: 4 -->
+  - [ ] Implement `items`, `current`, `is_empty()`, `input_for_current()` stub
+  - [ ] Add unit tests for NodeQueue placeholder
+- [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending SDK `BaseLoop` <!-- id: 5 -->
+  - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`
+  - [ ] Implement `run()` with empty queue guard (returns empty string)
+  - [ ] Add unit tests for TinyCUALoop construction
+- [ ] Create `tinycua/factory.py` with `create_tinycua_agent()` function <!-- id: 6 -->
+  - [ ] Implement session creation when `session=None`
+  - [ ] Implement SessionConfig application
+  - [ ] Implement `**agent_kwargs` pass-through to SDK Agent
+  - [ ] Add unit tests for factory function
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 6 -->
-- [ ] Write unit tests for factory function <!-- id: 7 -->
-  - [ ] Test default parameters
-  - [ ] Test session=None creates new session
-  - [ ] Test provided session is used
-  - [ ] Test session_config applied
-  - [ ] Test agent_kwargs pass-through
-- [ ] Write unit tests for TinyCUALoop <!-- id: 8 -->
-  - [ ] Test isinstance check against BaseLoop
-  - [ ] Test root_session assignment
-  - [ ] Test queue initialization
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 9 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 7 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 8 -->
+- [ ] Run linter: `cd src/tinycua && uv run ruff check .` <!-- id: 9 -->
+- [ ] Run type checker: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 10 -->
 
 ## Verification Phase
 
-- [ ] Verify `create_tinycua_agent()` returns usable Agent <!-- id: 10 -->
-- [ ] Verify `agent.run("hello")` completes without error <!-- id: 11 -->
-- [ ] Verify no SDK API modifications were made <!-- id: 12 -->
+- [ ] Verify `create_tinycua_agent()` returns Agent with TinyCUALoop <!-- id: 11 -->
+- [ ] Verify SessionConfig is applied to session <!-- id: 12 -->
+- [ ] Verify `agent.run("hello")` executes without SDK changes <!-- id: 13 -->
 
 ## Documentation Phase
 
-- [ ] Update `tinycua/__init__.py` to export factory function <!-- id: 13 -->
-- [ ] Add module docstrings to new files <!-- id: 14 -->
+- [ ] Update `src/tinycua/README.md` with factory usage example <!-- id: 14 -->
 
 ## Review and Merge
 
