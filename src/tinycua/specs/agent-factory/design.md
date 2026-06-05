@@ -70,6 +70,7 @@ SessionConfig:
 
 Session:
     session_id: str  # Generated via uuid.uuid4().hex for M1.1; structured IDs (ULID, etc.) are a future concern
+    parent_id: str | None  # None for root sessions; set for child sessions
     session_context: list[SessionContextEntry]
     chat_history: list[ChatRecord]
     task: Task | None

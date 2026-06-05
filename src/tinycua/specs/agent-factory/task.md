@@ -27,7 +27,7 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
   - `input_for_current() -> dict` — returns empty dict
   - `advance() -> None` — no-op
 - [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending SDK `BaseLoop` <!-- id: 5 -->
-  - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`
+  - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`, `max_iterations=50`
   - [ ] Implement `run()` with empty queue guard (returns empty string)
   - [ ] Add unit tests for TinyCUALoop construction
 - [ ] Create `tinycua/factory.py` with `create_tinycua_agent()` function <!-- id: 6 -->

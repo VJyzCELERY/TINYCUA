@@ -121,7 +121,11 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 
 2. **Default model selection**: What is the default model/endpoint when none is configured?
    - **Status**: Decided
-   - **Decision**: Require explicit endpoint configuration; no implicit defaults. The factory raises a clear error when no model/endpoint is configured.
+   - **Decision**: Require explicit endpoint configuration; no implicit defaults.
+     When no model/endpoint is configured, the error surfaces at runtime through
+     `agent._call_llm()` — the factory does not validate model configuration.
+     This keeps factory construction lightweight and defers model availability
+     checks to execution time.
 
 ---
 
