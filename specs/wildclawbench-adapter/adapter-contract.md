@@ -209,19 +209,46 @@ Each line should be a JSON object with this structure. The `content` field suppo
 }
 ```
 
-**Tool result record (top-level):**
+**Tool result record (top-level) — OpenClaw/HermesAgent style:**
 
 ```json
 {
     "type": "toolResult",
     "toolResult": {
         "callId": "call_abc123",
+        "tool_call_id": "call_abc123",
         "content": "Tool execution output or result string"
     }
 }
 ```
 
-> **Full compatibility rule**: The adapter **must** preserve user messages, tool-use inputs, tool results, call IDs, and decoded arguments in the transcript — even if current safety graders primarily inspect assistant tool-use inputs. Dropping user prompts or tool results breaks upstream compatibility shims (HermesAgent `compat_transcript.py` emits user entries and top-level `toolResult` records; Codex emits `tool_result` content blocks inside user messages) and may cause future graders to fail.
+> **Upstream variants**: The adapter must handle multiple tool-result representations from different upstream harnesses:
+>
+> - **HermesAgent `compat_transcript.py`** emits top-level `toolResult` records with `tool_call_id` (snake_case).
+> - **OpenClaw native format** uses `callId` (camelCase) for the same purpose.
+> - **Codex/Anthropic-style transcripts** encode tool results as user-message content blocks: `{"type": "message", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "call_abc123", "content": "..."}]}}`.
+>
+> For maximum compatibility, the adapter **should** emit top-level `toolResult` records that include **both** `callId` and `tool_call_id` fields (both pointing to the same call ID). When receiving upstream transcripts for merging or comparison, the adapter should accept any of these three shapes.
+
+**User message with Codex/Anthropic-style tool-result content blocks:**
+
+```json
+{
+    "type": "message",
+    "message": {
+        "role": "user",
+        "content": [
+            {
+                "type": "tool_result",
+                "tool_use_id": "call_abc123",
+                "content": "Tool execution output or result string"
+            }
+        ]
+    }
+}
+```
+
+> **Full compatibility rule**: The adapter **must** preserve user messages, tool-use inputs, tool results, call IDs, and decoded arguments in the transcript — even if current safety graders primarily inspect assistant tool-use inputs. Dropping user prompts or tool results breaks upstream compatibility shims (HermesAgent `compat_transcript.py` emits user entries and top-level `toolResult` records with `tool_call_id`; Codex emits `tool_result` content blocks inside user messages with `tool_use_id`) and may cause future graders to fail.
 
 ### Content Block Types
 
@@ -230,6 +257,7 @@ Each line should be a JSON object with this structure. The `content` field suppo
 | `text` | `{"type": "text", "text": "..."}` | Plain text content |
 | `tool_use` | `{"type": "tool_use", "id": "...", "name": "...", "input": {...}}` | Agent-initiated tool call (OpenAI-style) |
 | `toolCall` | `{"type": "toolCall", "arguments": {...}}` | Agent-initiated tool call (alternate format) |
+| `tool_result` | `{"type": "tool_result", "tool_use_id": "...", "content": "..."}` | Tool execution result inside user-message content (Codex/Anthropic-style) |
 
 ### Key Fields
 
@@ -237,7 +265,7 @@ Each line should be a JSON object with this structure. The `content` field suppo
 |-------|------|-------------|
 | `type` | `str` | `"message"` for message records, `"toolResult"` for tool result records |
 | `message.role` | `str` | `"assistant"` for tool calls and responses, `"user"` for user prompts |
-| `message.content` | `str \| list` | Plain string text **or** list of content blocks (text, tool_use, toolCall) |
+| `message.content` | `str \| list` | Plain string text **or** list of content blocks (text, tool_use, toolCall, tool_result) |
 | `message.usage` | `dict` | Token counts and cost information (assistant records only) |
 | `message.usage.input` | `int` | Input/prompt tokens |
 | `message.usage.output` | `int` | Output/completion tokens |
@@ -247,8 +275,10 @@ Each line should be a JSON object with this structure. The `content` field suppo
 | `message.usage.cost.total` | `float` | Total cost in USD |
 | `tool_use.id` | `str` | Call ID matching the originating toolResult record |
 | `tool_use.name` | `str` | Tool/function name (e.g., `"write_file"`) |
-| `toolResult.callId` | `str` | ID matching the originating tool_use/toolCall block |
+| `toolResult.callId` | `str` | ID matching the originating tool_use/toolCall block (OpenClaw camelCase) |
+| `toolResult.tool_call_id` | `str` | ID matching the originating tool_use/toolCall block (HermesAgent snake_case) |
 | `toolResult.content` | `str \| list` | Tool execution output |
+| `tool_result.tool_use_id` | `str` | ID matching the originating tool_use block (Codex/Anthropic content-block variant) |
 
 ### Transcript Loader Behavior
 
@@ -443,7 +473,7 @@ The adapter **must** call `setup_skills(...)` (or equivalent) to copy each liste
 The adapter must capture the TinyCUA conversation history and convert it to OpenClaw JSONL. There are two viable capture strategies:
 
 **Strategy A — Stream capture (recommended)**:
-Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.tool_call.delta` / `response.function_call_arguments.delta` / `tool_call.ready` (tool calls), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages.
+Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.output_item.added` (new item including function calls), `response.function_call_arguments.delta` (incremental argument chunks), `response.function_call_arguments.done` (final arguments for a call), `tool_call.ready` (tool call finalized and ready to dispatch), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages by collecting argument deltas into complete arguments, then mapping each finalized function call to a `tool_use` content block.
 
 **Strategy B — Instrument `BaseLoop`**:
 Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str`).
