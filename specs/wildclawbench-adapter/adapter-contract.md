@@ -133,7 +133,9 @@ WildClawBench grading expects transcripts in **OpenClaw-compatible JSONL format*
 
 ### JSONL Schema
 
-Each line should be a JSON object with this structure:
+Each line should be a JSON object with this structure. The `content` field supports two shapes: a plain string for simple text responses, and a list of content blocks for responses that include tool use.
+
+**String content (simple text response):**
 
 ```json
 {
@@ -155,13 +157,58 @@ Each line should be a JSON object with this structure:
 }
 ```
 
+**List content (response with tool-use blocks):**
+
+```json
+{
+    "type": "message",
+    "message": {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "I'll create that file for you."
+            },
+            {
+                "type": "tool_use",
+                "input": {
+                    "command": "write_file",
+                    "path": "/tmp_workspace/output.txt",
+                    "content": "file contents here"
+                }
+            }
+        ],
+        "usage": {
+            "input": 1234,
+            "output": 567,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1801,
+            "cost": {
+                "total": 0.0023
+            }
+        }
+    }
+}
+```
+
+> **Important**: Upstream safety graders (e.g., `06_Safety_Alignment_task_8_malicious_comments.md`) parse `content` as a list and extract blocks with `type in ("tool_use", "toolCall")` to detect harmful tool writes. If TinyCUA drops tool-use blocks from the transcript, safety grading will produce false negatives. The transcript converter **must** preserve all tool calls and their inputs as content blocks rather than converting them to plain text.
+
+### Content Block Types
+
+| Block Type | Shape | Description |
+|------------|-------|-------------|
+| `text` | `{"type": "text", "text": "..."}` | Plain text content |
+| `tool_use` | `{"type": "tool_use", "input": {...}}` | Agent-initiated tool call (OpenAI-style) |
+| `toolCall` | `{"type": "toolCall", "arguments": {...}}` | Agent-initiated tool call (alternate format) |
+
 ### Key Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `str` | Must be `"message"` for grading to process |
 | `message.role` | `str` | `"assistant"` for tool calls and responses |
-| `message.content` | `str` | The assistant's response text |
+| `message.content` | `str \| list` | Plain string text **or** list of content blocks (text, tool_use, toolCall) |
 | `message.usage` | `dict` | Token counts and cost information |
 | `message.usage.input` | `int` | Input/prompt tokens |
 | `message.usage.output` | `int` | Output/completion tokens |
@@ -312,6 +359,16 @@ ENTRYPOINT ["/bin/bash", "-c", "tail -f /dev/null"]
    - Accept `--model`, `--category`, `--parallel` flags
    - Pass through to `run_batch.py`
 
+   > **Required upstream changes**: The CLI registration is not limited to `run.sh`. Three files must be updated for `tinycua` to be selectable and executable:
+
+   | File | Change |
+   |------|--------|
+   | `script/run.sh` | Add `tinycua` case in the usage string and case statement, forwarding flags to `run_batch.py` |
+   | `src/utils/cli_args.py` | Add `"tinycua"` to the `--agent-backend` choices list (currently `["openclaw", "claudecode", "codex", "hermesagent"]`) |
+   | `eval/run_batch.py` | Add `elif args.agent_backend == "tinycua"` branch that imports and constructs `TinyCUAAgent` |
+
+   Without the `cli_args.py` change, argparse will reject `--agent-backend tinycua` with an invalid choice error. Without the `run_batch.py` change, the backend will not be instantiated even if the parser accepts it.
+
 ### Key Mapping: TINYCUA → WildClawBench
 
 | TINYCUA Concept | WildClawBench Equivalent | Notes |
@@ -328,15 +385,22 @@ ENTRYPOINT ["/bin/bash", "-c", "tail -f /dev/null"]
 ```python
 # Pseudocode for transcript conversion
 def convert_tinycua_trace_to_openclaw(trace: list[dict]) -> list[dict]:
-    """Convert TINYCUA trace to OpenClaw-compatible JSONL."""
+    """Convert TINYCUA trace to OpenClaw-compatible JSONL.
+
+    Preserves tool-use content blocks so upstream safety graders can
+    inspect tool inputs (e.g., file writes, shell commands).
+    """
     messages = []
     for entry in trace:
         if entry["type"] == "assistant_message":
+            # Build content: plain string or list of blocks
+            content = _build_content_blocks(entry)
+
             messages.append({
                 "type": "message",
                 "message": {
                     "role": "assistant",
-                    "content": entry["content"],
+                    "content": content,
                     "usage": {
                         "input": entry["input_tokens"],
                         "output": entry["output_tokens"],
@@ -348,6 +412,27 @@ def convert_tinycua_trace_to_openclaw(trace: list[dict]) -> list[dict]:
                 },
             })
     return messages
+
+
+def _build_content_blocks(entry: dict) -> str | list[dict]:
+    """Build content field from a trace entry.
+
+    If the entry has tool_calls, return a list of content blocks
+    (text block + tool_use blocks) so safety graders can inspect
+    tool inputs. Otherwise return plain string content.
+    """
+    tool_calls = entry.get("tool_calls", [])
+    if not tool_calls:
+        return entry["content"]
+
+    blocks = [{"type": "text", "text": entry["content"]}]
+    for tc in tool_calls:
+        # Normalize to OpenAI tool_use format
+        blocks.append({
+            "type": "tool_use",
+            "input": tc.get("arguments", tc.get("input", {})),
+        })
+    return blocks
 ```
 
 ---

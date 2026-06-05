@@ -141,7 +141,24 @@ class BaseAgent(ABC):
 | Agent timeout | `subprocess.TimeoutExpired` | Caught, process killed, returned with error |
 | Transcript conversion failure | `logger.warning()` | Fallback to raw transcript path |
 | Grading script failure | `{"error": message}` | Written to `score.json` |
-| Usage parsing failure | Empty usage dict | Fallback to agent.log parsing |
+| Usage parsing failure | Zero-filled usage dict | Never return `{}` — upstream `save_usage()` indexes required fields immediately |
+
+**Usage fallback contract**: When usage parsing fails, `collect_usage()` must return a zero-filled dict matching the upstream schema. Upstream `eval/run_batch.py` calls `save_usage()` which immediately indexes `usage["request_count"]`, `usage["input_tokens"]`, `usage["output_tokens"]`, `usage["cache_read_tokens"]`, `usage["total_tokens"]`, and `usage["cost_usd"]` — returning `{}` raises `KeyError` and crashes the benchmark run. Required zero-filled fallback:
+
+```json
+{
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0,
+    "total_tokens": 0,
+    "cost_usd": 0.0,
+    "request_count": 0,
+    "elapsed_time": 0.0
+}
+```
+
+Fallback parsing (e.g., from `agent.log`) may update these fields, but the method must never return an empty dict.
 
 ---
 
