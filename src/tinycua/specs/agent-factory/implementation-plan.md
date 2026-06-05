@@ -287,6 +287,10 @@ Session:
     task: Task | None
     todo: Todo | None
 
+    def compact_context(self) -> None:  # Stub for M1.1 — returns None
+        """Placeholder — compaction is a Phase 2 concern."""
+        return None
+
 TinyCUALoop(BaseLoop):
     root_session: Session
     queue: NodeQueue

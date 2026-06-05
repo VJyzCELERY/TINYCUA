@@ -1,7 +1,7 @@
 # Design Document: Agent Factory Contract (Milestone 1.1)
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Reviewed
 **Last Updated**: 2026-06-05
 
 ---
@@ -77,6 +77,10 @@ Session:
     todo: Todo | None
     config: SessionConfig
     # ... additional fields from design docs
+
+    def compact_context(self) -> None:  # Stub for M1.1 — returns None
+        """Placeholder — compaction is a Phase 2 concern."""
+        return None
 
 TinyCUALoop:
     root_session: Session
@@ -176,6 +180,19 @@ class TinyCUALoop(BaseLoop):
         """
         ...
 ```
+
+### `agent._call_llm()` Return Contract (M1.1)
+
+For M1.1 (mocked LLM), `_call_llm()` is expected to return a dict with:
+- `content: str` — the LLM output text
+- `tool_calls: list | None` — tool call requests (None in M1.1)
+- `usage: dict | None` — token usage stats (None in M1.1)
+- `finish_reason: str | None` — completion reason
+- `model: str | None` — model identifier (None in M1.1)
+
+`TinyCUALoop.run()` extracts `content` for non-streaming string output.
+The real `_call_llm()` contract is defined by the SDK and may evolve — this M1.1
+contract mirrors the minimum shape needed for factory/loop testing.
 
 ### Error Handling
 

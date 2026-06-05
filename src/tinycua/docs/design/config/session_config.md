@@ -36,7 +36,7 @@ back to documented defaults, runs a tool-less compaction Agent, and returns
 
 ## Factory Interaction
 
-Future implementation should support:
+The factory function `create_tinycua_agent(...)` (M1.1) supports:
 
 ```text
 create_tinycua_agent(session=None, session_config=None, **agent_kwargs)
