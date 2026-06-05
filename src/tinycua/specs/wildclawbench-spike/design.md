@@ -220,9 +220,9 @@ Fallback parsing (e.g., from `agent.log`) may update these fields, but the metho
 
 ## Open Questions
 
-1. **Transcript conversion complexity**
-   - Need to implement and test the actual conversion before estimating effort.
-   - TINYCUA's `BaseLoop` trace format needs mapping to OpenClaw JSONL.
+1. **Transcript conversion implementation**
+   - The conversion strategy is documented in the adapter contract (Strategy B: BaseLoop instrumentation recommended). Implementation and testing effort TBD.
+   - See `specs/wildclawbench-adapter/adapter-contract.md` lines 472-635 for the full pseudocode and tradeoff analysis.
 
 2. **Docker image size**
    - Target < 2GB for reasonable CI times.

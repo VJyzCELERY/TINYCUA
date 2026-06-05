@@ -469,6 +469,8 @@ Skills in WildClawBench are **not** injected via prompt text. The task parser re
 
 The adapter **must** call `setup_skills(...)` (or equivalent) to copy each listed skill directory from `task["skills_path"]` into TinyCUA's configured in-container skills root **before** the agent starts execution. Prompt text alone is not sufficient — the agent needs the actual skill files and resources on disk to load them.
 
+> **Implementation note**: `setup_skills` is **not** an upstream WildClawBench utility — no such function exists in the pinned upstream commit (`86d7144`). The adapter must implement this itself. The function should accept a list of skill directory names, a host source path (`task["skills_path"]`), and a container-internal destination path, then copy each skill directory into the container via `docker cp` or volume mount. A minimal implementation is: split `task["skills"]` on newlines to get skill names, then for each non-empty name, copy `<skills_path>/<name>` to `<skills_root>/<name>` inside the running container.
+
 ### Transcript Conversion Strategy
 
 The adapter must capture the TinyCUA conversation history and convert it to OpenClaw JSONL. There are two viable capture strategies:
@@ -480,6 +482,8 @@ Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message li
 Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.output_item.added` (new item including function calls), `response.function_call_arguments.delta` (incremental argument chunks), `response.function_call_arguments.done` (final arguments for a call), `tool_call.ready` (tool call finalized and ready to dispatch), `response.tool_call.delta` (legacy tool-call delta — an alternate shape emitted by some providers and compatibility layers that must be normalized into the same `tool_use` content blocks as `response.output_item.added` plus `response.function_call_arguments.*` / `tool_call.ready`), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages by collecting argument deltas into complete arguments, then mapping each finalized function call to a `tool_use` content block.
 
 > **⚠ Strategy A cannot preserve tool results**: The current SDK `LLMEvent` union (`src/tinycua-sdk/tinycua_sdk/agent/events.py`) emits assistant tool-call events but does **not** emit tool-result events. Tool results are appended only to the internal `working_messages` list after tool execution (`src/tinycua-sdk/tinycua_sdk/agent/loop.py`). As written, an implementer following Strategy A can preserve assistant `tool_use` blocks but **cannot** preserve `toolResult` records — which violates the full compatibility rule above. Strategy A is only viable if paired with loop instrumentation to capture tool results, or after a dedicated `tool_result.completed` stream event is added to the SDK.
+>
+> **SDK version**: Based on TINYCUA SDK as of commit `79d3fbe` (2026-06-05). If the SDK later adds tool-result stream events (e.g., `tool_result.completed`), re-evaluate Strategy A viability.
 
 **Reasoning-event policy**: `response.reasoning.delta` and `response.reasoning.done` may be emitted by reasoning-capable models. The adapter should **not** serialize hidden reasoning into OpenClaw-visible assistant content unless explicitly required by the task, but it should account for these events deliberately — either by discarding them or by storing them in a non-graded side channel — and document the chosen behavior so that transcript consumers can predict what is present.
 
@@ -498,7 +502,7 @@ def _usage_int(value: object) -> int:
     so a JSON ``null`` (Python ``None``) would cause ``TypeError``.  This
     helper ensures every value written to the transcript is a valid int.
     """
-    return value if isinstance(value, int) else 0
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
 def convert_working_messages_to_openclaw(
