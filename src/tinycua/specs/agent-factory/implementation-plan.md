@@ -64,7 +64,7 @@ Provide a factory function `create_tinycua_agent(...)` that constructs a working
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these test pass.
 
 ```python
-# Test file: tests/integration/test_agent_factory.py
+# Test file: src/tinycua/tests/integration/test_agent_factory.py
 """Integration tests for Agent Factory Contract (Milestone 1.1)."""
 
 import pytest

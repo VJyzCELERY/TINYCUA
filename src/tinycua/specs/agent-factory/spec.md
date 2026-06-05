@@ -111,6 +111,8 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 | Unit tests | TODO | |
 | Integration tests | TODO | |
 
+> _See `task.md` for detailed implementation status with task IDs and acceptance criteria._
+
 ---
 
 ## Open Questions _(optional)_
