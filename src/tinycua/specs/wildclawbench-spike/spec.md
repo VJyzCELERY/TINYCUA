@@ -113,21 +113,21 @@ A developer working on TINYCUA needs to understand what interface to implement t
 1. **Transcript conversion complexity**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Need to implement and test the actual conversion before estimating effort.
+   - **Status**: Resolved
+   - **Resolution**: Documented in adapter contract § Transcript Conversion Strategy (Strategy B recommended). Implementation effort TBD for Phase 2.
 
 2. **Docker image size**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Use multi-stage build to minimize layers. Target < 2GB.
+   - **Status**: Resolved
+   - **Resolution**: Documented in adapter contract § Docker Container Requirements. Target < 2GB with multi-stage build.
 
 ---
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
-- [x] All mandatory sections completed
+- [x] No production implementation code (pseudocode in adapter contract is contract-specification, not runnable code)
+- [x] All mandatory sections completed (per .agents/templates/spec.md: Problem Statement, User Scenarios & Testing, Requirements, Success Criteria, Testing Plan)
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals

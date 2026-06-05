@@ -349,7 +349,7 @@ print(json.dumps(result))
 ### Image Structure
 
 ```dockerfile
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y \
@@ -486,6 +486,134 @@ Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The e
 > **SDK version**: Based on TINYCUA SDK as of commit `79d3fbe` (2026-06-05). If the SDK later adds tool-result stream events (e.g., `tool_result.completed`), re-evaluate Strategy A viability.
 
 **Reasoning-event policy**: `response.reasoning.delta` and `response.reasoning.done` may be emitted by reasoning-capable models. The adapter should **not** serialize hidden reasoning into OpenClaw-visible assistant content unless explicitly required by the task, but it should account for these events deliberately — either by discarding them or by storing them in a non-graded side channel — and document the chosen behavior so that transcript consumers can predict what is present.
+
+### Transcript Conversion Pseudocode
+
+See [Implementation Guidance](#implementation-guidance) below for the full conversion function. The key contract requirements are:
+- Input: `BaseLoop` working message list (roles: system, user, assistant, tool_result)
+- Output: OpenClaw-compatible JSONL records
+- Must preserve tool-use content blocks for safety grading
+- Must coerce nullable token counts to non-negative integers
+
+> **Note on usage**: The `BaseLoop` working message list does not carry per-message usage. When using Strategy B, the caller must collect usage separately (e.g., from `response.usage` stream events) and pass per-assistant-message usage via the `per_message_usage` parameter. If per-message usage is unavailable, pass `None` and let `collect_usage()` populate the upstream `usage.json` schema with separately accumulated totals — do **not** embed a cumulative total in every assistant message record, as WildClawBench sums `message.usage` across all assistant records and will over-count tokens and cost. When cost data is unavailable, the adapter should set `usage.cost.total` to `0.0` and omit `cacheRead`/`cacheWrite` fields rather than emitting `None` values.
+
+---
+
+## Usage Collection
+
+### Expected Output
+
+```json
+{
+    "input_tokens": 12345,
+    "output_tokens": 6789,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0,
+    "total_tokens": 19134,
+    "cost_usd": 0.0456,
+    "request_count": 15,
+    "elapsed_time": 123.45
+}
+```
+
+### Collection Methods
+
+1. **Primary**: Parse transcript JSONL for `usage` fields
+2. **Fallback**: Parse agent.log for token usage patterns
+3. **Manual**: Count requests and estimate from model pricing
+
+### Usage Fallback Contract
+
+`collect_usage()` **must never return `{}`**. Upstream `eval/run_batch.py` calls `save_usage()` which immediately indexes required fields — returning an empty dict raises `KeyError` and crashes the benchmark run after grading.
+
+When transcript parsing fails, the container/transcript is unavailable, or any collection method cannot populate all required fields, the adapter **must** return a zero-filled dict with all required keys:
+
+```json
+{
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0,
+    "total_tokens": 0,
+    "cost_usd": 0.0,
+    "request_count": 0,
+    "elapsed_time": 0.0
+}
+```
+
+The `elapsed_time` field should reflect the actual execution duration when available (passed from `AgentExecution.elapsed_time`), but defaults to `0.0` if uncollectable. This fallback ensures downstream usage aggregation never encounters a missing key.
+
+---
+
+## Risk Assessment
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Transcript format mismatch | Grading fails | Test with sample transcripts early |
+| Docker image too large | Slow CI | Multi-stage build, minimize layers |
+| Tool schema incompatibility | Agent can't call tools | Verify OpenAI-compatible format |
+| Timeout handling | Incomplete tasks | Kill agent process on timeout, return `error=None` so WildClawBench still grades partial workspace state (see [Timeout Handling Contract](#timeout-handling-contract) below) |
+| Usage tracking gaps | Cost reporting incomplete | Multiple collection methods |
+| Native tool coverage gaps | Cannot complete email/calendar/image/video tasks | See [Native Tool Coverage](#native-tool-coverage) — implement missing tools or scope categories out |
+
+---
+
+## Timeout Handling Contract
+
+When the agent exceeds `spec.timeout_seconds`, the adapter **must** follow this contract:
+
+1. **Kill the agent process** — Send `SIGTERM`, wait briefly, then `SIGKILL` if necessary.
+2. **Preserve elapsed time** — Record the actual execution duration up to the kill point.
+3. **Return `AgentExecution(error=None, ...)`** — Do **not** set the `error` field on timeout.
+
+**Why `error=None` on timeout**: Upstream `eval/run_batch.py` only grades errored executions for `CodexAgent` and `ClaudeCodeAgent` (hard-coded tuple in `run_batch.py`). A `TinyCUAAgent` would not match that tuple, so returning `AgentExecution.error` on timeout would cause `run_grading()` to be skipped entirely — leaving benchmark results without scores instead of grading the partial workspace/transcript state. Existing OpenClaw and HermesAgent runners kill timed-out processes but return `error=None`, which keeps grading enabled.
+
+This means the adapter kills the agent but still returns a successful execution, allowing WildClawBench to grade whatever partial work the agent completed before the timeout. The graded result reflects the agent's performance within the time limit.
+
+---
+
+## Native Tool Coverage
+
+WildClawBench tasks span six categories, each requiring different tool capabilities. The table below maps WildClawBench's required tool categories to TINYCUA's current native tool coverage and identifies gaps that must be resolved (or explicitly scoped out) before the adapter can complete full benchmark tasks.
+
+| WildClawBench Capability | Required For | TINYCUA Coverage | Status |
+|--------------------------|-------------|-------------------|--------|
+| **Shell execution** | Most categories — system commands, scripting | `run_shell` | Covered |
+| **File operations** | Read/write/edit files, directory traversal | `read_file`, `write_file`, `edit_file`, `list_files` | Covered |
+| **Web access** | Search, page fetching, API calls | `fetch_url` | Covered |
+| **Python execution** | Data processing, computation tasks | `run_python` | Covered |
+| **Email** | Email-aware tasks (compose, read, parse) | — | **Gap** |
+| **Calendar** | Calendar-aware tasks (schedule, query events) | — | **Gap** |
+| **Image processing** | Image generation, manipulation, analysis | — | **Gap** |
+| **Video processing** | Video generation, editing, analysis | — | **Gap** |
+
+### Gap Analysis
+
+- **email**: No email tool exists. Tasks in categories that reference email interactions will fail or produce incomplete results.
+- **calendar**: No calendar tool exists. Tasks requiring schedule awareness or event management cannot be completed.
+- **image**: No image generation or manipulation tool exists. Tasks requiring image creation or editing will fail. (Note: TINYCUA SDK supports image *attachment* via `FileAttachment`, but this is read-only input, not tool-driven generation.)
+- **video**: No video tool exists. Tasks requiring video generation, editing, or frame extraction cannot be completed.
+
+### Mitigation Options
+
+1. **Implement missing tools** — Add native tools for email (IMAP/SMTP), calendar (CalDAV/Google Calendar API), image (Pillow/ImageMagick integration), and video (ffmpeg wrapper). This is the most complete solution but increases adapter scope.
+2. **Scope categories out** — Exclude task categories that require missing tools from the initial benchmark run. Document the exclusion and report partial-category scores.
+3. **Delegate to upstream tools** — If the Docker container provides system-level tools (e.g., `ffmpeg` for video, `python3` with `Pillow` for image), implement thin wrapper tools that shell out to these binaries. This works for image/video but not for email/calendar which require API credentials and auth flows.
+4. **Hybrid approach** — Implement thin wrappers for tools that have system-level equivalents (image, video) and scope out categories that require API-based tools (email, calendar) in the initial milestone.
+
+> **Recommendation**: Start with option 4 — implement image and video wrappers using existing container dependencies (`ffmpeg`, `Pillow`), and scope out email/calendar tasks for the initial 60-task benchmark run. This maximizes category coverage while keeping the initial adapter scope manageable.
+
+---
+
+## Next Steps
+
+See `src/tinycua/specs/wildclawbench-spike/design.md` § Implementation Phases for the implementation roadmap and milestone status.
+
+---
+
+## Implementation Guidance
+
+### Transcript Conversion Pseudocode
 
 ```python
 # Pseudocode for transcript conversion from BaseLoop working messages
@@ -637,125 +765,6 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
         for record in records:
             f.write(json.dumps(record) + "\n")
 ```
-
-> **Note on usage**: The `BaseLoop` working message list does not carry per-message usage. When using Strategy B, the caller must collect usage separately (e.g., from `response.usage` stream events) and pass per-assistant-message usage via the `per_message_usage` parameter. If per-message usage is unavailable, pass `None` and let `collect_usage()` populate the upstream `usage.json` schema with separately accumulated totals — do **not** embed a cumulative total in every assistant message record, as WildClawBench sums `message.usage` across all assistant records and will over-count tokens and cost. When cost data is unavailable, the adapter should set `usage.cost.total` to `0.0` and omit `cacheRead`/`cacheWrite` fields rather than emitting `None` values.
-
----
-
-## Usage Collection
-
-### Expected Output
-
-```json
-{
-    "input_tokens": 12345,
-    "output_tokens": 6789,
-    "cache_read_tokens": 0,
-    "cache_write_tokens": 0,
-    "total_tokens": 19134,
-    "cost_usd": 0.0456,
-    "request_count": 15,
-    "elapsed_time": 123.45
-}
-```
-
-### Collection Methods
-
-1. **Primary**: Parse transcript JSONL for `usage` fields
-2. **Fallback**: Parse agent.log for token usage patterns
-3. **Manual**: Count requests and estimate from model pricing
-
-### Usage Fallback Contract
-
-`collect_usage()` **must never return `{}`**. Upstream `eval/run_batch.py` calls `save_usage()` which immediately indexes required fields — returning an empty dict raises `KeyError` and crashes the benchmark run after grading.
-
-When transcript parsing fails, the container/transcript is unavailable, or any collection method cannot populate all required fields, the adapter **must** return a zero-filled dict with all required keys:
-
-```json
-{
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_tokens": 0,
-    "cache_write_tokens": 0,
-    "total_tokens": 0,
-    "cost_usd": 0.0,
-    "request_count": 0,
-    "elapsed_time": 0.0
-}
-```
-
-The `elapsed_time` field should reflect the actual execution duration when available (passed from `AgentExecution.elapsed_time`), but defaults to `0.0` if uncollectable. This fallback ensures downstream usage aggregation never encounters a missing key.
-
----
-
-## Risk Assessment
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Transcript format mismatch | Grading fails | Test with sample transcripts early |
-| Docker image too large | Slow CI | Multi-stage build, minimize layers |
-| Tool schema incompatibility | Agent can't call tools | Verify OpenAI-compatible format |
-| Timeout handling | Incomplete tasks | Kill agent process on timeout, return `error=None` so WildClawBench still grades partial workspace state (see [Timeout Handling Contract](#timeout-handling-contract) below) |
-| Usage tracking gaps | Cost reporting incomplete | Multiple collection methods |
-| Native tool coverage gaps | Cannot complete email/calendar/image/video tasks | See [Native Tool Coverage](#native-tool-coverage) — implement missing tools or scope categories out |
-
----
-
-## Timeout Handling Contract
-
-When the agent exceeds `spec.timeout_seconds`, the adapter **must** follow this contract:
-
-1. **Kill the agent process** — Send `SIGTERM`, wait briefly, then `SIGKILL` if necessary.
-2. **Preserve elapsed time** — Record the actual execution duration up to the kill point.
-3. **Return `AgentExecution(error=None, ...)`** — Do **not** set the `error` field on timeout.
-
-**Why `error=None` on timeout**: Upstream `eval/run_batch.py` only grades errored executions for `CodexAgent` and `ClaudeCodeAgent` (hard-coded tuple in `run_batch.py`). A `TinyCUAAgent` would not match that tuple, so returning `AgentExecution.error` on timeout would cause `run_grading()` to be skipped entirely — leaving benchmark results without scores instead of grading the partial workspace/transcript state. Existing OpenClaw and HermesAgent runners kill timed-out processes but return `error=None`, which keeps grading enabled.
-
-This means the adapter kills the agent but still returns a successful execution, allowing WildClawBench to grade whatever partial work the agent completed before the timeout. The graded result reflects the agent's performance within the time limit.
-
----
-
-## Native Tool Coverage
-
-WildClawBench tasks span six categories, each requiring different tool capabilities. The table below maps WildClawBench's required tool categories to TINYCUA's current native tool coverage and identifies gaps that must be resolved (or explicitly scoped out) before the adapter can complete full benchmark tasks.
-
-| WildClawBench Capability | Required For | TINYCUA Coverage | Status |
-|--------------------------|-------------|-------------------|--------|
-| **Shell execution** | Most categories — system commands, scripting | `run_shell` | Covered |
-| **File operations** | Read/write/edit files, directory traversal | `read_file`, `write_file`, `edit_file`, `list_files` | Covered |
-| **Web access** | Search, page fetching, API calls | `fetch_url` | Covered |
-| **Python execution** | Data processing, computation tasks | `run_python` | Covered |
-| **Email** | Email-aware tasks (compose, read, parse) | — | **Gap** |
-| **Calendar** | Calendar-aware tasks (schedule, query events) | — | **Gap** |
-| **Image processing** | Image generation, manipulation, analysis | — | **Gap** |
-| **Video processing** | Video generation, editing, analysis | — | **Gap** |
-
-### Gap Analysis
-
-- **email**: No email tool exists. Tasks in categories that reference email interactions will fail or produce incomplete results.
-- **calendar**: No calendar tool exists. Tasks requiring schedule awareness or event management cannot be completed.
-- **image**: No image generation or manipulation tool exists. Tasks requiring image creation or editing will fail. (Note: TINYCUA SDK supports image *attachment* via `FileAttachment`, but this is read-only input, not tool-driven generation.)
-- **video**: No video tool exists. Tasks requiring video generation, editing, or frame extraction cannot be completed.
-
-### Mitigation Options
-
-1. **Implement missing tools** — Add native tools for email (IMAP/SMTP), calendar (CalDAV/Google Calendar API), image (Pillow/ImageMagick integration), and video (ffmpeg wrapper). This is the most complete solution but increases adapter scope.
-2. **Scope categories out** — Exclude task categories that require missing tools from the initial benchmark run. Document the exclusion and report partial-category scores.
-3. **Delegate to upstream tools** — If the Docker container provides system-level tools (e.g., `ffmpeg` for video, `python3` with `Pillow` for image), implement thin wrapper tools that shell out to these binaries. This works for image/video but not for email/calendar which require API credentials and auth flows.
-4. **Hybrid approach** — Implement thin wrappers for tools that have system-level equivalents (image, video) and scope out categories that require API-based tools (email, calendar) in the initial milestone.
-
-> **Recommendation**: Start with option 4 — implement image and video wrappers using existing container dependencies (`ffmpeg`, `Pillow`), and scope out email/calendar tasks for the initial 60-task benchmark run. This maximizes category coverage while keeping the initial adapter scope manageable.
-
----
-
-## Next Steps
-
-1. **Phase 1**: Implement `TinyCUAAgent` adapter class
-2. **Phase 2**: Build Docker image with TINYCUA
-3. **Phase 3**: Implement transcript converter
-4. **Phase 4**: Test with single task
-5. **Phase 5**: Run full 60-task benchmark
-6. **Native tool coverage** (see above): Implement image/video wrapper tools and decide on email/calendar strategy before Phase 5 — email and calendar gaps must be resolved or categories explicitly scoped out to produce accurate benchmark scores
 
 ---
 

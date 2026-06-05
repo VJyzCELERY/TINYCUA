@@ -110,29 +110,7 @@ class AgentExecution:
 
 ### BaseAgent Interface (Required)
 
-```python
-class BaseAgent(ABC):
-    @property
-    @abstractmethod
-    def expects_gateway(self) -> bool:
-        """Whether this backend starts a long-running gateway process."""
-
-    @property
-    @abstractmethod
-    def transcript_container_path(self) -> str:
-        """Path to chat transcript inside the runtime container."""
-
-    def prepare_grading_transcript(self, task_id: str) -> str:
-        """Prepare and return the transcript path used for grading."""
-
-    @abstractmethod
-    def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
-        """Execute a task and return process handles, timing and error state."""
-
-    @abstractmethod
-    def collect_usage(self, task_id: str, output_dir: Path, elapsed_time: float) -> dict[str, Any]:
-        """Collect token usage and cost for one task."""
-```
+See `specs/wildclawbench-adapter/adapter-contract.md` § BaseAgent Interface for the full abstract class definition, including the optional `prepare_grading_transcript` default hook.
 
 ### Error Handling
 
