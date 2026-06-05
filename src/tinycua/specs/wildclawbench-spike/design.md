@@ -56,33 +56,9 @@ WildClawBench run_batch.py
 
 ## Data Model
 
-### AgentTaskSpec (Input)
+### AgentTaskSpec and AgentExecution
 
-```python
-@dataclass(frozen=True)
-class AgentTaskSpec:
-    task_id: str                    # Unique task identifier
-    task: dict[str, Any]            # Parsed task metadata
-    workspace_path: str             # Host path to workspace (read-only in container)
-    prompt: str                     # Full task prompt with system prefix
-    timeout_seconds: int            # Maximum execution time
-    output_dir: Path                # Host directory for output files
-    model: str                      # Model identifier (e.g., "openrouter/openai/gpt-5.5")
-    thinking: str | None = None     # Optional reasoning mode
-    models_config: dict | None = None  # Optional provider configuration
-    lobster: dict | None = None     # Optional lobster workspace config
-```
-
-### AgentExecution (Output)
-
-```python
-@dataclass
-class AgentExecution:
-    elapsed_time: float             # Actual execution time in seconds
-    error: str | None = None        # Error message if execution failed
-    gateway_proc: subprocess.Popen | None = None  # Gateway process (None for TINYCUA)
-    agent_proc: subprocess.Popen | None = None    # Agent process handle
-```
+See `specs/wildclawbench-adapter/adapter-contract.md` § BaseAgent Interface for the full `AgentTaskSpec` and `AgentExecution` dataclass definitions with complete type annotations.
 
 ### Transcript (OpenClaw-compatible JSONL)
 

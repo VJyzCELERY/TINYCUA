@@ -69,10 +69,12 @@ A developer working on TINYCUA needs to understand what interface to implement t
 - [x] **Adapter contract document exists**: `specs/wildclawbench-adapter/adapter-contract.md` is created and complete.
 - [x] **BaseAgent interface documented**: All 5 methods with signatures, return types, and descriptions.
 - [x] **AgentTaskSpec documented**: All 10 fields with types and descriptions.
+- [x] **AgentExecution documented**: Return type of `run_task()` with all 4 fields and types.
 - [x] **Transcript format documented**: OpenClaw-compatible JSONL schema with exact field definitions.
 - [x] **Grading flow documented**: 5-step process with clear responsibilities for each step.
 - [x] **Docker requirements documented**: Container lifecycle, volume mounts, environment variables.
 - [x] **TINYCUA mapping documented**: How TINYCUA concepts map to WildClawBench equivalents.
+- [x] **Transcript conversion strategy documented**: Strategy A (stream) vs Strategy B (BaseLoop) documented with pseudocode.
 
 ---
 
