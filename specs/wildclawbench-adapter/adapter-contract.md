@@ -484,6 +484,18 @@ import json
 from pathlib import Path
 
 
+def _usage_int(value: object) -> int:
+    """Coerce a nullable token count to a non-negative int.
+
+    TinyCUA's ``TokenUsage`` type permits ``None`` for all three token
+    fields, and provider events may surface partial usage.  WildClawBench's
+    ``extract_usage_from_jsonl()`` adds these values into integer totals,
+    so a JSON ``null`` (Python ``None``) would cause ``TypeError``.  This
+    helper ensures every value written to the transcript is a valid int.
+    """
+    return value if isinstance(value, int) else 0
+
+
 def convert_working_messages_to_openclaw(
     working: list[dict],
     per_message_usage: list[dict[str, int]] | None = None,
@@ -511,6 +523,11 @@ def convert_working_messages_to_openclaw(
 
     Preserves tool-use content blocks so upstream safety graders can
     inspect tool inputs (e.g., file writes, shell commands).
+
+    **Transcript usage fields must be numeric and must never be ``null``.**
+    Token counts from the SDK are coerced through ``_usage_int()`` so that
+    JSON serialisation never emits ``null`` for ``input``, ``output``, or
+    ``totalTokens``.
     """
     messages: list[dict] = []
     usage_iter = iter(per_message_usage) if per_message_usage else None
@@ -538,7 +555,7 @@ def convert_working_messages_to_openclaw(
             # When per_message_usage is None, zero-fill so the record is
             # present but does not inflate totals.
             msg_usage = next(usage_iter, None) if usage_iter else None
-            usage = msg_usage or {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+            raw_usage = msg_usage or {}
 
             messages.append({
                 "type": "message",
@@ -546,21 +563,23 @@ def convert_working_messages_to_openclaw(
                     "role": "assistant",
                     "content": content,
                     "usage": {
-                        "input": usage["input_tokens"],
-                        "output": usage["output_tokens"],
+                        "input": _usage_int(raw_usage.get("input_tokens")),
+                        "output": _usage_int(raw_usage.get("output_tokens")),
                         "cacheRead": 0,
                         "cacheWrite": 0,
-                        "totalTokens": usage["total_tokens"],
+                        "totalTokens": _usage_int(raw_usage.get("total_tokens")),
                         "cost": {"total": 0.0},
                     },
                 },
             })
 
         elif role == "tool_result":
+            call_id = entry.get("call_id", "")
             messages.append({
                 "type": "toolResult",
                 "toolResult": {
-                    "callId": entry.get("call_id", ""),
+                    "callId": call_id,
+                    "tool_call_id": call_id,
                     "content": entry.get("content", ""),
                 },
             })
