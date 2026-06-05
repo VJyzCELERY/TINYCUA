@@ -63,7 +63,7 @@ Agent.run(query)
 # Conceptual data shapes — final classes defined in implementation
 
 SessionConfig:
-    compaction_strategy: CompactionStrategy | None
+    compaction_strategy: Any | None = None
     max_context_messages: int | None
     max_context_tokens: int | None
     metadata: dict
@@ -111,9 +111,10 @@ def create_tinycua_agent(
     Returns:
         SDK Agent instance with TinyCUALoop attached.
 
-    Raises:
-        ValueError: If session_config is provided but session is None and
-                    config cannot be applied.
+    Note:
+        If session_config is provided, it is applied to the session
+        (or the newly created session when session=None).
+        Config application is non-fatal — last-write-wins.
     """
     # 1. Create or validate session
     if session is None:
@@ -176,6 +177,7 @@ class TinyCUALoop(BaseLoop):
 | `session_config` conflicts with session | Warning logged, config applied | Non-fatal — last-write-wins |
 | LLM endpoint unreachable | Propagated from `agent._call_llm()` | Node retry policy handles retries |
 | Queue exhausted without terminal node | `RuntimeError("No terminal node in queue")` | `ensure_terminal()` should prevent this |
+| Empty NodeQueue (no nodes) | Return empty string, log warning | Expected for M1.1 — no concrete nodes yet |
 
 ---
 

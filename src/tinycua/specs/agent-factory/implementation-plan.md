@@ -250,7 +250,7 @@ class TestTinyCUALoopRun:
 ```python
 # New types
 SessionConfig:
-    compaction_strategy: CompactionStrategy | None
+    compaction_strategy: Any | None = None
     max_context_messages: int | None
     max_context_tokens: int | None
     metadata: dict
