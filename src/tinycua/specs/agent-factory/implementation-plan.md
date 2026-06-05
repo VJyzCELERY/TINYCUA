@@ -68,6 +68,7 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for Agent Factory Contract (Milestone 1.1)."""
 
 import pytest
+from unittest.mock import AsyncMock
 from tinycua_sdk.agent import Agent, BaseLoop
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
@@ -125,7 +126,7 @@ class TestAgentRun:
     async def test_run_returns_string_when_not_streaming(self):
         """agent.run() returns string when stream=False."""
         agent = create_tinycua_agent()
-        agent._call_llm = pytest.AsyncMock(
+        agent._call_llm = AsyncMock(
             return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
         )
         result = await agent.run("hello")
@@ -157,7 +158,7 @@ class TestAgentRun:
         are populated by nodes (deferred to Milestones 1.5-1.7).
         """
         agent = create_tinycua_agent()
-        agent._call_llm = pytest.AsyncMock(
+        agent._call_llm = AsyncMock(
             return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
         )
         await agent.run("hello")
