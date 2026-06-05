@@ -394,7 +394,8 @@ The adapter **must** derive `exec_path = os.path.join(spec.workspace_path, "exec
    - Capture TinyCUA SDK events via `Agent.run(stream=True)` or instrument `BaseLoop` to persist the internal `working` message list
    - Convert captured events/messages to OpenClaw JSONL format
    - Map assistant messages with `tool_calls[*].function.name` and JSON-decoded `arguments` to content blocks
-   - Include token usage from `response.usage` events in each assistant message
+   - Track per-response usage from `response.usage` stream events (Strategy A) and pass as `per_message_usage` to the converter; if using Strategy B, pass `None` and populate usage via `collect_usage()` instead
+   - **Do not embed cumulative usage totals in every assistant message** — WildClawBench sums `message.usage` across assistant records, so cumulative values will over-count
 
 3. **Docker Image**
    - Build `wildclawbench-tinycua:v1` image
@@ -455,7 +456,7 @@ from pathlib import Path
 
 def convert_working_messages_to_openclaw(
     working: list[dict],
-    cumulative_usage: dict[str, int] | None = None,
+    per_message_usage: list[dict[str, int]] | None = None,
 ) -> list[dict]:
     """Convert TinyCUA BaseLoop working messages to OpenClaw-compatible JSONL.
 
@@ -465,11 +466,24 @@ def convert_working_messages_to_openclaw(
       - role: "assistant" with optional tool_calls (map to assistant message records)
       - role: "tool_result" with call_id and content (map to toolResult records)
 
+    ``per_message_usage`` is an optional list of usage dicts (one per assistant
+    message), where each dict has keys ``input_tokens``, ``output_tokens``,
+    ``total_tokens``.  If provided, each assistant message record receives the
+    corresponding usage entry.  If ``None``, all assistant messages receive
+    zeroed usage (usage is tracked separately via ``collect_usage()``).
+
+    WildClawBench's ``extract_usage_from_jsonl()`` **sums** the ``usage``
+    fields across assistant records.  Embedding a cumulative total in every
+    assistant message will over-count tokens and cost.  The caller must
+    therefore supply per-response usage (Strategy A: from ``response.usage``
+    stream events) or omit usage from the transcript and populate it via
+    ``collect_usage()``.
+
     Preserves tool-use content blocks so upstream safety graders can
     inspect tool inputs (e.g., file writes, shell commands).
     """
     messages: list[dict] = []
-    usage = cumulative_usage or {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    usage_iter = iter(per_message_usage) if per_message_usage else None
 
     for entry in working:
         role = entry.get("role")
@@ -489,6 +503,12 @@ def convert_working_messages_to_openclaw(
         elif role == "assistant":
             tool_calls = entry.get("tool_calls", [])
             content = _build_content_blocks(entry, tool_calls)
+
+            # Each assistant message gets its own per-response usage entry.
+            # When per_message_usage is None, zero-fill so the record is
+            # present but does not inflate totals.
+            msg_usage = next(usage_iter, None) if usage_iter else None
+            usage = msg_usage or {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
             messages.append({
                 "type": "message",
@@ -560,7 +580,7 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
             f.write(json.dumps(record) + "\n")
 ```
 
-> **Note on usage**: The `BaseLoop` working message list does not carry per-message usage. When using Strategy B, usage must be accumulated separately (e.g., from `response.usage` stream events or by subclassing `_run_sync` to capture the cumulative usage dict). When cost data is unavailable, the adapter should set `usage.cost.total` to `0.0` and omit `cacheRead`/`cacheWrite` fields rather than emitting `None` values.
+> **Note on usage**: The `BaseLoop` working message list does not carry per-message usage. When using Strategy B, the caller must collect usage separately (e.g., from `response.usage` stream events) and pass per-assistant-message usage via the `per_message_usage` parameter. If per-message usage is unavailable, pass `None` and let `collect_usage()` populate the upstream `usage.json` schema with separately accumulated totals — do **not** embed a cumulative total in every assistant message record, as WildClawBench sums `message.usage` across all assistant records and will over-count tokens and cost. When cost data is unavailable, the adapter should set `usage.cost.total` to `0.0` and omit `cacheRead`/`cacheWrite` fields rather than emitting `None` values.
 
 ---
 
@@ -598,6 +618,40 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
 | Tool schema incompatibility | Agent can't call tools | Verify OpenAI-compatible format |
 | Timeout handling | Incomplete tasks | Implement graceful shutdown |
 | Usage tracking gaps | Cost reporting incomplete | Multiple collection methods |
+| Native tool coverage gaps | Cannot complete email/calendar/image/video tasks | See [Native Tool Coverage](#native-tool-coverage) — implement missing tools or scope categories out |
+
+---
+
+## Native Tool Coverage
+
+WildClawBench tasks span six categories, each requiring different tool capabilities. The table below maps WildClawBench's required tool categories to TINYCUA's current native tool coverage and identifies gaps that must be resolved (or explicitly scoped out) before the adapter can complete full benchmark tasks.
+
+| WildClawBench Capability | Required For | TINYCUA Coverage | Status |
+|--------------------------|-------------|-------------------|--------|
+| **Shell execution** | Most categories — system commands, scripting | `run_shell` | Covered |
+| **File operations** | Read/write/edit files, directory traversal | `read_file`, `write_file`, `edit_file`, `list_files` | Covered |
+| **Web access** | Search, page fetching, API calls | `fetch_url` | Covered |
+| **Python execution** | Data processing, computation tasks | `run_python` | Covered |
+| **Email** | Email-aware tasks (compose, read, parse) | — | **Gap** |
+| **Calendar** | Calendar-aware tasks (schedule, query events) | — | **Gap** |
+| **Image processing** | Image generation, manipulation, analysis | — | **Gap** |
+| **Video processing** | Video generation, editing, analysis | — | **Gap** |
+
+### Gap Analysis
+
+- **email**: No email tool exists. Tasks in categories that reference email interactions will fail or produce incomplete results.
+- **calendar**: No calendar tool exists. Tasks requiring schedule awareness or event management cannot be completed.
+- **image**: No image generation or manipulation tool exists. Tasks requiring image creation or editing will fail. (Note: TINYCUA SDK supports image *attachment* via `FileAttachment`, but this is read-only input, not tool-driven generation.)
+- **video**: No video tool exists. Tasks requiring video generation, editing, or frame extraction cannot be completed.
+
+### Mitigation Options
+
+1. **Implement missing tools** — Add native tools for email (IMAP/SMTP), calendar (CalDAV/Google Calendar API), image (Pillow/ImageMagick integration), and video (ffmpeg wrapper). This is the most complete solution but increases adapter scope.
+2. **Scope categories out** — Exclude task categories that require missing tools from the initial benchmark run. Document the exclusion and report partial-category scores.
+3. **Delegate to upstream tools** — If the Docker container provides system-level tools (e.g., `ffmpeg` for video, `python3` with `Pillow` for image), implement thin wrapper tools that shell out to these binaries. This works for image/video but not for email/calendar which require API credentials and auth flows.
+4. **Hybrid approach** — Implement thin wrappers for tools that have system-level equivalents (image, video) and scope out categories that require API-based tools (email, calendar) in the initial milestone.
+
+> **Recommendation**: Start with option 4 — implement image and video wrappers using existing container dependencies (`ffmpeg`, `Pillow`), and scope out email/calendar tasks for the initial 60-task benchmark run. This maximizes category coverage while keeping the initial adapter scope manageable.
 
 ---
 
@@ -608,6 +662,7 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
 3. **Phase 3**: Implement transcript converter
 4. **Phase 4**: Test with single task
 5. **Phase 5**: Run full 60-task benchmark
+6. **Native tool coverage** (see above): Implement image/video wrapper tools and decide on email/calendar strategy before Phase 5 — email and calendar gaps must be resolved or categories explicitly scoped out to produce accurate benchmark scores
 
 ---
 
