@@ -87,7 +87,7 @@ class TestCreateTinyCUAAgent:
         config = SessionConfig(max_context_messages=100)
         agent = create_tinycua_agent(session_config=config)
         assert agent.loop.session_config == config
-        assert agent.loop.root_session.session_config == config
+        assert agent.loop.root_session.config == config
 
     def test_factory_accepts_agent_kwargs(self):
         """Factory passes **agent_kwargs through to SDK Agent."""
