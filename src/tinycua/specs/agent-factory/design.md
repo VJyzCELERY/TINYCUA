@@ -171,7 +171,8 @@ class TinyCUALoop(BaseLoop):
         stream: bool = False,
     ) -> str | AsyncIterator[dict[str, Any]]:
         """
-        Execute the TinyCUA node queue flow.
+        Execute the TinyCUA node queue flow. (M1.1: returns empty string when queue is empty.
+        Full node execution deferred to Milestones 1.5-1.7.)
 
         1. Merge SDK messages into root session input context.
         2. Initialize/ensure NodeQueue with terminal node.

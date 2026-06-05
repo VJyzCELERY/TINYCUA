@@ -144,6 +144,18 @@ class TestAgentRun:
         agent._call_llm = mock_stream
         result = await agent.run("hello", stream=True)
         assert hasattr(result, '__aiter__')
+
+    @pytest.mark.asyncio
+    async def test_run_populates_session_chat_history(self):
+        """agent.run() records messages in session chat history (FR-010)."""
+        agent = create_tinycua_agent()
+        agent._call_llm = pytest.AsyncMock(
+            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        )
+        await agent.run("hello")
+        session = agent.loop.root_session
+        assert len(session.chat_history) > 0
+        assert session.chat_history[0]["role"] in ("user", "assistant")
 ```
 
 ### Key Test Scenarios
@@ -153,6 +165,7 @@ class TestAgentRun:
 - [ ] **Scenario 3**: Factory uses provided session when session is given
 - [ ] **Scenario 4**: Factory applies SessionConfig to session
 - [ ] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
+- [ ] **Scenario 6**: agent.run() records messages in session chat history (FR-010)
 - [ ] **Edge case**: Factory with no arguments — all defaults
 
 ## Verification Plan

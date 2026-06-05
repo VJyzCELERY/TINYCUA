@@ -53,6 +53,8 @@ session is used. The strategy does not need the live Agent object during
 
 ## Related
 
+- [Agent Factory Spec](../../../specs/agent-factory/spec.md)
+- [Agent Factory Design](../../../specs/agent-factory/design.md)
 - [`../models/session.md`](../models/session.md)
 - [`node_config.md`](node_config.md)
 - [`../utility/compaction.md`](../utility/compaction.md)

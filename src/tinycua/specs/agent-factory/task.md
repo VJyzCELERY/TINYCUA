@@ -28,8 +28,11 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
   - `advance() -> None` — no-op
 - [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending SDK `BaseLoop` <!-- id: 5 -->
   - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`, `max_iterations=50`
-  - [ ] Implement `run()` with empty queue guard (returns empty string)
-  - [ ] Add unit tests for TinyCUALoop construction
+  - [ ] Implement `run()` accepting and consuming `messages`, `tools`, `override_instructions`, `stream` parameters (FR-008)
+  - [ ] Implement empty queue guard — returns empty string with warning log
+  - [ ] Implement chat history recording in root session (FR-010)
+  - [ ] Implement stream mode branching — returns string when `stream=False` (FR-011), async iterator when `stream=True`
+  - [ ] Add unit tests for TinyCUALoop construction and run() behavior
 - [ ] Create `tinycua/factory.py` with `create_tinycua_agent()` function <!-- id: 6 -->
   - [ ] Implement session creation when `session=None`
   - [ ] Implement SessionConfig application
