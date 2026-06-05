@@ -43,6 +43,22 @@ Provide a factory function `create_tinycua_agent(...)` that constructs a working
 
 ---
 
+## Pre-Implementation Verification
+
+- [ ] Verify `agent._call_llm` is mockable on the Agent instance:
+  ```bash
+  cd src/tinycua && uv run python -c "
+  from tinycua_sdk.agent import Agent
+  a = Agent()
+  print('_call_llm attribute:', hasattr(a, '_call_llm'))
+  print('type:', type(getattr(a, '_call_llm', None)))
+  "
+  ```
+  If `_call_llm` is on an executor (e.g., `agent._executor.call_llm`), update
+  the integration tests to patch `agent._executor.call_llm` or use
+  `unittest.mock.patch` on the executor path instead of assigning directly to
+  `agent._call_llm`.
+
 ## Success Criteria — Integration Tests (TDD First)
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these test pass.
@@ -275,6 +291,13 @@ TinyCUALoop(BaseLoop):
     root_session: Session
     queue: NodeQueue
     session_config: SessionConfig | None
+
+# Minimal type stubs for M1.1 — these are placeholder shapes; concrete
+# implementations may evolve in later milestones.
+ChatRecord: dict[str, Any]           # {"role": str, "content": str}
+SessionContextEntry: dict[str, Any]  # {"key": str, "value": Any}
+Task: dict[str, Any] | None          # placeholder for future task model
+Todo: dict[str, Any] | None          # placeholder for future todo model
 ```
 
 ## API Changes

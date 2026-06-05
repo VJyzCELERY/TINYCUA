@@ -2,6 +2,7 @@
 
 > **Package:** `tinycua.config.session_config`
 > **Status:** Target architecture
+> **Last Updated:** 2026-06-05
 
 ## Role
 

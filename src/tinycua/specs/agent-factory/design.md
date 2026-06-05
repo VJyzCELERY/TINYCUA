@@ -82,6 +82,13 @@ TinyCUALoop:
     root_session: Session
     queue: NodeQueue  # placeholder for now — concrete nodes in later milestones
     session_config: SessionConfig | None
+
+# Minimal type stubs for M1.1 — these are placeholder shapes; concrete
+# implementations may evolve in later milestones.
+ChatRecord: dict[str, Any]       # {"role": str, "content": str}
+SessionContextEntry: dict[str, Any]  # {"key": str, "value": Any}
+Task: dict[str, Any] | None      # placeholder for future task model
+Todo: dict[str, Any] | None      # placeholder for future todo model
 ```
 
 ### Schema Changes
