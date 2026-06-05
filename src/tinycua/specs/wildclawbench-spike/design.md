@@ -221,8 +221,8 @@ class BaseAgent(ABC):
 
 - **Adapter Contract**: `specs/wildclawbench-adapter/adapter-contract.md` — comprehensive adapter contract document
 - **Spec**: `./spec.md` — research goal and acceptance criteria
-- **Upstream Source**: [InternLM/WildClawBench](https://github.com/InternLM/WildClawBench)
-- **HermesAgent Adapter**: [src/agents/hermesagent/runner.py](https://github.com/InternLM/WildClawBench/blob/main/src/agents/hermesagent/runner.py) — reference implementation
-- **BaseAgent Interface**: [src/agents/base.py](https://github.com/InternLM/WildClawBench/blob/main/src/agents/base.py) — abstract class definition
-- **Transcript Loader**: [src/utils/transcript_loader.py](https://github.com/InternLM/WildClawBench/blob/main/src/utils/transcript_loader.py) — transcript parsing logic
-- **Grading Flow**: [src/utils/grading.py](https://github.com/InternLM/WildClawBench/blob/main/src/utils/grading.py) — grading execution logic
+- **Upstream Source**: [InternLM/WildClawBench](https://github.com/InternLM/WildClawBench) — commit [`86d7144`](https://github.com/InternLM/WildClawBench/tree/86d71447413d38f38740a021cb776f64eb396ee0)
+- **HermesAgent Adapter**: [src/agents/hermesagent/runner.py](https://github.com/InternLM/WildClawBench/blob/86d71447413d38f38740a021cb776f64eb396ee0/src/agents/hermesagent/runner.py) — reference implementation
+- **BaseAgent Interface**: [src/agents/base.py](https://github.com/InternLM/WildClawBench/blob/86d71447413d38f38740a021cb776f64eb396ee0/src/agents/base.py) — abstract class definition
+- **Transcript Loader**: [src/utils/transcript_loader.py](https://github.com/InternLM/WildClawBench/blob/86d71447413d38f38740a021cb776f64eb396ee0/src/utils/transcript_loader.py) — transcript parsing logic
+- **Grading Flow**: [src/utils/grading.py](https://github.com/InternLM/WildClawBench/blob/86d71447413d38f38740a021cb776f64eb396ee0/src/utils/grading.py) — grading execution logic

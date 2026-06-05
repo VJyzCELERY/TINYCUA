@@ -28,7 +28,7 @@ A developer working on TINYCUA needs to understand what interface to implement t
 
 ### Acceptance Scenarios
 
-1. **Given** a developer reads the adapter contract, **When** they examine the `BaseAgent` interface, **Then** they can identify all 5 methods that must be implemented with their signatures and return types.
+1. **Given** a developer reads the adapter contract, **When** they examine the `BaseAgent` interface, **Then** they can identify the 4 abstract required members and the 1 optional/default hook (`prepare_grading_transcript`), with their signatures and return types.
 2. **Given** a developer reads the adapter contract, **When** they examine the transcript format section, **Then** they understand the OpenClaw-compatible JSONL schema and the exact path where transcripts must be written.
 3. **Given** a developer reads the adapter contract, **When** they examine the grading flow section, **Then** they understand the 5-step process from agent execution to score collection.
 4. **Given** a developer reads the adapter contract, **When** they examine the Docker requirements section, **Then** they understand the container lifecycle, volume mounts, and environment variables.
@@ -45,7 +45,7 @@ A developer working on TINYCUA needs to understand what interface to implement t
 
 ### Functional Requirements
 
-- **FR-001**: System MUST document the `BaseAgent` abstract class interface with all 5 required methods.
+- **FR-001**: System MUST document the `BaseAgent` abstract class interface with 4 abstract required members (`expects_gateway`, `transcript_container_path`, `run_task()`, `collect_usage()`) and the optional/default `prepare_grading_transcript()` hook.
 - **FR-002**: System MUST document the `AgentTaskSpec` dataclass with all 10 fields and their types.
 - **FR-003**: System MUST document the `AgentExecution` dataclass returned by `run_task()`.
 - **FR-004**: System MUST document the OpenClaw-compatible transcript JSONL format with exact schema.
@@ -66,13 +66,13 @@ A developer working on TINYCUA needs to understand what interface to implement t
 
 ## Success Criteria
 
-- [ ] **Adapter contract document exists**: `specs/wildclawbench-adapter/adapter-contract.md` is created and complete.
-- [ ] **BaseAgent interface documented**: All 5 methods with signatures, return types, and descriptions.
-- [ ] **AgentTaskSpec documented**: All 10 fields with types and descriptions.
-- [ ] **Transcript format documented**: OpenClaw-compatible JSONL schema with exact field definitions.
-- [ ] **Grading flow documented**: 5-step process with clear responsibilities for each step.
-- [ ] **Docker requirements documented**: Container lifecycle, volume mounts, environment variables.
-- [ ] **TINYCUA mapping documented**: How TINYCUA concepts map to WildClawBench equivalents.
+- [x] **Adapter contract document exists**: `specs/wildclawbench-adapter/adapter-contract.md` is created and complete.
+- [x] **BaseAgent interface documented**: All 5 methods with signatures, return types, and descriptions.
+- [x] **AgentTaskSpec documented**: All 10 fields with types and descriptions.
+- [x] **Transcript format documented**: OpenClaw-compatible JSONL schema with exact field definitions.
+- [x] **Grading flow documented**: 5-step process with clear responsibilities for each step.
+- [x] **Docker requirements documented**: Container lifecycle, volume mounts, environment variables.
+- [x] **TINYCUA mapping documented**: How TINYCUA concepts map to WildClawBench equivalents.
 
 ---
 

@@ -4,6 +4,7 @@
 **Created**: 2026-06-05
 **Last Updated**: 2026-06-05
 **Source**: [InternLM/WildClawBench](https://github.com/InternLM/WildClawBench)
+**Upstream Commit Reviewed**: `86d71447413d38f38740a021cb776f64eb396ee0` (2026-05-19)
 
 ---
 
@@ -63,7 +64,13 @@ class BaseAgent(ABC):
         """Path to chat transcript inside the runtime container."""
 
     def prepare_grading_transcript(self, task_id: str) -> str:
-        """Prepare and return the transcript path used for grading."""
+        """Prepare and return the transcript path used for grading (optional/default hook).
+
+        By default, returns `self.transcript_container_path` unchanged.
+        Override this method if TinyCUA cannot write OpenClaw-compatible JSONL
+        directly to `transcript_container_path` and needs to convert a native
+        transcript instead.
+        """
         _ = task_id
         return self.transcript_container_path
 
@@ -396,5 +403,5 @@ def convert_tinycua_trace_to_openclaw(trace: list[dict]) -> list[dict]:
 
 - [WildClawBench GitHub](https://github.com/InternLM/WildClawBench)
 - [WildClawBench Technical Report](https://arxiv.org/abs/2605.10912)
-- [HermesAgent Adapter](https://github.com/InternLM/WildClawBench/tree/main/src/agents/hermesagent) (reference implementation)
-- [TINYCUA SDK Agent](../src/tinycua-sdk/tinycua_sdk/agent/agent.py)
+- [HermesAgent Adapter](https://github.com/InternLM/WildClawBench/tree/86d71447413d38f38740a021cb776f64eb396ee0/src/agents/hermesagent) (reference implementation)
+- [TINYCUA SDK Agent](../../src/tinycua-sdk/tinycua_sdk/agent/agent.py)
