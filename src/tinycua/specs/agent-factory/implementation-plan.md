@@ -302,6 +302,22 @@ None — all dependencies already in pyproject.toml.
 | Empty NodeQueue causes infinite loop in TinyCUALoop.run() | Medium | Add guard: if queue is empty, return empty string and log warning |
 | Session model drift from SDK conventions | Medium | Follow SDK Session patterns documented in design docs |
 
+## Requirement Coverage
+
+| FR | Description | Implementation |
+|----|-------------|----------------|
+| FR-001 | Factory returns `create_tinycua_agent(...)` | `tinycua/factory.py` |
+| FR-002 | Factory returns SDK Agent with TinyCUALoop | `tinycua/factory.py` |
+| FR-003 | session=None creates new root Session | `tinycua/factory.py` |
+| FR-004 | session provided uses provided session | `tinycua/factory.py` |
+| FR-005 | SessionConfig applied to session | `tinycua/factory.py` |
+| FR-006 | Local model endpoint config | Deferred — Phase 2 |
+| FR-007 | TinyCUALoop extends BaseLoop | `tinycua/loops/tinycua_loop.py` |
+| FR-008 | TinyCUALoop.run() consumes SDK messages | `tinycua/loops/tinycua_loop.py` |
+| FR-009 | TinyCUALoop.run() calls local LLM | `tinycua/loops/tinycua_loop.py` |
+| FR-010 | TinyCUALoop records chat history | `tinycua/loops/tinycua_loop.py` |
+| FR-011 | TinyCUALoop preserves stream=False | `tinycua/loops/tinycua_loop.py` |
+
 ---
 
 *Generated from spec.md and design.md*

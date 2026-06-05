@@ -52,6 +52,22 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
 - [ ] Address review feedback <!-- id: 16 -->
 - [ ] Merge to main branch <!-- id: 17 -->
 
+## Requirement Coverage
+
+| FR | Description | Task(s) | Status |
+|----|-------------|---------|--------|
+| FR-001 | Factory returns `create_tinycua_agent(...)` | #6 | TODO |
+| FR-002 | Factory returns SDK Agent with TinyCUALoop | #6 | TODO |
+| FR-003 | session=None creates new root Session | #6 | TODO |
+| FR-004 | session provided uses provided session | #6 | TODO |
+| FR-005 | SessionConfig applied to session | #6 | TODO |
+| FR-006 | Local model endpoint config | Deferred | Phase 2 |
+| FR-007 | TinyCUALoop extends BaseLoop | #5 | TODO |
+| FR-008 | TinyCUALoop.run() consumes SDK messages | #5 | TODO |
+| FR-009 | TinyCUALoop.run() calls local LLM | #5 | TODO |
+| FR-010 | TinyCUALoop records chat history | #5 | TODO |
+| FR-011 | TinyCUALoop preserves stream=False | #5 | TODO |
+
 ---
 
 *Task IDs enable tracking and cross-referencing*

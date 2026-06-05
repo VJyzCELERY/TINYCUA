@@ -48,7 +48,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - **FR-003**: When `session is None`, factory MUST create a new root `Session` and attach it to the loop.
 - **FR-004**: When `session` is provided, factory MUST use the provided session.
 - **FR-005**: Factory MUST apply `SessionConfig` to the generated/provided session.
-- **FR-006**: Factory MUST support local model endpoint configuration needed by the prototype.
+- **FR-006**: Factory MUST support local model endpoint configuration. **(Deferred to Phase 2)**
 - **FR-007**: `TinyCUALoop` MUST extend SDK `BaseLoop` without modifying SDK public APIs.
 - **FR-008**: `TinyCUALoop.run(...)` MUST consume SDK messages, tools, override instructions, and stream mode.
 - **FR-009**: `TinyCUALoop.run(...)` MUST call the configured local LLM through SDK-compatible execution path (`agent._call_llm()`).
@@ -70,7 +70,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - [ ] **Factory returns Agent**: `create_tinycua_agent()` returns an SDK `Agent` with `TinyCUALoop` attached.
 - [ ] **New session creation**: When no session is provided, a new root session is created.
 - [ ] **SessionConfig application**: Provided `SessionConfig` is applied to the session.
-- [ ] **Local model support**: Factory accepts and applies local model endpoint configuration.
+- [ ] **Local model support**: Deferred to Phase 2 (see FR-006).
 - [ ] **Loop runs without SDK changes**: `agent.run("hello")` executes without modifying SDK public APIs.
 - [ ] **Stream mode preserved**: `stream=True` returns async iterator; `stream=False` returns string.
 - [ ] **Chat history recorded**: Loop records messages in session chat history.
@@ -107,7 +107,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 | TinyCUALoop class | TODO | |
 | Session creation | TODO | |
 | SessionConfig integration | TODO | |
-| Local model config | TODO | |
+| Local model config | Deferred | Phase 2 (see FR-006) |
 | Unit tests | TODO | |
 | Integration tests | TODO | |
 
@@ -120,8 +120,8 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
    - **Decision**: Use `**agent_kwargs` pass-through to keep factory flexible. Resolved in design.md Technical Decision #1.
 
 2. **Default model selection**: What is the default model/endpoint when none is configured?
-   - **Status**: Discussion
-   - **Proposed Answer**: Require explicit endpoint configuration; no implicit defaults.
+   - **Status**: Decided
+   - **Decision**: Require explicit endpoint configuration; no implicit defaults. The factory raises a clear error when no model/endpoint is configured.
 
 ---
 

@@ -38,7 +38,7 @@ back to documented defaults, runs a tool-less compaction Agent, and returns
 Future implementation should support:
 
 ```text
-create_tinycua_agent(session=None, agent_config=None, session_config=None, ...)
+create_tinycua_agent(session=None, session_config=None, **agent_kwargs)
 ```
 
 If `session is None`, a new root session is created. If `session_config` is provided, it
