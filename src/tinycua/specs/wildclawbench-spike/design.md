@@ -120,6 +120,7 @@ See `specs/wildclawbench-adapter/adapter-contract.md` § BaseAgent Interface for
 | Agent timeout | `subprocess.TimeoutExpired` | Caught, process killed, returned with `error=None` (keeps grading enabled — upstream only grades errored executions for Codex/ClaudeCode) |
 | Transcript conversion failure | `logger.warning()` | Fallback to raw transcript path |
 | Grading script failure | `{"error": message}` | Written to `score.json` |
+| Agent runtime crash | `Exception` (caught) | Returned as `AgentExecution.error` — agent process exited or threw unhandled exception |
 | Usage parsing failure | Zero-filled usage dict | Never return `{}` — upstream `save_usage()` indexes required fields immediately |
 
 **Usage fallback contract**: When usage parsing fails, `collect_usage()` must return a zero-filled dict matching the upstream schema. Upstream `eval/run_batch.py` calls `save_usage()` which immediately indexes `usage["request_count"]`, `usage["input_tokens"]`, `usage["output_tokens"]`, `usage["cache_read_tokens"]`, `usage["total_tokens"]`, and `usage["cost_usd"]` — returning `{}` raises `KeyError` and crashes the benchmark run. Required zero-filled fallback:

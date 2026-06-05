@@ -362,7 +362,7 @@ COPY src/tinycua /build/tinycua
 RUN cd /build/tinycua && uv sync
 
 # Tool environment binaries
-RUN pip install mss Pillow pyautogui opencv-python yt-dlp
+RUN uv pip install --system mss Pillow pyautogui opencv-python yt-dlp
 
 # Working directory
 WORKDIR /tmp_workspace
@@ -748,7 +748,8 @@ def _build_content_blocks(
         try:
             args = json.loads(func.get("arguments", "{}"))
         except (json.JSONDecodeError, TypeError):
-            args = func.get("arguments", "{}")
+            raw = func.get("arguments", "{}")
+            args = raw if raw is not None else {}
 
         blocks.append({
             "type": "tool_use",
