@@ -138,6 +138,11 @@ class TestAgentRun:
         """agent.run() returns async iterator when stream=True."""
         agent = create_tinycua_agent()
 
+        # Note: _call_llm for streaming must return an AsyncIterator.
+        # A bare async generator function works because calling it returns
+        # an AsyncGenerator (which is an AsyncIterator). This is structurally
+        # different from the non-streaming mock which uses AsyncMock, because
+        # the non-streaming path expects a dict return value.
         async def mock_stream(*args, **kwargs):
             yield {"type": "response.output_text.delta", "delta": "Hi"}
             yield {"type": "response.completed", "finish_reason": "completed"}

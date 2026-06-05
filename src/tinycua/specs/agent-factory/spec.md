@@ -74,6 +74,8 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - [ ] **Stream mode preserved**: `stream=True` returns async iterator; `stream=False` returns string.
 - [ ] **Chat history recorded**: Loop records messages in session chat history.
 
+---
+
 > **Deferred**: Local model support is deferred to Phase 2 (see FR-006). Not part of M1.1 success criteria.
 
 ---
