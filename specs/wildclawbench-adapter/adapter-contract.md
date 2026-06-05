@@ -256,7 +256,7 @@ Each line should be a JSON object with this structure. The `content` field suppo
 |------------|-------|-------------|
 | `text` | `{"type": "text", "text": "..."}` | Plain text content |
 | `tool_use` | `{"type": "tool_use", "id": "...", "name": "...", "input": {...}}` | Agent-initiated tool call (OpenAI-style) |
-| `toolCall` | `{"type": "toolCall", "arguments": {...}}` | Agent-initiated tool call (alternate format) |
+| `toolCall` | `{"type": "toolCall", "name": "...", "arguments": {...}}` | Agent-initiated tool call (alternate format) |
 | `tool_result` | `{"type": "tool_result", "tool_use_id": "...", "content": "..."}` | Tool execution result inside user-message content (Codex/Anthropic-style) |
 
 ### Key Fields
@@ -477,7 +477,7 @@ The adapter must capture the TinyCUA conversation history and convert it to Open
 Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.output_item.added` (new item including function calls), `response.function_call_arguments.delta` (incremental argument chunks), `response.function_call_arguments.done` (final arguments for a call), `tool_call.ready` (tool call finalized and ready to dispatch), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages by collecting argument deltas into complete arguments, then mapping each finalized function call to a `tool_use` content block.
 
 **Strategy B — Instrument `BaseLoop`**:
-Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str`).
+Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str | list[ContentPart]`).
 
 ```python
 # Pseudocode for transcript conversion from BaseLoop working messages
