@@ -17,7 +17,7 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
   - [ ] Implement `compact_context()` stub (returns None for Milestone 1.1)
   - [ ] Add unit tests for Session
 - [ ] Create `tinycua/loops/__init__.py` and `tinycua/loops/node_queue.py` with `NodeQueue` placeholder <!-- id: 4 -->
-  - [ ] Implement `items`, `current`, `is_empty()`, `input_for_current()` stub
+  - [ ] Implement `items`, `current`, `is_empty()`, `input_for_current()`, `advance()` stub
   - [ ] Add unit tests for NodeQueue placeholder
 - [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending SDK `BaseLoop` <!-- id: 5 -->
   - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`

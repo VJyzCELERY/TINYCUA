@@ -17,7 +17,7 @@ This design implements the `create_tinycua_agent(...)` factory function and the 
 ### Component Overview
 
 ```
-create_tinycua_agent(session, agent_config, session_config, ...)
+create_tinycua_agent(session, session_config, **agent_kwargs)
   │
   ├── creates Session (if session=None)
   ├── applies SessionConfig to Session
@@ -49,8 +49,8 @@ Agent.run(query)
 |-----------|-------------|-------|
 | `tinycua.factory` (new module) | New | `create_tinycua_agent()` factory function |
 | `tinycua.loops.tinycua_loop` (new module) | New | `TinyCUALoop` extending SDK `BaseLoop` |
-| `tinycua.config.session_config` | Existing | `SessionConfig` dataclass (already defined) |
-| `tinycua.models.session` | Existing | `Session` class (already defined) |
+| `tinycua.config.session_config` | New | `SessionConfig` dataclass (defined in M1.1) |
+| `tinycua.models.session` | New | `Session` class (defined in M1.1) |
 | `tinycua-sdk` | No change | SDK public APIs remain untouched |
 
 ---
@@ -214,6 +214,14 @@ class TinyCUALoop(BaseLoop):
    - **Reason**: Milestone 1.1 focuses on the factory contract and loop skeleton. Concrete node implementations are deferred to Milestones 1.5–1.7.
    - **Alternatives Considered**: Stub nodes with no-op behavior — rejected because it adds complexity without testing the real factory contract.
 
+4. **Decision**: Use `max_iterations=50` (10x SDK BaseLoop default of 5).
+   - **Reason**: TinyCUA's multi-node architecture may require multiple LLM calls per query. The SDK default of 5 is too low for node queue execution. `TinyCUALoop` overrides the BaseLoop default to prevent premature iteration termination.
+   - **Alternatives Considered**: Keep SDK default of 5 — rejected because it would cause the loop to abort before completing a full node queue traversal.
+
+5. **Decision**: `CompactionStrategy` is a placeholder type for Milestone 1.1.
+   - **Reason**: Compaction strategy is a Phase 2 concern (see Implementation Phases). For M1.1, `SessionConfig.compaction_strategy` should use `Any | None = None` as a placeholder type until the compaction subsystem is implemented.
+   - **Alternatives Considered**: Define a full `CompactionStrategy` enum/protocol now — rejected because it adds unnecessary scope to the factory milestone.
+
 ---
 
 ## Risks & Mitigations
@@ -221,6 +229,7 @@ class TinyCUALoop(BaseLoop):
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | SDK `BaseLoop` interface changes between versions | Low | High | Pin SDK version in pyproject.toml; loop extension is minimal surface area |
+| SDK renames or changes `_call_llm()` signature | Medium | High | Pin SDK version; `_call_llm` is the documented extension point for custom loops per SDK design docs |
 | Empty NodeQueue causes infinite loop in `TinyCUALoop.run()` | Medium | Medium | Add guard: if queue is empty or has no terminal node, return empty string and log warning |
 | Session model drift from SDK conventions | Low | Medium | Follow SDK Session patterns documented in `docs/design/models/session.md` |
 

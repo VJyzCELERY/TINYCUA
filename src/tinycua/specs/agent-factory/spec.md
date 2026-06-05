@@ -20,7 +20,7 @@
 
 ### Primary Scenario
 
-A developer (or the prototype benchmark harness) calls `create_tinycua_agent(session=None, agent_config=None, session_config=None, ...)` and receives back an SDK `Agent` instance with a `TinyCUALoop` attached. Calling `agent.run("some query")` then executes the TinyCUA node queue flow, eventually producing a final response string.
+A developer (or the prototype benchmark harness) calls `create_tinycua_agent(session=None, session_config=None, **agent_kwargs)` and receives back an SDK `Agent` instance with a `TinyCUALoop` attached. Calling `agent.run("some query")` then executes the TinyCUA node queue flow, eventually producing a final response string.
 
 ### Acceptance Scenarios
 
@@ -33,9 +33,9 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 ### Edge Cases
 
 - What happens when `session` is `None`? A new root session must be created.
-- What happens when `agent_config` is `None`? Default SDK Agent config should be used.
 - What happens when `session_config` is `None`? Default session behavior (no compaction, no limits) applies.
 - What happens when the local model endpoint is unreachable? The loop should propagate the connection error clearly.
+- What happens when the NodeQueue is empty? `TinyCUALoop.run()` MUST return an empty string and log a warning, allowing the factory to be tested without node implementations.
 
 ---
 
@@ -43,7 +43,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide `create_tinycua_agent(session=None, agent_config=None, session_config=None, ...) -> Agent`.
+- **FR-001**: System MUST provide `create_tinycua_agent(session=None, session_config=None, **agent_kwargs) -> Agent`.
 - **FR-002**: Factory MUST return an SDK `Agent` instance with `loop=TinyCUALoop(...)`.
 - **FR-003**: When `session is None`, factory MUST create a new root `Session` and attach it to the loop.
 - **FR-004**: When `session` is provided, factory MUST use the provided session.
@@ -116,8 +116,8 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 ## Open Questions _(optional)_
 
 1. **Factory parameter naming**: Should `agent_config` map directly to `Agent.__init__` kwargs, or is it a separate config object?
-   - **Status**: Discussion
-   - **Proposed Answer**: Use `**agent_kwargs` pass-through to keep factory flexible.
+   - **Status**: Decided
+   - **Decision**: Use `**agent_kwargs` pass-through to keep factory flexible. Resolved in design.md Technical Decision #1.
 
 2. **Default model selection**: What is the default model/endpoint when none is configured?
    - **Status**: Discussion
