@@ -374,9 +374,10 @@ ENTRYPOINT ["/bin/bash", "-c", "tail -f /dev/null"]
 
 1. **Start**: Container runs with `tail -f /dev/null` (stays alive)
 2. **Setup**: Mount `<spec.workspace_path>/exec` read-only at `/app`, then copy `/app` to `/tmp_workspace` for the agent. If `<spec.workspace_path>/tmp` exists, copy it to `/tmp_workspace/tmp`. Skills are copied into the configured in-container skills root.
-3. **Execution**: Agent runs inside container, operating on `/tmp_workspace`
-4. **Grading**: Copy `<workspace_path>/gt` into `/tmp_workspace/gt/` (only at grading time), then convert transcript and execute grading script
-5. **Cleanup**: Container removed after grading
+3. **Warmup**: Execute `task["warmup"]` inside the container after setup and before agent launch. If the warmup string is non-empty and non-comment, split it into lines and execute each line via `docker exec`. Fail fast on non-zero exit. Warmup prepares task services, fixtures, or other runtime state that the agent expects to be available. Reference: upstream `src/utils/docker_utils.py::run_warmup`.
+4. **Execution**: Agent runs inside container, operating on `/tmp_workspace`
+5. **Grading**: Copy `<workspace_path>/gt` into `/tmp_workspace/gt/` (only at grading time), then convert transcript and execute grading script
+6. **Cleanup**: Container removed after grading
 
 ### Workspace Structure
 
@@ -416,7 +417,7 @@ The adapter **must** derive `exec_path = os.path.join(spec.workspace_path, "exec
 1. **`TinyCUAAgent` class** (implements `BaseAgent`)
    - `expects_gateway`: `False` (TINYCUA doesn't need a gateway)
    - `transcript_container_path`: `/root/.openclaw/agents/main/sessions/chat.jsonl`
-   - `run_task()`: Start container, run TINYCUA agent, wait for completion
+   - `run_task()`: Start container, copy workspace, execute warmup, run TINYCUA agent, wait for completion
    - `collect_usage()`: Parse transcript for token counts
    - `prepare_grading_transcript()`: Convert TINYCUA trace to OpenClaw JSONL
 
@@ -665,9 +666,23 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
 | Transcript format mismatch | Grading fails | Test with sample transcripts early |
 | Docker image too large | Slow CI | Multi-stage build, minimize layers |
 | Tool schema incompatibility | Agent can't call tools | Verify OpenAI-compatible format |
-| Timeout handling | Incomplete tasks | Implement graceful shutdown |
+| Timeout handling | Incomplete tasks | Kill agent process on timeout, return `error=None` so WildClawBench still grades partial workspace state (see [Timeout Handling Contract](#timeout-handling-contract) below) |
 | Usage tracking gaps | Cost reporting incomplete | Multiple collection methods |
 | Native tool coverage gaps | Cannot complete email/calendar/image/video tasks | See [Native Tool Coverage](#native-tool-coverage) — implement missing tools or scope categories out |
+
+---
+
+## Timeout Handling Contract
+
+When the agent exceeds `spec.timeout_seconds`, the adapter **must** follow this contract:
+
+1. **Kill the agent process** — Send `SIGTERM`, wait briefly, then `SIGKILL` if necessary.
+2. **Preserve elapsed time** — Record the actual execution duration up to the kill point.
+3. **Return `AgentExecution(error=None, ...)`** — Do **not** set the `error` field on timeout.
+
+**Why `error=None` on timeout**: Upstream `eval/run_batch.py` only grades errored executions for `CodexAgent` and `ClaudeCodeAgent` (hard-coded tuple in `run_batch.py`). A `TinyCUAAgent` would not match that tuple, so returning `AgentExecution.error` on timeout would cause `run_grading()` to be skipped entirely — leaving benchmark results without scores instead of grading the partial workspace/transcript state. Existing OpenClaw and HermesAgent runners kill timed-out processes but return `error=None`, which keeps grading enabled.
+
+This means the adapter kills the agent but still returns a successful execution, allowing WildClawBench to grade whatever partial work the agent completed before the timeout. The graded result reflects the agent's performance within the time limit.
 
 ---
 

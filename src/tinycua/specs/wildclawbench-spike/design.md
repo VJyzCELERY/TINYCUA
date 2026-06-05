@@ -25,6 +25,7 @@ WildClawBench run_batch.py
     │       │
     │       ├── Starts Docker container
     │       ├── Copies workspace to /tmp_workspace
+    │       ├── Executes warmup commands (task["warmup"])
     │       ├── Runs TINYCUA agent inside container
     │       └── Returns AgentExecution
     │
@@ -138,7 +139,7 @@ class BaseAgent(ABC):
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
 | Container startup failure | `RuntimeError` in `run_task()` | Returned as `AgentExecution.error` |
-| Agent timeout | `subprocess.TimeoutExpired` | Caught, process killed, returned with error |
+| Agent timeout | `subprocess.TimeoutExpired` | Caught, process killed, returned with `error=None` (keeps grading enabled — upstream only grades errored executions for Codex/ClaudeCode) |
 | Transcript conversion failure | `logger.warning()` | Fallback to raw transcript path |
 | Grading script failure | `{"error": message}` | Written to `score.json` |
 | Usage parsing failure | Zero-filled usage dict | Never return `{}` — upstream `save_usage()` indexes required fields immediately |

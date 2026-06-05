@@ -36,7 +36,7 @@ A developer working on TINYCUA needs to understand what interface to implement t
 ### Edge Cases
 
 - What if the transcript format is slightly different from OpenClaw's? The grading system uses `transcript_loader.py` which supports multiple formats (JSON array, JSON object, JSONL).
-- What if the agent times out? The adapter must handle `subprocess.TimeoutExpired` and return an `AgentExecution` with the error set.
+- What if the agent times out? The adapter must catch `subprocess.TimeoutExpired`, kill the agent process, preserve elapsed time, and return `AgentExecution(error=None, ...)` — **not** set the error field. Upstream `run_batch.py` only grades errored executions for `CodexAgent` and `ClaudeCodeAgent`; returning `error` on timeout for TinyCUA would skip `run_grading()` and suppress scores. Returning `error=None` keeps grading enabled, matching OpenClaw/HermesAgent behavior.
 - What if usage tracking is incomplete? The adapter should provide fallback collection methods (parse agent.log, count requests).
 
 ---
