@@ -103,7 +103,7 @@ class TestCreateTinyCUAAgent:
         config = SessionConfig(max_context_messages=100)
         agent = create_tinycua_agent(session_config=config)
         assert agent.loop.session_config == config
-        assert agent.loop.root_session.config == config
+        assert agent.loop.root_session.session_config == config
 
     def test_factory_accepts_agent_kwargs(self):
         """Factory passes **agent_kwargs through to SDK Agent."""
@@ -221,7 +221,7 @@ class TestAgentRun:
 
 #### [NEW] src/tinycua/tinycua/models/session.py
 
-- **Description**: Session class with session_id, parent_id, config, chat_history, session_context, task, todo, compact_context()
+- **Description**: Session class with session_id, parent_id, session_config, chat_history, session_context, task, todo, compact_context()
 - **Dependencies**: tinycua.config.session_config
 
 ### tinycua.loops (new module)
@@ -287,39 +287,12 @@ class TestAgentRun:
 
 ## Data Model Changes
 
-```python
-# New types
-SessionConfig:
-    compaction_strategy: Any | None = None
-    max_context_messages: int | None
-    max_context_tokens: int | None
-    metadata: dict
+See design.md Data Model section for the canonical M1.1 data model. Summary:
 
-Session:
-    session_id: str
-    parent_id: str | None
-    config: SessionConfig
-    chat_history: list[ChatRecord]
-    session_context: list[SessionContextEntry]
-    task: Task | None
-    todo: Todo | None
-
-    def compact_context(self) -> None:  # Stub for M1.1 — returns None
-        """Placeholder — compaction is a Phase 2 concern."""
-        return None
-
-TinyCUALoop(BaseLoop):
-    root_session: Session
-    queue: NodeQueue
-    session_config: SessionConfig | None
-
-# Minimal type stubs for M1.1 — these are placeholder shapes; concrete
-# implementations may evolve in later milestones.
-ChatRecord: dict[str, Any]           # {"role": str, "content": str}
-SessionContextEntry: dict[str, Any]  # {"key": str, "value": Any}
-Task: dict[str, Any] | None          # placeholder for future task model
-Todo: dict[str, Any] | None          # placeholder for future todo model
-```
+- **SessionConfig**: compaction_strategy, max_context_messages, max_context_tokens, metadata
+- **Session**: session_id, parent_id, session_config, chat_history, session_context, task, todo, compact_context()
+- **TinyCUALoop(BaseLoop)**: root_session, queue, session_config
+- **Type stubs**: ChatRecord, SessionContextEntry, Task, Todo (M1.1 placeholders)
 
 ## API Changes
 

@@ -78,7 +78,7 @@ Session:
     chat_history: list[ChatRecord]
     task: Task | None
     todo: Todo | None
-    config: SessionConfig
+    session_config: SessionConfig
     # ... additional fields from design docs
 
     def compact_context(self) -> None:  # Stub for M1.1 — returns None
@@ -101,6 +101,14 @@ Todo: dict[str, Any] | None      # placeholder for future todo model
 ### Schema Changes
 
 - None. This milestone creates new modules; no existing schemas are modified.
+
+### Relationship to Canonical Design Docs
+
+This M1.1 data model is a minimal subset of the target architecture defined in
+`src/tinycua/docs/design/models/session.md`. Fields and methods deferred to later
+milestones: `agent_state` (M1.x), `compact_context(window)` full signature (Phase 2).
+Type aliases (`SessionContextEntry`, `ChatRecord`) are M1.1 convenience aliases;
+the canonical types use plain `dict`.
 
 ---
 
@@ -136,7 +144,7 @@ def create_tinycua_agent(
         session = Session()
     # 2. Apply session_config if provided
     if session_config is not None:
-        session.config = session_config
+        session.session_config = session_config
     # 3. Create TinyCUALoop with session
     loop = TinyCUALoop(root_session=session, session_config=session_config)
     # 4. Create and return SDK Agent with loop
