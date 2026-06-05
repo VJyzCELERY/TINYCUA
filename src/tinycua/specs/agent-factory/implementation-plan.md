@@ -144,6 +144,10 @@ class TestAgentRun:
         agent._call_llm = mock_stream
         result = await agent.run("hello", stream=True)
         assert hasattr(result, '__aiter__')
+        events = [e async for e in result]
+        assert len(events) > 0
+        assert events[0]["type"] == "response.output_text.delta"
+        assert events[0]["delta"] == "Hi"
 
     @pytest.mark.asyncio
     async def test_run_populates_session_chat_history(self):

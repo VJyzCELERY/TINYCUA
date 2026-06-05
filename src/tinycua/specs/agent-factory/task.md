@@ -13,7 +13,7 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
   - [ ] Define `compaction_strategy`, `max_context_messages`, `max_context_tokens`, `metadata` fields
   - [ ] Add unit tests for SessionConfig
 - [ ] Create `tinycua/models/__init__.py` and `tinycua/models/session.py` with `Session` class <!-- id: 3 -->
-  - [ ] Implement `session_id`, `parent_id`, `config`, `chat_history`, `session_context`, `task`, `todo` fields
+  - [ ] Implement `session_id`, `parent_id`, `session_config`, `chat_history`, `session_context`, `task`, `todo` fields
   - [ ] Implement `compact_context()` stub (returns None for Milestone 1.1)
   - [ ] Add unit tests for Session
 - [ ] Create `tinycua/loops/__init__.py` and `tinycua/loops/node_queue.py` with `NodeQueue` placeholder <!-- id: 4 -->
