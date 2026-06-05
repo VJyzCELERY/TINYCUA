@@ -35,7 +35,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - What happens when `session` is `None`? A new root session must be created.
 - What happens when `session_config` is `None`? Default session behavior (no compaction, no limits) applies.
 - What happens when the local model endpoint is unreachable? The loop should propagate the connection error clearly. _(Deferred to Phase 2 — FR-006)_
-- What happens when the NodeQueue is empty? `TinyCUALoop.run()` MUST return an empty string and log a warning, allowing the factory to be tested without node implementations.
+- What happens when the NodeQueue is empty? `TinyCUALoop.run()` MUST call `agent._call_llm()` once with the incoming messages (passthrough mode) and return its output. This allows the factory → agent → loop → LLM wiring to be integration-tested without node implementations. **(M1.1 only)**
 
 ---
 
@@ -91,7 +91,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 ### Integration Tests
 
 - End-to-end: `create_tinycua_agent().run("hello")` completes without error (mocked LLM).
-- Session state is populated after a run (chat history, context entries).
+- Session state is populated after a run (chat history; context entries deferred to later milestones).
 
 ### Manual Tests _(if applicable)_
 

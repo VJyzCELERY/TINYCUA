@@ -29,6 +29,9 @@ Agent.run(query)
         │
         ├── merges SDK messages into root session input context
         ├── initializes NodeQueue (placeholder — concrete nodes in later milestones)
+        ├── M1.1 passthrough (if queue is empty):
+        │     result = agent._call_llm(messages, tools)
+        │     return result["content"] or stream events
         ├── while queue is not empty:
         │     node = queue.current
         │     node_session = node.ensure_session(...)
@@ -171,13 +174,18 @@ class TinyCUALoop(BaseLoop):
         stream: bool = False,
     ) -> str | AsyncIterator[dict[str, Any]]:
         """
-        Execute the TinyCUA node queue flow. (M1.1: returns empty string when queue is empty.
-        Full node execution deferred to Milestones 1.5-1.7.)
+        Execute the TinyCUA node queue flow.
+
+        M1.1: When queue is empty, calls agent._call_llm() once with incoming
+        messages (passthrough mode) and returns its output. This verifies the
+        factory → agent → loop → LLM wiring without node implementations.
+        Full node execution deferred to Milestones 1.5-1.7.
 
         1. Merge SDK messages into root session input context.
         2. Initialize/ensure NodeQueue with terminal node.
-        3. While queue is not empty: run current node, record history, advance.
-        4. Return final string (stream=False) or async iterator (stream=True).
+        3. If queue is empty (M1.1): call agent._call_llm() once with messages, return its output.
+        4. While queue is not empty: run current node, record history, advance.
+        5. Return final string (stream=False) or async iterator (stream=True).
         """
         ...
 ```
@@ -203,7 +211,7 @@ contract mirrors the minimum shape needed for factory/loop testing.
 | `session_config` conflicts with session | Warning logged, config applied | Non-fatal — last-write-wins |
 | LLM endpoint unreachable | Propagated from `agent._call_llm()` | Node retry policy handles retries |
 | Queue exhausted without terminal node | `RuntimeError("No terminal node in queue")` | `ensure_terminal()` should prevent this |
-| Empty NodeQueue (no nodes) | Return empty string, log warning | Expected for M1.1 — no concrete nodes yet |
+| Empty NodeQueue (no nodes) | Call agent._call_llm() once (passthrough), return its output | Expected for M1.1 — no concrete nodes yet; verifies wiring |
 
 ---
 

@@ -147,7 +147,11 @@ class TestAgentRun:
 
     @pytest.mark.asyncio
     async def test_run_populates_session_chat_history(self):
-        """agent.run() records messages in session chat history (FR-010)."""
+        """agent.run() records messages in session chat history (FR-010).
+        
+        Note: session_context is not verified here because context entries
+        are populated by nodes (deferred to Milestones 1.5-1.7).
+        """
         agent = create_tinycua_agent()
         agent._call_llm = pytest.AsyncMock(
             return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
