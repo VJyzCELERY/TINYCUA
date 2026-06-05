@@ -200,7 +200,7 @@ Fallback parsing (e.g., from `agent.log`) may update these fields, but the metho
 
 1. **Transcript conversion implementation**
    - The conversion strategy is documented in the adapter contract (Strategy B: BaseLoop instrumentation recommended). Implementation and testing effort TBD.
-   - See `specs/wildclawbench-adapter/adapter-contract.md` lines 472-635 for the full pseudocode and tradeoff analysis.
+   - See `specs/wildclawbench-adapter/adapter-contract.md` § Transcript Conversion Strategy for the tradeoff analysis (Strategies A vs B), and § Implementation Guidance for the full pseudocode.
 
 2. **Docker image size**
    - Target < 2GB for reasonable CI times.
