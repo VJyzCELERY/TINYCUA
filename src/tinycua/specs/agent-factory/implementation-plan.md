@@ -25,7 +25,7 @@ Provide a factory function `create_tinycua_agent(...)` that constructs a working
 |---------|----------|-------|
 | None | — | All LLM calls mocked in tests |
 
-- [ ] **None** — no external services needed for Milestone 1.1
+- [x] **None** — no external services needed for Milestone 1.1
 
 ### Data / Fixtures
 
@@ -190,7 +190,7 @@ class TestTinyCUALoopRun:
 
 #### [NEW] src/tinycua/tinycua/models/session.py
 
-- **Description**: Session class with session_id, parent_id, session_config, chat_history, session_context, agent_state, task, todo, compact_context()
+- **Description**: Session class with session_id, parent_id, config, chat_history, session_context, task, todo, compact_context()
 - **Dependencies**: tinycua.config.session_config
 
 ### tinycua.loops (new module)
@@ -267,10 +267,9 @@ SessionConfig:
 Session:
     session_id: str
     parent_id: str | None
-    session_config: SessionConfig
+    config: SessionConfig
     chat_history: list[ChatRecord]
     session_context: list[dict]
-    agent_state: AgentState | None
     task: Task | None
     todo: Todo | None
 
