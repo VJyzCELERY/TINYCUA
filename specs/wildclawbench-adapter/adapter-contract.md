@@ -194,6 +194,32 @@ Each line should be a JSON object with this structure. The `content` field suppo
 
 > **Important**: Upstream safety graders (e.g., `06_Safety_Alignment_task_8_malicious_comments.md`) parse `content` as a list and extract blocks with `type in ("tool_use", "toolCall")` to detect harmful tool writes. If TinyCUA drops tool-use blocks from the transcript, safety grading will produce false negatives. The transcript converter **must** preserve all tool calls and their inputs as content blocks rather than converting them to plain text.
 
+**User message record:**
+
+```json
+{
+    "type": "message",
+    "message": {
+        "role": "user",
+        "content": "User prompt or instruction text"
+    }
+}
+```
+
+**Tool result record (top-level):**
+
+```json
+{
+    "type": "toolResult",
+    "toolResult": {
+        "callId": "call_abc123",
+        "content": "Tool execution output or result string"
+    }
+}
+```
+
+> **Full compatibility rule**: The adapter **must** preserve user messages, tool-use inputs, tool results, call IDs, and decoded arguments in the transcript — even if current safety graders primarily inspect assistant tool-use inputs. Dropping user prompts or tool results breaks upstream compatibility shims (HermesAgent `compat_transcript.py` emits user entries and top-level `toolResult` records; Codex emits `tool_result` content blocks inside user messages) and may cause future graders to fail.
+
 ### Content Block Types
 
 | Block Type | Shape | Description |
@@ -206,16 +232,18 @@ Each line should be a JSON object with this structure. The `content` field suppo
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | `str` | Must be `"message"` for grading to process |
-| `message.role` | `str` | `"assistant"` for tool calls and responses |
+| `type` | `str` | `"message"` for message records, `"toolResult"` for tool result records |
+| `message.role` | `str` | `"assistant"` for tool calls and responses, `"user"` for user prompts |
 | `message.content` | `str \| list` | Plain string text **or** list of content blocks (text, tool_use, toolCall) |
-| `message.usage` | `dict` | Token counts and cost information |
+| `message.usage` | `dict` | Token counts and cost information (assistant records only) |
 | `message.usage.input` | `int` | Input/prompt tokens |
 | `message.usage.output` | `int` | Output/completion tokens |
 | `message.usage.cacheRead` | `int` | Cache read tokens |
 | `message.usage.cacheWrite` | `int` | Cache write tokens |
 | `message.usage.totalTokens` | `int` | Total tokens |
 | `message.usage.cost.total` | `float` | Total cost in USD |
+| `toolResult.callId` | `str` | ID matching the originating tool_use/toolCall block |
+| `toolResult.content` | `str \| list` | Tool execution output |
 
 ### Transcript Loader Behavior
 
@@ -358,9 +386,10 @@ The adapter **must** derive `exec_path = os.path.join(spec.workspace_path, "exec
    - `prepare_grading_transcript()`: Convert TINYCUA trace to OpenClaw JSONL
 
 2. **Transcript Converter**
-   - Convert TINYCUA's `BaseLoop` trace to OpenClaw JSONL format
-   - Map tool calls, results, and timing information
-   - Include token usage in each assistant message
+   - Capture TinyCUA SDK events via `Agent.run(stream=True)` or instrument `BaseLoop` to persist the internal `working` message list
+   - Convert captured events/messages to OpenClaw JSONL format
+   - Map assistant messages with `tool_calls[*].function.name` and JSON-decoded `arguments` to content blocks
+   - Include token usage from `response.usage` events in each assistant message
 
 3. **Docker Image**
    - Build `wildclawbench-tinycua:v1` image
@@ -387,7 +416,8 @@ The adapter **must** derive `exec_path = os.path.join(spec.workspace_path, "exec
 | TINYCUA Concept | WildClawBench Equivalent | Notes |
 |-----------------|-------------------------|-------|
 | `Agent.run(query)` | `backend.run_task(spec)` | Single entry point |
-| `BaseLoop` trace | `chat.jsonl` transcript | Must convert format |
+| `Agent.run(stream=True)` event stream | `chat.jsonl` transcript | Capture stream events and convert to JSONL |
+| `BaseLoop` internal `working` messages | `chat.jsonl` transcript | Alternative: instrument loop to persist message list |
 | `Tool.to_config()` | Tool schemas in prompt | OpenAI-compatible format |
 | `LanguageModel` | `model` + `models_config` | Provider config |
 | `Skill` | `task["skills"]` + `task["skills_path"]` | Copied as task skill directories into the container before execution (see Skills Setup below) |
@@ -404,19 +434,56 @@ The adapter **must** call `setup_skills(...)` (or equivalent) to copy each liste
 
 ### Transcript Conversion Strategy
 
+The adapter must capture the TinyCUA conversation history and convert it to OpenClaw JSONL. There are two viable capture strategies:
+
+**Strategy A — Stream capture (recommended)**:
+Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.tool_call.delta` / `response.function_call_arguments.delta` / `tool_call.ready` (tool calls), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages.
+
+**Strategy B — Instrument `BaseLoop`**:
+Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str`).
+
 ```python
-# Pseudocode for transcript conversion
-def convert_tinycua_trace_to_openclaw(trace: list[dict]) -> list[dict]:
-    """Convert TINYCUA trace to OpenClaw-compatible JSONL.
+# Pseudocode for transcript conversion from BaseLoop working messages
+import json
+from pathlib import Path
+
+
+def convert_working_messages_to_openclaw(
+    working: list[dict],
+    cumulative_usage: dict[str, int] | None = None,
+) -> list[dict]:
+    """Convert TinyCUA BaseLoop working messages to OpenClaw-compatible JSONL.
+
+    The working message list contains:
+      - role: "system" (skip — not in OpenClaw format)
+      - role: "user" (map to user message records)
+      - role: "assistant" with optional tool_calls (map to assistant message records)
+      - role: "tool_result" with call_id and content (map to toolResult records)
 
     Preserves tool-use content blocks so upstream safety graders can
     inspect tool inputs (e.g., file writes, shell commands).
     """
-    messages = []
-    for entry in trace:
-        if entry["type"] == "assistant_message":
-            # Build content: plain string or list of blocks
-            content = _build_content_blocks(entry)
+    messages: list[dict] = []
+    usage = cumulative_usage or {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+    for entry in working:
+        role = entry.get("role")
+
+        if role == "system":
+            continue
+
+        if role == "user":
+            messages.append({
+                "type": "message",
+                "message": {
+                    "role": "user",
+                    "content": entry.get("content", ""),
+                },
+            })
+
+        elif role == "assistant":
+            tool_calls = entry.get("tool_calls", [])
+            content = _build_content_blocks(entry, tool_calls)
 
             messages.append({
                 "type": "message",
@@ -424,38 +491,69 @@ def convert_tinycua_trace_to_openclaw(trace: list[dict]) -> list[dict]:
                     "role": "assistant",
                     "content": content,
                     "usage": {
-                        "input": entry["input_tokens"],
-                        "output": entry["output_tokens"],
-                        "cacheRead": entry.get("cache_read_tokens", 0),
-                        "cacheWrite": entry.get("cache_write_tokens", 0),
-                        "totalTokens": entry["total_tokens"],
-                        "cost": {"total": entry.get("cost_usd", 0.0)},
+                        "input": usage["input_tokens"],
+                        "output": usage["output_tokens"],
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                        "totalTokens": usage["total_tokens"],
+                        "cost": {"total": 0.0},
                     },
                 },
             })
+
+        elif role == "tool_result":
+            messages.append({
+                "type": "toolResult",
+                "toolResult": {
+                    "callId": entry.get("call_id", ""),
+                    "content": entry.get("content", ""),
+                },
+            })
+
     return messages
 
 
-def _build_content_blocks(entry: dict) -> str | list[dict]:
-    """Build content field from a trace entry.
+def _build_content_blocks(
+    entry: dict, tool_calls: list[dict] | None = None,
+) -> str | list[dict]:
+    """Build content field from an assistant message.
 
-    If the entry has tool_calls, return a list of content blocks
-    (text block + tool_use blocks) so safety graders can inspect
+    If the entry has tool_calls (OpenAI-style with function.name and
+    function.arguments as a JSON string), return a list of content
+    blocks (text block + tool_use blocks) so safety graders can inspect
     tool inputs. Otherwise return plain string content.
     """
-    tool_calls = entry.get("tool_calls", [])
     if not tool_calls:
-        return entry["content"]
+        return entry.get("content") or ""
 
-    blocks = [{"type": "text", "text": entry["content"]}]
+    blocks: list[dict] = []
+    text = entry.get("content") or ""
+    if text:
+        blocks.append({"type": "text", "text": text})
+
     for tc in tool_calls:
-        # Normalize to OpenAI tool_use format
+        func = tc.get("function", {})
+        # arguments is a JSON string — decode it for the content block
+        try:
+            args = json.loads(func.get("arguments", "{}"))
+        except (json.JSONDecodeError, TypeError):
+            args = func.get("arguments", "{}")
+
         blocks.append({
             "type": "tool_use",
-            "input": tc.get("arguments", tc.get("input", {})),
+            "input": args,
         })
     return blocks
+
+
+def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
+    """Write converted records to an OpenClaw-compatible JSONL file."""
+    with path.open("w") as f:
+        for record in records:
+            f.write(json.dumps(record) + "\n")
 ```
+
+> **Note on usage**: The `BaseLoop` working message list does not carry per-message usage. When using Strategy B, usage must be accumulated separately (e.g., from `response.usage` stream events or by subclassing `_run_sync` to capture the cumulative usage dict). When cost data is unavailable, the adapter should set `usage.cost.total` to `0.0` and omit `cacheRead`/`cacheWrite` fields rather than emitting `None` values.
 
 ---
 
