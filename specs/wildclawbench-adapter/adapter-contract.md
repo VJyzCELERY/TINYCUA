@@ -362,7 +362,11 @@ COPY src/tinycua /build/tinycua
 RUN cd /build/tinycua && uv sync
 
 # Tool environment binaries
-RUN uv pip install --system mss Pillow pyautogui opencv-python yt-dlp
+# Image/video tool dependencies (illustrative — review at implementation time)
+# Pillow: image manipulation (§ Native Tool Coverage option 4)
+# pyautogui: screenshot capture
+# yt-dlp: video download
+RUN uv pip install --system Pillow pyautogui yt-dlp
 
 # Working directory
 WORKDIR /tmp_workspace
