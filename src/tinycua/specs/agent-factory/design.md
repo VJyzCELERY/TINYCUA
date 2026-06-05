@@ -275,7 +275,7 @@ contract mirrors the minimum shape needed for factory/loop testing.
 
 1. **Empty queue behavior**: Should `TinyCUALoop.run()` return an empty string or raise when the queue has no nodes? This is relevant until concrete nodes are added in later milestones.
    - **Status**: Decided
-   - **Decision**: Return empty string with a warning log. This keeps the factory testable without requiring node implementations and matches spec.md edge case (line 38).
+   - **Decision**: Call `agent._call_llm()` once with incoming messages (passthrough mode) and return its output. This verifies the factory → agent → loop → LLM wiring without node implementations and matches spec.md edge case (line 38). **(M1.1 only)**
 
 2. **Async vs sync factory**: Should `create_tinycua_agent()` be async? Currently designed as sync since session creation and loop setup are synchronous.
    - **Status**: Decided
