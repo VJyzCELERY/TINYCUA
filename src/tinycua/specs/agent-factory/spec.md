@@ -51,7 +51,7 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - **FR-006**: Factory MUST support local model endpoint configuration. **(Deferred to Phase 2)**
 - **FR-007**: `TinyCUALoop` MUST extend SDK `BaseLoop` without modifying SDK public APIs.
 - **FR-008**: `TinyCUALoop.run(...)` MUST consume SDK messages, tools, override instructions, and stream mode.
-- **FR-009**: `TinyCUALoop.run(...)` MUST call the configured local LLM through SDK-compatible execution path (`agent._call_llm()`).
+- **FR-009**: `TinyCUALoop.run(...)` MUST call the configured local LLM through SDK-compatible execution path (`agent._call_llm()`). **(M1.1 verifies wiring via mock; real LLM calls in Phase 2)**
 - **FR-010**: `TinyCUALoop` MUST record chat history and selected session context.
 - **FR-011**: `TinyCUALoop` MUST preserve `stream=False` final string behavior.
 

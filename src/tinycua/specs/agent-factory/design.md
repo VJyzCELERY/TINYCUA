@@ -69,7 +69,7 @@ SessionConfig:
     metadata: dict
 
 Session:
-    session_id: str
+    session_id: str  # Generated via uuid.uuid4().hex for M1.1; structured IDs (ULID, etc.) are a future concern
     session_context: list[SessionContextEntry]
     chat_history: list[ChatRecord]
     task: Task | None

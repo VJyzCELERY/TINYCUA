@@ -102,33 +102,31 @@ class TestCreateTinyCUAAgent:
         assert isinstance(loop, BaseLoop)
 
 
-class TestTinyCUALoopRun:
-    """Tests for TinyCUALoop.run() execution."""
+class TestAgentRun:
+    """Tests for agent.run() through the full factory → agent → loop chain."""
 
     @pytest.mark.asyncio
     async def test_run_returns_string_when_not_streaming(self):
-        """TinyCUALoop.run() returns string when stream=False."""
-        session = Session()
-        loop = TinyCUALoop(root_session=session)
-        agent = Agent(loop=loop)
-        # Mock _call_llm to return a simple response
-        agent._call_llm = pytest.AsyncMock(return_value={"content": "Hello"})
-        result = await loop.run(agent=agent, messages=[], tools=[], stream=False)
+        """agent.run() returns string when stream=False."""
+        agent = create_tinycua_agent()
+        agent._call_llm = pytest.AsyncMock(
+            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        )
+        result = await agent.run("hello")
         assert isinstance(result, str)
+        assert result == "Hello"
 
     @pytest.mark.asyncio
     async def test_run_returns_async_iterator_when_streaming(self):
-        """TinyCUALoop.run() returns async iterator when stream=True."""
-        session = Session()
-        loop = TinyCUALoop(root_session=session)
-        agent = Agent(loop=loop)
-        # For streaming, we need an async iterator mock
+        """agent.run() returns async iterator when stream=True."""
+        agent = create_tinycua_agent()
+
         async def mock_stream(*args, **kwargs):
             yield {"type": "response.output_text.delta", "delta": "Hi"}
             yield {"type": "response.completed", "finish_reason": "completed"}
+
         agent._call_llm = mock_stream
-        result = await loop.run(agent=agent, messages=[], tools=[], stream=True)
-        # Should be an async iterator
+        result = await agent.run("hello", stream=True)
         assert hasattr(result, '__aiter__')
 ```
 
