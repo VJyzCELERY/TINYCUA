@@ -473,13 +473,15 @@ The adapter **must** call `setup_skills(...)` (or equivalent) to copy each liste
 
 The adapter must capture the TinyCUA conversation history and convert it to OpenClaw JSONL. There are two viable capture strategies:
 
-**Strategy A — Stream capture (recommended)**:
+**Strategy B — Instrument `BaseLoop` (recommended)**:
+Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str | list[ContentPart]`). This is the only strategy that can produce a contract-complete transcript (preserving user messages, tool-use inputs, tool results, call IDs, and decoded arguments) with the current TinyCUA SDK event stream.
+
+**Strategy A — Stream capture (not recommended until tool-result events exist)**:
 Run `Agent.run(query, stream=True)` and record every SDK-normalized event. The event stream includes `response.output_text.delta` (text content), `response.output_item.added` (new item including function calls), `response.function_call_arguments.delta` (incremental argument chunks), `response.function_call_arguments.done` (final arguments for a call), `tool_call.ready` (tool call finalized and ready to dispatch), `response.tool_call.delta` (legacy tool-call delta — an alternate shape emitted by some providers and compatibility layers that must be normalized into the same `tool_use` content blocks as `response.output_item.added` plus `response.function_call_arguments.*` / `tool_call.ready`), `response.usage` (token counts), and `response.completed` (finish reason). The converter assembles these into assistant messages by collecting argument deltas into complete arguments, then mapping each finalized function call to a `tool_use` content block.
 
-**Reasoning-event policy**: `response.reasoning.delta` and `response.reasoning.done` may be emitted by reasoning-capable models. The adapter should **not** serialize hidden reasoning into OpenClaw-visible assistant content unless explicitly required by the task, but it should account for these events deliberately — either by discarding them or by storing them in a non-graded side channel — and document the chosen behavior so that transcript consumers can predict what is present.
+> **⚠ Strategy A cannot preserve tool results**: The current SDK `LLMEvent` union (`src/tinycua-sdk/tinycua_sdk/agent/events.py`) emits assistant tool-call events but does **not** emit tool-result events. Tool results are appended only to the internal `working_messages` list after tool execution (`src/tinycua-sdk/tinycua_sdk/agent/loop.py`). As written, an implementer following Strategy A can preserve assistant `tool_use` blocks but **cannot** preserve `toolResult` records — which violates the full compatibility rule above. Strategy A is only viable if paired with loop instrumentation to capture tool results, or after a dedicated `tool_result.completed` stream event is added to the SDK.
 
-**Strategy B — Instrument `BaseLoop`**:
-Subclass `BaseLoop` or wrap `Agent` to persist the internal `working` message list after execution. The `working` list already contains properly shaped assistant messages (`role: "assistant"`, `content: str`, `tool_calls: list[{id, type: "function", function: {name, arguments: str}}]`) and tool-result messages (`role: "tool_result"`, `call_id: str`, `content: str | list[ContentPart]`).
+**Reasoning-event policy**: `response.reasoning.delta` and `response.reasoning.done` may be emitted by reasoning-capable models. The adapter should **not** serialize hidden reasoning into OpenClaw-visible assistant content unless explicitly required by the task, but it should account for these events deliberately — either by discarding them or by storing them in a non-graded side channel — and document the chosen behavior so that transcript consumers can predict what is present.
 
 ```python
 # Pseudocode for transcript conversion from BaseLoop working messages
@@ -658,6 +660,27 @@ def write_openclaw_jsonl(records: list[dict], path: Path) -> None:
 1. **Primary**: Parse transcript JSONL for `usage` fields
 2. **Fallback**: Parse agent.log for token usage patterns
 3. **Manual**: Count requests and estimate from model pricing
+
+### Usage Fallback Contract
+
+`collect_usage()` **must never return `{}`**. Upstream `eval/run_batch.py` calls `save_usage()` which immediately indexes required fields — returning an empty dict raises `KeyError` and crashes the benchmark run after grading.
+
+When transcript parsing fails, the container/transcript is unavailable, or any collection method cannot populate all required fields, the adapter **must** return a zero-filled dict with all required keys:
+
+```json
+{
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0,
+    "total_tokens": 0,
+    "cost_usd": 0.0,
+    "request_count": 0,
+    "elapsed_time": 0.0
+}
+```
+
+The `elapsed_time` field should reflect the actual execution duration when available (passed from `AgentExecution.elapsed_time`), but defaults to `0.0` if uncollectable. This fallback ensures downstream usage aggregation never encounters a missing key.
 
 ---
 
