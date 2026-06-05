@@ -21,11 +21,11 @@ Provide a factory function `create_tinycua_agent(...)` that constructs a working
 
 ### Running Services
 
-| Service | Required | How to Start | Health Check |
-|---------|----------|--------------|--------------|
-| [Local LLM] | No | N/A — mocked in tests | N/A |
+| Service | Required | Notes |
+|---------|----------|-------|
+| None | — | All LLM calls mocked in tests |
 
-- [x] **None** — no external services needed for Milestone 1.1
+- [ ] **None** — no external services needed for Milestone 1.1
 
 ### Data / Fixtures
 
@@ -134,29 +134,38 @@ class TestTinyCUALoopRun:
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Factory creates Agent with TinyCUALoop when called with defaults — primary success criterion
-- [x] **Scenario 2**: Factory creates new session when session=None
-- [x] **Scenario 3**: Factory uses provided session when session is given
-- [x] **Scenario 4**: Factory applies SessionConfig to session
-- [x] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
-- [x] **Edge case**: Factory with no arguments — all defaults
+- [ ] **Scenario 1**: Factory creates Agent with TinyCUALoop when called with defaults — primary success criterion
+- [ ] **Scenario 2**: Factory creates new session when session=None
+- [ ] **Scenario 3**: Factory uses provided session when session is given
+- [ ] **Scenario 4**: Factory applies SessionConfig to session
+- [ ] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
+- [ ] **Edge case**: Factory with no arguments — all defaults
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for SessionConfig, Session, TinyCUALoop, factory function
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for SessionConfig, Session, TinyCUALoop, factory function
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Verify factory output creates a working agent instance
-- [x] Verify SessionConfig is applied to session
+- [ ] Verify factory output creates a working agent instance
+- [ ] Verify SessionConfig is applied to session
 
 ### Performance Considerations
 
-- [x] N/A for Milestone 1.1 — factory contract only
+- [ ] N/A for Milestone 1.1 — factory contract only
+
+## Documentation
+
+### README Update
+
+- [ ] Update `src/tinycua/README.md` with factory usage example
+  - **File**: `src/tinycua/README.md`
+  - **Content**: Add a "Quick Start" or "Usage" section showing `create_tinycua_agent()` usage with `SessionConfig` and `**agent_kwargs`
+  - **Verification**: `grep -c "create_tinycua_agent" src/tinycua/README.md` returns ≥1
 
 ## Proposed Changes
 
@@ -193,7 +202,7 @@ class TestTinyCUALoopRun:
 
 #### [NEW] src/tinycua/tinycua/loops/node_queue.py
 
-- **Description**: NodeQueue class with items, current, input_for_current(), advance(), is_empty() — placeholder for Milestone 1.1
+- **Description**: NodeQueue placeholder for M1.1 — `items: list` (empty), `current: Node | None` (None), `is_empty() -> bool` (True), `input_for_current() -> dict` (empty dict), `advance() -> None` (no-op)
 - **Dependencies**: None (placeholder)
 
 #### [NEW] src/tinycua/tinycua/loops/tinycua_loop.py

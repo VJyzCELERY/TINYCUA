@@ -251,7 +251,9 @@ class TinyCUALoop(BaseLoop):
 
 ## References
 
-- Spec: `./spec.md` — relative path from this design.md to its spec.md
+- Spec: `./spec.md`
+- Implementation Plan: `./implementation-plan.md`
+- Tasks: `./task.md`
 - SDK BaseLoop: `src/tinycua-sdk/tinycua_sdk/agent/loop.py`
 - SDK Agent: `src/tinycua-sdk/tinycua_sdk/agent/agent.py`
 - Design: `src/tinycua/docs/design/loops/overview.md`

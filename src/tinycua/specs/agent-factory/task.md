@@ -19,6 +19,13 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
 - [ ] Create `tinycua/loops/__init__.py` and `tinycua/loops/node_queue.py` with `NodeQueue` placeholder <!-- id: 4 -->
   - [ ] Implement `items`, `current`, `is_empty()`, `input_for_current()`, `advance()` stub
   - [ ] Add unit tests for NodeQueue placeholder
+
+  NodeQueue placeholder contract for M1.1:
+  - `items: list` — empty list (no nodes yet)
+  - `current: Node | None` — returns None when empty
+  - `is_empty() -> bool` — returns True
+  - `input_for_current() -> dict` — returns empty dict
+  - `advance() -> None` — no-op
 - [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending SDK `BaseLoop` <!-- id: 5 -->
   - [ ] Implement `__init__` with `root_session`, `queue`, `session_config`
   - [ ] Implement `run()` with empty queue guard (returns empty string)
