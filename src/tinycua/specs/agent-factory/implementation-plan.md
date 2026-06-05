@@ -300,7 +300,7 @@ Session:
     parent_id: str | None
     config: SessionConfig
     chat_history: list[ChatRecord]
-    session_context: list[dict]
+    session_context: list[SessionContextEntry]
     task: Task | None
     todo: Todo | None
 
