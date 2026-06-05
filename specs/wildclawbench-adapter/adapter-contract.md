@@ -91,7 +91,7 @@ class BaseAgent(ABC):
 |-------|------|-------------|
 | `task_id` | `str` | Unique task identifier (format: `{category}_{task_num}_{model}_{timestamp}_{run_id}`) |
 | `task` | `dict[str, Any]` | Parsed task metadata from markdown (includes `automated_checks`, `env`, `skills`, `warmup`) |
-| `workspace_path` | `str` | Host path to mounted workspace (read-only in container at `/app`) |
+| `workspace_path` | `str` | Host path to the task workspace root — contains `exec/` (task files), `gt/` (ground truth for grading), and optionally `tmp/`. Only `exec/` is visible to the agent; `gt/` is injected during grading only. |
 | `prompt` | `str` | Full task prompt with system prefix (includes timeout warning) |
 | `timeout_seconds` | `int` | Maximum execution time in seconds |
 | `output_dir` | `Path` | Host directory for output files (score.json, usage.json, agent.log, etc.) |
@@ -246,7 +246,7 @@ The `transcript_loader.py` module:
    - Returns path to the compatible transcript
 
 3. **Ground Truth Injection**
-   - Host `gt/` directory is copied into container at `/tmp_workspace/gt/`
+   - Host `<workspace_path>/gt/` is copied into container at `/tmp_workspace/gt/` (only at grading time — never during agent execution)
    - Contains expected outputs and grading scripts
 
 4. **Grading Script Execution**
@@ -310,16 +310,29 @@ ENTRYPOINT ["/bin/bash", "-c", "tail -f /dev/null"]
 ### Container Lifecycle
 
 1. **Start**: Container runs with `tail -f /dev/null` (stays alive)
-2. **Setup**: Workspace copied to `/tmp_workspace`, skills configured
-3. **Execution**: Agent runs inside container
-4. **Grading**: Transcript converted, grading script executed
+2. **Setup**: Mount `<spec.workspace_path>/exec` read-only at `/app`, then copy `/app` to `/tmp_workspace` for the agent. If `<spec.workspace_path>/tmp` exists, copy it to `/tmp_workspace/tmp`. Skills are copied into the configured in-container skills root.
+3. **Execution**: Agent runs inside container, operating on `/tmp_workspace`
+4. **Grading**: Copy `<workspace_path>/gt` into `/tmp_workspace/gt/` (only at grading time), then convert transcript and execute grading script
 5. **Cleanup**: Container removed after grading
+
+### Workspace Structure
+
+The `workspace_path` points to a directory with this layout:
+
+```
+<workspace_path>/
+├── exec/          # Task files — mounted read-only at /app, then copied to /tmp_workspace for the agent
+├── gt/            # Ground truth — copied into /tmp_workspace/gt/ ONLY during grading (must be hidden from the agent)
+└── tmp/           # Optional warmup artifacts — copied to /tmp_workspace/tmp/ if present
+```
+
+The adapter **must** derive `exec_path = os.path.join(spec.workspace_path, "exec")` before starting the container. Mounting the entire `workspace_path` to `/app` would leak `gt/` into the agent environment and invalidate benchmark scores.
 
 ### Volume Mounts
 
 | Host Path | Container Path | Mode | Purpose |
 |-----------|---------------|------|---------|
-| `workspace_path` | `/app` | Read-only | Task workspace files |
+| `<workspace_path>/exec` | `/app` | Read-only | Task files (agent-visible only) |
 | `output_dir` | N/A | N/A | Output collected via `docker cp` |
 
 ### Environment Variables
@@ -377,8 +390,17 @@ ENTRYPOINT ["/bin/bash", "-c", "tail -f /dev/null"]
 | `BaseLoop` trace | `chat.jsonl` transcript | Must convert format |
 | `Tool.to_config()` | Tool schemas in prompt | OpenAI-compatible format |
 | `LanguageModel` | `model` + `models_config` | Provider config |
-| `Skill` | `task["skills"]` | Injected via system prompt |
+| `Skill` | `task["skills"]` + `task["skills_path"]` | Copied as task skill directories into the container before execution (see Skills Setup below) |
 | `AgentConfig` | `hermes.yaml` equivalent | TINYCUA config file |
+
+### Skills Setup
+
+Skills in WildClawBench are **not** injected via prompt text. The task parser returns:
+
+- `task["skills"]`: Newline-separated relative skill-directory paths (e.g., `"skill1\nskill2"`)
+- `task["skills_path"]`: Host root directory containing those skill directories
+
+The adapter **must** call `setup_skills(...)` (or equivalent) to copy each listed skill directory from `task["skills_path"]` into TinyCUA's configured in-container skills root **before** the agent starts execution. Prompt text alone is not sufficient — the agent needs the actual skill files and resources on disk to load them.
 
 ### Transcript Conversion Strategy
 
