@@ -1,7 +1,7 @@
 # SessionConfig
 
 > **Package:** `tinycua.config.session_config`
-> **Status:** Target architecture
+> **Status:** Reviewed
 > **Last Updated:** 2026-06-05
 
 ## Role
@@ -11,7 +11,7 @@ It is separate from outer SDK `Agent` config and node-specific config.
 
 ```text
 SessionConfig
-  · compaction_strategy: CompactionStrategy | None
+  · compaction_strategy: Any | None  # CompactionStrategy placeholder for M1.1; concrete type in Phase 2
   · max_context_messages: int | None
   · max_context_tokens: int | None
   · metadata: dict

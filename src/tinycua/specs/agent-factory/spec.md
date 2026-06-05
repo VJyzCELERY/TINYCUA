@@ -70,10 +70,11 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 - [ ] **Factory returns Agent**: `create_tinycua_agent()` returns an SDK `Agent` with `TinyCUALoop` attached.
 - [ ] **New session creation**: When no session is provided, a new root session is created.
 - [ ] **SessionConfig application**: Provided `SessionConfig` is applied to the session.
-- **Local model support**: Deferred to Phase 2 — not part of M1.1 success criteria.
 - [ ] **Loop runs without SDK changes**: `agent.run("hello")` executes without modifying SDK public APIs.
 - [ ] **Stream mode preserved**: `stream=True` returns async iterator; `stream=False` returns string.
 - [ ] **Chat history recorded**: Loop records messages in session chat history.
+
+> **Deferred**: Local model support is deferred to Phase 2 (see FR-006). Not part of M1.1 success criteria.
 
 ---
 

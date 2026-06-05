@@ -30,7 +30,7 @@ Agent.run(query)
         ├── merges SDK messages into root session input context
         ├── initializes NodeQueue (placeholder — concrete nodes in later milestones)
         ├── M1.1 passthrough (if queue is empty):
-        │     result = agent._call_llm(messages, tools)
+        │     result = agent._call_llm(messages, tools, stream=stream)
         │     return result["content"] or stream events
         ├── while queue is not empty:
         │     node = queue.current
@@ -191,7 +191,7 @@ class TinyCUALoop(BaseLoop):
 
         1. Merge SDK messages into root session input context.
         2. Initialize/ensure NodeQueue with terminal node.
-        3. If queue is empty (M1.1): call agent._call_llm() once with messages, return its output.
+        3. If queue is empty (M1.1): call agent._call_llm(messages, tools, stream=stream), return its output.
         4. While queue is not empty: run current node, record history, advance.
         5. Return final string (stream=False) or async iterator (stream=True).
         """

@@ -45,7 +45,7 @@ Provide a factory function `create_tinycua_agent(...)` that constructs a working
 
 ## Pre-Implementation Verification
 
-- [ ] Verify `agent._call_llm` is mockable on the Agent instance:
+- [x] Verify `agent._call_llm` is mockable on the Agent instance:
   ```bash
   cd src/tinycua && uv run python -c "
   from tinycua_sdk.agent import Agent
