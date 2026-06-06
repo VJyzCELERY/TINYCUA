@@ -1,173 +1,168 @@
-# Feature Specification: State Objects (M1)
+# Feature Specification: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
-**Status**: Complete
-**Created**: 2026-05-30
-**Last Updated**: 2026-05-30
+**Status**: Draft
+**Created**: 2026-06-07
+**Last Updated**: 2026-06-07
 **Subproject(s) Affected**: tinycua
 
 ---
 
-## Problem Statement
+## Problem Statement _(mandatory)_
 
-- **Goals**: Provide canonical Python data types for all TINYCUA state objects so internal agents can produce, consume, and serialize typed state consistently.
-- **Gaps**: The architecture defines state objects in `src/tinycua/docs/architecture/state-objects.md` as YAML schemas, but there is no Python implementation. Agent code currently has no shared typed representation for Session, ModeDecision, DigestedInformation, TaskTree (Task nodes), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog, or WorkerConfig.
-- **Non-Goals**: This spec does NOT cover agent factory, custom loop types, system prompts, agent-to-agent calling, session system, worker orchestration, or top-level orchestrator. Those are separate milestones (M3–M10).
-- **Constraints**:
-  - Types must match the canonical YAML schemas in `src/tinycua/docs/architecture/state-objects.md` after the architecture doc updates defined in the Architecture Doc Synchronization section below are applied.
-  - Types must be plain Python.
-  - Types must support serialization to/from dict and JSON.
-  - All types must be importable from a single public entry point.
-  - Types must target Python 3.11+.
-  - No runtime LLM dependency for state objects themselves.
+- **Goals**: Provide the internal transport layer for TinyCUA node communication — `StateObject` as the serialization base, `NodePayload` for structured node output, and `NodeInput` for node-to-node handoff — so that nodes can exchange typed, structured data without parsing untrusted strings.
+- **Gaps**: Currently nodes have no typed internal transport. The existing `Session` model uses raw `list[dict]` for `session_context` and `chat_history`. There is no `NodePayload` or `NodeInput` to carry structured payloads between nodes. The `NodeInputLike` union type does not exist, so callers must manually construct message dicts. The architecture design docs (`docs/design/models/state_object.md`, `docs/design/loops/node.md`) define these transport models but they are not yet implemented.
+- **Non-Goals**: `ExecutionLog` recording and `AgentState` lifecycle output (deferred to later lifecycle/audit milestones). Concrete node implementations (Milestone 1.5). Propagation rules and deduplication (Milestone 4.1). Node queue mechanics (Milestone 1.6). Compaction behavior (already implemented in M1.3).
+- **Constraints**: Must follow the target architecture design docs in `src/tinycua/docs/design/`. Must not modify `tinycua-sdk` public APIs. Must not introduce untrusted string parsing for internal transport — `NodeInput` and `NodePayload` are trusted internal objects. Must remain compatible with the existing `Session`, `Todo`, and `CompactionStrategy` implementations from earlier milestones.
 
 ---
 
-## User Scenarios & Testing
+## User Scenarios & Testing _(mandatory)_
 
 ### Primary Scenario
 
-A developer imports a state object, instantiates it with valid fields, serializes it to JSON, then deserializes it back. The round-trip preserves all data.
+A developer building a TinyCUA node constructs a `NodePayload` to represent the node's structured output (e.g., a task analysis result). The node wraps it in a `NodeInput` along with any continuation messages, and passes it to the next node. The next node receives the typed `NodeInput`, accesses the `NodePayload` directly, and converts it to LLM messages when needed. At no point is the structured data parsed from a string.
 
 ### Acceptance Scenarios
 
-1. **Given** a `ModeDecision` object with mode, score, confidence, reasons, and uncertain_next_action, **When** serialized to JSON and back, **Then** the deserialized object matches the original.
-2. **Given** a `Task` tree with nested container tasks, **When** serialized to dict, **Then** nesting depth is preserved.
-3. **Given** a `ReviewerDecision` with `status=accepted`, **When** validation runs, **Then** it passes without error.
-4. **Given** a `ReviewerDecision` with `status=invalid_value`, **When** validation runs, **Then** it raises a validation error.
+1. **Given** a `StateObject` subclass with defined fields, **When** `to_dict()` is called, **Then** a dictionary with all fields is returned. **When** `from_dict(data)` is called with that dictionary, **Then** a matching object is reconstructed.
+2. **Given** a `StateObject` subclass, **When** `to_json()` is called, **Then** a valid JSON string is produced. **When** `from_json(json_str)` is called, **Then** a matching object is reconstructed.
+3. **Given** a `NodePayload` with `payload_type="task_analysis"`, `content={"task_id": "T-0.1", "status": "analyzed"}`, **When** `to_message()` is called, **Then** an assistant-role message dict `{"role": "assistant", "content": ...}` is returned.
+4. **Given** a `NodePayload` with `content` as a string, **When** `to_messages()` is called, **Then** a single-element list containing the assistant-role message is returned.
+5. **Given** a `NodePayload` with `content` as a `StateObject`, **When** `to_messages()` is called, **Then** the content is serialized to a dict within the assistant-role message.
+6. **Given** a `NodeInput` with two `NodePayload` items and one continuation message, **When** `to_messages()` is called, **Then** the payloads are converted to assistant-role messages followed by the continuation message, all in order.
+7. **Given** a `NodeInput` with `source_node="TaskAnalyzer"` and `target_node="TaskExecutor"`, **When** the node input is constructed, **Then** source and target are recorded for propagation tracking.
+8. **Given** an external user string `"What is the weather?"`, **When** it is converted to `NodeInput`, **Then** it becomes a user-role message `{"role": "user", "content": "What is the weather?"}` — it is NOT parsed as structured internal input.
+9. **Given** an internal assistant string `"I will analyze the task."`, **When** it is used as `NodeInput`, **Then** it becomes an assistant-role message `{"role": "assistant", "content": "I will analyze the task."}`.
+10. **Given** a `NodeInput` that already contains typed `NodeInput` or `NodePayload` objects, **When** it is used as `NodeInput`, **Then** the objects are passed through without string conversion.
+11. **Given** a `list[dict]` of pre-constructed messages, **When** it is used as `NodeInput`, **Then** the messages are passed through directly as the node's input messages.
 
 ### Edge Cases
 
-- What happens when optional fields (e.g., `advisory_instructions`, `constraints`) are omitted? They should default to `None`.
-- What happens when `uncertain_next_action` is provided but `mode` is not `uncertain`? The value is preserved but downstream consumers should ignore it. When `mode` is `uncertain`, `uncertain_next_action` must be provided.
-- What happens with deeply nested `Task` trees? Must handle arbitrary nesting depth.
-- What happens when `task_result` is `None` on a leaf? Treated as `not_started` (marker `[ ]`).
-- What about negative `consecutive_failures` values? Validation should reject.
+- What happens when `NodePayload.content` is `None`? `to_message()` produces an assistant-role message with `content=None` (or empty string, depending on LLM provider expectations — implementation chooses the safer empty string).
+- What happens when `NodePayload.metadata` is empty? Defaults to `{}`.
+- What happens when `NodeInput.payloads` is empty? `to_messages()` returns only the `messages` list (or empty list if both are empty).
+- What happens when `NodeInput.messages` is empty? `to_messages()` returns only the converted payloads.
+- What happens when `NodeInputLike` is a plain `str`? External strings become user-role messages; internal strings become assistant-role messages. The distinction is determined by the caller (node) context, not by the transport itself — the conversion function accepts a `source` parameter indicating whether the string is external (user) or internal (assistant).
+- What happens when `StateObject.from_dict()` receives a dict with missing required fields? Raises `ValueError` listing the missing field.
+- What happens when `StateObject.from_json()` receives invalid JSON? Propagates `json.JSONDecodeError`.
 
 ---
 
-## Requirements
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a `Session` data type with `session_id`, `owner_type` (enum: primary, child), `owner_name`, `chat_history`, `context`, and `execution_log` fields.
-- **FR-002**: System MUST provide a `ContextEnhancedQuery` data type with the enhanced query text.
-- **FR-003**: System MUST provide a `ModeDecision` data type with `mode` (enum: primary_agent, worker, uncertain), `score`, `confidence`, `reasons` (list[str]), and `uncertain_next_action` (optional enum: ask_user, explore).
-- **FR-004**: System MUST provide a `DigestedInformation` data type with `context_summary`, `key_points` (list[str]), optional `advisory_instructions`, optional `constraints` (list[str]), optional `known_gaps` (list[str]).
-- **FR-005**: System MUST provide a `WorkerConfig` data type with `effort` (enum: none, high).
-- **FR-006**: System MUST provide a `Task` tree node data type with `task_id`, `parent_task_id` (auto-set from container), `task_name`, `task_description`, `task_context`, `success_criteria`, `confidence`, `task_result` (`TaskResult | None`, default `None` = not_started), and optional `child_tasks` (list of `Task`, `None` for leaf tasks).
-- **FR-007**: System MUST provide navigation and display for the Task tree. `traverse()` finds the next non-completed leaf via DFS pre-order (container completion derived from children). `root()` walks to top-most parent. `at_id(task_id)` navigates by structured `T-{idx}.{subidx}...` IDs from anywhere in the tree. `set_parents()` re-establishes `_parent` object references after deserialization (auto-called by `from_dict`/`from_json`). `display()` outputs DFS pre-order string with status markers: `[ ]` not_started, `[*]` inprogress, `[x]` completed, `[-]` failed, `[/]` blocked. Root hides UUID; children show ID.
-- **FR-008**: System MUST provide a `TaskResult` data type with `task_id`, `status` (enum: not_started, inprogress, completed, failed, blocked), `result`, optional `discovered_sequence_issues` (list[str]), optional `uncertainty_notes` (list[str]).
-- **FR-009**: System MUST provide a `ReviewerDecision` data type with `task_id`, `status` (enum: accepted, retry, replan, escalate_user), `reason`, `confidence`, optional `context_updates` (list[ContextUpdate]), optional `retry_instructions`.
-- **FR-010**: System MUST provide a `WorkerResult` data type with `accepted_results` (list[AcceptedResult]).
-- **FR-011**: System MUST provide an `AgentState` data type with `active_agent`, `active_task_id`, `status` (enum: idle, running, blocked, terminated), `resume_target`, `consecutive_failures` (int, non-negative).
-- **FR-012**: System MUST provide an `ExecutionLog` data type with a sequence of `ExecutionLogEntry` objects (action, outcome, decision).
-- **FR-013**: All types MUST support round-trip serialization to and from dict.
-- **FR-014**: All types MUST support round-trip serialization to and from JSON.
-- **FR-015**: Validation MUST reject invalid enum values, negative integers for `consecutive_failures`, and missing required fields on construction.
-- **FR-016**: System MUST provide a `ContextUpdate` data type with `target_task_id` and `update` fields.
-- **FR-017**: System MUST provide an `AcceptedResult` data type with `task_id`, `name`, and `result` fields.
-- **FR-018**: System MUST provide an `ExecutionLogEntry` data type with `action`, `outcome`, and optional `decision` fields.
+- **FR-001**: System MUST provide a `StateObject` base class with methods: `to_dict()`, `from_dict(data)`, `to_json()`, `from_json(json_str)`.
+- **FR-002**: `StateObject.to_dict()` MUST return a dictionary representation of all dataclass fields, recursively serializing nested `StateObject` instances.
+- **FR-003**: `StateObject.from_dict(data)` MUST reconstruct a typed object from a dictionary, recursively deserializing nested `StateObject` instances. MUST raise `ValueError` for missing required fields.
+- **FR-004**: `StateObject.to_json()` MUST return a JSON string representation, delegating to `to_dict()` then `json.dumps()`.
+- **FR-005**: `StateObject.from_json(json_str)` MUST reconstruct a typed object from a JSON string, delegating to `json.loads()` then `from_dict()`.
+- **FR-006**: System MUST provide a `NodePayload` dataclass extending `StateObject` with fields: `payload_type` (str), `source_node` (str | None), `content` (str | dict | StateObject | list[dict]), `metadata` (dict).
+- **FR-007**: `NodePayload.to_message()` MUST return a single assistant-role message dict `{"role": "assistant", "content": <serialized_content>}`.
+- **FR-008**: `NodePayload.to_messages()` MUST return a list containing the result of `to_message()` (a single-element list).
+- **FR-009**: System MUST provide a `NodeInput` dataclass extending `StateObject` with fields: `input_type` (str), `source_node` (str | None), `target_node` (str | None), `messages` (list[dict]), `payloads` (list[NodePayload]), `metadata` (dict).
+- **FR-010**: `NodeInput.to_messages()` MUST return a list of message dicts: converted payloads (via `NodePayload.to_message()`) followed by `self.messages`, in order.
+- **FR-011**: System MUST provide `NodeInputLike = str | NodeInput | NodePayload | list[dict]` as a type alias for flexible node input.
+- **FR-012**: System MUST provide a conversion function `convert_node_input_to_messages(node_input: NodeInputLike, *, source: Literal["external", "internal"] = "internal") -> list[dict]` that converts any `NodeInputLike` variant to a list of message dicts.
+- **FR-013**: When `source="external"`, string inputs MUST become user-role messages `{"role": "user", "content": <text>}`.
+- **FR-014**: When `source="internal"` (default), string inputs MUST become assistant-role messages `{"role": "assistant", "content": <text>}`.
+- **FR-015**: `NodeInput` and `NodePayload` inputs to `convert_node_input_to_messages()` MUST be treated as trusted internal transport — their `.to_messages()` method is called directly without string parsing.
+- **FR-016**: `list[dict]` inputs to `convert_node_input_to_messages()` MUST be passed through directly as the message list.
+- **FR-017**: All `StateObject` subclasses MUST support round-trip serialization via `to_dict()`/`from_dict()` and `to_json()`/`from_json()`.
+- **FR-018**: `NodePayload` MUST default `source_node` to `None` and `metadata` to `{}`.
+- **FR-019**: `NodeInput` MUST default `source_node`, `target_node` to `None` and `metadata` to `{}`.
+- **FR-020**: `NodePayload.content` serialization in `to_message()` MUST handle `str`, `dict`, `StateObject` (via `.to_dict()`), and `list[dict]` content types correctly.
 
-### Key Entities
+### Key Entities _(include if feature involves data)_
 
-- **Session**: The unit containing conversation history (`chat_history`), model-loaded context (`context`), and sub-session execution log. Central state container for the entire TINYCUA lifecycle.
-- **ModeDecision**: Output of the Query Analyst. Drives routing between Primary Agent mode, Worker mode, and Uncertain mode.
-- **DigestedInformation**: Precision-oriented context summary produced by the Information Digester. Consumed by Task Analyzer and Primary Agent.
-- **Task Tree**: A tree of `Task` nodes navigated via DFS pre-order traversal. Container tasks hold `child_tasks` but are not executed directly; leaf tasks (`child_tasks=None`) are the executable units. Each leaf carries an optional `TaskResult` (`None` = not_started). Container completion is derived from children — a container is completed when all children are completed. Status is tracked per-task via `task_result.status` (not_started, inprogress, completed, failed, blocked). `Task.display()` flattens the tree into a sequential list with rich status markers.
-- **TaskResult**: Output of a single task execution. Status indicates completion, failure, or blocked.
-- **ReviewerDecision**: Result Reviewer's judgment on a task result. Drives Worker transitions (accept, retry, replan, escalate).
-- **WorkerResult**: Aggregated accepted task results, consumed by Primary Agent for final response.
-- **AgentState**: Tracks which internal agent is active and its operational status (idle, running, blocked waiting for user input, or terminated).
-- **ExecutionLog**: Record of actions, outcomes, and decisions during sub-session execution.
-- **WorkerConfig**: Configuration controlling Worker behavior (effort level).
-- **ContextEnhancedQuery**: The user's original query enriched with high-level session context by the Query Analyst. Carried as the enhanced query text.
-- **ContextUpdate**: A targeted context modification (`target_task_id` + `update` string) produced by the Result Reviewer when a task result reveals information that should update another task's context.
-- **AcceptedResult**: A single accepted task output (`task_id`, `name`, `result`) included in `WorkerResult` for Primary Agent consumption.
-- **ExecutionLogEntry**: A single entry in the execution log capturing one action, its outcome, and an optional decision trace.
+- **StateObject**: Serialization base class for all TinyCUA model dataclasses. Provides `to_dict()`, `from_dict()`, `to_json()`, `from_json()`.
+- **NodePayload**: Internal transport envelope for a single node's structured output. Contains `payload_type`, `source_node`, `content` (polymorphic), and `metadata`. Converts to assistant-role LLM messages.
+- **NodeInput**: Internal transport envelope for node-to-node handoff. Contains `input_type`, `source_node`, `target_node`, `messages`, `payloads`, and `metadata`. Converts to a list of LLM messages.
+- **NodeInputLike**: Union type alias `str | NodeInput | NodePayload | list[dict]` enabling flexible node input from external users, internal nodes, or pre-constructed messages.
 
 ---
 
-## Success Criteria
+## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] All 11 core state object types (Session, ContextEnhancedQuery, ModeDecision, DigestedInformation, WorkerConfig, Task (tree node), TaskResult, ReviewerDecision, WorkerResult, AgentState, ExecutionLog) plus 3 supporting types (ContextUpdate, AcceptedResult, ExecutionLogEntry) are implemented.
-- [x] All types support dict round-trip serialization.
-- [x] All types support JSON round-trip serialization.
-- [x] Enum fields reject invalid values with a clear error.
-- [x] Validation catches negative `consecutive_failures` and missing required fields.
-- [x] All types are importable from a single entry point (e.g., `from tinycua.state import ...`).
-- [x] Unit test coverage exceeds 90% for state object module.
-- [x] Architecture docs (`src/tinycua/docs/architecture/state-objects.md`, `src/tinycua/docs/architecture/session-architecture.md`) are updated to match the implemented Python types (see Architecture Doc Synchronization section below for specific changes needed).
-- [x] If drift is detected between implementation and architecture docs, the architecture docs are updated accordingly — but remain at the architecture/design level of abstraction, without incorporating low-level implementation details.
+- [ ] **StateObject base exists**: `StateObject` class with `to_dict()`, `from_dict()`, `to_json()`, `from_json()`.
+- [ ] **NodePayload exists**: `NodePayload` dataclass with documented fields and defaults.
+- [ ] **NodeInput exists**: `NodeInput` dataclass with documented fields and defaults.
+- [ ] **NodeInputLike type alias exists**: `NodeInputLike = str | NodeInput | NodePayload | list[dict]`.
+- [ ] **NodePayload.to_message() works**: Returns assistant-role message dict with serialized content.
+- [ ] **NodePayload.to_messages() works**: Returns single-element list from `to_message()`.
+- [ ] **NodeInput.to_messages() works**: Returns payloads as assistant messages followed by messages list.
+- [ ] **convert_node_input_to_messages() works**: Handles all `NodeInputLike` variants correctly.
+- [ ] **External string conversion works**: Strings become user-role messages when `source="external"`.
+- [ ] **Internal string conversion works**: Strings become assistant-role messages when `source="internal"`.
+- [ ] **Round-trip serialization works**: `StateObject` subclasses survive `to_dict()`/`from_dict()` and `to_json()`/`from_json()`.
+- [ ] **No untrusted string parsing**: `NodeInput` and `NodePayload` are never parsed from strings for internal transport.
+- [ ] **Unit tests pass**: All transport conversion and serialization tests pass.
+- [ ] **Integration with Session model**: `NodeInput`/`NodePayload` work with existing `Session.session_context` message format.
 
 ---
 
-## Testing Plan
+## Testing Plan _(mandatory)_
 
 ### Unit Tests
 
-- All data type construction with valid and invalid field values.
-- `to_dict()` / `from_dict()` round-trip for every type, including nested structures.
-- `to_json()` / `from_json()` round-trip for every type.
-- Enum validation: invalid enum values raise appropriate errors.
-- Field validation: negative `consecutive_failures`, missing required fields, empty lists where required.
-- Nested Task tree serialization with `task_result` round-trips.
-- Edge cases: `task_result=None` (not_started), all task_result statuses (not_started, inprogress, completed, failed, blocked), container completion derived from children.
-- `Task.traverse()`: DFS pre-order finds next non-completed leaf; walks up from completed nodes.
-- `Task.display()`: DFS pre-order with correct `[ ]` `[*]` `[x]` `[-]` `[/]` markers and indentation.
+- `StateObject` base class: `to_dict()`, `from_dict()`, `to_json()`, `from_json()` round-trip for a test subclass.
+- `StateObject.from_dict()` with missing required fields raises `ValueError`.
+- `StateObject.from_json()` with invalid JSON raises `json.JSONDecodeError`.
+- `NodePayload` construction with all fields and defaults.
+- `NodePayload.to_message()` with string content, dict content, `StateObject` content, and `list[dict]` content.
+- `NodePayload.to_messages()` returns single-element list.
+- `NodePayload` round-trip serialization.
+- `NodeInput` construction with all fields and defaults.
+- `NodeInput.to_messages()` with payloads only, messages only, both, and empty.
+- `NodeInput` round-trip serialization with nested `NodePayload` items.
+- `convert_node_input_to_messages()` with `str` (external), `str` (internal), `NodeInput`, `NodePayload`, `list[dict]`, and `None` payloads.
+- `convert_node_input_to_messages()` with empty inputs returns empty list.
 
 ### Integration Tests
 
-- None in scope — these types are data-only, no external dependencies or services.
+- `NodeInput` carrying a `NodePayload` through a mock node handoff: construct → serialize → deserialize → convert to messages.
+- `NodeInputLike` union type used in a mock node `build_messages()` method.
 
-### Manual Tests
+### Manual Tests _(if applicable)_
 
-- None in scope — testing is fully covered by unit tests.
-
----
-
-## Architecture Doc Synchronization
-
-The following architecture docs MUST be updated to match the implemented types:
-
-- `src/tinycua/docs/architecture/state-objects.md`: AgentState status values — change `running | waiting_for_user | terminated` → `idle | running | blocked | terminated`
-- `src/tinycua/docs/architecture/session-architecture.md`: Session owner_type values — change `primary | tinycua_internal | future_sub_agent` → `primary | child`, with updated description for parent/child chat history propagation and context isolation rules
+- None in scope — all tests are unit/integration.
 
 ---
 
-## Status Tracker
+## Status Tracker _(optional)_
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Architecture doc updates | Done | Applied in this PR |
-| Core data types | Done | 11 core + 3 supporting types (Task is a tree node, replacing TaskList+Task) |
-| to_dict / from_dict | Done | Auto-nested via StateObject base class |
-| to_json / from_json | Done | Delegates to dict serialization |
-| Validation | Done | Enum checks + non-negative consecutive_failures + task_result status validation |
-| Tests | Done | 136 tests, 100% coverage |
+| StateObject base class | TODO | New module: `tinycua/models/state_object.py` |
+| NodePayload | TODO | New module: `tinycua/models/node_payload.py` |
+| NodeInput | TODO | New module: `tinycua/models/node_input.py` |
+| NodeInputLike type alias | TODO | In `tinycua/models/node_input.py` |
+| convert_node_input_to_messages() | TODO | In `tinycua/models/node_input.py` |
+| Unit tests | TODO | `tests/unit/test_state_object.py`, `test_node_payload.py`, `test_node_input.py` |
+| Integration tests | TODO | `tests/integration/test_node_transport.py` |
+| Models __init__.py update | TODO | Export new types from `tinycua.models` |
 
 ---
 
-## Open Questions
+## Open Questions _(optional)_
 
-1. **Should `ExecutionLogEntry` be a separate public type or an inline dict?**
+1. **NodePayload.content serialization for `list[dict]`**: Should `list[dict]` content be stored as-is in the assistant message, or should each dict be treated as a separate message?
    - **Owner**: @VJyzCELERY
-   - **Target**: 2026-05-30
-   - **Status**: Decided
-   - **Proposed Answer**: Separate public type for type safety and serialization consistency.
+   - **Status**: Proposed
+   - **Proposed Answer**: Store as-is — `list[dict]` is already a message list format; wrapping it in a single assistant message preserves the structure for downstream consumers.
 
-2. **Should `ContextUpdate` be a separate public type?**
+2. **convert_node_input_to_messages source parameter**: Should the conversion function accept a `source` parameter to distinguish external vs internal strings, or should the caller always wrap strings before calling?
    - **Owner**: @VJyzCELERY
-   - **Target**: 2026-05-30
-   - **Status**: Decided
-   - **Proposed Answer**: Yes — `target_task_id` + `update` string as a named struct.
+   - **Status**: Proposed
+   - **Proposed Answer**: Accept a `source` parameter for convenience; default to `"internal"` (assistant-role) since most node-to-node communication is internal.
 
 ---
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
-- [x] All mandatory sections completed
-- [x] No `[NEEDS CLARIFICATION]` markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Scope is clearly bounded with explicit non-goals
-- [x] Success criteria are measurable
+- [ ] No implementation details (no code, framework, or architecture choices)
+- [ ] All mandatory sections completed
+- [ ] No `[NEEDS CLARIFICATION]` markers remain
+- [ ] Requirements are testable and unambiguous
+- [ ] Scope is clearly bounded with explicit non-goals
+- [ ] Success criteria are measurable
