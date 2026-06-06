@@ -44,9 +44,10 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for CompactionStrategy (Milestone 1.3)."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from tinycua.compaction.simple import SimpleCompaction
+from tinycua.compaction.errors import CompactionError
 from tinycua.compaction.strategy import CompactionStrategy
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
@@ -93,7 +94,7 @@ class TestSimpleCompaction:
         ]
 
         # Note: Testing internal behavior via private method
-        with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
+        with patch.object(strategy, "_run_compaction_agent", new_callable=MagicMock) as mock_run:
             mock_run.return_value = "The session covered basic arithmetic: 2+2=4 and 3+3=6."
             result = strategy.compact(messages)
 
@@ -126,12 +127,33 @@ class TestSimpleCompaction:
         """compact() with empty message list returns assistant message with minimal content."""
         strategy = SimpleCompaction()
         # Note: Testing internal behavior via private method
-        with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
+        with patch.object(strategy, "_run_compaction_agent", new_callable=MagicMock) as mock_run:
             mock_run.return_value = ""
             result = strategy.compact([])
 
         assert result["role"] == "assistant"
         assert isinstance(result["content"], str)
+
+    def test_simple_compaction_agent_unreachable_raises_compaction_error(self):
+        """CompactionError raised when Agent is unreachable."""
+        strategy = SimpleCompaction()
+        messages = [{"role": "user", "content": "hello"}]
+        with patch.object(
+            strategy, "_run_compaction_agent",
+            side_effect=CompactionError("Agent unreachable"),
+        ):
+            with pytest.raises(CompactionError, match="Agent unreachable"):
+                strategy.compact(messages)
+
+    def test_simple_compaction_internal_failure_raises_compaction_error(self):
+        """CompactionError raised on internal failure."""
+        strategy = SimpleCompaction()
+        with patch.object(
+            strategy, "_run_compaction_agent",
+            side_effect=CompactionError("Compaction failed"),
+        ):
+            with pytest.raises(CompactionError):
+                strategy.compact([{"role": "user", "content": "test"}])
 
 
 class TestSessionCompactContext:
@@ -202,6 +224,8 @@ class TestFactoryIntegration:
 - [ ] **Scenario 4**: Session.compact_context() returns None when no strategy configured
 - [ ] **Edge case**: compact() with empty message list returns assistant message with minimal content
 - [ ] **Edge case**: compact_context() with explicit window passes that window to strategy
+- [ ] **Error case**: CompactionError raised when compaction Agent is unreachable (FR-016)
+- [ ] **Error case**: CompactionError raised on internal compaction failure (FR-016)
 
 ## Verification Plan
 

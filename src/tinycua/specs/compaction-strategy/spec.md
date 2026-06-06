@@ -46,7 +46,7 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide `CompactionStrategy` class with async method `compact(messages: list[dict]) -> dict`.
+- **FR-001**: System MUST provide `CompactionStrategy` class with method `compact(messages: list[dict]) -> dict`.
 - **FR-002**: `CompactionStrategy.compact()` MUST accept a list of message dicts and return exactly one assistant-role message: `{"role": "assistant", "content": "<summary>"}`.
 - **FR-003**: `CompactionStrategy` MUST own its own configuration and behavior; `SessionConfig` selects the strategy but does not dictate compaction details.
 - **FR-004**: `CompactionStrategy` MAY create/use its own internal Agent for compaction; this is the explicit exception to the "TinyCUALoop does not create internal Agents" rule.
