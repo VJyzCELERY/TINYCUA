@@ -35,7 +35,7 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 ### Edge Cases
 
 - What happens when `compact()` is called with an empty message list? The strategy MUST return an assistant-role message with empty or minimal content.
-- What happens when `SimpleCompaction` cannot reach the compaction Agent? The strategy raises the connection error (propagated).
+- What happens when `SimpleCompaction` cannot reach the compaction Agent? The strategy raises `CompactionError` (propagated from the unreachable Agent).
 - What happens when `session.compact_context()` is called but no compaction is needed (context within limits)? The method returns `None` without calling the strategy.
 - What happens when the compacted summary is longer than the original messages? The strategy is still responsible for producing one assistant-role message; length optimization is implementation-specific.
 - What happens when a node passes system-role messages to `compact()`? The strategy processes them; system-role exclusion is the caller's responsibility, not the strategy's.
@@ -103,6 +103,8 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 - `SessionConfig.compaction_strategy` typing: `CompactionStrategy | None`.
 - Edge case: `compact()` with empty message list.
 - Edge case: `compact()` with system-role messages (caller responsibility).
+- Error case: `compact()` raises `CompactionError` when Agent is unreachable (FR-016).
+- Error case: `compact()` raises `CompactionError` on internal compaction failure (FR-016).
 
 ### Integration Tests
 

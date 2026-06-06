@@ -58,8 +58,8 @@ CompactionStrategy (ABC):
         """Compact a list of messages into one assistant-role summary."""
 
 SimpleCompaction(CompactionStrategy):
-    parent_config: AgentConfigSnapshot | None  # inherited from parent Agent
-    fallback_config: dict[str, Any]            # documented defaults
+    parent_config: dict[str, Any] | None  # inherited from parent Agent
+    fallback_config: dict[str, Any]       # documented defaults
 
     compact(messages: list[dict]) -> dict
         """Run tool-less compaction Agent and return summary."""
