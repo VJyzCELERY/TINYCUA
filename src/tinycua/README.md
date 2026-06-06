@@ -28,6 +28,13 @@ async def main():
 asyncio.run(main())
 ```
 
+## Module Structure
+
+- `tinycua/factory.py` — `create_tinycua_agent()` factory function
+- `tinycua/config/` — `SessionConfig` dataclass for session-level configuration
+- `tinycua/models/` — `Session` model for tracking execution state
+- `tinycua/loops/` — `TinyCUALoop` extending SDK BaseLoop, `NodeQueue` placeholder
+
 ## Documentation
 
 - [Architecture](docs/architecture/README.md) — Agent orchestration, data flow, component responsibilities

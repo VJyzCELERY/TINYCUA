@@ -116,6 +116,24 @@ async def test_run_calls_build_system_message_with_override():
 
 
 @pytest.mark.asyncio
+async def test_run_with_empty_messages():
+    """run() handles empty messages list gracefully."""
+    loop = TinyCUALoop()
+    agent = MagicMock()
+    agent.instructions = "You are helpful"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "No input needed", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    )
+    result = await loop.run(agent, messages=[], tools=[], stream=False)
+    assert isinstance(result, str)
+    # No user messages to record, but assistant response is still recorded
+    assert len(loop.root_session.chat_history) == 1
+    assert loop.root_session.chat_history[0]["role"] == "assistant"
+    assert loop.root_session.chat_history[0]["content"] == "No input needed"
+
+
+@pytest.mark.asyncio
 async def test_run_stream_records_chat_history():
     """run(stream=True) records accumulated content in chat_history."""
     loop = TinyCUALoop()
