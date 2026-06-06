@@ -84,3 +84,14 @@ class TestSimpleCompaction:
         ):
             with pytest.raises(CompactionError):
                 strategy.compact([{"role": "user", "content": "test"}])
+
+    def test_simple_compaction_wraps_unknown_exception(self):
+        """Non-CompactionError exceptions are wrapped in CompactionError."""
+        strategy = SimpleCompaction()
+        with patch.object(
+            strategy,
+            "_run_compaction_agent",
+            side_effect=RuntimeError("unexpected failure"),
+        ):
+            with pytest.raises(CompactionError, match="Compaction failed"):
+                strategy.compact([{"role": "user", "content": "test"}])

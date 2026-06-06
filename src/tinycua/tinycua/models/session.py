@@ -56,6 +56,10 @@ class Session:
         if self.session_config is None or self.session_config.compaction_strategy is None:
             return None
 
+        # Early return for empty window — nothing to compact.
+        if window is not None and len(window) == 0:
+            return None
+
         strategy = self.session_config.compaction_strategy
         messages = window if window is not None else self.session_context
         summary = strategy.compact(messages)
@@ -76,7 +80,10 @@ class Session:
                     )
                     break
             else:
-                # Window not found as contiguous block; append summary as fallback
-                self.session_context.append(summary)
+                msg = (
+                    "Supplied window is not a contiguous subset"
+                    " of session_context"
+                )
+                raise ValueError(msg)
 
         return summary
