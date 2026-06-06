@@ -64,10 +64,12 @@ SimpleCompaction(CompactionStrategy):
     compact(messages: list[dict]) -> dict
         """Run tool-less compaction Agent and return summary."""
 
-    _get_tools() -> list
+    @property
+    def tools(self) -> list:
         """Return empty list — compaction Agent has no tools."""
 
-    _get_fallback_config() -> dict
+    @property
+    def fallback_config(self) -> dict:
         """Return SDK default model/endpoint configuration."""
 ```
 
@@ -131,6 +133,11 @@ class SimpleCompaction(CompactionStrategy):
     @property
     def tools(self) -> list:
         """Return the compaction Agent's tool list (empty for SimpleCompaction)."""
+        ...
+
+    @property
+    def fallback_config(self) -> dict[str, Any]:
+        """Return the fallback model/provider configuration."""
         ...
 
     def compact(self, messages: list[dict]) -> dict:

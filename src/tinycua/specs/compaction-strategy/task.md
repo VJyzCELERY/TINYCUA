@@ -35,8 +35,8 @@ Implementation tasks for CompactionStrategy Contract. Check off items as complet
 - [ ] Create `tinycua/compaction/simple.py` — SimpleCompaction implementation <!-- id: 7 -->
   - [ ] __init__ with parent_config and fallback_config params
   - [ ] compact() method that runs tool-less compaction Agent
-  - [ ] _get_tools() returns empty list
-  - [ ] _get_fallback_config() returns sensible defaults
+  - [ ] tools property returns empty list — compaction Agent has no tools
+  - [ ] fallback_config property returns sensible defaults
   - [ ] _run_compaction_agent() creates Agent with no tools and simple instruction
 - [ ] Create `tinycua/compaction/__init__.py` — package exports <!-- id: 8 -->
   - [ ] Export CompactionStrategy, SimpleCompaction, CompactionError
