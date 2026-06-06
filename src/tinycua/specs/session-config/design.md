@@ -50,6 +50,21 @@ LocalModelConfig (new)
 
 ---
 
+## Type References
+
+The following types are referenced in the data model. Placeholder stubs exist in `tinycua.config.types` for this milestone; concrete implementations will replace them in later milestones.
+
+| Type | Source | Notes |
+|------|--------|-------|
+| `Tool` | `tinycua.config.types` | Placeholder stub; will be replaced with SDK `tinycua.agent.tools` |
+| `StateObject` | `tinycua.config.types` | Placeholder stub; conceptual design in `tinycua.specs.state_objects` |
+| `LLMResult` | `tinycua.config.types` | Placeholder stub; will be defined in loop milestone |
+| `ValidationResult` | `tinycua.config.types` | Placeholder stub; will be defined in loop milestone |
+| `ValidationError` | `tinycua.config.types` | Placeholder stub; will be defined in loop milestone |
+| `PropagationRule` | `tinycua.loops.propagation` | Will be defined in propagation milestone |
+
+---
+
 ## Data Model
 
 ### New Entities
@@ -62,7 +77,7 @@ NodeMessagePolicy:
     include_session_context: bool = True
     max_context_messages: int | None = None
     dedupe_by_origin_record_id: bool = True
-    continuation_role: Literal["assistant"] = "assistant"
+    continuation_role: str = "assistant"  # Internal node handoffs are assistant-role messages
 
 NodeToolPolicy:
     node_tools: list[Tool] = []
@@ -109,16 +124,16 @@ SystemPromptBuilder:
     build() -> dict  # {"role": "system", "content": str}
 
 Todo:
-    items: list[TodoItem]
+    items: list[TodoItem]          # maintained in insertion order
     max_items: int = 20
-    append(description: str) -> None
-    mark_done(index: int) -> None
-    next_pending() -> TodoItem | None
+    append(description: str) -> None   # auto-assigns order = len(items) before append
+    mark_done(index: int) -> None      # raises IndexError if invalid
+    next_pending() -> TodoItem | None  # returns first item with status="pending"
 
 TodoItem:
     description: str
     status: Literal["pending", "done"]
-    order: int
+    order: int                    # auto-assigned on append(); insertion order index (0-based)
     metadata: dict = {}
 
 LocalModelConfig:
@@ -196,7 +211,8 @@ def build(self) -> dict[str, str]:
 ```python
 class Todo:
     def append(self, description: str) -> None:
-        """Add a new pending item. Raises ValueError if max_items exceeded."""
+        """Add a new pending item at the end. Auto-assigns order = len(items) before append.
+        Raises ValueError if max_items exceeded."""
 
     def mark_done(self, index: int) -> None:
         """Mark item at index as done. Raises IndexError if invalid."""
@@ -230,7 +246,7 @@ class LocalModelConfig:
 | `Todo.append()` when `max_items` exceeded | `ValueError("Todo max items exceeded")` | |
 | `Todo.mark_done()` invalid index | `IndexError("Invalid todo index")` | |
 | `NodeToolPolicy` unknown `include_agent_tools` | `ValueError("Invalid include_agent_tools value")` | |
-| `NodeRetryPolicy.max_attempts` < 1 | `ValueError("max_attempts must be >= 1")` | |
+| `NodeRetryPolicy.max_attempts` < 0 | `ValueError("max_attempts must be >= 0")` | 0 means no retries, immediate exhaustion |
 | `LocalModelConfig.base_url` unreachable | `ConnectionError` at runtime | Not validated at construction |
 
 ---

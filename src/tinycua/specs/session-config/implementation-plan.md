@@ -40,7 +40,7 @@ This implementation adds the configuration layer for TinyCUA sessions and nodes,
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/test_session_config_integration.py
+# Test file: src/tinycua/tests/integration/test_session_config_integration.py
 """Integration tests for SessionConfig, Node Config, and Local Model Config."""
 
 
@@ -90,10 +90,21 @@ def test_tool_policy_resolution():
         denied_agent_tool_names=["web_search"],
     )
     
-    # Act & Assert - Deny wins over allow
-    assert "web_search" in policy.denied_agent_tool_names
-    assert "web_search" in policy.allowed_agent_tool_names
-    # Resolution logic will be tested when resolve_tools() is implemented
+    # Create mock outer tools
+    class MockTool:
+        def __init__(self, name):
+            self.name = name
+    
+    outer_tools = [MockTool("web_search"), MockTool("calculator"), MockTool("other")]
+    
+    # Act
+    result = policy.resolve_tools(outer_agent_tools=outer_tools)
+    result_names = [t.name for t in result]
+    
+    # Assert - deny wins over allow
+    assert "web_search" not in result_names  # denied, even though allowed
+    assert "calculator" in result_names  # allowed, not denied
+    assert "other" not in result_names  # not in allowed list
 
 
 def test_system_prompt_builder():
@@ -138,11 +149,17 @@ def test_todo_lifecycle():
     assert item is not None
     assert item.description == "Task 1"
     assert item.status == "pending"
+    assert item.order == 0          # first append -> index 0
     
     # Test mark_done
     todo.mark_done(0)
     item = todo.next_pending()
     assert item.description == "Task 2"
+    assert item.order == 1          # second append -> index 1
+
+    # Test mark_done with invalid index
+    with pytest.raises(IndexError):
+        todo.mark_done(99)
 
 
 def test_local_model_config():
@@ -194,31 +211,31 @@ def test_local_model_config():
 
 ### Configuration Module
 
-#### [NEW] src/tinycua/config/node_config.py
+#### [NEW] src/tinycua/tinycua/config/node_config.py
 
 - **Description**: Create NodeConfigBase and policy dataclasses (NodeMessagePolicy, NodeToolPolicy, NodeStreamPolicy, NodeRetryPolicy)
 - **Dependencies**: None (standalone module)
 
-#### [NEW] src/tinycua/config/system_prompt.py
+#### [NEW] src/tinycua/tinycua/config/system_prompt.py
 
 - **Description**: Create SystemPrompt and SystemPromptBuilder classes
 - **Dependencies**: None (standalone module)
 
-#### [NEW] src/tinycua/config/local_model.py
+#### [NEW] src/tinycua/tinycua/config/local_model.py
 
 - **Description**: Create LocalModelConfig dataclass
 - **Dependencies**: None (standalone module)
 
 ### Models Module
 
-#### [NEW] src/tinycua/models/todo.py
+#### [NEW] src/tinycua/tinycua/models/todo.py
 
 - **Description**: Create Todo and TodoItem classes
 - **Dependencies**: None (standalone module)
 
 ### Configuration Init
 
-#### [MODIFY] src/tinycua/config/__init__.py
+#### [MODIFY] src/tinycua/tinycua/config/__init__.py
 
 - **Description**: Re-export new config classes
 - **Rationale**: Make new classes available from package root
@@ -235,6 +252,18 @@ def test_local_model_config():
 
 ## Data Model Changes
 
+### Type References
+
+The following types are referenced in the data model but not yet implemented. They are `Any` placeholders for this milestone; concrete implementations will be added in later milestones.
+
+| Type | Source | Notes |
+|------|--------|-------|
+| `Tool` | SDK `tinycua.agent.tools` | Placeholder until tool SDK is stable |
+| `StateObject` | `tinycua.specs.state_objects` | Conceptual design only; use `Any` |
+| `LLMResult` | `tinycua.loops` | Will be defined in loop milestone |
+| `ValidationResult` | `tinycua.loops` | Will be defined in loop milestone |
+| `ValidationError` | `tinycua.loops` | Will be defined in loop milestone |
+
 ```python
 # New types
 NodeMessagePolicy:
@@ -242,7 +271,7 @@ NodeMessagePolicy:
     include_session_context: bool = True
     max_context_messages: int | None = None
     dedupe_by_origin_record_id: bool = True
-    continuation_role: Literal["assistant"] = "assistant"
+    continuation_role: str = "assistant"
 
 NodeToolPolicy:
     node_tools: list[Tool] = []

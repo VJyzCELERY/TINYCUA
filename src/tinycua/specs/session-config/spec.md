@@ -75,7 +75,7 @@ A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subcl
 - **SystemPrompt**: A single prompt fragment with priority and kind.
 - **SystemPromptBuilder**: Assembles fragments into one system-role message.
 - **Todo**: Per-session linear plan-then-execute list.
-- **TodoItem**: Single todo item with status.
+- **TodoItem**: Single todo item with status; `order` is auto-assigned on `append()` as the 0-based insertion index.
 - **LocalModelConfig**: Local model endpoint configuration for node LLM calls.
 
 ---
@@ -155,16 +155,14 @@ A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subcl
 ## Open Questions _(optional)_
 
 1. **PropagationRule type**: The design doc references `PropagationRule` but it's defined in `loops/propagation.md`. Should we define a placeholder type or import from a future module?
-   - **Owner**: TBD
-   - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Use `Any` placeholder for now; concrete implementation in later milestone.
+   - **Status**: Decided
+   - **Decision**: Use `Any` placeholder; concrete implementation in propagation milestone.
+   - **Reference**: `design.md:277-279`
 
 2. **LocalModelConfig vs SDK Agent config**: Should `LocalModelConfig` be a separate dataclass or map to SDK Agent's `llm_model` parameter?
-   - **Owner**: TBD
-   - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Keep separate; `LocalModelConfig` is node-level, SDK Agent config is outer-level. Nodes may override endpoint.
+   - **Status**: Decided
+   - **Decision**: Keep separate; `LocalModelConfig` is node-level, SDK Agent config is outer-level. Nodes may override endpoint.
+   - **Reference**: `design.md:293-295`
 
 ---
 

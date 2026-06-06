@@ -13,7 +13,7 @@ Implementation tasks for SessionConfig, Node Config, and Local Model Config. Che
   - [ ] Create `tinycua/config/node_config.py` with NodeMessagePolicy, NodeToolPolicy, NodeStreamPolicy, NodeRetryPolicy
   - [ ] Create NodeConfigBase with all policy fields and append-only customization
   - [ ] Add tool resolution logic to NodeToolPolicy
-  - [ ] Add validation to NodeRetryPolicy (max_attempts >= 1)
+  - [ ] Add validation to NodeRetryPolicy (max_attempts >= 0)
 - [ ] Create SystemPrompt and SystemPromptBuilder <!-- id: 3 -->
   - [ ] Create `tinycua/config/system_prompt.py` with SystemPrompt dataclass
   - [ ] Implement SystemPromptBuilder with add_static(), add_configurable_append(), add_dynamic_context()
@@ -46,6 +46,7 @@ Implementation tasks for SessionConfig, Node Config, and Local Model Config. Che
   - [ ] Test append() and max_items limit
   - [ ] Test mark_done() with valid and invalid indices
   - [ ] Test next_pending() behavior
+  - [ ] Test TodoItem.order auto-assignment on append()
 - [ ] Write unit tests for LocalModelConfig <!-- id: 11 -->
   - [ ] Test construction with required fields
   - [ ] Test default values
