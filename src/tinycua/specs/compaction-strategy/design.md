@@ -128,6 +128,11 @@ class SimpleCompaction(CompactionStrategy):
         """
         ...
 
+    @property
+    def tools(self) -> list:
+        """Return the compaction Agent's tool list (empty for SimpleCompaction)."""
+        ...
+
     async def compact(self, messages: list[dict]) -> dict:
         """
         Run a tool-less compaction Agent over the messages and return
