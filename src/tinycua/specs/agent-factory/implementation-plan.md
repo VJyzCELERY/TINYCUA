@@ -174,21 +174,21 @@ class TestAgentRun:
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Factory creates Agent with TinyCUALoop when called with defaults — primary success criterion
-- [ ] **Scenario 2**: Factory creates new session when session=None
-- [ ] **Scenario 3**: Factory uses provided session when session is given
-- [ ] **Scenario 4**: Factory applies SessionConfig to session
-- [ ] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
-- [ ] **Scenario 6**: agent.run() records messages in session chat history (FR-010)
-- [ ] **Edge case**: Factory with no arguments — all defaults
+- [x] **Scenario 1**: Factory creates Agent with TinyCUALoop when called with defaults — primary success criterion
+- [x] **Scenario 2**: Factory creates new session when session=None
+- [x] **Scenario 3**: Factory uses provided session when session is given
+- [x] **Scenario 4**: Factory applies SessionConfig to session
+- [x] **Scenario 5**: TinyCUALoop.run() returns string when stream=False
+- [x] **Scenario 6**: agent.run() records messages in session chat history (FR-010)
+- [x] **Edge case**: Factory with no arguments — all defaults
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for SessionConfig, Session, TinyCUALoop, factory function
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for SessionConfig, Session, TinyCUALoop, factory function
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
@@ -203,7 +203,7 @@ class TestAgentRun:
 
 ### README Update
 
-- [ ] Update `src/tinycua/README.md` with factory usage example
+- [x] Update `src/tinycua/README.md` with factory usage example
   - **File**: `src/tinycua/README.md`
   - **Content**: Add a "Quick Start" or "Usage" section showing `create_tinycua_agent()` usage with `SessionConfig` and `**agent_kwargs`
   - **Verification**: `grep -c "create_tinycua_agent" src/tinycua/README.md` returns ≥1

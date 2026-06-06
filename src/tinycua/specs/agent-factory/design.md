@@ -164,14 +164,15 @@ class TinyCUALoop(BaseLoop):
 
     def __init__(
         self,
-        root_session: Session,
+        root_session: Session | None = None,
+        queue: NodeQueue | None = None,
         session_config: SessionConfig | None = None,
         max_iterations: int = 50,
     ) -> None:
         super().__init__(max_iterations=max_iterations)
-        self.root_session = root_session
+        self.root_session = root_session or Session()
+        self.queue = queue or NodeQueue()
         self.session_config = session_config
-        self.queue = NodeQueue()  # placeholder — populated by concrete nodes later
 
     async def run(
         self,
