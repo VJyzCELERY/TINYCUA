@@ -44,7 +44,7 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for CompactionStrategy (Milestone 1.3)."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from tinycua.compaction.simple import SimpleCompaction
 from tinycua.compaction.strategy import CompactionStrategy
@@ -83,8 +83,7 @@ class TestCompactionStrategyContract:
 class TestSimpleCompaction:
     """Verify SimpleCompaction behavior with mocked Agent."""
 
-    @pytest.mark.asyncio
-    async def test_simple_compaction_returns_assistant_message(self):
+    def test_simple_compaction_returns_assistant_message(self):
         """SimpleCompaction.compact() returns one assistant-role message."""
         strategy = SimpleCompaction()
         messages = [
@@ -96,7 +95,7 @@ class TestSimpleCompaction:
         # Note: Testing internal behavior via private method
         with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = "The session covered basic arithmetic: 2+2=4 and 3+3=6."
-            result = await strategy.compact(messages)
+            result = strategy.compact(messages)
 
         assert result["role"] == "assistant"
         assert "arithmetic" in result["content"]
@@ -123,14 +122,13 @@ class TestSimpleCompaction:
         assert "model" in strategy.fallback_config
         assert "provider" in strategy.fallback_config
 
-    @pytest.mark.asyncio
-    async def test_simple_compaction_empty_message_list(self):
+    def test_simple_compaction_empty_message_list(self):
         """compact() with empty message list returns assistant message with minimal content."""
         strategy = SimpleCompaction()
         # Note: Testing internal behavior via private method
         with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = ""
-            result = await strategy.compact([])
+            result = strategy.compact([])
 
         assert result["role"] == "assistant"
         assert isinstance(result["content"], str)
@@ -191,6 +189,9 @@ class TestFactoryIntegration:
         agent = create_tinycua_agent(session_config=config)
         mock_create.assert_called_once_with(session_config=config)
         assert agent.loop.session_config.compaction_strategy is strategy
+        # Note: This test verifies factory passes config to SessionConfig correctly.
+        # Config-passing to SimpleCompaction is validated by test_simple_compaction_uses_parent_config.
+        # An unpatched factory test would require real LLM endpoint and is deferred.
 ```
 
 ### Key Test Scenarios
@@ -317,7 +318,7 @@ class CompactionError(Exception):
 # New ABC
 class CompactionStrategy(ABC):
     @abstractmethod
-    async def compact(self, messages: list[dict]) -> dict:
+    def compact(self, messages: list[dict]) -> dict:
         """Compact messages into one assistant-role summary."""
 
 # New implementation
@@ -327,7 +328,7 @@ class SimpleCompaction(CompactionStrategy):
     def tools(self) -> list: ...  # Returns compaction Agent tools (empty for SimpleCompaction)
     @property
     def fallback_config(self) -> dict: ...  # Returns fallback model/provider config
-    async def compact(self, messages: list[dict]) -> dict: ...
+    def compact(self, messages: list[dict]) -> dict: ...
 
 # Modified field
 @dataclass

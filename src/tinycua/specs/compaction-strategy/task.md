@@ -52,7 +52,7 @@ Implementation tasks for CompactionStrategy Contract. Check off items as complet
   - [ ] Call strategy.compact(window)
   - [ ] Replace compacted window in session_context with summary
   - [ ] Return summary or None
-- [ ] Update `tinycua/models/__init__.py` if needed <!-- id: 12 -->
+- [x] No changes needed — Session is already importable from `tinycua.models.session` <!-- id: 12 -->
 
 ## Testing Phase
 

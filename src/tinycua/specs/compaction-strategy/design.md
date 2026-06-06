@@ -24,7 +24,7 @@ Session
   · compact_context(window: list[dict] | None = None) → dict | None
       ↓
 CompactionStrategy (abstract)
-  · async compact(messages: list[dict]) → dict
+  · compact(messages: list[dict]) → dict
       ↓
 SimpleCompaction (default implementation)
   · Inherits parent Agent config when available
@@ -59,9 +59,9 @@ CompactionStrategy (ABC):
 
 SimpleCompaction(CompactionStrategy):
     parent_config: AgentConfigSnapshot | None  # inherited from parent Agent
-    fallback_config: CompactionFallbackConfig   # documented defaults
+    fallback_config: dict[str, Any]            # documented defaults
 
-    async compact(messages: list[dict]) -> dict
+    compact(messages: list[dict]) -> dict
         """Run tool-less compaction Agent and return summary."""
 
     _get_tools() -> list
@@ -91,7 +91,7 @@ class CompactionStrategy(ABC):
     """Abstract base class for context compaction strategies."""
 
     @abstractmethod
-    async def compact(self, messages: list[dict]) -> dict:
+    def compact(self, messages: list[dict]) -> dict:
         """
         Compact a list of messages into one assistant-role summary.
 
@@ -133,7 +133,7 @@ class SimpleCompaction(CompactionStrategy):
         """Return the compaction Agent's tool list (empty for SimpleCompaction)."""
         ...
 
-    async def compact(self, messages: list[dict]) -> dict:
+    def compact(self, messages: list[dict]) -> dict:
         """
         Run a tool-less compaction Agent over the messages and return
         the final response as one assistant-role summary.
