@@ -240,11 +240,11 @@ See also: [spec.md Open Questions](spec.md#open-questions-optional) for API-leve
 
 1. **Should `StateObject` validate required fields in `__post_init__`?**
    - Currently not planned — `from_dict()` handles missing field validation. `StateObject` subclasses that need runtime validation (e.g., enum checks) should implement their own `__post_init__`.
-   - **Status**: Proposed
+   - **Status**: Resolved — Decision: Follow proposed answer during implementation.
 
 2. **Should `NodePayload` support `content` as `None`?**
    - Allowed by the type signature. `to_message()` would produce `{"role": "assistant", "content": ""}` (empty string) for LLM provider compatibility.
-   - **Status**: Proposed
+   - **Status**: Resolved — Decision: Follow proposed answer during implementation.
 
 ---
 

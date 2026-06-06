@@ -2,6 +2,8 @@
 
 Implementation tasks for State Objects, NodeInput, NodePayload. Check off items as completed.
 
+**Phase Order**: Phases must be executed in order: TDD → Implementation → Testing → Verification → Documentation → Review and Merge. Each phase depends on the previous phase completing successfully.
+
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for node transport (`tests/integration/test_node_transport.py`) <!-- id: 0 -->
