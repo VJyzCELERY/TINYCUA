@@ -278,7 +278,7 @@ None — stdlib only (`dataclasses`, `json`, `typing`).
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| `dataclasses.asdict()` doesn't handle all nested types correctly | Medium | Unit tests with nested `StateObject` subclasses verify round-trip |
+| Manual field iteration doesn't handle all nested types correctly | Medium | Unit tests with nested `StateObject` subclasses verify round-trip |
 | `from_dict()` type introspection fails for complex generic types | Medium | Test with `list[NodePayload]`, `str | None`, and `dict` field types |
 | `NodePayload.to_message()` content serialization ambiguity | Low | Document exact serialization per content type; test all four content types |
 | Incompatibility with existing `Session.session_context` format | High | `NodeInput.to_messages()` produces standard `list[dict]` matching existing format |

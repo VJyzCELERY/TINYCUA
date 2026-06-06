@@ -17,7 +17,7 @@ Implementation tasks for State Objects, NodeInput, NodePayload. Check off items 
 ## Implementation Phase
 
 - [x] Create `tinycua/models/state_object.py` with `StateObject` base class <!-- id: 5 -->
-  - [x] Implement `to_dict()` using `dataclasses.asdict()`
+  - [x] Implement `to_dict()` using `dataclasses.fields()` iteration
   - [x] Implement `from_dict()` with type introspection for nested StateObject subclasses
   - [x] Implement `to_json()` delegating to `to_dict()` → `json.dumps()`
   - [x] Implement `from_json()` delegating to `json.loads()` → `from_dict()`
