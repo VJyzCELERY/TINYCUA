@@ -88,9 +88,10 @@ class TestAgentRun:
         assert events[0]["type"] == "response.output_text.delta"
         assert events[0]["delta"] == "Hi"
         session = agent.loop.root_session
-        assert len(session.chat_history) > 0
-        assert session.chat_history[-1]["role"] == "assistant"
-        assert session.chat_history[-1]["content"] == "Hi"
+        assert len(session.chat_history) == 2  # user + assistant
+        assert session.chat_history[0]["role"] == "user"
+        assert session.chat_history[1]["role"] == "assistant"
+        assert session.chat_history[1]["content"] == "Hi"
 
     @pytest.mark.asyncio
     async def test_run_populates_session_chat_history(self):
