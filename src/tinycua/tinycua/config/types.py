@@ -14,8 +14,6 @@ class Tool:
     when the tool SDK is stable.
     """
 
-    name: str = ""
-
     def __init__(self, name: str = "") -> None:
         self.name = name
 
