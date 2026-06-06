@@ -47,7 +47,6 @@ Implementation tasks for CompactionStrategy Contract. Check off items as complet
 - [ ] Update `tinycua/config/__init__.py` — export new classes <!-- id: 10 -->
   - [ ] Add CompactionStrategy and SimpleCompaction to __all__
 - [ ] Implement `Session.compact_context()` in `tinycua/models/session.py` <!-- id: 11 -->
-  - [ ] **Signature change**: Method changes from `compact_context(self) -> None` to `compact_context(self, window: list[dict] | None = None) -> dict | None`. Existing callers relying on the old signature must be updated.
   - [ ] Check for configured strategy — return None if not set
   - [ ] Select compactable window from session_context if window not provided
   - [ ] Call strategy.compact(window)

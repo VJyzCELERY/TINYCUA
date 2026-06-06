@@ -41,6 +41,7 @@ SimpleCompaction (default implementation)
 | `tinycua/compaction/__init__.py` | New | Package for compaction strategy classes |
 | `tinycua/compaction/strategy.py` | New | `CompactionStrategy` abstract base class |
 | `tinycua/compaction/simple.py` | New | `SimpleCompaction` default implementation |
+| `tinycua/compaction/errors.py` | New | `CompactionError` exception class |
 | `tinycua/factory.py` | Modified | Ensure `create_tinycua_agent()` passes parent config to `SimpleCompaction` when initialized |
 
 ---
@@ -172,6 +173,12 @@ class SessionConfig:
 ```
 
 ### Error Handling
+
+```python
+class CompactionError(Exception):
+    """Raised when compaction fails."""
+    pass
+```
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|

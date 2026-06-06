@@ -93,7 +93,7 @@ class TestSimpleCompaction:
             {"role": "user", "content": "And 3+3?"},
         ]
 
-        # Mock the internal Agent's _call_llm to return a summary
+        # Note: Testing internal behavior via private method
         with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = "The session covered basic arithmetic: 2+2=4 and 3+3=6."
             result = await strategy.compact(messages)
@@ -125,6 +125,7 @@ class TestSimpleCompaction:
     async def test_simple_compaction_empty_message_list(self):
         """compact() with empty message list returns assistant message with minimal content."""
         strategy = SimpleCompaction()
+        # Note: Testing internal behavior via private method
         with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = ""
             result = await strategy.compact([])
