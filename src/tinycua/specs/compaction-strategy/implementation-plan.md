@@ -104,8 +104,8 @@ class TestSimpleCompaction:
     def test_simple_compaction_toolless(self):
         """SimpleCompaction creates Agent with no tools."""
         strategy = SimpleCompaction()
-        # Verify no tools are passed to the compaction Agent
-        assert strategy._get_tools() == []
+        # Verify no tools are passed to the compaction Agent via public property
+        assert strategy.tools == []
 
     def test_simple_compaction_uses_parent_config(self):
         """SimpleCompaction inherits model/provider from parent config."""
@@ -117,9 +117,11 @@ class TestSimpleCompaction:
         """SimpleCompaction uses fallback when no parent config."""
         strategy = SimpleCompaction()
         assert strategy.parent_config is None
-        fallback = strategy._get_fallback_config()
-        assert "model" in fallback
-        assert "provider" in fallback
+        # Fallback config is tested implicitly: compact() succeeds without parent_config
+        # by using built-in defaults (see test_simple_compaction_returns_assistant_message)
+        assert strategy.fallback_config is not None
+        assert "model" in strategy.fallback_config
+        assert "provider" in strategy.fallback_config
 
     @pytest.mark.asyncio
     async def test_simple_compaction_empty_message_list(self):
@@ -190,33 +192,33 @@ class TestFactoryIntegration:
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: CompactionStrategy ABC cannot be instantiated directly — enforces contract at class definition time
-- [x] **Scenario 2**: SimpleCompaction.compact() returns exactly one assistant-role message with mocked LLM
-- [x] **Scenario 3**: Session.compact_context() delegates to strategy and returns summary
-- [x] **Scenario 4**: Session.compact_context() returns None when no strategy configured
-- [x] **Edge case**: compact() with empty message list returns assistant message with minimal content
-- [x] **Edge case**: compact_context() with explicit window passes that window to strategy
+- [ ] **Scenario 1**: CompactionStrategy ABC cannot be instantiated directly — enforces contract at class definition time
+- [ ] **Scenario 2**: SimpleCompaction.compact() returns exactly one assistant-role message with mocked LLM
+- [ ] **Scenario 3**: Session.compact_context() delegates to strategy and returns summary
+- [ ] **Scenario 4**: Session.compact_context() returns None when no strategy configured
+- [ ] **Edge case**: compact() with empty message list returns assistant message with minimal content
+- [ ] **Edge case**: compact_context() with explicit window passes that window to strategy
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for CompactionStrategy contract — test ABC enforcement, method signature
-- [x] Unit tests for SimpleCompaction — test parent config inheritance, fallback, tool-less Agent
-- [x] Unit tests for Session.compact_context() — test delegation, None returns, window passing
-- [x] Update existing test_session_config.py — replace string `compaction_strategy` with proper type
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for CompactionStrategy contract — test ABC enforcement, method signature
+- [ ] Unit tests for SimpleCompaction — test parent config inheritance, fallback, tool-less Agent
+- [ ] Unit tests for Session.compact_context() — test delegation, None returns, window passing
+- [ ] Update existing test_session_config.py — replace string `compaction_strategy` with proper type
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Verify `CompactionStrategy` is importable from `tinycua.compaction`
-- [x] Verify `SessionConfig` accepts `CompactionStrategy | None` typing
-- [x] Verify `Session.compact_context()` works with `SimpleCompaction` and a real local model endpoint
+- [ ] Verify `CompactionStrategy` is importable from `tinycua.compaction`
+- [ ] Verify `SessionConfig` accepts `CompactionStrategy | None` typing
+- [ ] Verify `Session.compact_context()` works with `SimpleCompaction` and a real local model endpoint
 
 ### Performance Considerations
 
-- [x] Compaction adds one LLM call per compact_context() invocation — acceptable for context reduction
+- [ ] Compaction adds one LLM call per compact_context() invocation — acceptable for context reduction
 
 ## Proposed Changes
 
@@ -318,6 +320,10 @@ class CompactionStrategy(ABC):
 # New implementation
 class SimpleCompaction(CompactionStrategy):
     def __init__(self, parent_config=None, fallback_config=None) -> None: ...
+    @property
+    def tools(self) -> list: ...  # Returns compaction Agent tools (empty for SimpleCompaction)
+    @property
+    def fallback_config(self) -> dict: ...  # Returns fallback model/provider config
     async def compact(self, messages: list[dict]) -> dict: ...
 
 # Modified field
@@ -339,6 +345,13 @@ class Session:
 | `CompactionStrategy` | `tinycua.compaction.strategy` | ABC for context compaction strategies |
 | `SimpleCompaction` | `tinycua.compaction.simple` | Default tool-less compaction Agent implementation |
 | `CompactionError` | `tinycua.compaction.errors` | Exception for compaction failures |
+
+### New Properties
+
+| Property | Module | Description |
+|----------|--------|-------------|
+| `SimpleCompaction.tools` | `tinycua.compaction.simple` | Read-only property returning the compaction Agent's tool list |
+| `SimpleCompaction.fallback_config` | `tinycua.compaction.simple` | Read-only property returning the fallback model/provider config |
 
 ### Modified Signatures
 
