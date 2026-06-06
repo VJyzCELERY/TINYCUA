@@ -74,8 +74,8 @@ Implementation tasks for CompactionStrategy Contract. Check off items as complet
 
 ## Documentation Phase
 
-- [ ] Update spec.md status tracker — mark implemented items <!-- id: 20 -->
-- [ ] Update design.md implementation phases — mark Phase 1 items complete <!-- id: 21 -->
+- [x] Update spec.md status tracker — mark implemented items <!-- id: 20 -->
+- [x] Update design.md implementation phases — mark Phase 1 items complete <!-- id: 21 -->
 
 ## Review and Merge
 

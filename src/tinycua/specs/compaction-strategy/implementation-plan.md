@@ -330,7 +330,7 @@ class TestFactoryIntegration:
 | `tinycua/compaction/errors.py` | New | `CompactionError` exception |
 | `tinycua/config/session_config.py` | Modify | Type `compaction_strategy` as `CompactionStrategy \| None` |
 | `tinycua/models/session.py` | Modify | Implement `compact_context()` method |
-| `tinycua/factory.py` | Modify | Ensure `create_tinycua_agent()` passes parent config to `SimpleCompaction` |
+| `tinycua/factory.py` | Deferred | Factory integration deferred — callers provide strategy via SessionConfig.compaction_strategy |
 
 ## Data Model Changes
 
