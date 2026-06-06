@@ -77,13 +77,12 @@ Session:
     session_context: list[SessionContextEntry]
     chat_history: list[ChatRecord]
     task: Task | None
-    todo: Todo | None
+    todo: Todo  # defaults to empty list; None not needed since empty list is more ergonomic
     session_config: SessionConfig
     # ... additional fields from design docs
 
-    def compact_context(self) -> None:  # Stub for M1.1 — returns None
+    def compact_context(self) -> None:  # Stub for M1.1 — implicit return None
         """Placeholder — compaction is a Phase 2 concern."""
-        return None
 
 TinyCUALoop:
     root_session: Session
