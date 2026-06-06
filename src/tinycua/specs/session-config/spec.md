@@ -136,19 +136,19 @@ A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subcl
 
 | Item | Status | Notes |
 |------|--------|-------|
-| SessionConfig | VERIFY | Already exists; verify fields match spec |
-| NodeConfigBase | TODO | New dataclass |
-| NodeMessagePolicy | TODO | New dataclass |
-| NodeToolPolicy | TODO | New dataclass |
-| NodeStreamPolicy | TODO | New dataclass |
-| NodeRetryPolicy | TODO | New dataclass |
-| SystemPrompt | TODO | New dataclass |
-| SystemPromptBuilder | TODO | New class |
-| Todo | TODO | New class |
-| TodoItem | TODO | New dataclass |
-| LocalModelConfig | TODO | New dataclass |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| SessionConfig | DONE | Already exists; fields match spec |
+| NodeConfigBase | DONE | New dataclass in config/node_config.py |
+| NodeMessagePolicy | DONE | New dataclass in config/node_config.py |
+| NodeToolPolicy | DONE | New dataclass in config/node_config.py |
+| NodeStreamPolicy | DONE | New dataclass in config/node_config.py |
+| NodeRetryPolicy | DONE | New dataclass in config/node_config.py |
+| SystemPrompt | DONE | New dataclass in config/system_prompt.py |
+| SystemPromptBuilder | DONE | New class in config/system_prompt.py |
+| Todo | DONE | New class in models/todo.py |
+| TodoItem | DONE | New dataclass in models/todo.py |
+| LocalModelConfig | DONE | New dataclass in config/local_model.py |
+| Unit tests | DONE | 45 tests passing |
+| Integration tests | DONE | 5 tests passing |
 
 ---
 
