@@ -1,5 +1,10 @@
 """Tests for Session model."""
 
+from unittest.mock import patch
+
+import pytest
+
+from tinycua.compaction.simple import SimpleCompaction
 from tinycua.config.session_config import SessionConfig
 from tinycua.models.session import Session
 
@@ -44,7 +49,111 @@ def test_session_with_config():
     assert session.session_config.max_context_messages == 50
 
 
-def test_compact_context_is_noop():
-    """compact_context() does not raise (placeholder)."""
+def test_compact_context_returns_none_when_no_strategy():
+    """compact_context() returns None when no strategy configured."""
     session = Session()
-    session.compact_context()  # Should not raise
+    result = session.compact_context()
+    assert result is None
+
+
+def test_compact_context_delegates_to_strategy():
+    """compact_context() calls the configured strategy."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(compaction_strategy=strategy)
+    )
+    session.session_context = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+    ]
+
+    with patch.object(strategy, "compact") as mock_compact:
+        mock_compact.return_value = {"role": "assistant", "content": "summary"}
+        result = session.compact_context()
+
+    assert result == {"role": "assistant", "content": "summary"}
+    mock_compact.assert_called_once()
+
+
+def test_compact_context_with_explicit_window():
+    """compact_context(window=...) uses the provided window."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(compaction_strategy=strategy)
+    )
+    window = [{"role": "user", "content": "subset"}]
+    session.session_context = list(window) + [
+        {"role": "assistant", "content": "after"},
+    ]
+
+    with patch.object(strategy, "compact") as mock_compact:
+        mock_compact.return_value = {"role": "assistant", "content": "subset summary"}
+        result = session.compact_context(window=window)
+
+    mock_compact.assert_called_once_with(window)
+    assert result["content"] == "subset summary"
+    assert len(session.session_context) == 2
+    assert session.session_context[0]["content"] == "subset summary"
+
+
+def test_compact_context_empty_window_returns_none():
+    """compact_context(window=[]) returns None without calling strategy."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(compaction_strategy=strategy)
+    )
+    session.session_context = [{"role": "user", "content": "hello"}]
+
+    with patch.object(strategy, "compact") as mock_compact:
+        result = session.compact_context(window=[])
+
+    assert result is None
+    mock_compact.assert_not_called()
+    assert session.session_context == [{"role": "user", "content": "hello"}]
+
+
+def test_compact_context_window_not_found_raises_value_error():
+    """compact_context() raises ValueError when window is not in session_context."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(compaction_strategy=strategy)
+    )
+    session.session_context = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+    ]
+    window = [{"role": "user", "content": "not-in-context"}]
+
+    with patch.object(strategy, "compact") as mock_compact:
+        mock_compact.return_value = {"role": "assistant", "content": "summary"}
+        with pytest.raises(
+            ValueError,
+            match="Supplied window is not a contiguous subset of session_context",
+        ):
+            session.compact_context(window=window)
+
+
+def test_compact_context_full_replacement_with_explicit_window():
+    """compact_context(window=...) replaces the window with summary in context."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(compaction_strategy=strategy)
+    )
+    session.session_context = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+        {"role": "user", "content": "bye"},
+    ]
+    window = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+    ]
+
+    with patch.object(strategy, "compact") as mock_compact:
+        mock_compact.return_value = {"role": "assistant", "content": "greeting summary"}
+        result = session.compact_context(window=window)
+
+    assert result["content"] == "greeting summary"
+    assert len(session.session_context) == 2
+    assert session.session_context[0]["content"] == "greeting summary"
+    assert session.session_context[1]["content"] == "bye"
