@@ -1,5 +1,6 @@
 """Tests for SessionConfig dataclass."""
 
+from tinycua.compaction.simple import SimpleCompaction
 from tinycua.config.session_config import SessionConfig
 
 
@@ -14,13 +15,14 @@ def test_session_config_defaults():
 
 def test_session_config_custom_values():
     """SessionConfig accepts custom values."""
+    strategy = SimpleCompaction()
     config = SessionConfig(
-        compaction_strategy="sliding_window",
+        compaction_strategy=strategy,
         max_context_messages=50,
         max_context_tokens=8000,
         metadata={"key": "value"},
     )
-    assert config.compaction_strategy == "sliding_window"
+    assert config.compaction_strategy is strategy
     assert config.max_context_messages == 50
     assert config.max_context_tokens == 8000
     assert config.metadata == {"key": "value"}
