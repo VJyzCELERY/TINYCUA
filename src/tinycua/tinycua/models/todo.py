@@ -38,7 +38,12 @@ class Todo:
 
         Args:
             max_items: Maximum number of items allowed.
+
+        Raises:
+            ValueError: If max_items is less than 1.
         """
+        if max_items < 1:
+            raise ValueError("max_items must be >= 1")
         self.items: list[TodoItem] = []
         self.max_items = max_items
 

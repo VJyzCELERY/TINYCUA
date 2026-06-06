@@ -45,6 +45,16 @@ class TestTodo:
         todo = Todo(max_items=5)
         assert todo.max_items == 5
 
+    def test_initialization_max_items_zero_raises(self) -> None:
+        """Test Todo raises ValueError when max_items is 0."""
+        with pytest.raises(ValueError, match="max_items must be >= 1"):
+            Todo(max_items=0)
+
+    def test_initialization_max_items_negative_raises(self) -> None:
+        """Test Todo raises ValueError when max_items is negative."""
+        with pytest.raises(ValueError, match="max_items must be >= 1"):
+            Todo(max_items=-1)
+
     def test_append(self) -> None:
         """Test appending items."""
         todo = Todo()
@@ -76,6 +86,14 @@ class TestTodo:
         todo.mark_done(0)
         assert todo.items[0].status == "done"
         assert todo.items[1].status == "pending"
+
+    def test_mark_done_already_done_raises(self) -> None:
+        """Test mark_done raises ValueError when item is already done."""
+        todo = Todo()
+        todo.append("Task 1")
+        todo.mark_done(0)
+        with pytest.raises(ValueError, match="already done"):
+            todo.mark_done(0)
 
     def test_mark_done_invalid_index(self) -> None:
         """Test mark_done with invalid index raises IndexError."""
