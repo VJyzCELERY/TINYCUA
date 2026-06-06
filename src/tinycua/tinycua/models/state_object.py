@@ -59,7 +59,7 @@ class StateObject:
         Raises:
             ValueError: If a required field is missing from the data.
         """
-        return _state_object_from_dict(cls, data)
+        return _state_object_from_dict(cls, data)  # type: ignore[return-value]
 
     def to_json(self, **json_kwargs: typing.Any) -> str:
         """Serialize to JSON string via to_dict() then json.dumps().
@@ -131,7 +131,7 @@ def _get_type_hints_safe(cls: type) -> dict[str, typing.Any]:
 
 def _state_object_from_dict(
     cls: type[StateObject], data: dict
-) -> typing.Self:
+) -> StateObject:
     """Reconstruct a StateObject from a dictionary.
 
     Uses field type annotations to auto-convert nested StateObject subclasses.
@@ -155,6 +155,47 @@ def _state_object_from_dict(
     return cls(**kwargs)  # type: ignore[call-arg]
 
 
+def _convert_list_value(
+    value: typing.Any, hint: typing.Any, field_obj: dataclasses.Field
+) -> typing.Any:
+    """Convert a list value using the inner type hint."""
+    args = getattr(hint, "__args__", ())
+    if args:
+        inner_hint = args[0]
+        if isinstance(inner_hint, str):
+            inner_hint = _resolve_annotation(inner_hint)
+        if isinstance(inner_hint, type) and issubclass(inner_hint, StateObject):
+            return [_convert_value_from_dict(item, inner_hint, field_obj) for item in value]
+    return value
+
+
+def _convert_union_value(
+    value: typing.Any, hint: typing.Any, field_obj: dataclasses.Field
+) -> typing.Any:
+    """Convert a value for a Union type hint by trying each arg."""
+    args = getattr(hint, "__args__", ())
+
+    for arg in args:
+        if arg is type(None):
+            continue
+        if isinstance(arg, str):
+            arg = _resolve_annotation(arg)
+        if isinstance(arg, type) and isinstance(value, arg):
+            return value
+
+    for arg in args:
+        if arg is type(None):
+            continue
+        if isinstance(arg, str):
+            arg = _resolve_annotation(arg)
+        if isinstance(arg, type) and issubclass(arg, StateObject):
+            if isinstance(value, dict):
+                return _state_object_from_dict(arg, value)
+            return value
+
+    return value
+
+
 def _convert_value_from_dict(
     value: typing.Any, hint: typing.Any, field_obj: dataclasses.Field
 ) -> typing.Any:
@@ -165,57 +206,24 @@ def _convert_value_from_dict(
     if value is None:
         return None
 
-    # Handle string annotations (from __future__ import annotations)
     if isinstance(hint, str):
         hint = _resolve_annotation(hint)
 
-    # Get the origin type (e.g., list for list[str], dict for dict[str, Any])
     origin = getattr(hint, "__origin__", None)
 
-    # Handle StateObject subclasses
     if isinstance(hint, type) and issubclass(hint, StateObject):
         if isinstance(value, dict):
             return _state_object_from_dict(hint, value)
         return value
 
-    # Handle list types (list[SomeType])
     if origin is list:
-        args = getattr(hint, "__args__", ())
-        if args:
-            inner_hint = args[0]
-            if isinstance(inner_hint, str):
-                inner_hint = _resolve_annotation(inner_hint)
-            if isinstance(inner_hint, type) and issubclass(inner_hint, StateObject):
-                return [_convert_value_from_dict(item, inner_hint, field_obj) for item in value]
-        return value
+        return _convert_list_value(value, hint, field_obj)
 
-    # Handle dict types (dict[str, Any])
     if origin is dict:
         return value
 
-    # Handle Union types (str | None, etc.) - get the first non-None type
     if origin is typing.Union or (hasattr(typing, "get_args") and hint is not None):
-        args = getattr(hint, "__args__", ())
-
-        # First, check if the value's actual type matches any Union arg
-        for arg in args:
-            if arg is type(None):
-                continue
-            if isinstance(arg, str):
-                arg = _resolve_annotation(arg)
-            if isinstance(arg, type) and isinstance(value, arg):
-                return value
-
-        # If no exact match, try StateObject conversion for dicts
-        for arg in args:
-            if arg is type(None):
-                continue
-            if isinstance(arg, str):
-                arg = _resolve_annotation(arg)
-            if isinstance(arg, type) and issubclass(arg, StateObject):
-                if isinstance(value, dict):
-                    return _state_object_from_dict(arg, value)
-                return value
+        return _convert_union_value(value, hint, field_obj)
 
     return value
 

@@ -49,9 +49,9 @@ Implementation tasks for State Objects, NodeInput, NodePayload. Check off items 
 
 ## Documentation Phase
 
-- [ ] Verify spec.md success criteria checkboxes match implementation <!-- id: 18 -->
-- [ ] Verify design.md error handling table matches implementation <!-- id: 18a -->
-- [ ] Verify public API exports match design.md export list <!-- id: 18b -->
+- [x] Verify spec.md success criteria checkboxes match implementation <!-- id: 18 -->
+- [x] Verify design.md error handling table matches implementation <!-- id: 18a -->
+- [x] Verify public API exports match design.md export list <!-- id: 18b -->
 - [x] Add docstrings to StateObject, NodePayload, NodeInput, convert_node_input_to_messages <!-- id: 18c -->
 
 ## Review and Merge

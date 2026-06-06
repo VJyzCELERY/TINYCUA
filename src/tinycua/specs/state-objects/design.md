@@ -65,7 +65,7 @@ class StateObject:
         ...
 ```
 
-Implementation uses `dataclasses.asdict()` for `to_dict()` and per-field construction with `typing.get_type_hints()` introspection for `from_dict()` to auto-convert nested `StateObject` subclasses.
+Implementation uses manual field iteration via `dataclasses.fields()` for `to_dict()` and per-field construction with `typing.get_type_hints()` introspection for `from_dict()` to auto-convert nested `StateObject` subclasses.
 
 ### NodePayload
 
@@ -201,8 +201,8 @@ None — Phase 1 covers the full M1.4 scope.
 
 ## Technical Decisions
 
-1. **Decision**: `StateObject` uses `dataclasses.asdict()` for `to_dict()` and introspection-based `from_dict()`.
-   - **Reason**: Zero external dependencies. `dataclasses.asdict()` handles recursive serialization of nested dataclasses automatically. `from_dict()` uses `typing.get_type_hints()` + `dataclasses.fields()` to auto-convert nested `StateObject` instances.
+1. **Decision**: `StateObject` uses manual field iteration via `dataclasses.fields()` for `to_dict()` and introspection-based `from_dict()`.
+   - **Reason**: Zero external dependencies. Manual iteration via `dataclasses.fields()` with per-field `_convert_value_to_dict()` handles recursive serialization of nested dataclasses. `from_dict()` uses `typing.get_type_hints()` + `dataclasses.fields()` to auto-convert nested `StateObject` instances.
    - **Alternatives Considered**: Pydantic — rejected for dependency overhead. Manual serialization — rejected for maintenance burden with nested types.
 
 2. **Decision**: `NodePayload.content` is polymorphic (`str | dict | StateObject | list[dict]`) rather than a single type.
@@ -227,7 +227,7 @@ None — Phase 1 covers the full M1.4 scope.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| `dataclasses.asdict()` doesn't handle all nested types correctly | Low | Medium | Unit tests with nested `StateObject` subclasses verify round-trip |
+| Manual field iteration via `dataclasses.fields()` doesn't handle all nested types correctly | Low | Medium | Unit tests with nested `StateObject` subclasses verify round-trip |
 | `from_dict()` type introspection fails for complex generic types | Low | Medium | Test with `list[NodePayload]`, `str | None`, and `dict` field types |
 | `NodePayload.to_message()` content serialization ambiguity | Medium | Low | Document exact serialization per content type; test all four content types |
 | Incompatibility with existing `Session.session_context` format | Low | High | `NodeInput.to_messages()` produces standard `list[dict]` matching existing format |
