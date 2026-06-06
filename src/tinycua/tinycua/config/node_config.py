@@ -70,19 +70,20 @@ class NodeToolPolicy:
         if self.include_agent_tools == "none":
             return result
 
-        # Build deny set for O(1) lookup
+        # Build deny set and existing names for O(1) lookup and dedup
         deny_set = set(self.denied_agent_tool_names)
+        node_tool_names = {t.name for t in self.node_tools}
 
         if self.include_agent_tools == "selected":
             # Include only allowed outer tools
             allow_set = set(self.allowed_agent_tool_names)
             for tool in outer_agent_tools:
-                if tool.name in allow_set and tool.name not in deny_set:
+                if tool.name in allow_set and tool.name not in deny_set and tool.name not in node_tool_names:
                     result.append(tool)
         elif self.include_agent_tools == "all":
-            # Include all outer tools except denied
+            # Include all outer tools except denied and duplicates
             for tool in outer_agent_tools:
-                if tool.name not in deny_set:
+                if tool.name not in deny_set and tool.name not in node_tool_names:
                     result.append(tool)
 
         return result

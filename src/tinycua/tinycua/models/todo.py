@@ -73,9 +73,12 @@ class Todo:
 
         Raises:
             IndexError: If index is invalid.
+            ValueError: If item is already done.
         """
         if index < 0 or index >= len(self.items):
             raise IndexError("Invalid todo index")
+        if self.items[index].status == "done":
+            raise ValueError(f"Item at index {index} is already done")
         self.items[index].status = "done"
 
     def next_pending(self) -> TodoItem | None:

@@ -82,24 +82,24 @@ A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subcl
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **SessionConfig exists**: `SessionConfig` dataclass with documented fields and defaults.
-- [ ] **NodeConfigBase exists**: `NodeConfigBase` dataclass with all policy fields.
-- [ ] **NodeMessagePolicy exists**: `NodeMessagePolicy` dataclass with documented fields.
-- [ ] **NodeToolPolicy exists**: `NodeToolPolicy` dataclass with documented fields.
-- [ ] **NodeStreamPolicy exists**: `NodeStreamPolicy` dataclass with documented fields.
-- [ ] **NodeRetryPolicy exists**: `NodeRetryPolicy` dataclass with documented fields.
-- [ ] **SystemPrompt exists**: `SystemPrompt` dataclass with documented fields.
-- [ ] **SystemPromptBuilder exists**: `SystemPromptBuilder` class with documented methods.
-- [ ] **Todo exists**: `Todo` class with `append`, `mark_done`, `next_pending`.
-- [ ] **TodoItem exists**: `TodoItem` dataclass with documented fields.
-- [ ] **LocalModelConfig exists**: `LocalModelConfig` dataclass with documented fields.
-- [ ] **Append-only customization works**: `NodeConfigBase` appends are concatenated to constants.
-- [ ] **Tool policy resolution works**: Deny wins over allow; selection works.
-- [ ] **Retry policy exhaustion works**: `max_attempts` respected; exhaustion behavior triggers.
-- [ ] **Todo limit enforced**: `append()` raises `ValueError` when `max_items` exceeded.
-- [ ] **System prompt builder works**: `build()` returns single system message.
-- [ ] **Config tests pass**: Unit tests for all config dataclasses and policies.
-- [ ] **Local model config usable**: `LocalModelConfig` can be used by nodes.
+- [x] **SessionConfig exists**: `SessionConfig` dataclass with documented fields and defaults.
+- [x] **NodeConfigBase exists**: `NodeConfigBase` dataclass with all policy fields.
+- [x] **NodeMessagePolicy exists**: `NodeMessagePolicy` dataclass with documented fields.
+- [x] **NodeToolPolicy exists**: `NodeToolPolicy` dataclass with documented fields.
+- [x] **NodeStreamPolicy exists**: `NodeStreamPolicy` dataclass with documented fields.
+- [x] **NodeRetryPolicy exists**: `NodeRetryPolicy` dataclass with documented fields.
+- [x] **SystemPrompt exists**: `SystemPrompt` dataclass with documented fields.
+- [x] **SystemPromptBuilder exists**: `SystemPromptBuilder` class with documented methods.
+- [x] **Todo exists**: `Todo` class with `append`, `mark_done`, `next_pending`.
+- [x] **TodoItem exists**: `TodoItem` dataclass with documented fields.
+- [x] **LocalModelConfig exists**: `LocalModelConfig` dataclass with documented fields.
+- [x] **Append-only customization works**: `NodeConfigBase` appends are concatenated to constants.
+- [x] **Tool policy resolution works**: Deny wins over allow; selection works.
+- [x] **Retry policy exhaustion works**: `max_attempts` respected; exhaustion behavior triggers.
+- [x] **Todo limit enforced**: `append()` raises `ValueError` when `max_items` exceeded.
+- [x] **System prompt builder works**: `build()` returns single system message.
+- [x] **Config tests pass**: Unit tests for all config dataclasses and policies.
+- [x] **Local model config usable**: `LocalModelConfig` can be used by nodes.
 
 ---
 
