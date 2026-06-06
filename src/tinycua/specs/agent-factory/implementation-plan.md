@@ -168,8 +168,11 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) > 0
-        assert session.chat_history[0]["role"] in ("user", "assistant")
+        assert len(session.chat_history) == 2  # user + assistant
+        assert session.chat_history[0]["role"] == "user"
+        assert session.chat_history[0]["content"] == "hello"
+        assert session.chat_history[1]["role"] == "assistant"
+        assert session.chat_history[1]["content"] == "Hello"
 ```
 
 ### Key Test Scenarios
