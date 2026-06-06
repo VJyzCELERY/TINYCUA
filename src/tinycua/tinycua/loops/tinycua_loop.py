@@ -45,9 +45,6 @@ class TinyCUALoop(BaseLoop):
         self.root_session = root_session or Session()
         self.queue = queue or NodeQueue()
         self.session_config = session_config
-        # Apply session_config to root_session if both exist
-        if self.session_config is not None:
-            self.root_session.session_config = self.session_config
 
     async def run(
         self,

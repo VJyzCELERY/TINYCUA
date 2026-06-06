@@ -21,6 +21,10 @@ async def main():
     result = await agent.run("Hello!")
     print(result)
 
+    # Access chat history
+    for msg in agent.loop.root_session.chat_history:
+        print(f"{msg['role']}: {msg['content']}")
+
 asyncio.run(main())
 ```
 

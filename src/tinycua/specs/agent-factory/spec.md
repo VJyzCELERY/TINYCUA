@@ -67,12 +67,12 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Factory returns Agent**: `create_tinycua_agent()` returns an SDK `Agent` with `TinyCUALoop` attached.
-- [ ] **New session creation**: When no session is provided, a new root session is created.
-- [ ] **SessionConfig application**: Provided `SessionConfig` is applied to the session.
-- [ ] **Loop runs without SDK changes**: `agent.run("hello")` executes without modifying SDK public APIs.
-- [ ] **Stream mode preserved**: `stream=True` returns async iterator; `stream=False` returns string.
-- [ ] **Chat history recorded**: Loop records messages in session chat history.
+- [x] **Factory returns Agent**: `create_tinycua_agent()` returns an SDK `Agent` with `TinyCUALoop` attached.
+- [x] **New session creation**: When no session is provided, a new root session is created.
+- [x] **SessionConfig application**: Provided `SessionConfig` is applied to the session.
+- [x] **Loop runs without SDK changes**: `agent.run("hello")` executes without modifying SDK public APIs.
+- [x] **Stream mode preserved**: `stream=True` returns async iterator; `stream=False` returns string.
+- [x] **Chat history recorded**: Loop records messages in session chat history.
 
 ---
 
@@ -106,13 +106,13 @@ A developer (or the prototype benchmark harness) calls `create_tinycua_agent(ses
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Factory function | TODO | |
-| TinyCUALoop class | TODO | |
-| Session creation | TODO | |
-| SessionConfig integration | TODO | |
+| Factory function | Done | |
+| TinyCUALoop class | Done | |
+| Session creation | Done | |
+| SessionConfig integration | Done | |
 | Local model config | Deferred | Phase 2 (see FR-006) |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| Unit tests | Done | |
+| Integration tests | Done | |
 
 > _See `task.md` for detailed implementation status with task IDs and acceptance criteria._
 

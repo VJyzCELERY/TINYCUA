@@ -58,8 +58,8 @@ Implementation tasks for Agent Factory Contract (Milestone 1.1). Check off items
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 15 -->
-- [ ] Address review feedback <!-- id: 16 -->
+- [x] Create pull request <!-- id: 15 -->
+- [x] Address review feedback <!-- id: 16 -->
 - [ ] Merge to main branch <!-- id: 17 -->
 
 ## Requirement Coverage

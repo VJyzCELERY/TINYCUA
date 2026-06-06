@@ -18,7 +18,7 @@ class SessionConfig:
         metadata: Arbitrary metadata attached to the session.
     """
 
-    compaction_strategy: str | None = None
-    max_context_messages: int = 100
+    compaction_strategy: Any | None = None
+    max_context_messages: int | None = 100
     max_context_tokens: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

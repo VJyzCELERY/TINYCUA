@@ -41,6 +41,10 @@ def create_tinycua_agent(
         )
         result = await agent.run("hello")
     """
+    if session is None:
+        session = Session()
+    if session_config is not None:
+        session.session_config = session_config
     loop = TinyCUALoop(
         root_session=session,
         session_config=session_config,
