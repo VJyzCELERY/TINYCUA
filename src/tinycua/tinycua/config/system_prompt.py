@@ -40,45 +40,57 @@ class SystemPromptBuilder:
         self._priority_counter += 1
         return priority
 
-    def add_static(self, content: str) -> None:
+    def add_static(
+        self, content: str, metadata: dict[str, Any] | None = None
+    ) -> None:
         """Add a static prompt fragment.
 
         Args:
             content: The static prompt text.
+            metadata: Optional metadata for this fragment.
         """
         self.fragments.append(
             SystemPrompt(
                 priority=self._next_priority(),
                 kind="static",
                 content=content,
+                metadata=metadata or {},
             )
         )
 
-    def add_configurable_append(self, content: str) -> None:
+    def add_configurable_append(
+        self, content: str, metadata: dict[str, Any] | None = None
+    ) -> None:
         """Add a configurable append prompt fragment.
 
         Args:
             content: The configurable append text.
+            metadata: Optional metadata for this fragment.
         """
         self.fragments.append(
             SystemPrompt(
                 priority=self._next_priority(),
                 kind="configurable",
                 content=content,
+                metadata=metadata or {},
             )
         )
 
-    def add_dynamic_context(self, content: str) -> None:
+    def add_dynamic_context(
+        self, content: str, metadata: dict[str, Any] | None = None
+    ) -> None:
         """Add a dynamic context prompt fragment.
 
         Args:
             content: The dynamic context text.
+            metadata: Optional metadata for this fragment.
         """
         self.fragments.append(
             SystemPrompt(
                 priority=self._next_priority(),
                 kind="dynamic",
                 content=content,
+                metadata=metadata or {},
             )
         )
 
