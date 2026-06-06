@@ -194,18 +194,18 @@ def test_local_model_config():
 ### Automated Tests
 
 - [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for all config dataclasses and policies
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Unit tests for all config dataclasses and policies
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify all new modules import correctly
-- [ ] Verify all dataclasses are immutable where intended
-- [ ] Verify LocalModelConfig can be used by nodes
+- [x] Verify all new modules import correctly
+- [x] Verify all dataclasses are immutable where intended
+- [x] Verify LocalModelConfig can be used by nodes
 
 ### Performance Considerations
 
-- [ ] N/A — configuration dataclasses have minimal performance impact
+- [x] N/A — configuration dataclasses have minimal performance impact
 
 ## Proposed Changes
 
