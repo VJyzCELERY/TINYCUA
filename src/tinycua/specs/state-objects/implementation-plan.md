@@ -1,286 +1,262 @@
-# Implementation: State Objects (M1)
+# Implementation: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
-Deliver canonical Python dataclasses for all TINYCUA state objects with consistent serialization and validation, so internal agents can reliably exchange typed state.
+Implement the internal transport layer for TinyCUA node communication. `StateObject` provides the serialization base class. `NodePayload` wraps a single node's structured output. `NodeInput` wraps the full handoff envelope between nodes. `NodeInputLike` and `convert_node_input_to_messages()` enable flexible input from external users, internal nodes, or pre-constructed message lists.
 
 ## Context
 
 - **Spec Reference**: `./spec.md`
 - **Design Reference**: `./design.md`
 - **Priority**: P1
-- **Estimated Effort**: L
+- **Estimated Effort**: M
 
 ## Environment Pre-requisites
 
-**N/A** — no special environment setup required beyond the standard `src/tinycua` project tooling.
+### Configuration
+
+- [ ] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+- [ ] **None** — no external services needed
+
+### Data / Fixtures
+
+- [ ] **None** — no data or fixtures needed
+
+### Access / Permissions
+
+- [ ] **None** — no special access required
+
+### Developer Tooling
+
+- [ ] **Runtime**: Python 3.11+
+- [ ] **Package manager**: uv
+- [ ] **None** — no special tooling required
 
 ---
 
-## Success Criteria — Serialization Round-Trip Tests (TDD First)
+## Success Criteria — Integration Tests (TDD First)
 
-Define the serialization round-trip tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/unit/state/test_state_objects_serialization.py
-"""Serialization round-trip tests for state objects serialization and validation."""
-
-import pytest
-
-from tinycua.state import ModeDecision, Task, ReviewerDecision
+# Test file: tests/integration/test_node_transport.py
+"""Integration tests for node transport via NodeInput/NodePayload."""
 
 
-def test_mode_decision_json_round_trip():
-    """ModeDecision survives JSON round-trip without data loss."""
-    # Arrange
-    decision = ModeDecision(
-        mode="uncertain",
-        score=0.72,
-        confidence=0.41,
-        reasons=["low context", "conflicting signals"],
-        uncertain_next_action="ask_user",
+def test_node_payload_round_trip_through_node_handoff():
+    """NodePayload carries structured output through serialize → deserialize → convert."""
+    from tinycua.models import NodePayload, NodeInput, convert_node_input_to_messages
+
+    # Arrange: Node A produces a task analysis payload
+    payload = NodePayload(
+        payload_type="task_analysis",
+        source_node="TaskAnalyzer",
+        content={"task_id": "T-0.1", "status": "analyzed"},
+        metadata={"confidence": 0.95},
     )
-    # Act
-    serialized = decision.to_json()
-    restored = ModeDecision.from_json(serialized)
-    # Assert
-    assert restored == decision
-
-
-def test_task_tree_nested_round_trip_dict():
-    """Nested Task tree structures round-trip through dict serialization."""
-    # Arrange
-    leaf = Task(
-        task_id="t-2",
-        task_name="leaf",
-        task_description="leaf task",
-        task_context="ctx",
-        success_criteria=["done"],
-        confidence=0.9,
+    node_input = NodeInput(
+        input_type="continuation",
+        source_node="TaskAnalyzer",
+        target_node="TaskExecutor",
+        payloads=[payload],
+        messages=[{"role": "user", "content": "Analyze task T-0.1"}],
     )
-    parent = Task(
-        task_id="t-1",
-        task_name="parent",
-        task_description="container task",
-        task_context="ctx",
-        success_criteria=["all children done"],
-        confidence=0.8,
-        child_tasks=[leaf],
-    )
-    # Act
-    restored = Task.from_dict(parent.to_dict())
-    # Assert
-    assert restored == parent
-    assert restored.child_tasks[0].task_id == "t-2"
+
+    # Act: serialize → deserialize → convert to messages
+    json_str = node_input.to_json()
+    restored = NodeInput.from_json(json_str)
+    messages = convert_node_input_to_messages(restored)
+
+    # Assert: messages contain payload as assistant message + continuation user message
+    assert len(messages) == 2
+    assert messages[0]["role"] == "assistant"
+    assert "task_analysis" in messages[0]["content"]
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Analyze task T-0.1"
 
 
-def test_task_tree_nested_round_trip_json():
-    """Nested Task tree structures round-trip through JSON serialization."""
-    leaf = Task(
-        task_id="t-2",
-        task_name="leaf",
-        task_description="leaf task",
-        task_context="ctx",
-        success_criteria=["done"],
-        confidence=0.9,
-    )
-    parent = Task(
-        task_id="t-1",
-        task_name="parent",
-        task_description="container task",
-        task_context="ctx",
-        success_criteria=["all children done"],
-        confidence=0.8,
-        child_tasks=[leaf],
-    )
-    restored = Task.from_json(parent.to_json())
-    assert restored == parent
-    assert restored.child_tasks[0].task_id == "t-2"
+def test_node_input_like_union_type_in_build_messages():
+    """NodeInputLike union type works in a mock node build_messages() method."""
+    from tinycua.models import NodePayload, NodeInput, NodeInputLike, convert_node_input_to_messages
 
+    def build_messages(node_input: NodeInputLike) -> list[dict]:
+        return convert_node_input_to_messages(node_input)
 
-def test_reviewer_decision_rejects_invalid_status():
-    """ReviewerDecision validation rejects unsupported status values."""
-    with pytest.raises(ValueError, match="status"):
-        ReviewerDecision(
-            task_id="t-1",
-            status="invalid_value",
-            reason="bad status",
-            confidence=0.2,
-        )
+    # External user string
+    user_msgs = build_messages("What is the weather?")
+    assert user_msgs == [{"role": "user", "content": "What is the weather?"}]
+
+    # Internal assistant string
+    assistant_msgs = build_messages("I will analyze the task.")
+    assert assistant_msgs == [{"role": "assistant", "content": "I will analyze the task."}]
+
+    # NodePayload
+    payload = NodePayload(payload_type="decision", content="approved")
+    payload_msgs = build_messages(payload)
+    assert payload_msgs[0]["role"] == "assistant"
+
+    # NodeInput
+    node_input = NodeInput(input_type="initial", payloads=[payload])
+    node_msgs = build_messages(node_input)
+    assert len(node_msgs) == 1
+
+    # list[dict] passthrough
+    prebuilt = [{"role": "user", "content": "hello"}]
+    passthrough_msgs = build_messages(prebuilt)
+    assert passthrough_msgs is prebuilt
 ```
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Session dict/JSON round-trip preserves all fields and equality (FR-001, FR-013, FR-014).
-- [x] **Scenario 2**: ModeDecision JSON round-trip preserves all fields and equality.
-- [x] **Scenario 3**: Task tree with nested container/leaf tasks round-trips via dict serialization.
-- [x] **Scenario 4**: Task tree with nested container/leaf tasks round-trips via JSON serialization.
-- [x] **Scenario 5**: ExecutionLog with nested ExecutionLogEntry round-trip via dict/JSON (FR-012).
-- [x] **Scenario 6**: DigestedInformation with all optional fields omitted (FR-004, edge case).
-- [x] **Scenario 7**: AgentState rejects negative `consecutive_failures` (FR-011, FR-015).
-- [x] **Scenario 8**: WorkerConfig rejects invalid `effort` value (FR-005).
-- [x] **Edge case**: ReviewerDecision rejects an invalid status value with a clear error.
+- [ ] **Scenario 1**: Full node handoff — construct NodePayload → wrap in NodeInput → serialize → deserialize → convert to messages. Verifies the complete transport pipeline.
+- [ ] **Scenario 2**: NodeInputLike union type — mock node accepts any NodeInputLike variant and converts correctly. Verifies the flexible input API.
+- [ ] **Edge case**: Empty payloads and empty messages — verify `to_messages()` returns empty list.
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Serialization round-trip tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for `tinycua.state` modules — serialization, validation, edge cases
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
-- [x] Lint check passes: `cd src/tinycua && uv run ruff check .`
-- [x] Type check passes: `cd src/tinycua && uv run mypy tinycua/state/`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for StateObject — test `to_dict()`, `from_dict()`, `to_json()`, `from_json()` round-trip, missing field validation, invalid JSON handling
+- [ ] Unit tests for NodePayload — test construction, defaults, `to_message()` with all content types, `to_messages()`, serialization round-trip
+- [ ] Unit tests for NodeInput — test construction, defaults, `to_messages()` with various combinations, serialization round-trip with nested payloads
+- [ ] Unit tests for `convert_node_input_to_messages()` — test all NodeInputLike variants, source parameter, empty inputs
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- None — behavior is fully covered by automated tests
+- [ ] Import all new types from `tinycua.models` and verify they are accessible
+- [ ] Verify `NodePayload.to_message()` produces valid assistant-role message dicts
+- [ ] Verify `NodeInput.to_messages()` order: payloads first, then messages
 
 ### Performance Considerations
 
-- None — data-only types with no performance-sensitive paths
+- [ ] Not applicable — pure data structures with no I/O
 
 ## Proposed Changes
 
-### Documentation (Architecture Docs — Pre-requisite)
+### Models Module
 
-#### [MODIFY] src/tinycua/docs/architecture/state-objects.md
+#### [NEW] `tinycua/models/state_object.py`
 
-- **Description of change**: Update `agent_state.status` values to `idle | running | blocked | terminated`.
-- **Rationale**: Aligns canonical schema with implemented literals before code depends on new enum values.
+- **Description**: `StateObject` base class with `to_dict()`, `from_dict()`, `to_json()`, `from_json()` methods
+- **Dependencies**: `dataclasses`, `json`, `typing` (stdlib only)
+- **Rationale**: Provides serialization base for all TinyCUA model dataclasses
 
-#### [MODIFY] src/tinycua/docs/architecture/session-architecture.md
+#### [NEW] `tinycua/models/node_payload.py`
 
-- **Description of change**: Update `session.owner_type` values and description for `primary | child`.
-- **Rationale**: Aligns canonical session ownership model with spec before code depends on new enum values.
+- **Description**: `NodePayload` dataclass extending `StateObject` with `payload_type`, `source_node`, `content`, `metadata` fields and `to_message()`, `to_messages()` methods
+- **Dependencies**: `state_object.py`
+- **Rationale**: Internal transport envelope for a single node's structured output
 
-### State Objects Module
+#### [NEW] `tinycua/models/node_input.py`
 
-#### [NEW] src/tinycua/tinycua/state/base.py
+- **Description**: `NodeInput` dataclass extending `StateObject`, `NodeInputLike` type alias, and `convert_node_input_to_messages()` function
+- **Dependencies**: `state_object.py`, `node_payload.py`
+- **Rationale**: Internal transport envelope for node-to-node handoff with flexible input conversion
 
-- **Description of change**: Introduce `StateObject` base class with `to_dict()` / `from_dict()` / `to_json()` / `from_json()` helpers.
-- **Rationale**: Ensures consistent serialization across all state objects.
+#### [MODIFY] `tinycua/models/__init__.py`
 
-#### [NEW] src/tinycua/tinycua/state/session.py
-
-- **Description of change**: Add `Session` dataclass with validation for required fields and owner type values.
-- **Rationale**: Canonical session container described in the spec.
-
-#### [NEW] src/tinycua/tinycua/state/mode_decision.py
-
-- **Description of change**: Add `ContextEnhancedQuery` and `ModeDecision` dataclasses with enum-value validation.
-- **Rationale**: Required for query analysis routing decisions.
-
-#### [NEW] src/tinycua/tinycua/state/digested_information.py
-
-- **Description of change**: Add `DigestedInformation` dataclass with optional fields and defaults.
-- **Rationale**: Provides structured context summary payload.
-
-#### [NEW] src/tinycua/tinycua/state/worker_config.py
-
-- **Description of change**: Add `WorkerConfig` dataclass with effort validation.
-- **Rationale**: Encodes worker effort level for internal agent control.
-
-#### [NEW] src/tinycua/tinycua/state/task.py
-
-- **Description of change**: Add `Task` tree node dataclass with `task_result`-based status tracking, `parent_task_id` auto-setting, and `display()` DFS pre-order traversal.
-- **Rationale**: Represents the internal execution plan and task tree.
-
-#### [NEW] src/tinycua/tinycua/state/task_result.py
-
-- **Description of change**: Add `TaskResult` dataclass with status validation.
-- **Rationale**: Captures task execution outcomes.
-
-#### [NEW] src/tinycua/tinycua/state/reviewer.py
-
-- **Description of change**: Add `ContextUpdate` and `ReviewerDecision` dataclasses.
-- **Rationale**: Supports review outcomes and context updates.
-
-#### [NEW] src/tinycua/tinycua/state/worker_result.py
-
-- **Description of change**: Add `AcceptedResult` and `WorkerResult` dataclasses.
-- **Rationale**: Aggregates accepted task results for primary agent consumption.
-
-#### [NEW] src/tinycua/tinycua/state/agent_state.py
-
-- **Description of change**: Add `AgentState` dataclass with status validation and non-negative `consecutive_failures` enforcement.
-- **Rationale**: Tracks internal agent lifecycle state.
-
-#### [NEW] src/tinycua/tinycua/state/execution_log.py
-
-- **Description of change**: Add `ExecutionLog` and `ExecutionLogEntry` dataclasses.
-- **Rationale**: Captures per-session execution trace.
-
-#### [NEW] src/tinycua/tinycua/state/__init__.py
-
-- **Description of change**: Re-export all public types and literal aliases for easy import.
-- **Rationale**: Provides stable `tinycua.state` API surface.
-
-#### [NOT DONE] src/tinycua/tinycua/__init__.py
-
-- **Description of change**: Optionally re-export `tinycua.state` for discoverability.
-- **Rationale**: Decided against — re-export not needed. Discoverability via `tinycua.state` direct import is sufficient.
+- **Description**: Add exports for `StateObject`, `NodePayload`, `NodeInput`, `NodeInputLike`, `convert_node_input_to_messages`
+- **Breaking changes**: None — additive only
 
 ### Tests
 
-#### [NEW] src/tinycua/tests/unit/state/test_state_objects_serialization.py
+#### [NEW] `tests/unit/test_state_object.py`
 
-- **Description of change**: Serialization round-trip tests that validate cross-object serialization and validation.
-- **Rationale**: Ensures end-to-end round-trips and error handling.
+- **Description**: Unit tests for `StateObject` base class serialization round-trip, missing field validation, invalid JSON handling
 
-#### [NEW] src/tinycua/tests/unit/state/test_state_objects_unit.py
+#### [NEW] `tests/unit/test_node_payload.py`
 
-- **Description of change**: Unit tests for each state object and validation rule.
-- **Rationale**: Achieve >90% coverage for the state module.
+- **Description**: Unit tests for `NodePayload` construction, defaults, `to_message()` with all content types, `to_messages()`, serialization
+
+#### [NEW] `tests/unit/test_node_input.py`
+
+- **Description**: Unit tests for `NodeInput` construction, defaults, `to_messages()`, serialization, `convert_node_input_to_messages()` with all variants
+
+#### [NEW] `tests/integration/test_node_transport.py`
+
+- **Description**: Integration tests for full node handoff pipeline and NodeInputLike union type
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua/state/` | New | New module containing all state dataclasses and serialization helpers |
-| `tinycua/__init__.py` | Modify | Optional re-export of `tinycua.state` |
-| Architecture docs | Modify | Update state object and session ownership definitions |
+| `tinycua/models/state_object.py` | New | `StateObject` base class with dict/JSON serialization |
+| `tinycua/models/node_payload.py` | New | `NodePayload` transport envelope for node output |
+| `tinycua/models/node_input.py` | New | `NodeInput` transport envelope, `NodeInputLike`, `convert_node_input_to_messages()` |
+| `tinycua/models/__init__.py` | Modified | Export new types |
 
 ## Data Model Changes
 
 ```python
-# New dataclasses (see design.md for full definitions)
-Session
-ContextEnhancedQuery
-ModeDecision
-DigestedInformation
-WorkerConfig
-Task (tree node)
-TaskResult
-ContextUpdate
-ReviewerDecision
-AcceptedResult
-WorkerResult
-AgentState
-ExecutionLog
-ExecutionLogEntry
+# New types
+StateObject:
+    to_dict() -> dict
+    from_dict(data: dict) -> Self
+    to_json(**json_kwargs) -> str
+    from_json(json_str: str) -> Self
+
+NodePayload(StateObject):
+    payload_type: str
+    source_node: str | None = None
+    content: str | dict | StateObject | list[dict] = ""
+    metadata: dict = field(default_factory=dict)
+    to_message() -> dict
+    to_messages() -> list[dict]
+
+NodeInput(StateObject):
+    input_type: str
+    source_node: str | None = None
+    target_node: str | None = None
+    messages: list[dict] = field(default_factory=list)
+    payloads: list[NodePayload] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
+    to_messages() -> list[dict]
+
+NodeInputLike = str | NodeInput | NodePayload | list[dict]
+
+convert_node_input_to_messages(node_input: NodeInputLike, *, source: Literal["external", "internal"] = "internal") -> list[dict]
 ```
 
 ## API Changes
 
-None — library-only changes with no external API endpoints.
+### New Exports from `tinycua.models`
+
+| Name | Type | Description |
+|------|------|-------------|
+| `StateObject` | Class | Serialization base for model dataclasses |
+| `NodePayload` | Dataclass | Internal transport envelope for node output |
+| `NodeInput` | Dataclass | Internal transport envelope for node handoff |
+| `NodeInputLike` | TypeAlias | Union type for flexible node input |
+| `convert_node_input_to_messages` | Function | Converts any NodeInputLike to message dicts |
+
+### No Modified Endpoints
+
+None — this is a new module addition with no changes to existing APIs.
 
 ## Dependencies
 
 ### External Dependencies
 
-None — standard library only.
+None — stdlib only (`dataclasses`, `json`, `typing`).
 
 ### Internal Dependencies
 
-- [x] No blocking dependencies; changes are self-contained within `src/tinycua`.
+- [ ] Depends on existing `Session` model format (message dicts) — compatible by design
+- [ ] Blocks Milestone 1.5 (concrete node implementations)
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Schema drift between docs and implementation | High | Derive all fields from canonical `state-objects.md` and update docs in this PR |
-| Serialization edge cases with deep nesting | Medium | Add nested Task tree serialization round-trip test with multi-level child_tasks |
-| Missing fields in `from_dict()` | Medium | Unit tests that cover round-trip for every type |
+| `dataclasses.asdict()` doesn't handle all nested types correctly | Medium | Unit tests with nested `StateObject` subclasses verify round-trip |
+| `from_dict()` type introspection fails for complex generic types | Medium | Test with `list[NodePayload]`, `str | None`, and `dict` field types |
+| `NodePayload.to_message()` content serialization ambiguity | Low | Document exact serialization per content type; test all four content types |
+| Incompatibility with existing `Session.session_context` format | High | `NodeInput.to_messages()` produces standard `list[dict]` matching existing format |
 
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-05-30*
+*Last updated: 2026-06-07*

@@ -1,62 +1,60 @@
-# Tasks: State Objects (M1)
+# Tasks: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
-Implementation tasks for State Objects (M1). Check off items as completed.
+Implementation tasks for State Objects, NodeInput, NodePayload. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [x] T-001 Write serialization round-trip tests (defined in implementation-plan.md)
-- [x] T-002 Run serialization round-trip tests — expect RED (failures) since no implementation yet
+- [ ] Write integration tests for node transport (`tests/integration/test_node_transport.py`) <!-- id: 0 -->
+- [ ] Write unit tests for StateObject (`tests/unit/test_state_object.py`) <!-- id: 1 -->
+- [ ] Write unit tests for NodePayload (`tests/unit/test_node_payload.py`) <!-- id: 2 -->
+- [ ] Write unit tests for NodeInput and convert_node_input_to_messages (`tests/unit/test_node_input.py`) <!-- id: 3 -->
+- [ ] Run all new tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
 
 ## Implementation Phase
 
-- [x] T-003 Update architecture docs (pre-requisite per spec constraint)
-  - [x] T-004 Update `src/tinycua/docs/architecture/state-objects.md` status values
-  - [x] T-005 Update `src/tinycua/docs/architecture/session-architecture.md` owner_type definition
-- [x] T-006 Create `tinycua.state` module scaffold
-  - [x] T-007 Add `tinycua/state/base.py` with `StateObject` serialization helpers
-  - [x] T-008 Add `tinycua/state/__init__.py` with public re-exports
-- [x] T-009 Implement core state dataclasses
-  - [x] T-010 Session, ContextEnhancedQuery, ModeDecision
-  - [x] T-011 DigestedInformation, WorkerConfig
-  - [x] T-012 Task (tree node), TaskResult
-  - [x] T-013 ContextUpdate, ReviewerDecision
-  - [x] T-014 AcceptedResult, WorkerResult
-  - [x] T-015 AgentState, ExecutionLog, ExecutionLogEntry
-- [x] T-016 Add validation logic for enums and constraints
-  - [x] T-017 Enum value checks in `__post_init__`
-  - [x] T-018 Non-negative `consecutive_failures` enforcement
-- [x] T-019 Wire serialization for nested structures
-  - [x] T-020 Nested `Task` tree (child_tasks)
-  - [x] T-021 ExecutionLog entries
+- [ ] Create `tinycua/models/state_object.py` with `StateObject` base class <!-- id: 5 -->
+  - [ ] Implement `to_dict()` using `dataclasses.asdict()`
+  - [ ] Implement `from_dict()` with type introspection for nested StateObject subclasses
+  - [ ] Implement `to_json()` delegating to `to_dict()` → `json.dumps()`
+  - [ ] Implement `from_json()` delegating to `json.loads()` → `from_dict()`
+- [ ] Create `tinycua/models/node_payload.py` with `NodePayload` dataclass <!-- id: 6 -->
+  - [ ] Define fields: `payload_type`, `source_node`, `content`, `metadata` with defaults
+  - [ ] Implement `to_message()` with content serialization for str/dict/StateObject/list[dict]
+  - [ ] Implement `to_messages()` returning single-element list from `to_message()`
+- [ ] Create `tinycua/models/node_input.py` with `NodeInput`, `NodeInputLike`, `convert_node_input_to_messages()` <!-- id: 7 -->
+  - [ ] Define `NodeInput` fields: `input_type`, `source_node`, `target_node`, `messages`, `payloads`, `metadata` with defaults
+  - [ ] Implement `NodeInput.to_messages()` — payloads as assistant messages then messages list
+  - [ ] Define `NodeInputLike = str | NodeInput | NodePayload | list[dict]`
+  - [ ] Implement `convert_node_input_to_messages()` with source parameter
+- [ ] Update `tinycua/models/__init__.py` to export new types <!-- id: 8 -->
 
 ## Testing Phase
 
-- [x] T-022 Run serialization round-trip tests — expect GREEN (all pass)
-- [x] T-023 Write unit tests for `tinycua.state` types
-- [x] T-024 Run full test suite: `cd src/tinycua && uv run pytest`
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 9 -->
+- [ ] Run unit tests for StateObject — expect GREEN <!-- id: 10 -->
+- [ ] Run unit tests for NodePayload — expect GREEN <!-- id: 11 -->
+- [ ] Run unit tests for NodeInput — expect GREEN <!-- id: 12 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — no regressions <!-- id: 13 -->
 
 ## Verification Phase
 
-- [x] T-025 Review unit test coverage for `tinycua.state` (>90%)
-- [x] T-026 Confirm serialization round-trips for all state objects
-- [x] T-027 Validate error messages for invalid enum values
+- [ ] Import all new types from `tinycua.models` and verify accessibility <!-- id: 14 -->
+- [ ] Verify round-trip serialization: `to_json()` → `from_json()` preserves all fields <!-- id: 15 -->
+- [ ] Verify `NodePayload.to_message()` produces valid assistant-role message dicts <!-- id: 16 -->
+- [ ] Verify `convert_node_input_to_messages()` handles all NodeInputLike variants <!-- id: 17 -->
+
+## Documentation Phase
+
+- [ ] Verify spec.md success criteria checkboxes match implementation <!-- id: 18 -->
 
 ## Review and Merge
 
-- [ ] T-028 Address review feedback
-- [ ] T-029 Merge to base branch (feat/agent-prototype)
+- [ ] Create pull request <!-- id: 19 -->
+- [ ] Address review feedback <!-- id: 20 -->
+- [ ] Merge to base branch <!-- id: 21 -->
 
 ---
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-05-30*
-
-## Summary of Results
-- **136 tests** — all passing
-
-- **100% coverage** on `tinycua.state` module (12 files, 336 statements)
-- **Lint**: ruff — clean
-- **Type check**: mypy — clean
-- **Architecture docs**: Updated AgentState status and Session owner_type
-- **New files**: 12 Python files in `tinycua/state/` + 2 test files
+*Last updated: 2026-06-07*
