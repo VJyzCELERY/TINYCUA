@@ -80,13 +80,14 @@ def test_node_payload_round_trip_through_node_handoff():
 
 def test_node_input_like_union_type_in_build_messages():
     """NodeInputLike union type works in a mock node build_messages() method."""
+    from typing import Literal
     from tinycua.models import NodePayload, NodeInput, NodeInputLike, convert_node_input_to_messages
 
-    def build_messages(node_input: NodeInputLike) -> list[dict]:
-        return convert_node_input_to_messages(node_input)
+    def build_messages(node_input: NodeInputLike, *, source: Literal["external", "internal"] = "internal") -> list[dict]:
+        return convert_node_input_to_messages(node_input, source=source)
 
     # External user string
-    user_msgs = build_messages("What is the weather?")
+    user_msgs = build_messages("What is the weather?", source="external")
     assert user_msgs == [{"role": "user", "content": "What is the weather?"}]
 
     # Internal assistant string
