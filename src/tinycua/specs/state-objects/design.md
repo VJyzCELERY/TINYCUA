@@ -1,7 +1,7 @@
 # Design Document: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: Reviewed
 **Last Updated**: 2026-06-07
 
 ---
