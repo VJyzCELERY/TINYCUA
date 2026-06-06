@@ -22,7 +22,7 @@ class SimpleCompaction(CompactionStrategy):
         fallback_config: Optional override for the fallback config.
     """
 
-    _FALLBACK_CONFIG: dict[str, str] = {
+    _FALLBACK_CONFIG: dict[str, Any] = {
         "model": "gpt-4o-mini",
         "provider": "openai",
     }
@@ -30,7 +30,7 @@ class SimpleCompaction(CompactionStrategy):
     def __init__(
         self,
         parent_config: dict[str, Any] | None = None,
-        fallback_config: dict[str, str] | None = None,
+        fallback_config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize SimpleCompaction.
 
@@ -60,7 +60,7 @@ class SimpleCompaction(CompactionStrategy):
         return self._parent_config
 
     @property
-    def fallback_config(self) -> dict[str, str]:
+    def fallback_config(self) -> dict[str, Any]:
         """Return the fallback model/provider config.
 
         Returns:

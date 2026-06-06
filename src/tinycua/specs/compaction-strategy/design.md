@@ -42,7 +42,7 @@ SimpleCompaction (default implementation)
 | `tinycua/compaction/strategy.py` | New | `CompactionStrategy` abstract base class |
 | `tinycua/compaction/simple.py` | New | `SimpleCompaction` default implementation |
 | `tinycua/compaction/errors.py` | New | `CompactionError` exception class |
-| `tinycua/factory.py` | Modified | Ensure `create_tinycua_agent()` passes parent config to `SimpleCompaction` when initialized |
+| `tinycua/factory.py` | Deferred | Factory integration deferred — callers provide strategy via SessionConfig.compaction_strategy |
 
 ---
 

@@ -8,7 +8,6 @@ from tinycua.compaction.errors import CompactionError
 from tinycua.compaction.simple import SimpleCompaction
 from tinycua.compaction.strategy import CompactionStrategy
 from tinycua.config.session_config import SessionConfig
-from tinycua.factory import create_tinycua_agent
 from tinycua.models.session import Session
 
 
@@ -167,6 +166,10 @@ class TestSessionCompactContext:
 
 class TestFactoryIntegration:
     """Verify factory creates SimpleCompaction with parent config."""
+
+    # Known limitation: factory integration is deferred to Phase 2.
+    # Config-passing to SimpleCompaction is validated by
+    # test_simple_compaction_uses_parent_config (unit test).
 
     @patch("tinycua.factory.create_tinycua_agent")
     def test_factory_initializes_simple_compaction(self, mock_create):
