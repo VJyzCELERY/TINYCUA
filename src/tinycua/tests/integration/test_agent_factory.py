@@ -106,5 +106,20 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) > 0
-        assert session.chat_history[0]["role"] in ("user", "assistant")
+        assert len(session.chat_history) == 2  # user + assistant
+        assert session.chat_history[0]["role"] == "user"
+        assert session.chat_history[0]["content"] == "hello"
+        assert session.chat_history[1]["role"] == "assistant"
+        assert session.chat_history[1]["content"] == "Hello"
+
+    @pytest.mark.asyncio
+    async def test_run_does_not_record_empty_assistant_response(self):
+        """Empty assistant responses are not recorded in chat history."""
+        agent = create_tinycua_agent()
+        agent._call_llm = AsyncMock(
+            return_value={"content": "", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        )
+        await agent.run("hello")
+        session = agent.loop.root_session
+        assert len(session.chat_history) == 1  # only user message
+        assert session.chat_history[0]["role"] == "user"

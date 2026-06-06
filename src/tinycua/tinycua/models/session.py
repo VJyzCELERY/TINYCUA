@@ -27,7 +27,7 @@ class Session:
         todo: Optional todo list.
     """
 
-    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     parent_id: str | None = None
     session_config: SessionConfig | None = None
     chat_history: list[dict[str, Any]] = field(default_factory=list)

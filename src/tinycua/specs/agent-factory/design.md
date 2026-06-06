@@ -94,8 +94,8 @@ TinyCUALoop:
 # implementations may evolve in later milestones.
 ChatRecord: dict[str, Any]       # {"role": str, "content": str}
 SessionContextEntry: dict[str, Any]  # {"key": str, "value": Any}
-Task: dict[str, Any] | None      # placeholder for future task model
-Todo: dict[str, Any] | None      # placeholder for future todo model
+Task: str | None                  # placeholder — task description string
+Todo: list[dict[str, Any]]        # placeholder — list of todo items
 ```
 
 ### Schema Changes
@@ -228,13 +228,13 @@ contract mirrors the minimum shape needed for factory/loop testing.
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create `tinycua/config/session_config.py` with `SessionConfig` dataclass (if not already present)
-- [ ] Create `tinycua/models/session.py` with `Session` class skeleton
-- [ ] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending `BaseLoop`
-- [ ] Create `tinycua/factory.py` with `create_tinycua_agent()` function
-- [ ] Write unit tests for factory function
-- [ ] Write unit tests for TinyCUALoop construction and basic run path
-- [ ] Verify `Agent(loop=TinyCUALoop(...)).run(...)` works with mocked LLM
+- [x] Create `tinycua/config/session_config.py` with `SessionConfig` dataclass (if not already present)
+- [x] Create `tinycua/models/session.py` with `Session` class skeleton
+- [x] Create `tinycua/loops/tinycua_loop.py` with `TinyCUALoop` extending `BaseLoop`
+- [x] Create `tinycua/factory.py` with `create_tinycua_agent()` function
+- [x] Write unit tests for factory function
+- [x] Write unit tests for TinyCUALoop construction and basic run path
+- [x] Verify `Agent(loop=TinyCUALoop(...)).run(...)` works with mocked LLM
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

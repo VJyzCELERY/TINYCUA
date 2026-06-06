@@ -8,7 +8,7 @@ def test_session_has_uuid():
     """Session generates a UUID by default."""
     session = Session()
     assert session.session_id is not None
-    assert len(session.session_id) == 36  # UUID format
+    assert len(session.session_id) == 32  # UUID hex format (no dashes)
 
 
 def test_session_unique_ids():
