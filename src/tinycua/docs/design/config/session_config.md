@@ -1,8 +1,7 @@
 # SessionConfig
 
 > **Package:** `tinycua.config.session_config`
-> **Status:** Reviewed
-> **Last Updated:** 2026-06-05
+> **Status:** Target architecture
 
 ## Role
 
@@ -11,7 +10,7 @@ It is separate from outer SDK `Agent` config and node-specific config.
 
 ```text
 SessionConfig
-  · compaction_strategy: Any | None  # CompactionStrategy placeholder for M1.1; concrete type in Phase 2
+  · compaction_strategy: CompactionStrategy | None
   · max_context_messages: int | None
   · max_context_tokens: int | None
   · metadata: dict
@@ -36,10 +35,10 @@ back to documented defaults, runs a tool-less compaction Agent, and returns
 
 ## Factory Interaction
 
-The factory function `create_tinycua_agent(...)` (M1.1) supports:
+Future implementation should support:
 
 ```text
-create_tinycua_agent(session=None, session_config=None, **agent_kwargs)
+create_tinycua_agent(session=None, agent_config=None, session_config=None, ...)
 ```
 
 If `session is None`, a new root session is created. If `session_config` is provided, it
@@ -53,8 +52,6 @@ session is used. The strategy does not need the live Agent object during
 
 ## Related
 
-- [Agent Factory Spec](../../../specs/agent-factory/spec.md)
-- [Agent Factory Design](../../../specs/agent-factory/design.md)
 - [`../models/session.md`](../models/session.md)
 - [`node_config.md`](node_config.md)
 - [`../utility/compaction.md`](../utility/compaction.md)
