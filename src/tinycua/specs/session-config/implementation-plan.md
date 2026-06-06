@@ -183,11 +183,11 @@ def test_local_model_config():
 
 ### Key Test Scenarios
 
-- [ ] **Node configuration**: Test NodeConfigBase with all policy types and their defaults
-- [ ] **Tool policy resolution**: Test allow/deny precedence in NodeToolPolicy
-- [ ] **System prompt building**: Test SystemPromptBuilder fragment ordering and output
-- [ ] **Todo lifecycle**: Test append, mark_done, next_pending, and max_items limit
-- [ ] **Local model config**: Test construction and default values
+- [x] **Node configuration**: Test NodeConfigBase with all policy types and their defaults
+- [x] **Tool policy resolution**: Test allow/deny precedence in NodeToolPolicy
+- [x] **System prompt building**: Test SystemPromptBuilder fragment ordering and output
+- [x] **Todo lifecycle**: Test append, mark_done, next_pending, and max_items limit
+- [x] **Local model config**: Test construction and default values
 
 ## Verification Plan
 
@@ -365,7 +365,7 @@ LocalModelConfig:
 ### Internal Dependencies
 
 - [x] Depends on existing `tinycua.config.session_config` (no changes needed)
-- [ ] Blocks later node implementation milestones
+- [x] Blocks later node implementation milestones
 
 ## Risks and Mitigations
 

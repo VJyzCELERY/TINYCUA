@@ -19,7 +19,7 @@ NodeMessagePolicy
   · include_session_context: bool = true
   · max_context_messages: int | None
   · dedupe_by_origin_record_id: bool = true
-  · continuation_role: str = "assistant"  # Internal node handoffs are assistant-role messages
+  · continuation_role: Literal["assistant"] = "assistant"
 ```
 
 Internal node handoffs and continuations are assistant-role messages. Provider-required

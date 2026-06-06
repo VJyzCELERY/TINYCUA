@@ -20,16 +20,16 @@ It is distinct from `Task`, which is the root session's overall goal.
 
 ```text
 Todo
-  · items: list[TodoItem]          # maintained in insertion order
+  · items: list[TodoItem]
   · max_items: int = 20
-  · append(description: str) → None   # auto-assigns order = len(items) before append
-  · mark_done(index: int) → None      # raises IndexError if invalid
-  · next_pending() → TodoItem | None  # returns first item with status="pending"
+  · append(description: str) → None
+  · mark_done(index: int) → None
+  · next_pending() → TodoItem | None
 
 TodoItem
   · description: str
   · status: Literal["pending", "done"]
-  · order: int                    # auto-assigned on append(); insertion order index (0-based)
+  · order: int
   · metadata: dict
 ```
 
