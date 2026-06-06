@@ -26,6 +26,8 @@ Implement the internal transport layer for TinyCUA node communication. `StateObj
 
 ### Affected Components
 
+> **Note**: These are planned implementation changes, not changes in this docs-only PR.
+
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua/models/state_object.py` | New | `StateObject` base class with serialization |
@@ -233,6 +235,8 @@ None — Phase 1 covers the full M1.4 scope.
 ---
 
 ## Open Questions _(optional)_
+
+See also: [spec.md Open Questions](spec.md#open-questions-optional) for API-level decisions.
 
 1. **Should `StateObject` validate required fields in `__post_init__`?**
    - Currently not planned — `from_dict()` handles missing field validation. `StateObject` subclasses that need runtime validation (e.g., enum checks) should implement their own `__post_init__`.

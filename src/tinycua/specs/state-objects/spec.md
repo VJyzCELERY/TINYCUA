@@ -1,6 +1,6 @@
 # Feature Specification: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
-**Status**: Draft
+**Status**: Reviewed
 **Created**: 2026-06-07
 **Last Updated**: 2026-06-07
 **Subproject(s) Affected**: tinycua
@@ -84,6 +84,8 @@ A developer building a TinyCUA node constructs a `NodePayload` to represent the 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
+> **Note**: These criteria define implementation success. Checkboxes will be verified during implementation — see `task.md` for tracking.
+
 - [ ] **StateObject base exists**: `StateObject` class with `to_dict()`, `from_dict()`, `to_json()`, `from_json()`.
 - [ ] **NodePayload exists**: `NodePayload` dataclass with documented fields and defaults.
 - [ ] **NodeInput exists**: `NodeInput` dataclass with documented fields and defaults.
@@ -129,22 +131,9 @@ A developer building a TinyCUA node constructs a `NodePayload` to represent the 
 
 ---
 
-## Status Tracker _(optional)_
-
-| Item | Status | Notes |
-|------|--------|-------|
-| StateObject base class | TODO | New module: `tinycua/models/state_object.py` |
-| NodePayload | TODO | New module: `tinycua/models/node_payload.py` |
-| NodeInput | TODO | New module: `tinycua/models/node_input.py` |
-| NodeInputLike type alias | TODO | In `tinycua/models/node_input.py` |
-| convert_node_input_to_messages() | TODO | In `tinycua/models/node_input.py` |
-| Unit tests | TODO | `tests/unit/test_state_object.py`, `test_node_payload.py`, `test_node_input.py` |
-| Integration tests | TODO | `tests/integration/test_node_transport.py` |
-| Models __init__.py update | TODO | Export new types from `tinycua.models` |
-
----
-
 ## Open Questions _(optional)_
+
+See also: [design.md Open Questions](design.md#open-questions-optional) for implementation-level decisions.
 
 1. **NodePayload.content serialization for `list[dict]`**: Should `list[dict]` content be stored as-is in the assistant message, or should each dict be treated as a separate message?
    - **Owner**: @VJyzCELERY
@@ -160,9 +149,9 @@ A developer building a TinyCUA node constructs a `NodePayload` to represent the 
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

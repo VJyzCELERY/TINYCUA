@@ -7,37 +7,39 @@ Implement the internal transport layer for TinyCUA node communication. `StateObj
 - **Spec Reference**: `./spec.md`
 - **Design Reference**: `./design.md`
 - **Priority**: P1
-- **Estimated Effort**: M
+- **Estimated Effort**: M (~7 hours: integration tests ~2h, verification ~1h, implementation ~4h)
 
 ## Environment Pre-requisites
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- [x] **None** — this feature has no configuration dependencies
 
 ### Running Services
 
-- [ ] **None** — no external services needed
+- [x] **None** — no external services needed
 
 ### Data / Fixtures
 
-- [ ] **None** — no data or fixtures needed
+- [x] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- [x] **None** — no special access required
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.11+
-- [ ] **Package manager**: uv
-- [ ] **None** — no special tooling required
+- [x] **Runtime**: Python 3.11+
+- [x] **Package manager**: uv
+- [x] **None** — no special tooling required
 
 ---
 
 ## Success Criteria — Integration Tests (TDD First)
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+**Estimated time**: ~2 hours
 
 ```python
 # Test file: tests/integration/test_node_transport.py
@@ -115,6 +117,8 @@ def test_node_input_like_union_type_in_build_messages():
 
 ## Verification Plan
 
+**Estimated time**: ~1 hour
+
 ### Automated Tests
 
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
@@ -135,6 +139,8 @@ def test_node_input_like_union_type_in_build_messages():
 - [ ] Not applicable — pure data structures with no I/O
 
 ## Proposed Changes
+
+**Estimated time**: ~4 hours
 
 ### Models Module
 
