@@ -349,6 +349,8 @@ class CompactionStrategy(ABC):
 class SimpleCompaction(CompactionStrategy):
     def __init__(self, parent_config=None, fallback_config=None) -> None: ...
     @property
+    def parent_config(self) -> dict | None: ...  # Returns parent config snapshot
+    @property
     def tools(self) -> list: ...  # Returns compaction Agent tools (empty for SimpleCompaction)
     @property
     def fallback_config(self) -> dict: ...  # Returns fallback model/provider config

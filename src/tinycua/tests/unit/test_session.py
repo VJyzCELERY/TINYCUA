@@ -87,3 +87,5 @@ def test_compact_context_with_explicit_window():
 
     mock_compact.assert_called_once_with(window)
     assert result["content"] == "subset summary"
+    assert len(session.session_context) == 1
+    assert session.session_context[0]["content"] == "subset summary"

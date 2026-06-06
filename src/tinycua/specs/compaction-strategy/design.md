@@ -131,6 +131,11 @@ class SimpleCompaction(CompactionStrategy):
         ...
 
     @property
+    def parent_config(self) -> dict[str, Any] | None:
+        """Return the parent config snapshot."""
+        ...
+
+    @property
     def tools(self) -> list:
         """Return the compaction Agent's tool list (empty for SimpleCompaction)."""
         ...

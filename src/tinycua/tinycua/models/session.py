@@ -62,13 +62,21 @@ class Session:
 
         if window is None:
             self.session_context = [summary]
-        else:
+        elif len(window) > 0:
             # Remove the compacted window entries and append the summary.
-            # Build a set of ids for efficient removal.
-            window_ids = {id(m) for m in window}
-            self.session_context = [
-                m for m in self.session_context if id(m) not in window_ids
-            ]
-            self.session_context.append(summary)
+            # Find the window by comparing expected sequence within session_context.
+            # Assumes window is a contiguous subset of session_context.
+            window_len = len(window)
+            for i in range(len(self.session_context) - window_len + 1):
+                if self.session_context[i : i + window_len] == window:
+                    self.session_context = (
+                        self.session_context[: i]
+                        + [summary]
+                        + self.session_context[i + window_len :]
+                    )
+                    break
+            else:
+                # Window not found as contiguous block; append summary as fallback
+                self.session_context.append(summary)
 
         return summary
