@@ -1,6 +1,15 @@
 """Configuration dataclasses for TinyCUA."""
 
+from tinycua.config.local_model import LocalModelConfig
+from tinycua.config.node_config import (
+    NodeConfigBase,
+    NodeMessagePolicy,
+    NodeRetryPolicy,
+    NodeStreamPolicy,
+    NodeToolPolicy,
+)
 from tinycua.config.session_config import SessionConfig
+from tinycua.config.system_prompt import SystemPrompt, SystemPromptBuilder
 from tinycua.config.types import (
     LLMResult,
     StateObject,
@@ -16,15 +25,12 @@ __all__ = [
     "LLMResult",
     "ValidationResult",
     "ValidationError",
-    # Placeholder re-exports (planned for implementation phase):
-    # "NodeConfigBase",
-    # "NodeMessagePolicy",
-    # "NodeToolPolicy",
-    # "NodeStreamPolicy",
-    # "NodeRetryPolicy",
-    # "SystemPrompt",
-    # "SystemPromptBuilder",
-    # "LocalModelConfig",
-    # "Todo",
-    # "TodoItem",
+    "NodeConfigBase",
+    "NodeMessagePolicy",
+    "NodeToolPolicy",
+    "NodeStreamPolicy",
+    "NodeRetryPolicy",
+    "SystemPrompt",
+    "SystemPromptBuilder",
+    "LocalModelConfig",
 ]
