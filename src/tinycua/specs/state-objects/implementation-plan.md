@@ -109,10 +109,28 @@ def test_node_input_like_union_type_in_build_messages():
     assert passthrough_msgs is prebuilt
 ```
 
+```python
+def test_node_input_messages_compatible_with_session_context():
+    """NodeInput.to_messages() output matches Session.session_context format."""
+    from tinycua.models import NodePayload, NodeInput
+    from tinycua.models.session import Session
+
+    payload = NodePayload(payload_type="task_analysis", content={"task_id": "T-0.1"})
+    node_input = NodeInput(input_type="continuation", payloads=[payload])
+    messages = node_input.to_messages()
+
+    # Verify format matches what Session expects
+    session = Session(session_context=messages)
+    assert session.session_context == messages
+    assert all(isinstance(m, dict) for m in session.session_context)
+    assert all("role" in m and "content" in m for m in session.session_context)
+```
+
 ### Key Test Scenarios
 
 - [ ] **Scenario 1**: Full node handoff — construct NodePayload → wrap in NodeInput → serialize → deserialize → convert to messages. Verifies the complete transport pipeline.
 - [ ] **Scenario 2**: NodeInputLike union type — mock node accepts any NodeInputLike variant and converts correctly. Verifies the flexible input API.
+- [ ] **Scenario 3**: Session compatibility — NodeInput.to_messages() output is compatible with Session.session_context format. Verifies the mitigation for the High-impact risk.
 - [ ] **Edge case**: Empty payloads and empty messages — verify `to_messages()` returns empty list.
 
 ## Verification Plan

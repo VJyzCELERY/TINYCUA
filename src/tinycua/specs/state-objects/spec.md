@@ -137,12 +137,12 @@ See also: [design.md Open Questions](design.md#open-questions-optional) for impl
 
 1. **NodePayload.content serialization for `list[dict]`**: Should `list[dict]` content be stored as-is in the assistant message, or should each dict be treated as a separate message?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
+   - **Status**: Resolved — see design.md for decisions.
    - **Proposed Answer**: Store as-is — `list[dict]` is already a message list format; wrapping it in a single assistant message preserves the structure for downstream consumers.
 
 2. **convert_node_input_to_messages source parameter**: Should the conversion function accept a `source` parameter to distinguish external vs internal strings, or should the caller always wrap strings before calling?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
+   - **Status**: Resolved — see design.md for decisions.
    - **Proposed Answer**: Accept a `source` parameter for convenience; default to `"internal"` (assistant-role) since most node-to-node communication is internal.
 
 ---
