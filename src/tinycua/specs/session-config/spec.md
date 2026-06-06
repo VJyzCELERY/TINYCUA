@@ -136,7 +136,7 @@ A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subcl
 
 | Item | Status | Notes |
 |------|--------|-------|
-| SessionConfig | TODO | Already exists; verify fields match spec |
+| SessionConfig | VERIFY | Already exists; verify fields match spec |
 | NodeConfigBase | TODO | New dataclass |
 | NodeMessagePolicy | TODO | New dataclass |
 | NodeToolPolicy | TODO | New dataclass |
