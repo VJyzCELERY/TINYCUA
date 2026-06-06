@@ -35,9 +35,55 @@ class Session:
     task: str | None = None
     todo: list[dict[str, Any]] = field(default_factory=list)
 
-    def compact_context(self) -> None:
-        """Compact context entries (placeholder for Milestone 1.1).
+    def compact_context(
+        self, window: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any] | None:
+        """Compact context entries using the configured strategy.
 
-        In future milestones this will apply the compaction strategy
-        defined in session_config to reduce context size.
+        If no ``compaction_strategy`` is set on ``session_config``, returns
+        ``None`` immediately. Otherwise delegates to the strategy's
+        ``compact()`` method and replaces the compacted window in
+        ``session_context`` with the resulting summary.
+
+        Args:
+            window: Optional explicit subset of messages to compact. When
+                ``None``, uses the full ``session_context``.
+
+        Returns:
+            The assistant-role summary dict produced by the strategy, or
+            ``None`` if no strategy is configured.
         """
+        if self.session_config is None or self.session_config.compaction_strategy is None:
+            return None
+
+        # Early return for empty window — nothing to compact.
+        if window is not None and len(window) == 0:
+            return None
+
+        strategy = self.session_config.compaction_strategy
+        messages = window if window is not None else self.session_context
+        summary = strategy.compact(messages)
+
+        if window is None:
+            self.session_context = [summary]
+        elif len(window) > 0:
+            # Remove the compacted window entries and append the summary.
+            # Find the window by comparing expected sequence within session_context.
+            # Assumes window is a contiguous subset of session_context.
+            window_len = len(window)
+            for i in range(len(self.session_context) - window_len + 1):
+                if self.session_context[i : i + window_len] == window:
+                    self.session_context = (
+                        self.session_context[: i]
+                        + [summary]
+                        + self.session_context[i + window_len :]
+                    )
+                    break
+            else:
+                msg = (
+                    "Supplied window is not a contiguous subset"
+                    " of session_context"
+                )
+                raise ValueError(msg)
+
+        return summary
