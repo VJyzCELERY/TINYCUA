@@ -255,14 +255,14 @@ class LocalModelConfig:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create `tinycua/config/node_config.py` with `NodeConfigBase`, `NodeMessagePolicy`, `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy`
-- [ ] Create `tinycua/config/system_prompt.py` with `SystemPrompt`, `SystemPromptBuilder`
-- [ ] Create `tinycua/config/local_model.py` with `LocalModelConfig`
-- [ ] Create `tinycua/models/todo.py` with `Todo`, `TodoItem`
-- [ ] Update `tinycua/config/__init__.py` to re-export new classes
-- [ ] Write unit tests for all new config classes
-- [ ] Write unit tests for Todo and TodoItem
-- [ ] Write unit tests for SystemPromptBuilder
+- [x] Create `tinycua/config/node_config.py` with `NodeConfigBase`, `NodeMessagePolicy`, `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy`
+- [x] Create `tinycua/config/system_prompt.py` with `SystemPrompt`, `SystemPromptBuilder`
+- [x] Create `tinycua/config/local_model.py` with `LocalModelConfig`
+- [x] Create `tinycua/models/todo.py` with `Todo`, `TodoItem`
+- [x] Update `tinycua/config/__init__.py` to re-export new classes
+- [x] Write unit tests for all new config classes
+- [x] Write unit tests for Todo and TodoItem
+- [x] Write unit tests for SystemPromptBuilder
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

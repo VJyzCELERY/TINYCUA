@@ -50,6 +50,15 @@ class NodeToolPolicy:
     allowed_agent_tool_names: list[str] = field(default_factory=list)
     denied_agent_tool_names: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        """Validate include_agent_tools value."""
+        valid_values = {"none", "selected", "all"}
+        if self.include_agent_tools not in valid_values:
+            raise ValueError(
+                f"Invalid include_agent_tools value: {self.include_agent_tools!r}. "
+                f"Must be one of {valid_values}"
+            )
+
     def resolve_tools(
         self,
         outer_agent_tools: list[Tool] | None = None,
