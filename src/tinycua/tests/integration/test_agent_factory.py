@@ -123,3 +123,19 @@ class TestAgentRun:
         session = agent.loop.root_session
         assert len(session.chat_history) == 1  # only user message
         assert session.chat_history[0]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_run_stream_does_not_record_empty_assistant_response(self):
+        """Empty streaming responses are not recorded in chat history."""
+        agent = create_tinycua_agent()
+
+        async def empty_stream(*args, **kwargs):
+            yield {"type": "response.completed", "finish_reason": "completed"}
+
+        agent._call_llm = empty_stream
+        result = await agent.run("hello", stream=True)
+        events = [e async for e in result]
+        assert len(events) == 1
+        session = agent.loop.root_session
+        assert len(session.chat_history) == 1  # only user message
+        assert session.chat_history[0]["role"] == "user"
