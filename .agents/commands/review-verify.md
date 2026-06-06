@@ -7,7 +7,7 @@ Verify each finding against the current state: run the **How to Validate** comma
 
 > Load skill: review-core (for checking finding statuses)
 
-**Query**: $1 (natural language query or review file path, e.g., "verify the findings in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
+**Query**: $1 (optional natural language query, focus, or explicit review file path. If not an explicit review path, default to `./reviews/REVIEW_{normalized_branch}.md`.)
 **Focus Area (Optional)**: $2 (verify only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, verify ALL OPEN findings.
@@ -19,7 +19,8 @@ If no focus area is provided, verify ALL OPEN findings.
 Before verifying, check if a review log exists for this branch:
 
 ```bash
-LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
+BRANCH=$(git branch --show-current)
+LOG_PATH="./reviews/log/REVIEW_${BRANCH//\//_}.md"
 if [ -f "$LOG_PATH" ]; then
     echo "Review log exists: $LOG_PATH"
 fi
@@ -34,7 +35,7 @@ If the log exists, read it and note:
 > Load _common-preflight.md
 > Load skill: gh (for gh.py — used for PR context metadata)
 
-Run the preflight to get scope info (PR number, files changed, commit range). Staleness warnings can be ignored — this command always verifies against whatever HEAD currently is:
+Run the preflight to get scope info (PR number, files changed, commit range). Staleness warnings do not stop this command — they mean the review report must be updated against the latest commit:
 
 ```bash
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
@@ -44,14 +45,14 @@ This captures:
 - **Scope info**: PR number, files changed, commit range
 - **Unstaged changes**: If present, also run validation commands against unstaged content to check if local edits have resolved the finding
 
-Then proceed with verification — do NOT stop for staleness warnings.
+If local is behind remote, sync first. Use fast-forward pull when possible. If the remote rebased/diverged, create a backup branch for local commits and stash dirty work before resetting to upstream, then proceed with verification. Do NOT stop for review staleness warnings.
 
 ---
 
 ## Instructions
 
-1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set by the preflight above). If no file is found, check `./reviews/REVIEW_*.md` for the latest or run the preflight with `--review-file ""` to see the default path.
-2. **Run pre-flight checks**: Run the review preflight — if warnings appear, handle staleness or unstaged changes before proceeding
+1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set to `./reviews/REVIEW_{normalized_branch}.md` by the common preflight). If it does not exist, stop and report that exact missing path; do not ask where the review file is.
+2. **Run pre-flight checks**: Run the review preflight. If the local checkout is outdated, sync to the latest remote commit first. If the review commit range is stale, continue and validate against the latest commit.
 3. **Capture current commit range**: Record the PR head at verification time:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
@@ -98,4 +99,6 @@ Then proceed with verification — do NOT stop for staleness warnings.
 - Do NOT rewrite finding content — only update statuses and validation log
 - This command is **local-only** — it does NOT reply to PR comments or resolve threads on GitHub. Use `review-update` to push status changes to the remote PR.
 - **MUST update Commit Range** after verifying (step 7) — future staleness detection depends on it
+- If review commit range is stale, this command updates the review report by validating every applicable finding against the latest commit and refreshing `**Commit Range**`.
 - **Do NOT truncate `gh.py` output** when gathering PR info — never pipe through `head`, `tail`, or similar. You need the full output to get all metadata including commit range and body.
+- Do not ask where the review file is. Default to `./reviews/REVIEW_{normalized_branch}.md`.

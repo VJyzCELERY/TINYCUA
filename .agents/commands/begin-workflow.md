@@ -13,7 +13,7 @@ Automate the complete specs implementation process: planning → implementation 
 
 ## Initial Questions
 
-**Use the question/ask tool to ask these (priority). Only write inline if your harness has no such tool.**
+Ask these directly in your normal response and stop. Do NOT use the question/ask tool by default; use it only if the user or harness explicitly requires that tool.
 
 1. **Specs/Design**: "Do you have spec.md and design.md ready, or should I create them?" If not, use `.agents/templates/spec.md` and `.agents/templates/design.md`.
 2. **Branch/PR**: If no PR exists for the current branch: "Do you want me to create a PR after implementation, or skip PR creation?" If yes, the PR is created after Phase 2 (implement) completes, before entering the review loop.
@@ -109,15 +109,15 @@ Delegate to a fresh subagent:
 
 **Step 2: Review-validate (Subagent 4)**
 
-Delegate — review file is always at `./reviews/REVIEW_{name}.md`:
+Delegate — review file defaults to `./reviews/REVIEW_{normalized_branch}.md` (branch slashes `/` → `_`):
 
-> Run /review-validate for ./reviews/REVIEW_{name}.md
+> Run /review-validate
 
 **Step 3: If OPEN issues exist → Review-implement (Subagent 5)**
 
 Delegate:
 
-> Run /review-implement for ./reviews/REVIEW_{name}.md
+> Run /review-implement
 
 After fixing, return to Step 2 for re-validation (this uses a NEW subagent — Subagent 6, then 8, then 10, etc.).
 
@@ -135,7 +135,7 @@ This MUST be a fresh, independent review. Do NOT give the subagent any context a
 
 Delegate to a fresh subagent:
 
-> Run /review-archive for ./reviews/REVIEW_{name}.md
+> Run /review-archive
 
 ---
 
@@ -214,7 +214,7 @@ After each fresh review, before passing findings to the validate-fix pipeline:
 - Always instruct subagents to `cd <subproject-dir> && uv run` for Python/pytest.
 - Always instruct subagents to read the relevant rules from `.agents/rules/` first, then check `.agents/templates/` before generating documents — rules define conventions, templates define structure.
 - When delegating review-report, instruct the subagent to read the PR body and title to understand scope and check PR body/title compliance against specs.
-- All review files live at `./reviews/REVIEW_{name}.md` — they are gitignored and must NEVER be committed or pushed.
+- All review files live at `./reviews/REVIEW_{normalized_branch}.md` by default — they are gitignored and must NEVER be committed or pushed.
 
 ## Required Context
 

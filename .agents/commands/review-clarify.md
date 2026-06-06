@@ -7,7 +7,7 @@ Improve the precision of a review: rewrite vague descriptions, add missing conte
 
 > Load skill: review-core (for improving finding precision)
 
-**Query**: $1 (natural language query or review file path, e.g., "clarify the findings in reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
+**Query**: $1 (optional natural language query, focus, or explicit review file path. If not an explicit review path, default to `./reviews/REVIEW_{normalized_branch}.md`.)
 **Focus Area (Optional)**: $2 (clarify only specific finding codes or severity, e.g., "CRITICAL" or "ISSUE-001,ISSUE-002")
 
 If no focus area is provided, clarify ALL OPEN findings.
@@ -23,11 +23,13 @@ If no focus area is provided, clarify ALL OPEN findings.
 uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"
 ```
 
+If local is behind remote, sync first. Use fast-forward pull when possible. If the remote rebased/diverged, create a backup branch for local commits and stash dirty work before resetting to upstream. If the review commit range is stale, continue: this command updates the report text against the latest commit and refreshes the commit range.
+
 ---
 
 ## Instructions
 
-1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set by the preflight above). If no file is found, check `./reviews/REVIEW_*.md` for the latest or run the preflight with `--review-file ""` to see the default path.
+1. **Read the Review**: Load the review report from `$REVIEW_FILE` (set to `./reviews/REVIEW_{normalized_branch}.md` by the common preflight). If it does not exist, stop and report that exact missing path; do not ask where the review file is.
 2. **Run pre-flight checks**
 3. **Capture current commit range**: Record the PR head at clarification time:
    ```bash
@@ -71,3 +73,5 @@ uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REV
 - Do NOT change finding status — only improve clarity
 - Keep the original intent — don't rewrite to say something different
 - Add missing "How to Test/Validate" commands where absent
+- Stale review commit range is not a blocker. Clarify against latest HEAD and update the report's commit range.
+- Do not ask where the review file is. Default to `./reviews/REVIEW_{normalized_branch}.md`.

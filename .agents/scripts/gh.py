@@ -314,7 +314,7 @@ def cmd_fetch_comments(args):
     branch = pr_info.get("head", {}).get("ref", f"PR-{pr}")
     base_sha = pr_info.get("base", {}).get("sha", "")
     head_sha = pr_info.get("head", {}).get("sha", "")
-    safe_branch = branch.replace("/", "-")
+    safe_branch = branch.replace("/", "_")
     ts = int(time.time())
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     
@@ -1761,7 +1761,7 @@ def main():
     
     fc = fetch_sub.add_parser("comments", help="Fetch PR comments and reviews")
     fc.add_argument("pr_or_url", help="PR number or URL")
-    fc.add_argument("--output", type=str, default=None, help="Write formatted report to this file (default: reviews/remote/REVIEW_<branch>_fetched_<ts>.md)")
+    fc.add_argument("--output", type=str, default=None, help="Write formatted report to this file (default: reviews/remote/REVIEW_<normalized_branch>_fetched_<ts>.md; branch slashes become underscores)")
     fc.add_argument("--all", action="store_true", help="Include minimized/resolved comments (default: skip them)")
     fc.add_argument("--urls-only", action="store_true", help="Output JSON lines of filtered comment URLs only (for preflight consumption)")
     fc.set_defaults(func=cmd_fetch_comments)

@@ -50,7 +50,7 @@ def resolve_review_name(name: str | None = None) -> str:
     """
     if not name:
         name = run(["git", "branch", "--show-current"]) or "review"
-    name = name.strip().replace("/", "-")
+    name = name.strip().replace("/", "_")
     if not name.startswith("REVIEW_"):
         name = f"REVIEW_{name}"
     return name
@@ -60,7 +60,8 @@ def resolve_review_path(review_file: str | None = None, review_name: str | None 
     """Resolve a review file path.
 
     - If review_file is given, use it as-is.
-    - Otherwise, derive from review_name or branch name: ./reviews/REVIEW_{branch}.md
+    - Otherwise, derive from review_name or branch name: ./reviews/REVIEW_{normalized_branch}.md
+      where branch slashes are normalized to underscores.
     """
     if review_file:
         return review_file
@@ -357,7 +358,7 @@ def implement_preflight_autodetect() -> int:
     stale = [r for r in local_reviews if r["status"] != "Active"]
     if stale:
         print(f"\n[WARN] {len(stale)} review(s) are stale or have branch mismatch.")
-        print("[WARN] Ask the user if they want to proceed or re-review first.")
+        print("[WARN] Ask the user directly if they want to proceed or re-review first.")
         return 1
     if local_reviews:
         print("\n[OK] All local reviews are active and match current branch.")
@@ -398,7 +399,7 @@ def implement_preflight_check_file(review_file: str) -> int:
         for w in warnings:
             print(w)
         print("\n[WARN] The review may not be applicable to the current state.")
-        print("[WARN] Ask the user: are you sure you want to implement this review?")
+        print("[WARN] Ask the user directly: are you sure you want to implement this review?")
         print("[WARN] Consider requesting a fresh review first.")
         return 1
 
@@ -453,12 +454,12 @@ def main():
     if health["status"] == "behind":
         print(
             f"[INFO] Branch is {health['behind']} commit(s) BEHIND remote. "
-            "Consider pulling latest changes before review."
+            "Sync latest changes before updating the review report (git pull --ff-only)."
         )
     elif health["status"] == "diverged":
         print(
             f"[INFO] Branch is DIVERGED ({health['ahead']} ahead, {health['behind']} behind remote). "
-            "Consider rebasing before review if accurate diff is needed."
+            "If the remote was rebased, create a backup branch for local commits and stash dirty work before resetting to upstream."
         )
     elif health["status"] == "detached":
         print("[INFO] Detached HEAD — proceed with caution.")
@@ -475,7 +476,7 @@ def main():
 
     # Check for existing review log
     branch = run(["git", "branch", "--show-current"]) or "unknown"
-    branch = branch.replace("/", "-")
+    branch = branch.replace("/", "_")
     log_path = Path("./reviews/log") / f"REVIEW_{branch}.md"
     if log_path.exists():
         print(f"[INFO] Review log exists: {log_path}")

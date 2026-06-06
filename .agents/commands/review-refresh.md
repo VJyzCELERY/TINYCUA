@@ -71,7 +71,7 @@ After multiple rounds of changes, old review comments may be stale, duplicated, 
     uv run python .agents/scripts/gh.py interact resolve "$URL"
     ```
 
-7. **Write the consolidated local report**: Save the deduplicated findings as `./reviews/REVIEW_{branch}_refreshed.md` using the REVIEW-template.md structure. Do NOT create a new file if one already exists — overwrite the existing one.
+7. **Write the consolidated local report**: Save the deduplicated findings as `./reviews/REVIEW_{normalized_branch}.md` using the REVIEW-template.md structure. Do NOT create a new file if one already exists — merge into/overwrite the canonical branch review.
 
 8. **Run review-post**: Now that old comments are closed and the local report is ready, delegate to `review-post` to build and post the fresh review:
    ```bash
