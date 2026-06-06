@@ -205,14 +205,14 @@ class CompactionError(Exception):
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Define `CompactionStrategy` abstract base class in `tinycua/compaction/strategy.py`
-- [ ] Define `SimpleCompaction` default implementation in `tinycua/compaction/simple.py`
-- [ ] Update `SessionConfig.compaction_strategy` field type from `Any | None` to `CompactionStrategy | None`
-- [ ] Implement `Session.compact_context()` method
-- [ ] Write unit tests for `CompactionStrategy` contract
-- [ ] Write unit tests for `SimpleCompaction` behavior
-- [ ] Write unit tests for `Session.compact_context()` integration
-- [ ] Write integration test: end-to-end compaction with mocked LLM
+- [x] Define `CompactionStrategy` abstract base class in `tinycua/compaction/strategy.py`
+- [x] Define `SimpleCompaction` default implementation in `tinycua/compaction/simple.py`
+- [x] Update `SessionConfig.compaction_strategy` field type from `Any | None` to `CompactionStrategy | None`
+- [x] Implement `Session.compact_context()` method
+- [x] Write unit tests for `CompactionStrategy` contract
+- [x] Write unit tests for `SimpleCompaction` behavior
+- [x] Write unit tests for `Session.compact_context()` integration
+- [x] Write integration test: end-to-end compaction with mocked LLM
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

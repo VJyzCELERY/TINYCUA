@@ -74,18 +74,18 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **CompactionStrategy class exists**: `CompactionStrategy` with `compact(messages: list[dict]) -> dict` method.
-- [ ] **SimpleCompaction class exists**: `SimpleCompaction` extending `CompactionStrategy` with documented behavior.
-- [ ] **CompactionStrategy contract validated**: `compact()` returns exactly one assistant-role message.
-- [ ] **SimpleCompaction uses parent config**: Inherits model/provider config when available.
-- [ ] **SimpleCompaction fallback works**: Uses defaults when no parent config exists.
-- [ ] **SimpleCompaction runs tool-less Agent**: No tools exposed to compaction Agent.
-- [ ] **Session.compact_context() works**: Delegates to strategy, replaces context window, returns summary.
-- [ ] **Session.compact_context() returns None**: When no strategy configured or no compaction needed.
-- [ ] **SessionConfig typed correctly**: `compaction_strategy: CompactionStrategy | None`.
-- [ ] **System-role exclusion documented**: Callers responsible for excluding system messages.
-- [ ] **Unit tests pass**: Tests for CompactionStrategy, SimpleCompaction, Session.compact_context().
-- [ ] **Integration tests pass**: End-to-end compaction flow with mocked LLM.
+- [x] **CompactionStrategy class exists**: `CompactionStrategy` with `compact(messages: list[dict]) -> dict` method.
+- [x] **SimpleCompaction class exists**: `SimpleCompaction` extending `CompactionStrategy` with documented behavior.
+- [x] **CompactionStrategy contract validated**: `compact()` returns exactly one assistant-role message.
+- [x] **SimpleCompaction uses parent config**: Inherits model/provider config when available.
+- [x] **SimpleCompaction fallback works**: Uses defaults when no parent config exists.
+- [x] **SimpleCompaction runs tool-less Agent**: No tools exposed to compaction Agent.
+- [x] **Session.compact_context() works**: Delegates to strategy, replaces context window, returns summary.
+- [x] **Session.compact_context() returns None**: When no strategy configured or no compaction needed.
+- [x] **SessionConfig typed correctly**: `compaction_strategy: CompactionStrategy | None`.
+- [x] **System-role exclusion documented**: Callers responsible for excluding system messages.
+- [x] **Unit tests pass**: Tests for CompactionStrategy, SimpleCompaction, Session.compact_context().
+- [x] **Integration tests pass**: End-to-end compaction flow with mocked LLM.
 
 ---
 
@@ -121,12 +121,12 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 
 | Item | Status | Notes |
 |------|--------|-------|
-| CompactionStrategy class | TODO | New abstract base class |
-| SimpleCompaction class | TODO | New class extending CompactionStrategy |
-| Session.compact_context() | TODO | New method on Session |
-| SessionConfig typing | TODO | Update compaction_strategy field type |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| CompactionStrategy class | DONE | New abstract base class |
+| SimpleCompaction class | DONE | New class extending CompactionStrategy |
+| Session.compact_context() | DONE | New method on Session |
+| SessionConfig typing | DONE | Update compaction_strategy field type |
+| Unit tests | DONE | |
+| Integration tests | DONE | |
 
 ---
 
