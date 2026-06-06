@@ -1,5 +1,7 @@
 # Tasks: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
+**Status**: Reviewed (derived from spec.md and design.md)
+
 Implementation tasks for State Objects, NodeInput, NodePayload. Check off items as completed.
 
 **Phase Order**: Phases must be executed in order: TDD → Implementation → Testing → Verification → Documentation → Review and Merge. Each phase depends on the previous phase completing successfully.

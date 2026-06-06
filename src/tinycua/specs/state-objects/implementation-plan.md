@@ -1,5 +1,7 @@
 # Implementation: State Objects, NodeInput, NodePayload (Milestone 1.4)
 
+**Status**: Reviewed (derived from spec.md and design.md)
+
 Implement the internal transport layer for TinyCUA node communication. `StateObject` provides the serialization base class. `NodePayload` wraps a single node's structured output. `NodeInput` wraps the full handoff envelope between nodes. `NodeInputLike` and `convert_node_input_to_messages()` enable flexible input from external users, internal nodes, or pre-constructed message lists.
 
 ## Context
