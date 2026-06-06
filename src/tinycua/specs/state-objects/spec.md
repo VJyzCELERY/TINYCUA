@@ -93,7 +93,7 @@ A developer building a TinyCUA node constructs a `NodePayload` to represent the 
 - [ ] **NodePayload.to_message() works**: Returns assistant-role message dict with serialized content.
 - [ ] **NodePayload.to_messages() works**: Returns single-element list from `to_message()`.
 - [ ] **NodeInput.to_messages() works**: Returns payloads as assistant messages followed by messages list.
-- [ ] **convert_node_input_to_messages() works**: Handles all `NodeInputLike` variants correctly.
+- [ ] **convert_node_input_to_messages() works**: Handles all `NodeInputLike` variants correctly, including empty inputs.
 - [ ] **External string conversion works**: Strings become user-role messages when `source="external"`.
 - [ ] **Internal string conversion works**: Strings become assistant-role messages when `source="internal"`.
 - [ ] **Round-trip serialization works**: `StateObject` subclasses survive `to_dict()`/`from_dict()` and `to_json()`/`from_json()`.
@@ -138,7 +138,7 @@ See also: [design.md Open Questions](design.md#open-questions-optional) for impl
 1. **NodePayload.content serialization for `list[dict]`**: Should `list[dict]` content be stored as-is in the assistant message, or should each dict be treated as a separate message?
    - **Owner**: @VJyzCELERY
    - **Status**: Resolved — see design.md for decisions.
-   - **Proposed Answer**: Store as-is — `list[dict]` is already a message list format; wrapping it in a single assistant message preserves the structure for downstream consumers.
+   - **Proposed Answer**: Serialized via `json.dumps()` — produces a JSON array string within the assistant message. Splitting would lose grouping semantics; storing as-is would require downstream consumers to handle both raw lists and JSON strings inconsistently.
 
 2. **convert_node_input_to_messages source parameter**: Should the conversion function accept a `source` parameter to distinguish external vs internal strings, or should the caller always wrap strings before calling?
    - **Owner**: @VJyzCELERY

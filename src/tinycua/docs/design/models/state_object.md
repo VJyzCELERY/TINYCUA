@@ -1,6 +1,6 @@
 # StateObject
 
-> **Package:** `tinycua.models.base`
+> **Package:** `tinycua.models.state_object`
 > **Status:** Target architecture
 
 ## Role
