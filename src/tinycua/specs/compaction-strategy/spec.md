@@ -46,7 +46,7 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide `CompactionStrategy` class with method `compact(messages: list[dict]) -> dict`.
+- **FR-001**: System MUST provide `CompactionStrategy` class with async method `compact(messages: list[dict]) -> dict`.
 - **FR-002**: `CompactionStrategy.compact()` MUST accept a list of message dicts and return exactly one assistant-role message: `{"role": "assistant", "content": "<summary>"}`.
 - **FR-003**: `CompactionStrategy` MUST own its own configuration and behavior; `SessionConfig` selects the strategy but does not dictate compaction details.
 - **FR-004**: `CompactionStrategy` MAY create/use its own internal Agent for compaction; this is the explicit exception to the "TinyCUALoop does not create internal Agents" rule.
@@ -61,6 +61,7 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 - **FR-013**: Compaction MUST exclude system-role messages by default; callers/nodes choose what context to pass to the strategy.
 - **FR-014**: Compaction MUST summarize context only; node continuation prompts remain node responsibility.
 - **FR-015**: `SessionConfig.compaction_strategy` MUST be typed as `CompactionStrategy | None` (replacing the current `Any | None` placeholder).
+- **FR-016**: `CompactionStrategy.compact()` MUST raise `CompactionError` on failure, including: (a) internal compaction failures, and (b) unreachable compaction Agent. The `CompactionError` class MUST be defined in `tinycua/compaction/errors.py`.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -131,13 +132,13 @@ A developer configuring a TinyCUA session sets `SessionConfig.compaction_strateg
 
 1. **CompactionStrategy as ABC or Protocol**: Should `CompactionStrategy` be an abstract base class with `@abstractmethod` or a Protocol?
    - **Owner**: @christopher-sebastian
-   - **Status**: Proposed
-   - **Proposed Answer**: Use ABC with `@abstractmethod` for `compact()` to enforce the contract at class definition time.
+   - **Status**: Resolved
+   - **Answer**: Use ABC with `@abstractmethod` for `compact()` to enforce the contract at class definition time. (See design decision #1.)
 
 2. **SimpleCompaction fallback configuration**: What are the documented default fallback values when no parent Agent config exists?
    - **Owner**: @christopher-sebastian
-   - **Status**: Proposed
-   - **Proposed Answer**: Default to a sensible model/endpoint (e.g., same as SDK defaults) with a simple compaction instruction.
+   - **Status**: Resolved
+   - **Answer**: Default to SDK default model/endpoint configuration. Document the specific defaults in implementation. (See design line 241.)
 
 ---
 

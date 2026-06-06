@@ -24,7 +24,7 @@ Session
   · compact_context(window: list[dict] | None = None) → dict | None
       ↓
 CompactionStrategy (abstract)
-  · compact(messages: list[dict]) → dict
+  · async compact(messages: list[dict]) → dict
       ↓
 SimpleCompaction (default implementation)
   · Inherits parent Agent config when available
@@ -41,6 +41,7 @@ SimpleCompaction (default implementation)
 | `tinycua/compaction/__init__.py` | New | Package for compaction strategy classes |
 | `tinycua/compaction/strategy.py` | New | `CompactionStrategy` abstract base class |
 | `tinycua/compaction/simple.py` | New | `SimpleCompaction` default implementation |
+| `tinycua/factory.py` | Modified | Ensure `create_tinycua_agent()` passes parent config to `SimpleCompaction` when initialized |
 
 ---
 
@@ -59,8 +60,14 @@ SimpleCompaction(CompactionStrategy):
     parent_config: AgentConfigSnapshot | None  # inherited from parent Agent
     fallback_config: CompactionFallbackConfig   # documented defaults
 
-    compact(messages: list[dict]) -> dict
+    async compact(messages: list[dict]) -> dict
         """Run tool-less compaction Agent and return summary."""
+
+    _get_tools() -> list
+        """Return empty list — compaction Agent has no tools."""
+
+    _get_fallback_config() -> dict
+        """Return SDK default model/endpoint configuration."""
 ```
 
 ### Schema Changes
@@ -83,7 +90,7 @@ class CompactionStrategy(ABC):
     """Abstract base class for context compaction strategies."""
 
     @abstractmethod
-    def compact(self, messages: list[dict]) -> dict:
+    async def compact(self, messages: list[dict]) -> dict:
         """
         Compact a list of messages into one assistant-role summary.
 
@@ -120,7 +127,7 @@ class SimpleCompaction(CompactionStrategy):
         """
         ...
 
-    def compact(self, messages: list[dict]) -> dict:
+    async def compact(self, messages: list[dict]) -> dict:
         """
         Run a tool-less compaction Agent over the messages and return
         the final response as one assistant-role summary.
@@ -222,6 +229,14 @@ Document key decisions and the reasoning behind them:
    - **Reason**: Compaction is a behavior/algorithm concern, not a configuration concern. The package separation reflects the architectural distinction between "selecting a strategy" (config) and "implementing a strategy" (compaction).
    - **Alternatives Considered**: Place in `tinycua/config/compaction.py` — rejected because it conflates configuration with implementation.
 
+6. **Decision**: `SimpleCompaction` fallback uses SDK default model/endpoint configuration when no parent config exists.
+   - **Reason**: Provides sensible defaults without requiring explicit configuration; consistent with SDK conventions.
+   - **Alternatives Considered**: Hardcode specific model — rejected because SDK defaults evolve and should be the source of truth.
+
+7. **Decision**: `CompactionError` is a single exception class; no subclass hierarchy for MVP.
+   - **Reason**: Keeps error handling simple for Phase 1. Subclasses can be added in Phase 2 if needed (e.g., `CompactionTimeoutError`, `CompactionAgentError`).
+   - **Alternatives Considered**: Pre-built hierarchy — rejected as premature abstraction.
+
 ---
 
 ## Risks & Mitigations
@@ -232,16 +247,6 @@ Document key decisions and the reasoning behind them:
 | Compaction produces poor summaries | Low | Med | SimpleCompaction uses clear instructions; advanced strategies in Phase 2 |
 | Session.compact_context() race conditions | Low | Low | compaction is node-initiated and sequential in TinyCUALoop |
 | Breaking change from `Any | None` to `CompactionStrategy | None` | Low | Low | Existing `None` values remain valid; only explicit non-None values need to conform |
-
----
-
-## Open Questions _(optional)_
-
-1. **CompactionFallbackConfig defaults**: What model/endpoint should `SimpleCompaction` use when no parent config exists?
-   - **Current thinking**: Use SDK default model/endpoint configuration. Document the specific defaults in implementation.
-
-2. **CompactionError hierarchy**: Should `CompactionError` be a single exception or have subclasses?
-   - **Current thinking**: Start with single `CompactionError`; add subclasses if needed in Phase 2.
 
 ---
 

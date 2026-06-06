@@ -121,6 +121,17 @@ class TestSimpleCompaction:
         assert "model" in fallback
         assert "provider" in fallback
 
+    @pytest.mark.asyncio
+    async def test_simple_compaction_empty_message_list(self):
+        """compact() with empty message list returns assistant message with minimal content."""
+        strategy = SimpleCompaction()
+        with patch.object(strategy, "_run_compaction_agent", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = ""
+            result = await strategy.compact([])
+
+        assert result["role"] == "assistant"
+        assert isinstance(result["content"], str)
+
 
 class TestSessionCompactContext:
     """Verify Session.compact_context() integration with strategy."""
@@ -288,6 +299,7 @@ class TestFactoryIntegration:
 | `tinycua/compaction/errors.py` | New | `CompactionError` exception |
 | `tinycua/config/session_config.py` | Modify | Type `compaction_strategy` as `CompactionStrategy \| None` |
 | `tinycua/models/session.py` | Modify | Implement `compact_context()` method |
+| `tinycua/factory.py` | Modify | Ensure `create_tinycua_agent()` passes parent config to `SimpleCompaction` |
 
 ## Data Model Changes
 
@@ -299,13 +311,13 @@ class CompactionError(Exception):
 # New ABC
 class CompactionStrategy(ABC):
     @abstractmethod
-    def compact(self, messages: list[dict]) -> dict:
+    async def compact(self, messages: list[dict]) -> dict:
         """Compact messages into one assistant-role summary."""
 
 # New implementation
 class SimpleCompaction(CompactionStrategy):
     def __init__(self, parent_config=None, fallback_config=None) -> None: ...
-    def compact(self, messages: list[dict]) -> dict: ...
+    async def compact(self, messages: list[dict]) -> dict: ...
 
 # Modified field
 @dataclass
