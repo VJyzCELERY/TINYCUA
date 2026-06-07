@@ -157,12 +157,33 @@ async def test_run_stream_records_chat_history():
 
 
 @pytest.mark.asyncio
+async def test_ensure_terminal_skipped_when_no_default():
+    """run() skips ensure_terminal() when default_terminal_node is None."""
+    loop = TinyCUALoop(default_terminal_node=None)
+    original = loop.queue.ensure_terminal
+    called = False
+
+    def track_call(*args, **kwargs):
+        nonlocal called
+        called = True
+        return original(*args, **kwargs)
+
+    loop.queue.ensure_terminal = track_call
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None})
+
+    await loop.run(agent, [{"role": "user", "content": "hi"}], tools=[], stream=False)
+    assert not called, "ensure_terminal should not be called when default_terminal_node is None"
+
+
+@pytest.mark.asyncio
 async def test_tinycua_loop_ensure_terminal_bootstrap():
     """run() calls ensure_terminal() on queue at bootstrap."""
-    from unittest.mock import MagicMock as MockNode
-
     # Create a mock terminal node
-    terminal_node = MockNode()
+    terminal_node = MagicMock()
     terminal_node.is_terminal = True
     terminal_node.node_id = "terminal"
 
@@ -180,7 +201,7 @@ async def test_tinycua_loop_ensure_terminal_bootstrap():
     queue.ensure_terminal = mock_ensure_terminal
 
     # Create a mock agent
-    agent = MockNode()
+    agent = MagicMock()
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
