@@ -145,7 +145,13 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         """Route handler for uncertain label. QueryAnalyst stays active."""
     
     def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:
-        """Dispatch route after classification."""
+        """Dispatch route after classification.
+
+        Note: `on_complete` accepts `DecisionResult` (not `LLMResult` like the base `Node`)
+        because QueryAnalyst's `__call__` returns a structured decision result containing
+        the route label alongside LLM responses. The queue mutation logic (RouteMap dispatch)
+        depends on the route label, not just the raw LLM output.
+        """
 ```
 
 ### Input Preservation (FR-016)

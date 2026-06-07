@@ -52,6 +52,9 @@ from tinycua.config.types import LLMResult
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.loops.node_queue import NodeQueue
+# NOTE: ProcessNode(node_id="worker") is a temporary placeholder for
+# WorkerNode (Milestone 2.2). When WorkerNode is implemented, update
+# these tests to use TinyCUAWorkerNode instead.
 from tinycua.loops.node import DecisionResult, ProcessNode
 
 # NOTE: The following imports will resolve after implementation:
@@ -323,9 +326,16 @@ def test_query_analyst_e2e_invalid_label_retry():
 
     When the LLM returns a label not registered in RouteMap, NodeRetryPolicy
     should trigger a retry. After max retries, falls back to uncertain.
+
+    NOTE: Default NodeRetryPolicy.max_attempts=3, so 3 retry cycles = 6 LLM calls max.
+    The implementation MUST set retry_policy.on_retry_exhausted to trigger fallback
+    to 'uncertain' (default is 'record_failure').
     """
-    # Arrange - responses: analysis, bad_label, analysis2, bad_label2, ... (exceeds retries)
-    responses = ["analysis"] * 10 + ["bad_label"] * 10  # more than enough for retries
+    # Arrange - responses: analysis, bad_label for each retry cycle
+    # Default NodeRetryPolicy.max_attempts=3, so 3 retry cycles = 6 LLM calls max
+    # Each cycle: 1 analysis call + 1 classification call = 2 calls
+    # We provide exactly 2 responses which will be reused for all 3 cycles
+    responses = ["analysis", "bad_label"]
     mock_llm = MultiResponseMockLLM(responses)
     config = NodeConfigBase(llm_client=mock_llm)
     query_analyst = TinyCUAQueryAnalystNode(config=config)
@@ -370,6 +380,10 @@ def test_query_analyst_e2e_deduplication():
     # Assert - only one query_analyst should exist in queue
     qa_nodes = [n for n in queue.items if n.node_id == "query_analyst"]
     assert len(qa_nodes) == 1, f"Expected exactly 1 query_analyst, got {len(qa_nodes)}"
+    # Also test that a SECOND spawn attempt is rejected
+    second_qa = TinyCUAQueryAnalystNode(node_id="query_analyst", config=config)
+    with pytest.raises(RuntimeError, match="QueryAnalyst already active"):
+        queue.add_front(second_qa)
 ```
 
 ### Key Test Scenarios
