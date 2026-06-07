@@ -311,6 +311,7 @@ After resume:
 | Backward compatibility with M1.6 | Low | High | Run existing M1.6 test suite; `suspend_current_and_prepend()` is additive and does not modify existing methods |
 | Performance with large queues | Low | Low | Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes) |
 | ensure_terminal with suspended nodes | Low | Medium | `ensure_terminal()` only checks `items[-1]`. If a suspended terminal node is at `items[-1]`, it may mask the absence of a true terminal path, since prepended nodes execute before the suspended node resumes. Callers should ensure the prepended node chain includes a terminal path. |
+| Prepended node execution failure | Medium | High | Queue remains in suspended state with failed node at `items[0]`. Loop must handle error recovery. Deferred to M1.8+; M1.7 documents the gap. |
 
 ---
 

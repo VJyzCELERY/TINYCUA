@@ -39,7 +39,10 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 7. **Given** a suspended node (e.g., `NodeA` at `queue[1]`), **When** `queue.current` is read, **Then** it returns the first prepended node, not the suspended node.
 8. **Given** a queue with `[NodeC, NodeA, NodeB]` where `NodeA` is suspended, **When** `NodeC` completes and `queue.advance()` is called, **Then** `NodeC` is removed and `NodeA` becomes current (resumes execution).
 9. **Given** a queue with `[NodeA]`, **When** `NodeA` calls `suspend_current_and_prepend([NodeB])` and then `NodeB` calls `suspend_current_and_prepend([NodeC])`, **Then** the queue becomes `[NodeC, NodeB, NodeA]` and `NodeC` is current.
-10. **Given** a queue with `[NodeA]`, **When** `NodeA` calls `suspend_current_and_prepend([NodeB])` and `NodeB` completes with output X via `advance()`, **Then** `NodeA` resumes as current and its input includes X (output propagation from prepended child to suspended parent).
+10. **Given** a queue with `[NodeA]`, **When** `NodeA` calls
+    `suspend_current_and_prepend([NodeB])` and `NodeB` completes via `advance()`,
+    **Then** `NodeA` resumes as current. The caller is responsible for wiring
+    NodeB's output to NodeA's input (see FR-009).
 
 ### Edge Cases
 
@@ -48,6 +51,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 - What happens when multiple suspensions occur in sequence? The system MUST handle nested suspends correctly, with the most recently suspended node becoming current after helpers complete.
 - What happens when a suspended node's input needs to be preserved? The system MUST preserve the `NodeInputLike` mapping for the suspended node.
 - What happens when `clear_after_current()` is called with suspended nodes? The system clears all nodes after the current node (`items[0]`). If a suspended node is at `items[1]` (directly after current), it WILL be cleared. Suspended nodes are only preserved if they are NOT in the clear zone.
+- What happens when a prepended node fails during execution (throws an exception)? The behavior depends on the loop's error handling policy. The queue itself does not provide failure recovery — the suspended parent remains queued at `items[1]`, and the loop must decide whether to skip the failed node, retry, or abort. This is deferred to M1.8+ (TinyCUALoop orchestrator integration).
 
 ---
 
@@ -92,7 +96,9 @@ Parent-child node relationships for prepended nodes are **caller-established**, 
 - [ ] **Multiple suspensions work**: Sequential suspensions handle nested suspension correctly.
 - [ ] **Order preservation works**: Relative order of suspended nodes is preserved when multiple nodes are prepended.
 - [ ] **Backward compatibility**: Existing M1.6 tests pass without modification.
-- [ ] **Output propagation works**: Prepended child's output reaches the suspended parent node upon child completion.
+- [ ] **Output propagation works**: Queue ordering ensures suspended parent
+      resumes after prepended children complete; data flow between them is
+      caller-established (see FR-009).
 
 ---
 
