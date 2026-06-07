@@ -277,8 +277,8 @@ After resume:
 1. **Should `suspend_current_and_prepend()` accept a single node or only a list?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-07
-   - **Status**: Proposed
-   - **Proposed Answer**: Accept `list[Node]` for consistency with `spawn_after_current()`. Callers can pass `[node]` for single-node suspension.
+   - **Status**: Resolved
+   - **Resolution**: Accept `list[Node]` for consistency with `spawn_after_current()`. Callers can pass `[node]` for single-node suspension. Implementation plan uses `list[Node]` throughout.
 
 2. **How should the loop detect that a node was suspended vs. completed?**
    - **Owner**: @VJyzCELERY

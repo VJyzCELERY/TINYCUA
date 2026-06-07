@@ -126,8 +126,8 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 1. **Should suspended nodes have a dedicated state flag?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-07
-   - **Status**: Proposed
-   - **Proposed Answer**: No — suspension is implicit via queue position. The target architecture states: "A node is suspended when it remains queued but is no longer at queue[0]. No dedicated persisted suspended state is required."
+   - **Status**: Resolved
+   - **Resolution**: No — suspension is implicit via queue position. The target architecture states: "A node is suspended when it remains queued but is no longer at queue[0]. No dedicated persisted suspended state is required." See design.md Data Model section — no flag is defined.
 
 2. **How should nested suspensions handle input propagation?**
    - **Owner**: @VJyzCELERY
