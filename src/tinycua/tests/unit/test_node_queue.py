@@ -144,6 +144,19 @@ class TestNodeQueueSpawn:
 
         assert queue.items == [node_a]
 
+    def test_spawn_preserves_subsequent_nodes(self):
+        """spawn_after_current() shifts existing nodes, does not overwrite."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        node_b = _make_node("b")
+        node_c = _make_node("c")
+        queue.items = [node_a, node_b, node_c]
+        new_node = _make_node("new")
+
+        queue.spawn_after_current([new_node])
+
+        assert queue.items == [node_a, new_node, node_b, node_c]
+
 
 class TestNodeQueueClear:
     """Tests for clear_after_current()."""
