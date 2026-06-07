@@ -34,9 +34,9 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Edge Cases
 
-- What happens when the queue is empty after terminal node removal?
-- How does the system handle LLM call failures?
-- What is the behavior when override_instructions is None?
+- What happens when the queue is empty after terminal node removal? → **Design**: Returns error/default (task.md edge case, Phase 1)
+- How does the system handle LLM call failures? → **Design**: Propagate to node retry policy per NodeRetryPolicy.max_attempts (Design Risks table)
+- What is the behavior when override_instructions is None? → **Design**: Typed as `str | None`; None means no override applied (Design Phase 1)
 
 ---
 
@@ -121,8 +121,8 @@ See `implementation-plan.md` for concrete integration test definitions.
 1. **What is the default entry node when QueryAnalyst is not yet implemented?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Use a minimal stub ProcessNode as placeholder until QueryAnalyst is implemented in Milestone 2.1.
+   - **Status**: Resolved
+   - **Answer**: Use a minimal stub ProcessNode ("StubNode") as placeholder until QueryAnalyst is implemented in Milestone 2.1. (Design Decision #5)
 
 ---
 

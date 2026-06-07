@@ -2,7 +2,7 @@
 
 **Spec**: ./spec.md
 **Status**: Draft
-**Last Updated**: 2026-06-07
+**Last Updated**: 2026-06-08
 **Milestone**: 1.8 — TinyCUALoop SDK Integration
 
 ---
@@ -147,6 +147,14 @@ class TinyCUALoop(BaseLoop):
    - **Reason**: Must use SDK-compatible execution path; cannot bypass agent
    - **Alternatives Considered**: Direct LLM calls — rejected due to SDK contract
 
+4. **Decision**: TinyCUALoop accepts optional session, creates root session if None
+   - **Reason**: Allows flexibility for testing and composition
+   - **Alternatives Considered**: Always create internally — rejected; always require external — rejected
+
+5. **Decision**: Stub entry node named "StubNode", advances immediately
+   - **Reason**: Minimal working queue placeholder until QueryAnalyst in Milestone 2.1
+   - **Alternatives Considered**: Skip entry node — rejected because queue would be empty
+
 ---
 
 ## Risks & Mitigations
@@ -160,13 +168,13 @@ class TinyCUALoop(BaseLoop):
 
 ---
 
-## Open Questions _(optional)_
+## Open Questions — Resolved
 
 1. **Should TinyCUALoop own session creation or accept it externally?**
-   - Current thinking: Accept optional session, create if None. Allows flexibility for testing and composition.
+   - **Status: Resolved** — Accept optional session, create if None. Allows flexibility for testing and composition.
 
 2. **How should the stub entry node be named/identified?**
-   - Current thinking: Use a simple "StubEntryNode" that advances immediately. Will be replaced by QueryAnalyst in Milestone 2.1.
+   - **Status: Resolved** — Use a simple "StubEntryNode" that advances immediately. Will be replaced by QueryAnalyst in Milestone 2.1.
 
 ---
 

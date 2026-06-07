@@ -76,6 +76,12 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
   - [ ] Yield node.started and node.completed events during streaming
   - [ ] Update spec FR-009 to document node lifecycle events
   - [ ] Write unit tests for node lifecycle event streaming
+- [ ] Integrate monitor hooks <!-- id: 25 -->
+  - [ ] Add optional monitor hook integration for loop execution observability
+  - [ ] Write unit tests for monitor hook callbacks
+- [ ] Implement advanced error handling and recovery <!-- id: 26 -->
+  - [ ] Add retry policies and recovery strategies beyond basic propagation
+  - [ ] Write unit tests for error recovery scenarios
 
 ---
 

@@ -11,6 +11,12 @@ Implements TinyCUALoop as a node-based execution loop that extends SDK BaseLoop,
 
 ## Environment Pre-requisites
 
+### SDK Verification (Before TDD Phase) — COMPLETED
+
+- [x] **Verify Agent._call_llm() return type**: Returns `LLMResponse` (TypedDict with keys: content, tool_calls, usage, finish_reason, model) — dict mocks are correct
+- [x] **Verify Agent._call_llm() is async**: Method is async (`async def _call_llm`) — must use AsyncMock
+- [x] **Update test mocks to match real SDK**: No changes needed — dict mocks work with TypedDict
+
 ### Configuration
 
 - [ ] **None** — no configuration dependencies
@@ -56,9 +62,8 @@ from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
 
-# NOTE: Before implementing, verify that Agent._call_llm() returns a dict
-# (not an object with attribute access). If it returns an object like LLMResult,
-# replace dict mocks with MagicMock(content="ok", tool_calls=None) instead.
+# VERIFIED: Agent._call_llm() returns LLMResponse (TypedDict with keys: content, tool_calls, usage, finish_reason, model).
+# Dict mocks below are correct — LLMResponse is a TypedDict, so dict access via .get() works.
 
 
 class StubNode(ProcessNode):
@@ -264,7 +269,7 @@ async def test_tinycua_loop_stream_true_returns_iterator():
 - [ ] **Scenario 4**: Override instructions — override_instructions passed through to node build_instruction()
 - [ ] **Scenario 5**: Stream=False returns string, stream=True returns async iterator
 - [ ] **Edge case**: Empty queue after terminal node removal — returns error or default
-- [ ] **Verify**: Agent._call_llm() return type matches mock (dict vs object) — see note at top of test file
+- [x] **Verify**: Agent._call_llm() return type matches mock (dict vs object) — VERIFIED: LLMResponse is TypedDict, dict mocks correct
 
 ## Verification Plan
 
