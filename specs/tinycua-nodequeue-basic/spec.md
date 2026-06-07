@@ -40,6 +40,7 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 - What happens when `spawn_after_current()` is called on an empty queue? The system MUST raise `ValueError` (cannot spawn after nothing).
 - What happens when `clear_after_current()` is called and there are no nodes after current? The system MUST be a no-op.
 - What happens when `ensure_terminal()` is called and the queue is empty? The system MUST append the default terminal node.
+- What happens when `spawn_after_current()` is called with an empty list? The system MUST be a no-op.
 
 ---
 

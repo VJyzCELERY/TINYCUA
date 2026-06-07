@@ -22,49 +22,49 @@ Implementation tasks for NodeQueue Basic Execution and Terminal Safety. Check of
   - [ ] Convert `current` from attribute to property returning `items[0]` or `None`
   - [ ] Implement `is_empty()` checking `len(self.items) == 0`
   - [ ] Implement `input_for_current()` returning stored input or empty dict
-- [ ] Implement `set_input(node, input_data)` for input tracking <!-- id: 2a -->
-- [ ] Implement `advance()` method <!-- id: 3 -->
+- [ ] Implement `set_input(node, input_data)` for input tracking <!-- id: 3 -->
+- [ ] Implement `advance()` method <!-- id: 4 -->
   - [ ] Raise `ValueError("Cannot advance an empty queue")` when empty
   - [ ] Call `propagate()` on current node before removal
   - [ ] Remove `items[0]` and clean up `_inputs` entry
   - [ ] Return new current node or `None`
-- [ ] Implement `spawn_after_current()` method <!-- id: 4 -->
+- [ ] Implement `spawn_after_current()` method <!-- id: 5 -->
   - [ ] Raise `ValueError("Cannot spawn after an empty queue")` when empty
   - [ ] Insert nodes after `items[0]` using slice assignment `self.items[1:1] = nodes`
   - [ ] Verify current remains unchanged
-- [ ] Implement `clear_after_current()` method <!-- id: 5 -->
+- [ ] Implement `clear_after_current()` method <!-- id: 6 -->
   - [ ] No-op when queue is empty or has only one node
   - [ ] Remove all nodes after `items[0]` and clean up their `_inputs` entries
-- [ ] Implement `ensure_terminal()` method <!-- id: 6 -->
+- [ ] Implement `ensure_terminal()` method <!-- id: 7 -->
   - [ ] Append default terminal node when queue is empty
   - [ ] Append default terminal when last node has `is_terminal=False`
   - [ ] No-op when last node has `is_terminal=True`
-- [ ] Update `__init__.py` exports <!-- id: 7 -->
+- [ ] Update `__init__.py` exports <!-- id: 8 -->
   - [ ] Add `NodeQueue` to `__all__` in `tinycua/loops/__init__.py`
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 8 -->
-- [ ] Write unit tests for TinyCUALoop `ensure_terminal()` bootstrap <!-- id: 9 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 9 -->
+- [ ] Write unit tests for TinyCUALoop `ensure_terminal()` bootstrap <!-- id: 10 -->
   - [ ] Test that `run()` calls `ensure_terminal()` on queue
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 10 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 11 -->
 
 ## Verification Phase
 
-- [ ] Verify existing M1.1 tests updated and passing <!-- id: 11 -->
-- [ ] Verify `NodeQueue` works with mock nodes in isolation <!-- id: 12 -->
-- [ ] Verify `advance()` propagates exactly once per node <!-- id: 13 -->
+- [ ] Verify existing M1.1 tests updated and passing <!-- id: 12 -->
+- [ ] Verify `NodeQueue` works with mock nodes in isolation <!-- id: 13 -->
+- [ ] Verify `advance()` propagates exactly once per node <!-- id: 14 -->
 
 ## Documentation Phase
 
-- [ ] Update module docstring in `node_queue.py` to describe full functionality <!-- id: 14 -->
-- [ ] Update design.md implementation checklist to mark completed items <!-- id: 15 -->
+- [ ] Update module docstring in `node_queue.py` to describe full functionality <!-- id: 15 -->
+- [ ] Update design.md implementation checklist to mark completed items <!-- id: 16 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 16 -->
-- [ ] Address review feedback <!-- id: 17 -->
-- [ ] Merge to main branch <!-- id: 18 -->
+- [ ] Create pull request <!-- id: 17 -->
+- [ ] Address review feedback <!-- id: 18 -->
+- [ ] Merge to main branch <!-- id: 19 -->
 
 ---
 
