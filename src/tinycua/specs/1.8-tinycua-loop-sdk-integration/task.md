@@ -44,6 +44,7 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
   - [ ] Write unit test verifying input_context is populated after run()
   - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k input_context`
 - [ ] Implement node-based execution in TinyCUALoop.run() <!-- id: 6 | design: "Create TinyCUALoop class extending BaseLoop", "Implement run() stream=False", "Add node execution loop with agent._call_llm() integration", "Record chat history per node LLM call", "Record selected session context" -->
+  - [ ] Create or modify `src/tinycua/tinycua/loops/tinycua_loop.py` if it does not exist
   - [ ] Replace direct agent._call_llm() passthrough with node queue iteration
   - [ ] Implement _execute_node() method for single node execution
   - [ ] Call agent._call_llm() for each node's LLM interaction

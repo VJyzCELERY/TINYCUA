@@ -72,10 +72,23 @@ class TinyCUALoop(BaseLoop):
     Extends BaseLoop without SDK API modifications.
     """
     
-    def __init__(self, session: Session | None = None):
+    def __init__(
+        self,
+        root_session: Session | None = None,
+        session_config: SessionConfig | None = None,
+        max_iterations: int = 50,
+        default_terminal_node: ProcessNode | None = None,
+        queue: NodeQueue | None = None,
+    ):
         """
-        Create TinyCUALoop with optional existing session.
-        If session is None, creates a new root session.
+        Create TinyCUALoop with optional existing session and configuration.
+
+        Args:
+            root_session: Existing session to use. If None, creates a new root session.
+            session_config: Session configuration (e.g., max_context_messages).
+            max_iterations: Maximum loop iterations (default 50).
+            default_terminal_node: Terminal node auto-appended during bootstrap.
+            queue: Pre-built NodeQueue. If None, creates a new empty queue.
         """
     
     def run(
@@ -133,6 +146,21 @@ class TinyCUALoop(BaseLoop):
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
+### Known Deviations from Target Architecture
+
+Phase 1 implements a simplified subset of the target execution flow defined in `tinycua_loop.md`. The following behaviors are **deferred** to later milestones:
+
+| Target Architecture Behavior | Status | Milestone |
+|------------------------------|--------|-----------|
+| QueryAnalyst prepend at queue front | Deferred | 2.1 (QueryAnalyst implementation) |
+| `node.on_complete(queue, result)` for queue transitions | Deferred | 2.1 (node lifecycle) |
+| Worker-route rule (spawn/reuse WorkerNode) | Deferred | 2.x (Worker implementation) |
+| `node.ensure_session()` per-node session creation | Deferred | 2.x (node sessions) |
+| `NodeStreamPolicy.emit_internal_events` | Deferred | 2.x (stream policies) |
+| Monitor hook integration | Deferred | Phase 2 (post-MVP) |
+
+**Phase 1 scope**: Sequential node execution with `agent._call_llm()`, message merging, tool scoping, streaming, and terminal node bootstrapping. The loop iterates through `queue.items` directly rather than using `queue.current` / `node.on_complete()` transitions.
+
 ---
 
 ## Technical Decisions
@@ -149,8 +177,8 @@ class TinyCUALoop(BaseLoop):
    - **Reason**: Must use SDK-compatible execution path; cannot bypass agent
    - **Alternatives Considered**: Direct LLM calls — rejected due to SDK contract
 
-4. **Decision**: TinyCUALoop accepts optional session, creates root session if None
-   - **Reason**: Allows flexibility for testing and composition
+4. **Decision**: TinyCUALoop accepts optional root_session, creates root session if None
+   - **Reason**: Allows flexibility for testing and composition; matches existing test interface
    - **Alternatives Considered**: Always create internally — rejected; always require external — rejected
 
 5. **Decision**: Stub entry node named "StubNode", advances immediately

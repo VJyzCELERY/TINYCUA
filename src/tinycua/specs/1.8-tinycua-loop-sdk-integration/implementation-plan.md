@@ -61,59 +61,8 @@ from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
-
-# VERIFIED: Agent._call_llm() returns LLMResponse (TypedDict with keys: content, tool_calls, usage, finish_reason, model).
-# Dict mocks below are correct — LLMResponse is a TypedDict, so dict access via .get() works.
-
-
-class StubNode(ProcessNode):
-    """Minimal node for testing that returns a fixed response."""
-
-    def __init__(self, response_content: str = "stub response"):
-        super().__init__(
-            node_id="stub",
-            config=NodeConfigBase(),
-            instruction="You are a test stub",
-        )
-        self.response_content = response_content
-
-    def _call_llm(self, messages):
-        from tinycua.config.types import LLMResult
-        return LLMResult(
-            content=self.response_content,
-            role="assistant",
-        )
-
-    def __call__(self, input):
-        from tinycua.config.types import LLMResult
-        return LLMResult(
-            content=self.response_content,
-            role="assistant",
-        )
-
-
-class ResponseNode(ProcessNode):
-    """Terminal node that returns the final response."""
-
-    def __init__(self):
-        super().__init__(
-            node_id="response",
-            config=NodeConfigBase(),
-            instruction="Return the final response",
-            is_terminal=True,
-        )
-
-    def _call_llm(self, messages):
-        from tinycua.config.types import LLMResult
-        # Return the last user/assistant message as the final response
-        for msg in reversed(messages):
-            if msg.get("role") in ("user", "assistant"):
-                return LLMResult(content=msg.get("content", ""), role="assistant")
-        return LLMResult(content="No response", role="assistant")
-
-    def __call__(self, input):
-        from tinycua.config.types import LLMResult
-        return LLMResult(content="final response", role="assistant")
+# Shared test helpers imported from tests/unit/helpers/tinycua_loop_helpers.py
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
 
 
 async def test_tinycua_loop_executes_node_queue():
@@ -241,14 +190,23 @@ async def test_tinycua_loop_stream_false_returns_string():
 
 
 async def test_tinycua_loop_stream_true_returns_iterator():
-    """TinyCUALoop run(stream=True) returns an async iterator."""
-    loop = TinyCUALoop()
+    """TinyCUALoop run(stream=True) returns an async iterator with content deltas."""
+    stub = StubNode("streaming response")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "response", "tool_calls": None}
-    )
+
+    async def mock_stream(*args, **kwargs):
+        yield {"type": "response.output_text.delta", "delta": "Hello"}
+        yield {"type": "response.output_text.delta", "delta": " world"}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
 
     result = await loop.run(
         agent=agent,
@@ -259,6 +217,9 @@ async def test_tinycua_loop_stream_true_returns_iterator():
     )
     import collections.abc
     assert isinstance(result, collections.abc.AsyncIterator)
+    events = [e async for e in result]
+    assert len(events) > 0
+    assert any(e["type"] == "response.output_text.delta" for e in events)
 ```
 
 ### Key Test Scenarios
@@ -288,48 +249,8 @@ from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
-
-class StubNode(ProcessNode):
-    """Minimal node for testing that returns a fixed response."""
-
-    def __init__(self, response_content: str = "stub response"):
-        super().__init__(
-            node_id="stub",
-            config=NodeConfigBase(),
-            instruction="You are a test stub",
-        )
-        self.response_content = response_content
-
-    def _call_llm(self, messages):
-        from tinycua.config.types import LLMResult
-        return LLMResult(content=self.response_content, role="assistant")
-
-    def __call__(self, input):
-        from tinycua.config.types import LLMResult
-        return LLMResult(content=self.response_content, role="assistant")
-
-
-class ResponseNode(ProcessNode):
-    """Terminal node that returns the final response."""
-
-    def __init__(self):
-        super().__init__(
-            node_id="response",
-            config=NodeConfigBase(),
-            instruction="Return the final response",
-            is_terminal=True,
-        )
-
-    def _call_llm(self, messages):
-        from tinycua.config.types import LLMResult
-        for msg in reversed(messages):
-            if msg.get("role") in ("user", "assistant"):
-                return LLMResult(content=msg.get("content", ""), role="assistant")
-        return LLMResult(content="No response", role="assistant")
-
-    def __call__(self, input):
-        from tinycua.config.types import LLMResult
-        return LLMResult(content="final response", role="assistant")
+# Shared test helpers imported from tests/unit/helpers/tinycua_loop_helpers.py
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
 
 
 # --- _execute_node tests ---
@@ -543,20 +464,32 @@ async def test_stream_false_returns_string():
 
 
 async def test_stream_true_returns_async_iterator():
-    """run(stream=True) returns an async iterator."""
-    loop = TinyCUALoop()
+    """run(stream=True) returns an async iterator with content deltas."""
+    stub = StubNode("streaming response")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+
+    async def mock_stream(*args, **kwargs):
+        yield {"type": "response.output_text.delta", "delta": "Hello"}
+        yield {"type": "response.output_text.delta", "delta": " world"}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
 
     result = await loop.run(
         agent=agent, messages=[], tools=[], override_instructions=None, stream=True,
     )
     import collections.abc
     assert isinstance(result, collections.abc.AsyncIterator)
+    events = [e async for e in result]
+    assert len(events) > 0
+    assert any(e["type"] == "response.output_text.delta" for e in events)
 ```
 
 ### Key Unit Test Scenarios
@@ -628,15 +561,21 @@ async def test_stream_true_returns_async_iterator():
 
 ### Tests
 
+#### NEW src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py
+
+- **Shared test helpers**: StubNode and ResponseNode classes used by both integration and unit tests
+- **Rationale**: Avoids ~100 lines of duplicated code between test files; single source of truth for test node definitions
+
 #### NEW src/tinycua/tests/integration/test_tinycua_loop_integration.py
 
 - **Integration tests**: End-to-end tests for node execution, message merging, tool scoping, streaming
-- **Dependencies**: All production changes above
+- **Dependencies**: All production changes above; imports shared helpers from tinycua_loop_helpers.py
 
 #### MODIFY src/tinycua/tests/unit/test_tinycua_loop.py
 
 - **Update existing tests**: Adapt to new node-based execution behavior
 - **Add new unit tests**: Test _execute_node(), message merging, tool scoping
+- **Imports shared helpers**: Imports StubNode, ResponseNode from tinycua_loop_helpers.py
 
 ## Architecture Changes
 
@@ -685,7 +624,7 @@ Session:
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Existing unit tests assume passthrough behavior | Medium | Update tests to expect node execution; ensure backward compat |
-| agent._call_llm() async interface vs ProcessNode._call_llm() sync | Medium | TinyCUALoop orchestrates calls directly, bypassing ProcessNode._call_llm() |
+| agent._call_llm() async interface vs ProcessNode._call_llm() sync | Medium | TinyCUALoop orchestrates calls directly via `agent._call_llm()` (async), bypassing `ProcessNode._call_llm()` entirely. StubNode._call_llm() is only invoked when testing node logic directly (e.g., unit tests for node behavior), not during loop execution. |
 | Stream mode complexity with node events | Low | Start with simple passthrough stream, add node events in follow-up |
 
 ---

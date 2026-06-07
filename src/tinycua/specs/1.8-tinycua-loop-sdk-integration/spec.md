@@ -52,9 +52,15 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **FR-006**: TinyCUALoop MUST call agent._call_llm() for node LLM calls.
 - **FR-007**: TinyCUALoop MUST record chat history and selected session context.
 - **FR-008**: TinyCUALoop MUST preserve stream=False final string behavior.
-- **FR-009**: TinyCUALoop MUST preserve stream=True async iterator behavior.
+- **FR-009**: TinyCUALoop MUST preserve stream=True async iterator behavior. When `stream=True`, the loop yields SDK-compatible event dicts. Expected event types include:
+  - `response.output_text.delta` — incremental content delta (`{"type": "response.output_text.delta", "delta": "..."}`)
+  - `response.completed` — loop finished (`{"type": "response.completed", "finish_reason": "completed"}`)
+  - Node lifecycle events are deferred to Phase 2.
 - **FR-010**: TinyCUALoop MUST ensure a terminal ResponseNode exists at queue end.
 - **FR-011**: TinyCUALoop MUST ensure QueryAnalyst is at queue front (or equivalent entry node).
+- **FR-012**: TinyCUALoop MUST auto-bootstrap its queue with a terminal ResponseNode when no terminal node is present at execution start.
+
+> **Note**: `create_tinycua_agent(...)` referenced in the Primary Scenario and Integration Tests is an implementation convenience (factory function in `tinycua.factory`). It is not a spec requirement. The spec only requires that TinyCUALoop can be instantiated directly with appropriate parameters.
 
 ### Key Entities _(include if feature involves data)_
 
