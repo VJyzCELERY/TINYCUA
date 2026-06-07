@@ -35,7 +35,7 @@ Implementation tasks for NodeQueue Basic Execution and Terminal Safety. Check of
 - [ ] Implement `clear_after_current()` method <!-- id: 5 -->
   - [ ] No-op when queue is empty or has only one node
   - [ ] Remove all nodes after `items[0]` and clean up their `_inputs` entries
-- [ ] Implement `ensure_terminal()` method <!-- id: 6 ]
+- [ ] Implement `ensure_terminal()` method <!-- id: 6 -->
   - [ ] Append default terminal node when queue is empty
   - [ ] Append default terminal when last node has `is_terminal=False`
   - [ ] No-op when last node has `is_terminal=True`

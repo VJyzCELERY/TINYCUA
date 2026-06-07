@@ -267,29 +267,29 @@ class TestNodeQueueInputTracking:
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Queue current returns `items[0]` when present, `None` when empty — primary access pattern
-- [x] **Scenario 2**: `advance()` propagates then removes current, returns next node — core execution flow
-- [x] **Scenario 3**: `spawn_after_current()` inserts without changing current — dynamic queue mutation
-- [x] **Scenario 4**: `ensure_terminal()` appends terminal node when missing — safety invariant
-- [x] **Edge case**: `advance()` on empty queue raises `ValueError` — error safety
-- [x] **Edge case**: Input tracking stays synchronized with node removal
+- [ ] **Scenario 1**: Queue current returns `items[0]` when present, `None` when empty — primary access pattern
+- [ ] **Scenario 2**: `advance()` propagates then removes current, returns next node — core execution flow
+- [ ] **Scenario 3**: `spawn_after_current()` inserts without changing current — dynamic queue mutation
+- [ ] **Scenario 4**: `ensure_terminal()` appends terminal node when missing — safety invariant
+- [ ] **Edge case**: `advance()` on empty queue raises `ValueError` — error safety
+- [ ] **Edge case**: Input tracking stays synchronized with node removal
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for NodeQueue — test error handling, edge cases, fallbacks
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for NodeQueue — test error handling, edge cases, fallbacks
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Verify existing M1.1 tests still pass (empty queue behavior preserved)
-- [x] Verify `NodeQueue` can be instantiated and used with mock nodes
+- [ ] Verify existing M1.1 tests still pass (empty queue behavior preserved)
+- [ ] Verify `NodeQueue` can be instantiated and used with mock nodes
 
 ### Performance Considerations
 
-- [x] No performance concerns for this milestone — O(1) operations on list head
+- [ ] No performance concerns for this milestone — O(1) operations on list head
 
 ## Proposed Changes
 

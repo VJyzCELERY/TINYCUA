@@ -1,6 +1,6 @@
 # Feature Specification: NodeQueue Basic Execution and Terminal Safety
 
-**Status**: Draft
+**Status**: Approved
 **Created**: 2026-06-07
 **Last Updated**: 2026-06-07
 **Subproject(s) Affected**: tinycua (loops/node_queue)
@@ -119,13 +119,13 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 
 ---
 
-## Open Questions _(optional)_
+## Decisions Log _(optional)_
 
 1. **Terminal detection**: Should `ensure_terminal()` detect terminal nodes by checking `node.is_terminal` attribute, or by checking node type?
-   - **Status**: Decided — Use `node.is_terminal` attribute. This is consistent with the `Node` base class design from M1.5 and allows flexible terminal node definitions.
+   - **Decision**: Use `node.is_terminal` attribute. This is consistent with the `Node` base class design from M1.5 and allows flexible terminal node definitions.
 
 2. **Input tracking**: Should `NodeInputLike` be stored per-node in a dict, or as a wrapper around each node in the items list?
-   - **Status**: Decided — Use a dict mapping `node_id` to `NodeInputLike`. This keeps the items list clean and allows input reassignment.
+   - **Decision**: Use a dict mapping `node_id` to `NodeInputLike`. This keeps the items list clean and allows input reassignment.
 
 ---
 

@@ -1,7 +1,7 @@
 # Design Document: NodeQueue Basic Execution and Terminal Safety
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Approved
 **Last Updated**: 2026-06-07
 
 ---
