@@ -517,7 +517,7 @@ async def test_stream_true_returns_async_iterator():
 
 ### Performance Considerations
 
-- [ ] N/A — MVP with sequential node execution
+- [x] N/A — MVP with sequential node execution
 
 ## Proposed Changes
 
