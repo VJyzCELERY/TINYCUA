@@ -121,7 +121,7 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 | ensure_terminal() | DONE | |
 | set_input() | DONE | |
 | Input tracking | DONE | |
-| Unit tests | DONE | 22 tests passing |
+| Unit tests | DONE | 23 tests passing |
 
 ---
 
