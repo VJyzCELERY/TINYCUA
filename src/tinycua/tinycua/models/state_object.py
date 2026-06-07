@@ -61,7 +61,7 @@ class StateObject:
         Raises:
             ValueError: If a required field is missing from the data.
         """
-        return _state_object_from_dict(cls, data)  # type: ignore[return-value]
+        return typing.cast(typing.Self, _state_object_from_dict(cls, data))
 
     def to_json(self, **json_kwargs: typing.Any) -> str:
         """Serialize to JSON string via to_dict() then json.dumps().
@@ -154,7 +154,7 @@ def _state_object_from_dict(
         hint = type_hints.get(field_name)
         kwargs[field_name] = _convert_value_from_dict(value, hint, field_obj)
 
-    return cls(**kwargs)  # type: ignore[call-arg]
+    return cls(**kwargs)  # kwargs guaranteed by for-loop over dataclass fields
 
 
 def _convert_list_value(
