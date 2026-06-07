@@ -5,6 +5,7 @@
 **Last Updated**: 2026-06-08
 **Subproject(s) Affected**: tinycua (core)
 **Milestone**: 2.1 — RouteMap and Top-Level QueryAnalyst
+**Design**: ./design.md
 
 ---
 

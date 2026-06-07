@@ -31,8 +31,8 @@ This implementation adds a deterministic entry-point classification and routing 
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.11+
-- [ ] **Package manager**: uv
+- [x] **Runtime**: Python 3.11+
+- [x] **Package manager**: uv
 - [x] **None** — no special tooling required
 
 ---
