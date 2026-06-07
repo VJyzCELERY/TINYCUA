@@ -253,36 +253,36 @@ def test_clear_after_current_with_suspended_node():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Basic suspension — current node stays queued, new nodes inserted before it, first prepended node becomes current
-- [ ] **Scenario 2**: Multiple prepended nodes — relative order preserved
-- [ ] **Scenario 3**: Empty list no-op — no change to queue
-- [ ] **Scenario 4**: Empty queue ValueError — programming error safety
-- [ ] **Scenario 5**: No propagation during suspend — suspended node retains state
-- [ ] **Scenario 6**: Input preservation — suspended node's input mapping survives
-- [ ] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
-- [ ] **Scenario 8**: Nested suspension — second suspension prepends before first suspended node
-- [ ] **Scenario 9**: clear_after_current with suspended node — suspended node IS cleared if in clear zone
-- [ ] **Scenario 10**: Prepended node input lifecycle — input assignable, accessible, cleaned up on advance
-- [ ] **Scenario 11**: Output propagation — prepended child's output reaches suspended parent upon completion
+- [x] **Scenario 1**: Basic suspension — current node stays queued, new nodes inserted before it, first prepended node becomes current
+- [x] **Scenario 2**: Multiple prepended nodes — relative order preserved
+- [x] **Scenario 3**: Empty list no-op — no change to queue
+- [x] **Scenario 4**: Empty queue ValueError — programming error safety
+- [x] **Scenario 5**: No propagation during suspend — suspended node retains state
+- [x] **Scenario 6**: Input preservation — suspended node's input mapping survives
+- [x] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
+- [x] **Scenario 8**: Nested suspension — second suspension prepends before first suspended node
+- [x] **Scenario 9**: clear_after_current with suspended node — suspended node IS cleared if in clear zone
+- [x] **Scenario 10**: Prepended node input lifecycle — input assignable, accessible, cleaned up on advance
+- [x] **Scenario 11**: Output propagation — prepended child's output reaches suspended parent upon completion
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Unit tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for suspension edge cases (nested suspends, clear_after_current with suspended nodes) <!-- NOTE: all tests in this doc are unit-level -->
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
-- [ ] Lint passes: `cd src/tinycua && uv run ruff check .`
-- [ ] Type check passes: `cd src/tinycua && uv run mypy tinycua/`
+- [x] Unit tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for suspension edge cases (nested suspends, clear_after_current with suspended nodes) <!-- NOTE: all tests in this doc are unit-level -->
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Lint passes: `cd src/tinycua && uv run ruff check .`
+- [x] Type check passes: `cd src/tinycua && uv run mypy tinycua/`
 
 ### Manual Verification
 
-- [ ] Verify `queue.current` returns prepended node, not suspended node
-- [ ] Verify `advance()` on prepended node returns suspended node as new current
+- [x] Verify `queue.current` returns prepended node, not suspended node
+- [x] Verify `advance()` on prepended node returns suspended node as new current
 
 ### Performance Considerations
 
-- [ ] Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes)
+- [x] Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes)
 
 ## Proposed Changes
 

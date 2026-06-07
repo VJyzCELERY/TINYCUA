@@ -41,7 +41,7 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 11 -->
+- [x] Create pull request <!-- id: 11 -->
 - [ ] Address review feedback <!-- id: 12 -->
 - [ ] Merge to main branch <!-- id: 13 -->
 

@@ -87,16 +87,16 @@ Parent-child node relationships for prepended nodes are **caller-established**, 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Suspension works**: `suspend_current_and_prepend()` keeps current node queued, inserts new nodes before it, and makes first prepended node current.
-- [ ] **Input preservation works**: Suspended node's `NodeInputLike` mapping is preserved after suspension.
-- [ ] **Empty queue safety**: `suspend_current_and_prepend()` on empty queue raises `ValueError`.
-- [ ] **Empty list safety**: `suspend_current_and_prepend([])` is a no-op.
-- [ ] **No propagation during suspend**: `propagate()` is NOT called on the suspended node during suspension.
-- [ ] **Resume works**: Suspended node resumes execution when prepended nodes complete and `advance()` is called.
-- [ ] **Multiple suspensions work**: Sequential suspensions handle nested suspension correctly.
-- [ ] **Order preservation works**: Relative order of suspended nodes is preserved when multiple nodes are prepended.
-- [ ] **Backward compatibility**: Existing M1.6 tests pass without modification.
-- [ ] **Caller-established data flow works**: Queue ordering ensures suspended parent
+- [x] **Suspension works**: `suspend_current_and_prepend()` keeps current node queued, inserts new nodes before it, and makes first prepended node current.
+- [x] **Input preservation works**: Suspended node's `NodeInputLike` mapping is preserved after suspension.
+- [x] **Empty queue safety**: `suspend_current_and_prepend()` on empty queue raises `ValueError`.
+- [x] **Empty list safety**: `suspend_current_and_prepend([])` is a no-op.
+- [x] **No propagation during suspend**: `propagate()` is NOT called on the suspended node during suspension.
+- [x] **Resume works**: Suspended node resumes execution when prepended nodes complete and `advance()` is called.
+- [x] **Multiple suspensions work**: Sequential suspensions handle nested suspension correctly.
+- [x] **Order preservation works**: Relative order of suspended nodes is preserved when multiple nodes are prepended.
+- [x] **Backward compatibility**: Existing M1.6 tests pass without modification.
+- [x] **Caller-established data flow works**: Queue ordering ensures suspended parent
       resumes after prepended children complete; data flow between them is
       caller-established (see FR-009).
 
