@@ -27,7 +27,7 @@ alwaysApply: false
 - Google-style: `"""Brief description.\n\nArgs:\n    arg: Description.\n\nReturns:\n    Description.\n"""`
 
 ## Complexity
-- Max cyclomatic complexity per function: 10 (measured via radon)
+- Max cyclomatic complexity per function: 15 (enforced by ruff C901, measured via radon)
 - Flag cognitive complexity in review
 
 ## Logging

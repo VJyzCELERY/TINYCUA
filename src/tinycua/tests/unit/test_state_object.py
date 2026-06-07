@@ -190,6 +190,29 @@ def test_round_trip_nested_json() -> None:
     assert restored.label == "outer"
 
 
+def test_resolve_annotation_eval_fallback_complex_generics() -> None:
+    """_resolve_annotation uses eval() for complex generics (brackets/pipes)."""
+    import typing
+
+    from tinycua.models.state_object import _resolve_annotation
+
+    # list[str] contains brackets — triggers eval() path
+    result = _resolve_annotation("list[str]")
+    assert result == list[str]
+
+    # dict[str, int] — nested generics
+    result = _resolve_annotation("dict[str, int]")
+    assert result == dict[str, int]
+
+    # str | None — union with pipe syntax
+    result = _resolve_annotation("str | None")
+    assert result == typing.Optional[str]
+
+    # Optional[str] — typing.Optional call
+    result = _resolve_annotation("Optional[str]")
+    assert result == typing.Optional[str]
+
+
 def test_get_type_hints_safe_fallback() -> None:
     """_get_type_hints_safe falls back to raw field types when resolution fails."""
     from unittest.mock import patch
