@@ -1,84 +1,81 @@
-# Tasks: TinyCUALoop SDK Integration (Milestone 1.8)
+# Tasks: TinyCUALoop SDK Integration
 
 Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests (defined in implementation-plan.md) <!-- id: 0 -->
-- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
+- [ ] Write integration tests for node-based execution (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Write unit tests for _execute_node(), message merging, tool scoping <!-- id: 1 -->
+- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
 
 ## Implementation Phase
 
-- [ ] Create `tinycua/loops/tinycua_loop.py` with TinyCUALoop extending SDK BaseLoop <!-- id: 2 -->
-  - [ ] Implement `__init__` with `root_session` and `node_queue`
-  - [ ] Implement `run()` method with stream=False support
-  - [ ] Implement `run()` method with stream=True support
-  - [ ] Add unit tests for TinyCUALoop construction and run() behavior
-- [ ] Create root session with input_context, chat_history, session_context <!-- id: 3 -->
-  - [ ] Implement session creation when `session=None`
-  - [ ] Implement `input_context` field for merged SDK messages
-  - [ ] Add unit tests for Session fields
-- [ ] Implement message merging into root session <!-- id: 4 -->
-  - [ ] Merge SDK messages into `root_session.input_context` at run() start
-  - [ ] Add unit tests for message merging behavior
-- [ ] Implement queue bootstrapping with terminal node guarantee <!-- id: 5 -->
-  - [ ] Ensure `NodeQueue` contains a terminal `ResponseNode` at queue end
-  - [ ] Implement stub `ProcessNode` as placeholder entry node (replaced by QueryAnalyst in Milestone 2.1)
-  - [ ] Add unit tests for queue bootstrapping
-- [ ] Add node execution loop with agent._call_llm() integration <!-- id: 6 -->
-  - [ ] Iterate through `NodeQueue`, calling `agent._call_llm()` per node
-  - [ ] Record chat history per node LLM call
-  - [ ] Record selected session context
-  - [ ] Add unit tests for node execution loop
-- [ ] Ensure stream=True returns async iterator of SDK-compatible event dicts <!-- id: 7 -->
-  - [ ] Implement async iterator yield of SDK event dicts
-  - [ ] Add unit tests for stream=True behavior
-- [ ] Ensure QueryAnalyst is at queue front (or equivalent entry node) <!-- id: 8 -->
-  - [ ] Stub entry node placed at queue front when QueryAnalyst not yet implemented
-  - [ ] Add unit tests for entry node placement
+- [ ] Add `input_context` field to Session model <!-- id: 3 -->
+  - [ ] Add `input_context: list[dict[str, Any]] = field(default_factory=list)` to Session dataclass
+  - [ ] Update Session docstring to document the new field
+  - [ ] Add unit test for Session.input_context initialization
+- [ ] Create ResponseNode terminal node <!-- id: 4 -->
+  - [ ] Create `src/tinycua/tinycua/loops/response_node.py` with ResponseNode class
+  - [ ] ResponseNode extends ProcessNode with `is_terminal=True`
+  - [ ] ResponseNode captures final response content from LLM output
+  - [ ] Export ResponseNode from `tinycua.loops.__init__`
+  - [ ] Write unit tests for ResponseNode
+- [ ] Implement message merging in TinyCUALoop <!-- id: 5 -->
+  - [ ] In run(), merge SDK messages into root_session.input_context
+  - [ ] Ensure user messages are recorded before node execution
+  - [ ] Write unit test verifying input_context is populated after run()
+- [ ] Implement node-based execution in TinyCUALoop.run() <!-- id: 6 -->
+  - [ ] Replace direct agent._call_llm() passthrough with node queue iteration
+  - [ ] Implement _execute_node() method for single node execution
+  - [ ] Call agent._call_llm() for each node's LLM interaction
+  - [ ] Record chat_history per node LLM call
+  - [ ] Record session_context via node.record_output()
+  - [ ] Handle queue advancement after each node completes
+  - [ ] Handle terminal node detection (stop when is_terminal=True)
+  - [ ] Write unit tests for node execution flow
+- [ ] Implement tool scoping via NodeToolPolicy <!-- id: 7 -->
+  - [ ] In _execute_node(), use node.config.tool_policy.resolve_tools(outer_tools)
+  - [ ] Pass resolved tools to agent._call_llm() for each node
+  - [ ] Write unit test verifying tool filtering per node
+- [ ] Implement override_instructions passthrough <!-- id: 8 -->
+  - [ ] Pass override_instructions to node.build_instruction() during message building
+  - [ ] Write unit test verifying override_instructions reaches nodes
+- [ ] Implement stream=True with node events <!-- id: 9 -->
+  - [ ] Yield node lifecycle events (node.started, node.completed) in streaming mode
+  - [ ] Accumulate content deltas for final response
+  - [ ] Write unit tests for streaming behavior
+- [ ] Wire ResponseNode in factory <!-- id: 10 -->
+  - [ ] Import ResponseNode in factory.py
+  - [ ] Pass ResponseNode as default_terminal_node to TinyCUALoop
+  - [ ] Update factory tests to verify terminal node wiring
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 9 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 10 -->
-- [ ] Run linter: `cd src/tinycua && uv run ruff check .` <!-- id: 11 -->
-- [ ] Run type checker: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 12 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 11 -->
+- [ ] Run unit tests for all modified/new modules <!-- id: 12 -->
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 13 -->
+- [ ] Verify no regressions in existing tests <!-- id: 14 -->
 
 ## Verification Phase
 
-- [ ] Verify `Agent(loop=TinyCUALoop(...)).run(query)` executes without SDK API changes <!-- id: 13 -->
-- [ ] Verify minimal queue with stub node and terminal ResponseNode completes <!-- id: 14 -->
-- [ ] Verify stream=False returns final string <!-- id: 15 -->
-- [ ] Verify stream=True returns async iterator <!-- id: 16 -->
+- [ ] Verify `create_tinycua_agent(...).run(query)` executes with minimal node queue <!-- id: 15 -->
+- [ ] Verify chat_history is populated with user + assistant messages <!-- id: 16 -->
+- [ ] Verify session_context is populated with node outputs <!-- id: 17 -->
+- [ ] Verify input_context contains merged SDK messages <!-- id: 18 -->
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua/README.md` with TinyCUALoop usage example <!-- id: 17 -->
+- [ ] Update Status Tracker in spec.md to reflect completed items <!-- id: 19 -->
+- [ ] Update design.md Phase 1 checkboxes <!-- id: 20 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 18 -->
-- [ ] Address review feedback <!-- id: 19 -->
-- [ ] Merge to main branch <!-- id: 20 -->
-
-## Requirement Coverage
-
-| FR | Description | Task(s) | Status |
-|----|-------------|---------|--------|
-| FR-001 | TinyCUALoop extends BaseLoop | #2 | TODO |
-| FR-002 | TinyCUALoop implements run() | #2 | TODO |
-| FR-003 | TinyCUALoop creates and owns root session | #3 | TODO |
-| FR-004 | TinyCUALoop owns NodeQueue | #2 | TODO |
-| FR-005 | TinyCUALoop merges SDK messages into root session | #4 | TODO |
-| FR-006 | TinyCUALoop calls agent._call_llm() | #6 | TODO |
-| FR-007 | TinyCUALoop records chat history | #6 | TODO |
-| FR-008 | TinyCUALoop preserves stream=False behavior | #7 | TODO |
-| FR-009 | TinyCUALoop preserves stream=True behavior | #7 | TODO |
-| FR-010 | TinyCUALoop ensures terminal ResponseNode | #5 | TODO |
-| FR-011 | TinyCUALoop ensures QueryAnalyst at queue front | #8 | TODO |
+- [ ] Create pull request <!-- id: 21 -->
+- [ ] Address review feedback <!-- id: 22 -->
+- [ ] Merge to main branch <!-- id: 23 -->
 
 ---
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-06-07*
+*Last updated: 2026-06-08*

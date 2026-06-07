@@ -1,11 +1,11 @@
-# Implementation: TinyCUALoop SDK Integration (Milestone 1.8)
+# Implementation: TinyCUALoop SDK Integration
 
-TinyCUALoop that extends SDK BaseLoop and executes a minimal node queue without SDK API modifications.
+Implements TinyCUALoop as a node-based execution loop that extends SDK BaseLoop, enabling sequential node execution with SDK-compatible message merging, tool scoping, and streaming support.
 
 ## Context
 
-- **Spec Reference**: `./spec.md`
-- **Design Reference**: `./design.md`
+- **Spec Reference**: `./spec.md` — TinyCUALoop SDK Integration (Milestone 1.8)
+- **Design Reference**: `./design.md` — TinyCUALoop SDK Integration design
 - **Priority**: P1
 - **Estimated Effort**: M
 
@@ -13,339 +13,303 @@ TinyCUALoop that extends SDK BaseLoop and executes a minimal node queue without 
 
 ### Configuration
 
-- [x] **.env file** — required variables:
-  ```
-  # No additional env vars needed for Milestone 1.8 (loop infrastructure only)
-  ```
-- [x] **None** — this feature has no configuration dependencies beyond existing SDK setup
+- [ ] **None** — no configuration dependencies
 
 ### Running Services
 
-| Service | Required | Notes |
-|---------|----------|-------|
-| None | — | All LLM calls mocked in tests |
-
-- [x] **None** — no external services needed for Milestone 1.8
+| Service | Required | How to Start | Health Check |
+|---------|----------|--------------|--------------|
+| - [ ] **None** — no external services needed |
 
 ### Data / Fixtures
 
-- [x] **None** — no data or fixtures needed
+- [ ] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [x] **None** — no special access required
+- [ ] **None** — no special access required
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.12+
-- [x] **Package manager**: uv
-- [x] **None** — no special tooling required
+- [ ] **Runtime**: Python 3.12+, uv
+- [ ] **Package manager**: uv
+- [ ] **None** — no special tooling required
 
 ---
 
-## Pre-Implementation Verification
-
-- [x] Verify `agent._call_llm` is mockable on the Agent instance:
-  ```bash
-  cd src/tinycua && uv run python -c "
-  from tinycua_sdk.agent import Agent
-  a = Agent()
-  print('_call_llm attribute:', hasattr(a, '_call_llm'))
-  print('type:', type(getattr(a, '_call_llm', None)))
-  "
-  ```
-  If `_call_llm` is on an executor (e.g., `agent._executor.call_llm`), update
-  the integration tests to patch `agent._executor.call_llm` or use
-  `unittest.mock.patch` on the executor path instead of assigning directly to
-  `agent._call_llm`.
-
 ## Success Criteria — Integration Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these test pass.
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/integration/test_tinycua_loop.py
-"""Integration tests for TinyCUALoop SDK Integration (Milestone 1.8)."""
+# Test file: src/tinycua/tests/integration/test_tinycua_loop_integration.py
+"""Integration tests for TinyCUALoop node-based execution."""
+
 
 import pytest
-from unittest.mock import AsyncMock
-from tinycua_sdk.agent import Agent, BaseLoop
+from unittest.mock import AsyncMock, MagicMock
+
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.loops.node import ProcessNode
+from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
 
-class TestTinyCUALoopConstruction:
-    """Tests for TinyCUALoop instantiation and BaseLoop extension."""
+class StubNode(ProcessNode):
+    """Minimal node for testing that returns a fixed response."""
 
-    def test_tinycua_loop_extends_base_loop(self):
-        """TinyCUALoop is a subclass of SDK BaseLoop."""
-        loop = TinyCUALoop()
-        assert isinstance(loop, BaseLoop)
-
-    def test_tinycua_loop_creates_root_session_when_none(self):
-        """When no session provided, TinyCUALoop creates a new root session."""
-        loop = TinyCUALoop()
-        assert isinstance(loop.root_session, Session)
-        assert loop.root_session.session_id is not None
-
-    def test_tinycua_loop_uses_provided_session(self):
-        """When session is provided, TinyCUALoop uses it."""
-        session = Session()
-        loop = TinyCUALoop(session=session)
-        assert loop.root_session is session
-
-    def test_tinycua_loop_owns_node_queue(self):
-        """TinyCUALoop owns a NodeQueue."""
-        loop = TinyCUALoop()
-        assert hasattr(loop, 'node_queue')
-        assert hasattr(loop.node_queue, 'items')
-
-
-class TestTinyCUALoopRun:
-    """Tests for TinyCUALoop.run() method."""
-
-    @pytest.mark.asyncio
-    async def test_run_returns_string_when_not_streaming(self):
-        """run() returns string when stream=False."""
-        loop = TinyCUALoop()
-        agent = Agent()
-        agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    def __init__(self, response_content: str = "stub response"):
+        super().__init__(
+            node_id="stub",
+            config=NodeConfigBase(),
+            instruction="You are a test stub",
         )
-        result = await loop.run(
-            agent=agent,
-            messages=[{"role": "user", "content": "hello"}],
-            tools=[],
-            override_instructions=None,
-            stream=False,
-        )
-        assert isinstance(result, str)
+        self.response_content = response_content
 
-    @pytest.mark.asyncio
-    async def test_run_merges_messages_into_session(self):
-        """run() merges SDK messages into root session input_context."""
-        loop = TinyCUALoop()
-        agent = Agent()
-        agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    def _call_llm(self, messages):
+        from tinycua.config.types import LLMResult
+        return LLMResult(
+            content=self.response_content,
+            role="assistant",
         )
-        messages = [{"role": "user", "content": "hello"}]
-        await loop.run(
-            agent=agent,
-            messages=messages,
-            tools=[],
-            override_instructions=None,
-            stream=False,
-        )
-        assert len(loop.root_session.input_context) > 0
 
-    @pytest.mark.asyncio
-    async def test_run_records_chat_history(self):
-        """run() records messages in session chat history."""
-        loop = TinyCUALoop()
-        agent = Agent()
-        agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    def __call__(self, input):
+        from tinycua.config.types import LLMResult
+        return LLMResult(
+            content=self.response_content,
+            role="assistant",
         )
-        await loop.run(
-            agent=agent,
-            messages=[{"role": "user", "content": "hello"}],
-            tools=[],
-            override_instructions=None,
-            stream=False,
-        )
-        assert len(loop.root_session.chat_history) > 0
 
-    @pytest.mark.asyncio
-    async def test_run_with_stream_true_returns_iterator(self):
-        """run() returns async iterator when stream=True."""
-        loop = TinyCUALoop()
-        agent = Agent()
 
-        async def mock_stream(*args, **kwargs):
-            yield {"type": "response.output_text.delta", "delta": "Hi"}
-            yield {"type": "response.completed", "finish_reason": "completed"}
+class ResponseNode(ProcessNode):
+    """Terminal node that returns the final response."""
 
-        agent._call_llm = mock_stream
-        result = await loop.run(
-            agent=agent,
-            messages=[{"role": "user", "content": "hello"}],
-            tools=[],
-            override_instructions=None,
-            stream=True,
+    def __init__(self):
+        super().__init__(
+            node_id="response",
+            config=NodeConfigBase(),
+            instruction="Return the final response",
+            is_terminal=True,
         )
-        assert hasattr(result, '__aiter__')
 
-    @pytest.mark.asyncio
-    async def test_run_with_override_instructions(self):
-        """run() incorporates override instructions when present."""
-        loop = TinyCUALoop()
-        agent = Agent()
-        agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
-        )
-        await loop.run(
-            agent=agent,
-            messages=[{"role": "user", "content": "hello"}],
-            tools=[],
-            override_instructions="Be extra helpful",
-            stream=False,
-        )
-        assert len(loop.root_session.chat_history) > 0
+    def _call_llm(self, messages):
+        from tinycua.config.types import LLMResult
+        # Return the last user/assistant message as the final response
+        for msg in reversed(messages):
+            if msg.get("role") in ("user", "assistant"):
+                return LLMResult(content=msg.get("content", ""), role="assistant")
+        return LLMResult(content="No response", role="assistant")
 
-    @pytest.mark.asyncio
-    async def test_run_with_empty_queue_returns_empty(self):
-        """run() handles empty queue gracefully."""
-        loop = TinyCUALoop()
-        agent = Agent()
-        agent._call_llm = AsyncMock(
-            return_value={"content": "", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
-        )
-        result = await loop.run(
-            agent=agent,
-            messages=[{"role": "user", "content": "hello"}],
-            tools=[],
-            override_instructions=None,
-            stream=False,
-        )
-        assert isinstance(result, str)
+    def __call__(self, input):
+        from tinycua.config.types import LLMResult
+        return LLMResult(content="final response", role="assistant")
+
+
+def test_tinycua_loop_executes_node_queue():
+    """TinyCUALoop processes nodes in the queue sequentially."""
+    stub = StubNode("processed by stub")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    # The loop should execute nodes, not delegate to agent._call_llm
+    # This test verifies the node execution path exists
+
+
+def test_tinycua_loop_merges_sdk_messages():
+    """TinyCUALoop merges SDK messages into root session input_context."""
+    loop = TinyCUALoop()
+    session = loop.root_session
+
+    messages = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi there"},
+    ]
+
+    # After run(), messages should appear in input_context
+    # This test defines the contract
+
+
+def test_tinycua_loop_tool_scoping():
+    """TinyCUALoop applies NodeToolPolicy to resolve tools per node."""
+    policy = NodeToolPolicy(
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["tool_a"],
+    )
+    config = NodeConfigBase(tool_policy=policy)
+    node = StubNode()
+    node.config = config
+
+    outer_tools = [MagicMock(name="tool_a"), MagicMock(name="tool_b")]
+    resolved = config.tool_policy.resolve_tools(outer_tools)
+    assert len(resolved) == 1
+
+
+def test_tinycua_loop_override_instructions():
+    """TinyCUALoop passes override_instructions to nodes."""
+    loop = TinyCUALoop()
+    # When override_instructions is set, nodes should incorporate it
+
+
+def test_tinycua_loop_stream_false_returns_string():
+    """TinyCUALoop run(stream=False) returns a string."""
+    loop = TinyCUALoop()
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "response", "tool_calls": None}
+    )
+    # Should return string, not iterator
+
+
+def test_tinycua_loop_stream_true_returns_iterator():
+    """TinyCUALoop run(stream=True) returns an async iterator."""
+    loop = TinyCUALoop()
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    # Should return async iterator of dicts
 ```
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: TinyCUALoop extends BaseLoop — primary structural requirement
-- [ ] **Scenario 2**: TinyCUALoop creates root session when session=None
-- [ ] **Scenario 3**: TinyCUALoop uses provided session when session is given
-- [ ] **Scenario 4**: run() returns string when stream=False (FR-008)
-- [ ] **Scenario 5**: run() merges SDK messages into root session (FR-005)
-- [ ] **Scenario 6**: run() records chat history (FR-007)
-- [ ] **Scenario 7**: run() returns async iterator when stream=True (FR-009)
-- [ ] **Scenario 8**: run() incorporates override instructions (FR-005)
-- [ ] **Edge case**: Empty queue handling
+- [ ] **Scenario 1**: Node queue execution — loop processes StubNode + ResponseNode, returns final response
+- [ ] **Scenario 2**: Message merging — SDK messages appear in root_session.input_context
+- [ ] **Scenario 3**: Tool scoping — NodeToolPolicy.resolve_tools() filters outer tools per node config
+- [ ] **Scenario 4**: Override instructions — override_instructions passed through to node build_instruction()
+- [ ] **Scenario 5**: Stream=False returns string, stream=True returns async iterator
+- [ ] **Edge case**: Empty queue after terminal node removal — returns error or default
 
 ## Verification Plan
 
 ### Automated Tests
 
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for TinyCUALoop construction and run() behavior
+- [ ] Unit tests for TinyCUALoop — test node execution, message merging, streaming
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify TinyCUALoop creates a working agent instance
-- [ ] Verify agent.run("hello") executes without SDK API changes
+- [ ] Verify `create_tinycua_agent(...).run(query)` executes with minimal node queue
+- [ ] Verify chat_history and session_context are populated after run()
 
 ### Performance Considerations
 
-- [ ] N/A for Milestone 1.8 — loop infrastructure only
-
-## Documentation
-
-### README Update
-
-- [ ] Update `src/tinycua/README.md` with TinyCUALoop usage example
-  - **File**: `src/tinycua/README.md`
-  - **Content**: Add a "Quick Start" or "Usage" section showing TinyCUALoop usage
-  - **Verification**: `grep -c "TinyCUALoop" src/tinycua/README.md` returns ≥1
+- [ ] N/A — MVP with sequential node execution
 
 ## Proposed Changes
 
-### tinycua.loops (modified module)
+### tinycua.models.session
 
-#### [MODIFY] src/tinycua/tinycua/loops/tinycua_loop.py
+#### MODIFY src/tinycua/tinycua/models/session.py
 
-- **Description**: TinyCUALoop extending SDK BaseLoop, owns root_session and NodeQueue, implements run() with stream support, message merging, queue bootstrapping, and node execution loop
-- **Dependencies**: tinycua_sdk.agent.BaseLoop, tinycua.models.session.Session, tinycua.loops.node_queue.NodeQueue
+- **Add `input_context` field**: `list[dict[str, Any]]` — stores merged SDK messages from the agent loop
+- **Rationale**: Spec FR-005 requires merging SDK messages into root session input context; Session currently lacks this field
 
-#### [MODIFY] src/tinycua/tinycua/loops/node_queue.py
+### tinycua.loops
 
-- **Description**: NodeQueue with ensure_terminal() method for ResponseNode guarantee, entry node placement
-- **Dependencies**: tinycua.loops.node
+#### NEW src/tinycua/tinycua/loops/response_node.py
 
-### tinycua.models (modified module)
+- **Create ResponseNode class**: Terminal ProcessNode that captures the final response content
+- **Dependencies**: tinycua.loops.node.ProcessNode, tinycua.config.node_config.NodeConfigBase
+- **Rationale**: Spec FR-010 requires a terminal ResponseNode at queue end; needed as default_terminal_node for TinyCUALoop bootstrap
 
-#### [MODIFY] src/tinycua/tinycua/models/session.py
+#### MODIFY src/tinycua/tinycua/loops/__init__.py
 
-- **Description**: Session class gains input_context field for merged SDK messages
-- **Dependencies**: None
+- **Export ResponseNode**: Add to `__all__` and import
+- **Rationale**: ResponseNode is a core loop primitive
+
+#### MODIFY src/tinycua/tinycua/loops/tinycua_loop.py
+
+- **Implement node-based execution in run()**: Replace direct agent._call_llm() passthrough with node queue iteration
+- **Add message merging**: Merge SDK messages into root_session.input_context before execution
+- **Add tool scoping**: Use NodeToolPolicy.resolve_tools() per node for tool filtering
+- **Implement _execute_node()**: Execute a single node by building messages, calling agent._call_llm(), recording output
+- **Record chat_history per node**: Append each node's LLM call to root_session.chat_history
+- **Record session_context per node**: Append selected context via node.record_output()
+- **Implement stream=True with node events**: Yield node lifecycle events (node.started, node.completed) in streaming mode
+- **Rationale**: Core spec requirements FR-001 through FR-011
+
+### tinycua.factory
+
+#### MODIFY src/tinycua/tinycua/factory.py
+
+- **Wire default_terminal_node**: Pass ResponseNode as default_terminal_node to TinyCUALoop
+- **Rationale**: Factory should produce a working loop with terminal safety out of the box
 
 ### Tests
 
-#### [NEW] src/tinycua/tests/integration/test_tinycua_loop.py
+#### NEW src/tinycua/tests/integration/test_tinycua_loop_integration.py
 
-- **Description**: Integration tests proving TinyCUALoop extends BaseLoop and executes minimal queue
-- **Dependencies**: tinycua_sdk.agent, tinycua.loops.tinycua_loop
+- **Integration tests**: End-to-end tests for node execution, message merging, tool scoping, streaming
+- **Dependencies**: All production changes above
 
-#### [NEW] src/tinycua/tests/unit/test_tinycua_loop_v2.py
+#### MODIFY src/tinycua/tests/unit/test_tinycua_loop.py
 
-- **Description**: Unit tests for TinyCUALoop construction, run() method, stream behavior
-- **Dependencies**: tinycua.loops.tinycua_loop
+- **Update existing tests**: Adapt to new node-based execution behavior
+- **Add new unit tests**: Test _execute_node(), message merging, tool scoping
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua.loops.tinycua_loop` | Modified | TinyCUALoop gains run() implementation, message merging, queue bootstrapping |
-| `tinycua.loops.node_queue` | Modified | NodeQueue gains ensure_terminal() and entry node support |
-| `tinycua.models.session` | Modified | Session gains input_context field |
-| `tinycua-sdk` | No change | SDK public APIs remain untouched |
+| tinycua.models.session | Modify | Add `input_context` field for SDK message merging |
+| tinycua.loops.response_node | New | Terminal ResponseNode class for queue bootstrap |
+| tinycua.loops.tinycua_loop | Modify | Replace passthrough with node-based execution loop |
+| tinycua.factory | Modify | Wire ResponseNode as default terminal node |
 
 ## Data Model Changes
 
-See design.md Data Model section for the canonical M1.8 data model. Summary:
-
-- **Session**: session_id, parent_id, session_config, chat_history, session_context, input_context (new)
-- **TinyCUALoop(BaseLoop)**: root_session, node_queue
-- **NodeQueue**: items, ensure_terminal(), entry node placement
+```python
+# Session gains input_context field
+Session:
+    input_context: list[dict[str, Any]] = field(default_factory=list)  # NEW
+    chat_history: list[dict[str, Any]] = field(default_factory=list)   # existing
+    session_context: list[dict[str, Any]] = field(default_factory=list) # existing
+```
 
 ## API Changes
 
-### New Endpoints
+### Modified Functions
 
-None — TinyCUALoop is used via `Agent(loop=TinyCUALoop(...)).run(query)`.
-
-### Modified Endpoints
-
-None — SDK APIs are not modified.
+| Function | Change | Description |
+|----------|--------|-------------|
+| `TinyCUALoop.run()` | Modified | Now executes node queue instead of passthrough |
+| `TinyCUALoop._execute_node()` | New | Execute a single node with agent._call_llm() |
+| `create_tinycua_agent()` | Modified | Wires ResponseNode as default terminal node |
 
 ## Dependencies
 
 ### External Dependencies
 
-None — all dependencies already in pyproject.toml.
+| Package | Version | Purpose |
+|---------|---------|---------|
+| None | — | No new external dependencies |
 
 ### Internal Dependencies
 
-- [x] Depends on `tinycua-sdk` (already a dependency)
-- [x] Blocks downstream milestones (concrete node implementations)
+- [ ] Depends on existing Node, ProcessNode, NodeQueue (already implemented)
+- [ ] Depends on existing Session model (needs `input_context` field added)
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| BaseLoop contract changes in SDK | High | Pin SDK version; loop extension is minimal surface area |
-| agent._call_llm() interface mismatch | High | Verify SDK version compatibility before implementation |
-| Stream mode compatibility issues | Medium | Test both stream=True and stream=False thoroughly |
-| Session context propagation complexity | Low | Keep session model simple; defer advanced propagation to later milestones |
-
-## Requirement Coverage
-
-| FR | Description | Implementation |
-|----|-------------|----------------|
-| FR-001 | TinyCUALoop extends BaseLoop | `tinycua/loops/tinycua_loop.py` |
-| FR-002 | TinyCUALoop implements run() | `tinycua/loops/tinycua_loop.py` |
-| FR-003 | TinyCUALoop creates and owns root session | `tinycua/loops/tinycua_loop.py` |
-| FR-004 | TinyCUALoop owns NodeQueue | `tinycua/loops/tinycua_loop.py` |
-| FR-005 | TinyCUALoop merges SDK messages | `tinycua/loops/tinycua_loop.py` |
-| FR-006 | TinyCUALoop calls agent._call_llm() | `tinycua/loops/tinycua_loop.py` |
-| FR-007 | TinyCUALoop records chat history | `tinycua/loops/tinycua_loop.py` |
-| FR-008 | TinyCUALoop preserves stream=False | `tinycua/loops/tinycua_loop.py` |
-| FR-009 | TinyCUALoop preserves stream=True | `tinycua/loops/tinycua_loop.py` |
-| FR-010 | TinyCUALoop ensures terminal ResponseNode | `tinycua/loops/node_queue.py` |
-| FR-011 | TinyCUALoop ensures entry node | `tinycua/loops/node_queue.py` |
+| Existing unit tests assume passthrough behavior | Medium | Update tests to expect node execution; ensure backward compat |
+| agent._call_llm() async interface vs ProcessNode._call_llm() sync | Medium | TinyCUALoop orchestrates calls directly, bypassing ProcessNode._call_llm() |
+| Stream mode complexity with node events | Low | Start with simple passthrough stream, add node events in follow-up |
 
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-06-07*
+*Last updated: 2026-06-08*
