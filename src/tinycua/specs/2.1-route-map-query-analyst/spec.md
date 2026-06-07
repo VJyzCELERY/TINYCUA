@@ -74,16 +74,16 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
-- [x] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
-- [x] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.
-- [x] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end.
-- [x] **Worker reuse**: Existing WorkerNode is reused when routing to worker.
-- [x] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists.
-- [x] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification.
-- [x] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy.
-- [x] **QueryAnalyst deduplication**: Active QueryAnalyst is not duplicated.
-- [x] **Queue invariant**: QueryAnalyst is always the first node in the queue.
+- [ ] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
+- [ ] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
+- [ ] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.
+- [ ] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end.
+- [ ] **Worker reuse**: Existing WorkerNode is reused when routing to worker.
+- [ ] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists.
+- [ ] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification.
+- [ ] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy.
+- [ ] **QueryAnalyst deduplication**: Active QueryAnalyst is not duplicated.
+- [ ] **Queue invariant**: QueryAnalyst is always the first node in the queue.
 
 ---
 
@@ -136,16 +136,16 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 1. **Should RouteMap be a separate class or a dict on DecisionNode?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
+   - **Status**: Resolved (2026-06-08)
    - **Proposed Answer**: Separate RouteMap class for clarity and testability. DecisionNode owns a route_map attribute.
 
 ---
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
-- [x] All mandatory sections completed
-- [x] No `[NEEDS CLARIFICATION]` markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Scope is clearly bounded with explicit non-goals
-- [x] Success criteria are measurable
+- [ ] No implementation details (no code, framework, or architecture choices)
+- [ ] All mandatory sections completed
+- [ ] No `[NEEDS CLARIFICATION]` markers remain
+- [ ] Requirements are testable and unambiguous
+- [ ] Scope is clearly bounded with explicit non-goals
+- [ ] Success criteria are measurable

@@ -13,27 +13,27 @@ This implementation adds a deterministic entry-point classification and routing 
 
 ### Configuration
 
-- [x] **None** — this feature has no configuration dependencies
+- [ ] **None** — this feature has no configuration dependencies
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| [x] **None** — no external services needed | | | |
+| [ ] **None** — no external services needed | | | |
 
 ### Data / Fixtures
 
-- [x] **None** — no data or fixtures needed
+- [ ] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [x] **None** — no special access required
+- [ ] **None** — no special access required
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.11+
-- [x] **Package manager**: uv
-- [x] **None** — no special tooling required
+- [ ] **Runtime**: Python 3.11+
+- [ ] **Package manager**: uv
+- [ ] **None** — no special tooling required
 
 ---
 
@@ -50,7 +50,12 @@ from tinycua.config.types import LLMResult
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.node import DecisionResult
+from tinycua.loops.node import DecisionResult, ProcessNode
+
+# NOTE: The following imports will resolve after implementation:
+# from tinycua.loops.route_map import RouteMap
+# from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+# from tinycua.models.classification import MandatoryPassthrough
 
 
 class MultiResponseMockLLM:
@@ -62,6 +67,25 @@ class MultiResponseMockLLM:
         mock(messages)  # returns "worker"
 
     If more calls are made than responses provided, returns the last response.
+
+    Notes on response ordering:
+    - The two-step decision process calls the LLM twice per input:
+      first for analysis, then for classification.
+    - Classification responses MUST exactly match RouteMap labels
+      (exact string match, not fuzzy).
+    - For multi-call scenarios, provide responses in order:
+      [analysis_response, classification_response].
+
+    Determining mock responses for test cases:
+    - First response: Any string (the analysis step ignores the content)
+    - Second response: Must exactly match a registered RouteMap label
+      (e.g., "worker", "manager", "researcher")
+
+    Handling edge cases:
+    - If the LLM returns a label that doesn't match any RouteMap entry,
+      the dispatch will raise a KeyError or return an error result.
+    - Tests should use exact label strings, not natural language variations
+      like "I think this should be classified as a worker".
     """
 
     def __init__(self, responses: list[str]) -> None:
@@ -263,27 +287,27 @@ def test_query_analyst_mandatory_passthrough_precheck():
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: RouteMap dispatches labels to correct handlers — primary routing mechanism
-- [x] **Scenario 2**: QueryAnalyst classifies input into passthrough/worker/uncertain — core classification
-- [x] **Scenario 3**: MandatoryPassthrough precheck overrides LLM classification — deterministic continuation
-- [x] **Edge case**: Invalid classification labels retry per NodeRetryPolicy — error handling
+- [ ] **Scenario 1**: RouteMap dispatches labels to correct handlers — primary routing mechanism
+- [ ] **Scenario 2**: QueryAnalyst classifies input into passthrough/worker/uncertain — core classification
+- [ ] **Scenario 3**: MandatoryPassthrough precheck overrides LLM classification — deterministic continuation
+- [ ] **Edge case**: Invalid classification labels retry per NodeRetryPolicy — error handling
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for RouteMap, QueryAnalyst, MandatoryPassthrough — test error handling, edge cases, fallbacks
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for RouteMap, QueryAnalyst, MandatoryPassthrough — test error handling, edge cases, fallbacks
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Verify QueryAnalyst routing in a local environment with mock LLM endpoint
-- [x] Test queue bootstrap with QueryAnalyst at front
+- [ ] Verify QueryAnalyst routing in a local environment with mock LLM endpoint
+- [ ] Test queue bootstrap with QueryAnalyst at front
 
 ### Performance Considerations
 
-- [x] QueryAnalyst makes 2 LLM calls per input — acceptable for prototype
+- [ ] QueryAnalyst makes 2 LLM calls per input — acceptable for prototype
 
 ## Proposed Changes
 
@@ -374,8 +398,8 @@ QueryAnalystResponse:
 
 ### Internal Dependencies
 
-- [x] Depends on existing DecisionNode, NodeQueue, TinyCUALoop infrastructure
-- [x] Blocks Milestone 2.2 (WorkerNode integration)
+- [ ] Depends on existing DecisionNode, NodeQueue, TinyCUALoop infrastructure
+- [ ] Blocks Milestone 2.2 (WorkerNode integration)
 
 ## Risks and Mitigations
 

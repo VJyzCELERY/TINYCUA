@@ -5,6 +5,7 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests (defined in implementation-plan.md) <!-- id: 0 -->
+  - [ ] Create tests/integration/test_query_analyst_integration.py
   - [ ] test_route_map_dispatches_to_handler
   - [ ] test_query_analyst_classifies_worker
   - [ ] test_query_analyst_classifies_passthrough
@@ -28,10 +29,10 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
   - [ ] Create MandatoryPassthrough dataclass
   - [ ] Create QueryAnalystResponse dataclass
   - [ ] Add classification constants (passthrough, worker, uncertain)
+  - [ ] Add Route dataclass
 - [ ] Create RouteMap class <!-- id: 3 -->
   - [ ] Implement register() method
   - [ ] Implement dispatch() method with error handling
-  - [ ] Add Route dataclass
 - [ ] Create TinyCUAQueryAnalystNode <!-- id: 4 -->
   - [ ] Initialize with classification labels
   - [ ] Implement mandatory_passthrough precheck
@@ -78,12 +79,13 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
 - [ ] Update API documentation for new classes <!-- id: 16 -->
 - [ ] Update design.md with implementation notes <!-- id: 17 -->
 - [ ] Update changelog <!-- id: 18 -->
+- [ ] Update spec.md success criteria checkboxes as tasks complete <!-- id: 19 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 19 -->
-- [ ] Address review feedback <!-- id: 20 -->
-- [ ] Merge to main branch <!-- id: 21 -->
+- [ ] Create pull request <!-- id: 20 -->
+- [ ] Address review feedback <!-- id: 21 -->
+- [ ] Merge to main branch <!-- id: 22 -->
 
 ---
 

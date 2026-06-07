@@ -75,7 +75,7 @@ QueryAnalystResponse:
 ### Schema Changes
 
 - DecisionNode gains optional `route_map: RouteMap` attribute.
-- DecisionResult is already defined in node.py; no schema change needed.
+- DecisionResult is already defined in `tinycua/loops/node.py:30` with fields `route_label: str`, `analysis_response: LLMResult`, `classification_response: LLMResult`; no schema change needed.
 - MandatoryPassthrough is a new dataclass for deterministic continuation.
 
 ---
