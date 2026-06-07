@@ -40,8 +40,8 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
 - [ ] Implement override_instructions passthrough <!-- id: 8 -->
   - [ ] Pass override_instructions to node.build_instruction() during message building
   - [ ] Write unit test verifying override_instructions reaches nodes
-- [ ] Implement stream=True with node events <!-- id: 9 -->
-  - [ ] Yield node lifecycle events (node.started, node.completed) in streaming mode
+- [ ] Implement stream=True support <!-- id: 9 -->
+  - [ ] Yield async iterator of SDK-compatible event dicts
   - [ ] Accumulate content deltas for final response
   - [ ] Write unit tests for streaming behavior
 - [ ] Wire ResponseNode in factory <!-- id: 10 -->
@@ -68,11 +68,14 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
 - [ ] Update Status Tracker in spec.md to reflect completed items <!-- id: 19 -->
 - [ ] Update design.md Phase 1 checkboxes <!-- id: 20 -->
 
-## Review and Merge
+<!-- PR creation, review, and merge are handled by /review-loop and merge workflows — not part of implementation tasks. -->
 
-- [ ] Create pull request <!-- id: 21 -->
-- [ ] Address review feedback <!-- id: 22 -->
-- [ ] Merge to main branch <!-- id: 23 -->
+## Phase 2 — Enhancements (post-MVP)
+
+- [ ] Implement node lifecycle events in streaming mode <!-- id: 24 -->
+  - [ ] Yield node.started and node.completed events during streaming
+  - [ ] Update spec FR-009 to document node lifecycle events
+  - [ ] Write unit tests for node lifecycle event streaming
 
 ---
 

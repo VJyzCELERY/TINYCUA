@@ -67,15 +67,15 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **Agent.run() works**: `Agent(loop=TinyCUALoop(...)).run(query)` executes without SDK API changes.
-- [x] **Minimal queue execution**: A queue with a stub node and terminal ResponseNode completes.
-- [x] **Message merging**: SDK messages are merged into root session input context.
-- [x] **Tool scoping**: Nodes receive only allowed tools via NodeToolPolicy.
-- [x] **Override instructions**: Nodes incorporate override instructions when present.
-- [x] **Stream=False**: Final string is returned when stream=False.
-- [x] **Stream=True**: Async iterator of SDK events is returned when stream=True.
-- [x] **Chat history**: Node LLM calls are recorded in chat history.
-- [x] **Session context**: Selected session context is recorded.
+- [ ] **Agent.run() works**: `Agent(loop=TinyCUALoop(...)).run(query)` executes without SDK API changes.
+- [ ] **Minimal queue execution**: A queue with a stub node and terminal ResponseNode completes.
+- [ ] **Message merging**: SDK messages are merged into root session input context.
+- [ ] **Tool scoping**: Nodes receive only allowed tools via NodeToolPolicy.
+- [ ] **Override instructions**: Nodes incorporate override instructions when present.
+- [ ] **Stream=False**: Final string is returned when stream=False.
+- [ ] **Stream=True**: Async iterator of SDK events is returned when stream=True.
+- [ ] **Chat history**: Node LLM calls are recorded in chat history.
+- [ ] **Session context**: Selected session context is recorded.
 
 ---
 
@@ -128,9 +128,9 @@ See `implementation-plan.md` for concrete integration test definitions.
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
-- [x] All mandatory sections completed
-- [x] No `[NEEDS CLARIFICATION]` markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Scope is clearly bounded with explicit non-goals
-- [x] Success criteria are measurable
+- [ ] No implementation details (no code, framework, or architecture choices)
+- [ ] All mandatory sections completed
+- [ ] No `[NEEDS CLARIFICATION]` markers remain
+- [ ] Requirements are testable and unambiguous
+- [ ] Scope is clearly bounded with explicit non-goals
+- [ ] Success criteria are measurable

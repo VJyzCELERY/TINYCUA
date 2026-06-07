@@ -114,15 +114,15 @@ class TinyCUALoop(BaseLoop):
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] <!-- id: 2 --> Create TinyCUALoop class extending BaseLoop
-- [ ] <!-- id: 2 --> Implement run() method with stream=False support
-- [ ] <!-- id: 2 --> Implement run() method with stream=True support
-- [ ] <!-- id: 3 --> Create root session with input_context, chat_history, session_context
-- [ ] <!-- id: 4 --> Implement message merging into root session
-- [ ] <!-- id: 5 --> Implement queue bootstrapping with terminal node guarantee
-- [ ] <!-- id: 6 --> Add node execution loop with agent._call_llm() integration
-- [ ] <!-- id: 6 --> Record chat history per node LLM call
-- [ ] <!-- id: 6 --> Record selected session context
+- [ ] Create TinyCUALoop class extending BaseLoop
+- [ ] Implement run() method with stream=False support
+- [ ] Implement run() method with stream=True support
+- [ ] Create root session with input_context, chat_history, session_context
+- [ ] Implement message merging into root session
+- [ ] Implement queue bootstrapping with terminal node guarantee
+- [ ] Add node execution loop with agent._call_llm() integration
+- [ ] Record chat history per node LLM call
+- [ ] Record selected session context
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

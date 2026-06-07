@@ -56,6 +56,11 @@ from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
 
+# NOTE: Before implementing, verify that Agent._call_llm() returns a dict
+# (not an object with attribute access). If it returns an object like LLMResult,
+# replace dict mocks with MagicMock(content="ok", tool_calls=None) instead.
+
+
 class StubNode(ProcessNode):
     """Minimal node for testing that returns a fixed response."""
 
@@ -106,8 +111,8 @@ class ResponseNode(ProcessNode):
         return LLMResult(content="final response", role="assistant")
 
 
-def test_tinycua_loop_executes_node_queue():
-    """TinyCUALoop processes nodes in the queue sequentially."""
+async def test_tinycua_loop_executes_node_queue():
+    """Tests queue execution path (no bootstrap) — validates sequential node processing."""
     stub = StubNode("processed by stub")
     terminal = ResponseNode()
     queue = NodeQueue()
@@ -121,25 +126,61 @@ def test_tinycua_loop_executes_node_queue():
         return_value={"content": "ok", "tool_calls": None}
     )
 
-    # The loop should execute nodes, not delegate to agent._call_llm
-    # This test verifies the node execution path exists
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
+    )
+    assert isinstance(result, str)
+    assert len(result) > 0
 
 
-def test_tinycua_loop_merges_sdk_messages():
+async def test_tinycua_loop_ensure_terminal_bootstrap():
+    """TinyCUALoop auto-appends terminal node when default_terminal_node is set."""
+    terminal = ResponseNode()
+    loop = TinyCUALoop(default_terminal_node=terminal)
+    stub = StubNode("test")
+    loop.queue.items = [stub]
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+    await loop.run(agent=agent, messages=[], tools=[], stream=False)
+    assert loop.queue.items[-1] is terminal
+
+
+async def test_tinycua_loop_merges_sdk_messages():
     """TinyCUALoop merges SDK messages into root session input_context."""
     loop = TinyCUALoop()
     session = loop.root_session
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
 
     messages = [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "hi there"},
     ]
 
-    # After run(), messages should appear in input_context
-    # This test defines the contract
+    await loop.run(
+        agent=agent,
+        messages=messages,
+        tools=[],
+        override_instructions=None,
+        stream=False,
+    )
+    assert session.input_context == messages
 
 
-def test_tinycua_loop_tool_scoping():
+async def test_tinycua_loop_tool_scoping():
     """TinyCUALoop applies NodeToolPolicy to resolve tools per node."""
     policy = NodeToolPolicy(
         include_agent_tools="selected",
@@ -154,13 +195,27 @@ def test_tinycua_loop_tool_scoping():
     assert len(resolved) == 1
 
 
-def test_tinycua_loop_override_instructions():
+async def test_tinycua_loop_override_instructions():
     """TinyCUALoop passes override_instructions to nodes."""
     loop = TinyCUALoop()
-    # When override_instructions is set, nodes should incorporate it
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions="custom instructions",
+        stream=False,
+    )
+    assert isinstance(result, str)
 
 
-def test_tinycua_loop_stream_false_returns_string():
+async def test_tinycua_loop_stream_false_returns_string():
     """TinyCUALoop run(stream=False) returns a string."""
     loop = TinyCUALoop()
     agent = MagicMock()
@@ -169,16 +224,36 @@ def test_tinycua_loop_stream_false_returns_string():
     agent._call_llm = AsyncMock(
         return_value={"content": "response", "tool_calls": None}
     )
-    # Should return string, not iterator
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
+    )
+    assert isinstance(result, str)
 
 
-def test_tinycua_loop_stream_true_returns_iterator():
+async def test_tinycua_loop_stream_true_returns_iterator():
     """TinyCUALoop run(stream=True) returns an async iterator."""
     loop = TinyCUALoop()
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    # Should return async iterator of dicts
+    agent._call_llm = AsyncMock(
+        return_value={"content": "response", "tool_calls": None}
+    )
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+    import collections.abc
+    assert isinstance(result, collections.abc.AsyncIterator)
 ```
 
 ### Key Test Scenarios
@@ -189,6 +264,7 @@ def test_tinycua_loop_stream_true_returns_iterator():
 - [ ] **Scenario 4**: Override instructions — override_instructions passed through to node build_instruction()
 - [ ] **Scenario 5**: Stream=False returns string, stream=True returns async iterator
 - [ ] **Edge case**: Empty queue after terminal node removal — returns error or default
+- [ ] **Verify**: Agent._call_llm() return type matches mock (dict vs object) — see note at top of test file
 
 ## Verification Plan
 
@@ -237,7 +313,7 @@ def test_tinycua_loop_stream_true_returns_iterator():
 - **Implement _execute_node()**: Execute a single node by building messages, calling agent._call_llm(), recording output
 - **Record chat_history per node**: Append each node's LLM call to root_session.chat_history
 - **Record session_context per node**: Append selected context via node.record_output()
-- **Implement stream=True with node events**: Yield node lifecycle events (node.started, node.completed) in streaming mode
+- **Implement stream=True support**: Yield async iterator of SDK-compatible event dicts in streaming mode
 - **Rationale**: Core spec requirements FR-001 through FR-011
 
 ### tinycua.factory
