@@ -182,6 +182,9 @@ def test_suspend_preserves_suspended_input_after_prepended_advance():
     # node_b completes — advance() removes it, node_a resumes
     queue.advance()
 
+    # advance() calls propagate() on the prepended node before removing it
+    node_b.propagate.assert_called_once()
+
     # node_a is now current with its preserved input
     assert queue.current is node_a
     assert queue._inputs.get("a") == {"query": "original"}
@@ -283,7 +286,7 @@ def test_clear_after_current_with_suspended_node():
 #### [MODIFY] src/tinycua/tinycua/loops/node_queue.py
 
 - **Add `suspend_current_and_prepend()` method**: Insert nodes before items[0] using slice assignment `self.items[0:0] = nodes`. Raise `ValueError` on empty queue. No-op on empty list. Do NOT call `propagate()` on the suspended node.
-- **Rationale**: Core feature requirement from spec FR-001 through FR-008.
+- **Rationale**: Core feature requirement from spec FR-001 through FR-009.
 
 #### [MODIFY] src/tinycua/tests/unit/test_node_queue.py (or new file)
 

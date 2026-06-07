@@ -45,7 +45,11 @@ NodeQueue
 ### NodeQueue (Updated)
 
 ```python
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from tinycua.loops.node import Node
+    from tinycua.models.node_input import NodeInputLike
 
 _EMPTY_INPUT: NodeInputLike = cast("NodeInputLike", {})
 
