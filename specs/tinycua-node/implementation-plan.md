@@ -175,8 +175,9 @@ def test_message_building_with_session_context():
 
     # Assert
     assert len(messages) > 0
-    system_msg = next(m for m in messages if m["role"] == "system")
-    assert "Previous context" in system_msg["content"]
+    # Session context appears in continuation messages (assistant-role), not system message
+    continuation_msgs = [m for m in messages if m["role"] == "assistant"]
+    assert any("Previous context" in m["content"] for m in continuation_msgs)
 
 
 def test_retry_on_validation_failure():

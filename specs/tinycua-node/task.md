@@ -73,26 +73,38 @@ Implementation tasks for TinyCUA Node Base, DecisionNode, and ProcessNode. Check
   - [ ] Implement `_dispatch_route()` method
   - [ ] Override `__call__` for two-step flow
 
-- [ ] Update package exports <!-- id: 19 -->
+- [ ] Add `llm_client` to `NodeConfigBase` <!-- id: 19 -->
+  - [ ] Add `llm_client: Callable | None = None` field to `NodeConfigBase` dataclass
+  - [ ] Import `Callable` from `typing` in `node_config.py`
+  - [ ] Update design.md to document LLM client injection pattern
+
+- [ ] Define `LLMResult` with proper fields <!-- id: 20 -->
+  - [ ] Add `content: str` field to `LLMResult` dataclass
+  - [ ] Add `role: str` field (default: "assistant")
+  - [ ] Add `tool_calls: list[dict]` field (default: empty list)
+  - [ ] Add `metadata: dict[str, str]` field (default: empty dict)
+  - [ ] Update design.md to document `LLMResult` fields
+
+- [ ] Update package exports <!-- id: 21 -->
   - [ ] Export new classes from `tinycua/loops/__init__.py`
   - [ ] Ensure proper imports in `tinycua/config/node_config.py`
   - [ ] Verify `tinycua/models/__init__.py` exports
 
 ## Verification Phase
 
-- [ ] Run all tests — expect GREEN (all pass) <!-- id: 20 -->
-- [ ] Verify node can be instantiated and called <!-- id: 21 -->
-- [ ] Verify session attachment works with root session <!-- id: 22 -->
-- [ ] Verify session attachment works with parent node <!-- id: 23 -->
-- [ ] Verify message building includes session context <!-- id: 24 -->
-- [ ] Verify retry behavior on validation failure <!-- id: 25 -->
-- [ ] Verify lifecycle hooks are called at appropriate points <!-- id: 26 -->
+- [ ] Run all tests — expect GREEN (all pass) <!-- id: 22 -->
+- [ ] Verify node can be instantiated and called <!-- id: 23 -->
+- [ ] Verify session attachment works with root session <!-- id: 24 -->
+- [ ] Verify session attachment works with parent node <!-- id: 25 -->
+- [ ] Verify message building includes session context <!-- id: 26 -->
+- [ ] Verify retry behavior on validation failure <!-- id: 27 -->
+- [ ] Verify lifecycle hooks are called at appropriate points <!-- id: 28 -->
 
 ## Documentation Phase
 
-- [ ] Update module docstrings <!-- id: 27 -->
-- [ ] Add inline comments for complex logic <!-- id: 28 -->
-- [ ] Update README if needed <!-- id: 29 -->
+- [ ] Update module docstrings <!-- id: 29 -->
+- [ ] Add inline comments for complex logic <!-- id: 30 -->
+- [ ] Update README if needed <!-- id: 31 -->
 
 ---
 

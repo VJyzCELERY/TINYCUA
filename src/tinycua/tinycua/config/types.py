@@ -6,6 +6,8 @@ Currently defined as simple stubs to satisfy type annotations in node config.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 
 class Tool:
     """Placeholder for SDK Tool type.
@@ -27,12 +29,23 @@ class StateObject:
     pass
 
 
+@dataclass
 class LLMResult:
-    """Placeholder for LLM result type.
+    """LLM result type for node LLM invocations.
 
-    Will be defined in the loop milestone.
+    Contains the assistant's response content and metadata.
+
+    Attributes:
+        content: The assistant's response content.
+        role: The role of the message (default: "assistant").
+        tool_calls: Optional list of tool calls in the response.
+        metadata: Optional metadata about the LLM response.
     """
-    pass
+
+    content: str = ""
+    role: str = "assistant"
+    tool_calls: list[dict] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 class ValidationResult:

@@ -60,6 +60,17 @@ DecisionNode(ProcessNode)
 ### Node Base Class
 
 ```python
+@dataclass
+class LLMResult:
+    """LLM result type for node LLM invocations.
+
+    Contains the assistant's response content and metadata.
+    """
+    content: str = ""
+    role: str = "assistant"
+    tool_calls: list[dict] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
+
 class Node(ABC):
     node_id: str
     session: Session | None
@@ -126,6 +137,20 @@ class Node(ABC):
         Otherwise, create a new session from root_or_parent_session context.
         Raises ValueError if root_or_parent_session is None and no parent exists.
         """
+```
+
+### LLM Client Injection
+
+The `NodeConfigBase` dataclass includes an optional `llm_client` field that allows nodes to access an LLM client callable. This field is set during node configuration and used by `ProcessNode._call_llm()` to invoke the LLM.
+
+```python
+# Example: NodeConfigBase with LLM client
+config = NodeConfigBase(llm_client=my_llm_client)
+node = ProcessNode(node_id="my-node", config=config)
+
+# The node uses config.llm_client internally to invoke the LLM
+# MockLLM for testing:
+config = NodeConfigBase(llm_client=MockLLM(response="test"))
 ```
 
 ### ProcessNode Contract
