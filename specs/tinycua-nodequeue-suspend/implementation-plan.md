@@ -183,16 +183,17 @@ def test_clear_after_current_with_suspended_node():
     is at items[1] (after current), it IS cleared. Suspended node is only
     'preserved' if it is not in the clear zone."""
     queue = NodeQueue()
-    node_a = _make_node("a")
-    node_b = _make_node("b")
-    node_c = _make_node("c")
-    queue.items = [node_a, node_b, node_c]
-    # Suspend node_a (current), prepend node_b — queue: [node_b, node_a, node_c]
-    queue.suspend_current_and_prepend([node_b])
-    # Now clear_after_current — removes items[1:] = [node_a, node_c]
+    node_a = _make_node("a")   # will be suspended
+    node_b = _make_node("b")   # tail node
+    node_d = _make_node("d")   # prepended node (distinct from queue nodes)
+    queue.items = [node_a, node_b]
+    # Suspend node_a (current), prepend node_d — queue: [node_d, node_a, node_b]
+    # node_a is now suspended at items[1] (in the clear zone)
+    queue.suspend_current_and_prepend([node_d])
+    # clear_after_current removes items[1:] = [node_a, node_b], including suspended node_a
     queue.clear_after_current()
-    # Result: only node_b remains — suspended node_a IS cleared
-    assert queue.items == [node_b]
+    # Result: only node_d remains — suspended node_a IS cleared
+    assert queue.items == [node_d]
 ```
 
 ### Key Test Scenarios

@@ -45,6 +45,11 @@ NodeQueue
 ### NodeQueue (Updated)
 
 ```python
+from typing import cast
+
+_EMPTY_INPUT: NodeInputLike = cast("NodeInputLike", {})
+
+
 @dataclass
 class NodeQueue:
     """Sequential execution queue for TinyCUA nodes.
