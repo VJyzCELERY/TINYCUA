@@ -337,7 +337,7 @@ After resume:
 ## Review Checklist
 
 - [x] All mandatory sections completed (Overview, Architecture, Data Model, API Contracts, Execution Flow, Technical Decisions, Risks)
-- [x] API contracts consistent with spec requirements (FR-001 through FR-008)
+- [x] API contracts consistent with spec requirements (FR-001 through FR-009)
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Technical decisions include rationale and alternatives considered
 - [x] Error handling table covers all spec edge cases

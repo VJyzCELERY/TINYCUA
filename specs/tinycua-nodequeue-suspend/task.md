@@ -22,6 +22,8 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 - [ ] Write unit tests for edge cases: nested suspensions, clear_after_current with suspended nodes <!-- id: 4 -->
 - [ ] Write test for nested suspension scenario (spec scenario 9) <!-- id: 4a -->
 - [ ] Write test for clear_after_current with suspended node <!-- id: 4b -->
+- [ ] Write test for prepended node input lifecycle (implementation-plan.md Scenario 10) <!-- id: 4c -->
+- [ ] Write test for output propagation / input preservation after advance (implementation-plan.md Scenario 11) <!-- id: 4d -->
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 5 -->
 
 ## Verification Phase

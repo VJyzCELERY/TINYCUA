@@ -91,15 +91,16 @@ Parent-child node relationships for prepended nodes are **caller-established**, 
 
 ### Unit Tests
 
-- `test_node_queue_suspend.py`: Comprehensive tests organized by test class:
-  - `TestSuspendCurrentAndPrepend`: Core suspension behavior
-  - `TestSuspendInputPreservation`: Input mapping preservation
-  - `TestSuspendEmptyQueueSafety`: Error handling for empty queue
-  - `TestSuspendEmptyListSafety`: No-op behavior for empty list
-  - `TestSuspendNoPropagation`: Verify no propagation during suspend
-  - `TestSuspendResume`: Suspended node resume after helper completes
-  - `TestSuspendMultiple`: Sequential suspensions
-  - `TestSuspendOrderPreservation`: Order preservation for multiple prepended nodes
+- `test_node_queue_suspend.py`: Comprehensive tests organized by scenario:
+  - Basic suspension (`test_suspend_keeps_current_queued_and_prepends_before_it`)
+  - Single/multiple prepend (`test_suspend_with_single_node`, `test_suspend_with_multiple_nodes`)
+  - Edge cases (`test_suspend_empty_list_is_noop`, `test_suspend_empty_queue_raises_value_error`)
+  - Input preservation (`test_suspend_preserves_input_mapping`, `test_suspend_prepended_node_input_lifecycle`)
+  - No propagation (`test_suspend_does_not_call_propagate`)
+  - Resume (`test_suspend_resume_after_advance`)
+  - Nested suspension (`test_suspend_nested_suspension_queue_state`)
+  - Clear interaction (`test_clear_after_current_with_suspended_node`)
+  - Output propagation (`test_suspend_preserves_suspended_input_after_prepended_advance`)
 
 ### Integration Tests
 

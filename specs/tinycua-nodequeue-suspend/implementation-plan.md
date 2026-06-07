@@ -164,8 +164,11 @@ def test_suspend_prepended_node_input_lifecycle():
     assert queue._inputs.get("a") is not None
 
 
-def test_suspend_output_propagation_to_parent():
-    """Prepended child's output reaches suspended parent upon child completion."""
+def test_suspend_preserves_suspended_input_after_prepended_advance():
+    """Suspended node's input is preserved and prepended node's input is
+    cleaned up when advance() removes the prepended node. Output propagation
+    from prepended child to suspended parent is caller-established (see
+    design.md Output Back-Propagation section)."""
     queue = NodeQueue()
     node_a = _make_node("a")
     node_b = _make_node("b")
