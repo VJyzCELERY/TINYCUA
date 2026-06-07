@@ -148,6 +148,19 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         """Dispatch route after classification."""
 ```
 
+### Input Preservation (FR-016)
+
+QueryAnalyst MUST preserve the original input query for downstream nodes. This is handled through:
+
+1. **QueryAnalystResponse.user_query**: The original user query string is captured during analysis and included in the response dataclass. This field is always populated with the user's original input text.
+
+2. **NodeInput.messages forwarding**: When routing to downstream nodes, the original `NodeInput` (containing `messages` with the user's query) is passed through the route handlers. Specifically:
+   - `route_passthrough`: Forwards the original `NodeInput` to the target node/session via `MandatoryPassthrough.payload` or by passing the input directly to the target.
+   - `route_worker`: Passes the original input to the spawned/reused WorkerNode so it can process the user's request.
+   - `route_uncertain`: QueryAnalyst remains active with the original input still in context, awaiting user continuation.
+
+3. **Downstream access**: WorkerNode and ResponseNode access the original user input via `NodeInput.messages` — the same structure that was provided to QueryAnalyst. No transformation or loss of the original query occurs during routing.
+
 ### Error Handling
 
 | Error Case | Exception / Response | Notes |
