@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.models.node_input import (
-    NodeInput,
     NodeInputLike,
-    NodePayload,
     convert_node_input_to_messages,
 )
 from tinycua.models.session import Session
@@ -44,10 +42,6 @@ class DecisionResult:
     route_label: str
     analysis_response: LLMResult
     classification_response: LLMResult
-
-
-# Input handler type alias
-_InputHandler = Any  # Callable[[NodeInputLike], list[dict]]
 
 
 class Node(ABC):
@@ -173,9 +167,6 @@ class Node(ABC):
         if instruction:
             builder.add_static(instruction)
 
-        if self.config.custom_instruction_append:
-            builder.add_configurable_append(self.config.custom_instruction_append)
-
         system_msg = builder.build()
         if system_msg["content"]:
             messages.append(system_msg)
@@ -237,6 +228,17 @@ class Node(ABC):
                         f"Missing required tool call: {required}"
                     )
 
+        # Check required output schema
+        if retry_policy.required_output_schema is not None:
+            try:
+                import json
+                json.loads(response.content)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                result.is_valid = False
+                result.errors.append(
+                    f"Output does not match required schema: {retry_policy.required_output_schema}"
+                )
+
         # Check custom validation function
         if retry_policy.validation_fn is not None:
             try:
@@ -246,7 +248,7 @@ class Node(ABC):
                         result.is_valid = False
                         if hasattr(custom_result, "errors"):
                             result.errors.extend(custom_result.errors)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError) as e:
                 result.is_valid = False
                 result.errors.append(f"Validation function error: {e}")
 
@@ -329,17 +331,6 @@ class ProcessNode(Node):
     record → propagate → on_complete.
     """
 
-    def _handle_input(self, input: NodeInputLike) -> list[dict[str, str]]:
-        """Dispatch NodeInputLike to internal handlers.
-
-        Args:
-            input: The input to dispatch.
-
-        Returns:
-            List of message dictionaries.
-        """
-        return convert_node_input_to_messages(input, source="internal")  # type: ignore[return-value]
-
     def _call_llm(self, messages: list[dict[str, str]]) -> LLMResult:
         """Invoke the LLM with built messages.
 
@@ -419,7 +410,7 @@ class ProcessNode(Node):
         self.record_output(last_response)
         self.propagate()
         self.on_complete(
-            queue=object(),  # placeholder — actual queue passed by orchestrator
+            queue=object(),  # type: ignore[arg-type]  # placeholder — orchestrator passes real queue
             response=last_response,
         )
         return last_response
@@ -525,7 +516,7 @@ class DecisionNode(ProcessNode):
         # Fallback: return first allowed label
         return self.classification_labels[0] if self.classification_labels else "default"
 
-    def __call__(self, input: NodeInputLike) -> DecisionResult:
+    def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]
         """Execute the decision node with analysis + classification flow.
 
         Args:
