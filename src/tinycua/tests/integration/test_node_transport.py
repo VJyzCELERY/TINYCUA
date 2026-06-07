@@ -84,9 +84,7 @@ def test_node_input_messages_compatible_with_session_context() -> None:
     from tinycua.models import NodeInput, NodePayload
     from tinycua.models.session import Session
 
-    payload = NodePayload(
-        payload_type="task_analysis", content={"task_id": "T-0.1"}
-    )
+    payload = NodePayload(payload_type="task_analysis", content={"task_id": "T-0.1"})
     node_input = NodeInput(input_type="continuation", payloads=[payload])
     messages = node_input.to_messages()
 

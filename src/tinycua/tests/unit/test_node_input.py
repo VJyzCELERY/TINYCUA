@@ -192,7 +192,10 @@ def test_convert_node_payload() -> None:
 
 def test_convert_list_of_dicts_passthrough() -> None:
     """convert_node_input_to_messages() with list[dict] passes through directly."""
-    prebuilt = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
+    prebuilt = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+    ]
 
     result = convert_node_input_to_messages(prebuilt)
 

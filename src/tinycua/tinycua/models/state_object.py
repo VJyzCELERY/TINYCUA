@@ -131,9 +131,7 @@ def _get_type_hints_safe(cls: type) -> dict[str, typing.Any]:
         return {f.name: f.type for f in fields(cls)}
 
 
-def _state_object_from_dict(
-    cls: type[StateObject], data: dict
-) -> StateObject:
+def _state_object_from_dict(cls: type[StateObject], data: dict) -> StateObject:
     """Reconstruct a StateObject from a dictionary.
 
     Uses field type annotations to auto-convert nested StateObject subclasses.
@@ -167,7 +165,9 @@ def _convert_list_value(
         if isinstance(inner_hint, str):
             inner_hint = _resolve_annotation(inner_hint)
         if isinstance(inner_hint, type) and issubclass(inner_hint, StateObject):
-            return [_convert_value_from_dict(item, inner_hint, field_obj) for item in value]
+            return [
+                _convert_value_from_dict(item, inner_hint, field_obj) for item in value
+            ]
     return value
 
 
@@ -252,5 +252,21 @@ def _resolve_annotation(hint_str: str) -> typing.Any:
     if hint_str in _STATE_OBJECT_REGISTRY:
         return _STATE_OBJECT_REGISTRY[hint_str]
 
-    # For complex annotations, return None to skip conversion
+    # For complex annotations (generics, unions), use eval with restricted namespace
+    if "[" in hint_str or "|" in hint_str:
+        try:
+            # Build namespace with typing constructs and registered StateObjects
+            namespace: dict[str, typing.Any] = {
+                "typing": typing,
+                "Optional": typing.Optional,
+                "Union": typing.Union,
+                "list": list,
+                "dict": dict,
+            }
+            # Add all registered StateObject subclasses
+            namespace.update(_STATE_OBJECT_REGISTRY)
+            return eval(hint_str, {"__builtins__": builtins}, namespace)  # noqa: S307
+        except Exception:
+            pass
+
     return None

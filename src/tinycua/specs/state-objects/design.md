@@ -180,16 +180,16 @@ from tinycua.models import (
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create `tinycua/models/state_object.py` with `StateObject` base class
-- [ ] Create `tinycua/models/node_payload.py` with `NodePayload` dataclass
-- [ ] Create `tinycua/models/node_input.py` with `NodeInput`, `NodeInputLike`, `convert_node_input_to_messages()`
-- [ ] Update `tinycua/models/__init__.py` to export new types
-- [ ] Write unit tests for `StateObject` base class serialization
-- [ ] Write unit tests for `NodePayload` construction, `to_message()`, `to_messages()`, serialization
-- [ ] Write unit tests for `NodeInput` construction, `to_messages()`, serialization
-- [ ] Write unit tests for `convert_node_input_to_messages()` with all variants
-- [ ] Write integration test for node handoff via `NodeInput`/`NodePayload`
-- [ ] Run `uv run pytest` — all tests pass
+- [x] Create `tinycua/models/state_object.py` with `StateObject` base class
+- [x] Create `tinycua/models/node_payload.py` with `NodePayload` dataclass
+- [x] Create `tinycua/models/node_input.py` with `NodeInput`, `NodeInputLike`, `convert_node_input_to_messages()`
+- [x] Update `tinycua/models/__init__.py` to export new types
+- [x] Write unit tests for `StateObject` base class serialization
+- [x] Write unit tests for `NodePayload` construction, `to_message()`, `to_messages()`, serialization
+- [x] Write unit tests for `NodeInput` construction, `to_messages()`, serialization
+- [x] Write unit tests for `convert_node_input_to_messages()` with all variants
+- [x] Write integration test for node handoff via `NodeInput`/`NodePayload`
+- [x] Run `uv run pytest` — all tests pass
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
