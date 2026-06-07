@@ -96,7 +96,7 @@ Parent-child node relationships for prepended nodes are **caller-established**, 
 - [ ] **Multiple suspensions work**: Sequential suspensions handle nested suspension correctly.
 - [ ] **Order preservation works**: Relative order of suspended nodes is preserved when multiple nodes are prepended.
 - [ ] **Backward compatibility**: Existing M1.6 tests pass without modification.
-- [ ] **Output propagation works**: Queue ordering ensures suspended parent
+- [ ] **Caller-established data flow works**: Queue ordering ensures suspended parent
       resumes after prepended children complete; data flow between them is
       caller-established (see FR-009).
 

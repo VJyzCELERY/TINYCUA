@@ -45,6 +45,11 @@ Define the unit tests that prove the feature works. These are written FIRST — 
 # Test file: src/tinycua/tests/unit/test_node_queue_suspend.py
 """Unit tests for NodeQueue suspension and prepend."""
 
+# NOTE: Tests are organized into classes by concern (see actual test file).
+# The standalone functions below correspond to methods in these classes:
+# TestSuspendBasic, TestSuspendPropagation, TestSuspendInputPreservation,
+# TestSuspendResume, TestSuspendNested, TestSuspendClearAfterCurrent
+
 # Helper: _make_node() — copy of helper from test_node_queue.py
 def _make_node(node_id: str, *, is_terminal: bool = False) -> MagicMock:
     node = MagicMock(spec=Node)

@@ -258,12 +258,12 @@ After resume:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add `suspend_current_and_prepend()` method to `NodeQueue`
-- [ ] Implement empty queue safety (raise `ValueError`)
-- [ ] Implement empty list no-op behavior
-- [ ] Verify no `propagate()` call during suspend
-- [ ] Write comprehensive unit tests for all scenarios
-- [ ] Verify backward compatibility with M1.6 tests
+- [x] Add `suspend_current_and_prepend()` method to `NodeQueue`
+- [x] Implement empty queue safety (raise `ValueError`)
+- [x] Implement empty list no-op behavior
+- [x] Verify no `propagate()` call during suspend
+- [x] Write comprehensive unit tests for all scenarios
+- [x] Verify backward compatibility with M1.6 tests
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
