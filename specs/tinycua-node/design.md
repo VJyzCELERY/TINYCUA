@@ -60,16 +60,9 @@ DecisionNode(ProcessNode)
 ### Node Base Class
 
 ```python
-@dataclass
-class LLMResult:
-    """LLM result type for node LLM invocations.
-
-    Contains the assistant's response content and metadata.
-    """
-    content: str = ""
-    role: str = "assistant"
-    tool_calls: list[dict] = field(default_factory=list)
-    metadata: dict[str, str] = field(default_factory=dict)
+# LLMResult — defined in tinycua/config/types.py
+# A @dataclass with fields: content (str), role (str, default "assistant"),
+# tool_calls (list[dict]), metadata (dict[str, str])
 
 class Node(ABC):
     node_id: str
