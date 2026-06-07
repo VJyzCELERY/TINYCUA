@@ -1,7 +1,7 @@
 # Design Document: RouteMap and Top-Level QueryAnalyst
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: Complete
 **Last Updated**: 2026-06-08
 **Milestone**: 2.1 — RouteMap and Top-Level QueryAnalyst
 

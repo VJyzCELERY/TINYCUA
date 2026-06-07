@@ -13,27 +13,27 @@ This implementation adds a deterministic entry-point classification and routing 
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- [x] **None** — this feature has no configuration dependencies
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| [ ] **None** — no external services needed | | | |
+| [x] **None** — no external services needed | | | |
 
 ### Data / Fixtures
 
-- [ ] **None** — no data or fixtures needed
+- [x] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- [x] **None** — no special access required
 
 ### Developer Tooling
 
 - [ ] **Runtime**: Python 3.11+
 - [ ] **Package manager**: uv
-- [ ] **None** — no special tooling required
+- [x] **None** — no special tooling required
 
 ---
 
