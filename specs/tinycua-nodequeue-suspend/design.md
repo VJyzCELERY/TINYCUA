@@ -283,8 +283,8 @@ After resume:
 2. **How should the loop detect that a node was suspended vs. completed?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-07
-   - **Status**: Proposed
-   - **Proposed Answer**: The loop does not need to distinguish — it simply reads `queue.current` after `on_complete()` returns. If the node was suspended, `queue.current` will be the first prepended node. If the node completed normally (via `advance()`), `queue.current` will be the next node or `None`.
+   - **Status**: Resolved
+   - **Resolution**: The loop does not need to distinguish — it simply reads `queue.current` after `on_complete()` returns. If the node was suspended, `queue.current` will be the first prepended node. If the node completed normally (via `advance()`), `queue.current` will be the next node or `None`.
 
 ---
 

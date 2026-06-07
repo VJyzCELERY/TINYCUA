@@ -32,6 +32,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 6. **Given** a queue with `[NodeA, NodeB]`, **When** `NodeA` completes and `NodeB` becomes current via `advance()`, **Then** `NodeA` is removed from the queue and its session is not preserved (standard advance behavior).
 7. **Given** a suspended node (e.g., `NodeA` at `queue[1]`), **When** `queue.current` is read, **Then** it returns the first prepended node, not the suspended node.
 8. **Given** a queue with `[NodeC, NodeA, NodeB]` where `NodeA` is suspended, **When** `NodeC` completes and `queue.advance()` is called, **Then** `NodeC` is removed and `NodeA` becomes current (resumes execution).
+9. **Given** a queue with `[NodeA]`, **When** `NodeA` calls `suspend_current_and_prepend([NodeB])` and then `NodeB` calls `suspend_current_and_prepend([NodeC])`, **Then** the queue becomes `[NodeC, NodeB, NodeA]` and `NodeC` is current.
 
 ### Edge Cases
 
@@ -39,7 +40,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 - What happens when `suspend_current_and_prepend()` is called with an empty list? The system MUST be a no-op.
 - What happens when multiple suspensions occur in sequence? The system MUST handle nested suspends correctly, with the most recently suspended node becoming current after helpers complete.
 - What happens when a suspended node's input needs to be preserved? The system MUST preserve the `NodeInputLike` mapping for the suspended node.
-- What happens when `clear_after_current()` is called with suspended nodes? The system MUST only clear nodes after the current node, preserving the suspended node.
+- What happens when `clear_after_current()` is called with suspended nodes? The system clears all nodes after the current node (`items[0]`). If a suspended node is at `items[1]` (directly after current), it WILL be cleared. Suspended nodes are only preserved if they are NOT in the clear zone.
 
 ---
 
@@ -95,8 +96,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 
 ### Integration Tests
 
-- Test that `suspend_current_and_prepend()` integrates with `ProcessNode` and `DecisionNode` for full execution flow.
-- Test that `TinyCUALoop.run()` uses `suspend_current_and_prepend()` correctly with the ResponseNode → InformationDigesterNode pattern.
+- Integration testing with concrete nodes (`ProcessNode`, `DecisionNode`, `TinyCUALoop`) is deferred to the respective concrete node milestones (M1.8+). This milestone focuses on `NodeQueue` unit-level behavior only.
 
 ### Manual Tests _(if applicable)_
 
@@ -132,8 +132,8 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 2. **How should nested suspensions handle input propagation?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-07
-   - **Status**: Discussion
-   - **Proposed Answer**: Each suspended node retains its own `NodeInputLike` mapping. Input propagation between suspended nodes and their helpers follows the existing propagation rules.
+   - **Status**: Resolved
+   - **Resolution**: Each suspended node retains its own `NodeInputLike` mapping. Prepended nodes have their inputs set via `set_input()` before/after suspension. `advance()` cleans up prepended node inputs automatically. See design.md "Input Lifecycle During Suspension" section.
 
 ---
 

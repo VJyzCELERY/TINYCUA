@@ -45,6 +45,14 @@ Define the unit tests that prove the feature works. These are written FIRST — 
 # Test file: src/tinycua/tests/unit/test_node_queue_suspend.py
 """Unit tests for NodeQueue suspension and prepend."""
 
+# Helper: _make_node() — copy of helper from test_node_queue.py
+def _make_node(node_id: str, *, is_terminal: bool = False) -> MagicMock:
+    node = MagicMock(spec=Node)
+    node.node_id = node_id
+    node.is_terminal = is_terminal
+    node.propagate = MagicMock()
+    return node
+
 
 def test_suspend_keeps_current_queued_and_prepends_before_it():
     """suspend_current_and_prepend() keeps current node queued,
@@ -148,6 +156,43 @@ def test_suspend_resume_after_advance():
     queue.advance()
 
     assert queue.current is node_a
+
+
+def test_suspend_nested_suspension_queue_state():
+    """Nested suspensions: NodeA suspends for [NodeB], then NodeB suspends for [NodeC].
+    Queue becomes [NodeC, NodeB, NodeA] with NodeC as current."""
+    queue = NodeQueue()
+    node_a = _make_node("a")
+    node_b = _make_node("b")
+    node_c = _make_node("c")
+    queue.items = [node_a]
+
+    # First suspension: NodeA suspends for NodeB
+    queue.suspend_current_and_prepend([node_b])
+    assert queue.items == [node_b, node_a]
+    assert queue.current is node_b
+
+    # Second suspension: NodeB suspends for NodeC
+    queue.suspend_current_and_prepend([node_c])
+    assert queue.items == [node_c, node_b, node_a]
+    assert queue.current is node_c
+
+
+def test_clear_after_current_with_suspended_node():
+    """clear_after_current() removes nodes after current. If suspended node
+    is at items[1] (after current), it IS cleared. Suspended node is only
+    'preserved' if it is not in the clear zone."""
+    queue = NodeQueue()
+    node_a = _make_node("a")
+    node_b = _make_node("b")
+    node_c = _make_node("c")
+    queue.items = [node_a, node_b, node_c]
+    # Suspend node_a (current), prepend node_b — queue: [node_b, node_a, node_c]
+    queue.suspend_current_and_prepend([node_b])
+    # Now clear_after_current — removes items[1:] = [node_a, node_c]
+    queue.clear_after_current()
+    # Result: only node_b remains — suspended node_a IS cleared
+    assert queue.items == [node_b]
 ```
 
 ### Key Test Scenarios
@@ -159,6 +204,8 @@ def test_suspend_resume_after_advance():
 - [ ] **Scenario 5**: No propagation during suspend — suspended node retains state
 - [ ] **Scenario 6**: Input preservation — suspended node's input mapping survives
 - [ ] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
+- [ ] **Scenario 8**: Nested suspension — second suspension prepends before first suspended node
+- [ ] **Scenario 9**: clear_after_current with suspended node — suspended node IS cleared if in clear zone
 
 ## Verification Plan
 
@@ -167,6 +214,8 @@ def test_suspend_resume_after_advance():
 - [ ] Unit tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for suspension edge cases (nested suspends, clear_after_current with suspended nodes) <!-- NOTE: all tests in this doc are unit-level -->
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Lint passes: `cd src/tinycua && uv run ruff check .`
+- [ ] Type check passes: `cd src/tinycua && uv run mypy tinycua/`
 
 ### Manual Verification
 

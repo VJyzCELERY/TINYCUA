@@ -20,6 +20,8 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 
 - [ ] Run unit tests — expect GREEN (all pass) <!-- id: 3 -->
 - [ ] Write unit tests for edge cases: nested suspensions, clear_after_current with suspended nodes <!-- id: 4 -->
+- [ ] Write test for nested suspension scenario (spec scenario 9) <!-- id: 4a -->
+- [ ] Write test for clear_after_current with suspended node <!-- id: 4b -->
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 5 -->
 
 ## Verification Phase
@@ -28,6 +30,8 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 - [ ] Verify `advance()` on prepended node returns suspended node as new current <!-- id: 7 -->
 - [ ] Verify suspended node's input mapping is preserved via `_inputs` dict <!-- id: 8 -->
 - [ ] Verify backward compatibility — existing M1.6 tests pass without modification <!-- id: 9 -->
+- [ ] Run lint: `cd src/tinycua && uv run ruff check .` <!-- id: 14 -->
+- [ ] Run type check: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 15 -->
 
 ## Documentation Phase
 
