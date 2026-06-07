@@ -230,6 +230,7 @@ class NodeQueue:
 2. **Decision**: `advance()` calls `propagate()` on the current node before removal, guarded by a `_propagated` flag to satisfy FR-012's conditional requirement.
    - **Reason**: Ensures propagation always happens before node removal, but only once per node. The `on_complete()` hook may call `advance()` or other mutations, so propagation must happen at removal time. The guard prevents double-propagation if `propagate()` was called externally.
    - **Alternatives Considered**: (a) Unconditional `propagate()` — rejected because FR-012 requires conditional call. (b) Require `on_complete()` to call `propagate()` explicitly — rejected because it's error-prone.
+   - **Mechanism**: The `_propagated` flag is opt-in: `getattr(node, "_propagated", False)` returns `False` when the attribute is absent, so nodes that don't track propagation state proceed without declaring the attribute. Do not add `_propagated` as a required field on `Node`.
 
 3. **Decision**: `ensure_terminal()` uses `node.is_terminal` attribute for detection.
    - **Reason**: Consistent with the `Node` base class design from M1.5. The `is_terminal` flag is a data-level declaration that cannot be accidentally overridden by subclasses.

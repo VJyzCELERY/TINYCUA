@@ -31,9 +31,8 @@ Replace the M1.1 `NodeQueue` stub with a functional sequential execution structu
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.12+, uv
-- [ ] **Package manager**: uv
-- [x] **None** — no special tooling required
+- [x] **Runtime**: Python 3.12+, uv
+- [x] **Package manager**: uv
 
 ---
 
@@ -295,6 +294,8 @@ class TestNodeQueueInputTracking:
 - [ ] **Edge case**: Input tracking stays synchronized with node removal
 
 ## Verification Plan
+
+> **Note**: Tests are defined above and ready to execute. Checkboxes below track execution status, not authoring status.
 
 ### Automated Tests
 
