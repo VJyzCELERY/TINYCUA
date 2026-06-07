@@ -71,7 +71,7 @@ A developer building a TinyCUA node constructs a `NodePayload` to represent the 
 - **FR-017**: All `StateObject` subclasses MUST support round-trip serialization via `to_dict()`/`from_dict()` and `to_json()`/`from_json()`.
 - **FR-018**: `NodePayload` MUST default `source_node` to `None` and `metadata` to `{}`.
 - **FR-019**: `NodeInput` MUST default `source_node`, `target_node` to `None` and `metadata` to `{}`.
-- **FR-020**: `NodePayload.content` serialization in `to_message()` MUST handle `str`, `dict`, `StateObject` (via `.to_dict()`), and `list[dict]` content types correctly.
+- **FR-020**: `NodePayload.content` serialization in `to_message()` MUST handle `str`, `dict`, `StateObject` (via `.to_json()`), and `list[dict]` content types correctly.
 
 ### Key Entities _(include if feature involves data)_
 

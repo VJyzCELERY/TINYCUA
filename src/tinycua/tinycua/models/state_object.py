@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
 import dataclasses
 import json
+import types
 import typing
 from dataclasses import dataclass, fields
 
@@ -124,7 +126,7 @@ def _get_type_hints_safe(cls: type) -> dict[str, typing.Any]:
         # Try to get type hints with the class's module namespace
         hints = typing.get_type_hints(cls)
         return hints
-    except Exception:
+    except (NameError, TypeError, AttributeError):
         # Fallback: return field types as-is (may be strings)
         return {f.name: f.type for f in fields(cls)}
 
@@ -222,7 +224,10 @@ def _convert_value_from_dict(
     if origin is dict:
         return value
 
-    if origin is typing.Union or (hasattr(typing, "get_args") and hint is not None):
+    if hint is not None and typing.get_origin(hint) in (
+        typing.Union,
+        getattr(types, "UnionType", None),
+    ):
         return _convert_union_value(value, hint, field_obj)
 
     return value
@@ -234,7 +239,6 @@ def _resolve_annotation(hint_str: str) -> typing.Any:
     Uses the registry of StateObject subclasses for resolution.
     """
     # Simple name resolution for common types
-    import builtins
 
     # Check builtins
     if hint_str in dir(builtins):

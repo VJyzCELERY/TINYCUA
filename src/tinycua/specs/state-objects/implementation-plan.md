@@ -75,7 +75,7 @@ def test_node_payload_round_trip_through_node_handoff():
     # Assert: messages contain payload as assistant message + continuation user message
     assert len(messages) == 2
     assert messages[0]["role"] == "assistant"
-    assert "task_analysis" in messages[0]["content"]
+    assert "T-0.1" in messages[0]["content"]
     assert messages[1]["role"] == "user"
     assert messages[1]["content"] == "Analyze task T-0.1"
 

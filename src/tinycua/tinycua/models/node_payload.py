@@ -67,5 +67,7 @@ def _serialize_content(content: str | dict | StateObject | list[dict] | None) ->
         return content
     if isinstance(content, StateObject):
         return content.to_json()
-    # dict or list[dict] — serialize via json.dumps
-    return json.dumps(content)
+    if isinstance(content, (dict, list)):
+        return json.dumps(content)
+    msg = f"Unsupported content type: {type(content)}"
+    raise TypeError(msg)
