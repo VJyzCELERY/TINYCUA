@@ -76,7 +76,7 @@ class NodePayload(StateObject):
 
     payload_type: str                     # e.g., "task_analysis", "reviewer_decision"
     source_node: str | None = None        # originating node id
-    content: str | dict | StateObject | list[dict] = ""  # polymorphic content
+    content: str | dict | StateObject | list[dict] | None = ""  # polymorphic content
     metadata: dict = field(default_factory=dict)
 
     def to_message(self) -> dict:

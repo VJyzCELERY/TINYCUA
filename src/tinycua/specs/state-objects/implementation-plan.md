@@ -228,7 +228,7 @@ StateObject:
 NodePayload(StateObject):
     payload_type: str
     source_node: str | None = None
-    content: str | dict | StateObject | list[dict] = ""
+    content: str | dict | StateObject | list[dict] | None = ""
     metadata: dict = field(default_factory=dict)
     to_message() -> dict
     to_messages() -> list[dict]
