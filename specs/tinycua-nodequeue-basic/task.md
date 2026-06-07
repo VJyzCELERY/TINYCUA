@@ -62,7 +62,7 @@ Implementation tasks for NodeQueue Basic Execution and Terminal Safety. Check of
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 17 -->
+- [x] Create pull request <!-- id: 17 -->
 - [ ] Address review feedback <!-- id: 18 -->
 - [ ] Merge to main branch <!-- id: 19 -->
 

@@ -284,6 +284,8 @@ class TestNodeQueueInputTracking:
         assert queue.input_for_current() == {}
 ```
 
+> **Note**: These scenarios are defined as testable milestones. Checkboxes track completion status.
+
 ### Key Test Scenarios
 
 - [x] **Scenario 1**: Queue current returns `items[0]` when present, `None` when empty — primary access pattern
