@@ -221,6 +221,11 @@ None — Phase 1 covers the full M1.4 scope.
    - **Reason**: Preserves the structure for downstream consumers who need to deserialize it back. Splitting would lose the grouping semantics.
    - **Alternatives Considered**: Split into multiple messages — rejected for losing structure and complicating deserialization.
 
+6. **Decision**: Union fields containing both `dict` and `StateObject` variants (e.g., `NodePayload.content: str | dict | StateObject | list[dict]`) will deserialize `StateObject` content as `dict` after a `to_dict()` → `from_dict()` round-trip.
+   - **Reason**: `_convert_union_value` matches `dict` via `isinstance(value, dict)` before attempting `StateObject` reconstruction, because `dict` appears earlier in the union args. This preserves existing behavior with zero functional impact — `to_message()` produces identical JSON regardless of whether the in-memory type is `StateObject` or `dict`.
+   - **Trade-off accepted**: Type identity of `StateObject` content is not preserved after serialization round-trip. Consumers that need typed content should reconstruct it explicitly rather than relying on round-trip type preservation.
+   - **Alternatives Considered**: Reorder union arg matching to attempt `StateObject` reconstruction first — rejected for changing semantics (general dicts would then be treated as StateObject candidates).
+
 ---
 
 ## Risks & Mitigations
