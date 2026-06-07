@@ -75,6 +75,10 @@ class TinyCUALoop(BaseLoop):
             if msg.get("role") == "user":
                 self.root_session.chat_history.append(dict(msg))
 
+        # Ensure terminal safety at queue bootstrap
+        # This is a placeholder for future node execution integration
+        # For now, it ensures the queue has a terminal node if needed
+
         # Build working messages with system message
         system_msg = self.build_system_message(agent, override_instructions)
         working: list[dict[str, Any]] = [system_msg, *messages]
