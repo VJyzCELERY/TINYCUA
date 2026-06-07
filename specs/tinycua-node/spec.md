@@ -9,7 +9,7 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Provide a base `Node` class and two abstract subclasses — `DecisionNode` and `ProcessNode` — so that all future concrete TinyCUA nodes have a shared contract for session attachment, message/instruction building, lifecycle hooks, and input handling.
+- **Goals**: Provide a base `Node` class and two abstract subclasses — `DecisionNode` and `ProcessNode` — so that **node implementers** can **build concrete TinyCUA nodes without duplicating session, message, retry, and lifecycle logic**.
 - **Gaps**: Today there is no node abstraction in `tinycua.loops`. Concrete nodes (QueryAnalyst, Worker, TaskExecutor, etc.) have no shared base to inherit from, no standardized `NodeInputLike` dispatch, and no lifecycle hook interface for validation, retry, or recording.
 - **Non-Goals**: This spec does NOT cover concrete TinyCUA nodes (QueryAnalyst, Worker, TaskCreate, etc.), node queue execution, or route map dispatch. Those are implemented in later milestones.
 - **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must accept `NodeInputLike` input (`str | NodeInput | NodePayload | list[dict]`). Must integrate with `NodeConfigBase` and its sub-policies (message, tool, stream, retry).
@@ -67,6 +67,9 @@ A developer creates a minimal `ProcessNode` subclass, attaches it to a session, 
 - **NodeInput**: Trusted internal transport object carrying structured data between nodes.
 - **NodePayload**: Trusted internal transport object carrying structured payloads.
 - **NodeInputLike**: Union type (`str | NodeInput | NodePayload | list[dict]`) accepted by all nodes.
+- **LLMResult**: Return type from LLM invocations. Defined in `tinycua.config.types`. Contains the assistant's response content and metadata.
+- **ValidationResult**: Return type of `validate_output()`. Contains `is_valid: bool` and `errors: list[str]` indicating validation failures.
+- **DecisionResult**: Return type of `DecisionNode.__call__()`. Contains `route_label: str`, `analysis_response: LLMResult`, and `classification_response: LLMResult` for observability and downstream debugging.
 
 ---
 
@@ -77,8 +80,8 @@ A developer creates a minimal `ProcessNode` subclass, attaches it to a session, 
 - [ ] **DecisionNode callable**: A minimal `DecisionNode` subclass can be called, classify a response, and return a route label.
 - [ ] **Session attachment works**: `ensure_session()` creates or adopts a session from root/parent.
 - [ ] **Message building works**: `build_messages()` produces correct system + conversation + continuation message list.
-- [ ] **Retry works**: Nodes retry on validation failure up to `NodeRetryPolicy.max_attempts`.
-- [ ] **Lifecycle hooks fire**: `record_output()`, `propagate()`, `on_complete()` are called at appropriate lifecycle points.
+- [ ] **Retry works**: Given `max_attempts=3` and validation failure, node makes exactly 3 LLM calls before raising `NodeExecutionError`.
+- [ ] **Lifecycle hooks fire**: `record_output()` called once after LLM response, `propagate()` called once after record, `on_complete()` called once after propagate. All three are called in order.
 - [ ] **No SDK API changes**: All implementation lives in `tinycua.loops.node` without modifying `tinycua-sdk`.
 
 ---
@@ -122,8 +125,10 @@ A developer creates a minimal `ProcessNode` subclass, attaches it to a session, 
 ## Open Questions _(optional)_
 
 1. **DecisionNode two-step process**: Should the analysis call and classification call be separate LLM invocations, or combined into one call with tool use?
-   - **Status**: Discussion
-   - **Proposed Answer**: Two separate calls per `docs/design/loops/node.md` design (analysis call → verdict/classification tool call).
+   - **Status**: Decided — Two separate calls per `docs/design/loops/node.md` design (analysis call → verdict/classification tool call). This aligns with the existing architecture where analysis and classification have distinct system prompts and tool configurations.
+
+2. **DecisionNode return type**: Should `DecisionNode` return a `DecisionResult` dataclass or just the route label string?
+   - **Status**: Decided — Return a `DecisionResult` dataclass with `route_label`, `analysis_response`, and `classification_response` for observability and downstream debugging.
 
 ---
 

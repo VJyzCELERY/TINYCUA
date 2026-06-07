@@ -13,7 +13,7 @@ This implementation introduces the base `Node` abstraction, `ProcessNode`, and `
 
 ### Configuration
 
-- [x] **None** — this feature has no configuration dependencies
+- [ ] **None** — this feature has no configuration dependencies
 
 ### Running Services
 
@@ -23,17 +23,17 @@ This implementation introduces the base `Node` abstraction, `ProcessNode`, and `
 
 ### Data / Fixtures
 
-- [x] **None** — no data or fixtures needed
+- [ ] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [x] **None** — no special access required
+- [ ] **None** — no special access required
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.11+
-- [x] **Package manager**: uv
-- [x] **None** — no special tooling required
+- [ ] **Runtime**: Python 3.11+
+- [ ] **Package manager**: uv
+- [ ] **None** — no special tooling required
 
 ---
 
@@ -41,22 +41,46 @@ This implementation introduces the base `Node` abstraction, `ProcessNode`, and `
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
+> **Prerequisites**: Before writing integration tests, verify that `NodeConfigBase`, `NodeMessagePolicy`, `NodeRetryPolicy`, `Session`, `NodeInput`, `NodePayload`, and `NodeInputLike` are importable from their expected locations. If any imports fail, the test stubs must be created first.
+
 ```python
 # Test file: tests/integration/test_node_integration.py
 """Integration tests for Node, ProcessNode, and DecisionNode."""
+
+# NOTE: MinimalProcessNode, MinimalDecisionNode, RetryTestProcessNode,
+# LifecycleTestProcessNode, and MockLLM are defined in task 1.
+# These tests require those stubs to be created first.
+
+from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy, NodeRetryPolicy
+from tinycua.config.types import LLMResult
+from tinycua.models.node_input import NodeInput, NodePayload
+from tinycua.models.session import Session
+
+
+class MockLLM:
+    """Mock LLM client for integration tests."""
+
+    def __init__(self, response: str = "mock response"):
+        self.response = response
+        self.call_count = 0
+
+    def __call__(self, messages: list[dict], **kwargs) -> dict:
+        self.call_count += 1
+        return {"role": "assistant", "content": self.response}
 
 
 def test_process_node_with_string_input():
     """Test that a ProcessNode subclass can be called with a string input and returns a response."""
     # Arrange
-    config = NodeConfigBase()
+    mock_llm = MockLLM(response="processed result")
+    config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalProcessNode(node_id="test-process", config=config)
     session = Session()
     node.ensure_session(session)
-    
+
     # Act
     result = node("Hello, process this input")
-    
+
     # Assert
     assert result is not None
     assert hasattr(result, "content")
@@ -66,30 +90,50 @@ def test_process_node_with_string_input():
 def test_decision_node_with_node_input():
     """Test that a DecisionNode subclass can classify input and return a route label."""
     # Arrange
-    config = NodeConfigBase()
+    mock_llm = MockLLM(response="analysis result")
+    config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalDecisionNode(node_id="test-decision", config=config)
     session = Session()
     node.ensure_session(session)
-    
+
     # Act
     result = node(NodeInput(input_type="analysis", messages=[{"role": "user", "content": "Classify this"}]))
-    
+
     # Assert
     assert result is not None
     assert hasattr(result, "route_label")
     assert result.route_label in ["passthrough", "worker"]
 
 
+def test_process_node_with_node_payload():
+    """Test that a ProcessNode subclass can be called with a NodePayload input."""
+    # Arrange
+    mock_llm = MockLLM(response="payload processed")
+    config = NodeConfigBase(llm_client=mock_llm)
+    node = MinimalProcessNode(node_id="test-payload", config=config)
+    session = Session()
+    node.ensure_session(session)
+    payload = NodePayload(data={"key": "value"})
+
+    # Act
+    result = node(payload)
+
+    # Assert
+    assert result is not None
+    assert hasattr(result, "content")
+
+
 def test_session_attachment_with_root_session():
     """Test that ensure_session creates a session from root session."""
     # Arrange
-    config = NodeConfigBase()
+    mock_llm = MockLLM()
+    config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalProcessNode(node_id="test-session", config=config)
     root_session = Session()
-    
+
     # Act
     session = node.ensure_session(root_session)
-    
+
     # Assert
     assert session is not None
     assert node.session is session
@@ -98,16 +142,17 @@ def test_session_attachment_with_root_session():
 def test_session_attachment_with_parent_node():
     """Test that ensure_session adopts session from parent node."""
     # Arrange
-    config = NodeConfigBase()
+    mock_llm = MockLLM()
+    config = NodeConfigBase(llm_client=mock_llm)
     parent = MinimalProcessNode(node_id="parent", config=config)
     child = MinimalProcessNode(node_id="child", config=config)
     child.parent = parent
     root_session = Session()
     parent.ensure_session(root_session)
-    
+
     # Act
     session = child.ensure_session(root_session)
-    
+
     # Assert
     assert session is parent.session
 
@@ -115,17 +160,19 @@ def test_session_attachment_with_parent_node():
 def test_message_building_with_session_context():
     """Test that build_messages includes session context when enabled."""
     # Arrange
+    mock_llm = MockLLM()
     config = NodeConfigBase(
-        message_policy=NodeMessagePolicy(include_session_context=True)
+        llm_client=mock_llm,
+        message_policy=NodeMessagePolicy(include_session_context=True),
     )
     node = MinimalProcessNode(node_id="test-messages", config=config)
     session = Session()
     session.session_context = [{"role": "assistant", "content": "Previous context"}]
     node.ensure_session(session)
-    
+
     # Act
     messages = node.build_messages(session, "New input")
-    
+
     # Assert
     assert len(messages) > 0
     system_msg = next(m for m in messages if m["role"] == "system")
@@ -135,16 +182,18 @@ def test_message_building_with_session_context():
 def test_retry_on_validation_failure():
     """Test that node retries when validation fails."""
     # Arrange
+    mock_llm = MockLLM(response="retry result")
     config = NodeConfigBase(
-        retry_policy=NodeRetryPolicy(max_attempts=3)
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(max_attempts=3),
     )
     node = RetryTestProcessNode(node_id="test-retry", config=config)
     session = Session()
     node.ensure_session(session)
-    
+
     # Act
     result = node("Trigger retry")
-    
+
     # Assert
     assert result is not None
     assert node.retry_count == 3
@@ -153,14 +202,15 @@ def test_retry_on_validation_failure():
 def test_lifecycle_hooks_fire():
     """Test that record_output, propagate, and on_complete are called."""
     # Arrange
-    config = NodeConfigBase()
+    mock_llm = MockLLM(response="lifecycle result")
+    config = NodeConfigBase(llm_client=mock_llm)
     node = LifecycleTestProcessNode(node_id="test-lifecycle", config=config)
     session = Session()
     node.ensure_session(session)
-    
+
     # Act
     node("Test input")
-    
+
     # Assert
     assert node.record_output_called
     assert node.propagate_called
@@ -169,29 +219,29 @@ def test_lifecycle_hooks_fire():
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: ProcessNode with string input — verifies basic LLM invocation and response handling
-- [x] **Scenario 2**: DecisionNode classification — verifies two-step analysis + classification flow
-- [x] **Scenario 3**: Session attachment — verifies both root session and parent node session adoption
-- [x] **Scenario 4**: Message building — verifies system prompt construction with session context
-- [x] **Scenario 5**: Retry behavior — verifies retry loop with validation failures
-- [x] **Scenario 6**: Lifecycle hooks — verifies all hooks are called at appropriate points
+- [ ] **Scenario 1**: ProcessNode with string input — verifies basic LLM invocation and response handling
+- [ ] **Scenario 2**: DecisionNode classification — verifies two-step analysis + classification flow
+- [ ] **Scenario 3**: Session attachment — verifies both root session and parent node session adoption
+- [ ] **Scenario 4**: Message building — verifies system prompt construction with session context
+- [ ] **Scenario 5**: Retry behavior — verifies retry loop with validation failures
+- [ ] **Scenario 6**: Lifecycle hooks — verifies all hooks are called at appropriate points
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for node base, process node, decision node, input dispatch
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — all new integration tests must pass with exit code 0
+- [ ] Unit tests for node base, process node, decision node, input dispatch — all new unit tests must pass with exit code 0
+- [ ] Existing test suite — confirm no regressions: record baseline count before implementation, then verify `cd src/tinycua && uv run pytest` passes with same or fewer failures
 
 ### Manual Verification
 
-- [x] Verify node can be instantiated and called in a minimal example
-- [x] Verify session attachment works with both fresh and existing sessions
+- [ ] Verify node can be instantiated and called in a minimal example
+- [ ] Verify session attachment works with both fresh and existing sessions
 
 ### Performance Considerations
 
-- [x] No performance tests needed for this base abstraction layer
+- [ ] No performance tests needed for this base abstraction layer
 
 ## Proposed Changes
 
@@ -200,7 +250,7 @@ def test_lifecycle_hooks_fire():
 #### [NEW] src/tinycua/tinycua/loops/node.py
 
 - **Description**: Create the base `Node` class, `ProcessNode`, and `DecisionNode` classes
-- **Dependencies**: `tinycua.config.node_config`, `tinycua.models.state_object`, `tinycua.models.session`
+- **Dependencies**: `tinycua.config.node_config`, `tinycua.models.node_input`, `tinycua.models.session`
 
 #### [MODIFY] src/tinycua/tinycua/loops/__init__.py
 
@@ -275,9 +325,11 @@ No new external dependencies required.
 
 ### Internal Dependencies
 
-- [x] Depends on existing `tinycua.config.node_config` module
-- [x] Depends on existing `tinycua.models.state_object` module
-- [x] Depends on existing `tinycua.models.session` module
+- [ ] Depends on existing `tinycua.config.node_config` module
+- [ ] Depends on existing `tinycua.config.types` module (`LLMResult`)
+- [ ] Depends on existing `tinycua.models.node_input` module
+- [ ] Depends on existing `tinycua.models.session` module
+- [ ] Depends on existing `tinycua.loops.node_queue` module (`NodeQueue`)
 
 ## Risks and Mitigations
 

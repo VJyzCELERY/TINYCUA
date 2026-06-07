@@ -49,7 +49,9 @@ DecisionNode(ProcessNode)
 |-----------|-------------|-------|
 | `tinycua/loops/node.py` | New | Base `Node`, `ProcessNode`, `DecisionNode` classes |
 | `tinycua/config/node_config.py` | Modified (if needed) | Ensure `NodeConfigBase` is importable by node module |
-| `tinycua/models/state_object.py` | Referenced | `NodeInput`, `NodePayload`, `NodeInputLike` types |
+| `tinycua/config/types.py` | Referenced | Ensure `LLMResult` is importable by node module |
+| `tinycua/models/node_input.py` | Referenced | `NodeInput`, `NodePayload`, `NodeInputLike` types |
+| `tinycua/loops/node_queue.py` | Referenced | `NodeQueue` type for `on_complete()` lifecycle hook |
 
 ---
 
@@ -165,7 +167,7 @@ class DecisionNode(ProcessNode):
 | Empty input string | `ValueError("Empty input")` | Node rejects empty string |
 | No session and no parent | `ValueError("No session available")` | `ensure_session()` requires root or parent |
 | Retry exhausted (raise) | `NodeExecutionError` | Raised to loop |
-| Retry exhausted (record_failure) | Recorded to session, propagated | Per `PropagationRule.failure` |
+| Retry exhausted (record_failure) | Recorded to session, propagated | Per `NodeRetryPolicy.on_retry_exhausted`. `PropagationRule` integration deferred to later milestone. |
 | Invalid classification | Retried via `build_retry_continuation` | Per `NodeRetryPolicy` |
 
 ---
@@ -204,9 +206,9 @@ class DecisionNode(ProcessNode):
    - **Reason**: Cleaner separation, easier to extend, matches the design doc's `NodeInputLike = str | NodeInput | NodePayload | list[dict]` definition.
    - **Alternatives Considered**: `isinstance` cascade — rejected for maintainability.
 
-3. **Decision**: `is_terminal` is a field on `Node`, not a method.
-   - **Reason**: Terminal status is a static property of the node type (e.g., `ResponseNode` is always terminal), not dynamic behavior.
-   - **Alternatives Considered**: `@property is_terminal` — rejected for simplicity.
+3. **Decision**: `is_terminal` is a class-level `bool` field on `Node`, not a `@property`.
+   - **Reason**: Terminal status is an immutable attribute of the node type — `ResponseNode` is always terminal, `DecisionNode` is never terminal. A plain field makes this a data-level declaration that cannot be accidentally overridden by subclasses (a `@property` can be shadowed by assigning to the instance, silently breaking the contract). Field access also allows direct mutation in tests and mock scenarios without needing a setter or `_is_terminal` backing variable.
+   - **Alternatives Considered**: `@property is_terminal` — rejected because it introduces indirection over what is fundamentally a static boolean, invites accidental override by subclasses, and adds complexity with no corresponding flexibility for this milestone.
 
 4. **Decision**: Session attachment uses `ensure_session()` rather than constructor injection.
    - **Reason**: Nodes may be created before sessions exist (e.g., during queue construction). Session attachment happens at execution time when the root session is available.
@@ -227,8 +229,7 @@ class DecisionNode(ProcessNode):
 
 ## Open Questions _(optional)_
 
-1. Should `DecisionNode` return a `DecisionResult` dataclass or just the route label string?
-   - **Current thinking**: Return a `DecisionResult` with `route_label`, `analysis_response`, and `classification_response` for observability.
+_(None — all questions resolved. See spec.md:130 for DecisionResult resolution.)_
 
 ---
 
@@ -238,5 +239,5 @@ class DecisionNode(ProcessNode):
 - Design docs:
   - `src/tinycua/docs/design/loops/node.md` — node hierarchy, system prompt categories, input types
   - `src/tinycua/docs/design/config/node_config.md` — `NodeConfigBase`, policies, per-node configs
-  - `src/tinycua/docs/design/models/state_object.md` — `NodeInput`, `NodePayload`, `NodeInputLike`
+  - `src/tinycua/docs/design/models/node_input.md` — `NodeInput`, `NodePayload`, `NodeInputLike`
 - Issue: [#87](https://github.com/VJyzCELERY/TINYCUA/issues/87) — Milestone 1.5
