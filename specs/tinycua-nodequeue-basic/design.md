@@ -78,14 +78,17 @@ class NodeQueue:
     def advance(self) -> Node | None:
         """Advance to the next node.
 
-        Calls propagate() on items[0] if it has not already propagated,
-        then removes items[0]. Returns the new current node or None.
+        Raises ValueError if the queue is already empty (FR-010).
+        If the queue has nodes, calls propagate() on items[0] (if not already
+        propagated), removes items[0], and returns the new current node — or
+        None if the queue is now empty (FR-005).
         """
         if not self.items:
             raise ValueError("Cannot advance an empty queue")
 
         current_node = self.items[0]
-        current_node.propagate()
+        if not getattr(current_node, "_propagated", False):
+            current_node.propagate()
         self.items.pop(0)
         self._inputs.pop(current_node.node_id, None)
         return self.current
@@ -94,6 +97,7 @@ class NodeQueue:
         """Insert nodes after the current node.
 
         Does not change current; the loop re-reads queue.current after on_complete().
+        Raises ValueError if queue is empty. Calling with an empty list is a no-op.
         """
         if not self.items:
             raise ValueError("Cannot spawn after an empty queue")
@@ -155,9 +159,10 @@ class NodeQueue:
     def advance(self) -> Node | None:
         """Advance to the next node.
 
-        Calls propagate() on current before removal.
-        Returns new current or None.
-        Raises ValueError if queue is empty.
+        Raises ValueError if the queue is already empty (FR-010).
+        If the queue has nodes, calls propagate() on items[0] (if not already
+        propagated), removes items[0], and returns the new current node — or
+        None if the queue is now empty (FR-005).
         """
 
     def spawn_after_current(self, nodes: list[Node]) -> None:
@@ -165,6 +170,7 @@ class NodeQueue:
 
         Does not change current.
         Raises ValueError if queue is empty.
+        No-op when called with an empty list.
         """
 
     def clear_after_current(self) -> None:
@@ -221,9 +227,9 @@ class NodeQueue:
    - **Reason**: Keeps the `items` list clean (just `Node` objects), allows input reassignment without node replacement, and avoids creating a new wrapper type that would complicate the API.
    - **Alternatives Considered**: `NodeQueueItem(node, input)` wrapper — rejected because it adds indirection and complicates node access patterns.
 
-2. **Decision**: `advance()` calls `propagate()` on the current node before removal.
-   - **Reason**: Ensures propagation always happens before node removal, maintaining the segmented context model. The `on_complete()` hook may call `advance()` or other mutations, so propagation must happen at removal time.
-   - **Alternatives Considered**: Require `on_complete()` to call `propagate()` explicitly — rejected because it's error-prone and violates the principle of least surprise.
+2. **Decision**: `advance()` calls `propagate()` on the current node before removal, guarded by a `_propagated` flag to satisfy FR-012's conditional requirement.
+   - **Reason**: Ensures propagation always happens before node removal, but only once per node. The `on_complete()` hook may call `advance()` or other mutations, so propagation must happen at removal time. The guard prevents double-propagation if `propagate()` was called externally.
+   - **Alternatives Considered**: (a) Unconditional `propagate()` — rejected because FR-012 requires conditional call. (b) Require `on_complete()` to call `propagate()` explicitly — rejected because it's error-prone.
 
 3. **Decision**: `ensure_terminal()` uses `node.is_terminal` attribute for detection.
    - **Reason**: Consistent with the `Node` base class design from M1.5. The `is_terminal` flag is a data-level declaration that cannot be accidentally overridden by subclasses.
@@ -236,6 +242,27 @@ class NodeQueue:
 5. **Decision**: Defer suspension/prepend to Milestone 1.7.
    - **Reason**: The current scope focuses on basic sequential execution and terminal safety. Suspension/prepend adds complexity that can be layered on top of the basic queue mechanics.
    - **Alternatives Considered**: Include suspension/prepend in M1.6 — rejected because it would expand scope and delay the core queue functionality.
+
+6. **Decision**: `advance()` has return type `Node | None` — two distinct empty-queue cases:
+   - **Case A** (empty BEFORE removal): `advance()` called when `items` is already empty → raises `ValueError` (FR-010).
+   - **Case B** (empty AFTER removal): `advance()` called on a single-node queue, leaving zero nodes → returns `None` (FR-005).
+   - **Reason**: Callers do NOT need to catch `ValueError` to distinguish "was empty" from "is now empty" — the exception only fires when the queue was already empty.
+
+---
+
+## Execution Flow
+
+The `TinyCUALoop` orchestrates the execute → on_complete → advance cycle:
+
+1. **Bootstrap**: `run()` calls `queue.ensure_terminal(default_response_node)` to guarantee a terminal response path.
+2. **Read current**: Loop reads `queue.current` to get the active node.
+3. **Get input**: Loop calls `queue.input_for_current()` to get the node's `NodeInputLike`.
+4. **Execute node**: Loop executes the node with the retrieved input.
+5. **Node completes**: The node calls `node.on_complete(queue, result)` to mutate the queue (advance, spawn, or clear).
+6. **Check termination**: Loop checks if `queue.is_empty()` — if true, execution ends.
+7. **Repeat**: Loop continues from step 2 with the new `queue.current`.
+
+This cycle continues until the queue is empty or a terminal node completes. The `ensure_terminal()` bootstrap call at step 1 guarantees the queue always has a terminal node at the end, preventing infinite loops.
 
 ---
 
@@ -252,7 +279,7 @@ class NodeQueue:
 
 ## Open Questions _(optional)_
 
-_(None — all questions resolved. See spec.md:95 for terminal detection resolution and spec.md:100 for input tracking resolution.)_
+_(None — all questions resolved. See spec.md Decisions Log (lines 122-129) for terminal detection and input tracking resolutions.)_
 
 ---
 

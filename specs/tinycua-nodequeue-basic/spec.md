@@ -59,10 +59,11 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 - **FR-010**: System MUST raise `ValueError` when `advance()` is called on an empty queue.
 - **FR-011**: System MUST raise `ValueError` when `spawn_after_current()` is called on an empty queue.
 - **FR-012**: System MUST call `propagate()` on a node before removing it in `advance()` if it has not already propagated.
+- **FR-013**: System MUST implement `set_input(node, input_data)` to assign `NodeInputLike` to a specific node for later retrieval via `input_for_current()`.
 
 ### Key Entities _(include if feature involves data)_
 
-- **NodeQueue**: Sequential execution structure. Holds `items: list[Node]`, provides `current`, `advance()`, `spawn_after_current()`, `clear_after_current()`, `ensure_terminal()`.
+- **NodeQueue**: Sequential execution structure. Holds `items: list[Node]`, provides `current`, `advance()`, `spawn_after_current()`, `clear_after_current()`, `ensure_terminal()`, `set_input()`, `input_for_current()`.
 - **Node**: Base class (from M1.5) with `is_terminal: bool`, `propagate()`, `on_complete(queue, response)`.
 - **NodeInputLike**: Union type accepted by nodes for input data.
 
@@ -114,6 +115,7 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 | spawn_after_current() | TODO | |
 | clear_after_current() | TODO | |
 | ensure_terminal() | TODO | |
+| set_input() | TODO | |
 | Input tracking | TODO | |
 | Unit tests | TODO | |
 
@@ -126,6 +128,13 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 
 2. **Input tracking**: Should `NodeInputLike` be stored per-node in a dict, or as a wrapper around each node in the items list?
    - **Decision**: Use a dict mapping `node_id` to `NodeInputLike`. This keeps the items list clean and allows input reassignment.
+
+3. **`advance()` empty-queue semantics**: FR-005 says `advance()` "returns the new current node or `None`" while FR-010 says it "MUST raise `ValueError` when called on an empty queue." These are two distinct cases:
+   - **Case A**: Queue is empty BEFORE removal (i.e., `advance()` called when `items` is already empty) → raise `ValueError` (FR-010).
+   - **Case B**: Queue becomes empty AFTER removal (i.e., `advance()` called on a single-node queue, which after removal leaves zero nodes) → return `None` (FR-005).
+   - **Decision**: The return type is `Node | None`. Callers do NOT need to catch `ValueError` to distinguish these cases — `ValueError` only occurs when `advance()` is called on an already-empty queue.
+
+4. **`spawn_after_current()` with empty list**: Calling `spawn_after_current([])` with an empty list is a no-op. This is consistent with Python slice assignment behavior and is a valid edge case.
 
 ---
 

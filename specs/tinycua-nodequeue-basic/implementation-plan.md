@@ -31,8 +31,8 @@ Replace the M1.1 `NodeQueue` stub with a functional sequential execution structu
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.12+, uv
-- [x] **Package manager**: uv
+- [ ] **Runtime**: Python 3.12+, uv
+- [ ] **Package manager**: uv
 - [x] **None** — no special tooling required
 
 ---
@@ -49,7 +49,6 @@ import pytest
 from unittest.mock import MagicMock
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node import Node
-from tinycua.config.node_config import NodeConfigBase
 
 
 def _make_node(node_id: str, *, is_terminal: bool = False) -> MagicMock:
@@ -135,6 +134,17 @@ class TestNodeQueueAdvance:
 
         node_a.propagate.assert_called_once()
 
+    def test_advance_skips_propagation_if_already_propagated(self):
+        """advance() skips propagate() if node has _propagated flag set."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        node_a._propagated = True
+        queue.items = [node_a]
+
+        queue.advance()
+
+        node_a.propagate.assert_not_called()
+
 
 class TestNodeQueueSpawn:
     """Tests for spawn_after_current()."""
@@ -168,6 +178,16 @@ class TestNodeQueueSpawn:
         queue = NodeQueue()
         with pytest.raises(ValueError, match="Cannot spawn after an empty queue"):
             queue.spawn_after_current([_make_node("x")])
+
+    def test_spawn_with_empty_list_is_noop(self):
+        """spawn_after_current([]) is a no-op."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        queue.items = [node_a]
+
+        queue.spawn_after_current([])
+
+        assert queue.items == [node_a]
 
 
 class TestNodeQueueClear:

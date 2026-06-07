@@ -22,7 +22,7 @@ Implementation tasks for NodeQueue Basic Execution and Terminal Safety. Check of
   - [ ] Convert `current` from attribute to property returning `items[0]` or `None`
   - [ ] Implement `is_empty()` checking `len(self.items) == 0`
   - [ ] Implement `input_for_current()` returning stored input or empty dict
-  - [ ] Implement `set_input(node, input_data)` for input tracking
+- [ ] Implement `set_input(node, input_data)` for input tracking <!-- id: 2a -->
 - [ ] Implement `advance()` method <!-- id: 3 -->
   - [ ] Raise `ValueError("Cannot advance an empty queue")` when empty
   - [ ] Call `propagate()` on current node before removal
