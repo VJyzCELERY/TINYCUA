@@ -153,6 +153,7 @@ def test_suspend_prepended_node_input_lifecycle():
     node_a = _make_node("a")
     node_b = _make_node("b")
     queue.items = [node_a]
+    queue.set_input(node_a, {"original": "data"})
 
     queue.suspend_current_and_prepend([node_b])
     queue.set_input(node_b, {"prepended": "input"})
