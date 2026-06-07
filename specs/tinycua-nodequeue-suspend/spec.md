@@ -14,6 +14,12 @@
 - **Non-Goals**: This spec does NOT cover route map dispatch, concrete TinyCUA nodes (QueryAnalyst, Worker, ResponseNode, InformationDigesterNode), or propagation rules. Those are handled by their respective milestones.
 - **Constraints**: Must integrate with existing `NodeQueue` methods (`advance()`, `spawn_after_current()`, `clear_after_current()`, `ensure_terminal()`). Must work with the existing `Node` base class and `ProcessNode`/`DecisionNode` hierarchy. Must not modify `tinycua-sdk` public APIs. Must preserve backward compatibility with M1.6 behavior.
 
+> **Important**: The `on_complete()` acceptance scenarios describe the intended usage pattern,
+> but passing the real `NodeQueue` to `on_complete()` requires TinyCUALoop orchestrator
+> integration (M1.8+). In the current codebase, `on_complete()` receives a placeholder
+> `object()` as queue. This milestone (M1.7) focuses on the queue-level method only;
+> concrete node usage is deferred to M1.8+.
+
 ---
 
 ## User Scenarios & Testing _(mandatory)_
@@ -57,7 +63,10 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 - **FR-006**: System MUST allow the suspended node to resume execution when the prepended nodes complete and `advance()` is called on them.
 - **FR-007**: System MUST support multiple sequential suspensions, with each suspension prepending new nodes before the currently suspended node.
 - **FR-008**: System MUST preserve the relative order of suspended nodes when multiple nodes are prepended.
-- **FR-009**: System MUST propagate the prepended child's output back to the suspended parent node upon child completion. When a prepended node completes and `advance()` is called, its output (via `propagate()`) is available to the suspended parent node when it resumes as `items[0]`. The propagation mechanism is handled by the caller — the queue ensures the suspended node resumes at the correct position.
+- **FR-009**: System MUST ensure correct ordering so that the suspended parent node
+  resumes as `items[0]` after all prepended children complete. Output propagation from
+  prepended child to suspended parent is caller-established — the caller wires data flow
+  between nodes (e.g., via `queue.set_input()` or node parent session).
 
 ### Key Entities _(include if feature involves data)_
 
@@ -68,7 +77,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 
 ### Parent Relationship Contract
 
-Parent-child node relationships for prepended nodes are **caller-established**, not queue-managed. The caller constructs prepended nodes with `parent` set appropriately (e.g., `InformationDigesterNode(parent=response_node)`). `suspend_current_and_prepend()` only manages queue ordering — it does not modify `Node.parent`. This aligns with the M1.7 milestone contract (issue #87) which requires "parent node relationship for prepended child" — satisfied by the caller-establishing pattern.
+Parent-child node relationships for prepended nodes are **caller-established**, not queue-managed. The caller constructs prepended nodes and sets `parent` appropriately (e.g., `digester.parent = response_node`). `suspend_current_and_prepend()` only manages queue ordering — it does not modify `Node.parent`. This aligns with the M1.7 milestone contract (issue #87) which requires "parent node relationship for prepended child" — satisfied by the caller-establishing pattern.
 
 ---
 

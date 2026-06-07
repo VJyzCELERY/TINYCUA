@@ -157,7 +157,7 @@ def test_suspend_prepended_node_input_lifecycle():
 
     # After advance, prepended node input is cleaned up
     queue.advance()
-    assert queue._inputs.get("b") is None or queue._inputs.get("b") == {}
+    assert "b" not in queue._inputs  # Key is removed by advance()
 
     # Suspended node resumes with its input preserved
     assert queue.current is node_a
@@ -189,7 +189,7 @@ def test_suspend_preserves_suspended_input_after_prepended_advance():
     assert queue.current is node_a
     assert queue._inputs.get("a") == {"query": "original"}
     # node_b's input is cleaned up
-    assert queue._inputs.get("b") is None or queue._inputs.get("b") == {}
+    assert "b" not in queue._inputs  # Key is removed by advance()
 
 
 def test_suspend_resume_after_advance():

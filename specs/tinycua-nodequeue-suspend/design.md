@@ -38,6 +38,11 @@ NodeQueue
 | `tinycua/loops/node.py` | Referenced | `Node.on_complete()` may call `suspend_current_and_prepend()` |
 | `tinycua/loops/tinycua_loop.py` | Referenced | Loop orchestrates execute → on_complete cycle |
 
+> **Note**: Passing the real `NodeQueue` to `on_complete()` requires TinyCUALoop orchestrator
+> integration (M1.8+). In the current codebase, `on_complete()` receives a placeholder
+> `object()` as queue (see `node.py:413`). This milestone (M1.7) focuses on the queue-level
+> method only; concrete node usage is deferred to M1.8+.
+
 ---
 
 ## Data Model
@@ -228,8 +233,8 @@ The queue mechanism ensures correct ordering (suspended node resumes after prepe
 Before suspension:
   [ResponseNode, ...]
 
-ResponseNode calls suspend_current_and_prepend([InformationDigesterNode]):
-  [InformationDigesterNode, ResponseNode, ...]
+ResponseNode calls suspend_current_and_prepend([digester]):
+  [digester, ResponseNode, ...]
 
 InformationDigesterNode executes and completes:
   → advance() removes InformationDigesterNode
@@ -291,8 +296,8 @@ After resume:
    - **Alternatives Considered**: Include concrete nodes — rejected because it would expand scope and delay the core queue functionality.
 
 6. **Decision**: Parent-child node relationships are NOT managed by `suspend_current_and_prepend()` — they are caller-established.
-   - **Reason**: The `Node.parent` attribute exists on the base class (from `node.py:63`), but `suspend_current_and_prepend()` is a queue-level operation that manages node ordering, not node relationships. Parent relationships are established by the caller when constructing prepended nodes (e.g., `InformationDigesterNode(parent=response_node)`). The queue does not track or use parent relationships.
-   - **Milestone Contract Alignment**: The M1.7 milestone contract (issue #87) lists "parent node relationship for prepended child" as an in-scope requirement. This is satisfied by the caller-establishing pattern: the caller constructs prepended nodes with `parent` set appropriately before or after calling `suspend_current_and_prepend()`. The queue mechanism itself does not need to manage parent relationships — it only handles ordering. This aligns with the target architecture (`src/tinycua/docs/design/loops/node_queue.md:59`) which shows parent relationships in the prepended node list, indicating they are set at construction time.
+   - **Reason**: The `Node.parent` attribute exists on the base class (from `node.py:63`), but `suspend_current_and_prepend()` is a queue-level operation that manages node ordering, not node relationships. Parent relationships are established by the caller after constructing prepended nodes (e.g., `digester.parent = response_node`). The queue does not track or use parent relationships.
+   - **Milestone Contract Alignment**: The M1.7 milestone contract (issue #87) lists "parent node relationship for prepended child" as an in-scope requirement. This is satisfied by the caller-establishing pattern: the caller constructs prepended nodes and sets `parent` appropriately before or after calling `suspend_current_and_prepend()`. The queue mechanism itself does not need to manage parent relationships — it only handles ordering. This aligns with the target architecture (`src/tinycua/docs/design/loops/node_queue.md:59`) which shows parent relationships in the prepended node list, indicating they are set post-construction.
    - **Alternatives Considered**: Have `suspend_current_and_prepend()` set up parent relationships — rejected because it conflates queue management with node graph construction. The caller has the necessary context to establish correct parent relationships, while the queue does not.
 
 ---
