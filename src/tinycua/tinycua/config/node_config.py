@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from tinycua.config.types import StateObject, Tool
 
@@ -157,6 +157,7 @@ class NodeConfigBase:
         retry_policy: Retry behavior policy.
         message_policy: Message selection policy.
         metadata: Arbitrary metadata.
+        llm_client: LLM client callable for node LLM invocations.
     """
 
     custom_instruction_append: str | None = None
@@ -168,3 +169,4 @@ class NodeConfigBase:
     retry_policy: NodeRetryPolicy = field(default_factory=NodeRetryPolicy)
     message_policy: NodeMessagePolicy = field(default_factory=NodeMessagePolicy)
     metadata: dict[str, Any] = field(default_factory=dict)
+    llm_client: Callable | None = None
