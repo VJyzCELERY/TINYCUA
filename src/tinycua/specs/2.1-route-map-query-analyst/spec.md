@@ -52,8 +52,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **FR-005**: QueryAnalyst MUST run mandatory_passthrough precheck before LLM classification.
 - **FR-006**: When a valid MandatoryPassthrough exists, QueryAnalyst MUST forward the input to the target node/session deterministically.
 - **FR-007**: When MandatoryPassthrough has a stale target_session_id, QueryAnalyst MUST fall back to restart or silent drop per `allow_query_analyst_restart`.
-- **FR-008**: QueryAnalyst MUST use the two-step decision process: analysis call → verdict/classification tool call → RouteMap dispatch.
-- **FR-009**: The latest valid verdict tool call MUST determine the route label.
+- **FR-008**: QueryAnalyst MUST use the two-step decision process: analysis call → classification call → RouteMap dispatch.
+- **FR-009**: The latest valid classification result MUST determine the route label.
 - **FR-010**: When routing to `worker`, QueryAnalyst MUST reuse an existing WorkerNode if one is already queued before the terminal ResponseNode.
 - **FR-011**: When routing to `worker` with no existing WorkerNode, QueryAnalyst MUST spawn a new WorkerNode before the terminal ResponseNode.
 - **FR-012**: When routing to `uncertain`, QueryAnalyst MUST remain active and wait for user continuation.
@@ -143,9 +143,9 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
