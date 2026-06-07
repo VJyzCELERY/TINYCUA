@@ -13,27 +13,27 @@ This implementation adds a deterministic entry-point classification and routing 
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- [x] **None** — this feature has no configuration dependencies
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| [ ] **None** — no external services needed | | | |
+| [x] **None** — no external services needed | | | |
 
 ### Data / Fixtures
 
-- [ ] **None** — no data or fixtures needed
+- [x] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- [x] **None** — no special access required
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.11+
-- [ ] **Package manager**: uv
-- [ ] **None** — no special tooling required
+- [x] **Runtime**: Python 3.11+
+- [x] **Package manager**: uv
+- [x] **None** — no special tooling required
 
 > **Note**: Environment prerequisites verified — the development environment already meets these requirements.
 
@@ -46,6 +46,8 @@ Define the integration tests that prove the feature works. These are written FIR
 ```python
 # Test file: tests/integration/test_query_analyst_integration.py
 """Integration tests for RouteMap and TinyCUAQueryAnalystNode."""
+
+import pytest
 
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
