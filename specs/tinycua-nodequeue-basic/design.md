@@ -192,6 +192,7 @@ class NodeQueue:
 |------------|---------------------|-------|
 | `advance()` on empty queue | `ValueError("Cannot advance an empty queue")` | Prevents invalid state transition |
 | `spawn_after_current()` on empty queue | `ValueError("Cannot spawn after an empty queue")` | No current node to spawn after |
+| `spawn_after_current([])` with empty list | No-op | Consistent with Python slice assignment behavior |
 | `clear_after_current()` on empty queue | No-op | Graceful handling |
 | `ensure_terminal()` on empty queue | Appends default terminal | Ensures queue has terminal path |
 

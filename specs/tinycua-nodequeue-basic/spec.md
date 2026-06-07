@@ -89,11 +89,14 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 
 ### Unit Tests
 
-- `test_node_queue_basic.py`: Test `NodeQueue` initialization, `current`, `is_empty()`, `input_for_current()`.
-- `test_node_queue_advance.py`: Test `advance()` with single and multiple nodes, propagation call, empty queue error.
-- `test_node_queue_spawn.py`: Test `spawn_after_current()` with single and multiple nodes, empty queue error.
-- `test_node_queue_clear.py`: Test `clear_after_current()` with nodes after current, no nodes after current.
-- `test_node_queue_ensure_terminal.py`: Test `ensure_terminal()` with no terminal, with existing terminal, empty queue.
+- `test_node_queue.py`: Comprehensive tests organized by test class:
+  - `TestNodeQueueCurrent`: `current` property behavior
+  - `TestNodeQueueIsEmpty`: `is_empty()` method
+  - `TestNodeQueueAdvance`: `advance()` with propagation, empty queue error
+  - `TestNodeQueueSpawn`: `spawn_after_current()` insertion, empty queue error
+  - `TestNodeQueueClear`: `clear_after_current()` behavior
+  - `TestNodeQueueEnsureTerminal`: terminal detection and append logic
+  - `TestNodeQueueInputTracking`: `input_for_current()` and `set_input()`
 
 ### Integration Tests
 
