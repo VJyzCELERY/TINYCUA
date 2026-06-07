@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy, NodeRetryPolicy
 from tinycua.config.types import LLMResult, ValidationResult
@@ -43,7 +42,6 @@ class MinimalProcessNode:
         )
 
     def __call__(self, input: object) -> LLMResult:
-        from tinycua.models.node_input import NodeInputLike
 
         return self._impl(input)  # type: ignore[arg-type]
 
@@ -69,7 +67,6 @@ class MinimalProcessNode:
     def build_messages(
         self, session: Session, input: object
     ) -> list[dict]:
-        from tinycua.models.node_input import NodeInputLike
 
         return self._impl.build_messages(session, input)  # type: ignore[arg-type]
 
@@ -138,7 +135,6 @@ class RetryTestProcessNode:
 
     def __call__(self, input: object) -> LLMResult:  # noqa: ARG002
         # Override validate_output to fail first N-1 times
-        original_validate = self._impl.validate_output
         max_attempts = self._impl.config.retry_policy.max_attempts
 
         def patched_validate(response: LLMResult) -> ValidationResult:  # noqa: ARG005
@@ -183,7 +179,6 @@ class LifecycleTestProcessNode:
     def __call__(self, input: object) -> LLMResult:
         original_record = self._impl.record_output
         original_propagate = self._impl.propagate
-        original_on_complete = self._impl.on_complete
 
         def patched_record(response: LLMResult) -> None:
             self.record_output_called = True

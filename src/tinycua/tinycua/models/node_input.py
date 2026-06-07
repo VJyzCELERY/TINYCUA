@@ -77,6 +77,9 @@ def convert_node_input_to_messages(
         List of message dictionaries.
     """
     if isinstance(node_input, str):
+        if not node_input.strip():
+            msg = "Empty input"
+            raise ValueError(msg)
         role = "user" if source == "external" else "assistant"
         return [{"role": role, "content": node_input}]
     if isinstance(node_input, NodeInput):

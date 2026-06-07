@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tinycua.config.node_config import NodeConfigBase
-from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
@@ -24,6 +25,20 @@ class MockLLM:
 
 class TestInputDispatchString:
     """Tests for string input dispatch."""
+
+    def test_empty_string_raises_value_error(self) -> None:
+        """Empty string raises ValueError."""
+        from tinycua.models.node_input import convert_node_input_to_messages
+
+        with pytest.raises(ValueError, match="Empty input"):
+            convert_node_input_to_messages("")
+
+    def test_whitespace_only_string_raises_value_error(self) -> None:
+        """Whitespace-only string raises ValueError."""
+        from tinycua.models.node_input import convert_node_input_to_messages
+
+        with pytest.raises(ValueError, match="Empty input"):
+            convert_node_input_to_messages("   ")
 
     def test_external_string_becomes_user_role(self) -> None:
         """String with source='external' becomes user-role message."""
@@ -137,7 +152,7 @@ class TestProcessNodeInputIntegration:
             input_type="analysis",
             messages=[{"role": "user", "content": "Classify this"}],
         )
-        result = node(input_data)
+        node(input_data)
 
         assert mock_llm.call_count == 1
 
@@ -147,7 +162,7 @@ class TestProcessNodeInputIntegration:
         node = self._make_node(mock_llm)
 
         payload = NodePayload(payload_type="test", content="data")
-        result = node(payload)
+        node(payload)
 
         assert mock_llm.call_count == 1
 
@@ -157,6 +172,6 @@ class TestProcessNodeInputIntegration:
         node = self._make_node(mock_llm)
 
         messages = [{"role": "user", "content": "hello"}]
-        result = node(messages)
+        node(messages)
 
         assert mock_llm.call_count == 1

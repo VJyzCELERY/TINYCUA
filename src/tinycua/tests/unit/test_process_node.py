@@ -152,7 +152,6 @@ class TestProcessNodeRetry:
         node.session = Session()
 
         call_count = 0
-        original_validate = node.validate_output
 
         def patched_validate(response: LLMResult) -> ValidationResult:  # noqa: ARG001
             nonlocal call_count

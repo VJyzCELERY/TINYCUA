@@ -113,7 +113,7 @@ def test_process_node_with_node_payload():
     node = MinimalProcessNode(node_id="test-payload", config=config)
     session = Session()
     node.ensure_session(session)
-    payload = NodePayload(data={"key": "value"})
+    payload = NodePayload(payload_type="test", content={"key": "value"})
 
     # Act
     result = node(payload)

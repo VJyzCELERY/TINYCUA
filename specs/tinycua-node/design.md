@@ -32,7 +32,6 @@ Node (base)
 └── on_complete()
 
 ProcessNode(Node)
-├── _handle_input() — dispatch NodeInputLike to internal handlers
 ├── _call_llm() — invoke LLM with built messages
 └── __call__(input) — orchestrates build → validate → call → retry → record → propagate → complete
 
@@ -73,7 +72,7 @@ class Node(ABC):
 
     def ensure_session(self, root_or_parent_session: Session) -> Session: ...
     def build_instruction(self, override_instructions: str | None = None) -> str: ...
-    def build_messages(self, root_session: Session, input: NodeInputLike) -> list[dict]: ...
+    def build_messages(self, session: Session, input: NodeInputLike) -> list[dict]: ...
     def validate_output(self, response: LLMResult) -> ValidationResult: ...
     def build_retry_continuation(self, error: ValidationError, attempt: int) -> str: ...
     def record_output(self, response: LLMResult) -> None: ...
@@ -100,13 +99,9 @@ class DecisionNode(ProcessNode):
 ### NodeInputLike Dispatch
 
 ```python
-# Internal dispatch table
-INPUT_HANDLERS = {
-    str: _handle_string,         # external → user-role, internal → assistant-role
-    NodeInput: _handle_node_input,
-    NodePayload: _handle_node_payload,
-    list[dict]: _handle_message_list,
-}
+# Dispatch is handled via isinstance chains in convert_node_input_to_messages()
+# (tinycua.models.node_input), not via a type-dispatch table.
+# Supported types: str, NodeInput, NodePayload, list[dict]
 ```
 
 ---
@@ -154,7 +149,7 @@ class ProcessNode(Node):
     Primary node type for non-decision processing.
 
     __call__ orchestrates:
-    1. build_messages(root_session, input)
+    1. build_messages(session, input)
     2. validate_output (pre-call check)
     3. LLM invocation with retry loop
     4. record_output(response)
@@ -220,9 +215,9 @@ class DecisionNode(ProcessNode):
    - **Reason**: Decision nodes share the same LLM call + retry + lifecycle contract as process nodes. The only addition is the two-step analysis + classification flow.
    - **Alternatives Considered**: `DecisionNode(Node)` — rejected because it would duplicate the LLM call and retry logic.
 
-2. **Decision**: `NodeInputLike` dispatch is handled via a type-based dispatch table, not `isinstance` chains.
-   - **Reason**: Cleaner separation, easier to extend, matches the design doc's `NodeInputLike = str | NodeInput | NodePayload | list[dict]` definition.
-   - **Alternatives Considered**: `isinstance` cascade — rejected for maintainability.
+2. **Decision**: `NodeInputLike` dispatch is handled via `isinstance` chains in `convert_node_input_to_messages()` (in `tinycua.models.node_input`), not a type-dispatch table.
+   - **Reason**: Simple, explicit, and follows the existing pattern in `tinycua.models.node_input`. Each type (`str`, `NodeInput`, `NodePayload`, `list[dict]`) is handled in order.
+   - **Alternatives Considered**: Type-dispatch table in `node.py` — rejected for adding indirection without clear benefit for the current type set.
 
 3. **Decision**: `is_terminal` is a class-level `bool` field on `Node`, not a `@property`.
    - **Reason**: Terminal status is an immutable attribute of the node type — `ResponseNode` is always terminal, `DecisionNode` is never terminal. A plain field makes this a data-level declaration that cannot be accidentally overridden by subclasses (a `@property` can be shadowed by assigning to the instance, silently breaking the contract). Field access also allows direct mutation in tests and mock scenarios without needing a setter or `_is_terminal` backing variable.
