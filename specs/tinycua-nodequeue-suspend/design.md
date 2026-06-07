@@ -181,6 +181,12 @@ def suspend_current_and_prepend(self, nodes: list[Node]) -> None:
 | `suspend_current_and_prepend([])` with empty list | No-op | Consistent with `spawn_after_current([])` behavior |
 | `propagate()` during suspend | Not called | Suspended node retains state until resumed |
 
+### Input Lifecycle During Suspension
+
+- The suspended node's `_inputs[node_id]` entry is preserved (not removed).
+- Prepended nodes should have their inputs set via `set_input()` before or after calling `suspend_current_and_prepend()`.
+- When `advance()` is called on a prepended node, its `_inputs[node_id]` entry is cleaned up automatically (consistent with normal `advance()` behavior).
+
 ---
 
 ## Execution Flow
@@ -269,10 +275,16 @@ After resume:
 ## Open Questions _(optional)_
 
 1. **Should `suspend_current_and_prepend()` accept a single node or only a list?**
-   - **Current thinking**: Accept `list[Node]` for consistency with `spawn_after_current()`. Callers can pass `[node]` for single-node suspension.
+   - **Owner**: @VJyzCELERY
+   - **Target**: 2026-06-07
+   - **Status**: Proposed
+   - **Proposed Answer**: Accept `list[Node]` for consistency with `spawn_after_current()`. Callers can pass `[node]` for single-node suspension.
 
 2. **How should the loop detect that a node was suspended vs. completed?**
-   - **Current thinking**: The loop does not need to distinguish — it simply reads `queue.current` after `on_complete()` returns. If the node was suspended, `queue.current` will be the first prepended node. If the node completed normally (via `advance()`), `queue.current` will be the next node or `None`.
+   - **Owner**: @VJyzCELERY
+   - **Target**: 2026-06-07
+   - **Status**: Proposed
+   - **Proposed Answer**: The loop does not need to distinguish — it simply reads `queue.current` after `on_complete()` returns. If the node was suspended, `queue.current` will be the first prepended node. If the node completed normally (via `advance()`), `queue.current` will be the next node or `None`.
 
 ---
 
@@ -286,3 +298,14 @@ After resume:
 - Related milestones:
   - Milestone 1.5: Node Base, DecisionNode, ProcessNode (`specs/tinycua-node/`)
   - Milestone 1.6: NodeQueue Basic Execution and Terminal Safety (`specs/tinycua-nodequeue-basic/`)
+
+---
+
+## Review Checklist
+
+- [x] All mandatory sections completed (Overview, Architecture, Data Model, API Contracts, Execution Flow, Technical Decisions, Risks)
+- [x] API contracts consistent with spec requirements (FR-001 through FR-008)
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Technical decisions include rationale and alternatives considered
+- [x] Error handling table covers all spec edge cases
+- [x] Risks and mitigations are complete

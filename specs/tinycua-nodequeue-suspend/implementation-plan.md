@@ -37,13 +37,13 @@ Add `suspend_current_and_prepend()` to `NodeQueue`, enabling nodes to temporaril
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Unit Tests (TDD First)
 
-Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+Define the unit tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
 # Test file: src/tinycua/tests/unit/test_node_queue_suspend.py
-"""Integration tests for NodeQueue suspension and prepend."""
+"""Unit tests for NodeQueue suspension and prepend."""
 
 
 def test_suspend_keeps_current_queued_and_prepends_before_it():
@@ -152,30 +152,30 @@ def test_suspend_resume_after_advance():
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Basic suspension — current node stays queued, new nodes inserted before it, first prepended node becomes current
-- [x] **Scenario 2**: Multiple prepended nodes — relative order preserved
-- [x] **Scenario 3**: Empty list no-op — no change to queue
-- [x] **Scenario 4**: Empty queue ValueError — programming error safety
-- [x] **Scenario 5**: No propagation during suspend — suspended node retains state
-- [x] **Scenario 6**: Input preservation — suspended node's input mapping survives
-- [x] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
+- [ ] **Scenario 1**: Basic suspension — current node stays queued, new nodes inserted before it, first prepended node becomes current
+- [ ] **Scenario 2**: Multiple prepended nodes — relative order preserved
+- [ ] **Scenario 3**: Empty list no-op — no change to queue
+- [ ] **Scenario 4**: Empty queue ValueError — programming error safety
+- [ ] **Scenario 5**: No propagation during suspend — suspended node retains state
+- [ ] **Scenario 6**: Input preservation — suspended node's input mapping survives
+- [ ] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for suspension edge cases (nested suspends, clear_after_current with suspended nodes)
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Unit tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for suspension edge cases (nested suspends, clear_after_current with suspended nodes) <!-- NOTE: all tests in this doc are unit-level -->
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Verify `queue.current` returns prepended node, not suspended node
-- [x] Verify `advance()` on prepended node returns suspended node as new current
+- [ ] Verify `queue.current` returns prepended node, not suspended node
+- [ ] Verify `advance()` on prepended node returns suspended node as new current
 
 ### Performance Considerations
 
-- [x] Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes)
+- [ ] Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes)
 
 ## Proposed Changes
 

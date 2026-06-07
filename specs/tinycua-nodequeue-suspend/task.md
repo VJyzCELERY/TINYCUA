@@ -4,8 +4,8 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests in `src/tinycua/tests/unit/test_node_queue_suspend.py` (all scenarios from implementation-plan.md) <!-- id: 0 -->
-- [ ] Run integration tests — expect RED (failures since `suspend_current_and_prepend` does not exist yet) <!-- id: 1 -->
+- [ ] Write unit tests in `src/tinycua/tests/unit/test_node_queue_suspend.py` (all scenarios from implementation-plan.md) <!-- id: 0 -->
+- [ ] Run unit tests — expect RED (failures since `suspend_current_and_prepend` does not exist yet) <!-- id: 1 -->
 
 ## Implementation Phase
 
@@ -18,7 +18,7 @@ Implementation tasks for NodeQueue Suspension and Prepend. Check off items as co
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 3 -->
+- [ ] Run unit tests — expect GREEN (all pass) <!-- id: 3 -->
 - [ ] Write unit tests for edge cases: nested suspensions, clear_after_current with suspended nodes <!-- id: 4 -->
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 5 -->
 
