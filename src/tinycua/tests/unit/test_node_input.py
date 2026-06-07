@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tinycua.models import (
     NodeInput,
     NodePayload,
@@ -216,3 +218,9 @@ def test_convert_default_source_is_internal() -> None:
     result = convert_node_input_to_messages("Hello")
 
     assert result == [{"role": "assistant", "content": "Hello"}]
+
+
+def test_convert_invalid_type_raises() -> None:
+    """convert_node_input_to_messages() raises TypeError for unsupported types."""
+    with pytest.raises(TypeError, match="Unsupported NodeInputLike type"):
+        convert_node_input_to_messages(42)  # int is not a valid NodeInputLike

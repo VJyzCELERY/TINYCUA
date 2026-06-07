@@ -252,7 +252,11 @@ def _resolve_annotation(hint_str: str) -> typing.Any:
     if hint_str in _STATE_OBJECT_REGISTRY:
         return _STATE_OBJECT_REGISTRY[hint_str]
 
-    # For complex annotations (generics, unions), use eval with restricted namespace
+    # For complex annotations (generics, unions), use eval with restricted namespace.
+    # Safe because:
+    # 1. hint_str comes from class type annotations, never from user/deserialized data
+    # 2. Namespace is restricted to builtins + typing constructs + registered StateObjects
+    # 3. This is a fallback only reached when typing.get_type_hints() raises exceptions
     if "[" in hint_str or "|" in hint_str:
         try:
             # Build namespace with typing constructs and registered StateObjects
