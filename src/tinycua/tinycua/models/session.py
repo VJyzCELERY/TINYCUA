@@ -21,6 +21,7 @@ class Session:
         session_id: Unique identifier for this session.
         parent_id: Optional parent session ID for child sessions.
         session_config: Configuration applied to this session.
+        input_context: Merged SDK messages from the agent loop.
         chat_history: List of chat message dicts (role, content, etc.).
         session_context: List of context entries populated by nodes.
         task: Optional task description string.
@@ -30,6 +31,7 @@ class Session:
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     parent_id: str | None = None
     session_config: SessionConfig | None = None
+    input_context: list[dict[str, Any]] = field(default_factory=list)
     chat_history: list[dict[str, Any]] = field(default_factory=list)
     session_context: list[dict[str, Any]] = field(default_factory=list)
     task: str | None = None
