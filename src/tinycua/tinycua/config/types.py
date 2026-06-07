@@ -48,17 +48,21 @@ class LLMResult:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass
 class ValidationResult:
-    """Placeholder for validation result type.
+    """Result of output validation for node retry logic.
 
-    Will be defined in the loop milestone.
+    Attributes:
+        is_valid: Whether the output passed validation.
+        errors: List of error messages describing validation failures.
     """
-    pass
+
+    is_valid: bool = True
+    errors: list[str] = field(default_factory=list)
 
 
 class ValidationError(Exception):
-    """Placeholder for validation error type.
+    """Raised when node output fails validation.
 
-    Will be defined in the loop milestone.
+    Contains error details for retry continuation messages.
     """
-    pass
