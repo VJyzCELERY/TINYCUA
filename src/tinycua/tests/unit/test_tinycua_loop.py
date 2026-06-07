@@ -156,24 +156,40 @@ async def test_run_stream_records_chat_history():
     assert assistant_msgs[0]["content"] == "Hello world"
 
 
-def test_tinycua_loop_ensure_terminal_bootstrap():
+@pytest.mark.asyncio
+async def test_tinycua_loop_ensure_terminal_bootstrap():
     """run() calls ensure_terminal() on queue at bootstrap."""
-    loop = TinyCUALoop()
+    from unittest.mock import MagicMock as MockNode
+
+    # Create a mock terminal node
+    terminal_node = MockNode()
+    terminal_node.is_terminal = True
+    terminal_node.node_id = "terminal"
+
+    loop = TinyCUALoop(default_terminal_node=terminal_node)
     queue = loop.queue
-    
+
     # Mock ensure_terminal to track calls
     original_ensure_terminal = queue.ensure_terminal
     ensure_terminal_called = []
-    
+
     def mock_ensure_terminal(default_terminal_node):
         ensure_terminal_called.append(default_terminal_node)
         return original_ensure_terminal(default_terminal_node)
-    
+
     queue.ensure_terminal = mock_ensure_terminal
-    
-    # We don't need to actually run the loop, just verify the method exists
-    # The ensure_terminal call is in the run() method
-    assert hasattr(loop, 'queue')
-    assert isinstance(loop.queue, NodeQueue)
-    # Verify ensure_terminal is callable
-    assert callable(queue.ensure_terminal)
+
+    # Create a mock agent
+    agent = MockNode()
+    agent.instructions = "You are helpful"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    )
+    messages = [{"role": "user", "content": "test"}]
+
+    await loop.run(agent, messages, tools=[], stream=False)
+
+    # Verify ensure_terminal was called with the default terminal node
+    assert len(ensure_terminal_called) == 1
+    assert ensure_terminal_called[0] is terminal_node

@@ -57,8 +57,8 @@ Implementation tasks for NodeQueue Basic Execution and Terminal Safety. Check of
 
 ## Documentation Phase
 
-- [ ] Update module docstring in `node_queue.py` to describe full functionality <!-- id: 15 -->
-- [ ] Update design.md implementation checklist to mark completed items <!-- id: 16 -->
+- [x] Update module docstring in `node_queue.py` to describe full functionality <!-- id: 15 -->
+- [x] Update design.md implementation checklist to mark completed items <!-- id: 16 -->
 
 ## Review and Merge
 

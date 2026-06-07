@@ -10,11 +10,13 @@ Manages the graph of execution nodes with support for:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
+
+_EMPTY_INPUT: NodeInputLike = cast("NodeInputLike", {})
 
 
 @dataclass
@@ -57,8 +59,8 @@ class NodeQueue:
             The stored input for the current node, or empty dict if none.
         """
         if not self.items:
-            return {}
-        return self._inputs.get(self.items[0].node_id, {})
+            return _EMPTY_INPUT
+        return self._inputs.get(self.items[0].node_id, _EMPTY_INPUT)
 
     def set_input(self, node: Node, input_data: NodeInputLike) -> None:
         """Set input data for a specific node.

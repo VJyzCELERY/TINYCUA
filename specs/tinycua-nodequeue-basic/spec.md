@@ -113,15 +113,15 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 
 | Item | Status | Notes |
 |------|--------|-------|
-| NodeQueue class | TODO | Replace M1.1 stub |
-| current property | TODO | |
-| advance() | TODO | |
-| spawn_after_current() | TODO | |
-| clear_after_current() | TODO | |
-| ensure_terminal() | TODO | |
-| set_input() | TODO | |
-| Input tracking | TODO | |
-| Unit tests | TODO | |
+| NodeQueue class | DONE | Replaced M1.1 stub |
+| current property | DONE | |
+| advance() | DONE | |
+| spawn_after_current() | DONE | |
+| clear_after_current() | DONE | |
+| ensure_terminal() | DONE | |
+| set_input() | DONE | |
+| Input tracking | DONE | |
+| Unit tests | DONE | 22 tests passing |
 
 ---
 

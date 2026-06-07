@@ -202,17 +202,17 @@ class NodeQueue:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Replace M1.1 `NodeQueue` stub with full implementation
-- [ ] Implement `current` property returning `items[0]` or `None`
-- [ ] Implement `is_empty()` method
-- [ ] Implement `input_for_current()` with internal `_inputs` dict mapping
-- [ ] Implement `set_input(node, input_data)` for input tracking
-- [ ] Implement `advance()` with propagation call and empty queue safety
-- [ ] Implement `spawn_after_current(nodes)` with empty queue safety
-- [ ] Implement `clear_after_current()` with graceful empty handling
-- [ ] Implement `ensure_terminal(default_terminal_node)` with terminal detection
-- [ ] Update `TinyCUALoop.run()` to call `ensure_terminal()` at bootstrap
-- [ ] Write comprehensive unit tests for all methods
+- [x] Replace M1.1 `NodeQueue` stub with full implementation
+- [x] Implement `current` property returning `items[0]` or `None`
+- [x] Implement `is_empty()` method
+- [x] Implement `input_for_current()` with internal `_inputs` dict mapping
+- [x] Implement `set_input(node, input_data)` for input tracking
+- [x] Implement `advance()` with propagation call and empty queue safety
+- [x] Implement `spawn_after_current(nodes)` with empty queue safety
+- [x] Implement `clear_after_current()` with graceful empty handling
+- [x] Implement `ensure_terminal(default_terminal_node)` with terminal detection
+- [x] Update `TinyCUALoop.run()` to call `ensure_terminal()` at bootstrap
+- [x] Write comprehensive unit tests for all methods
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

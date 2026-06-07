@@ -12,6 +12,7 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
+    from tinycua.loops.node import Node
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
 
@@ -32,6 +33,7 @@ class TinyCUALoop(BaseLoop):
         queue: NodeQueue | None = None,
         session_config: SessionConfig | None = None,
         max_iterations: int = 50,
+        default_terminal_node: Node | None = None,
     ) -> None:
         """Initialize TinyCUALoop.
 
@@ -40,11 +42,13 @@ class TinyCUALoop(BaseLoop):
             queue: Node queue for execution (placeholder in M1.1).
             session_config: Session configuration to apply.
             max_iterations: Maximum loop iterations before forced stop.
+            default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
         self.queue = queue or NodeQueue()
         self.session_config = session_config
+        self.default_terminal_node = default_terminal_node
 
     async def run(
         self,
@@ -76,8 +80,8 @@ class TinyCUALoop(BaseLoop):
                 self.root_session.chat_history.append(dict(msg))
 
         # Ensure terminal safety at queue bootstrap
-        # This is a placeholder for future node execution integration
-        # For now, it ensures the queue has a terminal node if needed
+        if self.default_terminal_node is not None:
+            self.queue.ensure_terminal(self.default_terminal_node)
 
         # Build working messages with system message
         system_msg = self.build_system_message(agent, override_instructions)
