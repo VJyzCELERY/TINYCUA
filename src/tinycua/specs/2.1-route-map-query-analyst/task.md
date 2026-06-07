@@ -8,18 +8,13 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
   - [ ] Create tests/integration/test_query_analyst_integration.py
   - [ ] test_route_map_dispatches_to_handler
   - [ ] test_query_analyst_classifies_worker
-  - [ ] test_query_analyst_classifies_passthrough
-  - [ ] test_query_analyst_classifies_uncertain
   - [ ] test_query_analyst_mandatory_passthrough_precheck
-  - [ ] test_query_analyst_stale_passthrough
-  - [ ] test_query_analyst_worker_reuse
-  - [ ] test_query_analyst_worker_spawn
-  - [ ] test_query_analyst_invalid_label_retry
-  - [ ] test_query_analyst_deduplication
-  - [ ] test_query_analyst_preserves_input_query
   - [ ] test_query_analyst_e2e_worker_route
   - [ ] test_query_analyst_e2e_uncertain
   - [ ] test_query_analyst_e2e_passthrough
+  - [ ] test_query_analyst_e2e_worker_reuse
+  - [ ] test_query_analyst_e2e_invalid_label_retry
+  - [ ] test_query_analyst_e2e_deduplication
   - [ ] test_query_analyst_queue_bootstrap
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 
@@ -57,6 +52,14 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
   - [ ] test_route_map_dispatch_calls_handler
 - [ ] Write unit tests for QueryAnalyst <!-- id: 9 -->
   - [ ] test_query_analyst_init
+  - [ ] test_query_analyst_classifies_passthrough
+  - [ ] test_query_analyst_classifies_uncertain
+  - [ ] test_query_analyst_stale_passthrough
+  - [ ] test_query_analyst_worker_reuse
+  - [ ] test_query_analyst_worker_spawn
+  - [ ] test_query_analyst_invalid_label_retry
+  - [ ] test_query_analyst_deduplication
+  - [ ] test_query_analyst_preserves_input_query
   - [ ] test_query_analyst_check_mandatory_passthrough
   - [ ] test_query_analyst_find_existing_worker
   - [ ] test_query_analyst_route_passthrough
@@ -91,4 +94,4 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-06-08*
+*Last updated: 2026-06-08 (ISSUE-001 fixed — test enumeration aligned with implementation plan)*

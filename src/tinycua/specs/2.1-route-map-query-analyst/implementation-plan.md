@@ -283,6 +283,91 @@ def test_query_analyst_mandatory_passthrough_precheck():
     result = query_analyst(input_data)
     # Assert - should route to passthrough, not worker
     assert result.route_label == "passthrough"
+
+
+def test_query_analyst_e2e_worker_reuse():
+    """End-to-end: QueryAnalyst reuses existing WorkerNode instead of spawning a new one.
+
+    When queue already contains a WorkerNode, QueryAnalyst should reuse it
+    rather than spawning a duplicate. Verifies worker reuse logic.
+    """
+    # Arrange
+    mock_llm = MultiResponseMockLLM(["I need to write a script", "worker"])
+    config = NodeConfigBase(llm_client=mock_llm)
+    query_analyst = TinyCUAQueryAnalystNode(config=config)
+    existing_worker = ProcessNode(node_id="worker", config=config)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue = NodeQueue(items=[query_analyst, existing_worker, response_node])
+    session = Session()
+    # Act
+    input_data = NodeInput(
+        input_type="user_query",
+        messages=[{"role": "user", "content": "Help me write another script"}],
+    )
+    query_analyst.ensure_session(session)
+    result = query_analyst(input_data)
+    # Assert - classification should be worker
+    assert result.route_label == "worker"
+    # on_complete should NOT spawn a new worker (existing one reused)
+    query_analyst.on_complete(queue, result)
+    worker_nodes = [n for n in queue.items if n.node_id == "worker"]
+    assert len(worker_nodes) == 1, f"Expected exactly 1 worker, got {len(worker_nodes)}"
+    # The existing worker should still be in the queue
+    assert existing_worker in queue.items, "Existing worker must remain in queue"
+
+
+def test_query_analyst_e2e_invalid_label_retry():
+    """End-to-end: QueryAnalyst retries when LLM returns an invalid classification label.
+
+    When the LLM returns a label not registered in RouteMap, NodeRetryPolicy
+    should trigger a retry. After max retries, falls back to uncertain.
+    """
+    # Arrange - responses: analysis, bad_label, analysis2, bad_label2, ... (exceeds retries)
+    responses = ["analysis"] * 10 + ["bad_label"] * 10  # more than enough for retries
+    mock_llm = MultiResponseMockLLM(responses)
+    config = NodeConfigBase(llm_client=mock_llm)
+    query_analyst = TinyCUAQueryAnalystNode(config=config)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue = NodeQueue(items=[query_analyst, response_node])
+    session = Session()
+    # Act
+    input_data = NodeInput(
+        input_type="user_query",
+        messages=[{"role": "user", "content": "Do something weird"}],
+    )
+    query_analyst.ensure_session(session)
+    result = query_analyst(input_data)
+    # Assert - after retries exhausted, should fall back to uncertain
+    assert result.route_label == "uncertain", (
+        f"Expected uncertain fallback after invalid labels, got {result.route_label}"
+    )
+
+
+def test_query_analyst_e2e_deduplication():
+    """End-to-end: QueryAnalyst prevents duplicate spawn when already active.
+
+    When QueryAnalyst is already at the front of the queue and tries to
+    classify again, it should not spawn a second QueryAnalyst.
+    """
+    # Arrange
+    mock_llm = MultiResponseMockLLM(["I need to write a script", "worker"])
+    config = NodeConfigBase(llm_client=mock_llm)
+    query_analyst = TinyCUAQueryAnalystNode(config=config)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue = NodeQueue(items=[query_analyst, response_node])
+    session = Session()
+    # Act - first classification
+    input_data = NodeInput(
+        input_type="user_query",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+    query_analyst.ensure_session(session)
+    result = query_analyst(input_data)
+    # on_complete should dispatch worker
+    query_analyst.on_complete(queue, result)
+    # Assert - only one query_analyst should exist in queue
+    qa_nodes = [n for n in queue.items if n.node_id == "query_analyst"]
+    assert len(qa_nodes) == 1, f"Expected exactly 1 query_analyst, got {len(qa_nodes)}"
 ```
 
 ### Key Test Scenarios
@@ -290,6 +375,9 @@ def test_query_analyst_mandatory_passthrough_precheck():
 - [ ] **Scenario 1**: RouteMap dispatches labels to correct handlers — primary routing mechanism
 - [ ] **Scenario 2**: QueryAnalyst classifies input into passthrough/worker/uncertain — core classification
 - [ ] **Scenario 3**: MandatoryPassthrough precheck overrides LLM classification — deterministic continuation
+- [ ] **Scenario 4**: Worker reuse — existing WorkerNode in queue is reused, not duplicated
+- [ ] **Scenario 5**: Invalid label retry — unrecognized classification triggers retry, falls back to uncertain
+- [ ] **Scenario 6**: QueryAnalyst deduplication — second spawn attempt is rejected
 - [ ] **Edge case**: Invalid classification labels retry per NodeRetryPolicy — error handling
 
 ## Verification Plan
@@ -412,4 +500,4 @@ QueryAnalystResponse:
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-06-08*
+*Last updated: 2026-06-08 (ISSUE-002 fixed — integration test stubs added for worker reuse, retry, dedup)*
