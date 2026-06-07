@@ -157,6 +157,24 @@ class NodeQueue:
         # Prepend nodes before items[0] using slice assignment.
         self.items[0:0] = nodes
 
+    def add_front(self, node: Node) -> None:
+        """Add a node to the front of the queue with deduplication check.
+
+        Raises RuntimeError if a node with the same node_id already exists
+        in the queue.
+
+        Args:
+            node: The node to add to the front.
+
+        Raises:
+            RuntimeError: If a node with the same node_id already exists.
+        """
+        for existing in self.items:
+            if existing.node_id == node.node_id:
+                msg = f"QueryAnalyst already active: {node.node_id}"
+                raise RuntimeError(msg)
+        self.suspend_current_and_prepend([node])
+
     def ensure_terminal(self, default_terminal_node: Node) -> None:
         """Ensure the queue ends with a terminal node.
 

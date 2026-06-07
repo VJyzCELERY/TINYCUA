@@ -148,7 +148,7 @@ class TestDecisionNodeDispatchRoute:
         assert node._dispatch_route(response) == "worker"
 
     def test_fallback_to_first(self) -> None:
-        """_dispatch_route falls back to first label."""
+        """_dispatch_route raises ValueError for unrecognized labels."""
         config = NodeConfigBase(llm_client=MockLLM())
         node = DecisionNode(
             node_id="test",
@@ -156,14 +156,16 @@ class TestDecisionNodeDispatchRoute:
             classification_labels=["passthrough", "worker"],
         )
         response = LLMResult(content="unknown label")
-        assert node._dispatch_route(response) == "passthrough"
+        with pytest.raises(ValueError, match="Classification label not recognized"):
+            node._dispatch_route(response)
 
     def test_empty_labels(self) -> None:
-        """_dispatch_route returns 'default' with no labels."""
+        """_dispatch_route raises ValueError with no labels."""
         config = NodeConfigBase(llm_client=MockLLM())
         node = DecisionNode(node_id="test", config=config)
         response = LLMResult(content="anything")
-        assert node._dispatch_route(response) == "default"
+        with pytest.raises(ValueError, match="Classification label not recognized"):
+            node._dispatch_route(response)
 
 
 class TestDecisionNodeClassificationCall:

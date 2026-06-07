@@ -23,6 +23,19 @@ class MockLLM:
         return {"role": "assistant", "content": self.response}
 
 
+class MultiResponseMockLLM:
+    """Mock LLM that returns responses sequentially from a list."""
+
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = responses
+        self.call_count = 0
+
+    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
+        self.call_count += 1
+        idx = min(self.call_count - 1, len(self.responses) - 1)
+        return {"role": "assistant", "content": self.responses[idx]}
+
+
 class MinimalProcessNode:
     """Minimal ProcessNode subclass for testing."""
 
@@ -220,7 +233,7 @@ def test_process_node_with_string_input() -> None:
 
 def test_decision_node_with_node_input() -> None:
     """DecisionNode subclass can classify input and return a route label."""
-    mock_llm = MockLLM(response="analysis result")
+    mock_llm = MultiResponseMockLLM(["analysis result", "worker"])
     config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalDecisionNode(node_id="test-decision", config=config)
     session = Session()
