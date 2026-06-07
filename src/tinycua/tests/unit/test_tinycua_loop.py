@@ -366,7 +366,7 @@ async def test_run_records_assistant_response():
 
 
 async def test_run_calls_build_system_message_with_override():
-    """run() passes override_instructions to build_system_message."""
+    """run() passes override_instructions to node execution via _build_node_messages."""
     stub = StubNode("response")
     terminal = ResponseNode()
     queue = NodeQueue()
@@ -381,14 +381,14 @@ async def test_run_calls_build_system_message_with_override():
     )
     messages = [{"role": "user", "content": "test"}]
     with pytest.MonkeyPatch.context() as m:
-        original_build = loop.build_system_message
+        original_build = loop._build_node_messages
         called_with = []
-        def spy_build(a, override=None):
+        def spy_build(node, override=None):
             called_with.append(override)
-            return original_build(a, override)
-        m.setattr(loop, "build_system_message", spy_build)
+            return original_build(node, override)
+        m.setattr(loop, "_build_node_messages", spy_build)
         await loop.run(agent, messages, tools=[], override_instructions="custom instructions", stream=False)
-    assert called_with == ["custom instructions"]
+    assert "custom instructions" in called_with
 
 
 async def test_run_with_empty_messages():

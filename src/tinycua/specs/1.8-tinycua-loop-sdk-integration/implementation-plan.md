@@ -504,16 +504,16 @@ async def test_stream_true_returns_async_iterator():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for TinyCUALoop — test node execution, message merging, streaming
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for TinyCUALoop — test node execution, message merging, streaming
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 > **Note**: Check these items after implementation is complete and tests pass.
 
 ### Manual Verification
 
-- [ ] Verify `create_tinycua_agent(...).run(query)` executes with minimal node queue
-- [ ] Verify chat_history and session_context are populated after run()
+- [x] Verify `create_tinycua_agent(...).run(query)` executes with minimal node queue
+- [x] Verify chat_history and session_context are populated after run()
 
 ### Performance Considerations
 

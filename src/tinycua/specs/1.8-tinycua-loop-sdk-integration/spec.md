@@ -73,15 +73,15 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Agent.run() works**: `Agent(loop=TinyCUALoop(...)).run(query)` executes without SDK API changes.
-- [ ] **Minimal queue execution**: A queue with a stub node and terminal ResponseNode completes.
-- [ ] **Message merging**: SDK messages are merged into root session input context.
-- [ ] **Tool scoping**: Nodes receive only allowed tools via NodeToolPolicy.
-- [ ] **Override instructions**: Nodes incorporate override instructions when present.
-- [ ] **Stream=False**: Final string is returned when stream=False.
-- [ ] **Stream=True**: Async iterator of SDK events is returned when stream=True.
-- [ ] **Chat history**: Node LLM calls are recorded in chat history.
-- [ ] **Session context**: Selected session context is recorded.
+- [x] **Agent.run() works**: `Agent(loop=TinyCUALoop(...)).run(query)` executes without SDK API changes.
+- [x] **Minimal queue execution**: A queue with a stub node and terminal ResponseNode completes.
+- [x] **Message merging**: SDK messages are merged into root session input context.
+- [x] **Tool scoping**: Nodes receive only allowed tools via NodeToolPolicy.
+- [x] **Override instructions**: Nodes incorporate override instructions when present.
+- [x] **Stream=False**: Final string is returned when stream=False.
+- [x] **Stream=True**: Async iterator of SDK events is returned when stream=True.
+- [x] **Chat history**: Node LLM calls are recorded in chat history.
+- [x] **Session context**: Selected session context is recorded.
 
 ---
 
@@ -114,11 +114,11 @@ See `implementation-plan.md` §Integration Tests for concrete function definitio
 
 ## Status Tracker _(optional)_
 
-- [ ] TinyCUALoop class — Extends BaseLoop
-- [ ] run() implementation — Handles stream True/False
-- [ ] Message merging — Into root session
-- [ ] Queue bootstrapping — Terminal node guarantee
-- [ ] Chat history recording — Per node LLM call
+- [x] TinyCUALoop class — Extends BaseLoop
+- [x] run() implementation — Handles stream True/False
+- [x] Message merging — Into root session
+- [x] Queue bootstrapping — Terminal node guarantee
+- [x] Chat history recording — Per node LLM call
 
 ---
 

@@ -89,19 +89,14 @@ class TinyCUALoop(BaseLoop):
         if self.default_terminal_node is not None:
             self.queue.ensure_terminal(self.default_terminal_node)
 
-        # Build working messages with system message
-        system_msg = self.build_system_message(agent, override_instructions)
-        working: list[dict[str, Any]] = [system_msg, *messages]
-
         if stream:
-            return self._run_stream(agent, working, tools, override_instructions)
+            return self._run_stream(agent, tools, override_instructions)
 
-        return await self._run_sync(agent, working, tools, override_instructions)
+        return await self._run_sync(agent, tools, override_instructions)
 
     async def _run_sync(
         self,
         agent: Agent,
-        working: list[dict[str, Any]],
         tools: list[Tool],
         override_instructions: str | None = None,
     ) -> str:
@@ -112,7 +107,6 @@ class TinyCUALoop(BaseLoop):
 
         Args:
             agent: The agent executing.
-            working: Working message list (system + user messages).
             tools: Available tools.
             override_instructions: Optional instructions override.
 
@@ -140,10 +134,56 @@ class TinyCUALoop(BaseLoop):
 
         return last_content
 
+    def _prepare_node(
+        self,
+        node: Node,
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> tuple[list[dict[str, Any]], list[Tool]]:
+        """Prepare a node for execution: attach session, build messages, resolve tools.
+
+        Args:
+            node: The node to prepare.
+            tools: Available tools from the agent.
+            override_instructions: Optional instructions override.
+
+        Returns:
+            Tuple of (messages, resolved_tools) ready for LLM call.
+        """
+        node.ensure_session(self.root_session)
+        messages = self._build_node_messages(node, override_instructions)
+        resolved_tools = node.config.tool_policy.resolve_tools(tools)
+        return messages, resolved_tools
+
+    def _record_node_output(
+        self,
+        node: Node,
+        content: str,
+        tool_calls: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Record node output in chat_history and session_context.
+
+        Args:
+            node: The node that produced output.
+            content: The response content string.
+            tool_calls: Optional list of tool call dicts.
+        """
+        if content:
+            self.root_session.chat_history.append({
+                "role": "assistant",
+                "content": content,
+            })
+
+        llm_result = LLMResult(
+            content=content,
+            role="assistant",
+            tool_calls=tool_calls or [],
+        )
+        node.record_output(llm_result)
+
     async def _run_stream(
         self,
         agent: Agent,
-        working: list[dict[str, Any]],
         tools: list[Tool],
         override_instructions: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
@@ -154,7 +194,6 @@ class TinyCUALoop(BaseLoop):
 
         Args:
             agent: The agent executing.
-            working: Working message list (system + user messages).
             tools: Available tools.
             override_instructions: Optional instructions override.
 
@@ -166,36 +205,22 @@ class TinyCUALoop(BaseLoop):
             if node is None:
                 break
 
-            # Ensure node has a session attached
-            node.ensure_session(self.root_session)
-
-            # Build messages for this node
-            messages = self._build_node_messages(node, override_instructions)
-
-            # Resolve tools via NodeToolPolicy
-            resolved_tools = node.config.tool_policy.resolve_tools(tools)
+            messages, resolved_tools = self._prepare_node(
+                node, tools, override_instructions,
+            )
 
             # Stream from agent._call_llm() and yield events
             content_parts: list[str] = []
+            collected_tool_calls: list[dict[str, Any]] = []
             async for event in agent._call_llm(messages, resolved_tools, stream=True):  # type: ignore[arg-type]
                 if event.get("type") == "response.output_text.delta":
                     content_parts.append(event.get("delta", ""))
+                if event.get("type") == "response.tool_call":
+                    collected_tool_calls.append(event)
                 yield event
 
-            # Record accumulated content in chat history
             combined = "".join(content_parts)
-            if combined:
-                self.root_session.chat_history.append({
-                    "role": "assistant",
-                    "content": combined,
-                })
-
-            # Record session context via node.record_output()
-            llm_result = LLMResult(
-                content=combined,
-                role="assistant",
-            )
-            node.record_output(llm_result)
+            self._record_node_output(node, combined, collected_tool_calls)
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -226,32 +251,14 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The response content string.
         """
-        # Ensure node has a session attached
-        node.ensure_session(self.root_session)
-
-        # Build messages for this node
-        messages = self._build_node_messages(node, override_instructions)
-
-        # Resolve tools via NodeToolPolicy
-        resolved_tools = node.config.tool_policy.resolve_tools(tools)
+        messages, resolved_tools = self._prepare_node(
+            node, tools, override_instructions,
+        )
 
         response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
         content = response.get("content") or ""
 
-        # Record in chat history
-        if content:
-            self.root_session.chat_history.append({
-                "role": "assistant",
-                "content": content,
-            })
-
-        # Record session context via node.record_output()
-        llm_result = LLMResult(
-            content=content,
-            role="assistant",
-            tool_calls=response.get("tool_calls") or [],
-        )
-        node.record_output(llm_result)
+        self._record_node_output(node, content, response.get("tool_calls"))
 
         return content
 
@@ -259,7 +266,7 @@ class TinyCUALoop(BaseLoop):
         self,
         node: Node,
         override_instructions: str | None = None,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Build messages for a node's LLM call.
 
         Assembles system instruction (with override support),
@@ -272,7 +279,7 @@ class TinyCUALoop(BaseLoop):
         Returns:
             List of message dictionaries for the LLM call.
         """
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
 
         # Build system message via SystemPromptBuilder
         builder = SystemPromptBuilder()
@@ -290,7 +297,7 @@ class TinyCUALoop(BaseLoop):
             and self.root_session.session_context
         ):
             messages.extend(
-                {  # type: ignore[misc]
+                {
                     "role": m["role"],
                     "content": m["content"],
                 }
@@ -300,7 +307,7 @@ class TinyCUALoop(BaseLoop):
         # Add chat history if policy says so
         if node.config.message_policy.include_chat_history and self.root_session.chat_history:
             messages.extend(
-                {  # type: ignore[misc]
+                {
                     "role": m["role"],
                     "content": m["content"],
                 }
@@ -310,12 +317,11 @@ class TinyCUALoop(BaseLoop):
         # Add input context (merged SDK messages) as continuation
         if self.root_session.input_context:
             messages.extend(
-                {  # type: ignore[misc]
+                {
                     "role": m["role"],
                     "content": m["content"],
                 }
                 for m in self.root_session.input_context
-                if m.get("role") in ("user", "assistant")
             )
 
         return messages

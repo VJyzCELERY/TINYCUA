@@ -58,6 +58,7 @@ Session:
 
 - Session class gains input_context, chat_history, session_context fields.
 - NodeQueue gains ensure_terminal() method for ResponseNode guarantee.
+- **input_context behavior**: Each `run()` call replaces `input_context` with a shallow copy of incoming messages (not accumulated). This is per-call replacement, not append.
 
 ---
 
@@ -129,15 +130,15 @@ class TinyCUALoop(BaseLoop):
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create TinyCUALoop class extending BaseLoop
-- [ ] Implement run() method with stream=False support
-- [ ] Implement run() method with stream=True support
-- [ ] Create root session with input_context, chat_history, session_context
-- [ ] Implement message merging into root session
-- [ ] Implement queue bootstrapping with terminal node guarantee
-- [ ] Add node execution loop with agent._call_llm() integration
-- [ ] Record chat history per node LLM call
-- [ ] Record selected session context
+- [x] Create TinyCUALoop class extending BaseLoop
+- [x] Implement run() method with stream=False support
+- [x] Implement run() method with stream=True support
+- [x] Create root session with input_context, chat_history, session_context
+- [x] Implement message merging into root session
+- [x] Implement queue bootstrapping with terminal node guarantee
+- [x] Add node execution loop with agent._call_llm() integration
+- [x] Record chat history per node LLM call
+- [x] Record selected session context
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

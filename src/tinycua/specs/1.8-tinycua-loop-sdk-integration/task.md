@@ -90,8 +90,8 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
 
 ## Documentation Phase
 
-- [ ] Update Status Tracker in spec.md to reflect completed items <!-- id: 19 -->
-- [ ] Update design.md Phase 1 checkboxes <!-- id: 20 -->
+- [x] Update Status Tracker in spec.md to reflect completed items <!-- id: 19 -->
+- [x] Update design.md Phase 1 checkboxes <!-- id: 20 -->
 
 <!-- PR creation, review, and merge are handled by /review-loop and merge workflows — not part of implementation tasks. -->
 
