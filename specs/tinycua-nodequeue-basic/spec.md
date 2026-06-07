@@ -72,16 +72,16 @@ A `TinyCUALoop` initializes a `NodeQueue` with a sequence of nodes (e.g., QueryA
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Queue current works**: `queue.current` returns `items[0]` when present, `None` when empty.
-- [ ] **Advance works**: `advance()` removes current node after calling `propagate()`, returns new current.
-- [ ] **Spawn works**: `spawn_after_current(nodes)` inserts nodes after current without changing current.
-- [ ] **Clear works**: `clear_after_current()` removes all nodes after current.
-- [ ] **Ensure terminal works**: `ensure_terminal()` appends terminal node when none exists, no-ops when one exists.
-- [ ] **Empty queue safety**: `advance()` on empty queue raises `ValueError`.
-- [ ] **Spawn on empty safety**: `spawn_after_current()` on empty queue raises `ValueError`.
-- [ ] **Input tracking works**: `input_for_current()` returns correct input for current node.
-- [ ] **Propagation on advance**: `propagate()` is called before node removal in `advance()`.
-- [ ] **Terminal detection works**: `ensure_terminal()` correctly detects terminal nodes by `is_terminal` flag.
+- [x] **Queue current works**: `queue.current` returns `items[0]` when present, `None` when empty.
+- [x] **Advance works**: `advance()` removes current node after calling `propagate()`, returns new current.
+- [x] **Spawn works**: `spawn_after_current(nodes)` inserts nodes after current without changing current.
+- [x] **Clear works**: `clear_after_current()` removes all nodes after current.
+- [x] **Ensure terminal works**: `ensure_terminal()` appends terminal node when none exists, no-ops when one exists.
+- [x] **Empty queue safety**: `advance()` on empty queue raises `ValueError`.
+- [x] **Spawn on empty safety**: `spawn_after_current()` on empty queue raises `ValueError`.
+- [x] **Input tracking works**: `input_for_current()` returns correct input for current node.
+- [x] **Propagation on advance**: `propagate()` is called before node removal in `advance()`.
+- [x] **Terminal detection works**: `ensure_terminal()` correctly detects terminal nodes by `is_terminal` flag.
 
 ---
 

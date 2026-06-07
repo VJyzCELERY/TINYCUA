@@ -107,8 +107,9 @@ class NodeQueue:
     def clear_after_current(self) -> None:
         """Remove all nodes after the current node.
 
-        Removed node sessions are not mutated, but no further propagation
-        occurs unless it happened before removal.
+        Removed node sessions are not mutated, and their input mappings
+        are cleaned up. No further propagation occurs unless it happened
+        before removal.
         """
         if not self.items:
             return
