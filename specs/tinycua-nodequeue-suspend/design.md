@@ -192,6 +192,28 @@ def suspend_current_and_prepend(self, nodes: list[Node]) -> None:
 - Prepended nodes should have their inputs set via `set_input()` before or after calling `suspend_current_and_prepend()`.
 - When `advance()` is called on a prepended node, its `_inputs[node_id]` entry is cleaned up automatically (consistent with normal `advance()` behavior).
 
+### Output Back-Propagation from Prepended Child to Suspended Parent
+
+When a prepended node completes and `advance()` is called, its output must reach the suspended parent node. The data flow is:
+
+1. **Prepended node completes**: `advance()` is called on the prepended node. `propagate()` is called on it (standard advance behavior), producing the node's output.
+2. **Suspended node resumes**: The suspended node becomes `items[0]` again. Its `_inputs[node_id]` entry is still preserved.
+3. **Output reaches parent**: The caller is responsible for wiring the prepended node's output to the suspended parent's input. This can be done by:
+   - Having the prepended node call `queue.set_input(parent_node, output_data)` before completion, OR
+   - Having the suspended node read the prepended node's session (via `parent.session`) when it resumes.
+
+The queue mechanism ensures correct ordering (suspended node resumes after prepended nodes complete), but the actual data flow between nodes is caller-established. This is consistent with the parent relationship contract (Technical Decision #6) — the caller constructs the node graph with appropriate relationships, and the queue manages execution order.
+
+**Key invariant**: The prepended node's `propagate()` is called during `advance()` (standard behavior), and the suspended node's `propagate()` is called only when it is eventually removed via `advance()` — not during suspension.
+
+### Propagation Behavior for Suspended Nodes
+
+- `suspend_current_and_prepend()` does NOT call `propagate()` on the suspended node. The node retains its pre-suspension state.
+- When prepended nodes complete and `advance()` is called, the suspended node resumes as `items[0]`.
+- When the resumed node eventually completes and `advance()` is called again, `propagate()` IS called on it (standard advance behavior via `node_queue.py:92-94`).
+- This means the node's propagation output is produced at the time of final removal, not at the time of suspension.
+- The `_propagated` flag (checked by `advance()`) plays no special role in suspension — it is only relevant for double-propagation prevention in normal advance flow.
+
 ---
 
 ## Execution Flow
@@ -264,9 +286,10 @@ After resume:
    - **Reason**: This milestone focuses on the queue mechanism. Concrete nodes (ResponseNode, InformationDigesterNode) will use this mechanism in later milestones.
    - **Alternatives Considered**: Include concrete nodes — rejected because it would expand scope and delay the core queue functionality.
 
-6. **Decision**: Parent-child node relationships are NOT managed by `suspend_current_and_prepend()`.
+6. **Decision**: Parent-child node relationships are NOT managed by `suspend_current_and_prepend()` — they are caller-established.
    - **Reason**: The `Node.parent` attribute exists on the base class (from `node.py:63`), but `suspend_current_and_prepend()` is a queue-level operation that manages node ordering, not node relationships. Parent relationships are established by the caller when constructing prepended nodes (e.g., `InformationDigesterNode(parent=response_node)`). The queue does not track or use parent relationships.
-   - **Alternatives Considered**: Have `suspend_current_and_prepend()` set up parent relationships — rejected because it conflates queue management with node graph construction.
+   - **Milestone Contract Alignment**: The M1.7 milestone contract (issue #87) lists "parent node relationship for prepended child" as an in-scope requirement. This is satisfied by the caller-establishing pattern: the caller constructs prepended nodes with `parent` set appropriately before or after calling `suspend_current_and_prepend()`. The queue mechanism itself does not need to manage parent relationships — it only handles ordering. This aligns with the target architecture (`src/tinycua/docs/design/loops/node_queue.md:59`) which shows parent relationships in the prepended node list, indicating they are set at construction time.
+   - **Alternatives Considered**: Have `suspend_current_and_prepend()` set up parent relationships — rejected because it conflates queue management with node graph construction. The caller has the necessary context to establish correct parent relationships, while the queue does not.
 
 ---
 
@@ -278,6 +301,7 @@ After resume:
 | Input mapping desynchronization | Low | Low | Dict cleanup in `advance()` and `clear_after_current()`; test with suspended nodes |
 | Backward compatibility with M1.6 | Low | High | Run existing M1.6 test suite; `suspend_current_and_prepend()` is additive and does not modify existing methods |
 | Performance with large queues | Low | Low | Slice assignment is O(n) but acceptable for typical queue sizes (< 100 nodes) |
+| ensure_terminal with suspended nodes | Low | Medium | `ensure_terminal()` only checks `items[-1]`. If a suspended terminal node is at `items[-1]`, it may mask the absence of a true terminal path, since prepended nodes execute before the suspended node resumes. Callers should ensure the prepended node chain includes a terminal path. |
 
 ---
 

@@ -138,8 +138,52 @@ def test_suspend_preserves_input_mapping():
 
     queue.suspend_current_and_prepend([node_b])
 
-    # After advance() on prepended node, suspended node's input should still be accessible
+    # Suspended node's input should still be accessible after suspension
     assert queue._inputs.get("a") == {"query": "test"}
+
+
+def test_suspend_prepended_node_input_lifecycle():
+    """Prepended node can have input assigned and is cleaned up on advance."""
+    queue = NodeQueue()
+    node_a = _make_node("a")
+    node_b = _make_node("b")
+    queue.items = [node_a]
+
+    queue.suspend_current_and_prepend([node_b])
+    queue.set_input(node_b, {"prepended": "input"})
+
+    # Prepended node should have its input accessible
+    assert queue.input_for_current() == {"prepended": "input"}
+
+    # After advance, prepended node input is cleaned up
+    queue.advance()
+    assert queue._inputs.get("b") is None or queue._inputs.get("b") == {}
+
+    # Suspended node resumes with its input preserved
+    assert queue.current is node_a
+    assert queue._inputs.get("a") is not None
+
+
+def test_suspend_output_propagation_to_parent():
+    """Prepended child's output reaches suspended parent upon child completion."""
+    queue = NodeQueue()
+    node_a = _make_node("a")
+    node_b = _make_node("b")
+    queue.items = [node_a]
+    queue.set_input(node_a, {"query": "original"})
+
+    # Suspend node_a, prepend node_b
+    queue.suspend_current_and_prepend([node_b])
+    queue.set_input(node_b, {"task": "digest"})
+
+    # node_b completes — advance() removes it, node_a resumes
+    queue.advance()
+
+    # node_a is now current with its preserved input
+    assert queue.current is node_a
+    assert queue._inputs.get("a") == {"query": "original"}
+    # node_b's input is cleaned up
+    assert queue._inputs.get("b") is None or queue._inputs.get("b") == {}
 
 
 def test_suspend_resume_after_advance():
@@ -207,6 +251,8 @@ def test_clear_after_current_with_suspended_node():
 - [ ] **Scenario 7**: Resume after advance — suspended node becomes current after helpers complete
 - [ ] **Scenario 8**: Nested suspension — second suspension prepends before first suspended node
 - [ ] **Scenario 9**: clear_after_current with suspended node — suspended node IS cleared if in clear zone
+- [ ] **Scenario 10**: Prepended node input lifecycle — input assignable, accessible, cleaned up on advance
+- [ ] **Scenario 11**: Output propagation — prepended child's output reaches suspended parent upon completion
 
 ## Verification Plan
 

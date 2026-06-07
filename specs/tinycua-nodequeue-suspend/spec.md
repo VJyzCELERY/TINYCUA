@@ -33,6 +33,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 7. **Given** a suspended node (e.g., `NodeA` at `queue[1]`), **When** `queue.current` is read, **Then** it returns the first prepended node, not the suspended node.
 8. **Given** a queue with `[NodeC, NodeA, NodeB]` where `NodeA` is suspended, **When** `NodeC` completes and `queue.advance()` is called, **Then** `NodeC` is removed and `NodeA` becomes current (resumes execution).
 9. **Given** a queue with `[NodeA]`, **When** `NodeA` calls `suspend_current_and_prepend([NodeB])` and then `NodeB` calls `suspend_current_and_prepend([NodeC])`, **Then** the queue becomes `[NodeC, NodeB, NodeA]` and `NodeC` is current.
+10. **Given** a queue with `[NodeA]`, **When** `NodeA` calls `suspend_current_and_prepend([NodeB])` and `NodeB` completes with output X via `advance()`, **Then** `NodeA` resumes as current and its input includes X (output propagation from prepended child to suspended parent).
 
 ### Edge Cases
 
@@ -56,13 +57,18 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 - **FR-006**: System MUST allow the suspended node to resume execution when the prepended nodes complete and `advance()` is called on them.
 - **FR-007**: System MUST support multiple sequential suspensions, with each suspension prepending new nodes before the currently suspended node.
 - **FR-008**: System MUST preserve the relative order of suspended nodes when multiple nodes are prepended.
+- **FR-009**: System MUST propagate the prepended child's output back to the suspended parent node upon child completion. When a prepended node completes and `advance()` is called, its output (via `propagate()`) is available to the suspended parent node when it resumes as `items[0]`. The propagation mechanism is handled by the caller — the queue ensures the suspended node resumes at the correct position.
 
 ### Key Entities _(include if feature involves data)_
 
 - **NodeQueue**: Sequential execution structure. Now supports `suspend_current_and_prepend()` in addition to existing methods.
 - **Suspended Node**: A node that remains queued but is no longer at `queue[0]`. No dedicated persisted state is required — suspension is implicit via queue position.
-- **Node**: Base class with `is_terminal: bool`, `propagate()`, `on_complete(queue, response)`.
+- **Node**: Base class with `is_terminal: bool`, `propagate()`, `on_complete(queue, response)`, `parent: Node | None`.
 - **NodeInputLike**: Union type accepted by nodes for input data. Preserved for suspended nodes.
+
+### Parent Relationship Contract
+
+Parent-child node relationships for prepended nodes are **caller-established**, not queue-managed. The caller constructs prepended nodes with `parent` set appropriately (e.g., `InformationDigesterNode(parent=response_node)`). `suspend_current_and_prepend()` only manages queue ordering — it does not modify `Node.parent`. This aligns with the M1.7 milestone contract (issue #87) which requires "parent node relationship for prepended child" — satisfied by the caller-establishing pattern.
 
 ---
 
@@ -77,6 +83,7 @@ A `TinyCUALoop` executes a `NodeQueue` with a ResponseNode as the current node. 
 - [ ] **Multiple suspensions work**: Sequential suspensions handle nested suspension correctly.
 - [ ] **Order preservation works**: Relative order of suspended nodes is preserved when multiple nodes are prepended.
 - [ ] **Backward compatibility**: Existing M1.6 tests pass without modification.
+- [ ] **Output propagation works**: Prepended child's output reaches the suspended parent node upon child completion.
 
 ---
 
