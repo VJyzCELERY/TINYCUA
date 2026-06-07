@@ -69,8 +69,8 @@ class NodeQueue:
     def input_for_current(self) -> NodeInputLike:
         """Get input data for the current node."""
         if not self.items:
-            return {}
-        return self._inputs.get(self.items[0].node_id, {})
+            return _EMPTY_INPUT
+        return self._inputs.get(self.items[0].node_id, _EMPTY_INPUT)
 
     def set_input(self, node: Node, input_data: NodeInputLike) -> None:
         """Set input data for a specific node."""
@@ -79,10 +79,10 @@ class NodeQueue:
     def advance(self) -> Node | None:
         """Advance to the next node.
 
-        Raises ValueError if the queue is already empty (FR-010).
+        Raises ValueError if the queue is already empty.
         If the queue has nodes, calls propagate() on items[0] (if not already
         propagated), removes items[0], and returns the new current node — or
-        None if the queue is now empty (FR-005).
+        None if the queue is now empty.
         """
         if not self.items:
             raise ValueError("Cannot advance an empty queue")
@@ -131,7 +131,7 @@ class NodeQueue:
         are cleaned up. No further propagation occurs unless it happened
         before removal.
         """
-        if not self.items:
+        if len(self.items) <= 1:
             return
 
         removed_nodes = self.items[1:]
@@ -258,6 +258,10 @@ After resume:
 5. **Decision**: Defer concrete node implementations to their respective milestones.
    - **Reason**: This milestone focuses on the queue mechanism. Concrete nodes (ResponseNode, InformationDigesterNode) will use this mechanism in later milestones.
    - **Alternatives Considered**: Include concrete nodes — rejected because it would expand scope and delay the core queue functionality.
+
+6. **Decision**: Parent-child node relationships are NOT managed by `suspend_current_and_prepend()`.
+   - **Reason**: The `Node.parent` attribute exists on the base class (from `node.py:63`), but `suspend_current_and_prepend()` is a queue-level operation that manages node ordering, not node relationships. Parent relationships are established by the caller when constructing prepended nodes (e.g., `InformationDigesterNode(parent=response_node)`). The queue does not track or use parent relationships.
+   - **Alternatives Considered**: Have `suspend_current_and_prepend()` set up parent relationships — rejected because it conflates queue management with node graph construction.
 
 ---
 
