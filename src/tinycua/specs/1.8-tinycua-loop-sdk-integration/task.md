@@ -5,26 +5,45 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for node-based execution (defined in implementation-plan.md) <!-- id: 0 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/integration/test_tinycua_loop_integration.py --collect-only`
 - [ ] Write unit tests for _execute_node(), message merging, tool scoping <!-- id: 1 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py --collect-only`
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/integration/test_tinycua_loop_integration.py` (expect failures)
 
 ## Implementation Phase
 
-- [ ] Add `input_context` field to Session model <!-- id: 3 -->
+<!-- Design-to-task mapping (design Phase 1 items → task IDs):
+  #1 Create TinyCUALoop class → #6 (node-based execution in run())
+  #2 run() stream=False → #6 (run() with node queue iteration)
+  #3 run() stream=True → #9
+  #4 Create root session → #3 (input_context), #5 (message merging)
+  #5 Message merging → #5
+  #6 Queue bootstrapping with terminal node → #4 (ResponseNode), #10 (factory wiring)
+  #7 Node execution loop with _call_llm() → #6
+  #8 Record chat history → #6 (subtask)
+  #9 Record session context → #6 (subtask)
+  Note: #7 (tool scoping) and #8 (override_instructions) are implicit in design item #7.
+-->
+
+- [ ] Add `input_context` field to Session model <!-- id: 3 | design: "Create root session with input_context, chat_history, session_context" -->
   - [ ] Add `input_context: list[dict[str, Any]] = field(default_factory=list)` to Session dataclass
   - [ ] Update Session docstring to document the new field
   - [ ] Add unit test for Session.input_context initialization
-- [ ] Create ResponseNode terminal node <!-- id: 4 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_session.py -k input_context`
+- [ ] Create ResponseNode terminal node <!-- id: 4 | design: "Implement queue bootstrapping with terminal node guarantee" -->
   - [ ] Create `src/tinycua/tinycua/loops/response_node.py` with ResponseNode class
   - [ ] ResponseNode extends ProcessNode with `is_terminal=True`
   - [ ] ResponseNode captures final response content from LLM output
   - [ ] Export ResponseNode from `tinycua.loops.__init__`
   - [ ] Write unit tests for ResponseNode
-- [ ] Implement message merging in TinyCUALoop <!-- id: 5 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_response_node.py`
+- [ ] Implement message merging in TinyCUALoop <!-- id: 5 | design: "Implement message merging into root session" -->
   - [ ] In run(), merge SDK messages into root_session.input_context
   - [ ] Ensure user messages are recorded before node execution
   - [ ] Write unit test verifying input_context is populated after run()
-- [ ] Implement node-based execution in TinyCUALoop.run() <!-- id: 6 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k input_context`
+- [ ] Implement node-based execution in TinyCUALoop.run() <!-- id: 6 | design: "Create TinyCUALoop class extending BaseLoop", "Implement run() stream=False", "Add node execution loop with agent._call_llm() integration", "Record chat history per node LLM call", "Record selected session context" -->
   - [ ] Replace direct agent._call_llm() passthrough with node queue iteration
   - [ ] Implement _execute_node() method for single node execution
   - [ ] Call agent._call_llm() for each node's LLM interaction
@@ -33,21 +52,26 @@ Implementation tasks for TinyCUALoop SDK Integration (Milestone 1.8). Check off 
   - [ ] Handle queue advancement after each node completes
   - [ ] Handle terminal node detection (stop when is_terminal=True)
   - [ ] Write unit tests for node execution flow
-- [ ] Implement tool scoping via NodeToolPolicy <!-- id: 7 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k execute_node`
+- [ ] Implement tool scoping via NodeToolPolicy <!-- id: 7 | design: implicit in "Add node execution loop with agent._call_llm() integration" -->
   - [ ] In _execute_node(), use node.config.tool_policy.resolve_tools(outer_tools)
   - [ ] Pass resolved tools to agent._call_llm() for each node
   - [ ] Write unit test verifying tool filtering per node
-- [ ] Implement override_instructions passthrough <!-- id: 8 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k tool`
+- [ ] Implement override_instructions passthrough <!-- id: 8 | design: implicit in "Add node execution loop with agent._call_llm() integration" -->
   - [ ] Pass override_instructions to node.build_instruction() during message building
   - [ ] Write unit test verifying override_instructions reaches nodes
-- [ ] Implement stream=True support <!-- id: 9 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k override`
+- [ ] Implement stream=True support <!-- id: 9 | design: "Implement run() method with stream=True support" -->
   - [ ] Yield async iterator of SDK-compatible event dicts
   - [ ] Accumulate content deltas for final response
   - [ ] Write unit tests for streaming behavior
-- [ ] Wire ResponseNode in factory <!-- id: 10 -->
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_tinycua_loop.py -k stream`
+- [ ] Wire ResponseNode in factory <!-- id: 10 | design: "Implement queue bootstrapping with terminal node guarantee" -->
   - [ ] Import ResponseNode in factory.py
   - [ ] Pass ResponseNode as default_terminal_node to TinyCUALoop
   - [ ] Update factory tests to verify terminal node wiring
+  - Verify: `cd src/tinycua && uv run pytest tests/unit/test_factory.py`
 
 ## Testing Phase
 

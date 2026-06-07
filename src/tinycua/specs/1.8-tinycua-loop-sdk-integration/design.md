@@ -38,7 +38,9 @@ SDK Agent
 
 ## Data Model
 
-### New Entities
+### Conceptual Data Shapes
+
+> Shapes below are conceptual overview; see implementation-plan.md for concrete Python definitions.
 
 ```python
 # Conceptual data shape
@@ -174,7 +176,7 @@ class TinyCUALoop(BaseLoop):
    - **Status: Resolved** — Accept optional session, create if None. Allows flexibility for testing and composition.
 
 2. **How should the stub entry node be named/identified?**
-   - **Status: Resolved** — Use a simple "StubEntryNode" that advances immediately. Will be replaced by QueryAnalyst in Milestone 2.1.
+   - **Status: Resolved** — Use a simple "StubNode" that advances immediately. Will be replaced by QueryAnalyst in Milestone 2.1.
 
 ---
 

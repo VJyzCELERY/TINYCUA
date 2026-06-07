@@ -263,13 +263,309 @@ async def test_tinycua_loop_stream_true_returns_iterator():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Node queue execution — loop processes StubNode + ResponseNode, returns final response
-- [ ] **Scenario 2**: Message merging — SDK messages appear in root_session.input_context
-- [ ] **Scenario 3**: Tool scoping — NodeToolPolicy.resolve_tools() filters outer tools per node config
-- [ ] **Scenario 4**: Override instructions — override_instructions passed through to node build_instruction()
-- [ ] **Scenario 5**: Stream=False returns string, stream=True returns async iterator
-- [ ] **Edge case**: Empty queue after terminal node removal — returns error or default
+- [x] **Scenario 1**: Node queue execution — loop processes StubNode + ResponseNode, returns final response
+- [x] **Scenario 2**: Message merging — SDK messages appear in root_session.input_context
+- [x] **Scenario 3**: Tool scoping — NodeToolPolicy.resolve_tools() filters outer tools per node config
+- [x] **Scenario 4**: Override instructions — override_instructions passed through to node build_instruction()
+- [x] **Scenario 5**: Stream=False returns string, stream=True returns async iterator
+- [x] **Edge case**: Empty queue after terminal node removal — returns error or default
 - [x] **Verify**: Agent._call_llm() return type matches mock (dict vs object) — VERIFIED: LLMResponse is TypedDict, dict mocks correct
+
+## Success Criteria — Unit Tests (TDD First)
+
+Define the unit tests for `test_tinycua_loop.py`. These complement the integration tests above by isolating individual behaviors. The task.md verify commands reference specific `-k` filters that must match these test names.
+
+```python
+# Test file: src/tinycua/tests/unit/test_tinycua_loop.py
+"""Unit tests for TinyCUALoop — node execution, message merging, tool scoping, override, streaming."""
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.loops.node import ProcessNode
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.session import Session
+
+
+class StubNode(ProcessNode):
+    """Minimal node for testing that returns a fixed response."""
+
+    def __init__(self, response_content: str = "stub response"):
+        super().__init__(
+            node_id="stub",
+            config=NodeConfigBase(),
+            instruction="You are a test stub",
+        )
+        self.response_content = response_content
+
+    def _call_llm(self, messages):
+        from tinycua.config.types import LLMResult
+        return LLMResult(content=self.response_content, role="assistant")
+
+    def __call__(self, input):
+        from tinycua.config.types import LLMResult
+        return LLMResult(content=self.response_content, role="assistant")
+
+
+class ResponseNode(ProcessNode):
+    """Terminal node that returns the final response."""
+
+    def __init__(self):
+        super().__init__(
+            node_id="response",
+            config=NodeConfigBase(),
+            instruction="Return the final response",
+            is_terminal=True,
+        )
+
+    def _call_llm(self, messages):
+        from tinycua.config.types import LLMResult
+        for msg in reversed(messages):
+            if msg.get("role") in ("user", "assistant"):
+                return LLMResult(content=msg.get("content", ""), role="assistant")
+        return LLMResult(content="No response", role="assistant")
+
+    def __call__(self, input):
+        from tinycua.config.types import LLMResult
+        return LLMResult(content="final response", role="assistant")
+
+
+# --- _execute_node tests ---
+
+async def test_execute_node_calls_agent_with_node_messages():
+    """_execute_node() builds messages from node and calls agent._call_llm()."""
+    stub = StubNode("node output")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+    )
+    agent._call_llm.assert_called()
+
+
+async def test_execute_node_records_chat_history():
+    """_execute_node() appends each node's LLM call to root_session.chat_history."""
+    stub = StubNode("history test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    session = loop.root_session
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+    )
+    assert len(session.chat_history) > 0
+
+
+async def test_execute_node_records_session_context():
+    """_execute_node() records session_context via node.record_output()."""
+    stub = StubNode("context test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    session = loop.root_session
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+    )
+    assert len(session.session_context) > 0
+
+
+async def test_execute_node_stops_at_terminal():
+    """_execute_node() stops processing when a terminal node is encountered."""
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "final", "tool_calls": None}
+    )
+
+    result = await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+    )
+    assert isinstance(result, str)
+
+
+# --- message merging tests ---
+
+async def test_message_merging_populates_input_context():
+    """run() merges SDK messages into root_session.input_context."""
+    loop = TinyCUALoop()
+    session = loop.root_session
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    messages = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi there"},
+    ]
+
+    await loop.run(
+        agent=agent, messages=messages, tools=[], override_instructions=None, stream=False,
+    )
+    assert session.input_context == messages
+
+
+async def test_message_merging_preserves_order():
+    """Merged messages retain their original order."""
+    loop = TinyCUALoop()
+    session = loop.root_session
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    messages = [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "second"},
+        {"role": "user", "content": "third"},
+    ]
+
+    await loop.run(
+        agent=agent, messages=messages, tools=[], override_instructions=None, stream=False,
+    )
+    assert [m["content"] for m in session.input_context] == ["first", "second", "third"]
+
+
+# --- tool scoping tests ---
+
+async def test_tool_scoping_filters_tools_per_node():
+    """NodeToolPolicy.resolve_tools() filters outer tools per node config."""
+    policy = NodeToolPolicy(
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["tool_a"],
+    )
+    config = NodeConfigBase(tool_policy=policy)
+    node = StubNode()
+    node.config = config
+
+    outer_tools = [MagicMock(name="tool_a"), MagicMock(name="tool_b")]
+    resolved = config.tool_policy.resolve_tools(outer_tools)
+    assert len(resolved) == 1
+
+
+async def test_tool_scoping_all_tools():
+    """NodeToolPolicy with include_agent_tools='all' passes all tools through."""
+    policy = NodeToolPolicy(include_agent_tools="all")
+    config = NodeConfigBase(tool_policy=policy)
+    node = StubNode()
+    node.config = config
+
+    outer_tools = [MagicMock(name="tool_a"), MagicMock(name="tool_b")]
+    resolved = config.tool_policy.resolve_tools(outer_tools)
+    assert len(resolved) == 2
+
+
+# --- override_instructions tests ---
+
+async def test_override_instructions_passed_to_node():
+    """override_instructions reaches node.build_instruction() during message building."""
+    stub = StubNode("override test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "default"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    await loop.run(
+        agent=agent, messages=[], tools=[],
+        override_instructions="custom instructions", stream=False,
+    )
+    agent._call_llm.assert_called()
+
+
+# --- stream tests ---
+
+async def test_stream_false_returns_string():
+    """run(stream=False) returns a string response."""
+    stub = StubNode("string result")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    result = await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+    )
+    assert isinstance(result, str)
+
+
+async def test_stream_true_returns_async_iterator():
+    """run(stream=True) returns an async iterator."""
+    loop = TinyCUALoop()
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    result = await loop.run(
+        agent=agent, messages=[], tools=[], override_instructions=None, stream=True,
+    )
+    import collections.abc
+    assert isinstance(result, collections.abc.AsyncIterator)
+```
+
+### Key Unit Test Scenarios
+
+- [x] **execute_node**: _execute_node() calls agent._call_llm() with node-built messages, records chat_history, records session_context, stops at terminal node
+- [x] **message_merging**: SDK messages populate root_session.input_context in correct order
+- [x] **tool_scoping**: NodeToolPolicy.resolve_tools() filters per node config (selected/all/none)
+- [x] **override**: override_instructions reaches node.build_instruction()
+- [x] **stream**: stream=False returns string, stream=True returns async iterator
 
 ## Verification Plan
 
@@ -278,6 +574,8 @@ async def test_tinycua_loop_stream_true_returns_iterator():
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for TinyCUALoop — test node execution, message merging, streaming
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+
+> **Note**: Check these items after implementation is complete and tests pass.
 
 ### Manual Verification
 

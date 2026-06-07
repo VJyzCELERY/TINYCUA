@@ -83,36 +83,36 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Unit Tests
 
-- TinyCUALoop instantiation and BaseLoop extension.
-- run() method with stream=False returns string.
-- run() method with stream=True returns async iterator.
-- Message merging into root session.
-- Tool resolution through NodeToolPolicy.
-- Override instruction incorporation.
-- Queue bootstrapping with terminal node.
+- `test_tinycua_loop_init`: TinyCUALoop instantiation and BaseLoop extension.
+- `test_tinycua_loop_run_string`: run() method with stream=False returns string.
+- `test_tinycua_loop_run_stream`: run() method with stream=True returns async iterator.
+- `test_tinycua_loop_merges_messages`: Message merging into root session.
+- `test_tinycua_loop_tool_resolution`: Tool resolution through NodeToolPolicy.
+- `test_tinycua_loop_override_instructions`: Override instruction incorporation.
+- `test_tinycua_loop_queue_bootstrap`: Queue bootstrapping with terminal node.
+
+See `implementation-plan.md` §Unit Tests for concrete function definitions and assertions.
 
 ### Integration Tests
 
-- End-to-end: create_tinycua_agent(...).run(query) with minimal queue.
-- Agent._call_llm() integration with TinyCUALoop.
+- `test_tinycua_loop_e2e`: End-to-end: create_tinycua_agent(...).run(query) with minimal queue.
+- `test_tinycua_loop_call_llm_integration`: Agent._call_llm() integration with TinyCUALoop.
+
+See `implementation-plan.md` §Integration Tests for concrete function definitions and assertions.
 
 ### Manual Tests _(if applicable)_
 
 - Verify agent runs in a local environment with mock LLM endpoint.
 
-See `implementation-plan.md` for concrete integration test definitions.
-
 ---
 
 ## Status Tracker _(optional)_
 
-| Item | Status | Notes |
-|------|--------|-------|
-| TinyCUALoop class | TODO | Extends BaseLoop |
-| run() implementation | TODO | Handles stream True/False |
-| Message merging | TODO | Into root session |
-| Queue bootstrapping | TODO | Terminal node guarantee |
-| Chat history recording | TODO | Per node LLM call |
+- [ ] TinyCUALoop class — Extends BaseLoop
+- [ ] run() implementation — Handles stream True/False
+- [ ] Message merging — Into root session
+- [ ] Queue bootstrapping — Terminal node guarantee
+- [ ] Chat history recording — Per node LLM call
 
 ---
 
@@ -128,9 +128,9 @@ See `implementation-plan.md` for concrete integration test definitions.
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
