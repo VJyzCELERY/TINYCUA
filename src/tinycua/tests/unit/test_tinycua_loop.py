@@ -154,3 +154,63 @@ async def test_run_stream_records_chat_history():
     assistant_msgs = [m for m in loop.root_session.chat_history if m["role"] == "assistant"]
     assert len(assistant_msgs) == 1
     assert assistant_msgs[0]["content"] == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_ensure_terminal_skipped_when_no_default():
+    """run() skips ensure_terminal() when default_terminal_node is None."""
+    loop = TinyCUALoop(default_terminal_node=None)
+    original = loop.queue.ensure_terminal
+    called = False
+
+    def track_call(*args, **kwargs):
+        nonlocal called
+        called = True
+        return original(*args, **kwargs)
+
+    loop.queue.ensure_terminal = track_call
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None})
+
+    await loop.run(agent, [{"role": "user", "content": "hi"}], tools=[], stream=False)
+    assert not called, "ensure_terminal should not be called when default_terminal_node is None"
+
+
+@pytest.mark.asyncio
+async def test_tinycua_loop_ensure_terminal_bootstrap():
+    """run() calls ensure_terminal() on queue at bootstrap."""
+    # Create a mock terminal node
+    terminal_node = MagicMock()
+    terminal_node.is_terminal = True
+    terminal_node.node_id = "terminal"
+
+    loop = TinyCUALoop(default_terminal_node=terminal_node)
+    queue = loop.queue
+
+    # Mock ensure_terminal to track calls
+    original_ensure_terminal = queue.ensure_terminal
+    ensure_terminal_called = []
+
+    def mock_ensure_terminal(default_terminal_node):
+        ensure_terminal_called.append(default_terminal_node)
+        return original_ensure_terminal(default_terminal_node)
+
+    queue.ensure_terminal = mock_ensure_terminal
+
+    # Create a mock agent
+    agent = MagicMock()
+    agent.instructions = "You are helpful"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+    )
+    messages = [{"role": "user", "content": "test"}]
+
+    await loop.run(agent, messages, tools=[], stream=False)
+
+    # Verify ensure_terminal was called with the default terminal node
+    assert len(ensure_terminal_called) == 1
+    assert ensure_terminal_called[0] is terminal_node
