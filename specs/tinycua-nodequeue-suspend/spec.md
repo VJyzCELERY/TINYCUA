@@ -131,16 +131,16 @@ Parent-child node relationships for prepended nodes are **caller-established**, 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| suspend_current_and_prepend() | TODO | Core implementation |
-| Input preservation | TODO | |
-| Empty queue safety | TODO | |
-| Empty list safety | TODO | |
-| No propagation during suspend | TODO | |
-| Resume mechanism | TODO | |
-| Multiple suspensions | TODO | |
-| Order preservation | TODO | |
-| Unit tests | TODO | |
-| Backward compatibility | TODO | |
+| suspend_current_and_prepend() | DONE | Core implementation |
+| Input preservation | DONE | |
+| Empty queue safety | DONE | |
+| Empty list safety | DONE | |
+| No propagation during suspend | DONE | |
+| Resume mechanism | DONE | |
+| Multiple suspensions | DONE | |
+| Order preservation | DONE | |
+| Unit tests | DONE | 12 tests passing |
+| Backward compatibility | DONE | Existing M1.6 tests pass |
 
 ---
 
