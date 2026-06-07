@@ -77,12 +77,11 @@ class TinyCUALoop(BaseLoop):
             Final response string when stream=False, or an async iterator
             of event dicts when streaming.
         """
-        # Record incoming user messages in chat history
-        for msg in messages:
-            if msg.get("role") == "user":
-                self.root_session.chat_history.append(dict(msg))
-
         # Merge SDK messages into root session input context (FR-005)
+        # Note: User messages are NOT recorded in chat_history here because
+        # they are already stored in input_context and passed to nodes via
+        # _build_node_messages(). Recording them in chat_history as well would
+        # cause duplication when include_chat_history=True.
         self.root_session.input_context = list(messages)
 
         # Ensure terminal safety at queue bootstrap

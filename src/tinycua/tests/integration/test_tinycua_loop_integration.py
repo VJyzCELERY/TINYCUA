@@ -103,7 +103,11 @@ async def test_tinycua_loop_tool_scoping():
 
 async def test_tinycua_loop_override_instructions():
     """TinyCUALoop passes override_instructions to nodes."""
-    loop = TinyCUALoop()
+    stub = StubNode("override test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+    loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
@@ -119,11 +123,16 @@ async def test_tinycua_loop_override_instructions():
         stream=False,
     )
     assert isinstance(result, str)
+    assert len(result) > 0
 
 
 async def test_tinycua_loop_stream_false_returns_string():
     """TinyCUALoop run(stream=False) returns a string."""
-    loop = TinyCUALoop()
+    stub = StubNode("string result")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+    loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
@@ -139,6 +148,7 @@ async def test_tinycua_loop_stream_false_returns_string():
         stream=False,
     )
     assert isinstance(result, str)
+    assert len(result) > 0
 
 
 async def test_tinycua_loop_stream_true_returns_iterator():

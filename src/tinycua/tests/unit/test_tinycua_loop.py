@@ -324,7 +324,7 @@ async def test_stream_true_returns_async_iterator():
 
 
 async def test_run_records_user_message():
-    """run() records user messages in chat_history."""
+    """run() records user messages in input_context (not chat_history)."""
     stub = StubNode("response")
     terminal = ResponseNode()
     queue = NodeQueue()
@@ -339,9 +339,13 @@ async def test_run_records_user_message():
     )
     messages = [{"role": "user", "content": "hello"}]
     await loop.run(agent, messages, tools=[], stream=False)
-    user_msgs = [m for m in loop.root_session.chat_history if m["role"] == "user"]
+    # User messages are stored in input_context, not chat_history
+    user_msgs = [m for m in loop.root_session.input_context if m["role"] == "user"]
     assert len(user_msgs) == 1
     assert user_msgs[0]["content"] == "hello"
+    # chat_history should not contain user messages
+    chat_user_msgs = [m for m in loop.root_session.chat_history if m["role"] == "user"]
+    assert len(chat_user_msgs) == 0
 
 
 async def test_run_records_assistant_response():

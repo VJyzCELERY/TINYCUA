@@ -88,17 +88,17 @@ class TestAgentRun:
         assert events[0]["type"] == "response.output_text.delta"
         assert events[0]["delta"] == "Hi"
         session = agent.loop.root_session
-        assert len(session.chat_history) == 2  # user + assistant
-        assert session.chat_history[0]["role"] == "user"
-        assert session.chat_history[1]["role"] == "assistant"
-        assert session.chat_history[1]["content"] == "Hi"
+        assert len(session.chat_history) == 1  # assistant only (user in input_context)
+        assert session.chat_history[0]["role"] == "assistant"
+        assert session.chat_history[0]["content"] == "Hi"
+        assert session.input_context[0]["role"] == "user"
+        assert session.input_context[0]["content"] == "hello"
 
     @pytest.mark.asyncio
     async def test_run_populates_session_chat_history(self):
-        """agent.run() records messages in session chat history (FR-010).
+        """agent.run() records assistant responses in session chat history.
 
-        Note: session_context is not verified here because context entries
-        are populated by nodes (deferred to Milestones 1.5-1.7).
+        User messages are stored in input_context, not chat_history.
         """
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
@@ -106,11 +106,11 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) == 2  # user + assistant
-        assert session.chat_history[0]["role"] == "user"
-        assert session.chat_history[0]["content"] == "hello"
-        assert session.chat_history[1]["role"] == "assistant"
-        assert session.chat_history[1]["content"] == "Hello"
+        assert len(session.chat_history) == 1  # assistant only
+        assert session.chat_history[0]["role"] == "assistant"
+        assert session.chat_history[0]["content"] == "Hello"
+        assert session.input_context[0]["role"] == "user"
+        assert session.input_context[0]["content"] == "hello"
 
     @pytest.mark.asyncio
     async def test_run_does_not_record_empty_assistant_response(self):
@@ -121,8 +121,8 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # only user message
-        assert session.chat_history[0]["role"] == "user"
+        assert len(session.chat_history) == 0  # no assistant response recorded
+        assert session.input_context[0]["role"] == "user"
 
     @pytest.mark.asyncio
     async def test_run_stream_does_not_record_empty_assistant_response(self):
@@ -137,5 +137,5 @@ class TestAgentRun:
         events = [e async for e in result]
         assert len(events) == 1
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # only user message
-        assert session.chat_history[0]["role"] == "user"
+        assert len(session.chat_history) == 0  # no assistant response recorded
+        assert session.input_context[0]["role"] == "user"
