@@ -133,6 +133,30 @@ class NodeQueue:
         for node in nodes_to_remove:
             self._inputs.pop(node.node_id, None)
 
+    def suspend_current_and_prepend(self, nodes: list[Node]) -> None:
+        """Suspend the current node and prepend new nodes before it.
+
+        Keeps the current node in the queue but inserts ``nodes`` at the
+        front so the first prepended node becomes the new current.  The
+        suspended node's input mapping is preserved in ``_inputs``.
+
+        Args:
+            nodes: Nodes to prepend before the suspended current node.
+
+        Raises:
+            ValueError: If the queue is empty (no current node to suspend).
+        """
+        if not self.items:
+            msg = "Cannot suspend in an empty queue"
+            raise ValueError(msg)
+
+        if not nodes:
+            return
+
+        # Do NOT call propagate() — the node is suspended, not completed.
+        # Prepend nodes before items[0] using slice assignment.
+        self.items[0:0] = nodes
+
     def ensure_terminal(self, default_terminal_node: Node) -> None:
         """Ensure the queue ends with a terminal node.
 
