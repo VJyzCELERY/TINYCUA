@@ -54,11 +54,15 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
 - [ ] Update __call__() to use dynamic labels when task exists <!-- id: 10 -->
   - [ ] Replace static _DEFAULT_WORKER_LABELS with _get_classification_labels()
   - [ ] Ensure classification uses dynamic label list
+- [ ] Integrate NodeRetryPolicy for invalid classification labels <!-- id: 11 -->
+  - [ ] Wire NodeRetryPolicy into the classification retry loop in __call__()
+  - [ ] Set default max_attempts=3 with on_retry_exhausted="raise"
+  - [ ] Raise NodeExecutionError after retries exhausted
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 11 -->
-- [ ] Write unit tests for new methods <!-- id: 12 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 12 -->
+- [ ] Write unit tests for new methods <!-- id: 13 -->
   - [ ] test_has_worker_spawned_nodes_true/false: assert returns True when spawned nodes exist, False otherwise
   - [ ] test_get_classification_labels_with_spawned: assert includes passthrough when spawned nodes exist
   - [ ] test_get_classification_labels_without_spawned: assert excludes passthrough when no spawned nodes
@@ -76,42 +80,46 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] test_worker_node_preserves_input: assert original input query is preserved for downstream
   - [ ] test_worker_node_tool_scope: assert WorkerNode only has access to worker decision tools
   - [ ] test_worker_node_classification_tool_call_format: assert classification uses tool-call response with WorkerRouteLabel enum values
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 13 -->
+  - [ ] test_worker_node_classifies_task_recreation: assert classification returns task_recreation label
+  - [ ] test_worker_node_classifies_task_reanalysis: assert classification returns task_reanalysis label
+  - [ ] test_worker_node_classifies_passthrough: assert classification returns passthrough label
+  - [ ] test_worker_node_classifies_proceed_execution: assert classification returns proceed_execution label
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 14 -->
 
 ## Verification Phase
 
-- [ ] Verify queue shape after each route matches expected architecture <!-- id: 14 -->
+- [ ] Verify queue shape after each route matches expected architecture <!-- id: 15 -->
   - [ ] task_recreation: queue.items contains ["task_analyzer", <terminal>] after handler
   - [ ] task_reanalysis: queue.items contains ["task_analyzer", <terminal>] after handler
   - [ ] passthrough: queue.items[0] is the next worker-spawned node after handler
   - [ ] proceed_execution: queue.items[-1].is_terminal is True after handler
-- [ ] Verify dynamic label adjustment with and without worker-spawned nodes <!-- id: 15 -->
+- [ ] Verify dynamic label adjustment with and without worker-spawned nodes <!-- id: 16 -->
   - [ ] With spawned nodes: assert "passthrough" in worker._get_classification_labels()
   - [ ] Without spawned nodes: assert "passthrough" not in worker._get_classification_labels()
   - [ ] Both cases: assert task_recreation, task_reanalysis, proceed_execution are always present
-- [ ] Verify NodeRetryPolicy integration for invalid classification labels <!-- id: 16 -->
+- [ ] Verify NodeRetryPolicy integration for invalid classification labels <!-- id: 17 -->
   - [ ] Mock LLM to return invalid label, assert NodeExecutionError raised after max_attempts
   - [ ] Verify retry count matches config.retry_policy.max_attempts
-- [ ] Verify terminal response path guarantee in all route handlers <!-- id: 17 -->
+- [ ] Verify terminal response path guarantee in all route handlers <!-- id: 18 -->
   - [ ] task_recreation: assert queue.items[-1].is_terminal is True
   - [ ] task_reanalysis: assert queue.items[-1].is_terminal is True
   - [ ] proceed_execution: assert queue.items[-1].is_terminal is True
-- [ ] Run type checking: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 18 -->
+- [ ] Run type checking: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 19 -->
 
 ## Documentation Phase
 
-- [ ] Update spec.md status tracker to reflect completed items <!-- id: 19 -->
-- [ ] Update design.md implementation phases checklist <!-- id: 20 -->
-- [ ] No API documentation changes needed (internal implementation only) <!-- id: 21 -->
+- [ ] Update spec.md status tracker to reflect completed items <!-- id: 20 -->
+- [ ] Update design.md implementation phases checklist <!-- id: 21 -->
+- [ ] No API documentation changes needed (internal implementation only) <!-- id: 22 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 22 -->
-- [ ] Address review feedback <!-- id: 23 -->
-- [ ] Merge to main branch <!-- id: 24 -->
+- [ ] Create pull request <!-- id: 23 -->
+- [ ] Address review feedback <!-- id: 24 -->
+- [ ] Merge to main branch <!-- id: 25 -->
 
 ---
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-06-08*
+*Last updated: 2026-06-09*

@@ -484,8 +484,8 @@ class WorkerRouteLabel(str, Enum):
 | Dynamic label adjustment could cause inconsistent LLM responses | Low | Medium | Comprehensive unit tests for label adjustment; LLM sees only valid options |
 | passthrough route handler could leave queue in inconsistent state | Medium | High | Defensive validation in route handler; ensure_terminal() call |
 | proceed_execution handler could leave queue without terminal path | Medium | High | ensure_terminal() call in all route handlers |
-| LLM classification could be ambiguous between task_recreation and task_reanalysis | Medium | Medium | Clear system prompt differentiation; NodeRetryPolicy for retries |
 | NodeRetryPolicy could cause infinite loop for persistent invalid labels | Low | Low | Max retries limit (default 3); NodeExecutionError after exhaustion |
+| LLM classification could be ambiguous between task_recreation and task_reanalysis | Medium | Medium | Clear system prompt differentiation; NodeRetryPolicy for retries |
 
 ---
 
