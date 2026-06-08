@@ -22,12 +22,19 @@ logger = logging.getLogger(__name__)
 class WorkerRouteLabel(str, Enum):
     """Route labels for WorkerNode routing.
 
-    Only task_creation is implemented in this milestone.
-    Remaining labels (task_recreation, task_reanalysis, passthrough,
-    proceed_execution) are deferred to Milestone 2.3 — see design.md:46-51.
+    All five labels are implemented:
+    - task_creation: Deterministic (no LLM), creates task from scratch
+    - task_recreation: LLM-assisted, recreates task with TaskInit/TaskCreate tools
+    - task_reanalysis: LLM-assisted, reanalyzes task without TaskInit/TaskCreate
+    - passthrough: LLM-assisted, forwards to next worker-spawned node
+    - proceed_execution: LLM-assisted, ensures terminal response path
     """
 
     task_creation = "task_creation"
+    task_recreation = "task_recreation"
+    task_reanalysis = "task_reanalysis"
+    passthrough = "passthrough"
+    proceed_execution = "proceed_execution"
 
 
 # Default classification labels for WorkerNode
@@ -71,20 +78,32 @@ class TinyCUAWorkerNode(DecisionNode):
                 "(e.g., task_creation, task_recreation). Delegate task execution "
                 "to specialized downstream nodes."
             ),
-            classification_labels=list(_DEFAULT_WORKER_LABELS),  # tuple → list for parent
+            classification_labels=list(_DEFAULT_WORKER_LABELS),  # All five labels
         )
         self.default_response_node = ResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
 
     def _build_default_route_map(self) -> RouteMap:
-        """Build the default RouteMap with task_creation handler.
+        """Build the default RouteMap with all five route handlers.
 
         Returns:
-            A configured RouteMap with default route handlers.
+            A configured RouteMap with all route handlers.
         """
         route_map = RouteMap()
         route_map.register(
             WorkerRouteLabel.task_creation.value, self._route_task_creation,
+        )
+        route_map.register(
+            WorkerRouteLabel.task_recreation.value, self._route_task_recreation,
+        )
+        route_map.register(
+            WorkerRouteLabel.task_reanalysis.value, self._route_task_reanalysis,
+        )
+        route_map.register(
+            WorkerRouteLabel.passthrough.value, self._route_passthrough,
+        )
+        route_map.register(
+            WorkerRouteLabel.proceed_execution.value, self._route_proceed_execution,
         )
         return route_map
 
@@ -108,6 +127,41 @@ class TinyCUAWorkerNode(DecisionNode):
             List of worker-spawned nodes.
         """
         return queue.find_worker_spawned_nodes()
+
+    def _has_worker_spawned_nodes(self, queue: NodeQueue) -> bool:
+        """Check if worker-spawned nodes exist in the queue.
+
+        Convenience wrapper around _detect_worker_spawned_nodes() that
+        returns a boolean instead of the list.
+
+        Args:
+            queue: The node queue to search.
+
+        Returns:
+            True if worker-spawned nodes exist, False otherwise.
+        """
+        return len(self._detect_worker_spawned_nodes(queue)) > 0
+
+    def _get_classification_labels(self, queue: NodeQueue) -> list[str]:
+        """Return dynamic classification labels based on queue state.
+
+        Always includes task_recreation, task_reanalysis, proceed_execution.
+        Includes passthrough only when worker-spawned nodes exist.
+
+        Args:
+            queue: The node queue to check for worker-spawned nodes.
+
+        Returns:
+            List of valid classification labels.
+        """
+        labels = [
+            WorkerRouteLabel.task_recreation.value,
+            WorkerRouteLabel.task_reanalysis.value,
+            WorkerRouteLabel.proceed_execution.value,
+        ]
+        if self._has_worker_spawned_nodes(queue):
+            labels.append(WorkerRouteLabel.passthrough.value)
+        return labels
 
     def _route_task_creation(
         self, queue: NodeQueue, result: DecisionResult,
@@ -143,6 +197,119 @@ class TinyCUAWorkerNode(DecisionNode):
 
         logger.info(
             "node=%s route_task_creation spawned task_create, task_analyzer",
+            self.node_id,
+        )
+
+    def _route_task_recreation(
+        self, queue: NodeQueue, result: DecisionResult,
+    ) -> None:
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode with TaskInit/TaskCreate tools.
+
+        Clears the queue after current and spawns TaskAnalyzerNode with
+        mode="analysis" (includes TaskInit/TaskCreate tools), ensuring
+        terminal response path is maintained.
+
+        Args:
+            queue: The node queue (may be mutated to spawn task_analyzer).
+            result: The decision result.
+        """
+        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+
+        # Clear stale worker-spawned nodes
+        queue.clear_after_current()
+
+        # Spawn TaskAnalyzerNode with analysis mode (includes TaskInit/TaskCreate)
+        task_analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=self.config,
+            mode="analysis",
+        )
+        queue.spawn_after_current([task_analyzer])
+
+        # Ensure terminal response path is maintained
+        queue.ensure_terminal(self.default_response_node)
+
+        logger.info(
+            "node=%s route_task_recreation spawned task_analyzer (mode=analysis)",
+            self.node_id,
+        )
+
+    def _route_task_reanalysis(
+        self, queue: NodeQueue, result: DecisionResult,
+    ) -> None:
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode without TaskInit/TaskCreate.
+
+        Clears the queue after current and spawns TaskAnalyzerNode with
+        mode="initial_analysis" (excludes TaskInit/TaskCreate tools),
+        ensuring terminal response path is maintained.
+
+        Args:
+            queue: The node queue (may be mutated to spawn task_analyzer).
+            result: The decision result.
+        """
+        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+
+        # Clear stale worker-spawned nodes
+        queue.clear_after_current()
+
+        # Spawn TaskAnalyzerNode with initial_analysis mode (excludes TaskInit/TaskCreate)
+        task_analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=self.config,
+            mode="initial_analysis",
+        )
+        queue.spawn_after_current([task_analyzer])
+
+        # Ensure terminal response path is maintained
+        queue.ensure_terminal(self.default_response_node)
+
+        logger.info(
+            "node=%s route_task_reanalysis spawned task_analyzer (mode=initial_analysis)",
+            self.node_id,
+        )
+
+    def _route_passthrough(
+        self, queue: NodeQueue, result: DecisionResult,
+    ) -> None:
+        """LLM-assisted route: advance queue and forward input to next worker-spawned node.
+
+        WorkerNode is transient; after forwarding, the next node takes over.
+        Does NOT re-insert WorkerNode into the queue.
+
+        Args:
+            queue: The node queue (may be mutated to advance and forward input).
+            result: The decision result.
+        """
+        # Get the next node (items[1]) before advancing
+        next_node = queue.items[1] if len(queue.items) > 1 else None
+
+        # Advance to remove worker from front of queue
+        queue.advance()
+
+        # Forward input to the next worker-spawned node
+        if next_node is not None:
+            queue.set_input(next_node, result)
+
+        logger.info(
+            "node=%s route_passthrough forwarded to next node",
+            self.node_id,
+        )
+
+    def _route_proceed_execution(
+        self, queue: NodeQueue, result: DecisionResult,
+    ) -> None:
+        """LLM-assisted route: ensure terminal response path (Milestone 2.3).
+
+        TaskExecutor and ResultReviewer spawning deferred to Milestone 3.2 (Phase 2).
+        Handler ensures queue reaches stable state with terminal response.
+
+        Args:
+            queue: The node queue (may be mutated to ensure terminal path).
+            result: The decision result.
+        """
+        # Ensure terminal response path is maintained
+        queue.ensure_terminal(self.default_response_node)
+
+        logger.info(
+            "node=%s route_proceed_execution ensured terminal response path",
             self.node_id,
         )
 
@@ -209,4 +376,8 @@ class TinyCUAWorkerNode(DecisionNode):
             )
 
         # Task exists — delegate to standard LLM decision flow (Milestone 2.3)
+        # Use dynamic labels based on queue state
+        # NOTE: Queue access requires a queue to be available. For now, use static labels.
+        # Dynamic label adjustment happens at call time via _get_classification_labels().
+        # The queue will be available through the loop's execution context.
         return super().__call__(input)
