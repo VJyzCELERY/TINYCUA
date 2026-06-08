@@ -36,6 +36,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 8. **Given** WorkerNode receives an invalid or missing classification label, **When** the decision process completes, **Then** it retries a configurable number of times (default 3) before raising an error.
 9. **Given** WorkerNode's LLM classification returns the latest valid verdict, **When** multiple tool calls occur, **Then** the latest valid verdict determines the route label.
 10. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** it ensures the terminal response path exists.
+11. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** the original input query is preserved for downstream nodes.
 
 ### Edge Cases
 
@@ -91,7 +92,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [ ] **SC-008** — **Acceptance Scenario 10**: Given WorkerNode dispatches to any route handler, when the handler completes, then it ensures the terminal response path exists.
 - [ ] **SC-009** — **Acceptance Scenario 9** (Latest Verdict): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the latest valid verdict determines the route label. (FR-005)
 - [ ] **SC-010** — **Queue invariant**: Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
-- [ ] **SC-011** — **Input Preservation**: Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
+- [ ] **SC-011** — **Acceptance Scenario 11** (Input Preservation): Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
 
 ---
 

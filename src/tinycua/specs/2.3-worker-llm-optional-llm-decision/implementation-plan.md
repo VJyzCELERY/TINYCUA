@@ -235,7 +235,7 @@ def test_worker_node_route_passthrough():
     # Assert — worker removed, next_node is now current, input forwarded
     assert queue.items[0].node_id == "next_node"
     # Verify input was forwarded to next node (behavioral contract)
-    # Input forwarding is tested implicitly by queue advancement and next_node being current
+    assert queue._inputs.get("next_node") is not None or queue.items[0]._input is not None
     # Assert — result object preserved (on_complete uses result.route_label for dispatch)
     assert result.route_label == "passthrough"
 
@@ -319,7 +319,7 @@ def test_worker_node_route_clear_ensures_terminal():
 - [ ] **Scenario 3** (SC-003–SC-006, FR-007–FR-012): Each route handler (task_recreation, task_reanalysis, passthrough, proceed_execution) executes correctly
 - [ ] **Scenario 4** (SC-007, FR-006): Invalid classification labels retry per NodeRetryPolicy and raise after exhaustion
 - [ ] **Scenario 5** (SC-008, FR-011, FR-012): Terminal response path guaranteed after any route handler
-- [ ] **Scenario 6** (SC-009, FR-013): Input preservation for downstream nodes
+- [ ] **Scenario 6** (SC-011, FR-013): Input preservation for downstream nodes
 - [ ] **Scenario 7** (SC-010, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
 
 ## Verification Plan
