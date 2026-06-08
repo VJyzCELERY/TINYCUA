@@ -310,6 +310,31 @@ def test_worker_node_route_clear_ensures_terminal():
     # Assert — terminal node exists
     last_node = queue.items[-1]
     assert last_node.is_terminal
+
+
+def test_worker_node_queue_invariant_query_analyst_first():
+    """QueryAnalyst remains first in queue after WorkerNode dispatches to any route (FR-016)."""
+    # Arrange
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    query_analyst = _make_mock_node("query_analyst", is_terminal=False)
+    queue = NodeQueue()
+    queue.items = [query_analyst, worker]
+    queue.current_index = 1  # WorkerNode is current
+
+    result = DecisionResult(
+        route_label="task_recreation",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="task_recreation", role="assistant"),
+    )
+
+    # Act
+    worker._route_task_recreation(queue, result)
+
+    # Assert — QueryAnalyst remains first
+    assert queue.items[0].node_id == "query_analyst"
 ```
 
 ### Key Test Scenarios

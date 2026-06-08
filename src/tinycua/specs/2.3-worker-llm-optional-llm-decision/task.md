@@ -14,6 +14,7 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] test_worker_node_route_proceed_execution
   - [ ] test_worker_node_invalid_label_retry
   - [ ] test_worker_node_route_clear_ensures_terminal
+  - [ ] test_worker_node_queue_invariant_query_analyst_first
 - [ ] Run integration tests — expect RED (failures since no implementation yet) <!-- id: 1 -->
 
 ## Implementation Phase
@@ -71,6 +72,10 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] test_route_task_reanalysis_clears_and_spawns: assert old nodes cleared, task_analyzer spawned with mode="initial_analysis"
   - [ ] test_route_passthrough_advances: assert worker removed, next node is current
   - [ ] test_route_proceed_execution_ensures_terminal: assert queue.items[-1].is_terminal is True
+  - [ ] test_queue_invariant_query_analyst_first: assert query_analyst remains first after dispatch
+  - [ ] test_worker_node_preserves_input: assert original input query is preserved for downstream
+  - [ ] test_worker_node_tool_scope: assert WorkerNode only has access to worker decision tools
+  - [ ] test_worker_node_classification_tool_call_format: assert classification uses tool-call response with WorkerRouteLabel enum values
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 13 -->
 
 ## Verification Phase

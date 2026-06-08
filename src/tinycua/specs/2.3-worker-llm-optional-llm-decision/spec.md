@@ -37,6 +37,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 9. **Given** WorkerNode's LLM classification returns the latest valid verdict, **When** multiple tool calls occur, **Then** the latest valid verdict determines the route label.
 10. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** it ensures the terminal response path exists.
 11. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** the original input query is preserved for downstream nodes.
+12. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** QueryAnalyst remains the first node in the queue.
 
 ### Edge Cases
 
@@ -91,7 +92,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [ ] **SC-007** — **Acceptance Scenario 8**: Given WorkerNode receives an invalid or missing classification label, when the decision process completes, then it retries a configurable number of times (default 3) before raising an error.
 - [ ] **SC-008** — **Acceptance Scenario 10**: Given WorkerNode dispatches to any route handler, when the handler completes, then it ensures the terminal response path exists.
 - [ ] **SC-009** — **Acceptance Scenario 9** (Latest Verdict): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the latest valid verdict determines the route label. (FR-005)
-- [ ] **SC-010** — **Queue invariant**: Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
+- [ ] **SC-010** — **Acceptance Scenario 12** (Queue Invariant): Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
 - [ ] **SC-011** — **Acceptance Scenario 11** (Input Preservation): Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
 
 ---
@@ -175,4 +176,4 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable — design-level validation pending (see Success Criteria note)
+- [x] Success criteria are measurable — design-level validation pending (see Success Criteria note)
