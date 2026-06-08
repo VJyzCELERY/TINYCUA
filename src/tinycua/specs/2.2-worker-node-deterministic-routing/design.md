@@ -1,0 +1,209 @@
+# Design Document: TinyCUAWorkerNode Deterministic Routing and TaskCreate
+
+**Spec**: ./spec.md
+**Status**: Draft
+**Last Updated**: 2026-06-08
+
+---
+
+## Overview
+
+This design implements deterministic task-creation routing for TinyCUAWorkerNode and introduces TinyCUATaskCreateNode as a concrete ProcessNode for first-time root task creation. WorkerNode gains the ability to detect missing tasks and route deterministically to `task_creation` without LLM decisions, while TaskCreateNode handles root task creation using TaskInit/TaskCreate tools. This milestone establishes the foundational worker-owned queue segment management and terminal response path guarantees.
+
+---
+
+## Architecture
+
+### Component Overview
+
+```
+[QueryAnalyst] --> [WorkerNode] --> [TaskCreateNode] --> [TaskAnalyzerNode] --> [AnalysisEffortNode] --> [TaskExecutor] --> [ResultReviewer] --> [ResponseNode]
+                     |
+                     └── (task_creation route, deterministic)
+```
+
+### Affected Components
+
+| Component | Change Type | Notes |
+|-----------|-------------|-------|
+| `tinycua.loops.worker.TinyCUAWorkerNode` | New | Concrete DecisionNode with route_map for task_creation routing |
+| `tinycua.loops.task_create.TinyCUATaskCreateNode` | New | ProcessNode for deterministic root task creation |
+| `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | Modified | Add mode=initial_analysis without TaskInit/TaskCreate tools |
+| `tinycua.loops.node_queue.NodeQueue` | Modified | Add worker-spawned-node detection and terminal response guarantees |
+
+---
+
+## Data Model
+
+### New Entities
+
+```python
+# WorkerNode route labels (subset implemented in this milestone)
+WorkerRouteLabel:
+    task_creation: str = "task_creation"    # Deterministic, no LLM
+    task_recreation: str = "task_recreation"  # Deferred to 2.3
+    task_reanalysis: str = "task_reanalysis"  # Deferred to 2.3
+    passthrough: str = "passthrough"          # Deferred to 2.3
+    proceed_execution: str = "proceed_execution"  # Deferred to 2.3
+
+# TaskCreateNode output
+TaskCreateResult:
+    task_id: str           # ID of created root task
+    task_summary: str      # Summary of what was created
+    created_at: datetime   # Timestamp of creation
+```
+
+### Schema Changes
+
+- No schema changes to existing data structures.
+- WorkerNode route_map is a new attribute on the DecisionNode instance.
+
+---
+
+## API / Interface Contracts
+
+### New / Modified Endpoints or Functions
+
+```python
+class TinyCUAWorkerNode(DecisionNode):
+    """
+    Concrete DecisionNode that owns task planning and execution orchestration.
+    Replaces old worker subgraph and worker QueryAnalyst input gate.
+    """
+    
+    route_map: RouteMap  # Maps route labels to handler callables
+    
+    async def __call__(self, input: NodeInput) -> NodeOutput:
+        """
+        WorkerNode entry point. Performs deterministic prechecks before LLM decision.
+        For this milestone, only task_creation is implemented deterministically.
+        """
+    
+    def _detect_task_exists(self, context: NodeContext) -> bool:
+        """Check if a task already exists in the session."""
+    
+    def _detect_worker_spawned_nodes(self, queue: NodeQueue) -> list[Node]:
+        """Find worker-owned nodes in the queue before terminal ResponseNode."""
+    
+    def _route_task_creation(self, input: NodeInput) -> NodeOutput:
+        """Deterministic route: spawn TaskCreateNode for root task creation."""
+```
+
+```python
+class TinyCUATaskCreateNode(ProcessNode):
+    """
+    Concrete ProcessNode for deterministic first-time root task creation.
+    Uses only TaskInit/TaskCreate tools.
+    """
+    
+    tool_scope: list[str] = ["TaskInit", "TaskCreate"]
+    
+    async def __call__(self, input: NodeInput) -> NodeOutput:
+        """
+        Create root task deterministically and advance queue.
+        Next node is TaskAnalyzerNode (without TaskInit/TaskCreate tools).
+        """
+    
+    def on_complete(self, output: NodeOutput) -> None:
+        """Advance queue; next node is TaskAnalyzerNode."""
+```
+
+```python
+# NodeQueue additions
+class NodeQueue:
+    def find_worker_spawned_nodes(self) -> list[Node]:
+        """Find all nodes spawned by WorkerNode before terminal ResponseNode."""
+    
+    def find_existing_worker_node(self) -> Optional[TinyCUAWorkerNode]:
+        """Find existing WorkerNode in queue before terminal ResponseNode."""
+    
+    def ensure_terminal(self, default_response_node: Node) -> None:
+        """Ensure terminal response path exists after clear operations."""
+```
+
+### Error Handling
+
+| Error Case | Exception / Response | Notes |
+|------------|---------------------|-------|
+| TaskCreateNode fails to create root task | `NodeRetryPolicy` retry | Task creation failure prevents downstream |
+| No terminal response after clear | `ensure_terminal()` adds default | Route handler responsibility |
+| Invalid WorkerNode route label | `NodeRetryPolicy` retry | Only `task_creation` valid in this milestone |
+
+---
+
+## Implementation Phases
+
+### Phase 1 — MVP _(required for initial release)_
+
+- [ ] Implement TinyCUAWorkerNode with route_map containing `task_creation` label
+- [ ] Implement `_detect_task_exists()` to check session for existing task
+- [ ] Implement `_detect_worker_spawned_nodes()` to find worker-owned nodes
+- [ ] Implement `_route_task_creation()` handler that spawns TaskCreateNode
+- [ ] Implement TinyCUATaskCreateNode with TaskInit/TaskCreate tool scope
+- [ ] Implement TaskCreateNode `on_complete()` to advance queue to TaskAnalyzerNode
+- [ ] Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` to NodeQueue
+- [ ] Add `ensure_terminal()` method to NodeQueue
+- [ ] Update route handlers calling `clear_after_current()` to use `ensure_terminal()`
+- [ ] Add mode=initial_analysis to TaskAnalyzerNode (without TaskInit/TaskCreate tools)
+- [ ] Write unit tests for all new components
+- [ ] Write integration tests for worker task_creation flow
+
+### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
+
+- [ ] Implement remaining worker route labels (task_recreation, task_reanalysis, passthrough, proceed_execution) — Milestone 2.3
+- [ ] Implement LLM decision process for non-deterministic routes — Milestone 2.3
+
+> **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
+
+---
+
+## Technical Decisions
+
+1. **Decision**: WorkerNode performs deterministic precheck for `task_creation` before LLM decision
+   - **Reason**: When no task exists, LLM decision is unnecessary — the route is deterministic. This avoids unnecessary LLM calls and simplifies the first-time creation flow.
+   - **Alternatives Considered**: Always use LLM decision — rejected because it adds latency and cost for a deterministic case.
+
+2. **Decision**: TaskCreateNode is a separate ProcessNode, not a method on WorkerNode
+   - **Reason**: Separation of concerns — WorkerNode handles routing, TaskCreateNode handles task creation. This allows TaskCreateNode to have its own tool scope and retry policy.
+   - **Alternatives Considered**: Inline task creation in WorkerNode — rejected because it violates single responsibility and complicates tool scope management.
+
+3. **Decision**: Worker-spawned-node detection uses queue position before terminal ResponseNode
+   - **Reason**: Matches the design doc's "Worker-Route Rule" — worker-owned segment is bounded by the terminal ResponseNode. This is consistent with QueryAnalyst's WorkerNode detection logic.
+   - **Alternatives Considered**: Tagging nodes with metadata — rejected because it adds complexity without benefit; queue position is sufficient.
+
+4. **Decision**: `ensure_terminal()` is a NodeQueue method called by route handlers
+   - **Reason**: Route handlers are responsible for maintaining queue invariants after `clear_after_current()`. This keeps the guarantee close to the mutation point.
+   - **Alternatives Considered**: Automatic guarantee in `clear_after_current()` — rejected because not all clears need to ensure terminal (some may be partial clears).
+
+---
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| WorkerNode route_map incomplete for non-task_creation routes | Low | Medium | Phase 2 defers remaining routes; only task_creation is required |
+| TaskCreateNode retry loop could block queue | Low | Low | NodeRetryPolicy with max retries; failure propagates to WorkerNode |
+| `ensure_terminal()` called incorrectly by route handlers | Medium | High | Comprehensive unit tests for all route handlers; code review checklist |
+| Worker-spawned-node detection misses nodes due to queue ordering | Low | High | Tests verify detection with various queue shapes; consistent with QueryAnalyst logic |
+
+---
+
+## Open Questions _(optional)_
+
+1. **Should WorkerNode have a default route for unrecognized labels or always retry?**
+   - Current thinking: Always retry per NodeRetryPolicy; no fallback route needed since only `task_creation` is valid in this milestone.
+
+2. **Should TaskCreateNode emit a specific event/log for task creation?**
+   - Current thinking: Yes, for observability. Log task ID and summary at INFO level.
+
+---
+
+## References
+
+- Spec: `./spec.md` — relative path from this design.md to its spec.md
+- Related designs:
+  - `src/tinycua/docs/design/loops/worker.md` — WorkerNode target architecture
+  - `src/tinycua/docs/design/loops/worker_concept.md` — WorkerNode concept
+  - `src/tinycua/docs/design/loops/task_create.md` — TaskCreateNode target architecture
+  - `src/tinycua/docs/design/tools/task.md` — Task tool scope by node
+  - `src/tinycua/specs/2.1-route-map-query-analyst/spec.md` — Milestone 2.1 spec (prerequisite)
