@@ -278,3 +278,129 @@ def test_clear_after_current_ensures_terminal():
     queue.ensure_terminal(default_response)
 
     assert queue.items[-1].is_terminal
+
+
+def test_worker_node_e2e_task_creation():
+    """End-to-end: QueryAnalyst → WorkerNode → TaskCreateNode → TaskAnalyzerNode → ResponseNode."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None  # No task exists
+
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = ProcessNode(
+        node_id="response", config=config, is_terminal=True,
+    )
+    queue.items = [worker, response_node]
+
+    # Step 1: WorkerNode routes to task_creation
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+    result = worker(input_data)
+    assert result.route_label == "task_creation"
+
+    # Step 2: Execute on_complete which spawns TaskCreateNode + TaskAnalyzerNode
+    worker.on_complete(queue, result)
+
+    # Step 3: Verify queue shape — worker → task_create → task_analyzer → response
+    assert queue.current.node_id == "worker"
+    assert queue.items[1].node_id == "task_create"
+    assert queue.items[2].node_id == "task_analyzer"
+    assert queue.items[3].is_terminal  # response node
+
+    # Step 4: Advance past worker
+    queue.advance()
+    assert queue.current.node_id == "task_create"
+
+    # Step 5: Advance past task_create (simulates on_complete)
+    queue.advance()
+    assert queue.current.node_id == "task_analyzer"
+
+
+def test_worker_node_task_creation_queue_shape():
+    """Queue shape after task_creation route matches expected."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None
+
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = ProcessNode(
+        node_id="response", config=config, is_terminal=True,
+    )
+    queue.items = [worker, response_node]
+
+    # Act
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+    result = worker(input_data)
+    worker.on_complete(queue, result)
+
+    # Assert — expected shape: [WorkerNode, TaskCreateNode, TaskAnalyzerNode, ResponseNode]
+    node_ids = [node.node_id for node in queue.items]
+    assert node_ids == ["worker", "task_create", "task_analyzer", "response"], (
+        f"Expected ['worker', 'task_create', 'task_analyzer', 'response'], got {node_ids}"
+    )
+    # Last node must be terminal
+    assert queue.items[-1].is_terminal
+
+
+def test_worker_node_reuse_with_task_creation():
+    """QueryAnalyst reuses existing WorkerNode; WorkerNode routes to task_creation."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None
+
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = ProcessNode(
+        node_id="response", config=config, is_terminal=True,
+    )
+    queue.items = [worker, response_node]
+
+    # Act — find existing worker (simulates QueryAnalyst reuse detection)
+    existing = queue.find_existing_worker_node()
+
+    # Assert — existing worker is found
+    assert existing is worker
+
+    # Now route the existing worker to task_creation
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+    result = existing(input_data)
+    assert result.route_label == "task_creation"
+
+    # on_complete spawns task_create and task_analyzer
+    existing.on_complete(queue, result)
+
+    # Verify queue shape includes task_analyzer
+    node_ids = [node.node_id for node in queue.items]
+    assert "task_create" in node_ids
+    assert "task_analyzer" in node_ids

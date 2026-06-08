@@ -113,16 +113,21 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue (may be mutated to spawn task_create).
             result: The decision result.
         """
+        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
         from tinycua.loops.task_create import TinyCUATaskCreateNode
 
         # Clear stale worker-spawned nodes
         queue.clear_after_current()
 
-        # Spawn TaskCreateNode after current worker
+        # Spawn TaskCreateNode and TaskAnalyzerNode after current worker
         task_create = TinyCUATaskCreateNode(
             node_id="task_create", config=self.config,
         )
-        queue.spawn_after_current([task_create])
+        task_analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=self.config,
+            mode="initial_analysis",
+        )
+        queue.spawn_after_current([task_create, task_analyzer])
 
         # Ensure terminal response path is maintained
         from tinycua.loops.response_node import ResponseNode
@@ -131,7 +136,8 @@ class TinyCUAWorkerNode(DecisionNode):
         queue.ensure_terminal(default_terminal)
 
         logger.info(
-            "node=%s route_task_creation spawned task_create", self.node_id,
+            "node=%s route_task_creation spawned task_create, task_analyzer",
+            self.node_id,
         )
 
     def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:  # type: ignore[override]

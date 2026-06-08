@@ -38,8 +38,6 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 ### New Entities
 
 ```python
-from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 
 # WorkerNode route labels (subset implemented in this milestone)
@@ -51,13 +49,6 @@ class WorkerRouteLabel(str, Enum):
     task_reanalysis = "task_reanalysis"        # NOT IN SCOPE — Milestone 2.3
     passthrough = "passthrough"                # NOT IN SCOPE — Milestone 2.3
     proceed_execution = "proceed_execution"    # NOT IN SCOPE — Milestone 2.3
-
-# TaskCreateNode output
-@dataclass
-class TaskCreateResult:
-    task_id: str           # ID of created root task
-    task_summary: str      # Summary of what was created
-    created_at: datetime   # Timestamp of creation
 ```
 
 ### Schema Changes
@@ -109,8 +100,8 @@ class TinyCUATaskCreateNode(ProcessNode):
     
     def __call__(self, input: NodeInputLike) -> LLMResult:
         """
-        Create root task deterministically and advance queue.
-        Returns LLMResult with task_id, task_summary, and created_at.
+        Create root task deterministically and store in session.
+        Returns LLMResult from the LLM call. Task is recorded in session.task.
         Next node is TaskAnalyzerNode (without TaskInit/TaskCreate tools).
         """
     
