@@ -195,3 +195,45 @@ class NodeQueue:
 
         if not self.items[-1].is_terminal:
             self.items.append(default_terminal_node)
+
+    def find_worker_spawned_nodes(self) -> list[Node]:
+        """Find all nodes spawned by WorkerNode before terminal ResponseNode.
+
+        Scans the queue for a node with node_id "worker", then collects
+        all subsequent nodes until the first terminal node.
+
+        Returns:
+            List of worker-spawned nodes (empty if no worker found).
+        """
+        worker_idx: int | None = None
+        for i, node in enumerate(self.items):
+            if node.node_id == "worker":
+                worker_idx = i
+                break
+
+        if worker_idx is None:
+            return []
+
+        spawned: list[Node] = []
+        for node in self.items[worker_idx + 1 :]:
+            if node.is_terminal:
+                break
+            spawned.append(node)
+        return spawned
+
+    def find_existing_worker_node(self) -> Node | None:
+        """Find existing WorkerNode in queue before terminal ResponseNode.
+
+        This is the source of truth for worker-node lookup. QueryAnalyst's
+        find_existing_worker() should delegate to this method to avoid
+        logic duplication.
+
+        Returns:
+            The existing worker node, or None if not found.
+        """
+        for node in self.items:
+            if node.is_terminal:
+                break
+            if node.node_id == "worker":
+                return node
+        return None
