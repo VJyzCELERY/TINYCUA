@@ -30,7 +30,7 @@ class WorkerRouteLabel(str, Enum):
 
 
 # Default classification labels for WorkerNode
-_DEFAULT_WORKER_LABELS: list[str] = [label.value for label in WorkerRouteLabel]
+_DEFAULT_WORKER_LABELS: tuple[str, ...] = tuple(label.value for label in WorkerRouteLabel)
 
 
 class TinyCUAWorkerNode(DecisionNode):
@@ -67,7 +67,7 @@ class TinyCUAWorkerNode(DecisionNode):
                 "(e.g., task_creation, task_recreation). Delegate task execution "
                 "to specialized downstream nodes."
             ),
-            classification_labels=list(_DEFAULT_WORKER_LABELS),
+            classification_labels=list(_DEFAULT_WORKER_LABELS),  # tuple → list for parent
         )
         self.route_map = route_map or self._build_default_route_map()
 
