@@ -62,9 +62,10 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id=node_id,
             config=config,  # type: ignore[arg-type]
             instruction=(
-                "You are a worker node. Analyze the current task state and "
-                "determine the next action. You have access to task tools "
-                "for creating and managing tasks."
+                "You are a worker node that orchestrates task planning and execution. "
+                "Analyze the current task state and determine the next route "
+                "(e.g., task_creation, task_recreation). Delegate task execution "
+                "to specialized downstream nodes."
             ),
             classification_labels=list(_DEFAULT_WORKER_LABELS),
         )
