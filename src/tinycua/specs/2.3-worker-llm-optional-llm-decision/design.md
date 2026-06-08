@@ -159,8 +159,8 @@ class TinyCUAWorkerNode(DecisionNode):
     def _get_classification_labels(self, queue: NodeQueue) -> list[str]:
         """Get dynamic classification labels based on worker-spawned node presence.
         
-        Updates self.classification_labels in-place so that the parent
-        DecisionNode._classification_call() uses the dynamic labels.
+        Returns a list of valid classification labels. Caller should use the
+        returned list for classification.
         
         Args:
             queue: The node queue to check for worker-spawned nodes.
@@ -189,8 +189,9 @@ class TinyCUAWorkerNode(DecisionNode):
         since dynamic labels exclude passthrough when no spawned nodes exist).
         
         Input forwarding: Calls queue.advance() to remove WorkerNode, then calls
-        queue.set_input(next_node, input_data) to forward the original input to the
-        next worker-spawned node.
+        queue.set_input(next_node, self._last_input) to forward the original input
+        to the next worker-spawned node. Uses self._last_input (see Input Preservation
+        section for details).
         """
     
     def _route_proceed_execution(self, queue: NodeQueue, result: DecisionResult) -> None:

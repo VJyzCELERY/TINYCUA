@@ -61,6 +61,12 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] test_has_worker_spawned_nodes_true/false: assert returns True when spawned nodes exist, False otherwise
   - [ ] test_get_classification_labels_with_spawned: assert includes passthrough when spawned nodes exist
   - [ ] test_get_classification_labels_without_spawned: assert excludes passthrough when no spawned nodes
+  - [ ] test_route_task_creation_clears_and_spawns: assert old nodes cleared, task_create + task_analyzer spawned with mode="initial_analysis"
+  - [ ] test_detect_task_exists_true: assert returns True when session.task is set
+  - [ ] test_detect_task_exists_false: assert returns False when session.task is None/empty
+  - [ ] test_on_complete_dispatches_to_route_map: assert route_map.dispatch called with correct label
+  - [ ] test_call_deterministic_precheck_no_task: assert returns task_creation without LLM calls
+  - [ ] test_call_llm_decision_with_task: assert delegates to super().__call__ when task exists
   - [ ] test_route_task_recreation_clears_and_spawns: assert old nodes cleared, task_analyzer spawned with mode="analysis"
   - [ ] test_route_task_reanalysis_clears_and_spawns: assert old nodes cleared, task_analyzer spawned with mode="initial_analysis"
   - [ ] test_route_passthrough_advances: assert worker removed, next node is current

@@ -81,16 +81,16 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 > Checkboxes to be verified during implementation — not applicable to planning documents.
 
-- [ ] **SC-001** — **WorkerNode LLM decision process**: When a task exists, WorkerNode performs two-step LLM decision (analysis → classification) without deterministic precheck bypass.
-- [ ] **SC-002** — **Dynamic label adjustment**: Classification labels include `passthrough` only when worker-spawned nodes exist.
-- [ ] **SC-003** — **task_recreation route**: Route handler clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools.
-- [ ] **SC-004** — **task_reanalysis route**: Route handler clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
-- [ ] **SC-005** — **passthrough route**: Route handler advances queue and forwards input to next worker-spawned node.
-- [ ] **SC-006** — **proceed_execution route**: Route handler ensures terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
-- [ ] **SC-007** — **Invalid label retry**: Invalid or missing classification labels retry a configurable number of times (default 3).
-- [ ] **SC-008** — **Terminal response path guarantee**: Handlers that clear the queue ensure the terminal response path exists.
-- [ ] **SC-009** — **Input preservation**: Original input query is preserved for downstream nodes.
-- [ ] **SC-010** — **Queue invariant maintained**: QueryAnalyst remains first node in queue.
+- [ ] **SC-001** — **Acceptance Scenario 1**: Given a TinyCUA agent with WorkerNode active and a task exists, when WorkerNode enters, then it performs the two-step LLM decision process (analysis → classification) without deterministic precheck bypass.
+- [ ] **SC-002** — **Acceptance Scenarios 2–3**: Given WorkerNode performs LLM classification, when worker-spawned nodes exist, then `passthrough` is included in dynamic labels; when no worker-spawned nodes exist, then `passthrough` is excluded.
+- [ ] **SC-003** — **Acceptance Scenario 4**: Given WorkerNode classifies as `task_recreation`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools.
+- [ ] **SC-004** — **Acceptance Scenario 5**: Given WorkerNode classifies as `task_reanalysis`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
+- [ ] **SC-005** — **Acceptance Scenario 6**: Given WorkerNode classifies as `passthrough`, when the route handler executes, then it advances the queue and forwards input to the next worker-spawned node without re-inserting itself.
+- [ ] **SC-006** — **Acceptance Scenario 7**: Given WorkerNode classifies as `proceed_execution`, when the route handler executes, then it ensures the terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
+- [ ] **SC-007** — **Acceptance Scenario 8**: Given WorkerNode receives an invalid or missing classification label, when the decision process completes, then it retries a configurable number of times (default 3) before raising an error.
+- [ ] **SC-008** — **Acceptance Scenario 10**: Given WorkerNode dispatches to any route handler, when the handler completes, then it ensures the terminal response path exists.
+- [ ] **SC-009** — **Acceptance Scenario 9** (Input preservation): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the original input query is preserved for downstream nodes.
+- [ ] **SC-010** — **Queue invariant**: Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue.
 
 ---
 
@@ -173,4 +173,4 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
-- [x] Success criteria are measurable
+- [ ] Success criteria are measurable — design-level validation pending (see Success Criteria note)
