@@ -86,7 +86,7 @@ Implementation tasks for TinyCUAWorkerNode Deterministic Routing and TaskCreate.
 
 - [x] Create pull request <!-- id: 38, effort: S -->
 - [x] Address review feedback <!-- id: 39, effort: M -->
-- [x] Merge to main branch <!-- id: 40, effort: S -->
+- [ ] Merge to main branch <!-- id: 40, effort: S -->
 
 ---
 

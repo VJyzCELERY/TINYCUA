@@ -97,8 +97,8 @@ class TestTaskCreateNodeOnComplete:
 
         assert queue.current.node_id == "task_analyzer"
 
-    def test_on_complete_records_task_id(self) -> None:
-        """TaskCreateNode.on_complete records task_id in session."""
+    def test_on_complete_stores_task_in_session(self) -> None:
+        """TaskCreateNode.on_complete stores task content in session.task."""
         config = NodeConfigBase()
         task_create = TinyCUATaskCreateNode(node_id="task_create", config=config)
         session = Session()
@@ -128,5 +128,5 @@ class TestTaskCreateNodeOnComplete:
         # Then call on_complete to advance queue
         task_create.on_complete(queue, result)
 
-        # Session should have task_id recorded
+        # Session should have task content stored
         assert session.task is not None
