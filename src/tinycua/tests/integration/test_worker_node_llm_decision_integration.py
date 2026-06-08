@@ -109,6 +109,80 @@ def test_worker_node_dynamic_labels_without_worker_spawned():
     assert "proceed_execution" in labels
 
 
+def test_worker_node_call_uses_dynamic_labels_with_spawned_nodes():
+    """__call__ adjusts classification labels based on queue state when queue is available (FR-003)."""
+    # Arrange
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+    spawned = _make_mock_node("spawned_task")
+    queue.spawn_after_current([spawned])
+    # Set queue reference (mimics on_complete from previous call)
+    worker._queue = queue
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+
+    # Mock LLM to capture classification labels passed to _classify
+    mock_analysis = LLMResult(content="Worker should passthrough", role="assistant")
+    mock_classification = LLMResult(content="passthrough", role="assistant")
+    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    worker._call_llm = mock_llm
+
+    # Act
+    result = worker(input_data)
+
+    # Assert — classification labels should include passthrough (4 labels total)
+    # The second LLM call is the classification call; check the messages passed to it
+    classification_call_args = mock_llm.call_args_list[1]
+    classification_messages = classification_call_args[0][0]
+    # The classification instruction message contains the labels
+    labels_msg = classification_messages[-1]["content"]
+    assert "passthrough" in labels_msg
+    assert result.route_label == "passthrough"
+
+
+def test_worker_node_call_uses_dynamic_labels_without_spawned_nodes():
+    """__call__ adjusts classification labels based on queue state when queue is available (FR-003)."""
+    # Arrange
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+    # Set queue reference (mimics on_complete from previous call)
+    worker._queue = queue
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+
+    # Mock LLM
+    mock_analysis = LLMResult(content="Worker should proceed", role="assistant")
+    mock_classification = LLMResult(content="proceed_execution", role="assistant")
+    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    worker._call_llm = mock_llm
+
+    # Act
+    result = worker(input_data)
+
+    # Assert — classification labels should NOT include passthrough (3 labels)
+    classification_call_args = mock_llm.call_args_list[1]
+    classification_messages = classification_call_args[0][0]
+    labels_msg = classification_messages[-1]["content"]
+    assert "passthrough" not in labels_msg
+    assert result.route_label == "proceed_execution"
+
+
 def test_worker_node_route_task_recreation():
     """task_recreation route handler clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools."""
     # Arrange

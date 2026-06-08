@@ -340,8 +340,8 @@ def test_worker_node_queue_invariant_query_analyst_first():
     assert queue.items[0].node_id == "query_analyst"
 
 
-def test_worker_node_latest_valid_verdict_wins():
-    """Latest valid classification verdict determines route label when multiple tool calls occur (FR-005, SC-008)."""
+def test_worker_node_invalid_label_triggers_retry_and_succeeds():
+    """Invalid classification label triggers retry, then succeeds with valid label on second attempt (FR-006)."""
     # Arrange
     session = _make_session_with_task(task="Write a sorting script")
     config = NodeConfigBase(llm_client=MagicMock())
@@ -356,27 +356,30 @@ def test_worker_node_latest_valid_verdict_wins():
         messages=[{"role": "user", "content": "Help me write a script"}],
     )
 
-    # Mock: analysis → first classification (invalid) → second classification (valid)
+    # Mock: analysis → first classification (invalid) → second analysis → second classification (valid)
     mock_analysis = LLMResult(content="Worker should analyze task", role="assistant")
     # First classification call outputs invalid route label
     mock_classification_invalid = LLMResult(content="invalid_label", role="assistant")
     # Second classification call outputs valid route label
     mock_classification_valid = LLMResult(content="task_recreation", role="assistant")
 
-    # Simulate multiple tool calls: analysis call returns, then classification tool calls
+    # _execute_with_retry calls analyze + classify per attempt (2 calls per attempt)
+    # Attempt 1: analyze → mock_analysis, classify → mock_classification_invalid (invalid, triggers retry)
+    # Attempt 2: analyze → mock_analysis, classify → mock_classification_valid (valid, wins)
     mock_llm = MagicMock(side_effect=[
-        mock_analysis,              # Analysis LLM call
-        mock_classification_invalid, # Classification tool call 1 (invalid)
-        mock_classification_valid,   # Classification tool call 2 (valid — wins)
+        mock_analysis,              # Attempt 1: Analysis LLM call
+        mock_classification_invalid, # Attempt 1: Classification (invalid)
+        mock_analysis,              # Attempt 2: Analysis LLM call (retry)
+        mock_classification_valid,   # Attempt 2: Classification (valid — wins)
     ])
     worker._call_llm = mock_llm
 
     # Act
     result = worker(input_data)
 
-    # Assert — latest valid verdict wins (task_recreation, not invalid_label)
+    # Assert — retry succeeded with valid label (task_recreation, not invalid_label)
     assert result.route_label == "task_recreation"
-    # Verify the classification result is from the latest valid call
+    # Verify the classification result is from the valid retry attempt
     assert result.classification_response == mock_classification_valid
 ```
 

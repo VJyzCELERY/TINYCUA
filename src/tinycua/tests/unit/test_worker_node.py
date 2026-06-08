@@ -355,6 +355,30 @@ class TestWorkerNodeOnComplete:
         node_ids = [n.node_id for n in queue.items]
         assert "task_create" in node_ids
 
+    def test_stores_queue_reference(self) -> None:
+        """on_complete stores queue reference for dynamic label adjustment on next __call__."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        result = DecisionResult(
+            route_label="proceed_execution",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(
+                content="proceed_execution", role="assistant",
+            ),
+        )
+
+        assert worker._queue is None
+        worker.on_complete(queue, result)
+        assert worker._queue is queue
+
 
 class TestWorkerNodeRouteTaskRecreation:
     """Tests for TinyCUAWorkerNode._route_task_recreation."""

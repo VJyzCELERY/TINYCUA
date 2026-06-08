@@ -331,10 +331,14 @@ class TinyCUAWorkerNode(DecisionNode):
         Accepts DecisionResult (not LLMResult | DecisionResult) because
         WorkerNode's __call__ returns a structured decision result.
 
+        Stores the queue reference for dynamic label adjustment on the
+        next __call__ invocation.
+
         Args:
             queue: The node queue (may be mutated by route handler).
             result: The decision result from classification.
         """
+        self._queue = queue
         logger.info(
             "node=%s on_complete route_label=%s",
             self.node_id,
@@ -390,7 +394,7 @@ class TinyCUAWorkerNode(DecisionNode):
                 ),
             )
 
-        # Task exists — adjust labels dynamically if queue is available
+        # Task exists — adjust labels dynamically based on queue state
         if self._queue is not None:
             self.classification_labels = self._get_classification_labels(self._queue)
 
