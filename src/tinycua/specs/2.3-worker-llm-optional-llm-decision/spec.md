@@ -12,9 +12,9 @@
 ## Problem Statement _(mandatory)_
 
 - **Goals**: Provide optional LLM-based decision-making for TinyCUAWorkerNode so that when a task already exists, the worker can classify the appropriate next action (task_recreation, task_reanalysis, passthrough, proceed_execution) and dispatch to the correct route handler.
-- **Gaps**: Milestone 2.2 established deterministic task-creation routing for WorkerNode, but when a task already exists, the worker has no concrete behavior beyond a stub that delegates to the parent DecisionNode. There are no route handlers for task_recreation, task_reanalysis, passthrough, or proceed_execution, and no dynamic classification label adjustment based on worker-spawned node presence.
+- **Gaps**: Milestone 2.2 established deterministic task-creation routing for WorkerNode, but when a task already exists, the worker has no concrete behavior beyond a stub that delegates to the parent decision node. There are no route handlers for task_recreation, task_reanalysis, passthrough, or proceed_execution, and no dynamic classification label adjustment based on worker-spawned node presence.
 - **Non-Goals**: Full downstream process-node implementations (Milestones 2.4–3.2), TaskAssessor, TaskExecutor, ResultReviewer, result aggregation, response synthesis, and full architecture verification (Milestone 4.5).
-- **Constraints**: Must not modify tinycua-sdk public APIs. Must reuse existing infrastructure. Must maintain QueryAnalyst queue invariant (first node). Worker must preserve original input query for downstream nodes. The two-step decision process (analysis → classification → dispatch) must follow the established DecisionNode pattern.
+- **Constraints**: Must not modify tinycua-sdk public APIs. Must reuse existing infrastructure. Must maintain QueryAnalyst queue invariant (first node). Worker must preserve original input query for downstream nodes. WorkerNode must use a two-step decision process: analysis → classification → dispatch.
 
 ---
 
@@ -70,7 +70,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Key Entities _(include if feature involves data)_
 
-- **TinyCUAWorkerNode**: Concrete DecisionNode that owns task planning and execution orchestration. Replaces old worker subgraph and worker QueryAnalyst input gate.
+- **TinyCUAWorkerNode**: Concrete decision node that owns task planning and execution orchestration. Replaces old worker subgraph and worker QueryAnalyst input gate.
 - **WorkerRouteLabel**: Enum with labels: `task_creation`, `task_recreation`, `task_reanalysis`, `passthrough`, `proceed_execution`. All labels are implemented in this milestone.
 - **WorkerOwnedQueueSegment**: The set of nodes spawned by WorkerNode, used for stale detection, clearing, and dynamic label adjustment.
 - **RouteMap (Worker)**: WorkerNode's route map with labels mapped to handler callables. All five labels are registered in this milestone.
@@ -85,8 +85,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [ ] **SC-004** — **task_reanalysis route**: Route handler clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
 - [ ] **SC-005** — **passthrough route**: Route handler advances queue and forwards input to next worker-spawned node.
 - [ ] **SC-006** — **proceed_execution route**: Route handler spawns or continues TaskExecutor and ResultReviewer path.
-- [ ] **SC-007** — **Invalid label retry**: Invalid or missing classification labels retry per NodeRetryPolicy.
-- [ ] **SC-008** — **Terminal response path guarantee**: Route handlers calling `clear_after_current()` ensure terminal response path exists.
+- [ ] **SC-007** — **Invalid label retry**: Invalid or missing classification labels retry a configurable number of times (default 3).
+- [ ] **SC-008** — **Terminal response path guarantee**: Handlers that clear the queue ensure the terminal response path exists.
 - [ ] **SC-009** — **Input preservation**: Original input query is preserved for downstream nodes.
 - [ ] **SC-010** — **Queue invariant maintained**: QueryAnalyst remains first node in queue.
 
@@ -103,7 +103,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - `test_worker_node_classifies_task_reanalysis`: WorkerNode classifies as task_reanalysis.
 - `test_worker_node_classifies_passthrough`: WorkerNode classifies as passthrough.
 - `test_worker_node_classifies_proceed_execution`: WorkerNode classifies as proceed_execution.
-- `test_worker_node_invalid_label_retry`: Invalid classification labels trigger retry per NodeRetryPolicy.
+- `test_worker_node_invalid_label_retry`: Invalid classification labels trigger retry a configurable number of times (default 3).
 - `test_worker_node_route_task_recreation`: task_recreation route handler clears and spawns correctly.
 - `test_worker_node_route_task_reanalysis`: task_reanalysis route handler clears and spawns correctly.
 - `test_worker_node_route_passthrough`: passthrough route handler advances queue correctly.
@@ -139,8 +139,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 | task_reanalysis route handler | TODO | Clear + spawn TaskAnalyzerNode (no TaskInit/TaskCreate) |
 | passthrough route handler | TODO | Advance queue, forward input |
 | proceed_execution route handler | TODO | Spawn TaskExecutor/ResultReviewer path |
-| Invalid label retry | TODO | NodeRetryPolicy integration |
-| Terminal response path guarantee | TODO | ensure_terminal() in all route handlers |
+| Invalid label retry | TODO | Retry integration (default 3 attempts) |
+| Terminal response path guarantee | TODO | Terminal response path in all route handlers |
 
 ---
 
@@ -150,14 +150,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
    - **Status**: Decided
-   - **Decision**: Use tool-call response format (function_call with WorkerRouteLabel enum) for structured, validated classification. This matches the established DecisionNode pattern from QueryAnalyst.
+   - **Decision**: Use tool-call response format (function_call with WorkerRouteLabel enum) for structured, validated classification. This matches the established two-step decision pattern.
    - **Resolved**: 2026-06-08
 
 2. **What is the retry limit for invalid classification labels?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
    - **Status**: Decided
-   - **Decision**: Use NodeRetryPolicy with default max_retries=3, consistent with QueryAnalyst's retry behavior.
+   - **Decision**: Retry up to 3 times by default, consistent with QueryAnalyst's retry behavior.
    - **Resolved**: 2026-06-08
 
 ---
