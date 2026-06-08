@@ -1,0 +1,429 @@
+# Implementation: TinyCUAWorkerNode Deterministic Routing and TaskCreate
+
+Implements deterministic task-creation routing for TinyCUAWorkerNode so that when no task exists, the worker can initialize task creation and analysis without requiring LLM decisions. Introduces TinyCUATaskCreateNode as a concrete ProcessNode for first-time root task creation.
+
+## Context
+
+- **Spec Reference**: `./spec.md` — TinyCUAWorkerNode Deterministic Routing and TaskCreate
+- **Design Reference**: `./design.md` — WorkerNode architecture and TaskCreateNode design
+- **Priority**: P1
+- **Estimated Effort**: M
+
+## Environment Pre-requisites
+
+### Configuration
+
+- [x] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+- [x] **None** — no external services needed
+
+### Data / Fixtures
+
+- [x] **None** — no data or fixtures needed
+
+### Access / Permissions
+
+- [x] **None** — no special access required
+
+### Developer Tooling
+
+- [x] **Runtime**: Python 3.11+, uv
+- [x] **Package manager**: uv
+
+---
+
+## Success Criteria — Integration Tests (TDD First)
+
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+```python
+# Test file: src/tinycua/tests/integration/test_worker_node_task_creation_integration.py
+"""Integration tests for WorkerNode deterministic task_creation routing."""
+
+
+import pytest
+from unittest.mock import MagicMock, AsyncMock
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.node import ProcessNode, DecisionResult
+from tinycua.config.types import LLMResult
+from tinycua.models.session import Session
+from tinycua.models.node_input import NodeInput
+
+
+def test_worker_node_routes_to_task_creation_when_no_task():
+    """WorkerNode routes to task_creation deterministically when no task exists."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None  # No task exists
+
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, response_node]
+
+    input_data = NodeInput(content="Help me write a script")
+
+    # Act
+    result = worker(input_data)
+
+    # Assert
+    assert result.route_label == "task_creation"
+
+
+def test_worker_node_does_not_use_llm_for_task_creation():
+    """WorkerNode task_creation route does not trigger LLM decision."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None
+
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, response_node]
+
+    input_data = NodeInput(content="Help me write a script")
+
+    # Act
+    result = worker(input_data)
+
+    # Assert — LLM client should NOT have been called
+    config.llm_client.assert_not_called()
+
+
+def test_task_create_node_creates_root_task():
+    """TaskCreateNode creates root task using TaskInit/TaskCreate tools."""
+    # Arrange
+    from tinycua.loops.task_create import TinyCUATaskCreateNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    config = NodeConfigBase()
+    task_create = TinyCUATaskCreateNode(node_id="task_create", config=config)
+    task_create.ensure_session(session)
+
+    # Act
+    # TaskCreateNode uses LLM to create task — mock the LLM response
+    mock_llm = MagicMock()
+    mock_llm.return_value = {
+        "content": "Task created: Write a script",
+        "role": "assistant",
+        "tool_calls": [],
+    }
+    config.llm_client = mock_llm
+
+    input_data = NodeInput(content="Help me write a script")
+    result = task_create(input_data)
+
+    # Assert
+    assert session.task is not None
+
+
+def test_task_create_node_advances_queue_to_task_analyzer():
+    """TaskCreateNode advances queue with TaskAnalyzerNode as next node."""
+    # Arrange
+    from tinycua.loops.task_create import TinyCUATaskCreateNode
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    config = NodeConfigBase()
+    task_create = TinyCUATaskCreateNode(node_id="task_create", config=config)
+    task_create.ensure_session(session)
+
+    queue = NodeQueue()
+    task_analyzer = MagicMock()
+    task_analyzer.node_id = "task_analyzer"
+    queue.items = [task_create, task_analyzer]
+
+    # Mock LLM to return a successful response
+    mock_llm = MagicMock()
+    mock_llm.return_value = {
+        "content": "Task created",
+        "role": "assistant",
+        "tool_calls": [],
+    }
+    config.llm_client = mock_llm
+
+    input_data = NodeInput(content="Help me write a script")
+    result = task_create(input_data)
+
+    # Act — on_complete should advance queue
+    task_create.on_complete(queue, result)
+
+    # Assert
+    assert queue.current.node_id == "task_analyzer"
+
+
+def test_task_analyzer_no_task_tools_in_initial_analysis():
+    """TaskAnalyzerNode (initial_analysis) does not have TaskInit/TaskCreate tools."""
+    # Arrange
+    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    config = NodeConfigBase()
+    task_analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=config,
+        mode="initial_analysis",
+    )
+
+    # Assert
+    assert "TaskInit" not in task_analyzer.tool_scope
+    assert "TaskCreate" not in task_analyzer.tool_scope
+
+
+def test_worker_node_detects_worker_spawned_nodes():
+    """WorkerNode detects worker-spawned nodes in queue."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    spawned_node = MagicMock()
+    spawned_node.node_id = "task_create"
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, spawned_node, response_node]
+
+    # Act
+    spawned_nodes = worker._detect_worker_spawned_nodes(queue)
+
+    # Assert
+    assert len(spawned_nodes) == 1
+    assert spawned_nodes[0].node_id == "task_create"
+
+
+def test_worker_node_reuse_detection():
+    """Existing WorkerNode is recognized in worker-owned segment."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, response_node]
+
+    # Act
+    existing = queue.find_existing_worker_node()
+
+    # Assert
+    assert existing is worker
+
+
+def test_worker_node_preserves_input():
+    """Original input query is preserved for downstream nodes."""
+    # Arrange
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    session.task = None
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, response_node]
+
+    input_data = NodeInput(content="Help me write a script")
+
+    # Act
+    result = worker(input_data)
+
+    # Assert — the original input content should be preserved in the result
+    assert "Help me write a script" in str(result) or result.route_label == "task_creation"
+
+
+def test_clear_after_current_ensures_terminal():
+    """Route handler ensures terminal response after clear."""
+    # Arrange
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.loops.worker import TinyCUAWorkerNode
+    from tinycua.config.node_config import NodeConfigBase
+
+    session = Session()
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    worker.ensure_session(session)
+
+    queue = NodeQueue()
+    response_node = MagicMock()
+    response_node.is_terminal = True
+    queue.items = [worker, response_node]
+
+    # Act — clear after current removes terminal
+    queue.clear_after_current()
+
+    # Assert — ensure_terminal should add it back
+    default_response = MagicMock()
+    default_response.is_terminal = True
+    queue.ensure_terminal(default_response)
+
+    assert queue.items[-1].is_terminal
+```
+
+### Key Test Scenarios
+
+- [ ] **Scenario 1**: WorkerNode routes to `task_creation` when no task exists — this is the primary success criterion for deterministic routing
+- [ ] **Scenario 2**: WorkerNode does NOT call LLM for task_creation — verifies the deterministic behavior
+- [ ] **Scenario 3**: TaskCreateNode creates root task and advances queue — verifies the full task creation flow
+- [ ] **Edge case**: `clear_after_current()` removes terminal ResponseNode — verifies `ensure_terminal()` call
+
+## Verification Plan
+
+### Automated Tests
+
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for WorkerNode, TaskCreateNode, TaskAnalyzerNode, NodeQueue additions
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+
+### Manual Verification
+
+- [ ] Verify WorkerNode deterministic routing in a local environment with mock LLM endpoint
+- [ ] Verify queue shape after `task_creation` route visually
+
+### Performance Considerations
+
+- [ ] No performance impact — deterministic routing avoids unnecessary LLM calls
+
+## Proposed Changes
+
+### WorkerNode Module
+
+#### [NEW] `src/tinycua/tinycua/loops/worker.py`
+
+- **Description**: Concrete DecisionNode for task planning and execution orchestration
+- **Dependencies**: `DecisionNode`, `RouteMap`, `NodeQueue`, `Session`
+
+#### [MODIFY] `src/tinycua/tinycua/loops/query_analyst.py`
+
+- **Description**: Replace placeholder `ProcessNode` in `route_worker()` with actual `TinyCUAWorkerNode` import
+- **Rationale**: Currently spawns a generic ProcessNode; must spawn the real WorkerNode
+
+### TaskCreateNode Module
+
+#### [NEW] `src/tinycua/tinycua/loops/task_create.py`
+
+- **Description**: ProcessNode for deterministic first-time root task creation with TaskInit/TaskCreate tool scope
+- **Dependencies**: `ProcessNode`, `NodeQueue`, `Session`
+
+### TaskAnalyzerNode Module
+
+#### [NEW] `src/tinycua/tinycua/loops/task_analyzer.py`
+
+- **Description**: ProcessNode with `mode=initial_analysis` that excludes TaskInit/TaskCreate tools
+- **Dependencies**: `ProcessNode`, `NodeQueue`
+
+### NodeQueue Extensions
+
+#### [MODIFY] `src/tinycua/tinycua/loops/node_queue.py`
+
+- **Description**: Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` methods
+- **Rationale**: WorkerNode needs to detect worker-spawned nodes for stale detection and reuse
+
+### Module Exports
+
+#### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
+
+- **Description**: Export `TinyCUAWorkerNode`, `TinyCUATaskCreateNode`, `TinyCUATaskAnalyzerNode`
+- **Rationale**: Make new nodes available for imports
+
+## Architecture Changes
+
+| Component | Change Type | Description |
+|-----------|-------------|-------------|
+| `tinycua.loops.worker.TinyCUAWorkerNode` | New | Concrete DecisionNode with route_map for task_creation routing |
+| `tinycua.loops.task_create.TinyCUATaskCreateNode` | New | ProcessNode for deterministic root task creation |
+| `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | New | ProcessNode with mode=initial_analysis without TaskInit/TaskCreate tools |
+| `tinycua.loops.node_queue.NodeQueue` | Modified | Add worker-spawned-node detection methods |
+| `tinycua.loops.query_analyst.TinyCUAQueryAnalystNode` | Modified | Use real WorkerNode in route_worker() |
+
+## Data Model Changes
+
+```python
+# WorkerNode route labels (subset implemented in this milestone)
+class WorkerRouteLabel(str, Enum):
+    task_creation = "task_creation"
+    task_recreation = "task_recreation"        # Deferred to 2.3
+    task_reanalysis = "task_reanalysis"        # Deferred to 2.3
+    passthrough = "passthrough"                # Deferred to 2.3
+    proceed_execution = "proceed_execution"    # Deferred to 2.3
+
+# TaskCreateNode output
+@dataclass
+class TaskCreateResult:
+    task_id: str
+    task_summary: str
+    created_at: datetime
+```
+
+## API Changes
+
+### New Classes
+
+| Class | Parent | Description |
+|-------|--------|-------------|
+| `TinyCUAWorkerNode` | `DecisionNode` | Worker routing with deterministic task_creation |
+| `TinyCUATaskCreateNode` | `ProcessNode` | Root task creation with TaskInit/TaskCreate tools |
+| `TinyCUATaskAnalyzerNode` | `ProcessNode` | Analysis without task tools (initial_analysis mode) |
+
+### Modified Classes
+
+| Class | Change |
+|-------|--------|
+| `NodeQueue` | Added `find_worker_spawned_nodes()` and `find_existing_worker_node()` |
+
+## Dependencies
+
+### External Dependencies
+
+- [x] None — uses existing project dependencies
+
+### Internal Dependencies
+
+- [x] Depends on Milestone 2.1 (QueryAnalyst worker spawn/reuse)
+- [ ] Blocks Milestone 2.3 (LLM worker decisions)
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| WorkerNode route_map incomplete for non-task_creation routes | Medium | Phase 2 defers remaining routes; only task_creation is required |
+| TaskCreateNode retry loop could block queue | Low | NodeRetryPolicy with max retries; failure propagates to WorkerNode |
+| `ensure_terminal()` called incorrectly by route handlers | High | Comprehensive unit tests for all route handlers; code review checklist |
+| Worker-spawned-node detection misses nodes due to queue ordering | High | Tests verify detection with various queue shapes; consistent with QueryAnalyst logic |
+
+---
+
+*Generated from spec.md and design.md*
+*Last updated: 2026-06-08*
