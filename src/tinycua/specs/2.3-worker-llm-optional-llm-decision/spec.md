@@ -38,6 +38,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 10. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** it ensures the terminal response path exists.
 11. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** the original input query is preserved for downstream nodes.
 12. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** QueryAnalyst remains the first node in the queue.
+13. **Given** WorkerNode is invoked with LLM decision, **When** the LLM classification executes, **Then** WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available.
 
 ### Edge Cases
 
@@ -94,6 +95,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [ ] **SC-009** — **Acceptance Scenario 9** (Latest Verdict): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the latest valid verdict determines the route label. (FR-005)
 - [ ] **SC-010** — **Acceptance Scenario 12** (Queue Invariant): Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
 - [ ] **SC-011** — **Acceptance Scenario 11** (Input Preservation): Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
+- [ ] **SC-012** — **Acceptance Scenario 13** (Tool Scope Restriction, FR-014): Given WorkerNode is invoked with LLM decision, when the LLM classification executes, then WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available.
 
 ---
 
