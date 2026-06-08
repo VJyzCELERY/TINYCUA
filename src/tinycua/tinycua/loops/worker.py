@@ -7,6 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from tinycua.loops.node import DecisionNode, DecisionResult
+from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.route_map import RouteMap
 
 if TYPE_CHECKING:
@@ -42,7 +43,10 @@ class TinyCUAWorkerNode(DecisionNode):
     Attributes:
         node_id: Always "worker" by default.
         route_map: Dispatch table for classification labels.
+        default_response_node: Terminal node for ensure_terminal() calls.
     """
+
+    default_response_node: Node  # Terminal node for ensure_terminal() calls
 
     def __init__(
         self,
@@ -69,6 +73,7 @@ class TinyCUAWorkerNode(DecisionNode):
             ),
             classification_labels=list(_DEFAULT_WORKER_LABELS),  # tuple → list for parent
         )
+        self.default_response_node = ResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
 
     def _build_default_route_map(self) -> RouteMap:
@@ -134,10 +139,7 @@ class TinyCUAWorkerNode(DecisionNode):
         queue.spawn_after_current([task_create, task_analyzer])
 
         # Ensure terminal response path is maintained
-        from tinycua.loops.response_node import ResponseNode
-
-        default_terminal = ResponseNode(config=self.config)
-        queue.ensure_terminal(default_terminal)
+        queue.ensure_terminal(self.default_response_node)
 
         logger.info(
             "node=%s route_task_creation spawned task_create, task_analyzer",
