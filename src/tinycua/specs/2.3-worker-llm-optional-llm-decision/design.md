@@ -338,6 +338,6 @@ WorkerNode preserves the original input query for downstream nodes:
 - Related designs:
   - `src/tinycua/specs/2.2-worker-node-deterministic-routing/spec.md` — Milestone 2.2 spec (prerequisite)
   - `src/tinycua/specs/2.1-route-map-query-analyst/spec.md` — Milestone 2.1 spec (prerequisite)
-  - `src/tinycua/docs/design/loops/worker_concept.md` — WorkerNode concept design (full coverage in this milestone)
-  - `src/tinycua/docs/design/loops/worker.md` — WorkerNode detailed design (full coverage in this milestone)
-  - `src/tinycua/docs/design/models/classification.md` — Classification model design (full coverage in this milestone)
+  - `src/tinycua/docs/design/loops/worker_concept.md` — WorkerNode concept design (baseline; not modified in this milestone)
+  - `src/tinycua/docs/design/loops/worker.md` — WorkerNode detailed design (baseline; not modified in this milestone)
+  - `src/tinycua/docs/design/models/classification.md` — Classification model design (baseline; not modified in this milestone)
