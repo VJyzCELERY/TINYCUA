@@ -175,13 +175,12 @@ class TinyCUAWorkerNode(DecisionNode):
                 self.node_id,
             )
             # Record the decision without LLM calls
-            if self.session is not None:
-                self.session.session_context.append(
-                    {
-                        "role": "assistant",
-                        "content": "[Deterministic] task_creation: no task exists",
-                    }
-                )
+            self.session.session_context.append(
+                {
+                    "role": "assistant",
+                    "content": "[Deterministic] task_creation: no task exists",
+                }
+            )
             return DecisionResult(
                 route_label=WorkerRouteLabel.task_creation.value,
                 analysis_response=LLMResult(

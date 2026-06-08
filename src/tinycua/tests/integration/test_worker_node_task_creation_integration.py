@@ -243,6 +243,11 @@ def test_worker_node_records_routing_decision_in_session_context():
     assert any("task_creation" in c for c in context_contents), (
         "Session context should contain task_creation decision"
     )
+    # Verify original input is preserved in the NodeInput for downstream nodes
+    original_input = "Help me write a script"
+    assert any(original_input in m.get("content", "") for m in input_data.messages), (
+        "Original input should be preserved in NodeInput.messages for downstream nodes"
+    )
 
 
 def test_clear_after_current_ensures_terminal():
