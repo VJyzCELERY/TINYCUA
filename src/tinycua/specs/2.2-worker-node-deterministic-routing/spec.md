@@ -27,7 +27,11 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 ### Acceptance Scenarios
 
 1. **Given** a TinyCUA agent with WorkerNode active and no task exists, **When** WorkerNode enters, **Then** it routes to `task_creation` deterministically without LLM decision.
-2. **Given** WorkerNode enters with `task_creation` route, **When** TaskCreateNode completes and advances, **Then** the queue contains `[WorkerNode, TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]` (this is the expected queue shape AFTER TaskCreateNode completes and advances).
+2. **Given** WorkerNode enters with `task_creation` route, **When** WorkerNode performs deterministic routing, **Then** the queue contains `[WorkerNode, TaskCreateNode, TaskAnalyzerNode, ResponseNode]` with the terminal response path guaranteed.
+
+   > **Note**: The full architecture queue shape including AnalysisEffortNode, TaskExecutor,
+   > ResultReviewer is aspirational and will be realized in Milestones 2.4–3.2. This milestone
+   > establishes the foundational worker-owned segment.
 3. **Given** TaskCreateNode is active, **When** it creates the root task, **Then** it uses only TaskInit/TaskCreate tools and advances the queue.
 4. **Given** TaskAnalyzerNode runs after TaskCreateNode, **When** it performs initial analysis, **Then** it does NOT have access to TaskInit/TaskCreate tools.
 5. **Given** a WorkerNode already exists in the queue, **When** QueryAnalyst routes to worker, **Then** the existing WorkerNode is reused and counts as part of the worker-owned queue segment.
