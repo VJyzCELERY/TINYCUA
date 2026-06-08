@@ -75,17 +75,18 @@ Implementation tasks for TinyCUAWorkerNode Deterministic Routing and TaskCreate.
 - [ ] Verify terminal response path guarantee after clear_after_current() <!-- id: 32, effort: S, SC-006 -->
 - [ ] Verify worker-spawned-node detection for stale nodes <!-- id: 33, effort: S, SC-004 -->
 - [ ] Verify WorkerNode reuse for existing worker-owned queue segment <!-- id: 34, effort: S, SC-005 -->
+- [ ] Verify original input query is preserved for downstream nodes <!-- id: 35, effort: S, SC-007 -->
 
 ## Documentation Phase
 
-- [ ] Update docstrings for all new classes <!-- id: 35, effort: S -->
-- [ ] Add type hints for all new methods <!-- id: 36, effort: S -->
+- [ ] Update docstrings for all new classes <!-- id: 36, effort: S -->
+- [ ] Add type hints for all new methods <!-- id: 37, effort: S -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 37, effort: S -->
-- [ ] Address review feedback <!-- id: 38, effort: M -->
-- [ ] Merge to main branch <!-- id: 39, effort: S -->
+- [ ] Create pull request <!-- id: 38, effort: S -->
+- [ ] Address review feedback <!-- id: 39, effort: M -->
+- [ ] Merge to main branch <!-- id: 40, effort: S -->
 
 ---
 

@@ -216,8 +216,4 @@ class NodeQueue:
 
 - Spec: `./spec.md` — relative path from this design.md to its spec.md
 - Related designs:
-  - `src/tinycua/docs/prototype/design/loops/worker.md` — WorkerNode target architecture
-  - `src/tinycua/docs/prototype/design/loops/worker_concept.md` — WorkerNode concept
-  - `src/tinycua/docs/prototype/design/loops/task_create.md` — TaskCreateNode target architecture
-  - `src/tinycua/docs/prototype/design/tools/task.md` — Task tool scope by node
   - `src/tinycua/specs/2.1-route-map-query-analyst/spec.md` — Milestone 2.1 spec (prerequisite)
