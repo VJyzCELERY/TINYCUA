@@ -340,7 +340,7 @@ def test_worker_node_queue_invariant_query_analyst_first():
 
 
 def test_worker_node_latest_valid_verdict_wins():
-    """Latest valid classification verdict determines route label when multiple tool calls occur (FR-005, SC-009)."""
+    """Latest valid classification verdict determines route label when multiple tool calls occur (FR-005, SC-008)."""
     # Arrange
     session = _make_session_with_task(task="Write a sorting script")
     config = NodeConfigBase(llm_client=MagicMock())
@@ -385,10 +385,10 @@ def test_worker_node_latest_valid_verdict_wins():
 - [ ] **Scenario 2** (SC-002, FR-003): Dynamic label adjustment includes/excludes passthrough based on worker-spawned nodes
 - [ ] **Scenario 3** (SC-003–SC-006, FR-007–FR-012): Each route handler (task_recreation, task_reanalysis, passthrough, proceed_execution) executes correctly
 - [ ] **Scenario 4** (SC-007, FR-006): Invalid classification labels retry per NodeRetryPolicy and raise after exhaustion
-- [ ] **Scenario 5** (SC-008, FR-011, FR-012): Terminal response path guaranteed after any route handler
+- [ ] **Scenario 5** (SC-009, FR-011, FR-012): Terminal response path guaranteed after any route handler
 - [ ] **Scenario 6** (SC-011, FR-013): Input preservation for downstream nodes
 - [ ] **Scenario 7** (SC-010, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
-- [ ] **Scenario 8** (SC-009, FR-005): Latest valid verdict — when multiple tool calls occur, the latest valid verdict determines the route label
+- [ ] **Scenario 8** (SC-008, FR-005): Latest valid verdict — when multiple tool calls occur, the latest valid verdict determines the route label
 - [ ] **Scenario 9** (SC-012, FR-014): WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available during LLM classification
 
 ## Verification Plan
