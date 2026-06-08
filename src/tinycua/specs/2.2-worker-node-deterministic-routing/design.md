@@ -82,6 +82,8 @@ class TinyCUAWorkerNode(DecisionNode):
         """
         WorkerNode entry point. Performs deterministic prechecks before LLM decision.
         For this milestone, only task_creation is implemented deterministically.
+        WorkerNode MUST pass through empty/null input without modification.
+        Downstream nodes handle empty input per their own policies.
         """
     
     def _detect_task_exists(self, context: NodeContext) -> bool:
@@ -131,7 +133,8 @@ class NodeQueue:
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| TaskCreateNode fails to create root task | `NodeRetryPolicy` retry (TaskCreateNode's own config) | Task creation failure prevents downstream |
+| Empty or null input reaching WorkerNode | Pass through original input unchanged | Downstream nodes handle per their own policies |
+| TaskCreateNode fails to create root task | `NodeRetryPolicy` retry (TaskCreateNode's own config) | After max retries, failure propagates to WorkerNode which must handle the error (e.g., return error to user). Downstream nodes never receive a valid task tree. |
 | No terminal response after clear | `ensure_terminal()` adds default | Route handler responsibility |
 | Invalid WorkerNode route label | `NodeRetryPolicy` retry | Only `task_creation` valid in this milestone |
 
