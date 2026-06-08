@@ -7,7 +7,7 @@ from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.loops.task_create import TinyCUATaskCreateNode
-from tinycua.loops.node import ProcessNode
+from tinycua.loops.node import ProcessNode, NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.session import Session
 from tinycua.models.node_input import NodeInput
@@ -101,3 +101,42 @@ def test_stale_worker_spawned_nodes_detection():
     spawned = worker._detect_worker_spawned_nodes(queue)
     assert len(spawned) == 1
     assert spawned[0].node_id == "task_create"
+
+
+def test_worker_node_raises_error_without_session():
+    """WorkerNode raises NodeExecutionError when no session is attached."""
+    import pytest
+
+    config = NodeConfigBase()
+    worker = TinyCUAWorkerNode(node_id="worker", config=config)
+    # Do NOT call ensure_session — session remains None
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "test"}],
+    )
+    with pytest.raises(NodeExecutionError, match="no session attached"):
+        worker(input_data)
+
+
+def test_task_create_node_empty_content_fallback():
+    """TaskCreateNode uses default task string when LLM returns empty content."""
+    config = NodeConfigBase()
+    task_create = TinyCUATaskCreateNode(node_id="task_create", config=config)
+    session = Session()
+    task_create.ensure_session(session)
+
+    # Mock LLM to return empty content
+    mock_llm = MagicMock()
+    mock_llm.return_value = {
+        "content": "",
+        "role": "assistant",
+        "tool_calls": [],
+    }
+    config.llm_client = mock_llm
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Create a task"}],
+    )
+    task_create(input_data)
+    assert session.task == "Task created"

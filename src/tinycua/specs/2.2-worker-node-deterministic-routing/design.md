@@ -86,13 +86,13 @@ class TinyCUAWorkerNode(DecisionNode):
         Downstream nodes handle empty input per their own policies.
         """
     
-    def _detect_task_exists(self, context: NodeContext) -> bool:
-        """Check if a task already exists in the session via session.task (the Session model already has a task attribute)."""
+    def _detect_task_exists(self) -> bool:
+        """Check if a task already exists in the session via self.session.task."""
     
     def _detect_worker_spawned_nodes(self, queue: NodeQueue) -> list[Node]:
         """Find worker-owned nodes in the queue before terminal ResponseNode."""
     
-    def _route_task_creation(self, queue: NodeQueue, result: DecisionResult) -> NodeOutput:
+    def _route_task_creation(self, queue: NodeQueue, result: DecisionResult) -> None:
         """Deterministic route: spawn TaskCreateNode for root task creation."""
 ```
 
