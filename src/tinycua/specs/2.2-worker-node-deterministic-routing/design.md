@@ -28,7 +28,7 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 |-----------|-------------|-------|
 | `tinycua.loops.worker.TinyCUAWorkerNode` | New | Concrete DecisionNode with route_map for task_creation routing |
 | `tinycua.loops.task_create.TinyCUATaskCreateNode` | New | ProcessNode for deterministic root task creation |
-| `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | Modified | Add mode=initial_analysis without TaskInit/TaskCreate tools |
+| `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | New | ProcessNode with mode=initial_analysis without TaskInit/TaskCreate tools |
 | `tinycua.loops.node_queue.NodeQueue` | Modified | Add worker-spawned-node detection and terminal response guarantees |
 
 ---

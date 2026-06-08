@@ -54,7 +54,8 @@ from tinycua.models.session import Session
 from tinycua.models.node_input import NodeInput
 
 
-def test_worker_node_routes_to_task_creation_when_no_task():
+@pytest.mark.asyncio
+async def test_worker_node_routes_to_task_creation_when_no_task():
     """WorkerNode routes to task_creation deterministically when no task exists."""
     # Arrange
     from tinycua.loops.worker import TinyCUAWorkerNode
@@ -75,13 +76,14 @@ def test_worker_node_routes_to_task_creation_when_no_task():
     input_data = NodeInput(content="Help me write a script")
 
     # Act
-    result = worker(input_data)
+    result = await worker(input_data)
 
     # Assert
     assert result.route_label == "task_creation"
 
 
-def test_worker_node_does_not_use_llm_for_task_creation():
+@pytest.mark.asyncio
+async def test_worker_node_does_not_use_llm_for_task_creation():
     """WorkerNode task_creation route does not trigger LLM decision."""
     # Arrange
     from tinycua.loops.worker import TinyCUAWorkerNode
@@ -102,13 +104,14 @@ def test_worker_node_does_not_use_llm_for_task_creation():
     input_data = NodeInput(content="Help me write a script")
 
     # Act
-    result = worker(input_data)
+    result = await worker(input_data)
 
     # Assert — LLM client should NOT have been called
     config.llm_client.assert_not_called()
 
 
-def test_task_create_node_creates_root_task():
+@pytest.mark.asyncio
+async def test_task_create_node_creates_root_task():
     """TaskCreateNode creates root task using TaskInit/TaskCreate tools."""
     # Arrange
     from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -130,13 +133,14 @@ def test_task_create_node_creates_root_task():
     config.llm_client = mock_llm
 
     input_data = NodeInput(content="Help me write a script")
-    result = task_create(input_data)
+    result = await task_create(input_data)
 
     # Assert
     assert session.task is not None
 
 
-def test_task_create_node_advances_queue_to_task_analyzer():
+@pytest.mark.asyncio
+async def test_task_create_node_advances_queue_to_task_analyzer():
     """TaskCreateNode advances queue with TaskAnalyzerNode as next node."""
     # Arrange
     from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -163,7 +167,7 @@ def test_task_create_node_advances_queue_to_task_analyzer():
     config.llm_client = mock_llm
 
     input_data = NodeInput(content="Help me write a script")
-    result = task_create(input_data)
+    result = await task_create(input_data)
 
     # Act — on_complete should advance queue
     task_create.on_complete(queue, result)
@@ -240,7 +244,8 @@ def test_worker_node_reuse_detection():
     assert existing is worker
 
 
-def test_worker_node_preserves_input():
+@pytest.mark.asyncio
+async def test_worker_node_preserves_input():
     """Original input query is preserved for downstream nodes."""
     # Arrange
     from tinycua.loops.worker import TinyCUAWorkerNode
@@ -260,13 +265,14 @@ def test_worker_node_preserves_input():
     input_data = NodeInput(content="Help me write a script")
 
     # Act
-    result = worker(input_data)
+    result = await worker(input_data)
 
     # Assert — the original input content should be preserved in the result
     assert result.input_query == "Help me write a script"
 
 
-def test_clear_after_current_ensures_terminal():
+@pytest.mark.asyncio
+async def test_clear_after_current_ensures_terminal():
     """Route handler ensures terminal response after clear."""
     # Arrange
     from tinycua.loops.node_queue import NodeQueue
