@@ -116,12 +116,12 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUAWorkerNode | TODO | Concrete DecisionNode with route_map |
-| TinyCUATaskCreateNode | TODO | ProcessNode for root task creation |
-| Worker-spawned-node detection | TODO | Detection and segment management |
-| WorkerNode reuse detection | TODO | Existing WorkerNode in queue segment |
-| Terminal response path guarantee | TODO | ensure_terminal in route handlers |
-| Input preservation | TODO | Original query passthrough |
+| TinyCUAWorkerNode | DONE | worker.py — Concrete DecisionNode with route_map |
+| TinyCUATaskCreateNode | DONE | task_create.py — ProcessNode for root task creation |
+| Worker-spawned-node detection | DONE | node_queue.py — find_worker_spawned_nodes() |
+| WorkerNode reuse detection | DONE | node_queue.py — find_existing_worker_node() |
+| Terminal response path guarantee | DONE | Both route handlers call ensure_terminal() |
+| Input preservation | DONE | Original query preserved in NodeInput.messages |
 
 ---
 
