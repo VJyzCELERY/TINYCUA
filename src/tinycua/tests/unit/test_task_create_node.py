@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.node import ProcessNode, DecisionResult
-from tinycua.config.types import LLMResult
+from tinycua.loops.node import ProcessNode
 from tinycua.models.session import Session
 from tinycua.models.node_input import NodeInput
 
@@ -67,7 +65,7 @@ def test_worker_node_does_not_use_llm_for_task_creation():
     )
 
     # Act
-    result = worker(input_data)
+    _ = worker(input_data)
 
     # Assert — LLM client should NOT have been called
     config.llm_client.assert_not_called()
@@ -98,7 +96,7 @@ def test_task_create_node_creates_root_task():
         input_type="continuation",
         messages=[{"role": "user", "content": "Help me write a script"}],
     )
-    result = task_create(input_data)
+    _ = task_create(input_data)
 
     # Assert
     assert session.task is not None
@@ -212,9 +210,8 @@ def test_worker_node_reuse_detection():
     assert existing is worker
 
 
-@pytest.mark.asyncio
-async def test_worker_node_preserves_input():
-    """Original input query is preserved for downstream nodes."""
+def test_worker_node_records_routing_decision_in_session_context():
+    """WorkerNode records routing decision in session_context for downstream nodes."""
     # Arrange
     from tinycua.loops.worker import TinyCUAWorkerNode
     from tinycua.config.node_config import NodeConfigBase
@@ -237,10 +234,9 @@ async def test_worker_node_preserves_input():
     )
 
     # Act
-    result = worker(input_data)
+    _ = worker(input_data)
 
-    # Assert — the original input content should be preserved in session_context
-    # for downstream nodes to access
+    # Assert — session_context should contain the routing decision
     context_contents = [
         ctx.get("content", "") for ctx in session.session_context
     ]

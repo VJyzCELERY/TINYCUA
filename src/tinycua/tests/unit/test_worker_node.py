@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
 from tinycua.loops.worker import TinyCUAWorkerNode, WorkerRouteLabel
-from tinycua.loops.node import DecisionResult, ProcessNode
+from tinycua.loops.node import DecisionResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.session import Session
 from tinycua.models.node_input import NodeInput

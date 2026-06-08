@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node import Node

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 from tinycua.loops.node import ProcessNode

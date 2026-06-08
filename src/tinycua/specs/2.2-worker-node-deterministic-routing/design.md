@@ -78,7 +78,7 @@ class TinyCUAWorkerNode(DecisionNode):
     
     route_map: RouteMap  # Maps route labels to handler callables
     
-    async def __call__(self, input: NodeInput) -> NodeOutput:
+    def __call__(self, input: NodeInputLike) -> DecisionResult:
         """
         WorkerNode entry point. Performs deterministic prechecks before LLM decision.
         For this milestone, only task_creation is implemented deterministically.
@@ -105,10 +105,10 @@ class TinyCUATaskCreateNode(ProcessNode):
     
     tool_scope: list[str] = ["TaskInit", "TaskCreate"]
     
-    async def __call__(self, input: NodeInput) -> TaskCreateResult:
+    def __call__(self, input: NodeInputLike) -> LLMResult:
         """
         Create root task deterministically and advance queue.
-        Returns TaskCreateResult with task_id, task_summary, and created_at.
+        Returns LLMResult with task_id, task_summary, and created_at.
         Next node is TaskAnalyzerNode (without TaskInit/TaskCreate tools).
         """
     
