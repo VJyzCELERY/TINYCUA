@@ -173,7 +173,7 @@ def test_query_analyst_e2e_passthrough():
     config = NodeConfigBase(llm_client=mock_llm)
     query_analyst = TinyCUAQueryAnalystNode(config=config)
     response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
-    queue = NodeQueue(items=[query_analyst, response_node])
+    _queue = NodeQueue(items=[query_analyst, response_node])
     session = Session()
     mandatory = MandatoryPassthrough(
         target_node_id="response",
@@ -293,7 +293,7 @@ def test_query_analyst_e2e_invalid_label_retry():
     config = NodeConfigBase(llm_client=mock_llm)
     query_analyst = TinyCUAQueryAnalystNode(config=config)
     response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
-    queue = NodeQueue(items=[query_analyst, response_node])
+    _queue = NodeQueue(items=[query_analyst, response_node])
     session = Session()
     # Act
     input_data = NodeInput(

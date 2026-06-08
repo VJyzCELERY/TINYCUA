@@ -189,7 +189,7 @@ def test_query_analyst_invalid_label_retry():
     config = NodeConfigBase(llm_client=mock_llm)
     qa = TinyCUAQueryAnalystNode(config=config)
     response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
-    queue = NodeQueue(items=[qa, response_node])
+    _queue = NodeQueue(items=[qa, response_node])
     session = Session()
     qa.ensure_session(session)
     input_data = NodeInput(
