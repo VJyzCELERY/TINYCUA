@@ -1,6 +1,6 @@
 # Feature Specification: TinyCUAWorkerNode Deterministic Routing and TaskCreate
 
-**Status**: Draft
+**Status**: Final
 **Created**: 2026-06-08
 **Last Updated**: 2026-06-08
 **Subproject(s) Affected**: tinycua (core)

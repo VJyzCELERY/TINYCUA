@@ -1,7 +1,7 @@
 # Design Document: TinyCUAWorkerNode Deterministic Routing and TaskCreate
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: Final
 **Last Updated**: 2026-06-08
 
 ---
