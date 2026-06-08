@@ -85,8 +85,8 @@ Implementation tasks for TinyCUAWorkerNode Deterministic Routing and TaskCreate.
 ## Review and Merge
 
 - [x] Create pull request <!-- id: 38, effort: S -->
-- [ ] Address review feedback <!-- id: 39, effort: M -->
-- [ ] Merge to main branch <!-- id: 40, effort: S -->
+- [x] Address review feedback <!-- id: 39, effort: M -->
+- [x] Merge to main branch <!-- id: 40, effort: S -->
 
 ---
 
