@@ -137,3 +137,34 @@ class TestFindExistingWorkerNode:
         result = queue.find_existing_worker_node()
 
         assert result is worker1
+
+
+class TestEnsureTerminal:
+    """Tests for NodeQueue.ensure_terminal."""
+
+    def test_ensure_terminal_empty_queue(self) -> None:
+        """ensure_terminal adds terminal node to empty queue."""
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.ensure_terminal(terminal)
+        assert len(queue.items) == 1
+        assert queue.items[0].is_terminal
+
+    def test_ensure_terminal_appends_when_last_not_terminal(self) -> None:
+        """ensure_terminal appends when last node is not terminal."""
+        queue = NodeQueue()
+        non_terminal = _make_mock_node("worker")
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [non_terminal]
+        queue.ensure_terminal(terminal)
+        assert len(queue.items) == 2
+        assert queue.items[1].is_terminal
+
+    def test_ensure_terminal_noop_when_last_is_terminal(self) -> None:
+        """ensure_terminal is a no-op when last node is already terminal."""
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [terminal]
+        queue.ensure_terminal(_make_mock_node("other_terminal", is_terminal=True))
+        assert len(queue.items) == 1
+        assert queue.items[0].node_id == "response"
