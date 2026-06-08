@@ -41,10 +41,13 @@ def test_tinycua_loop_uses_provided_session():
 
 
 def test_tinycua_loop_has_node_queue():
-    """TinyCUALoop creates a NodeQueue by default."""
+    """TinyCUALoop creates a NodeQueue with QueryAnalyst + ResponseNode by default."""
     loop = TinyCUALoop()
     assert isinstance(loop.queue, NodeQueue)
-    assert loop.queue.is_empty() is True
+    assert len(loop.queue.items) == 2
+    assert loop.queue.items[0].node_id == "query_analyst"
+    assert loop.queue.items[1].node_id == "response"
+    assert loop.queue.items[1].is_terminal is True
 
 
 def test_tinycua_loop_stores_session_config():
@@ -162,7 +165,12 @@ async def test_execute_node_stops_at_terminal():
 
 async def test_message_merging_populates_input_context():
     """run() merges SDK messages into root_session.input_context."""
-    loop = TinyCUALoop()
+    stub = StubNode("merge test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     session = loop.root_session
     agent = MagicMock()
     agent.instructions = "test"
@@ -184,7 +192,12 @@ async def test_message_merging_populates_input_context():
 
 async def test_message_merging_preserves_order():
     """Merged messages retain their original order."""
-    loop = TinyCUALoop()
+    stub = StubNode("order test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     session = loop.root_session
     agent = MagicMock()
     agent.instructions = "test"

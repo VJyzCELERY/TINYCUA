@@ -7,20 +7,7 @@ from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy, NodeRe
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
-
-
-class MockLLM:
-    """Mock LLM client for integration tests."""
-
-    def __init__(self, response: str = "mock response") -> None:
-        self.response = response
-        self.call_count = 0
-        self.last_messages: list[dict] | None = None
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        self.last_messages = messages
-        return {"role": "assistant", "content": self.response}
+from tests.mock_llm import MockLLM, MultiResponseMockLLM
 
 
 class MinimalProcessNode:
@@ -220,7 +207,7 @@ def test_process_node_with_string_input() -> None:
 
 def test_decision_node_with_node_input() -> None:
     """DecisionNode subclass can classify input and return a route label."""
-    mock_llm = MockLLM(response="analysis result")
+    mock_llm = MultiResponseMockLLM(["analysis result", "worker"])
     config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalDecisionNode(node_id="test-decision", config=config)
     session = Session()
@@ -319,7 +306,11 @@ def test_retry_on_validation_failure() -> None:
 
 
 def test_lifecycle_hooks_fire() -> None:
-    """record_output, propagate, and on_complete are called."""
+    """record_output and propagate are called; on_complete is NOT called.
+
+    on_complete is the orchestrator's responsibility (queue mutation),
+    not the node's own __call__ lifecycle.
+    """
     mock_llm = MockLLM(response="lifecycle result")
     config = NodeConfigBase(llm_client=mock_llm)
     node = LifecycleTestProcessNode(node_id="test-lifecycle", config=config)
@@ -330,4 +321,4 @@ def test_lifecycle_hooks_fire() -> None:
 
     assert node.record_output_called
     assert node.propagate_called
-    assert node.on_complete_called
+    assert not node.on_complete_called

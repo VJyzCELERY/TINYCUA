@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
+import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -306,17 +310,18 @@ class Node(ABC):
         """
         logger.debug("node=%s propagate (no-op)", self.node_id)
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook for queue mutations.
 
         Args:
             queue: The node queue that can be mutated.
-            response: The final LLM response.
+            response: The final LLM response or decision result.
         """
+        content_len = len(response.content) if hasattr(response, "content") else 0
         logger.debug(
             "node=%s on_complete response_len=%d",
             self.node_id,
-            len(response.content),
+            content_len,
         )
 
     @abstractmethod
@@ -328,7 +333,8 @@ class ProcessNode(Node):
     """Primary node type for non-decision processing.
 
     ``__call__`` orchestrates: build → validate → call LLM → retry →
-    record → propagate → on_complete.
+    record → propagate. Queue mutation via ``on_complete`` is the
+    orchestrator's responsibility.
     """
 
     def _call_llm(self, messages: list[dict[str, str]]) -> LLMResult:
@@ -363,7 +369,7 @@ class ProcessNode(Node):
         """Execute the node with the given input.
 
         Orchestrates: build messages → validate → call LLM → retry loop →
-        record → propagate → on_complete.
+        record → propagate.
 
         Args:
             input: The node input.
@@ -409,10 +415,6 @@ class ProcessNode(Node):
         assert last_response is not None  # noqa: S101
         self.record_output(last_response)
         self.propagate()
-        self.on_complete(
-            queue=object(),  # type: ignore[arg-type]  # placeholder — orchestrator passes real queue
-            response=last_response,
-        )
         return last_response
 
 
@@ -501,23 +503,140 @@ class DecisionNode(ProcessNode):
     def _dispatch_route(self, classification_response: LLMResult) -> str:
         """Map classification label to route.
 
+        Uses word-boundary matching to avoid false substring matches
+        (e.g., "worker" should not match "subworker").
+
         Args:
             classification_response: The classification LLM response.
 
         Returns:
-            The matched route label, or the first allowed label as fallback.
+            The matched route label.
+
+        Raises:
+            ValueError: If no registered label matches the classification.
         """
         content = classification_response.content.strip().lower()
 
         for label in self.classification_labels:
-            if label.lower() in content:
+            if re.search(r"\b" + re.escape(label.lower()) + r"\b", content):
                 return label
 
-        # Fallback: return first allowed label
-        return self.classification_labels[0] if self.classification_labels else "default"
+        msg = (
+            f"Classification label not recognized: {classification_response.content!r}. "
+            f"Registered labels: {self.classification_labels}"
+        )
+        raise ValueError(msg)
+
+    async def _execute_with_retry(
+        self,
+        messages: list[dict[str, str]],
+        analyze: Callable[[list[dict[str, str]]], LLMResult | Any],
+        classify: Callable[[list[dict[str, str]], LLMResult], LLMResult | Any],
+    ) -> DecisionResult:
+        """Shared retry loop for analysis + classification + route dispatch.
+
+        Extracted to eliminate duplication between DecisionNode.__call__()
+        (node-level invocation) and TinyCUALoop._execute_decision_node()
+        (loop-level invocation with agent LLM).
+
+        Args:
+            messages: The message list for the analysis call.
+            analyze: Callable that performs the analysis LLM call.
+            classify: Callable that builds classification messages and
+                performs the classification LLM call.
+
+        Returns:
+            DecisionResult with route label and LLM responses.
+
+        Raises:
+            NodeExecutionError: If retry is exhausted and policy is "raise".
+        """
+        retry_policy = self.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)
+
+        last_analysis: LLMResult | None = None
+        last_classification: LLMResult | None = None
+        route_label = (
+            self.classification_labels[0] if self.classification_labels else "default"
+        )
+
+        for attempt in range(1, max_attempts + 1):
+            # Step 1: Analysis call (supports both sync and async callables)
+            analysis_result = analyze(messages)
+            if inspect.iscoroutine(analysis_result):
+                analysis_response = await analysis_result  # type: ignore[misc]
+            else:
+                analysis_response = analysis_result  # type: ignore[assignment]
+
+            # Step 2: Classification call (supports both sync and async callables)
+            classification_result = classify(messages, analysis_response)
+            if inspect.iscoroutine(classification_result):
+                classification_response = await classification_result  # type: ignore[misc]
+            else:
+                classification_response = classification_result  # type: ignore[assignment]
+
+            # Step 3: Dispatch route (may raise ValueError)
+            try:
+                route_label = self._dispatch_route(classification_response)
+                last_analysis = analysis_response
+                last_classification = classification_response
+                break
+            except ValueError:
+                last_analysis = analysis_response
+                last_classification = classification_response
+
+                if attempt < max_attempts:
+                    # Retry: append retry instruction to messages
+                    retry_text = (
+                        f"Retry attempt {attempt}: "
+                        f"Classification label '{classification_response.content.strip()}' "
+                        f"is not recognized. Valid labels: {self.classification_labels}. "
+                        f"Please respond with exactly one of the valid labels."
+                    )
+                    messages.append(
+                        {"role": "assistant", "content": analysis_response.content}
+                    )
+                    messages.append({"role": "user", "content": retry_text})
+                else:
+                    # Exhausted — handle per policy
+                    if retry_policy.on_retry_exhausted == "raise":
+                        raise NodeExecutionError(
+                            f"Classification retry exhausted after {max_attempts} attempts: "
+                            f"last label was {classification_response.content!r}"
+                        )
+                    # Fallback: prefer "uncertain" if available, else first label
+                    if "uncertain" in self.classification_labels:
+                        route_label = "uncertain"
+                    else:
+                        route_label = (
+                            self.classification_labels[0]
+                            if self.classification_labels
+                            else "uncertain"
+                        )
+
+        assert last_analysis is not None  # noqa: S101
+        assert last_classification is not None  # noqa: S101
+
+        # Record the classification response as output
+        record_response = LLMResult(
+            content=f"[Analysis] {last_analysis.content}\n[Classification] {route_label}",
+            role="assistant",
+        )
+        self.record_output(record_response)
+        self.propagate()
+
+        return DecisionResult(
+            route_label=route_label,
+            analysis_response=last_analysis,
+            classification_response=last_classification,
+        )
 
     def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]
         """Execute the decision node with analysis + classification flow.
+
+        Includes retry logic: if classification returns an unrecognized label,
+        retries per NodeRetryPolicy. After retries exhausted, falls back to
+        the first classification label.
 
         Args:
             input: The node input.
@@ -526,7 +645,8 @@ class DecisionNode(ProcessNode):
             DecisionResult with route label and LLM responses.
 
         Raises:
-            NodeExecutionError: If no session is attached or LLM fails.
+            NodeExecutionError: If no session is attached or LLM fails
+                after retry exhaustion with on_retry_exhausted="raise".
         """
         if self.session is None:
             msg = f"Node {self.node_id} has no session attached"
@@ -534,25 +654,22 @@ class DecisionNode(ProcessNode):
 
         messages = self.build_messages(self.session, input)
 
-        # Step 1: Analysis call
-        analysis_response = self._analysis_call(messages)
-
-        # Step 2: Classification call
-        classification_response = self._classification_call(messages, analysis_response)
-
-        # Step 3: Dispatch route
-        route_label = self._dispatch_route(classification_response)
-
-        # Record the classification response as output
-        record_response = LLMResult(
-            content=f"[Analysis] {analysis_response.content}\n[Classification] {route_label}",
-            role="assistant",
+        coro = self._execute_with_retry(
+            messages,
+            analyze=self._analysis_call,
+            classify=self._classification_call,
         )
-        self.record_output(record_response)
-        self.propagate()
-
-        return DecisionResult(
-            route_label=route_label,
-            analysis_response=analysis_response,
-            classification_response=classification_response,
-        )
+        # If an event loop is already running (e.g., from async tests),
+        # the loop caller invokes _execute_with_retry directly via await.
+        # This sync __call__ path is used only in unit tests without a loop.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            msg = (
+                "DecisionNode.__call__ cannot be awaited from a running event loop; "
+                "use _execute_with_retry directly via await instead."
+            )
+            raise RuntimeError(msg)
+        return asyncio.run(coro)

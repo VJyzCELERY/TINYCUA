@@ -10,7 +10,11 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
+from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.response_node import ResponseNode
+from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -48,9 +52,15 @@ class TinyCUALoop(BaseLoop):
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
-        self.queue = queue or NodeQueue()
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
+
+        if queue is not None:
+            self.queue = queue
+        else:
+            query_analyst = TinyCUAQueryAnalystNode()
+            response_node = ResponseNode()
+            self.queue = NodeQueue(items=[query_analyst, response_node])
 
     async def run(
         self,
@@ -113,23 +123,34 @@ class TinyCUALoop(BaseLoop):
             The final response content string.
         """
         last_content = ""
+        iterations = 0
 
         while not self.queue.is_empty():
+            if iterations >= self.max_iterations:
+                logger.warning(
+                    "max_iterations=%d reached, breaking loop",
+                    self.max_iterations,
+                )
+                break
+
             node = self.queue.current
             if node is None:
                 break
 
-            content = await self._execute_node(
+            content, should_advance = await self._execute_node(
                 node, agent, tools, override_instructions,
             )
             last_content = content
+            iterations += 1
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
                 break
 
-            # Advance queue (calls propagate on current node)
-            self.queue.advance()
+            # Advance queue unless node requested to stay active
+            # (e.g., "uncertain" classification keeps QueryAnalyst active)
+            if should_advance:
+                self.queue.advance()
 
         return last_content
 
@@ -199,10 +220,33 @@ class TinyCUALoop(BaseLoop):
         Yields:
             Stream event dicts from the LLM.
         """
+        iterations = 0
+
         while not self.queue.is_empty():
+            if iterations >= self.max_iterations:
+                logger.warning(
+                    "max_iterations=%d reached, breaking stream loop",
+                    self.max_iterations,
+                )
+                break
+
             node = self.queue.current
             if node is None:
                 break
+
+            # DecisionNode subclasses: two-step classification via agent._call_llm()
+            # Note: streaming not supported for two-step classification;
+            # fall back to sync-like flow using agent._call_llm() without stream.
+            if isinstance(node, DecisionNode):
+                content, should_advance, _decision = await self._execute_decision_node(
+                    node, agent, tools, override_instructions,
+                )
+                iterations += 1
+                if node.is_terminal:
+                    break
+                if should_advance:
+                    self.queue.advance()
+                continue
 
             messages, resolved_tools = self._prepare_node(
                 node, tools, override_instructions,
@@ -220,6 +264,7 @@ class TinyCUALoop(BaseLoop):
 
             combined = "".join(content_parts)
             self._record_node_output(node, combined, collected_tool_calls)
+            iterations += 1
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -228,18 +273,121 @@ class TinyCUALoop(BaseLoop):
             # Advance queue (calls propagate on current node)
             self.queue.advance()
 
+    async def _execute_decision_node(
+        self,
+        node: DecisionNode,
+        agent: Agent,
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> tuple[str, bool, DecisionResult]:
+        """Execute a DecisionNode with two-step analysis + classification.
+
+        Performs the analysis call → classification call → route dispatch flow
+        using agent._call_llm(), with retry logic for invalid labels.
+
+        For QueryAnalyst nodes, checks mandatory_passthrough first (FR-005/FR-006).
+
+        Args:
+            node: The DecisionNode to execute.
+            agent: The agent executing.
+            tools: Available tools from the agent.
+            override_instructions: Optional instructions override.
+
+        Returns:
+            Tuple of (content, should_advance, decision_result).
+        """
+        node.ensure_session(self.root_session)
+
+        # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            input_data = self._build_query_analyst_input()
+            mandatory = node.check_mandatory_passthrough(input_data)
+            if mandatory is not None:
+                logger.info(
+                    "node=%s mandatory_passthrough detected in loop, bypassing LLM",
+                    node.node_id,
+                )
+                from tinycua.models.classification import PASSTHROUGH
+
+                passthrough_content = (
+                    f"[Passthrough] target={mandatory.target_node_id} "
+                    f"reason={mandatory.reason}"
+                )
+                self._record_node_output(node, passthrough_content)
+                decision = DecisionResult(
+                    route_label=PASSTHROUGH,
+                    analysis_response=LLMResult(content="", role="assistant"),
+                    classification_response=LLMResult(
+                        content=PASSTHROUGH, role="assistant"
+                    ),
+                )
+                node.on_complete(self.queue, decision)
+                return passthrough_content, True, decision
+
+        messages, resolved_tools = self._prepare_node(
+            node, tools, override_instructions,
+        )
+
+        async def _analyze(msgs: list[dict[str, str]]) -> LLMResult:
+            raw = await agent._call_llm(msgs, resolved_tools)  # type: ignore[arg-type]
+            return LLMResult(content=raw.get("content") or "", role="assistant")
+
+        async def _classify(
+            msgs: list[dict[str, str]], analysis: LLMResult,
+        ) -> LLMResult:
+            classification_messages = list(msgs)
+            classification_messages.append(
+                {"role": "assistant", "content": analysis.content}
+            )
+            labels_str = ", ".join(node.classification_labels)
+            classification_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Classify your analysis into one of these categories: "
+                        f"{labels_str}. Respond with only the category label."
+                    ),
+                }
+            )
+            raw = await agent._call_llm(  # type: ignore[arg-type]
+                classification_messages, resolved_tools,
+            )
+            return LLMResult(
+                content=raw.get("content") or "", role="assistant",
+            )
+
+        decision = await node._execute_with_retry(  # type: ignore[misc]
+            messages, analyze=_analyze, classify=_classify,
+        )
+
+        content = (
+            f"[Analysis] {decision.analysis_response.content}\n"
+            f"[Classification] {decision.route_label}"
+        )
+        self._record_node_output(node, content)
+        node.on_complete(self.queue, decision)
+
+        should_advance = decision.route_label != "uncertain"
+        return content, should_advance, decision
+
     async def _execute_node(
         self,
         node: Node,
         agent: Agent,
         tools: list[Tool],
         override_instructions: str | None = None,
-    ) -> str:
-        """Execute a single node by building messages and calling agent._call_llm().
+    ) -> tuple[str, bool]:
+        """Execute a single node and return (content, should_advance).
 
-        Builds messages from node instruction and session context,
-        resolves tools via NodeToolPolicy, calls agent._call_llm(),
-        records chat_history and session_context.
+        For DecisionNode subclasses (including QueryAnalyst), performs the
+        two-step analysis + classification flow using agent._call_llm(),
+        then dispatches routes via node.on_complete() (FR-008, FR-010-015).
+
+        For other nodes, builds messages and calls agent._call_llm() directly.
+
+        The should_advance flag indicates whether the queue should advance
+        after this node completes. For "uncertain" classification, the
+        QueryAnalyst remains active and the queue should NOT advance.
 
         Args:
             node: The node to execute.
@@ -248,8 +396,16 @@ class TinyCUALoop(BaseLoop):
             override_instructions: Optional instructions override.
 
         Returns:
-            The response content string.
+            Tuple of (response content string, should_advance flag).
         """
+        # DecisionNode subclasses: two-step analysis + classification + route dispatch
+        if isinstance(node, DecisionNode):
+            content, should_advance, _decision = await self._execute_decision_node(
+                node, agent, tools, override_instructions,
+            )
+            return content, should_advance
+
+        # Non-decision nodes: build messages and call agent._call_llm() directly
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,
         )
@@ -259,7 +415,25 @@ class TinyCUALoop(BaseLoop):
 
         self._record_node_output(node, content, response.get("tool_calls"))
 
-        return content
+        return content, True
+
+    def _build_query_analyst_input(self) -> NodeInput:
+        """Build a NodeInput from the root session's input context for mandatory_passthrough checks.
+
+        Converts the current input context messages into a NodeInput
+        so QueryAnalyst can inspect metadata for mandatory_passthrough.
+
+        Returns:
+            NodeInput constructed from the root session input context.
+        """
+        messages: list[dict[str, Any]] = []
+        metadata: dict[str, Any] = {}
+        if self.root_session.input_context:
+            for msg in self.root_session.input_context:
+                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                if "metadata" in msg:
+                    metadata.update(msg["metadata"])
+        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
 
     def _build_node_messages(
         self,
