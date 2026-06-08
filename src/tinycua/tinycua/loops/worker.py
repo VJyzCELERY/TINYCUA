@@ -22,7 +22,8 @@ class WorkerRouteLabel(str, Enum):
     """Route labels for WorkerNode routing.
 
     Only task_creation is implemented in this milestone.
-    Remaining labels are deferred to Milestone 2.3.
+    Remaining labels (task_recreation, task_reanalysis, passthrough,
+    proceed_execution) are deferred to Milestone 2.3 — see design.md:46-51.
     """
 
     task_creation = "task_creation"
