@@ -55,6 +55,10 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
 - [ ] Update __call__() to use dynamic labels when task exists <!-- id: 10 -->
   - [ ] Replace static _DEFAULT_WORKER_LABELS with _get_classification_labels()
   - [ ] Ensure classification uses dynamic label list
+- [ ] Restrict WorkerNode tool scope to decision tools only (FR-014) <!-- id: 10a -->
+  - [ ] Ensure __call__() passes only worker decision tools (WorkerRouteLabel classification) to LLM
+  - [ ] Exclude task creation (TaskInit/TaskCreate), analysis, and execution tools from classification context
+  - [ ] Verify no task/execution tools leak into LLM tool_scope during classification
 - [ ] Integrate NodeRetryPolicy for invalid classification labels <!-- id: 11 -->
   - [ ] Wire NodeRetryPolicy into the classification retry loop in __call__()
   - [ ] Set default max_attempts=3 with on_retry_exhausted="raise"

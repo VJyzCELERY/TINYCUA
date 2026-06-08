@@ -390,6 +390,7 @@ def test_worker_node_latest_valid_verdict_wins():
 - [ ] **Scenario 7** (SC-011, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
 - [ ] **Scenario 8** (SC-008, FR-005): Latest valid verdict — when multiple tool calls occur, the latest valid verdict determines the route label
 - [ ] **Scenario 9** (SC-012, FR-014): WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available during LLM classification
+- [ ] **Scenario 10** (FR-015): QueryAnalyst worker spawn/reuse — must continue to work after WorkerNode changes. Covered by existing Milestone 2.1 integration tests.
 
 ## Verification Plan
 
@@ -398,6 +399,10 @@ def test_worker_node_latest_valid_verdict_wins():
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for each new method (_has_worker_spawned_nodes, _get_classification_labels, route handlers)
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+
+### Regression Coverage
+
+- [ ] FR-015 (QueryAnalyst worker spawn/reuse): Covered by existing Milestone 2.1 integration tests — confirmed by `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
