@@ -18,8 +18,8 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 
 ```
 [QueryAnalyst] --> [WorkerNode] --> [TaskCreateNode] --> [TaskAnalyzerNode] --> [AnalysisEffortNode] --> [TaskExecutor] --> [ResultReviewer] --> [ResponseNode]
-                     |
-                     └── (task_creation route, deterministic)
+                     |                ← worker-owned segment →                      |
+                     └── (task_creation route, deterministic)     ensure_terminal()
 ```
 
 ### Affected Components
@@ -103,9 +103,10 @@ class TinyCUATaskCreateNode(ProcessNode):
     
     tool_scope: list[str] = ["TaskInit", "TaskCreate"]
     
-    async def __call__(self, input: NodeInput) -> NodeOutput:
+    async def __call__(self, input: NodeInput) -> TaskCreateResult:
         """
         Create root task deterministically and advance queue.
+        Returns TaskCreateResult with task_id, task_summary, and created_at.
         Next node is TaskAnalyzerNode (without TaskInit/TaskCreate tools).
         """
     
