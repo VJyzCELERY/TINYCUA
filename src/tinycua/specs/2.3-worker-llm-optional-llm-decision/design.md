@@ -54,6 +54,24 @@ class WorkerRouteLabel(str, Enum):
     proceed_execution = "proceed_execution"    # LLM-assisted, spawn TaskExecutor/ResultReviewer
 ```
 
+### Current State
+
+The existing WorkerNode uses a static tuple of all WorkerRouteLabel values:
+
+```python
+# In worker.py:33
+_DEFAULT_WORKER_LABELS: tuple[str, ...] = tuple(label.value for label in WorkerRouteLabel)
+```
+
+This constant is used in `__init__()` to set `classification_labels`:
+
+```python
+# In worker.py:70
+classification_labels=list(_DEFAULT_WORKER_LABELS),  # tuple → list for parent
+```
+
+**Limitation**: The static approach includes all labels regardless of queue state. This means `passthrough` is offered as a classification option even when no worker-spawned node exists to receive it, leading to potential invalid routing.
+
 ### Dynamic Label Adjustment
 
 ```python
@@ -63,6 +81,11 @@ def _get_classification_labels(self) -> list[str]:
     Returns:
         List of valid classification labels. Includes 'passthrough' only when
         worker-spawned nodes exist in the queue.
+    
+    Note: task_creation is excluded because it is handled by deterministic
+    precheck before LLM decision (Milestone 2.2). The precheck in __call__()
+    routes to task_creation directly when no task exists, so it never reaches
+    the LLM classification step.
     """
     labels = [
         WorkerRouteLabel.task_recreation.value,
@@ -120,6 +143,27 @@ class TinyCUAWorkerNode(DecisionNode):
     def _route_proceed_execution(self, queue: NodeQueue, result: DecisionResult) -> None:
         """LLM-assisted route: spawn or continue TaskExecutor and ResultReviewer path."""
 ```
+
+### Route Handler Terminal Node
+
+Route handlers that clear the queue must ensure a terminal response path. The `default_response_node` parameter passed to `queue.ensure_terminal()` is a class attribute on WorkerNode that provides the fallback terminal node.
+
+```python
+class TinyCUAWorkerNode(DecisionNode):
+    # ... existing code ...
+    
+    default_response_node: Node  # Terminal node for ensure_terminal() calls
+```
+
+**Usage in route handlers**:
+```python
+def _route_task_recreation(self, queue: NodeQueue, result: DecisionResult) -> None:
+    queue.clear_after_current()
+    # Spawn TaskAnalyzerNode...
+    queue.ensure_terminal(self.default_response_node)
+```
+
+**Origin**: This follows the pattern established in Milestone 2.2 (deterministic routing) where route handlers ensure terminal response paths. The `default_response_node` is set during WorkerNode initialization and referenced by all route handlers that modify the queue.
 
 ### Two-Step Decision Process
 

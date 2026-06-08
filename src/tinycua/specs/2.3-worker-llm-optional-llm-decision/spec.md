@@ -148,14 +148,16 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 1. **Should WorkerNode's LLM classification use a tool-call response format or free-text parsing?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Use tool-call response format (function_call with WorkerRouteLabel enum) for structured, validated classification. This matches the established DecisionNode pattern from QueryAnalyst.
+   - **Status**: Decided
+   - **Decision**: Use tool-call response format (function_call with WorkerRouteLabel enum) for structured, validated classification. This matches the established DecisionNode pattern from QueryAnalyst.
+   - **Resolved**: 2026-06-08
 
 2. **What is the retry limit for invalid classification labels?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Use NodeRetryPolicy with default max_retries=3, consistent with QueryAnalyst's retry behavior.
+   - **Status**: Decided
+   - **Decision**: Use NodeRetryPolicy with default max_retries=3, consistent with QueryAnalyst's retry behavior.
+   - **Resolved**: 2026-06-08
 
 ---
 
