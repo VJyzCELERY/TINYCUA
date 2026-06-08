@@ -327,29 +327,17 @@ class TinyCUALoop(BaseLoop):
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,
         )
-        retry_policy = node.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
 
-        last_analysis: LLMResult | None = None
-        last_classification: LLMResult | None = None
-        route_label = (
-            node.classification_labels[0]
-            if node.classification_labels
-            else "default"
-        )
+        async def _analyze(msgs: list[dict[str, str]]) -> LLMResult:
+            raw = await agent._call_llm(msgs, resolved_tools)  # type: ignore[arg-type]
+            return LLMResult(content=raw.get("content") or "", role="assistant")
 
-        for attempt in range(1, max_attempts + 1):
-            # Step 1: Analysis call via agent._call_llm()
-            analysis_response = await agent._call_llm(  # type: ignore[arg-type]
-                messages, resolved_tools,
-            )
-            analysis_content = analysis_response.get("content") or ""
-            last_analysis = LLMResult(content=analysis_content, role="assistant")
-
-            # Step 2: Classification call — append analysis + classification instruction
-            classification_messages = list(messages)
+        async def _classify(
+            msgs: list[dict[str, str]], analysis: LLMResult,
+        ) -> LLMResult:
+            classification_messages = list(msgs)
             classification_messages.append(
-                {"role": "assistant", "content": analysis_content}
+                {"role": "assistant", "content": analysis.content}
             )
             labels_str = ", ".join(node.classification_labels)
             classification_messages.append(
@@ -361,66 +349,25 @@ class TinyCUALoop(BaseLoop):
                     ),
                 }
             )
-            classification_response = await agent._call_llm(  # type: ignore[arg-type]
+            raw = await agent._call_llm(  # type: ignore[arg-type]
                 classification_messages, resolved_tools,
             )
-            classification_content = classification_response.get("content") or ""
-            last_classification = LLMResult(
-                content=classification_content, role="assistant",
+            return LLMResult(
+                content=raw.get("content") or "", role="assistant",
             )
 
-            # Step 3: Dispatch route (may raise ValueError for invalid labels)
-            try:
-                route_label = node._dispatch_route(last_classification)
-                break
-            except ValueError:
-                if attempt < max_attempts:
-                    retry_text = (
-                        f"Retry attempt {attempt}: "
-                        f"Classification label '{classification_content.strip()}' "
-                        f"is not recognized. Valid labels: {node.classification_labels}. "
-                        f"Please respond with exactly one of the valid labels."
-                    )
-                    messages.append(
-                        {"role": "assistant", "content": analysis_content}
-                    )
-                    messages.append(
-                        {"role": "user", "content": retry_text}
-                    )
-                else:
-                    if retry_policy.on_retry_exhausted == "raise":
-                        from tinycua.loops.node import NodeExecutionError
-                        raise NodeExecutionError(
-                            f"Classification retry exhausted after {max_attempts} "
-                            f"attempts: last label was {classification_content!r}"
-                        )
-                    # Fallback: prefer "uncertain" if available, else first label
-                    if "uncertain" in node.classification_labels:
-                        route_label = "uncertain"
-                    else:
-                        route_label = (
-                            node.classification_labels[0]
-                            if node.classification_labels
-                            else "uncertain"
-                        )
-
-        assert last_analysis is not None  # noqa: S101
-        assert last_classification is not None  # noqa: S101
+        decision = await node._execute_with_retry(  # type: ignore[misc]
+            messages, analyze=_analyze, classify=_classify,
+        )
 
         content = (
-            f"[Analysis] {last_analysis.content}\n"
-            f"[Classification] {route_label}"
+            f"[Analysis] {decision.analysis_response.content}\n"
+            f"[Classification] {decision.route_label}"
         )
         self._record_node_output(node, content)
-
-        decision = DecisionResult(
-            route_label=route_label,
-            analysis_response=last_analysis,
-            classification_response=last_classification,
-        )
         node.on_complete(self.queue, decision)
 
-        should_advance = route_label != "uncertain"
+        should_advance = decision.route_label != "uncertain"
         return content, should_advance, decision
 
     async def _execute_node(

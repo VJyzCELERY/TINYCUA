@@ -205,7 +205,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         logger.info("node=%s route_uncertain — remaining active", self.node_id)
         # No-op: QueryAnalyst stays at queue front, waiting for continuation.
 
-    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:  # type: ignore[override]
+    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:
         """Dispatch route after classification.
 
         Note: `on_complete` accepts `DecisionResult` (not `LLMResult` like the base `Node`)

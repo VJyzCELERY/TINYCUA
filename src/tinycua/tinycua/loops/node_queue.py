@@ -160,6 +160,8 @@ class NodeQueue:
     def add_front(self, node: Node) -> None:
         """Add a node to the front of the queue with deduplication check.
 
+        Handles empty queues gracefully by appending the node.
+
         Raises RuntimeError if a node with the same node_id already exists
         in the queue.
 
@@ -173,6 +175,9 @@ class NodeQueue:
             if existing.node_id == node.node_id:
                 msg = f"Node already in queue: {node.node_id}"
                 raise RuntimeError(msg)
+        if not self.items:
+            self.items.append(node)
+            return
         self.suspend_current_and_prepend([node])
 
     def ensure_terminal(self, default_terminal_node: Node) -> None:

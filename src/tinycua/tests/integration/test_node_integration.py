@@ -306,7 +306,11 @@ def test_retry_on_validation_failure() -> None:
 
 
 def test_lifecycle_hooks_fire() -> None:
-    """record_output, propagate, and on_complete are called."""
+    """record_output and propagate are called; on_complete is NOT called.
+
+    on_complete is the orchestrator's responsibility (queue mutation),
+    not the node's own __call__ lifecycle.
+    """
     mock_llm = MockLLM(response="lifecycle result")
     config = NodeConfigBase(llm_client=mock_llm)
     node = LifecycleTestProcessNode(node_id="test-lifecycle", config=config)
@@ -317,4 +321,4 @@ def test_lifecycle_hooks_fire() -> None:
 
     assert node.record_output_called
     assert node.propagate_called
-    assert node.on_complete_called
+    assert not node.on_complete_called
