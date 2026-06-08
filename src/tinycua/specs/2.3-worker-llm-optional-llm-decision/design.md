@@ -22,7 +22,7 @@ This design implements optional LLM-based decision-making for TinyCUAWorkerNode.
                      ├── LLM Decision   ├── task_recreation → TaskAnalyzerNode(+TaskInit/TaskCreate)
                      │   (analysis →    ├── task_reanalysis → TaskAnalyzerNode(no TaskInit/TaskCreate)
                      │    classify)     ├── passthrough → advance queue, forward to next worker-spawned node
-                     │                  └── proceed_execution → TaskExecutor + ResultReviewer
+                     │                  └── proceed_execution → log + ensure_terminal (TaskExecutor/ResultReviewer deferred to 3.2)
                      ├── Dynamic Labels
                      │   (passthrough only when worker-spawned nodes exist)
                      └── NodeRetryPolicy (invalid labels)
@@ -33,7 +33,7 @@ This design implements optional LLM-based decision-making for TinyCUAWorkerNode.
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua.loops.worker.TinyCUAWorkerNode` | Modified | Add LLM decision process when task exists, dynamic label adjustment, route handlers |
-| `tinycua.loops.worker.WorkerRouteLabel` | Modified | Add all five route labels (task_creation, task_recreation, task_reanalysis, passthrough, proceed_execution) |
+| `tinycua.loops.worker.WorkerRouteLabel` | Modified | Add four new route labels (task_recreation, task_reanalysis, passthrough, proceed_execution); task_creation already exists from Milestone 2.2 |
 | `tinycua.loops.worker._build_default_route_map()` | Modified | Register all five route labels in the default RouteMap |
 
 ---
@@ -51,7 +51,7 @@ class WorkerRouteLabel(str, Enum):
     task_recreation = "task_recreation"        # LLM-assisted, clear + spawn TaskAnalyzerNode(+TaskInit/TaskCreate)
     task_reanalysis = "task_reanalysis"        # LLM-assisted, clear + spawn TaskAnalyzerNode(no TaskInit/TaskCreate)
     passthrough = "passthrough"                # LLM-assisted, advance queue, forward input
-    proceed_execution = "proceed_execution"    # LLM-assisted, spawn TaskExecutor/ResultReviewer
+    proceed_execution = "proceed_execution"    # LLM-assisted, terminal route (log + ensure_terminal); TaskExecutor/ResultReviewer deferred to 3.2
 ```
 
 ### WorkerOwnedQueueSegment
@@ -94,8 +94,11 @@ classification_labels=list(_DEFAULT_WORKER_LABELS),  # tuple → list for parent
 ### Dynamic Label Adjustment
 
 ```python
-def _get_classification_labels(self) -> list[str]:
+def _get_classification_labels(self, queue: NodeQueue) -> list[str]:
     """Get classification labels based on current worker-spawned node state.
+    
+    Args:
+        queue: The node queue to check for worker-spawned nodes.
     
     Returns:
         List of valid classification labels. Includes 'passthrough' only when
@@ -111,7 +114,7 @@ def _get_classification_labels(self) -> list[str]:
         WorkerRouteLabel.task_reanalysis.value,
         WorkerRouteLabel.proceed_execution.value,
     ]
-    if self._has_worker_spawned_nodes():
+    if self._has_worker_spawned_nodes(queue):
         labels.append(WorkerRouteLabel.passthrough.value)
     return labels
 ```
@@ -141,31 +144,63 @@ class TinyCUAWorkerNode(DecisionNode):
     def _detect_task_exists(self) -> bool:
         """Check if a task already exists in the session via self.session.task."""
     
-    def _has_worker_spawned_nodes(self) -> bool:
+    def _has_worker_spawned_nodes(self, queue: NodeQueue) -> bool:
         """Check if worker-spawned nodes exist in the queue.
         
-        Convenience wrapper around _detect_worker_spawned_nodes() (which returns
-        the list of nodes). This method returns a bool for use in dynamic label
-        adjustment and other boolean checks.
+        New method added in Milestone 2.3. Convenience wrapper around the existing
+        _detect_worker_spawned_nodes(queue) method (which returns a list). This
+        method returns a bool for use in dynamic label adjustment and other boolean
+        checks.
+        
+        Args:
+            queue: The node queue to search for worker-spawned nodes.
         """
     
-    def _get_classification_labels(self) -> list[str]:
-        """Get dynamic classification labels based on worker-spawned node presence."""
+    def _get_classification_labels(self, queue: NodeQueue) -> list[str]:
+        """Get dynamic classification labels based on worker-spawned node presence.
+        
+        Updates self.classification_labels in-place so that the parent
+        DecisionNode._classification_call() uses the dynamic labels.
+        
+        Args:
+            queue: The node queue to check for worker-spawned nodes.
+        """
     
     def _route_task_creation(self, queue: NodeQueue, result: DecisionResult) -> None:
         """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode."""
     
     def _route_task_recreation(self, queue: NodeQueue, result: DecisionResult) -> None:
-        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode(+TaskInit/TaskCreate)."""
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode(+TaskInit/TaskCreate).
+        
+        Note: Unlike task_creation (which spawns TaskCreateNode + TaskAnalyzerNode),
+        task_recreation only spawns TaskAnalyzerNode with mode="analysis" (which
+        includes TaskInit/TaskCreate in its tool_scope). This is because the task
+        already exists and doesn't need to be recreated from scratch.
+        """
     
     def _route_task_reanalysis(self, queue: NodeQueue, result: DecisionResult) -> None:
         """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode(no TaskInit/TaskCreate)."""
     
     def _route_passthrough(self, queue: NodeQueue, result: DecisionResult) -> None:
-        """LLM-assisted route: advance queue, forward input to next worker-spawned node."""
+        """LLM-assisted route: advance queue, forward input to next worker-spawned node.
+        
+        Defensive validation: Checks that worker-spawned nodes exist before advancing.
+        If no worker-spawned node exists, raises NodeExecutionError (should not happen
+        since dynamic labels exclude passthrough when no spawned nodes exist).
+        
+        Input forwarding: Calls queue.advance() to remove WorkerNode, then calls
+        queue.set_input(next_node, input_data) to forward the original input to the
+        next worker-spawned node.
+        """
     
     def _route_proceed_execution(self, queue: NodeQueue, result: DecisionResult) -> None:
-        """LLM-assisted route: spawn or continue TaskExecutor and ResultReviewer path."""
+        """LLM-assisted route: log classification and ensure terminal response.
+
+        Milestone 2.3: Logs the classification and ensures the terminal response
+        path exists. TaskExecutor/ResultReviewer spawning is deferred to Milestone 3.2
+        (Phase 2). This handler acts as a terminal route for Milestone 2.3 — the
+        queue reaches a stable state with the default response node.
+        """
 ```
 
 ### Route Handler Terminal Node
@@ -194,19 +229,28 @@ def _route_task_recreation(self, queue: NodeQueue, result: DecisionResult) -> No
 The two-step decision process follows the established DecisionNode pattern from QueryAnalyst:
 
 1. **Analysis LLM call**: WorkerNode sends the current session state and worker context to the LLM for analysis.
-2. **Classification tool call**: WorkerNode sends the analysis result and dynamic classification labels to the LLM for classification. The LLM responds with a tool call containing the selected route label.
+2. **Classification tool call**: WorkerNode sends the analysis result and dynamic classification labels to the LLM for classification. The LLM responds with a **tool-call response format** (function_call with WorkerRouteLabel enum values as valid labels). This matches the established DecisionNode pattern where `_classification_call()` builds classification messages with label options and `_dispatch_route()` uses word-boundary matching to extract the selected label.
 3. **Validated RouteMap dispatch**: WorkerNode validates the classification label against the dynamic labels and dispatches to the corresponding route handler.
 
 ### Error Handling
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| Invalid or missing classification label | `NodeRetryPolicy` retry (default max_retries=3) | After max retries, `NodeExecutionError` is raised |
+| Invalid or missing classification label | `NodeRetryPolicy` retry (default max_attempts=3, on_retry_exhausted="raise") | After max attempts, `NodeExecutionError` is raised |
 | Empty or null input reaching WorkerNode during LLM decision | Pass through original input unchanged | LLM decision process handles empty context gracefully |
-| Passthrough classified but no worker-spawned node exists | Dynamic label exclusion prevents this; if somehow classified, route handler validates and retries | Defensive validation in route handler |
+| Passthrough classified but no worker-spawned node exists | Dynamic label exclusion prevents this; if somehow classified, route handler checks `queue.find_worker_spawned_nodes()` and raises `NodeExecutionError` if empty | Defensive validation in route handler |
 | No terminal response after clear | `ensure_terminal()` adds default | Route handler responsibility |
 | WorkerNode has no session attached | `NodeExecutionError` | Consistent with Milestone 2.2 behavior |
 | LLM call fails | `NodeRetryPolicy` retry | Standard LLM failure handling |
+
+### Input Preservation (FR-013)
+
+WorkerNode preserves the original input query for downstream nodes:
+
+1. **Storage**: WorkerNode stores the original input on `self._last_input` before calling `super().__call__()` for LLM decision.
+2. **Route handlers**: Each route handler receives `self` (via the method call), so `_last_input` is accessible as `self._last_input`.
+3. **Passthrough**: The `passthrough` handler calls `queue.set_input(next_node, self._last_input)` to forward the original input to the next worker-spawned node.
+4. **Other routes**: task_recreation, task_reanalysis, and proceed_execution don't need to forward input since they spawn new nodes that receive the session context.
 
 ---
 
@@ -214,14 +258,14 @@ The two-step decision process follows the established DecisionNode pattern from 
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add all five route labels to WorkerRouteLabel enum (task_creation, task_recreation, task_reanalysis, passthrough, proceed_execution)
+- [ ] Add four new route labels to WorkerRouteLabel enum (task_recreation, task_reanalysis, passthrough, proceed_execution; task_creation already exists from Milestone 2.2)
 - [ ] Implement `_has_worker_spawned_nodes()` to check for worker-spawned nodes in queue
 - [ ] Implement `_get_classification_labels()` for dynamic label adjustment
 - [ ] Update `_build_default_route_map()` to register all five route labels
 - [ ] Implement `_route_task_recreation()` handler
 - [ ] Implement `_route_task_reanalysis()` handler
 - [ ] Implement `_route_passthrough()` handler
-- [ ] Implement `_route_proceed_execution()` handler
+- [ ] Implement `_route_proceed_execution()` handler — **Milestone 2.3: terminal route (log + ensure_terminal); TaskExecutor/ResultReviewer deferred to Milestone 3.2**
 - [ ] Update `__call__()` to use dynamic labels when task exists
 - [ ] Add NodeRetryPolicy integration for invalid classification labels
 - [ ] Add `ensure_terminal()` calls in all new route handlers
@@ -232,7 +276,6 @@ The two-step decision process follows the established DecisionNode pattern from 
 
 - [ ] Implement TaskAnalyzerNode full behavior (Milestone 2.4)
 - [ ] Implement TaskExecutor and ResultReviewer path (Milestone 3.2)
-- [ ] Implement AnalysisEffortNode (Milestone 2.3a)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
@@ -252,9 +295,9 @@ The two-step decision process follows the established DecisionNode pattern from 
    - **Reason**: WorkerNode is a transient routing node; after forwarding input, it should not remain in the active path. The next worker-spawned node takes over.
    - **Alternatives Considered**: Re-insert WorkerNode after passthrough — rejected because it creates unnecessary queue cycling and complicates the terminal response path.
 
-4. **Decision**: proceed_execution spawns TaskExecutor and ResultReviewer path
-   - **Reason**: This is the edge case when task and active task exist but no executor is queued/active. The handler ensures the execution path is established.
-   - **Alternatives Considered**: Defer to future milestone — rejected because the spec explicitly requires this route handler.
+4. **Decision**: proceed_execution ensures terminal response path (spawning deferred to Milestone 3.2)
+   - **Reason**: TaskExecutor and ResultReviewer classes do not exist yet. The handler logs the classification and ensures the terminal response path exists. Full implementation is deferred to Milestone 3.2.
+   - **Alternatives Considered**: Spawn placeholder nodes — rejected because it adds complexity without functional value.
 
 ---
 
@@ -264,7 +307,7 @@ The two-step decision process follows the established DecisionNode pattern from 
 |------|-----------|--------|------------|
 | Dynamic label adjustment could cause inconsistent LLM responses | Low | Medium | Comprehensive unit tests for label adjustment; LLM sees only valid options |
 | passthrough route handler could leave queue in inconsistent state | Medium | High | Defensive validation in route handler; ensure_terminal() call |
-| proceed_execution handler could spawn duplicate executor/reviewer | Low | Medium | Check for existing executor/reviewer before spawning |
+| proceed_execution handler could leave queue without terminal path | Medium | High | ensure_terminal() call in all route handlers |
 | NodeRetryPolicy could cause infinite loop for persistent invalid labels | Low | Low | Max retries limit (default 3); NodeExecutionError after exhaustion |
 | LLM classification could be ambiguous between task_recreation and task_reanalysis | Medium | Medium | Clear system prompt differentiation; NodeRetryPolicy for retries |
 
@@ -281,8 +324,8 @@ The two-step decision process follows the established DecisionNode pattern from 
 3. **passthrough does not re-insert WorkerNode**
    - WorkerNode is a transient routing node. After forwarding input, the next worker-spawned node takes over. This simplifies queue management and avoids unnecessary cycling.
 
-4. **proceed_execution checks for existing executor/reviewer before spawning**
-   - Prevents duplicate nodes in the execution path. This is a defensive check consistent with QueryAnalyst's WorkerNode reuse pattern.
+4. **proceed_execution ensures terminal response path (spawning deferred to Milestone 3.2)**
+   - TaskExecutor and ResultReviewer classes do not exist yet. The handler logs the classification and ensures the terminal response path exists. Full implementation is deferred to Milestone 3.2.
 
 ---
 

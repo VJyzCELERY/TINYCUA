@@ -32,7 +32,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 4. **Given** WorkerNode classifies as `task_recreation`, **When** the route handler executes, **Then** it clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools (LLM-assisted).
 5. **Given** WorkerNode classifies as `task_reanalysis`, **When** the route handler executes, **Then** it clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
 6. **Given** WorkerNode classifies as `passthrough`, **When** the route handler executes, **Then** it advances the queue and forwards input to the next worker-spawned node without re-inserting itself.
-7. **Given** WorkerNode classifies as `proceed_execution`, **When** the route handler executes, **Then** it spawns or continues the TaskExecutor and ResultReviewer path.
+7. **Given** WorkerNode classifies as `proceed_execution`, **When** the route handler executes, **Then** it ensures the terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
 8. **Given** WorkerNode receives an invalid or missing classification label, **When** the decision process completes, **Then** it retries a configurable number of times (default 3) before raising an error.
 9. **Given** WorkerNode's LLM classification returns the latest valid verdict, **When** multiple tool calls occur, **Then** the latest valid verdict determines the route label.
 10. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** it ensures the terminal response path exists.
@@ -61,7 +61,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **FR-008**: The `task_recreation` route handler MUST clear worker-spawned nodes and spawn TaskAnalyzerNode with TaskInit/TaskCreate tools.
 - **FR-009**: The `task_reanalysis` route handler MUST clear worker-spawned nodes and spawn TaskAnalyzerNode without TaskInit/TaskCreate tools.
 - **FR-010**: The `passthrough` route handler MUST advance the queue and forward input to the next worker-spawned node without re-inserting WorkerNode.
-- **FR-011**: The `proceed_execution` route handler MUST spawn or continue the TaskExecutor and ResultReviewer path.
+- **FR-011**: The `proceed_execution` route handler MUST ensure the terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
 - **FR-012**: Any route handler that clears the queue MUST ensure the terminal response path exists before returning.
 - **FR-013**: WorkerNode MUST preserve the original input query for downstream nodes.
 - **FR-014**: WorkerNode MUST NOT use task creation, analysis, or execution tools (worker decision tools only).
@@ -71,7 +71,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 ### Key Entities _(include if feature involves data)_
 
 - **TinyCUAWorkerNode**: Concrete decision node that owns task planning and execution orchestration. Replaces old worker subgraph and worker QueryAnalyst input gate.
-- **WorkerRouteLabel**: Enum with labels: `task_creation`, `task_recreation`, `task_reanalysis`, `passthrough`, `proceed_execution`. All labels are implemented in this milestone.
+- **WorkerRouteLabel**: Enum with labels: `task_creation` (Milestone 2.2), `task_recreation`, `task_reanalysis`, `passthrough`, `proceed_execution`. Four new labels are implemented in this milestone.
 - **WorkerOwnedQueueSegment**: The set of nodes spawned by WorkerNode, used for stale detection, clearing, and dynamic label adjustment.
 - **RouteMap (Worker)**: WorkerNode's route map with labels mapped to handler callables. All five labels are registered in this milestone.
 
@@ -79,12 +79,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
+> Checkboxes to be verified during implementation — not applicable to planning documents.
+
 - [ ] **SC-001** — **WorkerNode LLM decision process**: When a task exists, WorkerNode performs two-step LLM decision (analysis → classification) without deterministic precheck bypass.
 - [ ] **SC-002** — **Dynamic label adjustment**: Classification labels include `passthrough` only when worker-spawned nodes exist.
 - [ ] **SC-003** — **task_recreation route**: Route handler clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools.
 - [ ] **SC-004** — **task_reanalysis route**: Route handler clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
 - [ ] **SC-005** — **passthrough route**: Route handler advances queue and forwards input to next worker-spawned node.
-- [ ] **SC-006** — **proceed_execution route**: Route handler spawns or continues TaskExecutor and ResultReviewer path.
+- [ ] **SC-006** — **proceed_execution route**: Route handler ensures terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
 - [ ] **SC-007** — **Invalid label retry**: Invalid or missing classification labels retry a configurable number of times (default 3).
 - [ ] **SC-008** — **Terminal response path guarantee**: Handlers that clear the queue ensure the terminal response path exists.
 - [ ] **SC-009** — **Input preservation**: Original input query is preserved for downstream nodes.
@@ -107,10 +109,12 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - `test_worker_node_route_task_recreation`: task_recreation route handler clears and spawns correctly.
 - `test_worker_node_route_task_reanalysis`: task_reanalysis route handler clears and spawns correctly.
 - `test_worker_node_route_passthrough`: passthrough route handler advances queue correctly.
-- `test_worker_node_route_proceed_execution`: proceed_execution route handler spawns executor/reviewer correctly.
+- `test_worker_node_route_proceed_execution`: proceed_execution route handler ensures terminal response path.
 - `test_worker_node_route_clear_ensures_terminal`: Route handlers ensure terminal response after clear.
 - `test_worker_node_preserves_input`: Original input query is preserved.
 - `test_worker_node_tool_scope`: WorkerNode only has access to worker decision tools.
+- `test_worker_node_classification_tool_call_format`: Classification uses tool-call response format with WorkerRouteLabel enum values.
+- `test_worker_node_queue_invariant_query_analyst_first`: QueryAnalyst remains first in queue after WorkerNode dispatches to any route (FR-016).
 
 ### Integration Tests
 
@@ -138,7 +142,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 | task_recreation route handler | TODO | Clear + spawn TaskAnalyzerNode (+TaskInit/TaskCreate) |
 | task_reanalysis route handler | TODO | Clear + spawn TaskAnalyzerNode (no TaskInit/TaskCreate) |
 | passthrough route handler | TODO | Advance queue, forward input |
-| proceed_execution route handler | TODO | Spawn TaskExecutor/ResultReviewer path |
+| proceed_execution route handler | TODO | Ensure terminal response path (TaskExecutor/ResultReviewer deferred to 3.2) |
 | Invalid label retry | TODO | Retry integration (default 3 attempts) |
 | Terminal response path guarantee | TODO | Terminal response path in all route handlers |
 
@@ -164,9 +168,9 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices) — domain entity names (e.g., WorkerRouteLabel, NodeRetryPolicy) are allowed
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

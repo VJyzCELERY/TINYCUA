@@ -48,28 +48,50 @@ import pytest
 from unittest.mock import MagicMock
 
 # --- Third-party / local ---
-from tinycua.config.types import LLMResult, NodeConfigBase, NodeQueue, NodeRetryPolicy
-from tinycua.loops.node import DecisionResult, NodeExecutionError, TinyCUAWorkerNode
+from tinycua.config.node_config import NodeConfigBase
+from tinycua.config.types import LLMResult, NodeRetryPolicy
+from tinycua.loops.node import DecisionResult, NodeExecutionError, ProcessNode
+from tinycua.loops.worker import TinyCUAWorkerNode
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.models.session import Session
+from tinycua.models.node_input import NodeInput
 
-# --- Test helpers from conftest.py ---
-# These fixtures/helpers must be defined in conftest.py before tests run:
-#   _make_session(task: str) -> MockSession  — creates a mock session with a task
-#   _make_mock_node(node_id: str) -> MockNode — creates a mock node with a given node_id
-from conftest import _make_session, _make_mock_node
+
+def _make_session_with_task(task: str = "Write a sorting script") -> Session:
+    """Create a Session with an existing task (matches existing test patterns)."""
+    session = Session()
+    session.task = task
+    return session
 
 
-async def test_worker_node_llm_decision_with_task_exists():
+def _make_mock_node(node_id: str, is_terminal: bool = False) -> ProcessNode:
+    """Create a lightweight mock node for queue testing.
+
+    Returns a ProcessNode with the given node_id. Uses MagicMock for llm_client
+    to avoid real LLM calls during queue operations.
+    """
+    config = NodeConfigBase(llm_client=MagicMock())
+    return ProcessNode(node_id=node_id, config=config, is_terminal=is_terminal)
+
+
+def test_worker_node_llm_decision_with_task_exists():
     """WorkerNode performs two-step LLM decision (analysis → classification) when task exists."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
 
     # Act
-    result = worker("Help me write a script")
+    result = worker(input_data)
 
     # Assert — classification should be one of the dynamic labels
     assert result.route_label in [
@@ -79,21 +101,22 @@ async def test_worker_node_llm_decision_with_task_exists():
     assert result.classification_response is not None
 
 
-async def test_worker_node_dynamic_labels_with_worker_spawned():
+def test_worker_node_dynamic_labels_with_worker_spawned():
     """Classification labels include passthrough when worker-spawned nodes exist."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
     # Simulate worker-spawned node
     spawned = _make_mock_node("spawned_task")
     queue.spawn_after_current([spawned])
 
     # Act
-    labels = worker._get_classification_labels()
+    labels = worker._get_classification_labels(queue)
 
     # Assert
     assert "passthrough" in labels
@@ -102,18 +125,19 @@ async def test_worker_node_dynamic_labels_with_worker_spawned():
     assert "proceed_execution" in labels
 
 
-async def test_worker_node_dynamic_labels_without_worker_spawned():
+def test_worker_node_dynamic_labels_without_worker_spawned():
     """Classification labels exclude passthrough when no worker-spawned nodes exist."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
 
     # Act
-    labels = worker._get_classification_labels()
+    labels = worker._get_classification_labels(queue)
 
     # Assert
     assert "passthrough" not in labels
@@ -122,15 +146,16 @@ async def test_worker_node_dynamic_labels_without_worker_spawned():
     assert "proceed_execution" in labels
 
 
-async def test_worker_node_route_task_recreation():
+def test_worker_node_route_task_recreation():
     """task_recreation route handler clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
     spawned = _make_mock_node("old_spawned")
     queue.spawn_after_current([spawned])
 
@@ -149,15 +174,16 @@ async def test_worker_node_route_task_recreation():
     assert "task_analyzer" in node_ids
 
 
-async def test_worker_node_route_task_reanalysis():
+def test_worker_node_route_task_reanalysis():
     """task_reanalysis route handler clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
     spawned = _make_mock_node("old_spawned")
     queue.spawn_after_current([spawned])
 
@@ -172,18 +198,19 @@ async def test_worker_node_route_task_reanalysis():
 
     # Assert — TaskAnalyzerNode spawned without task_init/task_create tools
     task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
-    assert task_analyzer.mode == "reanalysis"  # or equivalent no-tools mode
+    assert task_analyzer.mode == "initial_analysis"  # Excludes TaskInit/TaskCreate
 
 
-async def test_worker_node_route_passthrough():
+def test_worker_node_route_passthrough():
     """passthrough route handler advances queue and forwards input to next worker-spawned node."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
     spawned = _make_mock_node("next_node")
     queue.spawn_after_current([spawned])
 
@@ -196,19 +223,23 @@ async def test_worker_node_route_passthrough():
     # Act
     worker._route_passthrough(queue, result)
 
-    # Assert — worker removed, next_node is now current
+    # Assert — worker removed, next_node is now current, input forwarded
     assert queue.items[0].node_id == "next_node"
+    # Verify input was forwarded to next node (via queue.set_input)
+    # NOTE: _inputs is a NodeQueue internal — refactor if NodeQueue changes input storage
+    assert queue._inputs.get("next_node") is not None or queue.items[0]._input is not None
 
 
-async def test_worker_node_route_proceed_execution():
-    """proceed_execution route handler spawns TaskExecutor and ResultReviewer path."""
+def test_worker_node_route_proceed_execution():
+    """proceed_execution route handler ensures terminal response path (Milestone 2.3)."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
 
     result = DecisionResult(
         route_label="proceed_execution",
@@ -219,18 +250,20 @@ async def test_worker_node_route_proceed_execution():
     # Act
     worker._route_proceed_execution(queue, result)
 
-    # Assert — execution path nodes spawned
-    node_ids = [n.node_id for n in queue.items]
-    assert "task_executor" in node_ids  # or equivalent
+    # Assert — terminal response path exists
+    assert queue.items[-1].is_terminal
 
 
-async def test_worker_node_invalid_label_retry():
+def test_worker_node_invalid_label_retry():
     """Invalid classification labels trigger retry per NodeRetryPolicy."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
+    session = _make_session_with_task(task="Write a sorting script")
     config = NodeConfigBase(retry_policy=NodeRetryPolicy(max_attempts=3))
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
 
     # Mock LLM to return invalid label
     worker._call_llm = MagicMock(return_value=LLMResult(content="invalid_label", role="assistant"))
@@ -240,15 +273,16 @@ async def test_worker_node_invalid_label_retry():
         worker("Help me write a script")
 
 
-async def test_worker_node_route_clear_ensures_terminal():
+def test_worker_node_route_clear_ensures_terminal():
     """Route handlers calling clear_after_current() ensure terminal response path exists."""
     # Arrange
-    session = _make_session(task="Write a sorting script")
-    config = NodeConfigBase()
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
     worker = TinyCUAWorkerNode(config=config)
-    worker.attach_session(session)
+    worker.ensure_session(session)
     queue = NodeQueue()
-    queue.enqueue(worker)
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
 
     result = DecisionResult(
         route_label="task_recreation",
@@ -316,8 +350,8 @@ async def test_worker_node_route_clear_ensures_terminal():
 - **Implement `_route_passthrough()`**: Call `queue.advance()` and forward input to next worker-spawned node without re-inserting WorkerNode
 - **Rationale**: WorkerNode is transient; after forwarding, the next node takes over
 
-- **Implement `_route_proceed_execution()`**: Spawn or continue TaskExecutor and ResultReviewer path
-- **Rationale**: When task is ready for execution, ensure the execution path is established
+- **Implement `_route_proceed_execution()`**: Log classification and ensure terminal response path (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2)
+- **Rationale**: TaskExecutor and ResultReviewer classes do not exist yet. Handler ensures queue reaches stable state with terminal response.
 
 - **Update `__call__()`**: Use dynamic labels when task exists instead of static `_DEFAULT_WORKER_LABELS`
 - **Rationale**: LLM classification must see only valid labels based on current queue state
@@ -362,12 +396,12 @@ class WorkerRouteLabel(str, Enum):
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Dynamic label adjustment could cause inconsistent LLM responses | Medium | Comprehensive unit tests for label adjustment; LLM sees only valid options |
-| passthrough route handler could leave queue in inconsistent state | High | Defensive validation in route handler; ensure_terminal() call |
-| proceed_execution handler could spawn duplicate executor/reviewer | Medium | Check for existing executor/reviewer before spawning |
-| LLM classification could be ambiguous between task_recreation and task_reanalysis | Medium | Clear system prompt differentiation; NodeRetryPolicy for retries |
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Dynamic label adjustment could cause inconsistent LLM responses | Low | Medium | Comprehensive unit tests for label adjustment; LLM sees only valid options |
+| passthrough route handler could leave queue in inconsistent state | Medium | High | Defensive validation in route handler; ensure_terminal() call |
+| proceed_execution handler could leave queue without terminal path | Medium | High | ensure_terminal() call in all route handlers |
+| LLM classification could be ambiguous between task_recreation and task_reanalysis | Medium | Medium | Clear system prompt differentiation; NodeRetryPolicy for retries |
 
 ---
 
