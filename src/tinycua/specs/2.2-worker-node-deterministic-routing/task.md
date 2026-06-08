@@ -15,7 +15,7 @@ Implementation tasks for TinyCUAWorkerNode Deterministic Routing and TaskCreate.
 
 - [ ] Write integration tests for WorkerNode deterministic routing (defined in implementation-plan.md) <!-- id: 0, effort: M -->
 - [ ] Write unit tests for WorkerNode, TaskCreateNode, TaskAnalyzerNode, NodeQueue extensions <!-- id: 1, effort: M -->
-- [ ] Write error scenario tests (see implementation-plan.md §Error Scenario Tests) <!-- id: 1b, effort: S -->
+- [ ] Write error scenario tests: `test_task_create_node_failure_retries`, `test_worker_node_empty_input_passes_through`, `test_clear_after_current_without_ensure_terminal`, `test_stale_worker_spawned_nodes_detection` <!-- id: 1b, effort: S -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2, effort: S -->
 
 ## Implementation Phase

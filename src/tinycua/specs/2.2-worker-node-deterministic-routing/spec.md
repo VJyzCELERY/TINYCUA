@@ -130,8 +130,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 1. **Should TaskCreateNode have its own retry policy or inherit from WorkerNode?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Discussion
-   - **Proposed Answer**: TaskCreateNode should have its own NodeRetryPolicy config, independent of WorkerNode.
+   - **Status**: Resolved
+   - **Decision**: TaskCreateNode has its own independent NodeRetryPolicy config, independent of WorkerNode.
 
 ---
 

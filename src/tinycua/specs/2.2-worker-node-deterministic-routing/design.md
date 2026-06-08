@@ -38,18 +38,21 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 ### New Entities
 
 ```python
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 # WorkerNode route labels (subset implemented in this milestone)
 class WorkerRouteLabel(str, Enum):
     task_creation = "task_creation"            # Deterministic, no LLM
-    task_recreation = "task_recreation"        # Deferred to 2.3
-    task_reanalysis = "task_reanalysis"        # Deferred to 2.3
-    passthrough = "passthrough"                # Deferred to 2.3
-    proceed_execution = "proceed_execution"    # Deferred to 2.3
+    task_recreation = "task_recreation"        # NOT IN SCOPE — Milestone 2.3
+    task_reanalysis = "task_reanalysis"        # NOT IN SCOPE — Milestone 2.3
+    passthrough = "passthrough"                # NOT IN SCOPE — Milestone 2.3
+    proceed_execution = "proceed_execution"    # NOT IN SCOPE — Milestone 2.3
 
 # TaskCreateNode output
-TaskCreateResult:
+@dataclass
+class TaskCreateResult:
     task_id: str           # ID of created root task
     task_summary: str      # Summary of what was created
     created_at: datetime   # Timestamp of creation
@@ -127,7 +130,7 @@ class NodeQueue:
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| TaskCreateNode fails to create root task | `NodeRetryPolicy` retry | Task creation failure prevents downstream |
+| TaskCreateNode fails to create root task | `NodeRetryPolicy` retry (TaskCreateNode's own config) | Task creation failure prevents downstream |
 | No terminal response after clear | `ensure_terminal()` adds default | Route handler responsibility |
 | Invalid WorkerNode route label | `NodeRetryPolicy` retry | Only `task_creation` valid in this milestone |
 
