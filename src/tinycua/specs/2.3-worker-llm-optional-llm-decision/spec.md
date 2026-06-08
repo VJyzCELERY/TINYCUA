@@ -14,7 +14,7 @@
 - **Goals**: Provide optional LLM-based decision-making for TinyCUAWorkerNode so that when a task already exists, the worker can classify the appropriate next action (task_recreation, task_reanalysis, passthrough, proceed_execution) and dispatch to the correct route handler.
 - **Gaps**: Milestone 2.2 established deterministic task-creation routing for WorkerNode, but when a task already exists, the worker has no concrete behavior beyond a stub that delegates to the parent DecisionNode. There are no route handlers for task_recreation, task_reanalysis, passthrough, or proceed_execution, and no dynamic classification label adjustment based on worker-spawned node presence.
 - **Non-Goals**: Full downstream process-node implementations (Milestones 2.4–3.2), TaskAssessor, TaskExecutor, ResultReviewer, result aggregation, response synthesis, and full architecture verification (Milestone 4.5).
-- **Constraints**: Must not modify tinycua-sdk public APIs. Must reuse existing DecisionNode, NodeQueue, TinyCUALoop, and RouteMap infrastructure. Must maintain QueryAnalyst queue invariant (first node). Worker must preserve original input query for downstream nodes. The two-step decision process (analysis → classification → dispatch) must follow the established DecisionNode pattern.
+- **Constraints**: Must not modify tinycua-sdk public APIs. Must reuse existing infrastructure. Must maintain QueryAnalyst queue invariant (first node). Worker must preserve original input query for downstream nodes. The two-step decision process (analysis → classification → dispatch) must follow the established DecisionNode pattern.
 
 ---
 
@@ -31,18 +31,18 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 3. **Given** WorkerNode performs LLM classification and no worker-spawned nodes exist, **When** classification returns a valid label, **Then** the `passthrough` label is excluded from the dynamic classification labels.
 4. **Given** WorkerNode classifies as `task_recreation`, **When** the route handler executes, **Then** it clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools (LLM-assisted).
 5. **Given** WorkerNode classifies as `task_reanalysis`, **When** the route handler executes, **Then** it clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
-6. **Given** WorkerNode classifies as `passthrough`, **When** the route handler executes, **Then** it calls `queue.advance()` and forwards input to the next worker-spawned node without re-inserting itself.
+6. **Given** WorkerNode classifies as `passthrough`, **When** the route handler executes, **Then** it advances the queue and forwards input to the next worker-spawned node without re-inserting itself.
 7. **Given** WorkerNode classifies as `proceed_execution`, **When** the route handler executes, **Then** it spawns or continues the TaskExecutor and ResultReviewer path.
-8. **Given** WorkerNode receives an invalid or missing classification label, **When** the decision process completes, **Then** it retries according to NodeRetryPolicy.
+8. **Given** WorkerNode receives an invalid or missing classification label, **When** the decision process completes, **Then** it retries a configurable number of times (default 3) before raising an error.
 9. **Given** WorkerNode's LLM classification returns the latest valid verdict, **When** multiple tool calls occur, **Then** the latest valid verdict determines the route label.
 10. **Given** WorkerNode dispatches to any route handler, **When** the handler completes, **Then** it ensures the terminal response path exists.
 
 ### Edge Cases
 
-- What happens when WorkerNode's LLM classification returns an invalid label? → **Design**: Retry per NodeRetryPolicy; if exhausted, raise NodeExecutionError. [§Error Handling](./design.md#error-handling)
+- What happens when WorkerNode's LLM classification returns an invalid label? → **Design**: Retry a configurable number of times (default 3); if exhausted, raise an error. [§Error Handling](./design.md#error-handling)
 - How does the system handle empty or null input reaching WorkerNode during LLM decision? → **Design**: WorkerNode passes through empty input; LLM decision process handles empty context gracefully. [§Error Handling](./design.md#error-handling)
 - What is the behavior when passthrough is classified but no worker-spawned node exists? → **Design**: Dynamic label exclusion prevents passthrough from being offered; if somehow classified, route handler validates and retries. [§Error Handling](./design.md#error-handling)
-- What happens when `clear_after_current()` in a route handler removes the terminal ResponseNode? → **Design**: Route handler MUST call `queue.ensure_terminal(default_response_node)` before returning. [§Error Handling](./design.md#error-handling)
+- What happens when clearing the queue in a route handler removes the terminal ResponseNode? → **Design**: Route handler MUST ensure a terminal response node exists before returning. [§Error Handling](./design.md#error-handling)
 - What happens when WorkerNode is re-entered and worker-spawned nodes are stale? → **Design**: Task_recreation or task_reanalysis routes clear stale nodes. [§Error Handling](./design.md#error-handling)
 
 ---
@@ -56,13 +56,13 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **FR-003**: WorkerNode MUST dynamically adjust classification labels based on worker-spawned node presence: include `passthrough` only when worker-spawned nodes exist.
 - **FR-004**: WorkerNode MUST classify into one of: `task_recreation`, `task_reanalysis`, `passthrough`, `proceed_execution` (when task exists).
 - **FR-005**: The latest valid classification result MUST determine the route label.
-- **FR-006**: Invalid or missing classification labels MUST retry according to NodeRetryPolicy.
+- **FR-006**: Invalid or missing classification labels MUST retry a configurable number of times (default 3) before raising an error.
 - **FR-007**: WorkerNode MUST provide route handlers for each worker route label.
 - **FR-008**: The `task_recreation` route handler MUST clear worker-spawned nodes and spawn TaskAnalyzerNode with TaskInit/TaskCreate tools.
 - **FR-009**: The `task_reanalysis` route handler MUST clear worker-spawned nodes and spawn TaskAnalyzerNode without TaskInit/TaskCreate tools.
-- **FR-010**: The `passthrough` route handler MUST call `queue.advance()` and forward input to the next worker-spawned node without re-inserting WorkerNode.
+- **FR-010**: The `passthrough` route handler MUST advance the queue and forward input to the next worker-spawned node without re-inserting WorkerNode.
 - **FR-011**: The `proceed_execution` route handler MUST spawn or continue the TaskExecutor and ResultReviewer path.
-- **FR-012**: Any route handler that calls `clear_after_current()` MUST call `queue.ensure_terminal(default_response_node)` before returning if the clear removed the terminal response path.
+- **FR-012**: Any route handler that clears the queue MUST ensure the terminal response path exists before returning.
 - **FR-013**: WorkerNode MUST preserve the original input query for downstream nodes.
 - **FR-014**: WorkerNode MUST NOT use task creation, analysis, or execution tools (worker decision tools only).
 - **FR-015**: QueryAnalyst MUST continue to handle worker spawn/reuse as defined in Milestone 2.1.
@@ -132,6 +132,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 | Item | Status | Notes |
 |------|--------|-------|
+| Planning documents | DONE | spec.md, design.md, implementation-plan.md, task.md |
 | TinyCUAWorkerNode LLM decision | TODO | worker.py — two-step decision when task exists |
 | Dynamic classification labels | TODO | Include/exclude passthrough based on worker-spawned nodes |
 | task_recreation route handler | TODO | Clear + spawn TaskAnalyzerNode (+TaskInit/TaskCreate) |

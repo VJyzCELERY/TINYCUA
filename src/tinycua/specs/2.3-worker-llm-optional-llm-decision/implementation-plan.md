@@ -43,6 +43,9 @@ Define the integration tests that prove the feature works. These are written FIR
 # Test file: src/tinycua/tests/integration/test_worker_node_llm_decision_integration.py
 """Integration tests for TinyCUAWorkerNode LLM decision when task exists."""
 
+from tinycua.config.types import LLMResult
+from tinycua.loops.node import DecisionResult
+
 
 async def test_worker_node_llm_decision_with_task_exists():
     """WorkerNode performs two-step LLM decision (analysis → classification) when task exists."""
@@ -120,7 +123,11 @@ async def test_worker_node_route_task_recreation():
     spawned = _make_mock_node("old_spawned")
     queue.spawn_after_current([spawned])
 
-    result = DecisionResult(route_label="task_recreation", ...)
+    result = DecisionResult(
+        route_label="task_recreation",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="task_recreation", role="assistant"),
+    )
 
     # Act
     worker._route_task_recreation(queue, result)
@@ -143,7 +150,11 @@ async def test_worker_node_route_task_reanalysis():
     spawned = _make_mock_node("old_spawned")
     queue.spawn_after_current([spawned])
 
-    result = DecisionResult(route_label="task_reanalysis", ...)
+    result = DecisionResult(
+        route_label="task_reanalysis",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="task_reanalysis", role="assistant"),
+    )
 
     # Act
     worker._route_task_reanalysis(queue, result)
@@ -165,7 +176,11 @@ async def test_worker_node_route_passthrough():
     spawned = _make_mock_node("next_node")
     queue.spawn_after_current([spawned])
 
-    result = DecisionResult(route_label="passthrough", ...)
+    result = DecisionResult(
+        route_label="passthrough",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="passthrough", role="assistant"),
+    )
 
     # Act
     worker._route_passthrough(queue, result)
@@ -184,7 +199,11 @@ async def test_worker_node_route_proceed_execution():
     queue = NodeQueue()
     queue.enqueue(worker)
 
-    result = DecisionResult(route_label="proceed_execution", ...)
+    result = DecisionResult(
+        route_label="proceed_execution",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="proceed_execution", role="assistant"),
+    )
 
     # Act
     worker._route_proceed_execution(queue, result)
@@ -220,7 +239,11 @@ async def test_worker_node_route_clear_ensures_terminal():
     queue = NodeQueue()
     queue.enqueue(worker)
 
-    result = DecisionResult(route_label="task_recreation", ...)
+    result = DecisionResult(
+        route_label="task_recreation",
+        analysis_response=LLMResult(content="analysis text", role="assistant"),
+        classification_response=LLMResult(content="task_recreation", role="assistant"),
+    )
 
     # Act
     worker._route_task_recreation(queue, result)

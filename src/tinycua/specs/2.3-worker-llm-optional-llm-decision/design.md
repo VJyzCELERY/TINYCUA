@@ -54,6 +54,25 @@ class WorkerRouteLabel(str, Enum):
     proceed_execution = "proceed_execution"    # LLM-assisted, spawn TaskExecutor/ResultReviewer
 ```
 
+### WorkerOwnedQueueSegment
+
+The set of nodes spawned by WorkerNode, used for stale detection, clearing, and dynamic label adjustment.
+
+```python
+# WorkerOwnedQueueSegment: nodes spawned by WorkerNode
+# Detection: queue.find_worker_spawned_nodes()
+# Clearing: queue.clear_after_current() removes worker-spawned nodes
+# The segment is used for:
+#   - Stale detection (are spawned nodes still valid?)
+#   - Dynamic label adjustment (include passthrough only when segment is non-empty)
+```
+
+**Detection**: `queue.find_worker_spawned_nodes()` returns all nodes spawned by WorkerNode after itself in the queue.
+
+**Clearing**: `queue.clear_after_current()` removes worker-spawned nodes from the queue.
+
+**Dynamic label adjustment**: The segment determines whether `passthrough` is a valid classification option — it is only offered when the segment is non-empty.
+
 ### Current State
 
 The existing WorkerNode uses a static tuple of all WorkerRouteLabel values:
@@ -123,7 +142,12 @@ class TinyCUAWorkerNode(DecisionNode):
         """Check if a task already exists in the session via self.session.task."""
     
     def _has_worker_spawned_nodes(self) -> bool:
-        """Check if worker-spawned nodes exist in the queue."""
+        """Check if worker-spawned nodes exist in the queue.
+        
+        Convenience wrapper around _detect_worker_spawned_nodes() (which returns
+        the list of nodes). This method returns a bool for use in dynamic label
+        adjustment and other boolean checks.
+        """
     
     def _get_classification_labels(self) -> list[str]:
         """Get dynamic classification labels based on worker-spawned node presence."""

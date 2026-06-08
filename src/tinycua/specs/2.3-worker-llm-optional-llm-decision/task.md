@@ -22,7 +22,7 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] Add task_recreation, task_reanalysis, passthrough, proceed_execution to WorkerRouteLabel
   - [ ] Update docstring to reflect all labels are implemented
 - [ ] Implement _has_worker_spawned_nodes() method <!-- id: 3 -->
-  - [ ] Delegate to queue.find_worker_spawned_nodes()
+  - [ ] Convenience wrapper around existing _detect_worker_spawned_nodes() (returns list)
   - [ ] Return bool indicating worker-spawned node presence
 - [ ] Implement _get_classification_labels() method <!-- id: 4 -->
   - [ ] Always include task_recreation, task_reanalysis, proceed_execution
@@ -71,6 +71,7 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
 - [ ] Verify dynamic label adjustment with and without worker-spawned nodes <!-- id: 15 -->
 - [ ] Verify NodeRetryPolicy integration for invalid classification labels <!-- id: 16 -->
 - [ ] Verify terminal response path guarantee in all route handlers <!-- id: 17 -->
+- [ ] Run type checking: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 18 -->
 
 ## Documentation Phase
 
