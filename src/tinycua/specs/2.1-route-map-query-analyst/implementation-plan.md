@@ -390,30 +390,30 @@ def test_query_analyst_e2e_deduplication():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: RouteMap dispatches labels to correct handlers — primary routing mechanism
-- [ ] **Scenario 2**: QueryAnalyst classifies input into passthrough/worker/uncertain — core classification
-- [ ] **Scenario 3**: MandatoryPassthrough precheck overrides LLM classification — deterministic continuation
-- [ ] **Scenario 4**: Worker reuse — existing WorkerNode in queue is reused, not duplicated
-- [ ] **Scenario 5**: Invalid label retry — unrecognized classification triggers retry, falls back to uncertain
-- [ ] **Scenario 6**: QueryAnalyst deduplication — second spawn attempt is rejected
-- [ ] **Edge case**: Invalid classification labels retry per NodeRetryPolicy — error handling
+- [x] **Scenario 1**: RouteMap dispatches labels to correct handlers — primary routing mechanism
+- [x] **Scenario 2**: QueryAnalyst classifies input into passthrough/worker/uncertain — core classification
+- [x] **Scenario 3**: MandatoryPassthrough precheck overrides LLM classification — deterministic continuation
+- [x] **Scenario 4**: Worker reuse — existing WorkerNode in queue is reused, not duplicated
+- [x] **Scenario 5**: Invalid label retry — unrecognized classification triggers retry, falls back to uncertain
+- [x] **Scenario 6**: QueryAnalyst deduplication — second spawn attempt is rejected
+- [x] **Edge case**: Invalid classification labels retry per NodeRetryPolicy — error handling
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for RouteMap, QueryAnalyst, MandatoryPassthrough — test error handling, edge cases, fallbacks
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for RouteMap, QueryAnalyst, MandatoryPassthrough — test error handling, edge cases, fallbacks
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify QueryAnalyst routing in a local environment with mock LLM endpoint
-- [ ] Test queue bootstrap with QueryAnalyst at front
+- [x] Verify QueryAnalyst routing in a local environment with mock LLM endpoint
+- [x] Test queue bootstrap with QueryAnalyst at front
 
 ### Performance Considerations
 
-- [ ] QueryAnalyst makes 2 LLM calls per input — acceptable for prototype
+- [x] QueryAnalyst makes 2 LLM calls per input — acceptable for prototype
 
 ## Proposed Changes
 

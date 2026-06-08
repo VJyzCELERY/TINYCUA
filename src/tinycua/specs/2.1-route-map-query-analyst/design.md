@@ -183,18 +183,18 @@ QueryAnalyst MUST preserve the original input query for downstream nodes. This i
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create RouteMap class with register() and dispatch()
-- [ ] Create Route dataclass
-- [ ] Create MandatoryPassthrough dataclass
-- [ ] Create TinyCUAQueryAnalystNode with classification labels
-- [ ] Implement mandatory_passthrough precheck
-- [ ] Implement two-step decision process (analysis → classification → dispatch)
-- [ ] Implement route_passthrough handler
-- [ ] Implement route_worker handler with existing WorkerNode detection
-- [ ] Implement route_uncertain handler
-- [ ] Implement on_complete for RouteMap dispatch
-- [ ] Update TinyCUALoop queue bootstrap to use QueryAnalyst at front
-- [ ] Add QueryAnalyst deduplication check
+- [x] Create RouteMap class with register() and dispatch()
+- [x] Create Route dataclass
+- [x] Create MandatoryPassthrough dataclass
+- [x] Create TinyCUAQueryAnalystNode with classification labels
+- [x] Implement mandatory_passthrough precheck
+- [x] Implement two-step decision process (analysis → classification → dispatch)
+- [x] Implement route_passthrough handler
+- [x] Implement route_worker handler with existing WorkerNode detection
+- [x] Implement route_uncertain handler
+- [x] Implement on_complete for RouteMap dispatch
+- [x] Update TinyCUALoop queue bootstrap to use QueryAnalyst at front
+- [x] Add QueryAnalyst deduplication check
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
