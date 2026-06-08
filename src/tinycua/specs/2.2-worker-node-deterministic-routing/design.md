@@ -38,13 +38,15 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 ### New Entities
 
 ```python
+from enum import Enum
+
 # WorkerNode route labels (subset implemented in this milestone)
-WorkerRouteLabel:
-    task_creation: str = "task_creation"    # Deterministic, no LLM
-    task_recreation: str = "task_recreation"  # Deferred to 2.3
-    task_reanalysis: str = "task_reanalysis"  # Deferred to 2.3
-    passthrough: str = "passthrough"          # Deferred to 2.3
-    proceed_execution: str = "proceed_execution"  # Deferred to 2.3
+class WorkerRouteLabel(str, Enum):
+    task_creation = "task_creation"            # Deterministic, no LLM
+    task_recreation = "task_recreation"        # Deferred to 2.3
+    task_reanalysis = "task_reanalysis"        # Deferred to 2.3
+    passthrough = "passthrough"                # Deferred to 2.3
+    proceed_execution = "proceed_execution"    # Deferred to 2.3
 
 # TaskCreateNode output
 TaskCreateResult:
@@ -80,12 +82,12 @@ class TinyCUAWorkerNode(DecisionNode):
         """
     
     def _detect_task_exists(self, context: NodeContext) -> bool:
-        """Check if a task already exists in the session."""
+        """Check if a task already exists in the session via session.task (the Session model already has a task attribute)."""
     
     def _detect_worker_spawned_nodes(self, queue: NodeQueue) -> list[Node]:
         """Find worker-owned nodes in the queue before terminal ResponseNode."""
     
-    def _route_task_creation(self, input: NodeInput) -> NodeOutput:
+    def _route_task_creation(self, queue: NodeQueue, result: DecisionResult) -> NodeOutput:
         """Deterministic route: spawn TaskCreateNode for root task creation."""
 ```
 
@@ -104,7 +106,7 @@ class TinyCUATaskCreateNode(ProcessNode):
         Next node is TaskAnalyzerNode (without TaskInit/TaskCreate tools).
         """
     
-    def on_complete(self, output: NodeOutput) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Advance queue; next node is TaskAnalyzerNode."""
 ```
 
@@ -145,6 +147,7 @@ class NodeQueue:
 - [ ] Add `ensure_terminal()` method to NodeQueue
 - [ ] Update route handlers calling `clear_after_current()` to use `ensure_terminal()`
 - [ ] Add mode=initial_analysis to TaskAnalyzerNode (without TaskInit/TaskCreate tools)
+- [ ] Add tool_scope to TaskAnalyzerNode for initial_analysis mode (exclude TaskInit/TaskCreate tools)
 - [ ] Write unit tests for all new components
 - [ ] Write integration tests for worker task_creation flow
 
@@ -202,8 +205,8 @@ class NodeQueue:
 
 - Spec: `./spec.md` — relative path from this design.md to its spec.md
 - Related designs:
-  - `src/tinycua/docs/design/loops/worker.md` — WorkerNode target architecture
-  - `src/tinycua/docs/design/loops/worker_concept.md` — WorkerNode concept
-  - `src/tinycua/docs/design/loops/task_create.md` — TaskCreateNode target architecture
-  - `src/tinycua/docs/design/tools/task.md` — Task tool scope by node
+  - `src/tinycua/docs/prototype/design/loops/worker.md` — WorkerNode target architecture
+  - `src/tinycua/docs/prototype/design/loops/worker_concept.md` — WorkerNode concept
+  - `src/tinycua/docs/prototype/design/loops/task_create.md` — TaskCreateNode target architecture
+  - `src/tinycua/docs/prototype/design/tools/task.md` — Task tool scope by node
   - `src/tinycua/specs/2.1-route-map-query-analyst/spec.md` — Milestone 2.1 spec (prerequisite)
