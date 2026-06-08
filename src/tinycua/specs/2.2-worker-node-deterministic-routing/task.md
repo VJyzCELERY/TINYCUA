@@ -67,23 +67,25 @@ Implementation tasks for TinyCUAWorkerNode Deterministic Routing and TaskCreate.
 
 ## Verification Phase
 
-- [ ] Verify WorkerNode routes to task_creation when no task exists <!-- id: 27, effort: S -->
-- [ ] Verify WorkerNode does NOT call LLM for deterministic task_creation <!-- id: 28, effort: S -->
-- [ ] Verify TaskCreateNode creates root task and advances queue <!-- id: 29, effort: S -->
-- [ ] Verify TaskAnalyzerNode (initial_analysis) has no TaskInit/TaskCreate tools <!-- id: 30, effort: S -->
-- [ ] Verify queue shape after task_creation route <!-- id: 31, effort: S -->
-- [ ] Verify terminal response path guarantee after clear_after_current() <!-- id: 32, effort: S -->
+- [ ] Verify WorkerNode routes to task_creation when no task exists <!-- id: 27, effort: S, SC-001 -->
+- [ ] Verify WorkerNode does NOT call LLM for deterministic task_creation <!-- id: 28, effort: S, SC-001 -->
+- [ ] Verify TaskCreateNode creates root task and advances queue <!-- id: 29, effort: S, SC-002 -->
+- [ ] Verify TaskAnalyzerNode (initial_analysis) has no TaskInit/TaskCreate tools <!-- id: 30, effort: S, SC-003 -->
+- [ ] Verify queue shape after task_creation route <!-- id: 31, effort: S, SC-008 -->
+- [ ] Verify terminal response path guarantee after clear_after_current() <!-- id: 32, effort: S, SC-006 -->
+- [ ] Verify worker-spawned-node detection for stale nodes <!-- id: 33, effort: S, SC-004 -->
+- [ ] Verify WorkerNode reuse for existing worker-owned queue segment <!-- id: 34, effort: S, SC-005 -->
 
 ## Documentation Phase
 
-- [ ] Update docstrings for all new classes <!-- id: 33, effort: S -->
-- [ ] Add type hints for all new methods <!-- id: 34, effort: S -->
+- [ ] Update docstrings for all new classes <!-- id: 35, effort: S -->
+- [ ] Add type hints for all new methods <!-- id: 36, effort: S -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 35, effort: S -->
-- [ ] Address review feedback <!-- id: 36, effort: M -->
-- [ ] Merge to main branch <!-- id: 37, effort: S -->
+- [ ] Create pull request <!-- id: 37, effort: S -->
+- [ ] Address review feedback <!-- id: 38, effort: M -->
+- [ ] Merge to main branch <!-- id: 39, effort: S -->
 
 ---
 

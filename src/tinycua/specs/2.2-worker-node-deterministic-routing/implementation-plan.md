@@ -438,6 +438,22 @@ class TaskCreateResult:
 | `ensure_terminal()` called incorrectly by route handlers | High | Comprehensive unit tests for all route handlers; code review checklist |
 | Worker-spawned-node detection misses nodes due to queue ordering | High | Tests verify detection with various queue shapes; consistent with QueryAnalyst logic |
 
+## Design Decisions
+
+These decisions are resolved from design.md open questions and must be honored during implementation:
+
+1. **WorkerNode uses retry, not default route, for unrecognized labels** — WorkerNode always retries via NodeRetryPolicy. No fallback route. Only `task_creation` is valid in this milestone; revisit in 2.3.
+2. **TaskCreateNode emits INFO-level log for task creation** — Log task ID and summary at INFO level for observability. No external event infrastructure required.
+
+## Rollback Strategy
+
+If implementation introduces regressions, revert in this order:
+
+1. **New modules** (`worker.py`, `task_create.py`, `task_analyzer.py`) — safe to remove without impact on existing code
+2. **`NodeQueue` changes** — additive only (new methods: `find_worker_spawned_nodes()`, `find_existing_worker_node()`, `ensure_terminal()`); safe to revert independently
+3. **`query_analyst.py` modification** — riskiest change (replaces `ProcessNode` with `TinyCUAWorkerNode` in `route_worker()`); should be a single atomic commit that can be reverted in isolation
+4. **`__init__.py` export changes** — revert cleanly when new modules are removed
+
 ---
 
 *Generated from spec.md and design.md*

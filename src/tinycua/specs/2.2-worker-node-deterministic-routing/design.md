@@ -194,13 +194,13 @@ class NodeQueue:
 
 ---
 
-## Open Questions _(optional)_
+## Design Decisions
 
-1. **Should WorkerNode have a default route for unrecognized labels or always retry?**
-   - Current thinking: Always retry per NodeRetryPolicy; no fallback route needed since only `task_creation` is valid in this milestone.
+1. **WorkerNode uses retry, not default route, for unrecognized labels**
+   - WorkerNode always retries via NodeRetryPolicy for unrecognized labels. No fallback route is needed since only `task_creation` is valid in this milestone. This decision will be revisited in Milestone 2.3 when additional routes are added.
 
-2. **Should TaskCreateNode emit a specific event/log for task creation?**
-   - Current thinking: Yes, for observability. Log task ID and summary at INFO level.
+2. **TaskCreateNode emits INFO-level log for task creation**
+   - TaskCreateNode logs task ID and summary at INFO level for observability. This provides traceability without requiring external event infrastructure.
 
 ---
 
