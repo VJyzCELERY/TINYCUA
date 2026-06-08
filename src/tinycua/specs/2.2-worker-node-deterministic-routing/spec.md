@@ -36,10 +36,10 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Edge Cases
 
-- What happens when TaskCreateNode fails to create the root task? → **Design**: Retry per NodeRetryPolicy; task creation failure prevents downstream nodes from receiving a valid task tree.
-- How does the system handle an empty or null user input reaching WorkerNode? → **Design**: WorkerNode passes the original input through; downstream nodes handle empty input per their own policies.
-- What is the behavior when WorkerNode is re-entered and worker-spawned nodes are stale? → **Design**: Deferred to Milestone 2.3 (LLM decision handles task_recreation/task_reanalysis).
-- What happens when `clear_after_current()` removes the terminal ResponseNode? → **Design**: Route handler MUST call `queue.ensure_terminal(default_response_node)` before returning.
+- What happens when TaskCreateNode fails to create the root task? → **Design**: Retry per NodeRetryPolicy; task creation failure prevents downstream nodes from receiving a valid task tree. [§Error Handling](./design.md#error-handling)
+- How does the system handle an empty or null user input reaching WorkerNode? → **Design**: WorkerNode passes the original input through; downstream nodes handle empty input per their own policies. [§Error Handling](./design.md#error-handling)
+- What is the behavior when WorkerNode is re-entered and worker-spawned nodes are stale? → **Design**: Deferred to Milestone 2.3 (LLM decision handles task_recreation/task_reanalysis). [§Error Handling](./design.md#error-handling)
+- What happens when `clear_after_current()` removes the terminal ResponseNode? → **Design**: Route handler MUST call `queue.ensure_terminal(default_response_node)` before returning. [§Error Handling](./design.md#error-handling)
 
 ---
 
