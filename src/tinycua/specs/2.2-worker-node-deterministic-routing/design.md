@@ -29,7 +29,7 @@ This design implements deterministic task-creation routing for TinyCUAWorkerNode
 | `tinycua.loops.worker.TinyCUAWorkerNode` | New | Concrete DecisionNode with route_map for task_creation routing |
 | `tinycua.loops.task_create.TinyCUATaskCreateNode` | New | ProcessNode for deterministic root task creation |
 | `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | New | ProcessNode with mode=initial_analysis without TaskInit/TaskCreate tools |
-| `tinycua.loops.node_queue.NodeQueue` | Modified | Add worker-spawned-node detection and terminal response guarantees |
+| `tinycua.loops.node_queue.NodeQueue` | Modified | Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` for worker-spawned-node detection; `ensure_terminal()` already exists |
 
 ---
 
@@ -123,7 +123,12 @@ class NodeQueue:
         """Find all nodes spawned by WorkerNode before terminal ResponseNode."""
     
     def find_existing_worker_node(self) -> Optional[TinyCUAWorkerNode]:
-        """Find existing WorkerNode in queue before terminal ResponseNode."""
+        """Find existing WorkerNode in queue before terminal ResponseNode.
+        
+        This is the source of truth for worker-node lookup. QueryAnalyst's
+        find_existing_worker() (query_analyst.py:131) should delegate to this
+        method to avoid logic duplication.
+        """
     
     def ensure_terminal(self, default_response_node: Node) -> None:
         """Ensure terminal response path exists after clear operations."""
@@ -150,8 +155,7 @@ class NodeQueue:
 - [ ] Implement `_route_task_creation()` handler that spawns TaskCreateNode
 - [ ] Implement TinyCUATaskCreateNode with TaskInit/TaskCreate tool scope
 - [ ] Implement TaskCreateNode `on_complete()` to advance queue to TaskAnalyzerNode
-- [ ] Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` to NodeQueue
-- [ ] Add `ensure_terminal()` method to NodeQueue
+- [ ] Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` to NodeQueue (existing: `clear_after_current()`, `ensure_terminal()`)
 - [ ] Update route handlers calling `clear_after_current()` to use `ensure_terminal()`
 - [ ] Add mode=initial_analysis to TaskAnalyzerNode (without TaskInit/TaskCreate tools)
 - [ ] Add tool_scope to TaskAnalyzerNode for initial_analysis mode (exclude TaskInit/TaskCreate tools)

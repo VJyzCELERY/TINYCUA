@@ -342,8 +342,8 @@ async def test_clear_after_current_ensures_terminal():
 
 #### [MODIFY] `src/tinycua/tinycua/loops/query_analyst.py`
 
-- **Description**: Replace placeholder `ProcessNode` in `route_worker()` with actual `TinyCUAWorkerNode` import
-- **Rationale**: Currently spawns a generic ProcessNode; must spawn the real WorkerNode
+- **Description**: Replace placeholder `ProcessNode` in `route_worker()` with actual `TinyCUAWorkerNode` import. Also refactor `find_existing_worker()` (line 131) to delegate to `NodeQueue.find_existing_worker_node()` to avoid duplicating worker-node lookup logic.
+- **Rationale**: Currently spawns a generic ProcessNode; must spawn the real WorkerNode. `find_existing_worker()` and `find_existing_worker_node()` have overlapping semantics — NodeQueue should be the source of truth.
 
 ### TaskCreateNode Module
 
@@ -363,7 +363,7 @@ async def test_clear_after_current_ensures_terminal():
 
 #### [MODIFY] `src/tinycua/tinycua/loops/node_queue.py`
 
-- **Description**: Add `find_worker_spawned_nodes()`, `find_existing_worker_node()`, and `ensure_terminal()` methods
+- **Description**: Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` methods. `clear_after_current()` (line 121) and `ensure_terminal()` (line 183) already exist.
 - **Rationale**: WorkerNode needs to detect worker-spawned nodes for stale detection and reuse
 
 ### Module Exports
@@ -380,8 +380,8 @@ async def test_clear_after_current_ensures_terminal():
 | `tinycua.loops.worker.TinyCUAWorkerNode` | New | Concrete DecisionNode with route_map for task_creation routing |
 | `tinycua.loops.task_create.TinyCUATaskCreateNode` | New | ProcessNode for deterministic root task creation |
 | `tinycua.loops.task_analyzer.TinyCUATaskAnalyzerNode` | New | ProcessNode with mode=initial_analysis without TaskInit/TaskCreate tools |
-| `tinycua.loops.node_queue.NodeQueue` | Modified | Add worker-spawned-node detection methods |
-| `tinycua.loops.query_analyst.TinyCUAQueryAnalystNode` | Modified | Use real WorkerNode in route_worker() |
+| `tinycua.loops.node_queue.NodeQueue` | Modified | Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` for worker-spawned-node detection; `clear_after_current()` and `ensure_terminal()` already exist |
+| `tinycua.loops.query_analyst.TinyCUAQueryAnalystNode` | Modified | Use real WorkerNode in route_worker(); refactor `find_existing_worker()` to delegate to `NodeQueue.find_existing_worker_node()` |
 
 ## Data Model Changes
 
@@ -416,7 +416,7 @@ class TaskCreateResult:
 
 | Class | Change |
 |-------|--------|
-| `NodeQueue` | Added `find_worker_spawned_nodes()`, `find_existing_worker_node()`, and `ensure_terminal()` |
+| `NodeQueue` | Added `find_worker_spawned_nodes()` and `find_existing_worker_node()` (existing: `clear_after_current()`, `ensure_terminal()`) |
 
 ## Dependencies
 
@@ -450,7 +450,7 @@ These decisions are resolved from design.md open questions and must be honored d
 If implementation introduces regressions, revert in this order:
 
 1. **New modules** (`worker.py`, `task_create.py`, `task_analyzer.py`) — safe to remove without impact on existing code
-2. **`NodeQueue` changes** — additive only (new methods: `find_worker_spawned_nodes()`, `find_existing_worker_node()`, `ensure_terminal()`); safe to revert independently
+2. **`NodeQueue` changes** — additive only (new methods: `find_worker_spawned_nodes()`, `find_existing_worker_node()`); `clear_after_current()` and `ensure_terminal()` already exist; safe to revert independently
 3. **`query_analyst.py` modification** — riskiest change (replaces `ProcessNode` with `TinyCUAWorkerNode` in `route_worker()`); should be a single atomic commit that can be reverted in isolation
 4. **`__init__.py` export changes** — revert cleanly when new modules are removed
 
