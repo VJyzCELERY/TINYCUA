@@ -131,8 +131,6 @@ def test_query_analyst_e2e_passthrough():
     mock_llm = MultiResponseMockLLM(["ignored analysis", "ignored classification"])
     config = NodeConfigBase(llm_client=mock_llm)
     query_analyst = TinyCUAQueryAnalystNode(config=config)
-    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
-    _queue = NodeQueue(items=[query_analyst, response_node])
     session = Session()
     mandatory = MandatoryPassthrough(
         target_node_id="response",
@@ -251,8 +249,6 @@ def test_query_analyst_e2e_invalid_label_retry():
     mock_llm = MultiResponseMockLLM(responses)
     config = NodeConfigBase(llm_client=mock_llm)
     query_analyst = TinyCUAQueryAnalystNode(config=config)
-    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
-    _queue = NodeQueue(items=[query_analyst, response_node])
     session = Session()
     # Act
     input_data = NodeInput(

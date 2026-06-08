@@ -35,7 +35,7 @@ TinyCUALoop.run(...)
 | tinycua.loops.route_map | New | RouteMap dispatch table class |
 | tinycua.loops.query_analyst | New | TinyCUAQueryAnalystNode concrete DecisionNode |
 | tinycua.models.classification | New | Classification labels and DecisionResult models |
-| tinycua.loops.node | Modified | DecisionNode gains route_map attribute |
+| tinycua.loops.node | Modified | DecisionNode classification labels support (route_map lives on concrete subclass TinyCUAQueryAnalystNode) |
 | tinycua.loops.tinycua_loop | Modified | Queue bootstrap uses QueryAnalyst at front |
 
 ---

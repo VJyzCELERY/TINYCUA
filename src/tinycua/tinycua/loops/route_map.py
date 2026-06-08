@@ -63,7 +63,7 @@ class RouteMap:
         Raises:
             ValueError: If label is not registered in the route map.
         """
-        if label not in self.routes:
+        if not self.has_route(label):
             msg = f"Unknown route label: {label!r}. Registered: {list(self.routes.keys())}"
             raise ValueError(msg)
 

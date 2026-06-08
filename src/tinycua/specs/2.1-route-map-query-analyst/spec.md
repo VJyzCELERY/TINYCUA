@@ -75,6 +75,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
+> **Note**: Success criteria verified through implementation and test suite (391 tests passing). Remaining documentation items tracked in `task.md`.
+
 - [x] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
 - [x] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
 - [x] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.

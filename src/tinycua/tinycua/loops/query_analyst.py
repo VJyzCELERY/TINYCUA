@@ -224,7 +224,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         )
         self.route_map.dispatch(result.route_label, queue, result)
 
-    def __call__(self, input: NodeInputLike) -> DecisionResult:
+    def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]
         """Execute the decision node with mandatory_passthrough precheck.
 
         Checks for MandatoryPassthrough first. If present, short-circuits
