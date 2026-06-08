@@ -73,14 +73,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **WorkerNode deterministic task_creation routing**: When no task exists, WorkerNode routes to `task_creation` without LLM decision.
-- [x] **TaskCreateNode creates root task**: TaskCreateNode creates the root task using TaskInit/TaskCreate tools.
-- [x] **TaskAnalyzerNode runs after creation**: TaskAnalyzerNode (mode=initial_analysis) runs without TaskInit/TaskCreate tools.
-- [x] **Worker-spawned-node detection**: WorkerNode detects worker-spawned nodes for stale detection.
-- [x] **WorkerNode reuse**: Existing WorkerNode is recognized as part of worker-owned queue segment.
-- [x] **Terminal response path guarantee**: Route handlers calling `clear_after_current()` ensure terminal response path exists.
-- [x] **Input preservation**: Original input query is preserved for downstream nodes.
-- [x] **Queue invariant maintained**: QueryAnalyst remains first node in queue.
+- [ ] **WorkerNode deterministic task_creation routing**: When no task exists, WorkerNode routes to `task_creation` without LLM decision.
+- [ ] **TaskCreateNode creates root task**: TaskCreateNode creates the root task using TaskInit/TaskCreate tools.
+- [ ] **TaskAnalyzerNode runs after creation**: TaskAnalyzerNode (mode=initial_analysis) runs without TaskInit/TaskCreate tools.
+- [ ] **Worker-spawned-node detection**: WorkerNode detects worker-spawned nodes for stale detection.
+- [ ] **WorkerNode reuse**: Existing WorkerNode is recognized as part of worker-owned queue segment.
+- [ ] **Terminal response path guarantee**: Route handlers calling `clear_after_current()` ensure terminal response path exists.
+- [ ] **Input preservation**: Original input query is preserved for downstream nodes.
+- [ ] **Queue invariant maintained**: QueryAnalyst remains first node in queue.
 
 ---
 

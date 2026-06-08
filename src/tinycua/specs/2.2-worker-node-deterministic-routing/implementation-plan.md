@@ -38,6 +38,8 @@ Implements deterministic task-creation routing for TinyCUAWorkerNode so that whe
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
+> **Note**: Import paths below are aspirational and should be validated against actual module structure during implementation. WorkerNode, TaskCreateNode, and TaskAnalyzerNode do not exist yet — their import paths may change.
+
 ```python
 # Test file: src/tinycua/tests/integration/test_worker_node_task_creation_integration.py
 """Integration tests for WorkerNode deterministic task_creation routing."""
@@ -261,7 +263,7 @@ def test_worker_node_preserves_input():
     result = worker(input_data)
 
     # Assert — the original input content should be preserved in the result
-    assert "Help me write a script" in str(result) or result.route_label == "task_creation"
+    assert result.input_query == "Help me write a script"
 
 
 def test_clear_after_current_ensures_terminal():
@@ -298,6 +300,13 @@ def test_clear_after_current_ensures_terminal():
 - [ ] **Scenario 2**: WorkerNode does NOT call LLM for task_creation — verifies the deterministic behavior
 - [ ] **Scenario 3**: TaskCreateNode creates root task and advances queue — verifies the full task creation flow
 - [ ] **Edge case**: `clear_after_current()` removes terminal ResponseNode — verifies `ensure_terminal()` call
+
+### Error Scenario Tests
+
+- [ ] **test_task_create_node_failure_retries**: TaskCreateNode failure triggers NodeRetryPolicy; after max retries, error propagates to WorkerNode
+- [ ] **test_worker_node_empty_input_passes_through**: Empty or null input reaches WorkerNode without crash; original input is preserved for downstream
+- [ ] **test_clear_after_current_without_ensure_terminal**: Verify the actual failure mode when ensure_terminal is NOT called — queue has no terminal node
+- [ ] **test_stale_worker_spawned_nodes_detection**: Worker-spawned nodes detected as stale when WorkerNode is re-entered with existing spawned nodes
 
 ## Verification Plan
 
@@ -348,7 +357,7 @@ def test_clear_after_current_ensures_terminal():
 
 #### [MODIFY] `src/tinycua/tinycua/loops/node_queue.py`
 
-- **Description**: Add `find_worker_spawned_nodes()` and `find_existing_worker_node()` methods
+- **Description**: Add `find_worker_spawned_nodes()`, `find_existing_worker_node()`, and `ensure_terminal()` methods
 - **Rationale**: WorkerNode needs to detect worker-spawned nodes for stale detection and reuse
 
 ### Module Exports
@@ -401,7 +410,7 @@ class TaskCreateResult:
 
 | Class | Change |
 |-------|--------|
-| `NodeQueue` | Added `find_worker_spawned_nodes()` and `find_existing_worker_node()` |
+| `NodeQueue` | Added `find_worker_spawned_nodes()`, `find_existing_worker_node()`, and `ensure_terminal()` |
 
 ## Dependencies
 
