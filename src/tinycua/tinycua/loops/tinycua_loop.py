@@ -13,6 +13,7 @@ from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
+from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -249,6 +250,11 @@ class TinyCUALoop(BaseLoop):
         resolves tools via NodeToolPolicy, calls agent._call_llm(),
         records chat_history and session_context.
 
+        For QueryAnalyst nodes, checks for mandatory_passthrough
+        before making an LLM call. If a valid MandatoryPassthrough
+        directive is present, short-circuits to passthrough without
+        LLM classification (FR-005/FR-006).
+
         Args:
             node: The node to execute.
             agent: The agent executing.
@@ -258,6 +264,37 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The response content string.
         """
+        # Precheck: mandatory_passthrough for QueryAnalyst nodes (FR-005/FR-006)
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            node.ensure_session(self.root_session)
+            input_data = self._build_query_analyst_input()
+            mandatory = node.check_mandatory_passthrough(input_data)
+            if mandatory is not None:
+                logger.info(
+                    "node=%s mandatory_passthrough detected in loop, bypassing LLM",
+                    node.node_id,
+                )
+                # Record passthrough decision
+                passthrough_content = (
+                    f"[Passthrough] target={mandatory.target_node_id} "
+                    f"reason={mandatory.reason}"
+                )
+                self._record_node_output(node, passthrough_content)
+                # Dispatch route (passthrough handler)
+                from tinycua.config.types import LLMResult
+                from tinycua.loops.node import DecisionResult
+                from tinycua.models.classification import PASSTHROUGH
+
+                decision = DecisionResult(
+                    route_label=PASSTHROUGH,
+                    analysis_response=LLMResult(content="", role="assistant"),
+                    classification_response=LLMResult(
+                        content=PASSTHROUGH, role="assistant"
+                    ),
+                )
+                node.on_complete(self.queue, decision)
+                return passthrough_content
+
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,
         )
@@ -268,6 +305,24 @@ class TinyCUALoop(BaseLoop):
         self._record_node_output(node, content, response.get("tool_calls"))
 
         return content
+
+    def _build_query_analyst_input(self) -> NodeInput:
+        """Build a NodeInput from the root session's input context for mandatory_passthrough checks.
+
+        Converts the current input context messages into a NodeInput
+        so QueryAnalyst can inspect metadata for mandatory_passthrough.
+
+        Returns:
+            NodeInput constructed from the root session input context.
+        """
+        messages: list[dict[str, Any]] = []
+        metadata: dict[str, Any] = {}
+        if self.root_session.input_context:
+            for msg in self.root_session.input_context:
+                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                if "metadata" in msg:
+                    metadata.update(msg["metadata"])
+        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
 
     def _build_node_messages(
         self,

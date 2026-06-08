@@ -384,7 +384,7 @@ def test_query_analyst_e2e_deduplication():
     assert len(qa_nodes) == 1, f"Expected exactly 1 query_analyst, got {len(qa_nodes)}"
     # Also test that a SECOND spawn attempt is rejected
     second_qa = TinyCUAQueryAnalystNode(node_id="query_analyst", config=config)
-    with pytest.raises(RuntimeError, match="QueryAnalyst already active"):
+    with pytest.raises(RuntimeError, match="Node already in queue"):
         queue.add_front(second_qa)
 ```
 

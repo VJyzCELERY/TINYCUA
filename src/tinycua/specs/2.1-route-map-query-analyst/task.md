@@ -86,8 +86,8 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 20 -->
-- [ ] Address review feedback <!-- id: 21 -->
+- [x] Create pull request <!-- id: 20 -->
+- [x] Address review feedback <!-- id: 21 -->
 - [ ] Merge to main branch <!-- id: 22 -->
 
 ---

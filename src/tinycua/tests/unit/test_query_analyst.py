@@ -13,31 +13,7 @@ from tinycua.loops.route_map import RouteMap
 from tinycua.models.classification import MandatoryPassthrough
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
-
-
-class MockLLM:
-    """Simple mock LLM that returns a fixed response."""
-
-    def __init__(self, content: str = "response") -> None:
-        self.content = content
-        self.call_count = 0
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        return {"role": "assistant", "content": self.content}
-
-
-class MultiResponseMockLLM:
-    """Mock LLM that returns responses sequentially."""
-
-    def __init__(self, responses: list[str]) -> None:
-        self.responses = responses
-        self.call_count = 0
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        idx = min(self.call_count - 1, len(self.responses) - 1)
-        return {"role": "assistant", "content": self.responses[idx]}
+from tests.mock_llm import MockLLM, MultiResponseMockLLM
 
 
 def test_query_analyst_init():

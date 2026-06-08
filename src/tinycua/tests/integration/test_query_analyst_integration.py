@@ -14,48 +14,7 @@ from tinycua.loops.node import DecisionResult, ProcessNode
 from tinycua.loops.route_map import RouteMap
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.classification import MandatoryPassthrough
-
-
-class MultiResponseMockLLM:
-    """Mock LLM that returns responses sequentially from a list.
-
-    Usage:
-        mock = MultiResponseMockLLM(["analysis", "worker"])
-        mock(messages)  # returns "analysis"
-        mock(messages)  # returns "worker"
-
-    If more calls are made than responses provided, returns the last response.
-
-    Notes on response ordering:
-    - The two-step decision process calls the LLM twice per input:
-      first for analysis, then for classification.
-    - Classification responses MUST exactly match RouteMap labels
-      (exact string match, not fuzzy).
-    - For multi-call scenarios, provide responses in order:
-      [analysis_response, classification_response].
-
-    Determining mock responses for test cases:
-    - First response: Any string (the analysis step ignores the content)
-    - Second response: Must exactly match a registered RouteMap label
-      (e.g., "worker", "manager", "researcher")
-
-    Handling edge cases:
-    - If the LLM returns a label that doesn't match any RouteMap entry,
-      the dispatch will raise a KeyError or return an error result.
-    - Tests should use exact label strings, not natural language variations
-      like "I think this should be classified as a worker".
-    """
-
-    def __init__(self, responses: list[str]) -> None:
-        self.responses = responses
-        self.call_count = 0
-        self.last_messages: list[dict] | None = None
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        self.last_messages = messages
-        idx = min(self.call_count - 1, len(self.responses) - 1)
-        return {"role": "assistant", "content": self.responses[idx]}
+from tests.mock_llm import MultiResponseMockLLM
 
 
 def test_route_map_dispatches_to_handler():

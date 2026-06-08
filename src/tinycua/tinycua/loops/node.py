@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -501,6 +502,9 @@ class DecisionNode(ProcessNode):
     def _dispatch_route(self, classification_response: LLMResult) -> str:
         """Map classification label to route.
 
+        Uses word-boundary matching to avoid false substring matches
+        (e.g., "worker" should not match "subworker").
+
         Args:
             classification_response: The classification LLM response.
 
@@ -513,7 +517,7 @@ class DecisionNode(ProcessNode):
         content = classification_response.content.strip().lower()
 
         for label in self.classification_labels:
-            if label.lower() in content:
+            if re.search(r"\b" + re.escape(label.lower()) + r"\b", content):
                 return label
 
         msg = (

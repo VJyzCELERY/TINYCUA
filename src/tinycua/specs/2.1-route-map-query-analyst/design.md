@@ -248,6 +248,18 @@ Phase 1 implements a simplified subset of the target behavior defined in `query_
 
 ---
 
+## Architecture Notes
+
+### RouteMap Dispatch vs Loop Queue Advancement
+
+**Design Decision**: The loop's `_execute_node()` calls `agent._call_llm()` directly and advances the queue via `self.queue.advance()`. RouteMap dispatch (via `node.on_complete()`) is a test-level abstraction used when `node.__call__()` is invoked programmatically (e.g., in unit tests).
+
+**Rationale**: The loop handles queue advancement centrally to maintain consistent execution flow. `on_complete()` with a real `NodeQueue` is called when the loop detects mandatory_passthrough shortcuts (see `_execute_node` precheck). For standard LLM execution paths, the loop's `advance()` mechanism is sufficient.
+
+**Implications**: Custom routing logic placed in `on_complete()` handlers will only fire during programmatic/test execution or when the mandatory_passthrough shortcut is triggered. The loop's queue advancement is the primary routing mechanism during normal operation.
+
+---
+
 ## Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |

@@ -7,33 +7,7 @@ from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy, NodeRe
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
-
-
-class MockLLM:
-    """Mock LLM client for integration tests."""
-
-    def __init__(self, response: str = "mock response") -> None:
-        self.response = response
-        self.call_count = 0
-        self.last_messages: list[dict] | None = None
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        self.last_messages = messages
-        return {"role": "assistant", "content": self.response}
-
-
-class MultiResponseMockLLM:
-    """Mock LLM that returns responses sequentially from a list."""
-
-    def __init__(self, responses: list[str]) -> None:
-        self.responses = responses
-        self.call_count = 0
-
-    def __call__(self, messages: list[dict], **kwargs: object) -> dict:  # noqa: ARG002
-        self.call_count += 1
-        idx = min(self.call_count - 1, len(self.responses) - 1)
-        return {"role": "assistant", "content": self.responses[idx]}
+from tests.mock_llm import MockLLM, MultiResponseMockLLM
 
 
 class MinimalProcessNode:

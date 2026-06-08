@@ -69,22 +69,22 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **DecisionResult**: Return type from DecisionNode with route_label, analysis_response, and classification_response.
 - **MandatoryPassthrough**: Deterministic continuation directive with target_node_id, target_session_id, reason, payload, and allow_query_analyst_restart.
 - **TinyCUAQueryAnalystNode**: Top-level entry DecisionNode that classifies user input and routes the queue.
-- **QueryAnalystResponse**: Output from QueryAnalyst containing the classification result and forwarded input for downstream nodes.
+- **QueryAnalystResponse**: Output from QueryAnalyst containing the classification result and forwarded input for downstream nodes. *Reserved for Phase 2 — not yet instantiated in the current implementation.*
 
 ---
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
-- [ ] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
-- [ ] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.
-- [ ] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end.
-- [ ] **Worker reuse**: Existing WorkerNode is reused when routing to worker.
-- [ ] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists.
-- [ ] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification.
-- [ ] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy.
-- [ ] **QueryAnalyst deduplication**: Active QueryAnalyst is not duplicated.
-- [ ] **Queue invariant**: QueryAnalyst is always the first node in the queue.
+- [x] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
+- [x] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
+- [x] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.
+- [x] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end.
+- [x] **Worker reuse**: Existing WorkerNode is reused when routing to worker.
+- [x] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists.
+- [x] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification.
+- [x] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy.
+- [x] **QueryAnalyst deduplication**: Active QueryAnalyst is not duplicated.
+- [x] **Queue invariant**: QueryAnalyst is always the first node in the queue.
 
 ---
 
