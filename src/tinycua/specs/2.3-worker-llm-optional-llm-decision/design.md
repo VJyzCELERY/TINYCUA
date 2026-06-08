@@ -267,7 +267,7 @@ WorkerNode preserves the original input query for downstream nodes:
 - [ ] Implement `_route_task_reanalysis()` handler (FR-009)
 - [ ] Implement `_route_passthrough()` handler (FR-010, FR-013)
 - [ ] Implement `_route_proceed_execution()` handler (FR-011)
-- [ ] Update `__call__()` to use dynamic labels when task exists (FR-001, FR-002, FR-003)
+- [ ] Update `__call__()` to use dynamic labels when task exists (FR-001, FR-002, FR-003, FR-005)
 - [ ] Add NodeRetryPolicy integration for invalid classification labels (FR-006)
 - [ ] Add `ensure_terminal()` calls in all new route handlers (FR-012)
 - [ ] Ensure WorkerNode tool scope is restricted to decision tools only (FR-014)

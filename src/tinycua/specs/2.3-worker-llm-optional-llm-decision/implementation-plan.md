@@ -335,6 +335,46 @@ def test_worker_node_queue_invariant_query_analyst_first():
 
     # Assert — QueryAnalyst remains first
     assert queue.items[0].node_id == "query_analyst"
+
+
+def test_worker_node_latest_valid_verdict_wins():
+    """Latest valid classification verdict determines route label when multiple tool calls occur (FR-005, SC-009)."""
+    # Arrange
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+
+    # Mock: analysis → first classification (invalid) → second classification (valid)
+    mock_analysis = LLMResult(content="Worker should analyze task", role="assistant")
+    # First classification call outputs invalid route label
+    mock_classification_invalid = LLMResult(content="invalid_label", role="assistant")
+    # Second classification call outputs valid route label
+    mock_classification_valid = LLMResult(content="task_recreation", role="assistant")
+
+    # Simulate multiple tool calls: analysis call returns, then classification tool calls
+    mock_llm = MagicMock(side_effect=[
+        mock_analysis,              # Analysis LLM call
+        mock_classification_invalid, # Classification tool call 1 (invalid)
+        mock_classification_valid,   # Classification tool call 2 (valid — wins)
+    ])
+    worker._call_llm = mock_llm
+
+    # Act
+    result = worker(input_data)
+
+    # Assert — latest valid verdict wins (task_recreation, not invalid_label)
+    assert result.route_label == "task_recreation"
+    # Verify the classification result is from the latest valid call
+    assert result.classification_response == mock_classification_valid
 ```
 
 ### Key Test Scenarios
@@ -346,6 +386,7 @@ def test_worker_node_queue_invariant_query_analyst_first():
 - [ ] **Scenario 5** (SC-008, FR-011, FR-012): Terminal response path guaranteed after any route handler
 - [ ] **Scenario 6** (SC-011, FR-013): Input preservation for downstream nodes
 - [ ] **Scenario 7** (SC-010, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
+- [ ] **Scenario 8** (SC-009, FR-005): Latest valid verdict — when multiple tool calls occur, the latest valid verdict determines the route label
 
 ## Verification Plan
 
