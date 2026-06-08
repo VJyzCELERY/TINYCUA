@@ -41,10 +41,13 @@ def test_tinycua_loop_uses_provided_session():
 
 
 def test_tinycua_loop_has_node_queue():
-    """TinyCUALoop creates a NodeQueue by default."""
+    """TinyCUALoop creates a NodeQueue with QueryAnalyst + ResponseNode by default."""
     loop = TinyCUALoop()
     assert isinstance(loop.queue, NodeQueue)
-    assert loop.queue.is_empty() is True
+    assert len(loop.queue.items) == 2
+    assert loop.queue.items[0].node_id == "query_analyst"
+    assert loop.queue.items[1].node_id == "response"
+    assert loop.queue.items[1].is_terminal is True
 
 
 def test_tinycua_loop_stores_session_config():

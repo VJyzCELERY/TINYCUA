@@ -11,6 +11,8 @@ from tinycua_sdk.agent.loop import BaseLoop
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.response_node import ResponseNode
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -48,9 +50,15 @@ class TinyCUALoop(BaseLoop):
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
-        self.queue = queue or NodeQueue()
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
+
+        if queue is not None:
+            self.queue = queue
+        else:
+            query_analyst = TinyCUAQueryAnalystNode()
+            response_node = ResponseNode()
+            self.queue = NodeQueue(items=[query_analyst, response_node])
 
     async def run(
         self,

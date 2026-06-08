@@ -88,9 +88,10 @@ class TestAgentRun:
         assert events[0]["type"] == "response.output_text.delta"
         assert events[0]["delta"] == "Hi"
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # assistant only (user in input_context)
+        # Default queue has QueryAnalyst + ResponseNode, both execute and record
+        assert len(session.chat_history) == 2
         assert session.chat_history[0]["role"] == "assistant"
-        assert session.chat_history[0]["content"] == "Hi"
+        assert session.chat_history[1]["role"] == "assistant"
         assert session.input_context[0]["role"] == "user"
         assert session.input_context[0]["content"] == "hello"
 
@@ -106,7 +107,8 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # assistant only
+        # Default queue has QueryAnalyst + ResponseNode, both execute and record
+        assert len(session.chat_history) == 2
         assert session.chat_history[0]["role"] == "assistant"
         assert session.chat_history[0]["content"] == "Hello"
         assert session.input_context[0]["role"] == "user"
@@ -135,7 +137,8 @@ class TestAgentRun:
         agent._call_llm = empty_stream
         result = await agent.run("hello", stream=True)
         events = [e async for e in result]
-        assert len(events) == 1
+        # Default queue has QueryAnalyst + ResponseNode, both yield events
+        assert len(events) == 2
         session = agent.loop.root_session
         assert len(session.chat_history) == 0  # no assistant response recorded
         assert session.input_context[0]["role"] == "user"

@@ -171,7 +171,7 @@ class NodeQueue:
         """
         for existing in self.items:
             if existing.node_id == node.node_id:
-                msg = f"QueryAnalyst already active: {node.node_id}"
+                msg = f"Node already in queue: {node.node_id}"
                 raise RuntimeError(msg)
         self.suspend_current_and_prepend([node])
 

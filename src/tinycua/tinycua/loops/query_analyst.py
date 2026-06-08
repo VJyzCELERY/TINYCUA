@@ -20,7 +20,6 @@ from tinycua.models.node_input import NodeInput, NodeInputLike
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
-    from tinycua.models.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +121,10 @@ class TinyCUAQueryAnalystNode(DecisionNode):
                 )
                 return None
             logger.warning(
-                "node=%s stale passthrough without allow_restart",
+                "node=%s stale passthrough without allow_restart, dropping",
                 self.node_id,
             )
+            return None
 
         return mandatory
 

@@ -215,7 +215,7 @@ def test_query_analyst_deduplication():
 
     # Act & Assert
     second_qa = TinyCUAQueryAnalystNode(node_id="query_analyst", config=config)
-    with pytest.raises(RuntimeError, match="QueryAnalyst already active"):
+    with pytest.raises(RuntimeError, match="Node already in queue"):
         queue.add_front(second_qa)
 
 

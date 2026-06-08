@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tinycua.models.node_input import NodeInput
@@ -40,6 +40,9 @@ class MandatoryPassthrough:
 @dataclass
 class QueryAnalystResponse:
     """Structured response from QueryAnalyst classification.
+
+    Reserved for Phase 2 — not yet used. Intended for use in on_complete
+    or as a return type for a future method.
 
     Attributes:
         user_query: The original user query string.
