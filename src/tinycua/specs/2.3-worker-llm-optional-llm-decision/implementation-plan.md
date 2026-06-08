@@ -228,6 +228,8 @@ def test_worker_node_route_passthrough():
     # Verify input was forwarded to next node (via queue.set_input)
     # NOTE: _inputs is a NodeQueue internal — refactor if NodeQueue changes input storage
     assert queue._inputs.get("next_node") is not None or queue.items[0]._input is not None
+    # Assert — result object preserved (on_complete uses result.route_label for dispatch)
+    assert result.route_label == "passthrough"
 
 
 def test_worker_node_route_proceed_execution():
