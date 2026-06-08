@@ -131,8 +131,8 @@ class TinyCUAQueryAnalystNode(DecisionNode):
     def find_existing_worker(self, queue: NodeQueue) -> Node | None:
         """Find an existing WorkerNode in the queue before terminal ResponseNode.
 
-        Scans the queue for a node with node_id "worker" that appears
-        before the first terminal node.
+        Delegates to NodeQueue.find_existing_worker_node() for worker-node
+        lookup to avoid duplicating logic with WorkerNode's detection.
 
         Args:
             queue: The node queue to search.
@@ -140,12 +140,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         Returns:
             The existing worker node, or None if not found.
         """
-        for node in queue.items:
-            if node.is_terminal:
-                break
-            if node.node_id == "worker":
-                return node
-        return None
+        return queue.find_existing_worker_node()
 
     def route_passthrough(self, queue: NodeQueue, result: DecisionResult) -> None:
         """Route handler for passthrough label.
@@ -170,7 +165,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         """Route handler for worker label.
 
         If a WorkerNode already exists in the queue, reuse it.
-        Otherwise, spawn a new WorkerNode after the current node.
+        Otherwise, spawn a new TinyCUAWorkerNode after the current node.
 
         Args:
             queue: The node queue (may be mutated to spawn worker).
@@ -185,11 +180,20 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             )
             return
 
-        # Spawn a new ProcessNode as placeholder for WorkerNode (Milestone 2.2)
-        from tinycua.loops.node import ProcessNode
+        # Spawn a new TinyCUAWorkerNode (Milestone 2.2)
+        from tinycua.loops.worker import TinyCUAWorkerNode
 
-        worker_node = ProcessNode(node_id="worker", config=self.config)
+        worker_node = TinyCUAWorkerNode(
+            node_id="worker", config=self.config,
+        )
         queue.spawn_after_current([worker_node])
+
+        # Ensure terminal response path is maintained after spawning worker
+        from tinycua.loops.response_node import ResponseNode
+
+        default_terminal = ResponseNode(config=self.config)
+        queue.ensure_terminal(default_terminal)
+
         logger.info("node=%s route_worker spawned new worker", self.node_id)
 
     def route_uncertain(self, queue: NodeQueue, result: DecisionResult) -> None:
@@ -205,7 +209,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         logger.info("node=%s route_uncertain — remaining active", self.node_id)
         # No-op: QueryAnalyst stays at queue front, waiting for continuation.
 
-    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:
+    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:  # type: ignore[override]
         """Dispatch route after classification.
 
         Note: `on_complete` accepts `DecisionResult` (not `LLMResult` like the base `Node`)
