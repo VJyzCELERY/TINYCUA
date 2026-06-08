@@ -259,17 +259,19 @@ WorkerNode preserves the original input query for downstream nodes:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add four new route labels to WorkerRouteLabel enum (task_recreation, task_reanalysis, passthrough, proceed_execution; task_creation already exists from Milestone 2.2)
-- [ ] Implement `_has_worker_spawned_nodes()` to check for worker-spawned nodes in queue
-- [ ] Implement `_get_classification_labels()` for dynamic label adjustment
-- [ ] Update `_build_default_route_map()` to register all five route labels
-- [ ] Implement `_route_task_recreation()` handler
-- [ ] Implement `_route_task_reanalysis()` handler
-- [ ] Implement `_route_passthrough()` handler
-- [ ] Implement `_route_proceed_execution()` handler — **Milestone 2.3: terminal route (log + ensure_terminal); TaskExecutor/ResultReviewer deferred to Milestone 3.2**
-- [ ] Update `__call__()` to use dynamic labels when task exists
-- [ ] Add NodeRetryPolicy integration for invalid classification labels
-- [ ] Add `ensure_terminal()` calls in all new route handlers
+- [ ] Add four new route labels to WorkerRouteLabel enum (FR-004)
+- [ ] Implement `_has_worker_spawned_nodes()` (FR-003)
+- [ ] Implement `_get_classification_labels()` for dynamic label adjustment (FR-003)
+- [ ] Update `_build_default_route_map()` to register all five route labels (FR-007)
+- [ ] Implement `_route_task_recreation()` handler (FR-008)
+- [ ] Implement `_route_task_reanalysis()` handler (FR-009)
+- [ ] Implement `_route_passthrough()` handler (FR-010, FR-013)
+- [ ] Implement `_route_proceed_execution()` handler (FR-011)
+- [ ] Update `__call__()` to use dynamic labels when task exists (FR-001, FR-002, FR-003)
+- [ ] Add NodeRetryPolicy integration for invalid classification labels (FR-006)
+- [ ] Add `ensure_terminal()` calls in all new route handlers (FR-012)
+- [ ] Ensure WorkerNode tool scope is restricted to decision tools only (FR-014)
+- [ ] Verify queue invariant: QueryAnalyst remains first after dispatch (FR-016)
 - [ ] Write unit tests for all new components
 - [ ] Write integration tests for worker LLM decision flow
 

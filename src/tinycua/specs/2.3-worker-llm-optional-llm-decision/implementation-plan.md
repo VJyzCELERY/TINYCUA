@@ -314,10 +314,13 @@ def test_worker_node_route_clear_ensures_terminal():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: WorkerNode performs two-step LLM decision when task exists — primary success criterion
-- [ ] **Scenario 2**: Dynamic label adjustment includes/excludes passthrough based on worker-spawned nodes
-- [ ] **Scenario 3**: Each route handler (task_recreation, task_reanalysis, passthrough, proceed_execution) executes correctly
-- [ ] **Edge case**: Invalid classification labels retry per NodeRetryPolicy and raise after exhaustion
+- [ ] **Scenario 1** (SC-001, FR-001, FR-002): WorkerNode performs two-step LLM decision when task exists — primary success criterion
+- [ ] **Scenario 2** (SC-002, FR-003): Dynamic label adjustment includes/excludes passthrough based on worker-spawned nodes
+- [ ] **Scenario 3** (SC-003–SC-006, FR-007–FR-012): Each route handler (task_recreation, task_reanalysis, passthrough, proceed_execution) executes correctly
+- [ ] **Scenario 4** (SC-007, FR-006): Invalid classification labels retry per NodeRetryPolicy and raise after exhaustion
+- [ ] **Scenario 5** (SC-008, FR-011, FR-012): Terminal response path guaranteed after any route handler
+- [ ] **Scenario 6** (SC-009, FR-013): Input preservation for downstream nodes
+- [ ] **Scenario 7** (SC-010, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
 
 ## Verification Plan
 
