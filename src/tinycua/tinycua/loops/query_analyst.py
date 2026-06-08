@@ -264,19 +264,4 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         # Standard two-step decision flow
         return super().__call__(input)
 
-    def add_to_queue(self, queue: NodeQueue) -> None:
-        """Add this QueryAnalyst to the front of the queue with deduplication.
 
-        Raises RuntimeError if a QueryAnalyst is already active in the queue.
-
-        Args:
-            queue: The node queue to add to.
-
-        Raises:
-            RuntimeError: If a QueryAnalyst is already active in the queue.
-        """
-        for node in queue.items:
-            if node.node_id == self.node_id:
-                msg = f"QueryAnalyst already active: {self.node_id}"
-                raise RuntimeError(msg)
-        queue.suspend_current_and_prepend([self])
