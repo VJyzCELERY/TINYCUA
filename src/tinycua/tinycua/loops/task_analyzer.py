@@ -24,6 +24,9 @@ _DEFAULT_ANALYSIS_TOOLS: list[str] = [
     "TaskDecompose",
 ]
 
+# Valid analysis modes
+_VALID_MODES = frozenset({"analysis", "initial_analysis"})
+
 
 class TinyCUATaskAnalyzerNode(ProcessNode):
     """ProcessNode for task analysis with mode-based tool filtering.
@@ -71,7 +74,15 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
 
         Returns:
             List of tool names available in this mode.
+
+        Raises:
+            ValueError: If mode is not a recognized analysis mode.
         """
+        if mode not in _VALID_MODES:
+            raise ValueError(
+                f"Unknown analysis mode: {mode!r}. "
+                f"Valid modes: {sorted(_VALID_MODES)}"
+            )
         if mode == "initial_analysis":
             # Exclude task creation tools — task already exists
             return [
