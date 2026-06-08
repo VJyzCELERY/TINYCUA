@@ -165,7 +165,12 @@ async def test_execute_node_stops_at_terminal():
 
 async def test_message_merging_populates_input_context():
     """run() merges SDK messages into root_session.input_context."""
-    loop = TinyCUALoop()
+    stub = StubNode("merge test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     session = loop.root_session
     agent = MagicMock()
     agent.instructions = "test"
@@ -187,7 +192,12 @@ async def test_message_merging_populates_input_context():
 
 async def test_message_merging_preserves_order():
     """Merged messages retain their original order."""
-    loop = TinyCUALoop()
+    stub = StubNode("order test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
     session = loop.root_session
     agent = MagicMock()
     agent.instructions = "test"

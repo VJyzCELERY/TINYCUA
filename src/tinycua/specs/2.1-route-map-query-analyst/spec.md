@@ -78,11 +78,11 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [x] **RouteMap dispatch works**: DecisionNode-owned RouteMap maps labels to handlers and dispatches correctly.
 - [x] **QueryAnalyst classifies input**: TinyCUAQueryAnalystNode classifies into passthrough/worker/uncertain.
 - [x] **MandatoryPassthrough precheck**: Deterministic continuation overrides LLM classification.
-- [x] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end.
-- [x] **Worker reuse**: Existing WorkerNode is reused when routing to worker.
-- [x] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists.
-- [x] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification.
-- [x] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy.
+- [x] **Two-step decision process**: Analysis call → classification call → dispatch works end-to-end. *Verified at node level and loop level via `_execute_node()` → `node.__call__()` → `node.on_complete()`.*
+- [x] **Worker reuse**: Existing WorkerNode is reused when routing to worker. *Verified at node level; loop integration confirmed via RouteMap dispatch.*
+- [x] **Worker spawn**: New WorkerNode is spawned when no existing WorkerNode exists. *Verified at node level; loop integration confirmed via RouteMap dispatch.*
+- [x] **Uncertain behavior**: QueryAnalyst remains active for uncertain classification. *Queue does not advance when route_label is "uncertain" (loop-level check in `_run_sync()`/`_run_stream()`).*
+- [x] **Invalid label retry**: Invalid classification labels retry per NodeRetryPolicy. *Verified at node level via `DecisionNode.__call__()` retry loop.*
 - [x] **QueryAnalyst deduplication**: Active QueryAnalyst is not duplicated.
 - [x] **Queue invariant**: QueryAnalyst is always the first node in the queue.
 

@@ -593,8 +593,15 @@ class DecisionNode(ProcessNode):
                             f"Classification retry exhausted after {max_attempts} attempts: "
                             f"last label was {classification_response.content!r}"
                         )
-                    # Fallback to "uncertain" when retries exhausted
-                    route_label = "uncertain"
+                    # Fallback: prefer "uncertain" if available, else first label
+                    if "uncertain" in self.classification_labels:
+                        route_label = "uncertain"
+                    else:
+                        route_label = (
+                            self.classification_labels[0]
+                            if self.classification_labels
+                            else "uncertain"
+                        )
 
         assert last_analysis is not None  # noqa: S101
         assert last_classification is not None  # noqa: S101

@@ -10,6 +10,7 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
+from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
@@ -122,23 +123,34 @@ class TinyCUALoop(BaseLoop):
             The final response content string.
         """
         last_content = ""
+        iterations = 0
 
         while not self.queue.is_empty():
+            if iterations >= self.max_iterations:
+                logger.warning(
+                    "max_iterations=%d reached, breaking loop",
+                    self.max_iterations,
+                )
+                break
+
             node = self.queue.current
             if node is None:
                 break
 
-            content = await self._execute_node(
+            content, should_advance = await self._execute_node(
                 node, agent, tools, override_instructions,
             )
             last_content = content
+            iterations += 1
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
                 break
 
-            # Advance queue (calls propagate on current node)
-            self.queue.advance()
+            # Advance queue unless node requested to stay active
+            # (e.g., "uncertain" classification keeps QueryAnalyst active)
+            if should_advance:
+                self.queue.advance()
 
         return last_content
 
@@ -208,10 +220,33 @@ class TinyCUALoop(BaseLoop):
         Yields:
             Stream event dicts from the LLM.
         """
+        iterations = 0
+
         while not self.queue.is_empty():
+            if iterations >= self.max_iterations:
+                logger.warning(
+                    "max_iterations=%d reached, breaking stream loop",
+                    self.max_iterations,
+                )
+                break
+
             node = self.queue.current
             if node is None:
                 break
+
+            # DecisionNode subclasses: two-step classification via agent._call_llm()
+            # Note: streaming not supported for two-step classification;
+            # fall back to sync-like flow using agent._call_llm() without stream.
+            if isinstance(node, DecisionNode):
+                content, should_advance, _decision = await self._execute_decision_node(
+                    node, agent, tools, override_instructions,
+                )
+                iterations += 1
+                if node.is_terminal:
+                    break
+                if should_advance:
+                    self.queue.advance()
+                continue
 
             messages, resolved_tools = self._prepare_node(
                 node, tools, override_instructions,
@@ -229,6 +264,7 @@ class TinyCUALoop(BaseLoop):
 
             combined = "".join(content_parts)
             self._record_node_output(node, combined, collected_tool_calls)
+            iterations += 1
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -237,36 +273,33 @@ class TinyCUALoop(BaseLoop):
             # Advance queue (calls propagate on current node)
             self.queue.advance()
 
-    async def _execute_node(
+    async def _execute_decision_node(
         self,
-        node: Node,
+        node: DecisionNode,
         agent: Agent,
         tools: list[Tool],
         override_instructions: str | None = None,
-    ) -> str:
-        """Execute a single node by building messages and calling agent._call_llm().
+    ) -> tuple[str, bool, DecisionResult]:
+        """Execute a DecisionNode with two-step analysis + classification.
 
-        Builds messages from node instruction and session context,
-        resolves tools via NodeToolPolicy, calls agent._call_llm(),
-        records chat_history and session_context.
+        Performs the analysis call → classification call → route dispatch flow
+        using agent._call_llm(), with retry logic for invalid labels.
 
-        For QueryAnalyst nodes, checks for mandatory_passthrough
-        before making an LLM call. If a valid MandatoryPassthrough
-        directive is present, short-circuits to passthrough without
-        LLM classification (FR-005/FR-006).
+        For QueryAnalyst nodes, checks mandatory_passthrough first (FR-005/FR-006).
 
         Args:
-            node: The node to execute.
+            node: The DecisionNode to execute.
             agent: The agent executing.
             tools: Available tools from the agent.
             override_instructions: Optional instructions override.
 
         Returns:
-            The response content string.
+            Tuple of (content, should_advance, decision_result).
         """
-        # Precheck: mandatory_passthrough for QueryAnalyst nodes (FR-005/FR-006)
+        node.ensure_session(self.root_session)
+
+        # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)
         if isinstance(node, TinyCUAQueryAnalystNode):
-            node.ensure_session(self.root_session)
             input_data = self._build_query_analyst_input()
             mandatory = node.check_mandatory_passthrough(input_data)
             if mandatory is not None:
@@ -274,17 +307,13 @@ class TinyCUALoop(BaseLoop):
                     "node=%s mandatory_passthrough detected in loop, bypassing LLM",
                     node.node_id,
                 )
-                # Record passthrough decision
+                from tinycua.models.classification import PASSTHROUGH
+
                 passthrough_content = (
                     f"[Passthrough] target={mandatory.target_node_id} "
                     f"reason={mandatory.reason}"
                 )
                 self._record_node_output(node, passthrough_content)
-                # Dispatch route (passthrough handler)
-                from tinycua.config.types import LLMResult
-                from tinycua.loops.node import DecisionResult
-                from tinycua.models.classification import PASSTHROUGH
-
                 decision = DecisionResult(
                     route_label=PASSTHROUGH,
                     analysis_response=LLMResult(content="", role="assistant"),
@@ -293,8 +322,143 @@ class TinyCUALoop(BaseLoop):
                     ),
                 )
                 node.on_complete(self.queue, decision)
-                return passthrough_content
+                return passthrough_content, True, decision
 
+        messages, resolved_tools = self._prepare_node(
+            node, tools, override_instructions,
+        )
+        retry_policy = node.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)
+
+        last_analysis: LLMResult | None = None
+        last_classification: LLMResult | None = None
+        route_label = (
+            node.classification_labels[0]
+            if node.classification_labels
+            else "default"
+        )
+
+        for attempt in range(1, max_attempts + 1):
+            # Step 1: Analysis call via agent._call_llm()
+            analysis_response = await agent._call_llm(  # type: ignore[arg-type]
+                messages, resolved_tools,
+            )
+            analysis_content = analysis_response.get("content") or ""
+            last_analysis = LLMResult(content=analysis_content, role="assistant")
+
+            # Step 2: Classification call — append analysis + classification instruction
+            classification_messages = list(messages)
+            classification_messages.append(
+                {"role": "assistant", "content": analysis_content}
+            )
+            labels_str = ", ".join(node.classification_labels)
+            classification_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Classify your analysis into one of these categories: "
+                        f"{labels_str}. Respond with only the category label."
+                    ),
+                }
+            )
+            classification_response = await agent._call_llm(  # type: ignore[arg-type]
+                classification_messages, resolved_tools,
+            )
+            classification_content = classification_response.get("content") or ""
+            last_classification = LLMResult(
+                content=classification_content, role="assistant",
+            )
+
+            # Step 3: Dispatch route (may raise ValueError for invalid labels)
+            try:
+                route_label = node._dispatch_route(last_classification)
+                break
+            except ValueError:
+                if attempt < max_attempts:
+                    retry_text = (
+                        f"Retry attempt {attempt}: "
+                        f"Classification label '{classification_content.strip()}' "
+                        f"is not recognized. Valid labels: {node.classification_labels}. "
+                        f"Please respond with exactly one of the valid labels."
+                    )
+                    messages.append(
+                        {"role": "assistant", "content": analysis_content}
+                    )
+                    messages.append(
+                        {"role": "user", "content": retry_text}
+                    )
+                else:
+                    if retry_policy.on_retry_exhausted == "raise":
+                        from tinycua.loops.node import NodeExecutionError
+                        raise NodeExecutionError(
+                            f"Classification retry exhausted after {max_attempts} "
+                            f"attempts: last label was {classification_content!r}"
+                        )
+                    # Fallback: prefer "uncertain" if available, else first label
+                    if "uncertain" in node.classification_labels:
+                        route_label = "uncertain"
+                    else:
+                        route_label = (
+                            node.classification_labels[0]
+                            if node.classification_labels
+                            else "uncertain"
+                        )
+
+        assert last_analysis is not None  # noqa: S101
+        assert last_classification is not None  # noqa: S101
+
+        content = (
+            f"[Analysis] {last_analysis.content}\n"
+            f"[Classification] {route_label}"
+        )
+        self._record_node_output(node, content)
+
+        decision = DecisionResult(
+            route_label=route_label,
+            analysis_response=last_analysis,
+            classification_response=last_classification,
+        )
+        node.on_complete(self.queue, decision)
+
+        should_advance = route_label != "uncertain"
+        return content, should_advance, decision
+
+    async def _execute_node(
+        self,
+        node: Node,
+        agent: Agent,
+        tools: list[Tool],
+        override_instructions: str | None = None,
+    ) -> tuple[str, bool]:
+        """Execute a single node and return (content, should_advance).
+
+        For DecisionNode subclasses (including QueryAnalyst), performs the
+        two-step analysis + classification flow using agent._call_llm(),
+        then dispatches routes via node.on_complete() (FR-008, FR-010-015).
+
+        For other nodes, builds messages and calls agent._call_llm() directly.
+
+        The should_advance flag indicates whether the queue should advance
+        after this node completes. For "uncertain" classification, the
+        QueryAnalyst remains active and the queue should NOT advance.
+
+        Args:
+            node: The node to execute.
+            agent: The agent executing.
+            tools: Available tools from the agent.
+            override_instructions: Optional instructions override.
+
+        Returns:
+            Tuple of (response content string, should_advance flag).
+        """
+        # DecisionNode subclasses: two-step analysis + classification + route dispatch
+        if isinstance(node, DecisionNode):
+            content, should_advance, _decision = await self._execute_decision_node(
+                node, agent, tools, override_instructions,
+            )
+            return content, should_advance
+
+        # Non-decision nodes: build messages and call agent._call_llm() directly
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,
         )
@@ -304,7 +468,7 @@ class TinyCUALoop(BaseLoop):
 
         self._record_node_output(node, content, response.get("tool_calls"))
 
-        return content
+        return content, True
 
     def _build_query_analyst_input(self) -> NodeInput:
         """Build a NodeInput from the root session's input context for mandatory_passthrough checks.

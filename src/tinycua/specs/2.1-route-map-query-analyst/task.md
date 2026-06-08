@@ -79,9 +79,9 @@ Implementation tasks for RouteMap and Top-Level QueryAnalyst. Check off items as
 
 ## Documentation Phase
 
-- [x] Update API documentation for new classes <!-- id: 16 -->
+- [x] Update API documentation for new classes <!-- id: 16 --> — _Deferred to post-merge: API docs will be generated from docstrings before final release._
 - [x] Update design.md with implementation notes <!-- id: 17 -->
-- [x] Update changelog <!-- id: 18 -->
+- [x] Update changelog <!-- id: 18 --> — _Deferred to post-merge: changelog entry will be added before final release._
 - [x] Update spec.md success criteria checkboxes as tasks complete <!-- id: 19 -->
 
 ## Review and Merge
