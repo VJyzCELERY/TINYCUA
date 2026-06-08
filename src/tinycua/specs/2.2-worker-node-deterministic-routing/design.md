@@ -87,7 +87,7 @@ class TinyCUAWorkerNode(DecisionNode):
         """Find worker-owned nodes in the queue before terminal ResponseNode."""
     
     def _route_task_creation(self, queue: NodeQueue, result: DecisionResult) -> None:
-        """Deterministic route: spawn TaskCreateNode for root task creation."""
+        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode for root task creation."""
 ```
 
 ```python

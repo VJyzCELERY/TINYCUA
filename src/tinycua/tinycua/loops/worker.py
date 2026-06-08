@@ -106,10 +106,11 @@ class TinyCUAWorkerNode(DecisionNode):
     def _route_task_creation(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """Deterministic route: spawn TaskCreateNode for root task creation.
+        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode.
 
-        Clears the queue after current and spawns TaskCreateNode,
-        ensuring terminal response path is maintained.
+        Clears the queue after current and spawns TaskCreateNode followed by
+        TaskAnalyzerNode (mode=initial_analysis), ensuring terminal response
+        path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_create).
