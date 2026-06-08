@@ -9,6 +9,7 @@ from tinycua.loops.node import ProcessNode
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.config.types import LLMResult
     from tinycua.models.node_input import NodeInputLike
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,3 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             len(result.content),
         )
         return result
-
-
-# Import LLMResult at module level for return type annotation
-from tinycua.config.types import LLMResult  # noqa: E402

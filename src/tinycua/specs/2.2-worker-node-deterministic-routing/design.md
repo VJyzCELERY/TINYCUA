@@ -55,6 +55,7 @@ class WorkerRouteLabel(str, Enum):
 
 - No schema changes to existing data structures.
 - WorkerNode route_map is a new attribute on the DecisionNode instance.
+- TaskCreateNode stores the LLM response content as a plain string in `session.task` (`str | None`). No structured `TaskCreateResult` dataclass is used — task metadata (e.g., `task_id`) is not available at this stage.
 
 ---
 

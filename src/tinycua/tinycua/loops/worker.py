@@ -11,6 +11,7 @@ from tinycua.loops.route_map import RouteMap
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node import Node
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
 
@@ -28,7 +29,7 @@ class WorkerRouteLabel(str, Enum):
 
 
 # Default classification labels for WorkerNode
-_DEFAULT_WORKER_LABELS = [label.value for label in WorkerRouteLabel]
+_DEFAULT_WORKER_LABELS: list[str] = [label.value for label in WorkerRouteLabel]
 
 
 class TinyCUAWorkerNode(DecisionNode):
@@ -204,7 +205,3 @@ class TinyCUAWorkerNode(DecisionNode):
 
         # Task exists — delegate to standard LLM decision flow (Milestone 2.3)
         return super().__call__(input)
-
-
-# Import Node at module level for type annotations in _detect_worker_spawned_nodes
-from tinycua.loops.node import Node  # noqa: E402

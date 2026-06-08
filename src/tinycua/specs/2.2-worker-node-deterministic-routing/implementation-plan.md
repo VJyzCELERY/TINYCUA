@@ -412,12 +412,9 @@ class WorkerRouteLabel(str, Enum):
     passthrough = "passthrough"                # Deferred to 2.3
     proceed_execution = "proceed_execution"    # Deferred to 2.3
 
-# TaskCreateNode output
-@dataclass
-class TaskCreateResult:
-    task_id: str
-    task_summary: str
-    created_at: datetime
+# TaskCreateNode output: plain string in session.task (no structured dataclass)
+# Session.task: str | None — stores LLM response content as a raw string.
+# Task metadata (task_id, task_summary, created_at) is not available at this stage.
 ```
 
 ## API Changes

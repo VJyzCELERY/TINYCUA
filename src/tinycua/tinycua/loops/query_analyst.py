@@ -187,6 +187,13 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             node_id="worker", config=self.config,
         )
         queue.spawn_after_current([worker_node])
+
+        # Ensure terminal response path is maintained after spawning worker
+        from tinycua.loops.response_node import ResponseNode
+
+        default_terminal = ResponseNode(config=self.config)
+        queue.ensure_terminal(default_terminal)
+
         logger.info("node=%s route_worker spawned new worker", self.node_id)
 
     def route_uncertain(self, queue: NodeQueue, result: DecisionResult) -> None:
