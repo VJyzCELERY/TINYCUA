@@ -489,6 +489,7 @@ class TestWorkerNodeRoutePassthrough:
             classification_response=LLMResult(content="passthrough", role="assistant"),
         )
 
+        worker._last_input = NodeInput(input_type="continuation", messages=[])
         worker._route_passthrough(queue, result)
 
         # Worker should be removed, next_node should be current

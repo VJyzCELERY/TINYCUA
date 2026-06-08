@@ -285,8 +285,9 @@ def test_worker_node_invalid_label_retry():
     with pytest.raises(NodeExecutionError):
         worker("Help me write a script")
 
-    # Verify retry count matches max_attempts
-    assert mock_llm.call_count == config.retry_policy.max_attempts
+    # Verify retry count: 2 calls per attempt × max_attempts
+    expected_calls = 2 * config.retry_policy.max_attempts
+    assert mock_llm.call_count == expected_calls
 
 
 def test_worker_node_route_clear_ensures_terminal():

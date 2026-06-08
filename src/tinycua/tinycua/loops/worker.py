@@ -82,6 +82,8 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         self.default_response_node = ResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
+        self._queue: NodeQueue | None = None
+        self._last_input: NodeInputLike | None = None
 
     def _build_default_route_map(self) -> RouteMap:
         """Build the default RouteMap with all five route handlers.
@@ -278,15 +280,25 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue (may be mutated to advance and forward input).
             result: The decision result.
         """
+        from tinycua.loops.node import NodeExecutionError
+
+        # Defensive validation: check that worker-spawned nodes exist
+        if not self._has_worker_spawned_nodes(queue):
+            msg = (
+                f"Node {self.node_id}: passthrough dispatched but no "
+                "worker-spawned nodes exist in queue"
+            )
+            raise NodeExecutionError(msg)
+
         # Get the next node (items[1]) before advancing
-        next_node = queue.items[1] if len(queue.items) > 1 else None
+        next_node = queue.items[1]
 
         # Advance to remove worker from front of queue
         queue.advance()
 
         # Forward input to the next worker-spawned node
-        if next_node is not None:
-            queue.set_input(next_node, result)
+        if self._last_input is not None:
+            queue.set_input(next_node, self._last_input)
 
         logger.info(
             "node=%s route_passthrough forwarded to next node",
@@ -348,6 +360,9 @@ class TinyCUAWorkerNode(DecisionNode):
             msg = f"Node {self.node_id} has no session attached"
             raise NodeExecutionError(msg)
 
+        # Store input for passthrough forwarding
+        self._last_input = input
+
         # Deterministic precheck: if no task exists, route to task_creation
         if not self._detect_task_exists():
             from tinycua.config.types import LLMResult
@@ -375,9 +390,9 @@ class TinyCUAWorkerNode(DecisionNode):
                 ),
             )
 
-        # Task exists — delegate to standard LLM decision flow (Milestone 2.3)
-        # Use dynamic labels based on queue state
-        # NOTE: Queue access requires a queue to be available. For now, use static labels.
-        # Dynamic label adjustment happens at call time via _get_classification_labels().
-        # The queue will be available through the loop's execution context.
+        # Task exists — adjust labels dynamically if queue is available
+        if self._queue is not None:
+            self.classification_labels = self._get_classification_labels(self._queue)
+
+        # Delegate to standard LLM decision flow (Milestone 2.3)
         return super().__call__(input)

@@ -259,21 +259,21 @@ WorkerNode preserves the original input query for downstream nodes:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add four new route labels to WorkerRouteLabel enum (FR-004)
-- [ ] Implement `_has_worker_spawned_nodes()` (FR-003)
-- [ ] Implement `_get_classification_labels()` for dynamic label adjustment (FR-003)
-- [ ] Update `_build_default_route_map()` to register all five route labels (FR-007)
-- [ ] Implement `_route_task_recreation()` handler (FR-008)
-- [ ] Implement `_route_task_reanalysis()` handler (FR-009)
-- [ ] Implement `_route_passthrough()` handler (FR-010, FR-013)
-- [ ] Implement `_route_proceed_execution()` handler (FR-011)
-- [ ] Update `__call__()` to use dynamic labels when task exists (FR-001, FR-002, FR-003, FR-005)
-- [ ] Add NodeRetryPolicy integration for invalid classification labels (FR-006)
-- [ ] Add `ensure_terminal()` calls in all new route handlers (FR-012)
-- [ ] Ensure WorkerNode tool scope is restricted to decision tools only (FR-014)
-- [ ] Verify queue invariant: QueryAnalyst remains first after dispatch (FR-016)
-- [ ] Write unit tests for all new components
-- [ ] Write integration tests for worker LLM decision flow
+- [x] Add four new route labels to WorkerRouteLabel enum (FR-004)
+- [x] Implement `_has_worker_spawned_nodes()` (FR-003)
+- [x] Implement `_get_classification_labels()` for dynamic label adjustment (FR-003)
+- [x] Update `_build_default_route_map()` to register all five route labels (FR-007)
+- [x] Implement `_route_task_recreation()` handler (FR-008)
+- [x] Implement `_route_task_reanalysis()` handler (FR-009)
+- [x] Implement `_route_passthrough()` handler (FR-010, FR-013)
+- [x] Implement `_route_proceed_execution()` handler (FR-011)
+- [x] Update `__call__()` to use dynamic labels when task exists (FR-001, FR-002, FR-003, FR-005)
+- [x] Add NodeRetryPolicy integration for invalid classification labels (FR-006)
+- [x] Add `ensure_terminal()` calls in all new route handlers (FR-012)
+- [x] Ensure WorkerNode tool scope is restricted to decision tools only (FR-014)
+- [x] Verify queue invariant: QueryAnalyst remains first after dispatch (FR-016)
+- [x] Write unit tests for all new components
+- [x] Write integration tests for worker LLM decision flow
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

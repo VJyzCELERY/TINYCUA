@@ -135,7 +135,7 @@ def test_worker_node_route_task_recreation():
     node_ids = [n.node_id for n in queue.items]
     assert "old_spawned" not in node_ids
     assert "task_analyzer" in node_ids
-    
+
     # CRITICAL: Assert mode is "analysis" (NOT "initial_analysis")
     task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
     assert task_analyzer.mode == "analysis"  # Includes TaskInit/TaskCreate
@@ -187,7 +187,7 @@ def test_worker_node_route_passthrough():
         classification_response=LLMResult(content="passthrough", role="assistant"),
     )
 
-    # Act
+    worker._last_input = NodeInput(input_type="continuation", messages=[])
     worker._route_passthrough(queue, result)
 
     # Assert — worker removed, next_node is now current, input forwarded
@@ -301,8 +301,52 @@ def test_worker_node_queue_invariant_query_analyst_first():
     assert queue.items[0].node_id == "query_analyst"
 
 
-def test_worker_node_latest_valid_verdict_wins():
-    """Latest valid classification verdict determines route label when multiple tool calls occur (FR-005, SC-008)."""
+def test_worker_node_input_preservation_end_to_end():
+    """__call__ stores input on _last_input and passthrough handler forwards it via set_input (FR-013, SC-010).
+
+    In production the loop calls on_complete(queue, result) after __call__.
+    This test replicates that flow to verify end-to-end input preservation.
+    """
+    # Arrange
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+    spawned = _make_mock_node("next_node")
+    queue.spawn_after_current([spawned])
+    worker._queue = queue
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+
+    # Mock LLM: analysis → classification as passthrough
+    mock_analysis = LLMResult(content="Forward to spawned node", role="assistant")
+    mock_classification = LLMResult(content="passthrough", role="assistant")
+    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    worker._call_llm = mock_llm
+
+    # Act — __call__ stores input and returns DecisionResult
+    result = worker(input_data)
+
+    # Assert — input was stored on _last_input by __call__
+    assert worker._last_input == input_data
+    # Assert — classification produced passthrough route
+    assert result.route_label == "passthrough"
+
+    # Act — on_complete dispatches the route (mimics loop behavior)
+    worker.on_complete(queue, result)
+
+    # Assert — input was forwarded to next node via set_input
+    assert queue._inputs.get("next_node") is not None
+
+
+def test_worker_node_invalid_label_triggers_retry_and_succeeds():
+    """Invalid classification label triggers retry, then succeeds with valid label on second attempt (FR-006)."""
     # Arrange
     session = _make_session_with_task(task="Write a sorting script")
     config = NodeConfigBase(llm_client=MagicMock())
@@ -338,7 +382,7 @@ def test_worker_node_latest_valid_verdict_wins():
     # Act
     result = worker(input_data)
 
-    # Assert — latest valid verdict wins (task_recreation, not invalid_label)
+    # Assert — retry succeeded with valid label (task_recreation, not invalid_label)
     assert result.route_label == "task_recreation"
-    # Verify the classification result is from the latest valid call
+    # Verify the classification result is from the valid retry attempt
     assert result.classification_response == mock_classification_valid

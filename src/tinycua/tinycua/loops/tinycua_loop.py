@@ -14,6 +14,7 @@ from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
@@ -297,6 +298,11 @@ class TinyCUALoop(BaseLoop):
             Tuple of (content, should_advance, decision_result).
         """
         node.ensure_session(self.root_session)
+
+        # Provide queue reference and adjust labels dynamically (WorkerNode)
+        if isinstance(node, TinyCUAWorkerNode):
+            node._queue = self.queue
+            node.classification_labels = node._get_classification_labels(self.queue)
 
         # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)
         if isinstance(node, TinyCUAQueryAnalystNode):

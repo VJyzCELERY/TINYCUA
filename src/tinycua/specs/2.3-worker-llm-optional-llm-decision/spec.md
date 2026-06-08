@@ -84,18 +84,18 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 > Checkboxes to be verified during implementation — not applicable to planning documents.
 
-- [ ] **SC-001** — **Acceptance Scenario 1**: Given a TinyCUA agent with WorkerNode active and a task exists, when WorkerNode enters, then it performs the two-step LLM decision process (analysis → classification) without deterministic precheck bypass.
-- [ ] **SC-002** — **Acceptance Scenarios 2–3**: Given WorkerNode performs LLM classification, when worker-spawned nodes exist, then `passthrough` is included in dynamic labels; when no worker-spawned nodes exist, then `passthrough` is excluded.
-- [ ] **SC-003** — **Acceptance Scenario 4**: Given WorkerNode classifies as `task_recreation`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools.
-- [ ] **SC-004** — **Acceptance Scenario 5**: Given WorkerNode classifies as `task_reanalysis`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
-- [ ] **SC-005** — **Acceptance Scenario 6**: Given WorkerNode classifies as `passthrough`, when the route handler executes, then it advances the queue and forwards input to the next worker-spawned node without re-inserting itself.
-- [ ] **SC-006** — **Acceptance Scenario 7**: Given WorkerNode classifies as `proceed_execution`, when the route handler executes, then it ensures the terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
-- [ ] **SC-007** — **Acceptance Scenario 8**: Given WorkerNode receives an invalid or missing classification label, when the decision process completes, then it retries a configurable number of times (default 3) before raising an error.
-- [ ] **SC-008** — **Acceptance Scenario 9** (Latest Verdict): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the latest valid verdict determines the route label. (FR-005)
-- [ ] **SC-009** — **Acceptance Scenario 10**: Given WorkerNode dispatches to any route handler, when the handler completes, then it ensures the terminal response path exists.
-- [ ] **SC-010** — **Acceptance Scenario 11** (Input Preservation): Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
-- [ ] **SC-011** — **Acceptance Scenario 12** (Queue Invariant): Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
-- [ ] **SC-012** — **Acceptance Scenario 13** (Tool Scope Restriction, FR-014): Given WorkerNode is invoked with LLM decision, when the LLM classification executes, then WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available.
+- [x] **SC-001** — **Acceptance Scenario 1**: Given a TinyCUA agent with WorkerNode active and a task exists, when WorkerNode enters, then it performs the two-step LLM decision process (analysis → classification) without deterministic precheck bypass.
+- [x] **SC-002** — **Acceptance Scenarios 2–3**: Given WorkerNode performs LLM classification, when worker-spawned nodes exist, then `passthrough` is included in dynamic labels; when no worker-spawned nodes exist, then `passthrough` is excluded.
+- [x] **SC-003** — **Acceptance Scenario 4**: Given WorkerNode classifies as `task_recreation`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode with TaskInit/TaskCreate tools.
+- [x] **SC-004** — **Acceptance Scenario 5**: Given WorkerNode classifies as `task_reanalysis`, when the route handler executes, then it clears worker-spawned nodes and spawns TaskAnalyzerNode without TaskInit/TaskCreate tools.
+- [x] **SC-005** — **Acceptance Scenario 6**: Given WorkerNode classifies as `passthrough`, when the route handler executes, then it advances the queue and forwards input to the next worker-spawned node without re-inserting itself.
+- [x] **SC-006** — **Acceptance Scenario 7**: Given WorkerNode classifies as `proceed_execution`, when the route handler executes, then it ensures the terminal response path exists (TaskExecutor/ResultReviewer spawning deferred to Milestone 3.2).
+- [x] **SC-007** — **Acceptance Scenario 8**: Given WorkerNode receives an invalid or missing classification label, when the decision process completes, then it retries a configurable number of times (default 3) before raising an error.
+- [x] **SC-008** — **Acceptance Scenario 9** (Latest Verdict): Given WorkerNode's LLM classification returns the latest valid verdict, when multiple tool calls occur, then the latest valid verdict determines the route label. (FR-005)
+- [x] **SC-009** — **Acceptance Scenario 10**: Given WorkerNode dispatches to any route handler, when the handler completes, then it ensures the terminal response path exists.
+- [x] **SC-010** — **Acceptance Scenario 11** (Input Preservation): Given WorkerNode dispatches to any route, when the handler completes, then the original input query is preserved for downstream nodes. (FR-013)
+- [x] **SC-011** — **Acceptance Scenario 12** (Queue Invariant): Given WorkerNode dispatches to any route, when the handler completes, then QueryAnalyst remains the first node in the queue. (FR-016)
+- [x] **SC-012** — **Acceptance Scenario 13** (Tool Scope Restriction, FR-014): Given WorkerNode is invoked with LLM decision, when the LLM classification executes, then WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available.
 
 ---
 
@@ -142,14 +142,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 | Item | Status | Notes |
 |------|--------|-------|
 | Planning documents | DONE | spec.md, design.md, implementation-plan.md, task.md |
-| TinyCUAWorkerNode LLM decision | TODO | worker.py — two-step decision when task exists |
-| Dynamic classification labels | TODO | Include/exclude passthrough based on worker-spawned nodes |
-| task_recreation route handler | TODO | Clear + spawn TaskAnalyzerNode (+TaskInit/TaskCreate) |
-| task_reanalysis route handler | TODO | Clear + spawn TaskAnalyzerNode (no TaskInit/TaskCreate) |
-| passthrough route handler | TODO | Advance queue, forward input |
-| proceed_execution route handler | TODO | Ensure terminal response path (TaskExecutor/ResultReviewer deferred to 3.2) |
-| Invalid label retry | TODO | Retry integration (default 3 attempts) |
-| Terminal response path guarantee | TODO | Terminal response path in all route handlers |
+| TinyCUAWorkerNode LLM decision | DONE | worker.py — two-step decision when task exists |
+| Dynamic classification labels | DONE | Include/exclude passthrough based on worker-spawned nodes |
+| task_recreation route handler | DONE | Clear + spawn TaskAnalyzerNode (+TaskInit/TaskCreate) |
+| task_reanalysis route handler | DONE | Clear + spawn TaskAnalyzerNode (no TaskInit/TaskCreate) |
+| passthrough route handler | DONE | Advance queue, forward input |
+| proceed_execution route handler | DONE | Ensure terminal response path (TaskExecutor/ResultReviewer deferred to 3.2) |
+| Invalid label retry | DONE | Retry integration (default 3 attempts) |
+| Terminal response path guarantee | DONE | Terminal response path in all route handlers |
 
 ---
 

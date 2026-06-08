@@ -109,12 +109,12 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [x] task_recreation: assert queue.items[-1].is_terminal is True
   - [x] task_reanalysis: assert queue.items[-1].is_terminal is True
   - [x] proceed_execution: assert queue.items[-1].is_terminal is True
-- [ ] Run type checking: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 19 -->
+- [x] Run type checking: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 19 -->
 
 ## Documentation Phase
 
-- [ ] Update spec.md status tracker to reflect completed items <!-- id: 20 -->
-- [ ] Update design.md implementation phases checklist <!-- id: 21 -->
+- [x] Update spec.md status tracker to reflect completed items <!-- id: 20 -->
+- [x] Update design.md implementation phases checklist <!-- id: 21 -->
 - [x] No API documentation changes needed (internal implementation only) <!-- id: 22 -->
 
 ## Review and Merge
