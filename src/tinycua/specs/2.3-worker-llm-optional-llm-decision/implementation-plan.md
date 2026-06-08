@@ -389,6 +389,7 @@ def test_worker_node_latest_valid_verdict_wins():
 - [ ] **Scenario 6** (SC-011, FR-013): Input preservation for downstream nodes
 - [ ] **Scenario 7** (SC-010, FR-016): Queue invariant — QueryAnalyst remains first after WorkerNode dispatches
 - [ ] **Scenario 8** (SC-009, FR-005): Latest valid verdict — when multiple tool calls occur, the latest valid verdict determines the route label
+- [ ] **Scenario 9** (SC-012, FR-014): WorkerNode's tool scope is restricted to worker decision tools only — task creation, analysis, and execution tools are not available during LLM classification
 
 ## Verification Plan
 
