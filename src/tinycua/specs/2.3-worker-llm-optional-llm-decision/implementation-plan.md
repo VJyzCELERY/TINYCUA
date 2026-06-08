@@ -43,8 +43,15 @@ Define the integration tests that prove the feature works. These are written FIR
 # Test file: src/tinycua/tests/integration/test_worker_node_llm_decision_integration.py
 """Integration tests for TinyCUAWorkerNode LLM decision when task exists."""
 
-from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionResult
+import pytest
+from unittest.mock import MagicMock
+
+from tinycua.config.types import LLMResult, NodeConfigBase, NodeQueue, NodeRetryPolicy
+from tinycua.loops.node import DecisionResult, NodeExecutionError, TinyCUAWorkerNode
+
+# Test helpers — defined in conftest.py or as local fixtures
+# _make_session: creates a mock session with a task
+# _make_mock_node: creates a mock node with a given node_id
 
 
 async def test_worker_node_llm_decision_with_task_exists():

@@ -75,15 +75,15 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
 
 ## Documentation Phase
 
-- [ ] Update spec.md status tracker to reflect completed items <!-- id: 18 -->
-- [ ] Update design.md implementation phases checklist <!-- id: 19 -->
-- [ ] No API documentation changes needed (internal implementation only) <!-- id: 20 -->
+- [ ] Update spec.md status tracker to reflect completed items <!-- id: 19 -->
+- [ ] Update design.md implementation phases checklist <!-- id: 20 -->
+- [ ] No API documentation changes needed (internal implementation only) <!-- id: 21 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 21 -->
-- [ ] Address review feedback <!-- id: 22 -->
-- [ ] Merge to main branch <!-- id: 23 -->
+- [ ] Create pull request <!-- id: 22 -->
+- [ ] Address review feedback <!-- id: 23 -->
+- [ ] Merge to main branch <!-- id: 24 -->
 
 ---
 
