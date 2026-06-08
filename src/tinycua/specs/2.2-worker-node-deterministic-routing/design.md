@@ -43,6 +43,8 @@ from datetime import datetime
 from enum import Enum
 
 # WorkerNode route labels (subset implemented in this milestone)
+# Only `task_creation` is implemented in this milestone. The remaining labels
+# serve as the reference for Milestone 2.3 implementation.
 class WorkerRouteLabel(str, Enum):
     task_creation = "task_creation"            # Deterministic, no LLM
     task_recreation = "task_recreation"        # NOT IN SCOPE — Milestone 2.3
@@ -122,7 +124,7 @@ class NodeQueue:
     def find_worker_spawned_nodes(self) -> list[Node]:
         """Find all nodes spawned by WorkerNode before terminal ResponseNode."""
     
-    def find_existing_worker_node(self) -> Optional[TinyCUAWorkerNode]:
+    def find_existing_worker_node(self) -> Node | None:
         """Find existing WorkerNode in queue before terminal ResponseNode.
         
         This is the source of truth for worker-node lookup. QueryAnalyst's
@@ -130,7 +132,7 @@ class NodeQueue:
         method to avoid logic duplication.
         """
     
-    def ensure_terminal(self, default_response_node: Node) -> None:
+    def ensure_terminal(self, default_terminal_node: Node) -> None:
         """Ensure terminal response path exists after clear operations."""
 ```
 

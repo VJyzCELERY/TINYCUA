@@ -79,7 +79,7 @@ class TinyCUATaskCreateNode(ProcessNode):
 
         return result
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:  # type: ignore[override]
         """Advance queue; next node is TaskAnalyzerNode.
 
         Removes the current TaskCreateNode from the queue, making

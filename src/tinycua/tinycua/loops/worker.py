@@ -134,8 +134,11 @@ class TinyCUAWorkerNode(DecisionNode):
             "node=%s route_task_creation spawned task_create", self.node_id,
         )
 
-    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:
+    def on_complete(self, queue: NodeQueue, result: DecisionResult) -> None:  # type: ignore[override]
         """Dispatch route after classification.
+
+        Accepts DecisionResult (not LLMResult | DecisionResult) because
+        WorkerNode's __call__ returns a structured decision result.
 
         Args:
             queue: The node queue (may be mutated by route handler).
