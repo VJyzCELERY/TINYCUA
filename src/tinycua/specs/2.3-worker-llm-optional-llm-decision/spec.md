@@ -121,11 +121,11 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Integration Tests
 
-- `test_worker_node_e2e_llm_decision`: End-to-end: QueryAnalyst → WorkerNode (LLM decision) → route handler → downstream nodes.
-- `test_worker_node_e2e_task_recreation`: End-to-end: WorkerNode → task_recreation → TaskAnalyzerNode (+TaskInit/TaskCreate) → downstream.
-- `test_worker_node_e2e_task_reanalysis`: End-to-end: WorkerNode → task_reanalysis → TaskAnalyzerNode (no TaskInit/TaskCreate) → downstream.
-- `test_worker_node_e2e_passthrough`: End-to-end: WorkerNode → passthrough → next worker-spawned node.
-- `test_worker_node_queue_shape_after_routes`: Queue shape after each route matches expected architecture.
+- `test_worker_node_llm_decision_with_task_exists`: End-to-end: QueryAnalyst → WorkerNode (LLM decision) → route handler → downstream nodes.
+- `test_worker_node_route_task_recreation`: End-to-end: WorkerNode → task_recreation → TaskAnalyzerNode (+TaskInit/TaskCreate) → downstream.
+- `test_worker_node_route_task_reanalysis`: End-to-end: WorkerNode → task_reanalysis → TaskAnalyzerNode (no TaskInit/TaskCreate) → downstream.
+- `test_worker_node_route_passthrough`: End-to-end: WorkerNode → passthrough → next worker-spawned node.
+- `test_worker_node_queue_invariant_query_analyst_first`: Queue shape after each route matches expected architecture; QueryAnalyst remains first.
 
 ### Manual Tests _(if applicable)_
 

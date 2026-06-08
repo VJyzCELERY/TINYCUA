@@ -235,6 +235,8 @@ def test_worker_node_route_passthrough():
     # Assert — worker removed, next_node is now current, input forwarded
     assert queue.items[0].node_id == "next_node"
     # Verify input was forwarded to next node (behavioral contract)
+    # NOTE: Accesses private NodeQueue._inputs — intentional coupling for test purposes.
+    # Refactor if NodeQueue changes input storage implementation.
     assert queue._inputs.get("next_node") is not None or queue.items[0]._input is not None
     # Assert — result object preserved (on_complete uses result.route_label for dispatch)
     assert result.route_label == "passthrough"

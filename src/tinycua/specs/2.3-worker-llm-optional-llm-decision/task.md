@@ -15,6 +15,7 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
   - [ ] test_worker_node_invalid_label_retry
   - [ ] test_worker_node_route_clear_ensures_terminal
   - [ ] test_worker_node_queue_invariant_query_analyst_first
+  - [ ] test_worker_node_latest_valid_verdict_wins
 - [ ] Run integration tests — expect RED (failures since no implementation yet) <!-- id: 1 -->
 
 ## Implementation Phase
