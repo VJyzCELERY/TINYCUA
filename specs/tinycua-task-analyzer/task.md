@@ -68,6 +68,12 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 
 ---
 
+## References
+
+- Spec: `./spec.md`
+- Design: `./design.md`
+- Implementation Plan: `./implementation-plan.md`
+
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
 *Last updated: 2026-06-10*

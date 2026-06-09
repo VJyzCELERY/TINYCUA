@@ -6,6 +6,7 @@ Extend `TinyCUATaskAnalyzerNode` to support all five analysis modes from the tar
 
 - **Spec Reference**: `./spec.md` — TinyCUATaskAnalyzerNode Feature Specification
 - **Design Reference**: `./design.md` — Design Document: TinyCUATaskAnalyzerNode
+- **Task Reference**: `./task.md` — Detailed implementation tasks
 - **Priority**: P1
 - **Estimated Effort**: S
 

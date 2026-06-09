@@ -13,6 +13,7 @@
 - **Gaps**: The existing `TinyCUATaskAnalyzerNode` implementation supports only three modes (`analysis`, `initial_analysis`, `effort_loop_decomposition`) and lacks the full mode set specified in the target architecture (`recreation`, `reanalysis`, `local_replan`). Tool scope filtering is incomplete — recreation mode should allow TaskInit/TaskCreate tools but currently does not. The node does not validate that the task tree is non-None after completion.
 - **Non-Goals**: This spec does NOT cover task creation (TaskCreateNode), task execution (TaskExecutor), task assessment (TaskAssessor), or result review (ResultReviewer). It does NOT cover queue routing or WorkerNode decision logic.
 - **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must use mode-dependent tool scope via `NodeToolPolicy`. Must directly mutate `session.task` through TinyCUALoop task helpers — must NOT return opaque mutation instructions.
+- **Migration**: The legacy `analysis` mode is NOT part of the target architecture and will be removed. All callers using `mode="analysis"` must be migrated to `mode="recreation"` (the target architecture equivalent).
 
 ---
 
@@ -128,3 +129,12 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 - [ ] Requirements are testable and unambiguous
 - [ ] Scope is clearly bounded with explicit non-goals
 - [ ] Success criteria are measurable
+
+---
+
+## References
+
+- Design: `./design.md`
+- Implementation Plan: `./implementation-plan.md`
+- Tasks: `./task.md`
+- Issue: [#87](https://github.com/VJyzCELERY/TINYCUA/issues/87) — Milestone 2.6

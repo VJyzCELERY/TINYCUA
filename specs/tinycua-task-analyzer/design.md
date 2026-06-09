@@ -199,7 +199,7 @@ def _validate_task_tree_non_none(self, response: LLMResult) -> None:
 
 ## Open Questions _(optional)_
 
-- None.
+- **local_replan TaskInit/TaskCreate allowance**: Resolved in Technical Decision #3 — default exclusion is sufficient for the prototype. See spec.md Open Question #1 for context.
 
 ---
 
