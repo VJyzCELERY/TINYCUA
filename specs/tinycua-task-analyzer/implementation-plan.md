@@ -142,19 +142,19 @@ def test_task_analyzer_integration_with_tool_policy():
             assert "TaskCreate" not in node.tool_scope, f"TaskCreate leaked into {mode}"
 
 
-# [NEEDS CLARIFICATION] Queue-based tests below use `queue.run(llm=..., session=...)`.
-# `NodeQueue` currently has no `run()` method — it is a data structure for node ordering.
-# Execution is handled by `TinyCUALoop`. During implementation, either:
-#   (a) delegate queue execution to `TinyCUALoop.run()`, or
-#   (b) add a `run()` method to `NodeQueue` that wraps loop execution.
-# The tests should be updated to match whichever approach is chosen.
+# RESOLUTION: Queue-based tests delegate execution to `TinyCUALoop.run()`.
+# `NodeQueue` is a data structure for node ordering — execution is handled by `TinyCUALoop`.
+# Tests use `asyncio.run()` to execute the async `TinyCUALoop.run()` method.
+# See `test_task_analyzer_lifecycle_hooks_in_queue` for the canonical pattern.
 
 def test_task_analyzer_lifecycle_hooks_in_queue():
     """Spec Test 2: TaskAnalyzerNode in a minimal queue with mock LLM to
     verify lifecycle hooks (on_start, on_end) fire correctly."""
+    import asyncio
     from unittest.mock import MagicMock
 
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
     config = NodeConfigBase()
@@ -177,13 +177,18 @@ def test_task_analyzer_lifecycle_hooks_in_queue():
     mock_session.task = {"id": "root", "children": []}
 
     # Build a minimal queue
-    from tinycua.queue import NodeQueue
-
     queue = NodeQueue()
     queue.add(node)
 
-    # Run the queue (node will be called once)
-    queue.run(llm=mock_llm, session=mock_session)
+    # Run via TinyCUALoop (queue is a data structure; execution is handled by the loop)
+    from tinycua.loops.tinycua_loop import TinyCUALoop
+    from tinycua.agent import Agent
+
+    mock_agent = MagicMock(spec=Agent)
+    mock_agent._call_llm = MagicMock(return_value=mock_response)
+
+    loop = TinyCUALoop(queue=queue, root_session=mock_session)
+    asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
 
     # Verify lifecycle hooks fired
     node.on_start.assert_called()
@@ -193,9 +198,11 @@ def test_task_analyzer_lifecycle_hooks_in_queue():
 def test_task_analyzer_recreation_in_queue_receives_task_tools():
     """Spec Test 3: TaskAnalyzerNode(mode=recreation) in a queue after
     TaskCreateNode — verify the mock LLM received TaskInit/TaskCreate tools."""
+    import asyncio
     from unittest.mock import MagicMock
 
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
     config = NodeConfigBase()
@@ -219,11 +226,18 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
 
-    from tinycua.queue import NodeQueue
-
     queue = NodeQueue()
     queue.add(node)
-    queue.run(llm=mock_llm, session=mock_session)
+
+    # Run via TinyCUALoop
+    from tinycua.loops.tinycua_loop import TinyCUALoop
+    from tinycua.agent import Agent
+
+    mock_agent = MagicMock(spec=Agent)
+    mock_agent._call_llm = MagicMock(return_value=mock_llm.chat.completions.create.return_value)
+
+    loop = TinyCUALoop(queue=queue, root_session=mock_session)
+    asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
 
     # Extract tool names from captured tools (they are dicts with "function"."name")
     tool_names = []
@@ -240,9 +254,11 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
 def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     """Spec Test 4: TaskAnalyzerNode(mode=initial_analysis) in a queue —
     verify the mock LLM does NOT receive TaskInit/TaskCreate tools."""
+    import asyncio
     from unittest.mock import MagicMock
 
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
     config = NodeConfigBase()
@@ -265,11 +281,18 @@ def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
 
-    from tinycua.queue import NodeQueue
-
     queue = NodeQueue()
     queue.add(node)
-    queue.run(llm=mock_llm, session=mock_session)
+
+    # Run via TinyCUALoop
+    from tinycua.loops.tinycua_loop import TinyCUALoop
+    from tinycua.agent import Agent
+
+    mock_agent = MagicMock(spec=Agent)
+    mock_agent._call_llm = MagicMock(return_value=mock_llm.chat.completions.create.return_value)
+
+    loop = TinyCUALoop(queue=queue, root_session=mock_session)
+    asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
 
     tool_names = []
     for t in captured_tools:
@@ -334,9 +357,11 @@ def test_task_analyzer_empty_input_handled_gracefully():
 def test_task_analyzer_direct_mutation_updates_session_task():
     """Spec Core Behavior: Direct mutation — when the LLM invokes tools,
     the node's TaskTreeManager must update session.task."""
+    import asyncio
     from unittest.mock import MagicMock
 
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
     config = NodeConfigBase()
@@ -359,11 +384,18 @@ def test_task_analyzer_direct_mutation_updates_session_task():
     mock_session = MagicMock()
     mock_session.task = None  # First run — task starts as None
 
-    from tinycua.queue import NodeQueue
-
     queue = NodeQueue()
     queue.add(node)
-    queue.run(llm=mock_llm, session=mock_session)
+
+    # Run via TinyCUALoop
+    from tinycua.loops.tinycua_loop import TinyCUALoop
+    from tinycua.agent import Agent
+
+    mock_agent = MagicMock(spec=Agent)
+    mock_agent._call_llm = MagicMock(return_value=mock_response)
+
+    loop = TinyCUALoop(queue=queue, root_session=mock_session)
+    asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
 
     # Core assertion: session.task must no longer be None after tool invocations
     assert mock_session.task is not None, (
@@ -379,7 +411,7 @@ def test_task_analyzer_direct_mutation_updates_session_task():
 - [ ] **Scenario 3** — `test_task_analyzer_recreation_in_queue_receives_task_tools`: TaskAnalyzerNode(mode=recreation) in a queue after TaskCreateNode — verify mock LLM receives TaskInit/TaskCreate tools
 - [ ] **Scenario 4** — `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools`: TaskAnalyzerNode(mode=initial_analysis) in a queue — verify mock LLM does NOT receive TaskInit/TaskCreate tools
 - [ ] **Scenario 5** — `test_task_analyzer_task_tree_validation_none_raises_error`: Mock LLM returns without mutating session.task — `NodeExecutionError` raised when task tree is `None` after completion
-- [ ] **Scenario 6** — `test_task_analyzer_direct_mutation_updates_session_task`: When LLM invokes tools, session.task must be mutated (not None) after queue.run()
+- [ ] **Scenario 6** — `test_task_analyzer_direct_mutation_updates_session_task`: When LLM invokes tools, session.task must be mutated (not None) after loop execution
 
 ### Additional Unit-Level Tests
 
