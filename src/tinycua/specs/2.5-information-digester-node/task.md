@@ -4,7 +4,11 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for InformationDigesterNode (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Write 4 end-to-end integration tests for InformationDigesterNode (spec-aligned; defined in implementation-plan.md):
+  - `test_information_digester_with_response_node_suspension` — ResponseNode suspends → digester gathers → ResponseNode resumes
+  - `test_information_digester_no_useful_context_path` — no context found → fallback reaches downstream
+  - `test_information_digester_enhanced_retrieval_end_to_end` — enhanced_context_retrieval → digest from cache
+  - `test_information_digester_propagation_to_parent_session` — digest propagates to parent's session_context <!-- id: 0 -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 
 ## Implementation Phase
