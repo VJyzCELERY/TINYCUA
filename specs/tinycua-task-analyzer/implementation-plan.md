@@ -164,14 +164,12 @@ def test_task_analyzer_lifecycle_hooks_in_queue():
     node.on_start = MagicMock(wraps=node.on_start) if hasattr(node, "on_start") else MagicMock()
     node.on_end = MagicMock(wraps=node.on_end) if hasattr(node, "on_end") else MagicMock()
 
-    # Provide a mock LLM that returns a plain response (no tool calls)
-    mock_llm = MagicMock()
+    # Provide a mock response (no tool calls) — LLM is injected via mock_agent._call_llm
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message = MagicMock()
     mock_response.choices[0].message.content = "Analysis complete."
     mock_response.choices[0].message.tool_calls = []
-    mock_llm.chat.completions.create.return_value = mock_response
 
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
