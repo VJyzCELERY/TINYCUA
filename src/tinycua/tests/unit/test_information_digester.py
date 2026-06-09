@@ -18,7 +18,6 @@ from tinycua.config.node_config import (
 )
 from tinycua.config.types import LLMResult
 from tinycua.loops.information_digester import (
-    EnhancedContextRetrieval,
     TinyCUAInformationDigesterNode,
     llm_call,
 )

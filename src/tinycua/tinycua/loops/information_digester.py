@@ -243,7 +243,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         self.record_output(result)
         return result
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:  # type: ignore[override]
         """Post-completion hook for queue mutations.
 
         Propagates digest output to the suspended parent node's session

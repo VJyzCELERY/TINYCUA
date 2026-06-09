@@ -83,7 +83,7 @@ def test_information_digester_with_response_node_suspension(
     queue.items.append(parent_node)
 
     # Act — run the digester
-    result = digester(input_data)
+    digester(input_data)
 
     # Assert — fresh session created (not parent's session)
     assert digester.session is not None
