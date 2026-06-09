@@ -122,8 +122,8 @@ def test_information_digester_with_response_node_suspension(
 
     # Set up the queue with digester and parent
     queue = NodeQueue()
-    queue.enqueue(digester)
-    queue.enqueue(parent_node)
+    queue.items.append(digester)
+    queue.items.append(parent_node)
 
     # Act — run the digester
     result = digester(input_data)
@@ -139,7 +139,7 @@ def test_information_digester_with_response_node_suspension(
     digester.on_complete(
         queue, LLMResult(content="Digest produced", role="assistant")
     )
-    assert queue.current() is parent_node
+    assert queue.current is parent_node
 
 
 # --- Integration Test 2: No-Useful-Context Fallback Path ---
@@ -284,8 +284,8 @@ def test_information_digester_propagation_to_parent_session(
     )
 
     queue = NodeQueue()
-    queue.enqueue(digester)
-    queue.enqueue(parent_node)
+    queue.items.append(digester)
+    queue.items.append(parent_node)
 
     # Act — run the digester
     result = digester(input_data)
@@ -296,7 +296,7 @@ def test_information_digester_propagation_to_parent_session(
     )
 
     # Assert — parent is now the current node (resumed)
-    assert queue.current() is parent_node
+    assert queue.current is parent_node
 
     # Assert — digest content was propagated to parent session
     assert parent_node.session is not None

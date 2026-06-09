@@ -245,7 +245,7 @@ class TestFallback:
 
     @patch("tinycua.loops.information_digester.llm_call")
     def test_fallback_when_digest_empty(self, mock_llm_call):
-        """When digest production returns empty, fallback is used immediately (no retry)."""
+        """When digest production returns empty, fallback is used after retry attempts."""
         mock_llm_call.return_value = LLMResult(content="", role="assistant")
 
         digester = TinyCUAInformationDigesterNode(
@@ -254,8 +254,8 @@ class TestFallback:
         input_data = _make_input()
         result = digester(input_data)
 
-        # Only one llm_call: _produce_digest. Fallback is produced internally.
-        assert mock_llm_call.call_count == 1
+        # llm_call called max_attempts times (default 3) before fallback.
+        assert mock_llm_call.call_count == 3
         assert result.content.startswith("The user asked")
         assert "No useful extra information was found" in result.content
 
@@ -307,6 +307,66 @@ class TestToolScope:
 # ---------------------------------------------------------------------------
 
 
+class TestRetry:
+    """Verify retry behavior per NodeRetryPolicy."""
+
+    @patch("tinycua.loops.information_digester.llm_call")
+    def test_retry_on_empty_digest(self, mock_llm_call):
+        """Digest empty triggers retry up to max_attempts."""
+        mock_llm_call.return_value = LLMResult(content="", role="assistant")
+
+        config = TinyCUAInformationDigesterNodeConfig(
+            retrieval_enabled=False,
+        )
+        config.retry_policy.max_attempts = 3
+        digester = TinyCUAInformationDigesterNode(config=config)
+
+        input_data = _make_input()
+        result = digester(input_data)
+
+        # Should retry 3 times before fallback.
+        assert mock_llm_call.call_count == 3
+        assert "No useful extra information was found" in result.content
+
+    @patch("tinycua.loops.information_digester.llm_call")
+    def test_no_retry_when_max_attempts_one(self, mock_llm_call):
+        """When max_attempts=1, no retry occurs."""
+        mock_llm_call.return_value = LLMResult(content="", role="assistant")
+
+        config = TinyCUAInformationDigesterNodeConfig(
+            retrieval_enabled=False,
+        )
+        config.retry_policy.max_attempts = 1
+        digester = TinyCUAInformationDigesterNode(config=config)
+
+        input_data = _make_input()
+        result = digester(input_data)
+
+        # Only one llm_call, then fallback.
+        assert mock_llm_call.call_count == 1
+        assert "No useful extra information was found" in result.content
+
+    @patch("tinycua.loops.information_digester.llm_call")
+    def test_retry_succeeds_on_second_attempt(self, mock_llm_call):
+        """Retry stops when digest becomes non-empty."""
+        # First call returns empty, second returns content.
+        mock_llm_call.side_effect = [
+            LLMResult(content="", role="assistant"),
+            LLMResult(content="successful digest", role="assistant"),
+        ]
+
+        config = TinyCUAInformationDigesterNodeConfig(
+            retrieval_enabled=False,
+        )
+        config.retry_policy.max_attempts = 3
+        digester = TinyCUAInformationDigesterNode(config=config)
+
+        input_data = _make_input()
+        result = digester(input_data)
+
+        # Should stop after second successful attempt.
+        assert mock_llm_call.call_count == 2
+        assert result.content == "successful digest"
 
 
 

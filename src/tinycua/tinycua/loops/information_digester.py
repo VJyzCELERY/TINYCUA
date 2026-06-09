@@ -9,11 +9,13 @@ Spec ref: src/tinycua/specs/2.5-information-digester-node/
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
+from tinycua.models.digested_information import DigestedInformation
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -232,14 +234,29 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         # Build full context: original messages + retrieved context.
         full_context = list(messages) + additional_context
 
-        # FR-009, FR-010: Produce structured digest from gathered context.
-        result = self._produce_digest(full_context)
+        # FR-009, FR-010, FR-014: Produce structured digest from gathered context
+        # with retry per NodeRetryPolicy before fallback.
+        retry_policy = self.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)
 
-        # FR-011, FR-013: If digest is empty/missing, produce fallback.
-        if not result.content or not result.content.strip():
-            result = self._produce_fallback(user_query)
+        result = None
+        for attempt in range(1, max_attempts + 1):
+            result = self._produce_digest(full_context)
+            if result.content and result.content.strip():
+                break
+            if attempt < max_attempts:
+                logger.info(
+                    "node=%s digest empty, retrying (attempt %d/%d)",
+                    self.node_id,
+                    attempt,
+                    max_attempts,
+                )
+            else:
+                # FR-011, FR-013: If digest is empty/missing, produce fallback.
+                result = self._produce_fallback(user_query)
 
         # FR-012: Record only own output (not copied input).
+        assert result is not None
         self.record_output(result)
         return result
 
@@ -320,6 +337,8 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             return retrieval.search("relevant context")
         except Exception:
             # SC-016: Log error and proceed with available context.
+            # TODO(M4.2): Narrow to expected exception types when
+            # EnhancedContextRetrieval is fully implemented.
             logger.warning(
                 "node=%s enhanced_retrieval failed, proceeding with available context",
                 self.node_id,
@@ -337,7 +356,8 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             context: The gathered context messages.
 
         Returns:
-            LLMResult containing digested information.
+            LLMResult containing digested information with parsed
+            DigestedInformation in metadata.
         """
         # Build a summary prompt for the LLM.
         context_text = "\n".join(
@@ -358,7 +378,48 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             }
         ]
 
-        return llm_call(digest_prompt, llm_client=self.config.llm_client)
+        llm_result = llm_call(digest_prompt, llm_client=self.config.llm_client)
+        # Parse LLM response into DigestedInformation and attach as metadata.
+        digested = self._parse_digest_response(llm_result)
+        llm_result.metadata["digested_information"] = json.dumps(
+            {
+                "context_summary": digested.context_summary,
+                "key_points": digested.key_points,
+                "advisory_instructions": digested.advisory_instructions,
+                "constraints": digested.constraints,
+                "known_gaps": digested.known_gaps,
+            }
+        )
+        return llm_result
+
+    def _parse_digest_response(self, llm_result: LLMResult) -> DigestedInformation:
+        """Parse LLM response into structured DigestedInformation.
+
+        Attempts to parse the LLM content as JSON containing the five required
+        fields. Falls back to using the raw content as context_summary if parsing
+        fails.
+
+        Args:
+            llm_result: The LLM response containing digest content.
+
+        Returns:
+            DigestedInformation with parsed fields.
+        """
+        try:
+            data = json.loads(llm_result.content)
+            return DigestedInformation(
+                context_summary=data.get("context_summary", ""),
+                key_points=data.get("key_points", []),
+                advisory_instructions=data.get("advisory_instructions", []),
+                constraints=data.get("constraints", []),
+                known_gaps=data.get("known_gaps", []),
+            )
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            logger.warning(
+                "node=%s failed to parse digest response as JSON, using raw content",
+                self.node_id,
+            )
+            return DigestedInformation(context_summary=llm_result.content)
 
     def _produce_fallback(self, user_query: str) -> LLMResult:
         """Produce the no-useful-context fallback continuation.

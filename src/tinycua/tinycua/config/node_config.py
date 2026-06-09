@@ -181,9 +181,8 @@ class TinyCUAInformationDigesterNodeConfig(NodeConfigBase):
     Attributes:
         retrieval_enabled: Whether enhanced_context_retrieval is available.
         max_digest_sources: Maximum number of context sources to process.
-        digest_schema: Optional schema for digest_information tool output validation.
+        # digest_schema deferred to M4.2 when digest_information tool is fully implemented.
     """
 
     retrieval_enabled: bool = True
     max_digest_sources: int | None = None
-    digest_schema: dict | None = None
