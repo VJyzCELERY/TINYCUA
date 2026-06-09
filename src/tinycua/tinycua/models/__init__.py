@@ -7,6 +7,7 @@ from tinycua.models.classification import (
     MandatoryPassthrough,
     QueryAnalystResponse,
 )
+from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import (
     NodeInput,
     NodeInputLike,
@@ -18,6 +19,7 @@ from tinycua.models.state_object import StateObject
 from tinycua.models.todo import Todo, TodoItem
 
 __all__ = [
+    "DigestedInformation",
     "MandatoryPassthrough",
     "NodeInput",
     "NodeInputLike",
