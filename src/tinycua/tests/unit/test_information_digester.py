@@ -243,6 +243,22 @@ class TestFallback:
 
         assert "Analyze the codebase" in result.content
 
+    @patch("tinycua.loops.information_digester.llm_call")
+    def test_fallback_when_digest_empty(self, mock_llm_call):
+        """When digest production returns empty, fallback is used immediately (no retry)."""
+        mock_llm_call.return_value = LLMResult(content="", role="assistant")
+
+        digester = TinyCUAInformationDigesterNode(
+            config=TinyCUAInformationDigesterNodeConfig(retrieval_enabled=False)
+        )
+        input_data = _make_input()
+        result = digester(input_data)
+
+        # Only one llm_call: _produce_digest. Fallback is produced internally.
+        assert mock_llm_call.call_count == 1
+        assert result.content.startswith("The user asked")
+        assert "No useful extra information was found" in result.content
+
 
 # ---------------------------------------------------------------------------
 # Digest Production Tests
@@ -291,28 +307,7 @@ class TestToolScope:
 # ---------------------------------------------------------------------------
 
 
-class TestRetry:
-    """Verify retry behavior per NodeRetryPolicy."""
 
-    @patch("tinycua.loops.information_digester.llm_call")
-    def test_retry_on_failure(self, mock_llm_call):
-        """Retry per NodeRetryPolicy before fallback."""
-        # First call returns empty, second returns content
-        mock_llm_call.side_effect = [
-            LLMResult(content="", role="assistant"),
-            LLMResult(content="Retry produced content.", role="assistant"),
-        ]
-
-        digester = TinyCUAInformationDigesterNode(
-            config=TinyCUAInformationDigesterNodeConfig(retrieval_enabled=False)
-        )
-        input_data = _make_input()
-        result = digester(input_data)
-
-        # The retry policy should cause at least one retry attempt
-        # but since _produce_digest is called once and produces empty,
-        # the fallback kicks in immediately
-        assert result.content is not None
 
 
 # ---------------------------------------------------------------------------
