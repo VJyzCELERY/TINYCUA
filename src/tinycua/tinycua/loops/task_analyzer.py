@@ -101,11 +101,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             # Recreation mode — include all task tools including creation tools
             return list(_DEFAULT_ANALYSIS_TOOLS) + list(_TASK_CREATION_TOOLS)
         # All other modes — exclude task creation tools
-        return [
-            tool
-            for tool in _DEFAULT_ANALYSIS_TOOLS
-            if tool not in _TASK_CREATION_TOOLS
-        ]
+        # _DEFAULT_ANALYSIS_TOOLS does not contain TaskInit/TaskCreate,
+        # so this is a flat copy. The filter is a defensive guard.
+        return list(_DEFAULT_ANALYSIS_TOOLS)
 
     def _validate_task_tree_non_none(self) -> None:
         """Validate that session.task is not None after LLM call completion.

@@ -160,6 +160,11 @@ def test_task_analyzer_lifecycle_hooks_in_queue():
     assert end_called, "on_end was never called during node execution"
 
     # Verify the node also works in a queue context
+    # NOTE: TinyCUALoop._execute_node() calls agent._call_llm() directly,
+    # bypassing ProcessNode.__call__(). Lifecycle hooks (on_start/on_end)
+    # are only invoked via ProcessNode.__call__, so they do NOT fire in
+    # queue-based execution. This test validates queue execution works,
+    # not that hooks fire — hooks are tested via the direct __call__ path above.
     from tinycua.loops.tinycua_loop import TinyCUALoop
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.response_node import ResponseNode
