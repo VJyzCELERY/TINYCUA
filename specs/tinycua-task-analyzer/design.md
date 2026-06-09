@@ -155,6 +155,8 @@ def _validate_task_tree_non_none(self, response: LLMResult) -> None:
 - [ ] Call `_validate_task_tree_non_none()` at the end of `__call__()` before returning
 - [ ] Update module docstring and class docstring to reflect all five modes
 - [ ] Write unit tests for all five modes, tool scope validation, and task tree validation
+- [ ] Logging: `__call__()` already logs mode and completion status via `logger.info()` (see existing `task_analyzer.py`). No changes needed — confirm existing logging survives refactoring.
+- [ ] Retry/lifecycle inheritance: `__call__()` delegates to `ProcessNode.__call__()` which handles the full retry loop per `NodeRetryPolicy`. No changes needed — confirm `super().__call__()` call survives refactoring.
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
@@ -188,7 +190,7 @@ def _validate_task_tree_non_none(self, response: LLMResult) -> None:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Removing `analysis` mode breaks existing callers | Medium | Medium | Check all call sites; `analysis` is not used in production code paths |
+| Removing `analysis` mode breaks existing callers | Medium | Medium | `worker.py:_route_task_recreation()` (line 236) actively calls `TinyCUATaskAnalyzerNode(mode="analysis")`. Must update this call site to use `mode="recreation"` (the target architecture equivalent) before removing `analysis` mode. |
 | Task tree validation misses edge cases | Low | High | Comprehensive unit tests for None tree, empty tree, and valid tree |
 | Tool scope filtering has off-by-one errors | Low | Medium | Unit tests for each mode verifying exact tool list |
 | `local_replan` mode ambiguity | Low | Low | Clear docstring and test coverage; mode behavior is identical to `initial_analysis` for tool scope |

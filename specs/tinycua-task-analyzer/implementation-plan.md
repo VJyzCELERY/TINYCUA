@@ -350,6 +350,13 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 - **Extend `_VALID_MODES`**: Replace the three-mode frozenset with the five-mode set: `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, `local_replan`. Remove `analysis`.
 - **Rationale**: The target architecture specifies exactly five modes. The legacy `analysis` mode is not in the target and should be removed.
 
+### Module: tinycua/loops/worker.py
+
+#### MODIFY src/tinycua/tinycua/loops/worker.py — `_route_task_recreation()`
+
+- **Update call site**: Change `mode="analysis"` to `mode="recreation"` at line 236. Update docstring (lines 220-221) to reflect `mode="recreation"` instead of `mode="analysis"`.
+- **Rationale**: `worker.py:_route_task_recreation()` is the only production caller using `mode="analysis"`. The `recreation` mode is the target architecture equivalent — it includes TaskInit/TaskCreate tools (same scope as legacy `analysis`). This migration must happen before removing `analysis` from `_VALID_MODES` to avoid breaking the call site.
+
 #### MODIFY src/tinycua/tinycua/loops/task_analyzer.py — `_resolve_tool_scope()`
 
 - **Update mode branching**: `recreation` → all task tools including TaskInit/TaskCreate. All other modes → task tools excluding TaskInit/TaskCreate.
@@ -438,7 +445,7 @@ _TASK_ANALYZER_MODES = frozenset({
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Removing `analysis` mode breaks existing callers | Medium | Check all call sites; `analysis` is not used in production code paths (design doc confirms) |
+| Removing `analysis` mode breaks existing callers | Medium | `worker.py:_route_task_recreation()` (line 236) actively calls `TinyCUATaskAnalyzerNode(mode="analysis")`. Must update this call site to use `mode="recreation"` before removing `analysis` mode. |
 | Task tree validation misses edge cases | Low | Comprehensive unit tests for None tree, empty tree, and valid tree |
 | Tool scope filtering has off-by-one errors | Low | Unit tests for each mode verifying exact tool list |
 

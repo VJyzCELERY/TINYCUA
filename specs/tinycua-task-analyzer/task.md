@@ -22,6 +22,9 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 - [ ] Extend `_VALID_MODES` frozenset to include all five modes: `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, `local_replan`. Remove `analysis` mode. <!-- id: 2 -->
   - [ ] Replace frozenset definition in `task_analyzer.py`
   - [ ] Verify no other modules reference the removed `analysis` mode
+- [ ] Update `worker.py:_route_task_recreation()` to use `mode="recreation"` instead of `mode="analysis"` <!-- id: 11 -->
+  - [ ] Change `mode="analysis"` to `mode="recreation"` at line 236
+  - [ ] Update docstring to reflect `mode="recreation"`
 - [ ] Update `_resolve_tool_scope()` to allow TaskInit/TaskCreate only in `recreation` mode <!-- id: 3 -->
   - [ ] Add `recreation` to the mode branching logic
   - [ ] Ensure all other modes exclude TaskInit/TaskCreate
@@ -34,7 +37,7 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 - [ ] Change default `mode` parameter from `"analysis"` to `"initial_analysis"` in constructor <!-- id: 6 -->
 - [ ] Update class and module docstrings to document all five modes <!-- id: 7 -->
   - [ ] Document each mode's purpose and tool scoping
-  - [ ] Remove references to legacy `analysis` mode
+  - [ ] Remove references to legacy `analysis` mode (including worker.py call site)
 
 ## Testing Phase
 
@@ -44,22 +47,24 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 
 ## Verification Phase
 
-- [ ] Verify all five modes are accepted and documented <!-- id: 11 -->
-- [ ] Verify `recreation` mode includes TaskInit/TaskCreate in tool scope <!-- id: 12 -->
-- [ ] Verify all other modes exclude TaskInit/TaskCreate from tool scope <!-- id: 13 -->
-- [ ] Verify `NodeExecutionError` is raised when task tree is `None` after completion <!-- id: 14 -->
-- [ ] Verify `ValueError` is raised for unknown modes <!-- id: 15 -->
+- [ ] Verify `__call__` logs mode and completion status via `logger.info()` (existing logging from FR-007) <!-- id: 11 -->
+- [ ] Verify `__call__` calls `super().__call__()` to inherit retry behavior from ProcessNode (FR-008) <!-- id: 12 -->
+- [ ] Verify all five modes are accepted and documented <!-- id: 13 -->
+- [ ] Verify `recreation` mode includes TaskInit/TaskCreate in tool scope <!-- id: 14 -->
+- [ ] Verify all other modes exclude TaskInit/TaskCreate from tool scope <!-- id: 15 -->
+- [ ] Verify `NodeExecutionError` is raised when task tree is `None` after completion <!-- id: 16 -->
+- [ ] Verify `ValueError` is raised for unknown modes <!-- id: 17 -->
 
 ## Documentation Phase
 
-- [ ] Update module docstring to reflect all five modes <!-- id: 16 -->
-- [ ] Update class docstring with mode descriptions and tool scoping <!-- id: 17 -->
+- [ ] Update module docstring to reflect all five modes <!-- id: 18 -->
+- [ ] Update class docstring with mode descriptions and tool scoping <!-- id: 19 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 18 -->
-- [ ] Address review feedback <!-- id: 19 -->
-- [ ] Merge to main branch <!-- id: 20 -->
+- [ ] Create pull request <!-- id: 20 -->
+- [ ] Address review feedback <!-- id: 21 -->
+- [ ] Merge to main branch <!-- id: 22 -->
 
 ---
 

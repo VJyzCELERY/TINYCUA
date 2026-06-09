@@ -31,6 +31,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 5. **Given** a `TinyCUATaskAnalyzerNode(mode="local_replan")`, **When** it is called after ResultReviewer replan decision, **Then** it must NOT have TaskInit/TaskCreate tools (unless mode explicitly allows it) and must perform local replan of the active task or local region.
 6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a `NodeExecutionError`.
 7. **Given** a `TinyCUATaskAnalyzerNode` with an invalid mode, **When** it is instantiated, **Then** it MUST raise a `ValueError` with the list of valid modes.
+8. **Given** a `TinyCUATaskAnalyzerNode` with no mode specified, **When** it is instantiated, **Then** mode MUST default to `initial_analysis`.
 
 ### Edge Cases
 
@@ -54,6 +55,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 - **FR-007**: System MUST log mode and completion status via the existing logging pattern.
 - **FR-008**: System MUST inherit retry, validation, and lifecycle behavior from `ProcessNode`.
 - **FR-009**: System MUST NOT modify `tinycua-sdk` public APIs.
+- **FR-010**: System MUST default to `initial_analysis` mode when no mode is specified.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -80,11 +82,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 
 ### Unit Tests
 
-- `test_task_analyzer_modes.py`: Test all five modes are valid and accepted.
-- `test_task_analyzer_tool_scope.py`: Test mode-dependent tool scope — TaskInit/TaskCreate only in `recreation`.
-- `test_task_analyzer_task_tree_validation.py`: Test contract violation when task tree is `None` after completion.
-- `test_task_analyzer_invalid_mode.py`: Test `ValueError` for unknown modes.
-- `test_task_analyzer_direct_mutation.py`: Test that task tree mutations go through TinyCUALoop task helpers.
+- `test_task_analyzer_node.py`: Consolidated test file covering all five modes, tool scope validation, task tree validation, and direct mutation.
 
 ### Integration Tests
 
