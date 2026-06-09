@@ -180,8 +180,8 @@ def _validate_task_tree_non_none(self, response: LLMResult) -> None:
    - **Reason**: The design doc says "Must NOT use TaskInit/TaskCreate tools unless mode explicitly allows it." For the prototype, the default exclusion is sufficient. If a future need arises, the mode can be extended.
    - **Alternatives Considered**: Allowing TaskInit/TaskCreate in `local_replan` — rejected for the prototype per design doc guidance.
 
-4. **Decision**: Keep the existing `analysis` mode as an alias or remove it.
-   - **Reason**: The current implementation includes an `analysis` mode that is not in the target architecture's five modes. The target architecture specifies `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, and `local_replan`. The `analysis` mode should be removed or aliased to avoid confusion.
+4. **Decision**: Remove the legacy `analysis` mode entirely.
+   - **Reason**: The current implementation includes an `analysis` mode that is not in the target architecture's five modes. The target architecture specifies `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, and `local_replan`. The `analysis` mode must be removed to avoid confusion. `worker.py:_route_task_recreation()` must be migrated to `mode="recreation"` before removal.
    - **Alternatives Considered**: Keep `analysis` as a sixth mode — rejected because it's not in the target architecture and could confuse maintainers.
 
 ---

@@ -116,7 +116,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 
 1. **local_replan TaskInit/TaskCreate allowance**: The design doc says "Must NOT use TaskInit/TaskCreate tools unless mode explicitly allows it." Should `local_replan` ever allow TaskInit/TaskCreate, or is the default exclusion sufficient for the prototype?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
+   - **Status**: Resolved — default exclusion is sufficient for the prototype. See design.md Technical Decision #3.
    - **Proposed Answer**: Default exclusion is sufficient for the prototype. If a future need arises, the mode can be extended.
 
 ---

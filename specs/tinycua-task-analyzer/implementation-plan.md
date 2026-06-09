@@ -337,6 +337,8 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 
 - [ ] Verify all five modes are documented in the class docstring
 - [ ] Verify legacy `analysis` mode is removed (not just aliased)
+- [ ] Verify `__call__` logs mode and completion status via `logger.info()` (FR-007)
+- [ ] Verify `__call__` calls `super().__call__()` to inherit retry behavior from ProcessNode (FR-008)
 
 ### Performance Considerations
 
