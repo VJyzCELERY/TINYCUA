@@ -173,30 +173,53 @@ def test_analysis_effort_node_passes_complete():
 
 def test_analysis_effort_node_assessor_no_tasks():
     """End-to-end: TaskAssessor selects no tasks → no TaskAnalyzer → back to AnalysisEffortNode."""
-    # This tests the queue shape when TaskAssessor's on_complete determines
-    # no tasks are selected — TaskAnalyzer should NOT be spawned.
-    # The queue should advance back to AnalysisEffortNode.
-    pass  # Implementation depends on TaskAssessor on_complete behavior
+    config = NodeConfigBase(llm_client=MagicMock())
+    effort_node = TinyCUAAnalysisEffortNode(
+        node_id="analysis_effort", config=config, effort=WorkerEffort.low,
+    )
+    session = Session()
+    effort_node.ensure_session(session)
+
+    queue = NodeQueue()
+    terminal = _make_mock_node("response", is_terminal=True)
+    queue.items = [effort_node, terminal]
+
+    # Mock TaskAssessor to return no tasks
+    with patch('tinycua.loops.analysis_effort.TinyCUATaskAssessorNode') as MockAssessor:
+        mock_assessor = Mock()
+        mock_assessor.selected_tasks = []
+        MockAssessor.return_value = mock_assessor
+
+        input_data = NodeInput(
+            input_type="continuation",
+            messages=[{"role": "user", "content": "Continue"}],
+        )
+        effort_node(input_data)
+
+    node_ids = [n.node_id for n in queue.items]
+    assert "task_analyzer" not in node_ids
+    assert "analysis_effort" in node_ids
+    assert effort_node.pass_count == 1
 ```
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Worker task_creation route inserts AnalysisEffortNode after TaskCreate/TaskAnalyzer
-- [x] **Scenario 2**: Worker task_recreation route inserts AnalysisEffortNode after TaskAnalyzer
-- [x] **Scenario 3**: Worker task_reanalysis route inserts AnalysisEffortNode after TaskAnalyzer
-- [x] **Scenario 4**: AnalysisEffortNode prepends [TaskAssessor, TaskAnalyzer] when pass_count < pass_limit
-- [x] **Scenario 5**: AnalysisEffortNode spawns TaskExecutor when pass_count >= pass_limit
-- [x] **Edge case**: TaskAssessor selects no tasks — TaskAnalyzer not spawned, queue advances back to AnalysisEffortNode
+- [ ] **Scenario 1**: Worker task_creation route inserts AnalysisEffortNode after TaskCreate/TaskAnalyzer
+- [ ] **Scenario 2**: Worker task_recreation route inserts AnalysisEffortNode after TaskAnalyzer
+- [ ] **Scenario 3**: Worker task_reanalysis route inserts AnalysisEffortNode after TaskAnalyzer
+- [ ] **Scenario 4**: AnalysisEffortNode prepends [TaskAssessor, TaskAnalyzer] when pass_count < pass_limit
+- [ ] **Scenario 5**: AnalysisEffortNode spawns TaskExecutor when pass_count >= pass_limit
+- [ ] **Edge case**: TaskAssessor selects no tasks — TaskAnalyzer not spawned, queue advances back to AnalysisEffortNode
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Unit tests for `WorkerEffort` enum and `effort_to_pass_limit()` mapping
-- [x] Unit tests for `TinyCUAAnalysisEffortNode` — pass counting, threshold detection, queue mutations
-- [x] Unit tests for WorkerNode route handler modifications — queue shape after each route
-- [x] Integration tests for worker → effort → executor flow
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Unit tests for `WorkerEffort` enum and `effort_to_pass_limit()` mapping
+- [ ] Unit tests for `TinyCUAAnalysisEffortNode` — pass counting, threshold detection, queue mutations
+- [ ] Unit tests for WorkerNode route handler modifications — queue shape after each route
+- [ ] Integration tests for worker → effort → executor flow
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
@@ -205,8 +228,8 @@ def test_analysis_effort_node_assessor_no_tasks():
 
 ### Performance Considerations
 
-- [x] AnalysisEffortNode is deterministic (no LLM call) — zero latency overhead
-- [x] Pass counting is O(1) per pass — no performance concern
+- [ ] AnalysisEffortNode is deterministic (no LLM call) — zero latency overhead
+- [ ] Pass counting is O(1) per pass — no performance concern
 
 ## Proposed Changes
 
@@ -262,12 +285,12 @@ def test_analysis_effort_node_assessor_no_tasks():
 #### [NEW] `src/tinycua/tests/unit/test_analysis_effort_node.py`
 
 - **Description**: Unit tests for `WorkerEffort`, `effort_to_pass_limit()`, and `TinyCUAAnalysisEffortNode`
-- **Test count**: ~13 unit tests covering all acceptance scenarios
+- **Test count**: ~14 unit tests covering all acceptance scenarios
 
 #### [NEW] `src/tinycua/tests/unit/test_task_assessor_node.py`
 
 - **Description**: Unit tests for `TinyCUATaskAssessorNode`
-- **Test count**: ~5 unit tests for task selection and no-tasks-selected behavior
+- **Test count**: ~3 unit tests for task selection and no-tasks-selected behavior
 
 #### [NEW] `src/tinycua/tests/integration/test_analysis_effort_integration.py`
 

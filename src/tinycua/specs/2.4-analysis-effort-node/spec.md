@@ -38,13 +38,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 10. **Given** AnalysisEffortNode is in the queue, **When** any route completes (task_creation, task_recreation, task_reanalysis), **Then** AnalysisEffortNode is placed after the initial TaskCreate/TaskAnalyzer and before TaskExecutor in the queue.
 11. **Given** AnalysisEffortNode spawns TaskExecutor, **When** TaskExecutor is spawned, **Then** the terminal response path (ResultReviewer, ResponseNode) is maintained.
 12. **Given** AnalysisEffortNode with any effort level, **When** AnalysisEffortNode completes its work, **Then** it is the deterministic ProcessNode — no LLM call is made.
+13. **Given** AnalysisEffortNode prepends [TaskAssessor, TaskAnalyzer], **When** TaskAnalyzer completes, **Then** task tree state changes are visible to the next node in the queue.
 
 ### Edge Cases
 
-- What happens when WorkerEffort is not configured? → **Design**: Default to `"none"` (pass_limit=0), advancing directly to TaskExecutor. [§Config](./design.md#config)
-- How does the system handle pass_limit=0 (effort=none)? → **Design**: AnalysisEffortNode spawns TaskExecutor immediately without prepending any passes. [§Behavior](./design.md#behavior)
-- What is the behavior when TaskAssessor selects no tasks during an effort pass? → **Design**: TaskAnalyzer is not spawned; queue advances back to AnalysisEffortNode which increments pass_count and continues. [§Queue Behavior](./design.md#queue-behavior)
-- What happens when AnalysisEffortNode's pass_count reaches pass_limit? → **Design**: AnalysisEffortNode spawns TaskExecutor before advancing, preventing queue drain. [§Behavior](./design.md#behavior)
+- What happens when WorkerEffort is not configured? → **Design**: Default to `"none"` (pass_limit=0), advancing directly to TaskExecutor. [§Data Model](./design.md#data-model)
+- How does the system handle pass_limit=0 (effort=none)? → **Design**: AnalysisEffortNode spawns TaskExecutor immediately without prepending any passes. [§Error Handling](./design.md#error-handling)
+- What is the behavior when TaskAssessor selects no tasks during an effort pass? → **Design**: TaskAnalyzer is not spawned; queue advances back to AnalysisEffortNode which increments pass_count and continues. [§Error Handling](./design.md#error-handling)
+- What happens when AnalysisEffortNode's pass_count reaches pass_limit? → **Design**: AnalysisEffortNode spawns TaskExecutor before advancing, preventing queue drain. [§Error Handling](./design.md#error-handling)
 - What happens when the queue is modified by a route handler after AnalysisEffortNode has prepended passes? → **Design**: Route handlers that call `clear_after_current()` clear stale passes; AnalysisEffortNode re-evaluates on re-entry. [§Error Handling](./design.md#error-handling)
 
 ---
@@ -79,16 +80,19 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **SC-001** — **Acceptance Scenario 1**: Given WorkerEffort="none", when worker task_creation route executes, then AnalysisEffortNode spawns TaskExecutor immediately (pass_limit=0).
-- [x] **SC-002** — **Acceptance Scenario 2**: Given WorkerEffort="low", when worker task_creation route executes, then one [TaskAssessor, TaskAnalyzer] pass occurs before TaskExecutor.
-- [x] **SC-003** — **Acceptance Scenario 3**: Given WorkerEffort="medium", when worker task_creation route executes, then two [TaskAssessor, TaskAnalyzer] passes occur before TaskExecutor.
-- [x] **SC-004** — **Acceptance Scenario 4**: Given WorkerEffort="high", when worker task_creation route executes, then three [TaskAssessor, TaskAnalyzer] passes occur before TaskExecutor.
-- [x] **SC-005** — **Acceptance Scenarios 5–7** (Pass Counting): pass_count increments correctly and TaskExecutor spawns when threshold reached.
-- [x] **SC-006** — **Acceptance Scenario 9** (No Tasks Selected): When TaskAssessor selects no tasks, TaskAnalyzer is not spawned and queue advances back to AnalysisEffortNode.
-- [x] **SC-007** — **Acceptance Scenario 10** (Queue Shape): AnalysisEffortNode is placed after initial TaskCreate/TaskAnalyzer and before TaskExecutor in all worker routes.
-- [x] **SC-008** — **Acceptance Scenario 11** (Terminal Path): Terminal response path is maintained after TaskExecutor spawning.
-- [x] **SC-009** — **Acceptance Scenario 12** (Deterministic): AnalysisEffortNode makes no LLM calls.
-- [x] **SC-010** — **FR-010** (Default Effort): AnalysisEffortNode defaults to WorkerEffort="none" when not configured.
+- [ ] **SC-001** — **Acceptance Scenario 1**: Given WorkerEffort="none", when worker task_creation route executes, then AnalysisEffortNode spawns TaskExecutor immediately (pass_limit=0).
+- [ ] **SC-002** — **Acceptance Scenario 2**: Given WorkerEffort="low", when worker task_creation route executes, then one [TaskAssessor, TaskAnalyzer] pass occurs before TaskExecutor.
+- [ ] **SC-003** — **Acceptance Scenario 3**: Given WorkerEffort="medium", when worker task_creation route executes, then two [TaskAssessor, TaskAnalyzer] passes occur before TaskExecutor.
+- [ ] **SC-004** — **Acceptance Scenario 4**: Given WorkerEffort="high", when worker task_creation route executes, then three [TaskAssessor, TaskAnalyzer] passes occur before TaskExecutor.
+- [ ] **SC-005** — **Acceptance Scenarios 5–7** (Pass Counting): pass_count increments correctly and TaskExecutor spawns when threshold reached.
+- [ ] **SC-006** — **Acceptance Scenario 9** (No Tasks Selected): When TaskAssessor selects no tasks, TaskAnalyzer is not spawned and queue advances back to AnalysisEffortNode.
+- [ ] **SC-007** — **Acceptance Scenario 10** (Queue Shape): AnalysisEffortNode is placed after initial TaskCreate/TaskAnalyzer and before TaskExecutor in all worker routes.
+- [ ] **SC-008** — **Acceptance Scenario 11** (Terminal Path): Terminal response path is maintained after TaskExecutor spawning.
+- [ ] **SC-009** — **Acceptance Scenario 12** (Deterministic): AnalysisEffortNode makes no LLM calls.
+- [ ] **SC-010** — **FR-010** (Default Effort): AnalysisEffortNode defaults to WorkerEffort="none" when not configured.
+- [ ] **SC-011** — **FR-011** (SDK API Stability): AnalysisEffortNode does not modify tinycua-sdk public API surface.
+- [ ] **SC-012** — **FR-012** (Queue Invariant): QueryAnalyst remains first node in queue after AnalysisEffortNode insertion.
+- [ ] **SC-013** — **FR-014** (Task Tree State): Task tree state changes from TaskAssessor/TaskAnalyzer are visible to next node.
 
 ---
 
@@ -109,6 +113,10 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - `test_analysis_effort_node_queue_shape_after_task_recreation`: Queue shape matches expected architecture after worker task_recreation route.
 - `test_analysis_effort_node_queue_shape_after_task_reanalysis`: Queue shape matches expected architecture after worker task_reanalysis route.
 - `test_analysis_effort_node_effort_to_pass_limit_mapping`: All four effort levels map to correct pass limits.
+- `test_analysis_effort_node_task_tree_propagation`: Task tree state changes from TaskAssessor and TaskAnalyzer passes are propagated to the next node in the queue.
+- `test_task_assessor_node_effort_loop_mode`: TinyCUATaskAssessorNode operates in effort-loop mode when called from AnalysisEffortNode, selecting only unfinished tasks.
+- `test_task_assessor_node_no_tasks_selected`: TinyCUATaskAssessorNode returns no tasks when all tasks are complete, allowing queue to advance back to AnalysisEffortNode.
+- `test_task_assessor_node_selects_tasks`: TinyCUATaskAssessorNode selects unfinished tasks for processing by TaskAnalyzer.
 
 ### Integration Tests
 
@@ -129,10 +137,11 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Planning documents | TODO | spec.md, design.md |
+| Planning documents | DONE | spec.md, design.md |
 | TinyCUAAnalysisEffortNode class | TODO | analysis_effort.py |
 | WorkerEffort enum | TODO | effort model |
 | effort_to_pass_limit mapping | TODO | mapping function |
+| TinyCUATaskAssessorNode class | TODO | task_assessor.py — effort-loop mode |
 | WorkerNode route handler integration | TODO | Insert AnalysisEffortNode after TaskCreate/TaskAnalyzer |
 | Unit tests | TODO | All acceptance scenarios |
 | Integration tests | TODO | End-to-end worker → effort → executor flow |
@@ -144,8 +153,9 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 1. **Should WorkerEffort be a string enum or a plain string type?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Use a string enum (`WorkerEffort`) for type safety and IDE support, consistent with `WorkerRouteLabel` pattern.
+   - **Status**: Decided
+   - **Decision**: Use a string enum (`WorkerEffort`) for type safety and IDE support, consistent with `WorkerRouteLabel` pattern
+   - **Resolved**: 2026-06-09
 
 2. **Should AnalysisEffortNode be owned by WorkerNode or standalone in the queue?**
    - **Owner**: @VJyzCELERY

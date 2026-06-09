@@ -8,7 +8,7 @@
 
 ## Overview
 
-This design implements `TinyCUAAnalysisEffortNode`, a deterministic `ProcessNode` that controls how many upfront task-assessment and task-analysis passes occur before advancing to execution. It is owned by the Worker and runs without LLM calls. The node maps `WorkerEffort` levels (`none`, `low`, `medium`, `high`) to pass limits (0, 1, 2, 3), prepends `[TaskAssessor, TaskAnalyzer]` pairs until the threshold is reached, and spawns TaskExecutor before advancing when the threshold is met. WorkerNode route handlers are updated to insert AnalysisEffortNode after the initial TaskCreate/TaskAnalyzer in the queue.
+This design implements `TinyCUAAnalysisEffortNode`, a deterministic `ProcessNode` that controls how many upfront task-assessment and task-analysis passes occur before advancing to execution. It is inserted by WorkerNode route handlers as part of the Worker's planning segment and runs without LLM calls. The node maps `WorkerEffort` levels (`none`, `low`, `medium`, `high`) to pass limits (0, 1, 2, 3), prepends `[TaskAssessor, TaskAnalyzer]` pairs until the threshold is reached, and spawns TaskExecutor before advancing when the threshold is met. WorkerNode route handlers are updated to insert AnalysisEffortNode after the initial TaskCreate/TaskAnalyzer in the queue.
 
 ---
 
@@ -35,6 +35,7 @@ This design implements `TinyCUAAnalysisEffortNode`, a deterministic `ProcessNode
 | `tinycua.loops.analysis_effort.TinyCUAAnalysisEffortNode` | New | Deterministic ProcessNode for effort control |
 | `tinycua.loops.analysis_effort.WorkerEffort` | New | Enum for effort levels |
 | `tinycua.loops.analysis_effort.effort_to_pass_limit()` | New | Mapping function from effort to pass limit |
+| `tinycua.loops.task_assessor.TinyCUATaskAssessorNode` | New | ProcessNode for task tree evaluation and selection (effort-loop mode) |
 | `tinycua.loops.worker.TinyCUAWorkerNode` | Modified | Route handlers insert AnalysisEffortNode after TaskCreate/TaskAnalyzer |
 | `tinycua.loops.worker.WorkerRouteLabel` | Modified | No change to labels, but route handler queue shapes updated |
 
@@ -253,6 +254,7 @@ proceed_execution:
 | TaskAssessor selects no tasks | No TaskAnalyzer spawned; queue advances back to AnalysisEffortNode | Pass still counts |
 | AnalysisEffortNode has no session attached | `NodeExecutionError` | Consistent with ProcessNode behavior |
 | Queue mutation fails | `NodeExecutionError` | Standard queue error handling |
+| Route handler modifies queue after AnalysisEffortNode prepends | AnalysisEffortNode re-evaluates pass_count on re-entry | Route handlers call `clear_after_current()` which removes stale passes; pass_count resets for the new effort cycle |
 
 ---
 
@@ -260,18 +262,18 @@ proceed_execution:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [x] Create `WorkerEffort` enum (FR-003)
-- [x] Implement `effort_to_pass_limit()` mapping function (FR-004)
-- [x] Create `TinyCUAAnalysisEffortNode` class with pass counting (FR-001, FR-002, FR-005, FR-006, FR-007)
-- [x] Implement `_prepend_assessor_analyzer_pair()` (FR-006)
-- [x] Implement `_spawn_task_executor()` with terminal path maintenance (FR-007, FR-008)
-- [x] Implement `on_complete()` for queue mutations (FR-005, FR-006, FR-007)
-- [x] Update WorkerNode `_route_task_creation()` to insert AnalysisEffortNode (FR-009)
-- [x] Update WorkerNode `_route_task_recreation()` to insert AnalysisEffortNode (FR-009)
-- [x] Update WorkerNode `_route_task_reanalysis()` to insert AnalysisEffortNode (FR-009)
-- [x] Add default effort configuration to WorkerNode (FR-010)
-- [x] Write unit tests for all acceptance scenarios
-- [x] Write integration tests for worker → effort → executor flow
+- [ ] Create `WorkerEffort` enum (FR-003)
+- [ ] Implement `effort_to_pass_limit()` mapping function (FR-004)
+- [ ] Create `TinyCUAAnalysisEffortNode` class with pass counting (FR-001, FR-002, FR-005, FR-006, FR-007)
+- [ ] Implement `_prepend_assessor_analyzer_pair()` (FR-006)
+- [ ] Implement `_spawn_task_executor()` with terminal path maintenance (FR-007, FR-008)
+- [ ] Implement `on_complete()` for queue mutations (FR-005, FR-006, FR-007)
+- [ ] Update WorkerNode `_route_task_creation()` to insert AnalysisEffortNode (FR-009)
+- [ ] Update WorkerNode `_route_task_recreation()` to insert AnalysisEffortNode (FR-009)
+- [ ] Update WorkerNode `_route_task_reanalysis()` to insert AnalysisEffortNode (FR-009)
+- [ ] Add default effort configuration to WorkerNode (FR-010)
+- [ ] Write unit tests for all acceptance scenarios
+- [ ] Write integration tests for worker → effort → executor flow
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

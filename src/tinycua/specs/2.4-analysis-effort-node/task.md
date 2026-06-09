@@ -21,14 +21,15 @@ Implementation tasks for TinyCUAAnalysisEffortNode. Check off items as completed
   - [ ] `test_analysis_effort_node_default_effort` — defaults to WorkerEffort="none" when not configured
   - [ ] `test_analysis_effort_node_preserves_terminal_path` — terminal response path maintained
   - [ ] `test_analysis_effort_node_effort_to_pass_limit_mapping` — all four levels map correctly
+  - [ ] `test_analysis_effort_node_task_tree_propagation` — task tree state changes propagated (SC-013 / FR-014)
 - [ ] Write unit tests for WorkerNode route handler modifications <!-- id: 2 -->
-  - [ ] `test_queue_shape_after_task_creation` — [task_create, task_analyzer, analysis_effort, terminal]
-  - [ ] `test_queue_shape_after_task_recreation` — [task_analyzer, analysis_effort, terminal]
-  - [ ] `test_queue_shape_after_task_reanalysis` — [task_analyzer, analysis_effort, terminal]
+  - [ ] `test_analysis_effort_node_queue_shape_after_task_creation` — [task_create, task_analyzer, analysis_effort, terminal]
+  - [ ] `test_analysis_effort_node_queue_shape_after_task_recreation` — [task_analyzer, analysis_effort, terminal]
+  - [ ] `test_analysis_effort_node_queue_shape_after_task_reanalysis` — [task_analyzer, analysis_effort, terminal]
 - [ ] Write unit tests for `TinyCUATaskAssessorNode` <!-- id: 3 -->
-  - [ ] `test_task_assessor_effort_loop_mode` — evaluates full task tree
-  - [ ] `test_task_assessor_no_tasks_selected` — signals no analyzer pass needed
-  - [ ] `test_task_assessor_tasks_selected` — selects unfinished tasks
+  - [ ] `test_task_assessor_node_effort_loop_mode` — evaluates full task tree
+  - [ ] `test_task_assessor_node_no_tasks_selected` — signals no analyzer pass needed
+  - [ ] `test_task_assessor_node_selects_tasks` — selects unfinished tasks
 - [ ] Run unit tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
 - [ ] Write integration tests for worker → effort → executor flow <!-- id: 5 -->
   - [ ] `test_analysis_effort_node_with_worker_task_creation` — end-to-end task_creation route
