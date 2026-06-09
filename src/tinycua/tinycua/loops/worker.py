@@ -6,6 +6,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from tinycua.loops.analysis_effort import WorkerEffort
 from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.route_map import RouteMap
@@ -60,7 +61,7 @@ class TinyCUAWorkerNode(DecisionNode):
         node_id: str = "worker",
         config: NodeConfigBase | None = None,
         route_map: RouteMap | None = None,
-        effort: str = "none",
+        effort: WorkerEffort = WorkerEffort.none,
     ) -> None:
         """Initialize WorkerNode with default classification labels.
 
@@ -69,8 +70,8 @@ class TinyCUAWorkerNode(DecisionNode):
             config: Node configuration. Uses default if None.
             route_map: Optional pre-configured RouteMap. Created with
                 default handlers if None.
-            effort: WorkerEffort level ("none", "low", "medium", "high").
-                Defaults to "none" (pass_limit=0).
+            effort: WorkerEffort level controlling analysis depth.
+                Defaults to WorkerEffort.none (pass_limit=0).
         """
         super().__init__(
             node_id=node_id,
@@ -182,10 +183,7 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue (may be mutated to spawn task_create).
             result: The decision result.
         """
-        from tinycua.loops.analysis_effort import (
-            TinyCUAAnalysisEffortNode,
-            WorkerEffort,
-        )
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
         from tinycua.loops.task_create import TinyCUATaskCreateNode
 
@@ -200,9 +198,8 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
         analysis_effort = TinyCUAAnalysisEffortNode(
-            node_id="analysis_effort", config=self.config, effort=effort,
+            node_id="analysis_effort", config=self.config, effort=self._effort,
         )
         queue.spawn_after_current([task_create, task_analyzer, analysis_effort])
 
@@ -227,10 +224,7 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
-        from tinycua.loops.analysis_effort import (
-            TinyCUAAnalysisEffortNode,
-            WorkerEffort,
-        )
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -241,9 +235,8 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="analysis",
         )
-        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
         analysis_effort = TinyCUAAnalysisEffortNode(
-            node_id="analysis_effort", config=self.config, effort=effort,
+            node_id="analysis_effort", config=self.config, effort=self._effort,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 
@@ -268,10 +261,7 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
-        from tinycua.loops.analysis_effort import (
-            TinyCUAAnalysisEffortNode,
-            WorkerEffort,
-        )
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -282,9 +272,8 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
         analysis_effort = TinyCUAAnalysisEffortNode(
-            node_id="analysis_effort", config=self.config, effort=effort,
+            node_id="analysis_effort", config=self.config, effort=self._effort,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 

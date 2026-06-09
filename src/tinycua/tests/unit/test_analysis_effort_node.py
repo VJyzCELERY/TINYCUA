@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
 from tinycua.loops.analysis_effort import (

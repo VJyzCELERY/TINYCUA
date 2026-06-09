@@ -6,7 +6,6 @@ to execution. Maps WorkerEffort levels to pass limits (0, 1, 2, 3).
 
 from __future__ import annotations
 
-import json
 import logging
 from enum import Enum
 from typing import TYPE_CHECKING

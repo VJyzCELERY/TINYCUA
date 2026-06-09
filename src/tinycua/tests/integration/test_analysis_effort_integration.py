@@ -176,7 +176,6 @@ def test_analysis_effort_node_assessor_no_tasks():
         response = effort_node(input_data)
         effort_node.on_complete(queue, response)
 
-    node_ids = [n.node_id for n in queue.items]
     # TaskAssessor was prepended but no tasks selected, so TaskAnalyzer follows
     # but on_complete handles the flow — check pass_count incremented
     assert effort_node.pass_count == 1

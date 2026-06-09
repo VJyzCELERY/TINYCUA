@@ -139,13 +139,13 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 | Item | Status | Notes |
 |------|--------|-------|
 | Planning documents | DONE | spec.md, design.md |
-| TinyCUAAnalysisEffortNode class | TODO | analysis_effort.py |
-| WorkerEffort enum | TODO | effort model |
-| effort_to_pass_limit mapping | TODO | mapping function |
-| TinyCUATaskAssessorNode class | TODO | task_assessor.py — effort-loop mode |
-| WorkerNode route handler integration | TODO | Insert AnalysisEffortNode after TaskCreate/TaskAnalyzer |
-| Unit tests | TODO | All acceptance scenarios |
-| Integration tests | TODO | End-to-end worker → effort → executor flow |
+| TinyCUAAnalysisEffortNode class | DONE | analysis_effort.py |
+| WorkerEffort enum | DONE | effort model |
+| effort_to_pass_limit mapping | DONE | mapping function |
+| TinyCUATaskAssessorNode class | DONE | task_assessor.py — effort-loop mode |
+| WorkerNode route handler integration | DONE | Insert AnalysisEffortNode after TaskCreate/TaskAnalyzer |
+| Unit tests | DONE | All acceptance scenarios |
+| Integration tests | DONE | End-to-end worker → effort → executor flow |
 
 ---
 
