@@ -1,0 +1,71 @@
+# Tasks: TinyCUAInformationDigesterNode
+
+Implementation tasks for TinyCUAInformationDigesterNode. Check off items as completed.
+
+## TDD Phase (Tests First)
+
+- [ ] Write integration tests for InformationDigesterNode (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
+
+## Implementation Phase
+
+- [ ] Create `DigestedInformation` dataclass in `src/tinycua/tinycua/models/digested_information.py` <!-- id: 2 -->
+  - [ ] Define fields: `context_summary`, `key_points`, `advisory_instructions`, `constraints`, `known_gaps`
+  - [ ] Add to `tinycua/models/__init__.py` exports
+- [ ] Create `TinyCUAInformationDigesterNodeConfig` in `src/tinycua/tinycua/config/node_config.py` <!-- id: 3 -->
+  - [ ] Extend `NodeConfigBase` with `retrieval_enabled`, `max_digest_sources`, `digest_schema`
+- [ ] Implement `TinyCUAInformationDigesterNode` class in `src/tinycua/tinycua/loops/information_digester.py` <!-- id: 4 -->
+  - [ ] Implement `__init__()` with `parent` parameter and config defaults (FR-001, FR-017, FR-018)
+  - [ ] Implement `__call__()` with fresh session creation (FR-002, FR-003, FR-004)
+  - [ ] Implement `_should_use_enhanced_retrieval()` (FR-006)
+  - [ ] Implement `_invoke_enhanced_retrieval()` with cache behavior (FR-007, FR-008)
+  - [ ] Implement `_produce_digest()` calling `digest_information` (FR-009, FR-010)
+  - [ ] Implement `_produce_fallback()` with user query preservation (FR-011, FR-013)
+  - [ ] Implement `on_complete()` with selected-output propagation (FR-005, FR-012)
+  - [ ] Verify tool scope: only `enhanced_context_retrieval` and `digest_information` (FR-013)
+- [ ] Add exports to `src/tinycua/tinycua/loops/__init__.py` <!-- id: 5 -->
+  - [ ] Add `TinyCUAInformationDigesterNode` to `__all__`
+
+## Testing Phase
+
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 6 -->
+- [ ] Write unit tests for InformationDigesterNode <!-- id: 7 -->
+  - [ ] `test_fresh_session_created`
+  - [ ] `test_does_not_inherit_parent_session`
+  - [ ] `test_stores_only_own_output`
+  - [ ] `test_propagates_to_parent`
+  - [ ] `test_enhanced_retrieval_creates_cache`
+  - [ ] `test_enhanced_retrieval_search_limited_to_cache`
+  - [ ] `test_no_useful_context_fallback`
+  - [ ] `test_digest_information_produces_structured_output`
+  - [ ] `test_tool_scope_restricted`
+  - [ ] `test_retry_on_failure`
+  - [ ] `test_chat_history_not_passed_wholesale`
+  - [ ] `test_fallback_preserves_user_query`
+  - [ ] `test_config_defaults_when_none`
+  - [ ] `test_parent_parameter_accepted`
+  - [ ] `test_does_not_execute_tasks`
+  - [ ] `test_does_not_synthesize_response`
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 8 -->
+
+## Verification Phase
+
+- [ ] Verify InformationDigesterNode creates fresh session with unique session_id <!-- id: 9 -->
+- [ ] Verify fallback continuation message format with user query preserved <!-- id: 10 -->
+- [ ] Verify tool scope is restricted to two tools only <!-- id: 11 -->
+
+## Documentation Phase
+
+- [ ] Update status tracker in `spec.md` to reflect completed items <!-- id: 12 -->
+
+## Review and Merge
+
+- [ ] Create pull request <!-- id: 13 -->
+- [ ] Address review feedback <!-- id: 14 -->
+- [ ] Merge to main branch <!-- id: 15 -->
+
+---
+
+*Task IDs enable tracking and cross-referencing*
+*Run `/implement` to execute these tasks*
+*Last updated: 2026-06-09*
