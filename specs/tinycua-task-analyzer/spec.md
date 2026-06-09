@@ -1,6 +1,6 @@
 # Feature Specification: TinyCUATaskAnalyzerNode
 
-**Status**: Draft
+**Status**: Final
 **Created**: 2026-06-10
 **Last Updated**: 2026-06-10
 **Subproject(s) Affected**: tinycua (loops/task_analyzer)
@@ -33,6 +33,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a `NodeExecutionError`.
 7. **Given** a `TinyCUATaskAnalyzerNode` with an invalid mode, **When** it is instantiated, **Then** it MUST raise a `ValueError` with the list of valid modes.
 8. **Given** a `TinyCUATaskAnalyzerNode` with no mode specified, **When** it is instantiated, **Then** mode MUST default to `initial_analysis`.
+9. **Given** a `TinyCUATaskAnalyzerNode` receives empty or null input, **When** it is called, **Then** it MUST handle the input gracefully without raising unexpected errors.
 
 ### Edge Cases
 
