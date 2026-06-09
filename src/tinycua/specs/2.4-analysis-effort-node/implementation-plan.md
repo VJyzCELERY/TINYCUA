@@ -285,7 +285,7 @@ def test_analysis_effort_node_assessor_no_tasks():
 #### [NEW] `src/tinycua/tests/unit/test_analysis_effort_node.py`
 
 - **Description**: Unit tests for `WorkerEffort`, `effort_to_pass_limit()`, and `TinyCUAAnalysisEffortNode`
-- **Test count**: ~14 unit tests covering all acceptance scenarios
+- **Test count**: ~19 unit tests covering all acceptance scenarios
 
 #### [NEW] `src/tinycua/tests/unit/test_task_assessor_node.py`
 

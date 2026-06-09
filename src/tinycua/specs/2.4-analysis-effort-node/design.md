@@ -254,6 +254,11 @@ proceed_execution:
 | TaskAssessor selects no tasks | No TaskAnalyzer spawned; queue advances back to AnalysisEffortNode | Pass still counts |
 | AnalysisEffortNode has no session attached | `NodeExecutionError` | Consistent with ProcessNode behavior |
 | Queue mutation fails | `NodeExecutionError` | Standard queue error handling |
+
+### Operational Notes
+
+| Scenario | Behavior | Details |
+|----------|----------|---------|
 | Route handler modifies queue after AnalysisEffortNode prepends | AnalysisEffortNode re-evaluates pass_count on re-entry | Route handlers call `clear_after_current()` which removes stale passes; pass_count resets for the new effort cycle |
 
 ---
@@ -306,6 +311,22 @@ proceed_execution:
    - **Reason**: The effort loop must continue counting passes even when no tasks are selected. This ensures the pass limit is respected regardless of task tree state.
    - **Alternatives Considered**: Skip remaining passes when no tasks selected — rejected because it bypasses the configured effort level.
 
+6. **Decision**: pass_count is an instance attribute, not session state
+   - **Reason**: pass_count is transient and resets when the node is re-created or the queue is cleared. This simplifies the implementation and avoids session pollution.
+   - **Alternatives Considered**: Persist pass_count in session state — rejected because it pollutes session data with transient control state.
+
+7. **Decision**: TaskAssessor uses effort-loop mode when called from AnalysisEffortNode
+   - **Reason**: TaskAssessor has two modes: effort-loop and reviewer-replan. AnalysisEffortNode uses effort-loop mode, which evaluates the full task tree and selects only unfinished tasks.
+   - **Alternatives Considered**: Use reviewer-replan mode — rejected because it introduces LLM-based re-planning in a deterministic node.
+
+8. **Decision**: TaskAnalyzer uses effort_loop_decomposition mode when called from AnalysisEffortNode
+   - **Reason**: TaskAnalyzer has multiple modes. The effort_loop_decomposition mode decomposes tasks selected by TaskAssessor without TaskInit/TaskCreate tools.
+   - **Alternatives Considered**: Use initial_analysis mode — rejected because it includes TaskInit/TaskCreate tools not needed for effort passes.
+
+9. **Decision**: WorkerNode stores effort configuration and passes it to AnalysisEffortNode
+   - **Reason**: WorkerNode receives the effort configuration and passes it to AnalysisEffortNode when spawning it. This keeps the configuration close to the WorkerNode that owns the planning decision.
+   - **Alternatives Considered**: AnalysisEffortNode reads config from a global setting — rejected because it couples the node to external configuration state.
+
 ---
 
 ## Risks & Mitigations
@@ -317,25 +338,6 @@ proceed_execution:
 | TaskAssessor no-tasks path could bypass effort counting | Low | Medium | pass_count increments regardless of TaskAssessor selection; integration test verifies |
 | Terminal response path could be lost after TaskExecutor spawning | Medium | High | ensure_terminal() call in _spawn_task_executor(); unit test verifies |
 | WorkerEffort default could be wrong | Low | Low | Default to "none" (pass_limit=0) for safe behavior; configurable via WorkerNode |
-
----
-
-## Design Decisions
-
-1. **AnalysisEffortNode does not call LLM**
-   - The effort control logic is purely algorithmic. No LLM decision is needed for counting passes and prepending nodes.
-
-2. **pass_count is an instance attribute, not session state**
-   - pass_count is transient and resets when the node is re-created or the queue is cleared. This simplifies the implementation and avoids session pollution.
-
-3. **TaskAssessor uses effort-loop mode when called from AnalysisEffortNode**
-   - TaskAssessor has two modes: effort-loop and reviewer-replan. AnalysisEffortNode uses effort-loop mode, which evaluates the full task tree and selects only unfinished tasks.
-
-4. **TaskAnalyzer uses effort_loop_decomposition mode when called from AnalysisEffortNode**
-   - TaskAnalyzer has multiple modes. The effort_loop_decomposition mode decomposes tasks selected by TaskAssessor without TaskInit/TaskCreate tools.
-
-5. **WorkerNode stores effort configuration**
-   - WorkerNode receives the effort configuration and passes it to AnalysisEffortNode when spawning it. This keeps the configuration close to the WorkerNode that owns the planning decision.
 
 ---
 
