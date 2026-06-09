@@ -125,12 +125,12 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 
 ## Review Checklist
 
-- [ ] No implementation details — code, framework, or architecture choices must live in design docs only
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details — code, framework, or architecture choices must live in design docs only
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
 
 ---
 
