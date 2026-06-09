@@ -2,6 +2,8 @@
 
 Extend `TinyCUATaskAnalyzerNode` to support all five analysis modes from the target architecture, with correct mode-dependent tool scoping and task tree validation after completion.
 
+**Status**: Final
+
 ## Context
 
 - **Spec Reference**: `./spec.md` — TinyCUATaskAnalyzerNode Feature Specification
@@ -478,7 +480,7 @@ def test_task_analyzer_direct_mutation_updates_session_task():
 #### MODIFY src/tinycua/tinycua/loops/task_analyzer.py — constructor
 
 - **Change default mode**: Change `mode` parameter default from `"analysis"` to `"initial_analysis"`.
-- **Rationale**: The legacy `analysis` mode is being removed. Default should match the most common first-use mode.
+- **Rationale**: The legacy `analysis` mode is being removed. Default should match the most common first-use mode. (FR-010)
 
 #### MODIFY src/tinycua/tinycua/loops/task_analyzer.py — docstrings
 

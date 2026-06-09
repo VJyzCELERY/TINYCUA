@@ -1,5 +1,7 @@
 # Tasks: TinyCUATaskAnalyzerNode — Full Five-Mode Support
 
+**Status**: Final
+
 Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five analysis modes. Check off items as completed.
 
 ## TDD Phase (Tests First)
@@ -35,7 +37,7 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
   - [ ] Raise `NodeExecutionError` with descriptive message if task tree is `None`
 - [ ] Call `_validate_task_tree_non_none()` at end of `__call__()` before returning <!-- id: 6 -->
   - [ ] Insert validation call after LLM result, before return
-- [ ] Change default `mode` parameter from `"analysis"` to `"initial_analysis"` in constructor <!-- id: 7 -->
+- [ ] Change default `mode` parameter from `"analysis"` to `"initial_analysis"` in constructor (FR-010) <!-- id: 7 -->
 - [ ] Update class and module docstrings to document all five modes <!-- id: 8 -->
   - [ ] Document each mode's purpose and tool scoping
   - [ ] Remove references to legacy `analysis` mode (including worker.py call site)
