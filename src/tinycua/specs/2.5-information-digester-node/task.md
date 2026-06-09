@@ -68,8 +68,8 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 - [ ] Verify tool scope is restricted to two tools only <!-- id: 11 -->
 - [ ] Verify retry behavior per NodeRetryPolicy before fallback (SC-011) <!-- id: 53 -->
 - [ ] Verify chat_history remains available for audit, not passed wholesale (SC-012) <!-- id: 54 -->
-- [ ] Verify enhanced_context_retrieval cache isolation — search/read operations do not escape cache boundaries <!-- id: 16 -->
-- [ ] Verify DigestedInformation output has all 5 required fields: context_summary, key_points, advisory_instructions, constraints, known_gaps <!-- id: 17 -->
+- [ ] Verify enhanced_context_retrieval cache isolation — search/read operations do not escape cache boundaries <!-- id: 63 -->
+- [ ] Verify DigestedInformation output has all 5 required fields: context_summary, key_points, advisory_instructions, constraints, known_gaps <!-- id: 64 -->
 - [ ] Verify tinycua-sdk public API surface is unmodified (SC-014) <!-- id: 55 -->
 - [ ] Verify node does not execute tasks, mutate tasks, or synthesize responses (SC-015) <!-- id: 56 -->
 - [ ] Verify InformationDigesterNode proceeds without cache when `retrieval_enabled=False` (Edge Cases: retrieval disabled) <!-- id: 57 -->
