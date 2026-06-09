@@ -85,8 +85,8 @@ Implementation tasks for TinyCUAAnalysisEffortNode. Check off items as completed
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua/specs/2.4-analysis-effort-node/spec.md` status tracker <!-- id: 19 -->
-- [ ] Update `src/tinycua/specs/2.4-analysis-effort-node/design.md` implementation phases <!-- id: 20 -->
+- [x] Update `src/tinycua/specs/2.4-analysis-effort-node/spec.md` status tracker <!-- id: 19 -->
+- [x] Update `src/tinycua/specs/2.4-analysis-effort-node/design.md` implementation phases <!-- id: 20 -->
 
 ## Review and Merge
 

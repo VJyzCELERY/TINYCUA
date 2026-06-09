@@ -106,12 +106,26 @@ class TinyCUATaskAssessorNode(ProcessNode):
         """Advance queue after task assessment.
 
         If tasks were selected, the queue advances to TaskAnalyzer.
-        If no tasks selected, the queue advances back to AnalysisEffortNode.
+        If no tasks selected, skip TaskAnalyzer and advance back to
+        AnalysisEffortNode (design contract: no wasted LLM invocations).
 
         Args:
             queue: The node queue (will be advanced).
             response: The LLM response from task assessment.
         """
+        if not self.selected_tasks:
+            logger.info(
+                "node=%s no tasks selected — skipping TaskAnalyzer, advancing to AnalysisEffortNode",
+                self.node_id,
+            )
+            # Advance past TaskAssessor (current node)
+            queue.advance()
+            # Skip TaskAnalyzer if it is now at the front of the queue
+            if queue.items and queue.items[0].node_id == "task_analyzer":
+                queue.items.pop(0)
+                queue._inputs.pop("task_analyzer", None)
+            return
+
         logger.info(
             "node=%s on_complete selected_tasks=%s advancing queue",
             self.node_id,
