@@ -309,3 +309,5 @@ def test_information_digester_propagation_to_parent_session(
 ## Deferred: NodePayload Input Path
 
 The `NodeInput` model supports a `payloads: list[NodePayload]` field for passing structured data alongside messages. This implementation plan exercises only the `messages` input path. `NodePayload` support is deferred to Milestone 4.2 when the `digest_information` tool is fully implemented.
+
+> **Note**: The `retrieval_enabled=False` config path is tested at the unit test level (`test_retrieval_disabled_proceeds_with_input`). Integration tests assume the default config with retrieval enabled.

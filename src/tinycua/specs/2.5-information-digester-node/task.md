@@ -50,6 +50,9 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
   - [ ] `test_parent_parameter_accepted` <!-- id: 41 -->
   - [ ] `test_does_not_execute_tasks` <!-- id: 42 -->
   - [ ] `test_does_not_synthesize_response` <!-- id: 43 -->
+  - [ ] `test_retrieval_disabled_proceeds_with_input` <!-- id: 60 -->
+  - [ ] `test_cache_creation_failure_logs_and_proceeds` <!-- id: 61 -->
+  - [ ] `test_max_digest_sources_limits_context` <!-- id: 62 -->
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 8 -->
 
 ## Verification Phase
@@ -67,6 +70,9 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 - [ ] Verify DigestedInformation output has all 5 required fields: context_summary, key_points, advisory_instructions, constraints, known_gaps <!-- id: 17 -->
 - [ ] Verify tinycua-sdk public API surface is unmodified (SC-014) <!-- id: 55 -->
 - [ ] Verify node does not execute tasks, mutate tasks, or synthesize responses (SC-015) <!-- id: 56 -->
+- [ ] Verify InformationDigesterNode proceeds without cache when `retrieval_enabled=False` (Edge Cases: retrieval disabled) <!-- id: 57 -->
+- [ ] Verify InformationDigesterNode logs error and produces partial digest on cache creation failure (SC-016) <!-- id: 58 -->
+- [ ] Verify InformationDigesterNode limits sources to `max_digest_sources` when exceeded (SC-017) <!-- id: 59 -->
 
 ## Documentation Phase
 

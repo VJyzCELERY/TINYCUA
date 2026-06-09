@@ -39,6 +39,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 11. **Given** InformationDigesterNode retry behavior, **When** a digest attempt fails, **Then** it retries according to `NodeRetryPolicy` before falling back.
 12. **Given** InformationDigesterNode completes with digest output, **When** propagation occurs, **Then** `chat_history` remains available for audit but is not passed wholesale to the digester unless explicitly selected.
 13. **Given** a user query is included in the fallback continuation, **When** the fallback reaches downstream nodes, **Then** the original user query is preserved in the fallback message.
+14. **Given** InformationDigesterNode is spawned with `enhanced_context_retrieval` enabled, **When** cache creation fails, **Then** it logs the error and proceeds with available input context, producing a partial digest.
+15. **Given** InformationDigesterNode is spawned with `max_digest_sources` configured, **When** the number of context sources exceeds `max_digest_sources`, **Then** it limits the sources to the configured maximum.
 
 ### Edge Cases
 
@@ -101,6 +103,8 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - [ ] **SC-013** — **Acceptance Scenario 13** (Fallback Query Preservation): Original user query preserved in fallback continuation.
 - [ ] **SC-014** — **FR-016** (SDK API Stability): InformationDigesterNode does not modify tinycua-sdk public API surface.
 - [ ] **SC-015** — **FR-019** (Non-Responsibilities): InformationDigesterNode does not execute tasks, mutate tasks, or synthesize final responses.
+- [ ] **SC-016** — **Cache Creation Failure**: On cache creation failure, InformationDigesterNode logs error and produces partial digest from available input.
+- [ ] **SC-017** — **Max Sources Limit**: When `max_digest_sources` is exceeded, InformationDigesterNode limits sources to the configured maximum.
 
 ---
 
@@ -124,6 +128,9 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - `test_parent_parameter_accepted`: Accepts parent node for suspension/resume.
 - `test_does_not_execute_tasks`: Does not create or mutate tasks.
 - `test_does_not_synthesize_response`: Does not produce final user response.
+- `test_retrieval_disabled_proceeds_with_input`: When `retrieval_enabled=False`, InformationDigesterNode proceeds without creating cache, producing digest from input alone.
+- `test_cache_creation_failure_logs_and_proceeds`: When `enhanced_context_retrieval` cache creation fails, InformationDigesterNode logs the error and produces a partial digest from available input.
+- `test_max_digest_sources_limits_context`: When `max_digest_sources` is configured and exceeded, InformationDigesterNode limits context sources to the configured maximum.
 
 ### Integration Tests
 
