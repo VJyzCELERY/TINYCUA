@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-from tinycua.config.node_config import NodeConfigBase
-from tinycua.config.types import LLMResult
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.worker import TinyCUAWorkerNode, WorkerRouteLabel
 from tinycua.loops.node import DecisionResult
 from tinycua.loops.node_queue import NodeQueue
@@ -547,3 +547,62 @@ class TestWorkerNodeRouteProceedExecution:
 
         # Terminal node should exist
         assert queue.items[-1].is_terminal
+
+
+class TestWorkerNodeToolScopeRestriction:
+    """Tests for FR-014: WorkerNode tool scope restriction."""
+
+    def test_worker_config_excludes_non_worker_tools(self) -> None:
+        """WorkerNode config excludes non-worker tools (task creation, analysis, execution)."""
+        policy = NodeToolPolicy(
+            include_agent_tools="none",
+        )
+        config = NodeConfigBase(tool_policy=policy)
+
+        outer_tools = [
+            Tool(name="task_create"),
+            Tool(name="task_analyze"),
+            Tool(name="task_execute"),
+            Tool(name="web_search"),
+        ]
+
+        resolved = config.tool_policy.resolve_tools(outer_agent_tools=outer_tools)
+        resolved_names = {t.name for t in resolved}
+
+        # WorkerNode should not have access to task creation, analysis, or execution tools
+        assert "task_create" not in resolved_names
+        assert "task_analyze" not in resolved_names
+        assert "task_execute" not in resolved_names
+
+    def test_worker_config_with_selected_policy(self) -> None:
+        """WorkerNode config with selected policy allows only allowed tools."""
+        policy = NodeToolPolicy(
+            include_agent_tools="selected",
+            allowed_agent_tool_names=["web_search"],
+            denied_agent_tool_names=["task_create", "task_analyze", "task_execute"],
+        )
+        config = NodeConfigBase(tool_policy=policy)
+
+        outer_tools = [
+            Tool(name="task_create"),
+            Tool(name="task_analyze"),
+            Tool(name="task_execute"),
+            Tool(name="web_search"),
+        ]
+
+        resolved = config.tool_policy.resolve_tools(outer_agent_tools=outer_tools)
+        resolved_names = {t.name for t in resolved}
+
+        # Only web_search should be allowed
+        assert "web_search" in resolved_names
+        assert "task_create" not in resolved_names
+        assert "task_analyze" not in resolved_names
+        assert "task_execute" not in resolved_names
+
+    def test_worker_default_config_restricts_tools(self) -> None:
+        """WorkerNode default config uses include_agent_tools='none'."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+
+        # Default policy should be "none"
+        assert worker.config.tool_policy.include_agent_tools == "none"
