@@ -128,7 +128,9 @@ class TinyCUATaskAssessorNode(ProcessNode):
             # Skip TaskAnalyzer if it is now at the front of the queue
             if queue.items and queue.items[0].node_id == "task_analyzer":
                 queue.items.pop(0)
-                queue._inputs.pop("task_analyzer", None)
+                # Defensive: _inputs is private; guard with hasattr for refactor safety
+                if hasattr(queue, "_inputs"):
+                    queue._inputs.pop("task_analyzer", None)
             return
 
         logger.info(

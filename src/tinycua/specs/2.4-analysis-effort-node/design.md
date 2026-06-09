@@ -271,18 +271,18 @@ proceed_execution:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create `WorkerEffort` enum (FR-003)
-- [ ] Implement `effort_to_pass_limit()` mapping function (FR-004)
-- [ ] Create `TinyCUAAnalysisEffortNode` class with pass counting (FR-001, FR-002, FR-005, FR-006, FR-007)
-- [ ] Implement `_prepend_assessor_analyzer_pair()` (FR-006)
-- [ ] Implement `_spawn_task_executor()` with terminal path maintenance (FR-007, FR-008)
-- [ ] Implement `on_complete()` for queue mutations (FR-005, FR-006, FR-007)
-- [ ] Update WorkerNode `_route_task_creation()` to insert AnalysisEffortNode (FR-009)
-- [ ] Update WorkerNode `_route_task_recreation()` to insert AnalysisEffortNode (FR-009)
-- [ ] Update WorkerNode `_route_task_reanalysis()` to insert AnalysisEffortNode (FR-009)
-- [ ] Add default effort configuration to WorkerNode (FR-010)
-- [ ] Write unit tests for all acceptance scenarios
-- [ ] Write integration tests for worker → effort → executor flow
+- [x] Create `WorkerEffort` enum (FR-003)
+- [x] Implement `effort_to_pass_limit()` mapping function (FR-004)
+- [x] Create `TinyCUAAnalysisEffortNode` class with pass counting (FR-001, FR-002, FR-005, FR-006, FR-007)
+- [x] Implement `_prepend_assessor_analyzer_pair()` (FR-006)
+- [x] Implement `_spawn_task_executor()` with terminal path maintenance (FR-007, FR-008)
+- [x] Implement `on_complete()` for queue mutations (FR-005, FR-006, FR-007)
+- [x] Update WorkerNode `_route_task_creation()` to insert AnalysisEffortNode (FR-009)
+- [x] Update WorkerNode `_route_task_recreation()` to insert AnalysisEffortNode (FR-009)
+- [x] Update WorkerNode `_route_task_reanalysis()` to insert AnalysisEffortNode (FR-009)
+- [x] Add default effort configuration to WorkerNode (FR-010)
+- [x] Write unit tests for all acceptance scenarios
+- [x] Write integration tests for worker → effort → executor flow
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
