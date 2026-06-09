@@ -10,6 +10,7 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
   - `test_task_analyzer_recreation_in_queue_receives_task_tools` — recreation mode in queue receives TaskInit/TaskCreate tools (spec test 3)
   - `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools` — initial_analysis mode in queue excludes TaskInit/TaskCreate (spec test 4)
   - `test_task_analyzer_task_tree_validation_none_raises_error` — NodeExecutionError when task tree is None (spec test 5)
+  - `test_task_analyzer_direct_mutation_updates_session_task` — session.task mutated after LLM tool calls (spec test 6)
   - `test_task_analyzer_all_five_modes_are_valid` — all five modes accepted (unit)
   - `test_task_analyzer_recreation_allows_task_creation_tools` — recreation includes TaskInit/TaskCreate (unit)
   - `test_task_analyzer_non_recreation_excludes_task_creation_tools` — non-recreation excludes TaskInit/TaskCreate (unit)

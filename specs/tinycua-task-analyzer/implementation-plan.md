@@ -142,6 +142,13 @@ def test_task_analyzer_integration_with_tool_policy():
             assert "TaskCreate" not in node.tool_scope, f"TaskCreate leaked into {mode}"
 
 
+# [NEEDS CLARIFICATION] Queue-based tests below use `queue.run(llm=..., session=...)`.
+# `NodeQueue` currently has no `run()` method — it is a data structure for node ordering.
+# Execution is handled by `TinyCUALoop`. During implementation, either:
+#   (a) delegate queue execution to `TinyCUALoop.run()`, or
+#   (b) add a `run()` method to `NodeQueue` that wraps loop execution.
+# The tests should be updated to match whichever approach is chosen.
+
 def test_task_analyzer_lifecycle_hooks_in_queue():
     """Spec Test 2: TaskAnalyzerNode in a minimal queue with mock LLM to
     verify lifecycle hooks (on_start, on_end) fire correctly."""
@@ -299,9 +306,10 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 
     mock_session = MagicMock()
     mock_session.task = None  # task is None — should trigger validation
+    node.session = mock_session
 
     with pytest.raises(NodeExecutionError, match="task tree is None"):
-        node(mock_llm, session=mock_session)
+        node(mock_llm)
 
 
 def test_task_analyzer_empty_input_handled_gracefully():
@@ -316,9 +324,10 @@ def test_task_analyzer_empty_input_handled_gracefully():
 
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
+    node.session = mock_session
 
     # Verify node handles empty/None input without raising unexpected errors
-    result = node("", session=mock_session)
+    result = node("")
     assert result is not None
 
 
