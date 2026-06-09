@@ -102,6 +102,7 @@ InformationDigesterNode follows strict session isolation:
 3. **Lazy context access**: Accesses root/parent context lazily through `enhanced_context_retrieval` when needed.
 4. **Own output only**: Stores only its own new local output (the digest). Does not re-store copied input messages.
 5. **Forward to parent**: On termination, forwards output to the suspended parent via selected-output propagation.
+6. **Chat history audit**: `chat_history` remains in the parent session for audit purposes and is NOT passed wholesale to the digester. The digester receives only selected messages via `NodeInput.messages`. This satisfies FR-015: chat history is available for post-execution audit, logging, debugging, and compliance, while preventing accidental wholesale passthrough into the digester's context.
 
 ---
 
@@ -361,6 +362,10 @@ def _build_fallback_message(user_query: str) -> str:
 8. **Decision**: ResponseNode suspension path deferred to Milestone 3.6
    - **Reason**: The roadmap explicitly separates InformationDigesterNode implementation (Milestone 2.5) from ResponseNode's ability to request it (Milestone 3.6). This milestone focuses on the node itself.
    - **Alternatives Considered**: Implement suspension path in this milestone — rejected because it violates the milestone boundary and depends on ResponseNode behavior not yet implemented.
+
+9. **Decision**: `chat_history` retained in parent session for audit; not passed wholesale to digester (FR-015)
+   - **Reason**: FR-015 requires chat_history to remain available for audit (logging, debugging, compliance) while preventing wholesale passthrough into the digester. The selected-input propagation rule naturally satisfies this: the parent selects specific messages for the digester, and chat_history stays in the parent session untouched.
+   - **Alternatives Considered**: Copy chat_history into digester session — rejected because it violates FR-015 and risks leaking full conversation history into an isolated context.
 
 ---
 

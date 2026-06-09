@@ -97,7 +97,7 @@ def test_information_digester_with_response_node_suspension(
     4. on_complete propagates digest to suspended parent.
     5. Parent resumes as current node in the queue.
 
-    Covers spec acceptance scenarios 1, 3, 8, 9.
+    Covers spec acceptance scenarios 1, 3, 8, 9 — FR-001, FR-002, FR-003, FR-005, FR-012, FR-018.
     """
     # Arrange — mock LLM to return a structured digest
     mock_llm_call.return_value = LLMResult(
@@ -155,7 +155,7 @@ def test_information_digester_no_useful_context_path(
     3. Fallback continuation is produced preserving user query.
     4. Fallback message signals downstream to proceed with user request.
 
-    Covers spec acceptance scenarios 6, 11, 13.
+    Covers spec acceptance scenarios 6, 11, 13 — FR-011, FR-013, FR-014.
     """
     # Arrange — mock LLM to indicate no useful context
     mock_llm_call.return_value = LLMResult(
@@ -199,7 +199,7 @@ def test_information_digester_enhanced_retrieval_end_to_end(
     4. Retrieved context is incorporated into digest production.
     5. Structured DigestedInformation is produced.
 
-    Covers spec acceptance scenarios 4, 5, 7, 10.
+    Covers spec acceptance scenarios 4, 5, 7, 10 — FR-006, FR-007, FR-008, FR-009, FR-010, FR-013.
     """
     # Arrange — mock the enhanced context retrieval tool
     mock_retrieval = MagicMock()
@@ -263,7 +263,7 @@ def test_information_digester_propagation_to_parent_session(
     4. Parent resumes as the current node in the queue.
     5. Digest content is available in parent's session.
 
-    Covers spec acceptance scenarios 3, 8, 12.
+    Covers spec acceptance scenarios 3, 8, 12 — FR-005, FR-012, FR-015.
     """
     # Arrange — mock LLM to return digest
     mock_llm_call.return_value = LLMResult(

@@ -55,10 +55,18 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 ## Verification Phase
 
 - [ ] Verify InformationDigesterNode creates fresh session with unique session_id <!-- id: 9 -->
+- [ ] Verify InformationDigesterNode stores only its own digest output, not copied input messages (SC-002) <!-- id: 49 -->
+- [ ] Verify digest output propagates to parent session via selected-output rule (SC-003, SC-008) <!-- id: 50 -->
+- [ ] Verify enhanced_context_retrieval lazily creates scoped cache (SC-004) <!-- id: 51 -->
 - [ ] Verify fallback continuation message format with user query preserved <!-- id: 10 -->
+- [ ] Verify input contains selected parent messages, not full session_context (SC-009) <!-- id: 52 -->
 - [ ] Verify tool scope is restricted to two tools only <!-- id: 11 -->
+- [ ] Verify retry behavior per NodeRetryPolicy before fallback (SC-011) <!-- id: 53 -->
+- [ ] Verify chat_history remains available for audit, not passed wholesale (SC-012) <!-- id: 54 -->
 - [ ] Verify enhanced_context_retrieval cache isolation — search/read operations do not escape cache boundaries <!-- id: 16 -->
 - [ ] Verify DigestedInformation output has all 5 required fields: context_summary, key_points, advisory_instructions, constraints, known_gaps <!-- id: 17 -->
+- [ ] Verify tinycua-sdk public API surface is unmodified (SC-014) <!-- id: 55 -->
+- [ ] Verify node does not execute tasks, mutate tasks, or synthesize responses (SC-015) <!-- id: 56 -->
 
 ## Documentation Phase
 
