@@ -166,9 +166,10 @@ class TinyCUAInformationDigesterNode(ProcessNode):
     def _invoke_enhanced_retrieval(self, messages: list[dict]) -> list[dict]:
         """Invoke EnhancedContextRetrieval for lazy scoped context access.
         
-        Instantiates EnhancedContextRetrieval with the input messages,
-        creates a scoped cache, and runs a limited ReAct-style search
-        over that cache. Search/read operations are limited to the cache.
+        Instantiates EnhancedContextRetrieval with the input messages
+        (passed as session_context), creates a scoped cache, and runs
+        a limited ReAct-style search over that cache.
+        Search/read operations are limited to the cache.
         
         Args:
             messages: The selected input messages to search within.

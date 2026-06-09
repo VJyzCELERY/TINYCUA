@@ -30,6 +30,8 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 - [ ] Add exports to `src/tinycua/tinycua/loops/__init__.py` <!-- id: 5 -->
   - [ ] Add `TinyCUAInformationDigesterNode` to `__all__` <!-- id: 27 -->
 
+> **Note**: Phase 2 items (ResponseNode suspension path → M3.6, full `enhanced_context_retrieval` tool → M4.2, full `digest_information` tool → M4.2) are intentionally deferred per design.md:322-328 and spec.md Open Questions. Do NOT implement in this milestone.
+
 ## Testing Phase
 
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 6 -->
