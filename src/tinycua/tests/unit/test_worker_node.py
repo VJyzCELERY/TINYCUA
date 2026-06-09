@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-from tinycua.config.node_config import NodeConfigBase
-from tinycua.config.types import LLMResult
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.worker import TinyCUAWorkerNode, WorkerRouteLabel
 from tinycua.loops.node import DecisionResult
 from tinycua.loops.node_queue import NodeQueue
@@ -27,9 +27,33 @@ class TestWorkerRouteLabel:
         """WorkerRouteLabel.task_creation has correct value."""
         assert WorkerRouteLabel.task_creation.value == "task_creation"
 
+    def test_task_recreation_value(self) -> None:
+        """WorkerRouteLabel.task_recreation has correct value."""
+        assert WorkerRouteLabel.task_recreation.value == "task_recreation"
+
+    def test_task_reanalysis_value(self) -> None:
+        """WorkerRouteLabel.task_reanalysis has correct value."""
+        assert WorkerRouteLabel.task_reanalysis.value == "task_reanalysis"
+
+    def test_passthrough_value(self) -> None:
+        """WorkerRouteLabel.passthrough has correct value."""
+        assert WorkerRouteLabel.passthrough.value == "passthrough"
+
+    def test_proceed_execution_value(self) -> None:
+        """WorkerRouteLabel.proceed_execution has correct value."""
+        assert WorkerRouteLabel.proceed_execution.value == "proceed_execution"
+
     def test_enum_members(self) -> None:
-        """WorkerRouteLabel has expected members."""
+        """WorkerRouteLabel has all expected members."""
         assert hasattr(WorkerRouteLabel, "task_creation")
+        assert hasattr(WorkerRouteLabel, "task_recreation")
+        assert hasattr(WorkerRouteLabel, "task_reanalysis")
+        assert hasattr(WorkerRouteLabel, "passthrough")
+        assert hasattr(WorkerRouteLabel, "proceed_execution")
+
+    def test_enum_has_five_members(self) -> None:
+        """WorkerRouteLabel has exactly five members."""
+        assert len(WorkerRouteLabel) == 5
 
 
 class TestWorkerNodeInit:
@@ -49,11 +73,31 @@ class TestWorkerNodeInit:
         worker = TinyCUAWorkerNode(node_id="worker", config=config)
         assert "task_creation" in worker.classification_labels
 
+    def test_classification_labels_include_all_five(self) -> None:
+        """WorkerNode classification labels include all five route labels."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        assert "task_creation" in worker.classification_labels
+        assert "task_recreation" in worker.classification_labels
+        assert "task_reanalysis" in worker.classification_labels
+        assert "passthrough" in worker.classification_labels
+        assert "proceed_execution" in worker.classification_labels
+
     def test_route_map_registered(self) -> None:
         """WorkerNode has a route_map with task_creation handler."""
         config = NodeConfigBase()
         worker = TinyCUAWorkerNode(node_id="worker", config=config)
         assert worker.route_map.has_route("task_creation")
+
+    def test_route_map_has_all_five_routes(self) -> None:
+        """WorkerNode has a route_map with all five route handlers."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        assert worker.route_map.has_route("task_creation")
+        assert worker.route_map.has_route("task_recreation")
+        assert worker.route_map.has_route("task_reanalysis")
+        assert worker.route_map.has_route("passthrough")
+        assert worker.route_map.has_route("proceed_execution")
 
     def test_default_node_id(self) -> None:
         """WorkerNode defaults to 'worker' node_id."""
@@ -135,6 +179,76 @@ class TestWorkerNodeDetectWorkerSpawnedNodes:
         result = worker._detect_worker_spawned_nodes(queue)
         assert len(result) == 1
         assert result[0].node_id == "task_create"
+
+
+class TestWorkerNodeHasWorkerSpawnedNodes:
+    """Tests for TinyCUAWorkerNode._has_worker_spawned_nodes."""
+
+    def test_returns_true_when_spawned_nodes_exist(self) -> None:
+        """_has_worker_spawned_nodes returns True when spawned nodes exist."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        spawned = _make_mock_node("task_create")
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, spawned, terminal]
+
+        assert worker._has_worker_spawned_nodes(queue) is True
+
+    def test_returns_false_when_no_spawned_nodes(self) -> None:
+        """_has_worker_spawned_nodes returns False when no spawned nodes."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        assert worker._has_worker_spawned_nodes(queue) is False
+
+
+class TestWorkerNodeGetClassificationLabels:
+    """Tests for TinyCUAWorkerNode._get_classification_labels."""
+
+    def test_includes_passthrough_when_spawned_nodes_exist(self) -> None:
+        """_get_classification_labels includes passthrough when spawned nodes exist."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        spawned = _make_mock_node("task_create")
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, spawned, terminal]
+
+        labels = worker._get_classification_labels(queue)
+        assert "passthrough" in labels
+        assert "task_recreation" in labels
+        assert "task_reanalysis" in labels
+        assert "proceed_execution" in labels
+
+    def test_excludes_passthrough_when_no_spawned_nodes(self) -> None:
+        """_get_classification_labels excludes passthrough when no spawned nodes."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        labels = worker._get_classification_labels(queue)
+        assert "passthrough" not in labels
+        assert "task_recreation" in labels
+        assert "task_reanalysis" in labels
+        assert "proceed_execution" in labels
 
 
 class TestWorkerNodeRouteTaskCreation:
@@ -240,3 +354,255 @@ class TestWorkerNodeOnComplete:
         # TaskCreateNode should be spawned
         node_ids = [n.node_id for n in queue.items]
         assert "task_create" in node_ids
+
+    def test_stores_queue_reference(self) -> None:
+        """on_complete stores queue reference for dynamic label adjustment on next __call__."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        result = DecisionResult(
+            route_label="proceed_execution",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(
+                content="proceed_execution", role="assistant",
+            ),
+        )
+
+        assert worker._queue is None
+        worker.on_complete(queue, result)
+        assert worker._queue is queue
+
+
+class TestWorkerNodeRouteTaskRecreation:
+    """Tests for TinyCUAWorkerNode._route_task_recreation."""
+
+    def test_clears_spawned_nodes_and_spawns_task_analyzer(self) -> None:
+        """_route_task_recreation clears worker-spawned nodes and spawns TaskAnalyzerNode."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+        spawned = _make_mock_node("old_spawned")
+        queue.spawn_after_current([spawned])
+
+        result = DecisionResult(
+            route_label="task_recreation",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="task_recreation", role="assistant"),
+        )
+
+        worker._route_task_recreation(queue, result)
+
+        # Old spawned node should be cleared
+        node_ids = [n.node_id for n in queue.items]
+        assert "old_spawned" not in node_ids
+        # TaskAnalyzerNode should be spawned with mode="analysis"
+        assert "task_analyzer" in node_ids
+        task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
+        assert task_analyzer.mode == "analysis"
+
+    def test_ensures_terminal_response_path(self) -> None:
+        """_route_task_recreation ensures terminal response path exists."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        result = DecisionResult(
+            route_label="task_recreation",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="task_recreation", role="assistant"),
+        )
+
+        worker._route_task_recreation(queue, result)
+
+        # Terminal node should exist
+        assert queue.items[-1].is_terminal
+
+
+class TestWorkerNodeRouteTaskReanalysis:
+    """Tests for TinyCUAWorkerNode._route_task_reanalysis."""
+
+    def test_clears_spawned_nodes_and_spawns_task_analyzer(self) -> None:
+        """_route_task_reanalysis clears worker-spawned nodes and spawns TaskAnalyzerNode."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+        spawned = _make_mock_node("old_spawned")
+        queue.spawn_after_current([spawned])
+
+        result = DecisionResult(
+            route_label="task_reanalysis",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="task_reanalysis", role="assistant"),
+        )
+
+        worker._route_task_reanalysis(queue, result)
+
+        # TaskAnalyzerNode should be spawned with mode="initial_analysis"
+        task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
+        assert task_analyzer.mode == "initial_analysis"
+
+    def test_ensures_terminal_response_path(self) -> None:
+        """_route_task_reanalysis ensures terminal response path exists."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        result = DecisionResult(
+            route_label="task_reanalysis",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="task_reanalysis", role="assistant"),
+        )
+
+        worker._route_task_reanalysis(queue, result)
+
+        # Terminal node should exist
+        assert queue.items[-1].is_terminal
+
+
+class TestWorkerNodeRoutePassthrough:
+    """Tests for TinyCUAWorkerNode._route_passthrough."""
+
+    def test_advances_queue_and_forwards_input(self) -> None:
+        """_route_passthrough advances queue and forwards input to next node."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+        spawned = _make_mock_node("next_node")
+        queue.spawn_after_current([spawned])
+
+        result = DecisionResult(
+            route_label="passthrough",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="passthrough", role="assistant"),
+        )
+
+        worker._last_input = NodeInput(input_type="continuation", messages=[])
+        worker._route_passthrough(queue, result)
+
+        # Worker should be removed, next_node should be current
+        assert queue.items[0].node_id == "next_node"
+        # Input should be forwarded
+        assert queue._inputs.get("next_node") is not None
+
+
+class TestWorkerNodeRouteProceedExecution:
+    """Tests for TinyCUAWorkerNode._route_proceed_execution."""
+
+    def test_ensures_terminal_response_path(self) -> None:
+        """_route_proceed_execution ensures terminal response path exists."""
+        config = NodeConfigBase(llm_client=MagicMock())
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+        session = Session()
+        session.task = "Write a script"
+        worker.ensure_session(session)
+
+        queue = NodeQueue()
+        terminal = _make_mock_node("response", is_terminal=True)
+        queue.items = [worker, terminal]
+
+        result = DecisionResult(
+            route_label="proceed_execution",
+            analysis_response=LLMResult(content="analysis", role="assistant"),
+            classification_response=LLMResult(content="proceed_execution", role="assistant"),
+        )
+
+        worker._route_proceed_execution(queue, result)
+
+        # Terminal node should exist
+        assert queue.items[-1].is_terminal
+
+
+class TestWorkerNodeToolScopeRestriction:
+    """Tests for FR-014: WorkerNode tool scope restriction."""
+
+    def test_worker_config_excludes_non_worker_tools(self) -> None:
+        """WorkerNode config excludes non-worker tools (task creation, analysis, execution)."""
+        policy = NodeToolPolicy(
+            include_agent_tools="none",
+        )
+        config = NodeConfigBase(tool_policy=policy)
+
+        outer_tools = [
+            Tool(name="task_create"),
+            Tool(name="task_analyze"),
+            Tool(name="task_execute"),
+            Tool(name="web_search"),
+        ]
+
+        resolved = config.tool_policy.resolve_tools(outer_agent_tools=outer_tools)
+        resolved_names = {t.name for t in resolved}
+
+        # WorkerNode should not have access to task creation, analysis, or execution tools
+        assert "task_create" not in resolved_names
+        assert "task_analyze" not in resolved_names
+        assert "task_execute" not in resolved_names
+
+    def test_worker_config_with_selected_policy(self) -> None:
+        """WorkerNode config with selected policy allows only allowed tools."""
+        policy = NodeToolPolicy(
+            include_agent_tools="selected",
+            allowed_agent_tool_names=["web_search"],
+            denied_agent_tool_names=["task_create", "task_analyze", "task_execute"],
+        )
+        config = NodeConfigBase(tool_policy=policy)
+
+        outer_tools = [
+            Tool(name="task_create"),
+            Tool(name="task_analyze"),
+            Tool(name="task_execute"),
+            Tool(name="web_search"),
+        ]
+
+        resolved = config.tool_policy.resolve_tools(outer_agent_tools=outer_tools)
+        resolved_names = {t.name for t in resolved}
+
+        # Only web_search should be allowed
+        assert "web_search" in resolved_names
+        assert "task_create" not in resolved_names
+        assert "task_analyze" not in resolved_names
+        assert "task_execute" not in resolved_names
+
+    def test_worker_default_config_restricts_tools(self) -> None:
+        """WorkerNode default config uses include_agent_tools='none'."""
+        config = NodeConfigBase()
+        worker = TinyCUAWorkerNode(node_id="worker", config=config)
+
+        # Default policy should be "none"
+        assert worker.config.tool_policy.include_agent_tools == "none"
