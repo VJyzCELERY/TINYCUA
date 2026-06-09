@@ -127,9 +127,10 @@ Mode resolution logic:
 ### Task Tree Validation
 
 ```python
-def _validate_task_tree_non_none(self, response: LLMResult) -> None:
+def _validate_task_tree_non_none(self) -> None:
     """
     Validate that the task tree is non-None after completion.
+    Checks self.session.task directly — no response parameter needed.
 
     Raises:
         NodeExecutionError: If session.task is None after analysis.

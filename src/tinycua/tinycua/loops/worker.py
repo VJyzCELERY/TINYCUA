@@ -254,7 +254,7 @@ class TinyCUAWorkerNode(DecisionNode):
         """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode + AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskAnalyzerNode with
-        mode="initial_analysis" (excludes TaskInit/TaskCreate tools) and
+        mode="reanalysis" (excludes TaskInit/TaskCreate tools) and
         AnalysisEffortNode, ensuring terminal response path is maintained.
 
         Args:
