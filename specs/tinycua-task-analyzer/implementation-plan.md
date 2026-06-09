@@ -405,7 +405,7 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 
 ```python
 # Updated valid modes (replaces three-mode set)
-_TASK_ANALYZER_MODES = frozenset({
+_VALID_MODES = frozenset({
     "initial_analysis",
     "recreation",
     "reanalysis",

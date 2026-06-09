@@ -47,7 +47,7 @@ TaskAnalyzerNode(ProcessNode)
 
 ```python
 # Valid analysis modes (frozenset for immutability)
-_TASK_ANALYZER_MODES = frozenset({
+_VALID_MODES = frozenset({
     "initial_analysis",
     "recreation",
     "reanalysis",
@@ -97,7 +97,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             mode: Analysis mode. Must be one of the five valid modes.
 
         Raises:
-            ValueError: If mode is not in _TASK_ANALYZER_MODES.
+            ValueError: If mode is not in _VALID_MODES.
         """
 ```
 
@@ -199,9 +199,7 @@ def _validate_task_tree_non_none(self, response: LLMResult) -> None:
 
 ## Open Questions _(optional)_
 
-1. **Should `analysis` mode be preserved as an alias?**
-   - **Status**: Proposed
-   - **Proposed Answer**: Remove `analysis` mode. The target architecture specifies exactly five modes. If backward compatibility is needed, add a deprecation warning and alias `analysis` to `initial_analysis`.
+- None.
 
 ---
 

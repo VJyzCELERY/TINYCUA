@@ -28,7 +28,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 2. **Given** a `TinyCUATaskAnalyzerNode(mode="recreation")`, **When** it is called, **Then** it MUST have TaskInit/TaskCreate tools available for LLM-assisted task tree replacement.
 3. **Given** a `TinyCUATaskAnalyzerNode(mode="reanalysis")`, **When** it is called, **Then** it must NOT have TaskInit/TaskCreate tools and must refine the existing task tree without full replacement.
 4. **Given** a `TinyCUATaskAnalyzerNode(mode="effort_loop_decomposition")`, **When** it is called during an effort-loop pass, **Then** it must NOT have TaskInit/TaskCreate tools and must decompose tasks selected by TaskAssessor.
-5. **Given** a `TinyCUATaskAnalyzerNode(mode="local_replan")`, **When** it is called after ResultReviewer replan decision, **Then** it must NOT have TaskInit/TaskCreate tools (unless mode explicitly allows it) and must perform local replan of the active task or local region.
+5. **Given** a `TinyCUATaskAnalyzerNode(mode="local_replan")`, **When** it is called after ResultReviewer replan decision, **Then** it must NOT have TaskInit/TaskCreate tools and must perform local replan of the active task or local region.
 6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a `NodeExecutionError`.
 7. **Given** a `TinyCUATaskAnalyzerNode` with an invalid mode, **When** it is instantiated, **Then** it MUST raise a `ValueError` with the list of valid modes.
 8. **Given** a `TinyCUATaskAnalyzerNode` with no mode specified, **When** it is instantiated, **Then** mode MUST default to `initial_analysis`.
@@ -122,7 +122,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices beyond what's in the design docs)
+- [ ] No implementation details — code, framework, or architecture choices must live in design docs only
 - [ ] All mandatory sections completed
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Requirements are testable and unambiguous
