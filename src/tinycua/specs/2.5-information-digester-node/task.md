@@ -46,7 +46,7 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
   - [x] `test_no_useful_context_fallback` <!-- id: 34 -->
   - [x] `test_digest_information_produces_structured_output` <!-- id: 35 -->
   - [x] `test_tool_scope_restricted` <!-- id: 36 -->
-  - [x] `test_retry_on_failure` <!-- id: 37 -->
+  - [x] `test_retry_on_empty_digest` <!-- id: 37 -->
   - [x] `test_chat_history_not_passed_wholesale` <!-- id: 38 -->
   - [x] `test_fallback_preserves_user_query` <!-- id: 39 -->
   - [x] `test_config_defaults_when_none` <!-- id: 40 -->

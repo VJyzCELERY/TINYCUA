@@ -157,11 +157,8 @@ def test_information_digester_no_useful_context_path(
 
     Covers spec acceptance scenarios 6, 11, 13 — FR-011, FR-013, FR-014.
     """
-    # Arrange — mock LLM to indicate no useful context
-    mock_llm_call.return_value = LLMResult(
-        content="No useful additional context found for this query.",
-        role="assistant",
-    )
+    # Arrange — mock LLM to return empty content (triggers retry → fallback)
+    mock_llm_call.return_value = LLMResult(content="", role="assistant")
 
     digester = TinyCUAInformationDigesterNode(config=digester_config)
 

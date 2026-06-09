@@ -110,6 +110,7 @@ class EnhancedContextRetrieval:
         import tempfile
 
         if self.cache_path is None:
+            # TODO(M4.2): replace with mkstemp() or NamedTemporaryFile
             self.cache_path = tempfile.mktemp(suffix=".cache")
         return self.cache_path
 
