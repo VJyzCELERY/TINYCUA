@@ -1,7 +1,7 @@
 # Design Document: TinyCUAInformationDigesterNode
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: Approved
 **Last Updated**: 2026-06-09
 
 ---
@@ -44,6 +44,7 @@ This design implements `TinyCUAInformationDigesterNode`, a concrete `ProcessNode
 | `tinycua.loops.information_digester.TinyCUAInformationDigesterNode` | New | Concrete ProcessNode for context gathering and digestion |
 | `tinycua.config.node_config.TinyCUAInformationDigesterNodeConfig` | New | Config extending NodeConfigBase with retrieval/digest settings |
 | `tinycua.models.digested_information.DigestedInformation` | New | Data model for structured digest output |
+| `tinycua.models.node_input.NodeInput` | Existing (Referenced) | Used as input type for InformationDigesterNode.__call__ |
 | `tinycua.loops.__init__` | Modified | Export new node and model |
 
 ---
@@ -162,11 +163,11 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         """
     
     def _invoke_enhanced_retrieval(self, messages: list[dict]) -> list[dict]:
-        """Invoke enhanced_context_retrieval for lazy scoped context access.
+        """Invoke EnhancedContextRetrieval for lazy scoped context access.
         
-        Lazily creates a scoped context cache file and runs a limited
-        ReAct-style search over that cache. Search/read operations are
-        limited to the cache.
+        Instantiates EnhancedContextRetrieval with the input messages,
+        creates a scoped cache, and runs a limited ReAct-style search
+        over that cache. Search/read operations are limited to the cache.
         
         Args:
             messages: The selected input messages to search within.
@@ -215,32 +216,55 @@ class TinyCUAInformationDigesterNode(ProcessNode):
 ### Enhanced Context Retrieval Contract
 
 ```python
-def enhanced_context_retrieval(
-    session_context: list[dict],
-    *,
-    max_sources: int | None = None,
-) -> list[dict]:
-    """Search scoped context and read-only exploration surfaces.
+class EnhancedContextRetrieval:
+    """Lazily scoped context retrieval with ReAct-style search.
     
-    Lazily creates a scoped session-context cache file and runs a
-    limited ReAct-style search over that cache using grep/search
-    and paginated read tools.
+    Manages a scoped context cache file and runs a limited ReAct-style
+    search over that cache using grep/search and paginated read tools.
     
-    Args:
-        session_context: The selected context messages to cache and search.
-        max_sources: Maximum number of context sources to process.
-    
-    Returns:
-        Additional context messages found through retrieval, or empty list.
-    
-    Behavior:
-        1. Receives the current session or selected session_context.
-        2. Lazily creates a scoped context cache file when called.
-        3. Cache contains only selected context for that session/tool call.
-        4. Retrieval runs as ReAct-style search over the cache.
-        5. Search/read tools limited to grep/search within cache and
-           paginated cache reads.
+    Attributes:
+        cache_path: Path to the scoped context cache file.
     """
+    
+    def __init__(
+        self,
+        session_context: list[dict],
+        *,
+        max_sources: int | None = None,
+    ) -> None:
+        """Initialize retrieval with selected context messages.
+        
+        Args:
+            session_context: The selected context messages to cache and search.
+            max_sources: Maximum number of context sources to process.
+        """
+    
+    def create_cache(self) -> str:
+        """Lazily create the scoped context cache file.
+        
+        Returns:
+            Path to the created cache file.
+        
+        Behavior:
+            1. Creates a scoped session-context cache file if not yet created.
+            2. Cache contains only selected context for this session/tool call.
+        """
+    
+    def search(self, query: str) -> list[dict]:
+        """Search the scoped cache using ReAct-style exploration.
+        
+        Args:
+            query: Search query to find relevant context.
+        
+        Returns:
+            Additional context messages found through retrieval, or empty list.
+        
+        Behavior:
+            1. Runs grep/search over the scoped cache.
+            2. Paginated reads for matching sections.
+            3. Search/read tools limited to grep/search within cache and
+               paginated cache reads.
+        """
 ```
 
 ### Fallback Continuation Format
@@ -350,6 +374,17 @@ def _build_fallback_message(user_query: str) -> str:
 | LLM-assisted `digest_information` could produce inconsistent output | Medium | Medium | `digest_schema` config enables output validation; retry per NodeRetryPolicy |
 | InformationDigesterNode could be spawned unnecessarily | Low | Low | Architecture requires ResponseNode/TaskExecutor to evaluate context sufficiency first |
 | Tool scope enforcement could be bypassed | Low | High | NodeToolPolicy resolution in NodeConfigBase enforces tool restrictions at config level |
+
+---
+
+## Review Checklist
+
+- [x] All mandatory sections completed (Architecture, Data Model, API Contracts, Implementation Phases, Technical Decisions, Risks)
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] API contracts align with ProcessNode base class
+- [x] Error handling covers all edge cases from spec
+- [x] Implementation phases are ordered and dependencies identified
+- [x] Technical decisions include rationale and alternatives considered
 
 ---
 

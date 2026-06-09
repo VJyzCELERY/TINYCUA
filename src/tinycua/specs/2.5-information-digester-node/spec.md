@@ -1,6 +1,6 @@
 # Feature Specification: TinyCUAInformationDigesterNode
 
-**Status**: Draft
+**Status**: Approved
 **Created**: 2026-06-09
 **Last Updated**: 2026-06-09
 **Subproject(s) Affected**: tinycua (core)
@@ -31,7 +31,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 3. **Given** InformationDigesterNode receives selected input from a parent node, **When** it completes, **Then** it propagates digested output to the parent node's session via selected-output propagation rule.
 4. **Given** InformationDigesterNode is spawned with `enhanced_context_retrieval` tool enabled, **When** it needs broader context, **Then** it lazily creates a scoped context cache file and runs a limited ReAct-style search over that cache.
 5. **Given** InformationDigesterNode is spawned with `enhanced_context_retrieval` tool enabled, **When** the cache is created, **Then** search and read operations are limited to the cache (grep/search within cache and paginated cache reads).
-6. **Given** InformationDigesterNode finds no useful context during retrieval, **When** it completes, **Then** it returns a fallback continuation: "The user asked `<user_query>`. No useful extra information was found. Downstream should proceed with the user request and plan carefully before action."
+6. **Given** InformationDigesterNode finds no useful context during retrieval, **When** it completes, **Then** it returns a fallback continuation: `"The user asked \"<user_query>\". No useful extra information was found. Downstream should proceed with the user request and plan carefully before action."`
 7. **Given** InformationDigesterNode finds useful context, **When** it calls `digest_information`, **Then** it produces structured `DigestedInformation` with fields: `context_summary`, `key_points`, `advisory_instructions`, `constraints`, `known_gaps`.
 8. **Given** InformationDigesterNode completes and propagates output to its parent, **When** the parent resumes, **Then** the digest output lands in the parent's `session_context`.
 9. **Given** InformationDigesterNode is spawned by ResponseNode, **When** it receives input, **Then** the input contains a copied, selected subset of the response node's `session_context` messages plus an optional digest request payload.
@@ -64,7 +64,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **FR-008**: Search and read operations within `enhanced_context_retrieval` MUST be limited to the cache (grep/search within cache and paginated cache reads).
 - **FR-009**: InformationDigesterNode MUST support `digest_information` tool for producing structured digest output.
 - **FR-010**: InformationDigesterNode MUST produce `DigestedInformation` with fields: `context_summary`, `key_points`, `advisory_instructions`, `constraints`, `known_gaps`.
-- **FR-011**: When no useful context is found, InformationDigesterNode MUST return a fallback continuation preserving the original user query: "The user asked `<user_query>`. No useful extra information was found. Downstream should proceed with the user request and plan carefully before action."
+- **FR-011**: When no useful context is found, InformationDigesterNode MUST return a fallback continuation preserving the original user query: `"The user asked \"<user_query>\". No useful extra information was found. Downstream should proceed with the user request and plan carefully before action."`
 - **FR-012**: InformationDigesterNode MUST use selected-output propagation profile targeting its suspended parent.
 - **FR-013**: InformationDigesterNode MUST NOT have access to outer Agent tools — only `enhanced_context_retrieval` and `digest_information`.
 - **FR-014**: InformationDigesterNode MUST retry according to `NodeRetryPolicy` on failure.
@@ -144,7 +144,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Planning documents | TODO | spec.md, design.md |
+| Planning documents | DONE | spec.md, design.md, task.md, implementation-plan.md (this PR) |
 | TinyCUAInformationDigesterNode class | TODO | information_digester.py |
 | TinyCUAInformationDigesterNodeConfig | TODO | node_config.py extension |
 | DigestedInformation model | TODO | digested_information.py |
@@ -161,13 +161,15 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 1. **Should `enhanced_context_retrieval` be implemented in this milestone or deferred to Tool Scoping (Milestone 4.2)?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Discussion
+   - **Status**: Resolved
+   - **Decision**: 2026-06-09 — Adopted proposed answer: shared contract in this milestone, full implementation deferred to 4.2.
    - **Proposed Answer**: The shared contract and interface should be defined in this milestone. Full implementation may be deferred to 4.2, but InformationDigesterNode should be coded against the contract.
 
 2. **Should `digest_information` tool call be implemented as a deterministic function or an LLM-assisted tool?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Discussion
+   - **Status**: Resolved
+   - **Decision**: 2026-06-09 — Adopted proposed answer: `digest_information` should be an LLM-assisted tool call.
    - **Proposed Answer**: `digest_information` should be an LLM-assisted tool call where the LLM produces the structured digest from the gathered context.
 
 ---
