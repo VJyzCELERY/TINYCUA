@@ -208,20 +208,19 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="recreation")
 
-    # Build a mock LLM that captures the tools kwarg passed to it
-    mock_llm = MagicMock()
+    # Build a mock response that returns no tool calls
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message = MagicMock()
+    mock_response.choices[0].message.content = "Task recreated."
+    mock_response.choices[0].message.tool_calls = []
+
+    # Capture tools from mock_agent._call_llm (not from mock_llm.chat.completions.create)
     captured_tools = []
 
-    def fake_create(**kwargs):
-        captured_tools.extend(kwargs.get("tools", []))
-        resp = MagicMock()
-        resp.choices = [MagicMock()]
-        resp.choices[0].message = MagicMock()
-        resp.choices[0].message.content = "Task recreated."
-        resp.choices[0].message.tool_calls = []
-        return resp
-
-    mock_llm.chat.completions.create.side_effect = fake_create
+    def fake_call_llm(messages, tools, **kwargs):
+        captured_tools.extend(tools or [])
+        return mock_response
 
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
@@ -234,7 +233,7 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
     from tinycua.agent import Agent
 
     mock_agent = MagicMock(spec=Agent)
-    mock_agent._call_llm = MagicMock(return_value=mock_llm.chat.completions.create.return_value)
+    mock_agent._call_llm = MagicMock(side_effect=fake_call_llm)
 
     loop = TinyCUALoop(queue=queue, root_session=mock_session)
     asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
@@ -264,19 +263,19 @@ def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="initial_analysis")
 
-    mock_llm = MagicMock()
+    # Build a mock response that returns no tool calls
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message = MagicMock()
+    mock_response.choices[0].message.content = "Initial analysis complete."
+    mock_response.choices[0].message.tool_calls = []
+
+    # Capture tools from mock_agent._call_llm (not from mock_llm.chat.completions.create)
     captured_tools = []
 
-    def fake_create(**kwargs):
-        captured_tools.extend(kwargs.get("tools", []))
-        resp = MagicMock()
-        resp.choices = [MagicMock()]
-        resp.choices[0].message = MagicMock()
-        resp.choices[0].message.content = "Initial analysis complete."
-        resp.choices[0].message.tool_calls = []
-        return resp
-
-    mock_llm.chat.completions.create.side_effect = fake_create
+    def fake_call_llm(messages, tools, **kwargs):
+        captured_tools.extend(tools or [])
+        return mock_response
 
     mock_session = MagicMock()
     mock_session.task = {"id": "root", "children": []}
@@ -289,7 +288,7 @@ def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     from tinycua.agent import Agent
 
     mock_agent = MagicMock(spec=Agent)
-    mock_agent._call_llm = MagicMock(return_value=mock_llm.chat.completions.create.return_value)
+    mock_agent._call_llm = MagicMock(side_effect=fake_call_llm)
 
     loop = TinyCUALoop(queue=queue, root_session=mock_session)
     asyncio.run(loop.run(agent=mock_agent, messages=[], tools=[]))
@@ -332,7 +331,7 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
     node.session = mock_session
 
     with pytest.raises(NodeExecutionError, match="task tree is None"):
-        node(mock_llm)
+        node("test input")
 
 
 def test_task_analyzer_empty_input_handled_gracefully():
