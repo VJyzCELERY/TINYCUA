@@ -101,23 +101,20 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 ### Unit Tests
 
-- `test_analysis_effort_node_none_effort`: WorkerEffort="none" spawns TaskExecutor immediately (pass_limit=0).
-- `test_analysis_effort_node_low_effort`: WorkerEffort="low" prepends one [TaskAssessor, TaskAnalyzer] pass.
-- `test_analysis_effort_node_medium_effort`: WorkerEffort="medium" prepends two [TaskAssessor, TaskAnalyzer] passes.
-- `test_analysis_effort_node_high_effort`: WorkerEffort="high" prepends three [TaskAssessor, TaskAnalyzer] passes.
-- `test_analysis_effort_node_pass_count_increment`: pass_count increments correctly on each pass.
-- `test_analysis_effort_node_threshold_reached`: TaskExecutor spawns when pass_count >= pass_limit.
-- `test_analysis_effort_node_no_llm_call`: AnalysisEffortNode does not invoke LLM client.
-- `test_analysis_effort_node_default_effort`: Defaults to WorkerEffort="none" when not configured.
-- `test_analysis_effort_node_preserves_terminal_path`: Terminal response path maintained after TaskExecutor spawning.
-- `test_analysis_effort_node_queue_shape_after_task_creation`: Queue shape matches expected architecture after worker task_creation route.
-- `test_analysis_effort_node_queue_shape_after_task_recreation`: Queue shape matches expected architecture after worker task_recreation route.
-- `test_analysis_effort_node_queue_shape_after_task_reanalysis`: Queue shape matches expected architecture after worker task_reanalysis route.
-- `test_analysis_effort_node_effort_to_pass_limit_mapping`: All four effort levels map to correct pass limits.
-- `test_analysis_effort_node_task_tree_propagation`: Task tree state changes from TaskAssessor and TaskAnalyzer passes are propagated to the next node in the queue.
-- `test_task_assessor_node_effort_loop_mode`: TinyCUATaskAssessorNode operates in effort-loop mode when called from AnalysisEffortNode, selecting only unfinished tasks.
-- `test_task_assessor_node_no_tasks_selected`: TinyCUATaskAssessorNode returns no tasks when all tasks are complete, allowing queue to advance back to AnalysisEffortNode.
-- `test_task_assessor_node_selects_tasks`: TinyCUATaskAssessorNode selects unfinished tasks for processing by TaskAnalyzer.
+- `test_none_effort_spawns_executor_immediately`: WorkerEffort="none" spawns TaskExecutor immediately (pass_limit=0).
+- `test_low_effort_does_not_spawn_immediately`: WorkerEffort="low" prepends one [TaskAssessor, TaskAnalyzer] pass.
+- `test_medium_effort_does_not_spawn_immediately`: WorkerEffort="medium" prepends two [TaskAssessor, TaskAnalyzer] passes.
+- `test_high_effort_does_not_spawn_immediately`: WorkerEffort="high" prepends three [TaskAssessor, TaskAnalyzer] passes.
+- `test_pass_count_increment`: pass_count increments correctly on each pass.
+- `test_threshold_reached_spawns_executor`: TaskExecutor spawns when pass_count >= pass_limit.
+- `test_no_llm_call`: AnalysisEffortNode does not invoke LLM client.
+- `test_default_effort_when_not_configured`: Defaults to WorkerEffort="none" when not configured.
+- `test_preserves_terminal_path`: Terminal response path maintained after TaskExecutor spawning.
+- `test_effort_to_pass_limit_mapping_all_levels`: All four effort levels map to correct pass limits.
+- `test_task_tree_propagation`: Task tree state changes from TaskAssessor and TaskAnalyzer passes are propagated to the next node in the queue.
+- `test_effort_loop_mode_evaluates_task_tree`: TinyCUATaskAssessorNode operates in effort-loop mode when called from AnalysisEffortNode, selecting only unfinished tasks.
+- `test_effort_loop_mode_no_tasks_selected`: TinyCUATaskAssessorNode returns no tasks when all tasks are complete, allowing queue to advance back to AnalysisEffortNode.
+- `test_effort_loop_mode_selects_unfinished_tasks`: TinyCUATaskAssessorNode selects unfinished tasks for processing by TaskAnalyzer.
 
 ### Integration Tests
 

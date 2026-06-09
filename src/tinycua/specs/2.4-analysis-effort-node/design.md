@@ -286,8 +286,8 @@ proceed_execution:
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
-- [ ] Implement TaskExecutor and ResultReviewer path (Milestone 3.2)
-- [ ] Implement full effort loop with TaskAssessor/TaskAnalyzer integration
+- [ ] Implement TaskExecutor and ResultReviewer path **(deferred: Milestone 3.2)**
+- [ ] Implement full effort loop with TaskAssessor/TaskAnalyzer integration **(deferred: Milestone 3.2)**
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 

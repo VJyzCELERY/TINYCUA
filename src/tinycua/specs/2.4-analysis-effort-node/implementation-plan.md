@@ -162,7 +162,8 @@ def test_analysis_effort_node_passes_complete():
         input_type="continuation",
         messages=[{"role": "user", "content": "Continue"}],
     )
-    effort_node(queue)  # This should prepend [TaskAssessor, TaskAnalyzer]
+    response = effort_node(input_data)
+    effort_node.on_complete(queue, response)  # This should prepend [TaskAssessor, TaskAnalyzer]
 
     # Assert
     node_ids = [n.node_id for n in queue.items]
