@@ -39,6 +39,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 11. **Given** AnalysisEffortNode spawns TaskExecutor, **When** TaskExecutor is spawned, **Then** the terminal response path (ResultReviewer, ResponseNode) is maintained.
 12. **Given** AnalysisEffortNode with any effort level, **When** AnalysisEffortNode completes its work, **Then** it is the deterministic ProcessNode — no LLM call is made.
 13. **Given** AnalysisEffortNode prepends [TaskAssessor, TaskAnalyzer], **When** TaskAnalyzer completes, **Then** task tree state changes are visible to the next node in the queue.
+14. **Given** a TinyCUA agent with WorkerNode active and WorkerEffort not configured, **When** the worker task_creation route executes, **Then** AnalysisEffortNode defaults to WorkerEffort="none" and spawns TaskExecutor immediately.
 
 ### Edge Cases
 
@@ -73,7 +74,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 
 - **TinyCUAAnalysisEffortNode**: Concrete ProcessNode that controls planning depth via configurable pass limits. Deterministic (no LLM call). Tracks pass_count and prepends [TaskAssessor, TaskAnalyzer] pairs.
 - **WorkerEffort**: Enum/string with values `none`, `low`, `medium`, `high`. Maps to pass limits 0, 1, 2, 3 respectively.
-- **TinyCUATaskAssessorNode**: Concrete ProcessNode that evaluates the task tree and selects unfinished tasks. Operates in effort-loop mode when called from AnalysisEffortNode.
+- **TinyCUATaskAssessorNode**: Concrete ProcessNode that evaluates the task tree and selects unfinished tasks. Operates in effort-loop mode when called from AnalysisEffortNode — see design.md for LLM instruction, output format, and tool scope.
 - **TinyCUATaskAnalyzerNode**: Concrete ProcessNode that performs task analysis with mode-based tool filtering. Operates in `effort_loop_decomposition` mode when called from AnalysisEffortNode.
 
 ---

@@ -32,12 +32,13 @@ Implementation tasks for TinyCUAAnalysisEffortNode. Check off items as completed
   - [ ] `test_task_assessor_node_selects_tasks` — selects unfinished tasks
 - [ ] Run unit tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
 - [ ] Write integration tests for worker → effort → executor flow <!-- id: 5 -->
+  - Note: Integration tests may fail to import until tasks 7-9 are complete. Write tests as stubs with `pytest.importorskip()` or skip decorators if dependencies aren't available. TaskExecutor is deferred to Milestone 3.2 — tests should mock TaskExecutor or verify queue shape up to the point where TaskExecutor would be spawned.
   - [ ] `test_analysis_effort_node_with_worker_task_creation` — end-to-end task_creation route
   - [ ] `test_analysis_effort_node_with_worker_task_recreation` — end-to-end task_recreation route
   - [ ] `test_analysis_effort_node_with_worker_task_reanalysis` — end-to-end task_reanalysis route
   - [ ] `test_analysis_effort_node_passes_complete` — AnalysisEffortNode → [Assessor, Analyzer] × N → Executor
   - [ ] `test_analysis_effort_node_assessor_no_tasks` — no tasks → no analyzer → back to AnalysisEffortNode
-- [ ] Run integration tests — expect RED <!-- id: 6 -->
+- [ ] Run integration tests — expect RED (may be ImportError until dependencies exist) <!-- id: 6 -->
 
 ## Implementation Phase
 

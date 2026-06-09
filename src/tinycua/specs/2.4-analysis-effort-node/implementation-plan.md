@@ -260,6 +260,17 @@ def test_analysis_effort_node_assessor_no_tasks():
     - `mode: str` — `"effort_loop"` or `"reviewer_replan"`
     - `on_complete(queue, response)` — if tasks selected, advance to TaskAnalyzer; if no tasks, advance back to AnalysisEffortNode
 
+### Modified Module: `tinycua.loops.task_analyzer`
+
+#### [MODIFY] `src/tinycua/tinycua/loops/task_analyzer.py`
+
+- **Description**: Add `effort_loop_decomposition` to `_VALID_MODES` and route it to the same tool filtering as `initial_analysis`
+- **Rationale**: AnalysisEffortNode spawns TaskAnalyzerNode with `mode="effort_loop_decomposition"`, which must be a recognized mode with appropriate tool scope
+- **Breaking changes**: None — adding a new mode is additive
+- **Changes**:
+  - Add `"effort_loop_decomposition"` to `_VALID_MODES` frozenset
+  - Include `"effort_loop_decomposition"` in `_resolve_tool_scope()` alongside `"initial_analysis"` for excluded tool filtering
+
 ### Modified Module: `tinycua.loops.worker`
 
 #### [MODIFY] `src/tinycua/tinycua/loops/worker.py`

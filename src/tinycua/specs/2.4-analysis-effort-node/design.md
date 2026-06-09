@@ -319,6 +319,26 @@ proceed_execution:
    - **Reason**: TaskAssessor has two modes: effort-loop and reviewer-replan. AnalysisEffortNode uses effort-loop mode, which evaluates the full task tree and selects only unfinished tasks.
    - **Alternatives Considered**: Use reviewer-replan mode — rejected because it introduces LLM-based re-planning in a deterministic node.
 
+### TaskAssessorNode Implementation Details (effort-loop mode)
+
+**LLM Instruction**:
+```
+You are a task assessor. Evaluate the current task tree and select only tasks
+that are NOT completed (status != "completed"). Return a JSON list of selected
+task IDs. If all tasks are complete, return an empty list [].
+```
+
+**Output Format**: JSON list of task IDs (e.g., `["task-1", "task-2"]` or `[]`).
+
+**Tool Scope**: Read-only task tree inspection tools:
+- `TaskUpdate` (read-only: inspect task status)
+- No `TaskInit`, `TaskCreate`, or `TaskComplete` tools
+
+**Selection Criteria**:
+- Tasks with `status != "completed"` are selected for processing
+- If no tasks meet the criteria, an empty list is returned (signals no TaskAnalyzer pass needed)
+- The selected task IDs are passed to TaskAnalyzer for decomposition
+
 8. **Decision**: TaskAnalyzer uses effort_loop_decomposition mode when called from AnalysisEffortNode
    - **Reason**: TaskAnalyzer has multiple modes. The effort_loop_decomposition mode decomposes tasks selected by TaskAssessor without TaskInit/TaskCreate tools.
    - **Alternatives Considered**: Use initial_analysis mode — rejected because it includes TaskInit/TaskCreate tools not needed for effort passes.

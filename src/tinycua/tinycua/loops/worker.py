@@ -60,6 +60,7 @@ class TinyCUAWorkerNode(DecisionNode):
         node_id: str = "worker",
         config: NodeConfigBase | None = None,
         route_map: RouteMap | None = None,
+        effort: str = "none",
     ) -> None:
         """Initialize WorkerNode with default classification labels.
 
@@ -68,6 +69,8 @@ class TinyCUAWorkerNode(DecisionNode):
             config: Node configuration. Uses default if None.
             route_map: Optional pre-configured RouteMap. Created with
                 default handlers if None.
+            effort: WorkerEffort level ("none", "low", "medium", "high").
+                Defaults to "none" (pass_limit=0).
         """
         super().__init__(
             node_id=node_id,
@@ -84,6 +87,7 @@ class TinyCUAWorkerNode(DecisionNode):
         self.route_map = route_map or self._build_default_route_map()
         self._queue: NodeQueue | None = None
         self._last_input: NodeInputLike | None = None
+        self._effort = effort
 
     def _build_default_route_map(self) -> RouteMap:
         """Build the default RouteMap with all five route handlers.
