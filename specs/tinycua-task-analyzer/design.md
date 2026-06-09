@@ -1,7 +1,7 @@
 # Design Document: TinyCUATaskAnalyzerNode
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Final
 **Last Updated**: 2026-06-10
 
 ---
