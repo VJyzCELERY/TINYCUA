@@ -5,6 +5,16 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for all five modes, tool scope, and task tree validation in `src/tinycua/tests/unit/test_task_analyzer_node.py` <!-- id: 0 -->
+  - `test_task_analyzer_integration_with_tool_policy` — mode-dependent tool filtering across all modes (spec test 1)
+  - `test_task_analyzer_lifecycle_hooks_in_queue` — queue-based lifecycle hooks fire correctly (spec test 2)
+  - `test_task_analyzer_recreation_in_queue_receives_task_tools` — recreation mode in queue receives TaskInit/TaskCreate tools (spec test 3)
+  - `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools` — initial_analysis mode in queue excludes TaskInit/TaskCreate (spec test 4)
+  - `test_task_analyzer_task_tree_validation_none_raises_error` — NodeExecutionError when task tree is None (spec test 5)
+  - `test_task_analyzer_all_five_modes_are_valid` — all five modes accepted (unit)
+  - `test_task_analyzer_recreation_allows_task_creation_tools` — recreation includes TaskInit/TaskCreate (unit)
+  - `test_task_analyzer_non_recreation_excludes_task_creation_tools` — non-recreation excludes TaskInit/TaskCreate (unit)
+  - `test_task_analyzer_invalid_mode_raises_value_error` — unknown modes raise ValueError (unit)
+  - `test_task_analyzer_default_mode_is_initial_analysis` — default is initial_analysis (unit)
 - [ ] Run integration tests — expect RED (failures) since implementation not yet updated <!-- id: 1 -->
 
 ## Implementation Phase
