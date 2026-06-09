@@ -170,3 +170,19 @@ class NodeConfigBase:
     message_policy: NodeMessagePolicy = field(default_factory=NodeMessagePolicy)
     metadata: dict[str, Any] = field(default_factory=dict)
     llm_client: Callable | None = None
+
+
+@dataclass
+class TinyCUAInformationDigesterNodeConfig(NodeConfigBase):
+    """Configuration for InformationDigesterNode.
+
+    Extends NodeConfigBase with retrieval and digest-specific settings.
+
+    Attributes:
+        retrieval_enabled: Whether enhanced_context_retrieval is available.
+        max_digest_sources: Maximum number of context sources to process.
+        # digest_schema deferred to M4.2 when digest_information tool is fully implemented.
+    """
+
+    retrieval_enabled: bool = True
+    max_digest_sources: int | None = None

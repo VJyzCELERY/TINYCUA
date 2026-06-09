@@ -5,6 +5,7 @@ from tinycua.loops.analysis_effort import (
     WorkerEffort,
     effort_to_pass_limit,
 )
+from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node import DecisionNode, Node, NodeExecutionError, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
@@ -25,6 +26,7 @@ __all__ = [
     "ResponseNode",
     "RouteMap",
     "TinyCUAAnalysisEffortNode",
+    "TinyCUAInformationDigesterNode",
     "TinyCUAQueryAnalystNode",
     "TinyCUATaskAnalyzerNode",
     "TinyCUATaskAssessorNode",
