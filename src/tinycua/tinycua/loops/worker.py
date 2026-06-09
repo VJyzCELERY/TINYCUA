@@ -172,23 +172,27 @@ class TinyCUAWorkerNode(DecisionNode):
     def _route_task_creation(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode.
+        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode then AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskCreateNode followed by
-        TaskAnalyzerNode (mode=initial_analysis), ensuring terminal response
-        path is maintained.
+        TaskAnalyzerNode (mode=initial_analysis) and AnalysisEffortNode,
+        ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_create).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import (
+            TinyCUAAnalysisEffortNode,
+            WorkerEffort,
+        )
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
         from tinycua.loops.task_create import TinyCUATaskCreateNode
 
         # Clear stale worker-spawned nodes
         queue.clear_after_current()
 
-        # Spawn TaskCreateNode and TaskAnalyzerNode after current worker
+        # Spawn TaskCreateNode, TaskAnalyzerNode, and AnalysisEffortNode after current worker
         task_create = TinyCUATaskCreateNode(
             node_id="task_create", config=self.config,
         )
@@ -196,29 +200,37 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        queue.spawn_after_current([task_create, task_analyzer])
+        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=effort,
+        )
+        queue.spawn_after_current([task_create, task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_creation spawned task_create, task_analyzer",
+            "node=%s route_task_creation spawned task_create, task_analyzer, analysis_effort",
             self.node_id,
         )
 
     def _route_task_recreation(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode with TaskInit/TaskCreate tools.
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode + AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskAnalyzerNode with
-        mode="analysis" (includes TaskInit/TaskCreate tools), ensuring
-        terminal response path is maintained.
+        mode="analysis" (includes TaskInit/TaskCreate tools) and
+        AnalysisEffortNode, ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import (
+            TinyCUAAnalysisEffortNode,
+            WorkerEffort,
+        )
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -229,29 +241,37 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="analysis",
         )
-        queue.spawn_after_current([task_analyzer])
+        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=effort,
+        )
+        queue.spawn_after_current([task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_recreation spawned task_analyzer (mode=analysis)",
+            "node=%s route_task_recreation spawned task_analyzer, analysis_effort",
             self.node_id,
         )
 
     def _route_task_reanalysis(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode without TaskInit/TaskCreate.
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode + AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskAnalyzerNode with
-        mode="initial_analysis" (excludes TaskInit/TaskCreate tools),
-        ensuring terminal response path is maintained.
+        mode="initial_analysis" (excludes TaskInit/TaskCreate tools) and
+        AnalysisEffortNode, ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import (
+            TinyCUAAnalysisEffortNode,
+            WorkerEffort,
+        )
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -262,13 +282,17 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        queue.spawn_after_current([task_analyzer])
+        effort = WorkerEffort(self._effort) if isinstance(self._effort, str) else self._effort
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=effort,
+        )
+        queue.spawn_after_current([task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_reanalysis spawned task_analyzer (mode=initial_analysis)",
+            "node=%s route_task_reanalysis spawned task_analyzer, analysis_effort",
             self.node_id,
         )
 
