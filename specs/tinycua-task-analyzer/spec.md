@@ -29,12 +29,12 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 3. **Given** a `TinyCUATaskAnalyzerNode(mode="reanalysis")`, **When** it is called, **Then** it must NOT have TaskInit/TaskCreate tools and must refine the existing task tree without full replacement.
 4. **Given** a `TinyCUATaskAnalyzerNode(mode="effort_loop_decomposition")`, **When** it is called during an effort-loop pass, **Then** it must NOT have TaskInit/TaskCreate tools and must decompose tasks selected by TaskAssessor.
 5. **Given** a `TinyCUATaskAnalyzerNode(mode="local_replan")`, **When** it is called after ResultReviewer replan decision, **Then** it must NOT have TaskInit/TaskCreate tools (unless mode explicitly allows it) and must perform local replan of the active task or local region.
-6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a contract violation error.
+6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a `NodeExecutionError`.
 7. **Given** a `TinyCUATaskAnalyzerNode` with an invalid mode, **When** it is instantiated, **Then** it MUST raise a `ValueError` with the list of valid modes.
 
 ### Edge Cases
 
-- What happens when the task tree is `None` after completion? The node must raise a contract violation error.
+- What happens when the task tree is `None` after completion? The node must raise a `NodeExecutionError`.
 - What happens when an unknown mode is provided? The node must raise `ValueError` with valid mode list.
 - What happens when TaskInit/TaskCreate tools are used in a non-recreation mode? The tool scope must exclude them; the LLM should not have access.
 - What happens with empty input? The node must handle empty or null input gracefully.
@@ -49,7 +49,7 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 - **FR-002**: System MUST support five analysis modes: `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, `local_replan`.
 - **FR-003**: System MUST apply mode-dependent tool scope via `NodeToolPolicy` — TaskInit/TaskCreate tools are ONLY available in `recreation` mode.
 - **FR-004**: System MUST directly mutate `session.task` through TinyCUALoop task helpers — must NOT return opaque mutation instructions.
-- **FR-005**: System MUST validate that the task tree is non-None after completion and raise a contract violation if it is `None`.
+- **FR-005**: System MUST validate that the task tree is non-None after completion and raise a `NodeExecutionError` if it is `None`.
 - **FR-006**: System MUST raise `ValueError` for unknown analysis modes.
 - **FR-007**: System MUST log mode and completion status via the existing logging pattern.
 - **FR-008**: System MUST inherit retry, validation, and lifecycle behavior from `ProcessNode`.
@@ -90,6 +90,9 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 
 - Test TaskAnalyzerNode integration with `NodeToolPolicy` for mode-dependent tool filtering.
 - Test TaskAnalyzerNode in a minimal queue with mock LLM to verify lifecycle hooks fire correctly.
+- Test TaskAnalyzerNode(mode=recreation) in a queue after TaskCreateNode — verify LLM receives TaskInit/TaskCreate tools.
+- Test TaskAnalyzerNode(mode=initial_analysis) in a queue — verify LLM does NOT receive TaskInit/TaskCreate tools.
+- Test TaskAnalyzerNode task tree validation — mock LLM returns without mutating session.task, verify NodeExecutionError raised.
 
 ### Manual Tests _(if applicable)_
 

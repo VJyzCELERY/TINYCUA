@@ -86,7 +86,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         self,
         node_id: str = "task_analyzer",
         config: NodeConfigBase | None = None,
-        mode: str = "analysis",
+        mode: str = "initial_analysis",
     ) -> None:
         """
         Initialize TaskAnalyzerNode.
