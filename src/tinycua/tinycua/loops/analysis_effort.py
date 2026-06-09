@@ -138,13 +138,16 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         position, ensuring terminal response path is maintained.
 
         Note: TaskExecutor is deferred to Milestone 3.2. This is a stub
-        that ensures the terminal path is maintained.
+        that ensures the terminal path is maintained (FR-008).
 
         Args:
             queue: The node queue to mutate.
         """
         # TaskExecutor is deferred to Milestone 3.2
-        # For now, ensure terminal response path is maintained
+        # Ensure terminal response path is maintained (FR-008)
+        terminal = next((n for n in queue.items if n.is_terminal), None)
+        if terminal is not None:
+            queue.ensure_terminal(terminal)
         logger.info(
             "node=%s spawn_task_executor (stub — Milestone 3.2)",
             self.node_id,

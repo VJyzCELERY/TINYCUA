@@ -233,16 +233,20 @@ class TinyCUAWorkerNode(DecisionNode):
 
 ```text
 task_creation:
-  [TaskCreateNode, TaskAnalyzerNode(initial_analysis), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+  [TaskCreateNode, TaskAnalyzerNode(initial_analysis), AnalysisEffortNode, ResponseNode]
+  # Note: TaskExecutor and ResultReviewer are deferred to Milestone 3.2
 
 task_recreation:
-  [TaskAnalyzerNode(analysis), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+  [TaskAnalyzerNode(analysis), AnalysisEffortNode, ResponseNode]
+  # Note: TaskExecutor and ResultReviewer are deferred to Milestone 3.2
 
 task_reanalysis:
-  [TaskAnalyzerNode(initial_analysis), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+  [TaskAnalyzerNode(initial_analysis), AnalysisEffortNode, ResponseNode]
+  # Note: TaskExecutor and ResultReviewer are deferred to Milestone 3.2
 
 proceed_execution:
-  [TaskExecutor, ResultReviewer, ResponseNode]
+  [ResponseNode]
+  # Note: TaskExecutor and ResultReviewer are deferred to Milestone 3.2
 ```
 
 ### Error Handling

@@ -81,11 +81,16 @@ class TinyCUATaskAssessorNode(ProcessNode):
             # Handle JSON list response
             if content.startswith("["):
                 self.selected_tasks = json.loads(content)
+            elif not content:
+                self.selected_tasks = []
             else:
-                # Fallback: treat as comma-separated or single task ID
-                self.selected_tasks = [
-                    t.strip() for t in content.split(",") if t.strip()
-                ]
+                # Non-JSON response — treat as empty selection with warning
+                logger.warning(
+                    "node=%s unexpected response format (not JSON array): %s",
+                    self.node_id,
+                    content[:200],
+                )
+                self.selected_tasks = []
         except (json.JSONDecodeError, TypeError):
             logger.warning(
                 "node=%s failed to parse selected_tasks from response: %s",

@@ -184,22 +184,41 @@ def test_analysis_effort_node_assessor_no_tasks():
     terminal = _make_mock_node("response", is_terminal=True)
     queue.items = [effort_node, terminal]
 
-    # Mock TaskAssessor to return no tasks
-    with patch('tinycua.loops.analysis_effort.TinyCUATaskAssessorNode') as MockAssessor:
-        mock_assessor = Mock()
-        mock_assessor.selected_tasks = []
-        MockAssessor.return_value = mock_assessor
+    # Step 1: Execute effort node → __call__ returns summary response
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Continue"}],
+    )
+    response = effort_node(input_data)
 
-        input_data = NodeInput(
-            input_type="continuation",
-            messages=[{"role": "user", "content": "Continue"}],
-        )
-        effort_node(input_data)
+    # Step 2: effort_node.on_complete prepends [TaskAssessor, TaskAnalyzer]
+    effort_node.on_complete(queue, response)
 
+    # Queue should now be: [TaskAssessor, TaskAnalyzer, AnalysisEffortNode, terminal]
+    assert queue.items[0].node_id == "task_assessor"
+
+    # Step 3: Pop TaskAssessor and execute it with a mocked LLM returning no tasks
+    assessor = queue.items.pop(0)
+    assessor.ensure_session(session)
+    with patch.object(
+        assessor,
+        "_call_llm",
+        return_value=MagicMock(content="[]", role="assistant", tool_calls=[], metadata={}),
+    ):
+        # Simulate runtime: assign input and execute
+        queue.set_input(assessor, input_data)
+        assessor_response = assessor(input_data)
+
+        # Step 4: TaskAssessor.on_complete — should skip TaskAnalyzer
+        assessor.on_complete(queue, assessor_response)
+
+    # Assert: pass_count incremented by prepend
+    assert effort_node.pass_count == 1
+    # Assert: no TaskAnalyzer in queue (skipped due to no tasks)
     node_ids = [n.node_id for n in queue.items]
     assert "task_analyzer" not in node_ids
+    # Assert: AnalysisEffortNode still in queue (re-enters for next cycle)
     assert "analysis_effort" in node_ids
-    assert effort_node.pass_count == 1
 ```
 
 ### Key Test Scenarios
