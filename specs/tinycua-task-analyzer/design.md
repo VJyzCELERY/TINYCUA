@@ -34,6 +34,7 @@ TaskAnalyzerNode(ProcessNode)
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua/loops/task_analyzer.py` | Modified | Extend mode set, tool scope, and task tree validation |
+| `tinycua/loops/worker.py` | Modified | Migrate `_route_task_recreation()` from `mode="analysis"` to `mode="recreation"` |
 | `tinycua/config/node_config.py` | Referenced | `TinyCUATaskAnalyzerNodeConfig` per-node config |
 | `tinycua/loops/node.py` | Referenced | `ProcessNode` base class |
 | `tinycua/docs/design/tools/task.md` | Referenced | Tool scope per mode |

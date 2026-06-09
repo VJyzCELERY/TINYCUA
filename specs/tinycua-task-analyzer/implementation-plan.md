@@ -302,6 +302,65 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 
     with pytest.raises(NodeExecutionError, match="task tree is None"):
         node(mock_llm, session=mock_session)
+
+
+def test_task_analyzer_empty_input_handled_gracefully():
+    """Spec Edge Case: Empty or null input must be handled gracefully."""
+    from unittest.mock import MagicMock
+
+    from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+
+    config = NodeConfigBase()
+    node = TinyCUATaskAnalyzerNode(config=config, mode="initial_analysis")
+
+    mock_session = MagicMock()
+    mock_session.task = {"id": "root", "children": []}
+
+    # Verify node handles empty/None input without raising unexpected errors
+    result = node("", session=mock_session)
+    assert result is not None
+
+
+def test_task_analyzer_direct_mutation_updates_session_task():
+    """Spec Core Behavior: Direct mutation — when the LLM invokes tools,
+    the node's TaskTreeManager must update session.task."""
+    from unittest.mock import MagicMock
+
+    from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+
+    config = NodeConfigBase()
+    node = TinyCUATaskAnalyzerNode(config=config, mode="recreation")
+
+    # Build a mock LLM that returns tool_calls (simulating task creation)
+    mock_llm = MagicMock()
+    tool_call = MagicMock()
+    tool_call.id = "call_001"
+    tool_call.function.name = "TaskCreate"
+    tool_call.function.arguments = '{"title": "Test task", "description": "A test task"}'
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message = MagicMock()
+    mock_response.choices[0].message.content = "Task created."
+    mock_response.choices[0].message.tool_calls = [tool_call]
+    mock_llm.chat.completions.create.return_value = mock_response
+
+    mock_session = MagicMock()
+    mock_session.task = None  # First run — task starts as None
+
+    from tinycua.queue import NodeQueue
+
+    queue = NodeQueue()
+    queue.add(node)
+    queue.run(llm=mock_llm, session=mock_session)
+
+    # Core assertion: session.task must no longer be None after tool invocations
+    assert mock_session.task is not None, (
+        "session.task was not mutated after LLM tool calls — "
+        "TaskTreeManager did not persist tool-call results"
+    )
 ```
 
 ### Key Test Scenarios (Spec-Aligned Integration Tests)
@@ -311,6 +370,7 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 - [ ] **Scenario 3** — `test_task_analyzer_recreation_in_queue_receives_task_tools`: TaskAnalyzerNode(mode=recreation) in a queue after TaskCreateNode — verify mock LLM receives TaskInit/TaskCreate tools
 - [ ] **Scenario 4** — `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools`: TaskAnalyzerNode(mode=initial_analysis) in a queue — verify mock LLM does NOT receive TaskInit/TaskCreate tools
 - [ ] **Scenario 5** — `test_task_analyzer_task_tree_validation_none_raises_error`: Mock LLM returns without mutating session.task — `NodeExecutionError` raised when task tree is `None` after completion
+- [ ] **Scenario 6** — `test_task_analyzer_direct_mutation_updates_session_task`: When LLM invokes tools, session.task must be mutated (not None) after queue.run()
 
 ### Additional Unit-Level Tests
 
@@ -319,6 +379,7 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 - [ ] **Unit 3** — `test_task_analyzer_non_recreation_excludes_task_creation_tools`: All modes except recreation exclude TaskInit and TaskCreate
 - [ ] **Unit 4** — `test_task_analyzer_invalid_mode_raises_value_error`: Unknown modes raise `ValueError` with valid mode list
 - [ ] **Unit 5** — `test_task_analyzer_default_mode_is_initial_analysis`: Default mode is `initial_analysis` (replaces legacy `analysis`)
+- [ ] **Unit 6** — `test_task_analyzer_empty_input_handled_gracefully`: Empty or null input must be handled gracefully (spec edge case)
 
 ## Verification Plan
 
@@ -330,7 +391,8 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
   3. `test_task_analyzer_recreation_in_queue_receives_task_tools` — recreation mode in queue receives TaskInit/TaskCreate tools
   4. `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools` — initial_analysis mode in queue excludes TaskInit/TaskCreate
   5. `test_task_analyzer_task_tree_validation_none_raises_error` — NodeExecutionError when task tree is None
-- [ ] Unit tests for tool scope filtering, task tree validation, error handling (5 additional unit tests defined above)
+- [ ] Unit tests for tool scope filtering, task tree validation, error handling (6 additional unit tests defined above)
+- [ ] Unit test for empty input edge case: `test_task_analyzer_empty_input_handled_gracefully`
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
@@ -402,6 +464,7 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `tinycua/loops/task_analyzer.py` | Modify | Extend mode set, tool scope, add task tree validation |
+| `tinycua/loops/worker.py` | Modify | Migrate `_route_task_recreation()` from `mode="analysis"` to `mode="recreation"` |
 | `tests/unit/test_task_analyzer_node.py` | Modify | Add tests for all five modes, tool scope, validation |
 
 ## Data Model Changes

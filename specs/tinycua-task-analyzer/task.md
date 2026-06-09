@@ -43,6 +43,7 @@ Implementation tasks for extending TinyCUATaskAnalyzerNode to support all five a
 
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 9 -->
 - [ ] Write unit tests for edge cases: empty input, None task tree, valid task tree <!-- id: 10 -->
+  - `test_task_analyzer_empty_input_handled_gracefully` — empty/None input handled without unexpected errors (spec edge case)
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 11 -->
 
 ## Verification Phase
