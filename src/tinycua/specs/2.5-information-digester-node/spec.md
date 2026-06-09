@@ -82,7 +82,7 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 - **DigestedInformation**: Data model capturing the useful output from InformationDigesterNode. Fields: `context_summary` (str), `key_points` (list[str]), `advisory_instructions` (list[str]), `constraints` (list[str]), `known_gaps` (list[str]).
 - **NodeInput**: Transport object carrying selected parent session_context messages and optional digest request payload to InformationDigesterNode.
 - **EnhancedContextRetrieval**: Shared tool contract for scoped, lazy context access with cache creation and ReAct-style search. Available to InformationDigesterNode, TaskExecutor, and ResponseNode.
-- **TinyCUAInformationDigesterNodeConfig**: Configuration extending NodeConfigBase with `retrieval_enabled: bool`, `max_digest_sources: int | None`, and `digest_schema: dict | None`.
+- **TinyCUAInformationDigesterNodeConfig**: Configuration extending NodeConfigBase with `retrieval_enabled: bool` and `max_digest_sources: int | None`. `digest_schema` is deferred to Milestone 4.2 when `digest_information` tool is fully implemented.
 
 ---
 
@@ -152,14 +152,14 @@ A developer creates a TinyCUA agent using `create_tinycua_agent(...)` and calls 
 | Item | Status | Notes |
 |------|--------|-------|
 | Planning documents | DONE | spec.md, design.md, task.md, implementation-plan.md (this PR) |
-| TinyCUAInformationDigesterNode class | TODO | information_digester.py |
-| TinyCUAInformationDigesterNodeConfig | TODO | node_config.py extension |
-| DigestedInformation model | TODO | digested_information.py |
-| enhanced_context_retrieval tool | TODO | Shared tool contract |
-| digest_information tool | TODO | Tool for structured output |
-| Node __init__.py export | TODO | Add to loops __all__ |
-| Unit tests | TODO | All acceptance scenarios |
-| Integration tests | TODO | ResponseNode suspension flow |
+| TinyCUAInformationDigesterNode class | DONE | information_digester.py |
+| TinyCUAInformationDigesterNodeConfig | DONE | node_config.py extension |
+| DigestedInformation model | DONE | digested_information.py |
+| enhanced_context_retrieval tool | DONE | Shared contract (full impl deferred: M4.2) |
+| digest_information tool | DONE | Via _produce_digest (full impl deferred: M4.2) |
+| Node __init__.py export | DONE | Both models/ and loops/ __init__.py |
+| Unit tests | DONE | 29 tests in test_information_digester.py |
+| Integration tests | DONE | 4 tests in test_information_digester_integration.py |
 
 ---
 

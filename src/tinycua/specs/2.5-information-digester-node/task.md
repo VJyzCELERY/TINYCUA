@@ -17,7 +17,8 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
   - [x] Define fields: `context_summary`, `key_points`, `advisory_instructions`, `constraints`, `known_gaps` <!-- id: 16 -->
   - [x] Add to `tinycua/models/__init__.py` exports <!-- id: 17 -->
 - [x] Create `TinyCUAInformationDigesterNodeConfig` in `src/tinycua/tinycua/config/node_config.py` <!-- id: 3 -->
-  - [x] Extend `NodeConfigBase` with `retrieval_enabled`, `max_digest_sources`, `digest_schema` <!-- id: 18 -->
+  - [x] Extend `NodeConfigBase` with `retrieval_enabled`, `max_digest_sources` <!-- id: 18 -->
+  - [ ] `digest_schema` deferred to M4.2 when digest_information tool is fully implemented
 - [x] Implement `TinyCUAInformationDigesterNode` class in `src/tinycua/tinycua/loops/information_digester.py` <!-- id: 4 -->
   - [x] Implement `__init__()` with `parent` parameter and config defaults (FR-001, FR-017, FR-018) <!-- id: 19 -->
   - [x] Implement `__call__()` with fresh session creation (FR-002, FR-003, FR-004) <!-- id: 20 -->
@@ -78,12 +79,12 @@ Implementation tasks for TinyCUAInformationDigesterNode. Check off items as comp
 
 ## Documentation Phase
 
-- [ ] Update status tracker in `spec.md` to reflect completed items <!-- id: 12 -->
+- [x] Update status tracker in `spec.md` to reflect completed items <!-- id: 12 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 13 -->
-- [ ] Address review feedback <!-- id: 14 -->
+- [x] Create pull request <!-- id: 13 -->
+- [x] Address review feedback <!-- id: 14 -->
 - [ ] Merge to main branch <!-- id: 15 -->
 
 ---

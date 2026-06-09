@@ -86,11 +86,10 @@ class TinyCUAInformationDigesterNodeConfig(NodeConfigBase):
     Attributes:
         retrieval_enabled: Whether enhanced_context_retrieval is available.
         max_digest_sources: Maximum number of context sources to process.
-        digest_schema: Optional schema for digest_information tool output validation.
+        # digest_schema deferred to M4.2 when digest_information tool is fully implemented.
     """
     retrieval_enabled: bool = True
     max_digest_sources: int | None = None
-    digest_schema: dict | None = None
 ```
 
 ### Session Scope Rules
@@ -377,7 +376,7 @@ def _build_fallback_message(user_query: str) -> str:
 | Fresh session creation could lose important parent context | Medium | High | Selected-input messages explicitly carry parent context; enhanced retrieval provides lazy access |
 | `enhanced_context_retrieval` cache could grow unbounded | Low | Medium | `max_digest_sources` config limits sources; cache is scoped per tool call |
 | Fallback continuation could confuse downstream nodes | Low | Medium | Fallback message is clearly formatted and preserves user query for context |
-| LLM-assisted `digest_information` could produce inconsistent output | Medium | Medium | `digest_schema` config enables output validation; retry per NodeRetryPolicy |
+| LLM-assisted `digest_information` could produce inconsistent output | Medium | Medium | `digest_schema` config deferred to M4.2 for output validation; retry per NodeRetryPolicy |
 | InformationDigesterNode could be spawned unnecessarily | Low | Low | Architecture requires ResponseNode/TaskExecutor to evaluate context sufficiency first |
 | Tool scope enforcement could be bypassed | Low | High | NodeToolPolicy resolution in NodeConfigBase enforces tool restrictions at config level |
 
