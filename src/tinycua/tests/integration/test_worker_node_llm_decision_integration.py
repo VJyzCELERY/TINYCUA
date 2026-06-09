@@ -1,6 +1,8 @@
 """Integration tests for TinyCUAWorkerNode LLM decision when task exists."""
 
 # --- Standard library ---
+from itertools import cycle
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -48,17 +50,16 @@ def test_worker_node_llm_decision_with_task_exists():
         messages=[{"role": "user", "content": "Help me write a script"}],
     )
 
-    # Mock two sequential LLM calls: analysis then classification
+    # Mock LLM: analysis → task_recreation (valid), repeats for all attempts
     mock_analysis = LLMResult(content="Worker should recreate task", role="assistant")
     mock_classification = LLMResult(content="task_recreation", role="assistant")
-    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    mock_llm = MagicMock(side_effect=cycle([mock_analysis, mock_classification]))
     worker._call_llm = mock_llm
 
     # Act
     result = worker(input_data)
 
-    # Assert — verify two LLM calls occurred (analysis → classification)
-    assert mock_llm.call_count == 2
+    # Assert — verify LLM calls occurred and route label is correct
     assert result.route_label == "task_recreation"
     assert result.analysis_response == mock_analysis
     assert result.classification_response == mock_classification
@@ -132,7 +133,7 @@ def test_worker_node_call_uses_dynamic_labels_with_spawned_nodes():
     # Mock LLM to capture classification labels passed to _classify
     mock_analysis = LLMResult(content="Worker should passthrough", role="assistant")
     mock_classification = LLMResult(content="passthrough", role="assistant")
-    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    mock_llm = MagicMock(side_effect=cycle([mock_analysis, mock_classification]))
     worker._call_llm = mock_llm
 
     # Act
@@ -169,7 +170,7 @@ def test_worker_node_call_uses_dynamic_labels_without_spawned_nodes():
     # Mock LLM
     mock_analysis = LLMResult(content="Worker should proceed", role="assistant")
     mock_classification = LLMResult(content="proceed_execution", role="assistant")
-    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    mock_llm = MagicMock(side_effect=cycle([mock_analysis, mock_classification]))
     worker._call_llm = mock_llm
 
     # Act
@@ -375,11 +376,11 @@ def test_worker_node_queue_invariant_query_analyst_first():
     assert queue.items[0].node_id == "query_analyst"
 
 
-def test_worker_node_input_preservation_end_to_end():
+def test_worker_node_input_preservation_contract():
     """__call__ stores input on _last_input and passthrough handler forwards it via set_input (FR-013, SC-010).
 
-    In production the loop calls on_complete(queue, result) after __call__.
-    This test replicates that flow to verify end-to-end input preservation.
+    Validates the behavioral contract (input stored → input forwarded), not the full
+    loop integration. In production the loop calls on_complete(queue, result) after __call__.
     """
     # Arrange
     session = _make_session_with_task(task="Write a sorting script")
@@ -401,7 +402,7 @@ def test_worker_node_input_preservation_end_to_end():
     # Mock LLM: analysis → classification as passthrough
     mock_analysis = LLMResult(content="Forward to spawned node", role="assistant")
     mock_classification = LLMResult(content="passthrough", role="assistant")
-    mock_llm = MagicMock(side_effect=[mock_analysis, mock_classification])
+    mock_llm = MagicMock(side_effect=cycle([mock_analysis, mock_classification]))
     worker._call_llm = mock_llm
 
     # Act — __call__ stores input and returns DecisionResult
@@ -416,7 +417,7 @@ def test_worker_node_input_preservation_end_to_end():
     worker.on_complete(queue, result)
 
     # Assert — input was forwarded to next node via set_input
-    assert queue._inputs.get("next_node") is not None
+    assert queue._inputs.get("next_node") is worker._last_input
 
 
 def test_worker_node_invalid_label_triggers_retry_and_succeeds():
@@ -444,12 +445,15 @@ def test_worker_node_invalid_label_triggers_retry_and_succeeds():
 
     # _execute_with_retry calls analyze + classify per attempt (2 calls per attempt)
     # Attempt 1: analyze → mock_analysis, classify → mock_classification_invalid (invalid, triggers retry)
-    # Attempt 2: analyze → mock_analysis, classify → mock_classification_valid (valid, wins)
+    # Attempt 2: analyze → mock_analysis, classify → mock_classification_valid (valid)
+    # Attempt 3: analyze → mock_analysis, classify → mock_classification_valid (valid, wins)
     mock_llm = MagicMock(side_effect=[
         mock_analysis,              # Attempt 1: Analysis LLM call
         mock_classification_invalid, # Attempt 1: Classification (invalid)
         mock_analysis,              # Attempt 2: Analysis LLM call (retry)
-        mock_classification_valid,   # Attempt 2: Classification (valid — wins)
+        mock_classification_valid,   # Attempt 2: Classification (valid)
+        mock_analysis,              # Attempt 3: Analysis LLM call
+        mock_classification_valid,   # Attempt 3: Classification (valid — wins)
     ])
     worker._call_llm = mock_llm
 
@@ -460,3 +464,41 @@ def test_worker_node_invalid_label_triggers_retry_and_succeeds():
     assert result.route_label == "task_recreation"
     # Verify the classification result is from the valid retry attempt
     assert result.classification_response == mock_classification_valid
+
+
+def test_worker_node_latest_valid_verdict_wins():
+    """When multiple valid labels are returned across attempts, the last valid one wins (FR-005, SC-008)."""
+    session = _make_session_with_task(task="Write a sorting script")
+    config = NodeConfigBase(llm_client=MagicMock())
+    worker = TinyCUAWorkerNode(config=config)
+    worker.ensure_session(session)
+    queue = NodeQueue()
+    response_node = ProcessNode(node_id="response", config=config, is_terminal=True)
+    queue.items = [worker, response_node]
+    spawned = _make_mock_node("next_node")
+    queue.spawn_after_current([spawned])
+    worker._queue = queue
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "Help me write a script"}],
+    )
+
+    # Attempt 1: analysis -> task_recreation (valid)
+    # Attempt 2: analysis -> passthrough (valid, last one wins)
+    # Attempt 3: analysis -> passthrough (same, for max_attempts=3)
+    mock_analysis = LLMResult(content="analysis", role="assistant")
+    mock_valid_1 = LLMResult(content="task_recreation", role="assistant")
+    mock_valid_2 = LLMResult(content="passthrough", role="assistant")
+    mock_llm = MagicMock(side_effect=[
+        mock_analysis, mock_valid_1,
+        mock_analysis, mock_valid_2,
+        mock_analysis, mock_valid_2,
+    ])
+    worker._call_llm = mock_llm
+
+    result = worker(input_data)
+
+    # The last valid classification (passthrough) should win
+    assert result.route_label == "passthrough"
+    assert mock_llm.call_count == 6  # 2 calls per attempt x 3 attempts

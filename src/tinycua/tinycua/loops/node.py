@@ -576,17 +576,14 @@ class DecisionNode(ProcessNode):
                 classification_response = classification_result  # type: ignore[assignment]
 
             # Step 3: Dispatch route (may raise ValueError)
+            last_analysis = analysis_response
+            last_classification = classification_response
+
             try:
                 route_label = self._dispatch_route(classification_response)
-                last_analysis = analysis_response
-                last_classification = classification_response
-                break
             except ValueError:
-                last_analysis = analysis_response
-                last_classification = classification_response
-
                 if attempt < max_attempts:
-                    # Retry: append retry instruction to messages
+                    # Invalid label: retry with instruction
                     retry_text = (
                         f"Retry attempt {attempt}: "
                         f"Classification label '{classification_response.content.strip()}' "

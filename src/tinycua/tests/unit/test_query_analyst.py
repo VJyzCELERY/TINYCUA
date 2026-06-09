@@ -105,7 +105,7 @@ def test_query_analyst_stale_passthrough():
 
     # Assert - stale passthrough is dropped, LLM is called
     assert result.route_label == "worker"
-    assert mock_llm.call_count == 2
+    assert mock_llm.call_count == 6  # 2 calls per attempt x 3 attempts
 
 
 def test_query_analyst_worker_reuse():

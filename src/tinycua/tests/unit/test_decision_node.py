@@ -69,11 +69,13 @@ class TestDecisionNodeCall:
 
         assert isinstance(result, DecisionResult)
         assert result.route_label == "worker"
-        assert result.analysis_response.content == "analysis text"
+        # With "latest valid wins" semantics, last_analysis is the final attempt's result
+        # MockLLM clamps to last response ("worker") after responses are exhausted
+        assert result.analysis_response.content == "worker"
         assert result.classification_response.content == "worker"
 
     def test_two_llm_calls(self) -> None:
-        """DecisionNode makes exactly two LLM calls."""
+        """DecisionNode makes LLM calls for all retry attempts (max_attempts=3, 2 calls each)."""
         mock_llm = MockLLM(responses=["analysis", "passthrough"])
         config = NodeConfigBase(llm_client=mock_llm)
         node = DecisionNode(
@@ -86,7 +88,7 @@ class TestDecisionNodeCall:
 
         node("Input")
 
-        assert mock_llm.call_count == 2
+        assert mock_llm.call_count == 6  # 2 calls per attempt x 3 attempts
 
     def test_no_session_raises(self) -> None:
         """DecisionNode raises without session."""
