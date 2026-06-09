@@ -71,6 +71,17 @@ class NodeQueue:
         """
         self._inputs[node.node_id] = input_data
 
+    def clear_input(self, node_id: str) -> None:
+        """Clear input data for a specific node.
+
+        Removes the stored input for a node by its ID. No-op if the node
+        has no stored input.
+
+        Args:
+            node_id: The ID of the node whose input should be cleared.
+        """
+        self._inputs.pop(node_id, None)
+
     def advance(self) -> Node | None:
         """Advance to the next node.
 

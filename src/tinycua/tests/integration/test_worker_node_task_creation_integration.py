@@ -281,7 +281,7 @@ def test_clear_after_current_ensures_terminal():
 
 
 def test_worker_node_e2e_task_creation():
-    """End-to-end: QueryAnalyst → WorkerNode → TaskCreateNode → TaskAnalyzerNode → ResponseNode."""
+    """End-to-end: QueryAnalyst → WorkerNode → TaskCreateNode → TaskAnalyzerNode → AnalysisEffortNode → ResponseNode."""
     # Arrange
     from tinycua.loops.worker import TinyCUAWorkerNode
     from tinycua.loops.node_queue import NodeQueue
@@ -308,14 +308,15 @@ def test_worker_node_e2e_task_creation():
     result = worker(input_data)
     assert result.route_label == "task_creation"
 
-    # Step 2: Execute on_complete which spawns TaskCreateNode + TaskAnalyzerNode
+    # Step 2: Execute on_complete which spawns TaskCreateNode + TaskAnalyzerNode + AnalysisEffortNode
     worker.on_complete(queue, result)
 
-    # Step 3: Verify queue shape — worker → task_create → task_analyzer → response
+    # Step 3: Verify queue shape — worker → task_create → task_analyzer → analysis_effort → response
     assert queue.current.node_id == "worker"
     assert queue.items[1].node_id == "task_create"
     assert queue.items[2].node_id == "task_analyzer"
-    assert queue.items[3].is_terminal  # response node
+    assert queue.items[3].node_id == "analysis_effort"
+    assert queue.items[4].is_terminal  # response node
 
     # Step 4: Advance past worker
     queue.advance()
@@ -354,10 +355,10 @@ def test_worker_node_task_creation_queue_shape():
     result = worker(input_data)
     worker.on_complete(queue, result)
 
-    # Assert — expected shape: [WorkerNode, TaskCreateNode, TaskAnalyzerNode, ResponseNode]
+    # Assert — expected shape: [WorkerNode, TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode, ResponseNode]
     node_ids = [node.node_id for node in queue.items]
-    assert node_ids == ["worker", "task_create", "task_analyzer", "response"], (
-        f"Expected ['worker', 'task_create', 'task_analyzer', 'response'], got {node_ids}"
+    assert node_ids == ["worker", "task_create", "task_analyzer", "analysis_effort", "response"], (
+        f"Expected ['worker', 'task_create', 'task_analyzer', 'analysis_effort', 'response'], got {node_ids}"
     )
     # Last node must be terminal
     assert queue.items[-1].is_terminal

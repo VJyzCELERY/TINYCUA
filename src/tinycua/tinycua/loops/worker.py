@@ -6,6 +6,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from tinycua.loops.analysis_effort import WorkerEffort
 from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.route_map import RouteMap
@@ -60,6 +61,7 @@ class TinyCUAWorkerNode(DecisionNode):
         node_id: str = "worker",
         config: NodeConfigBase | None = None,
         route_map: RouteMap | None = None,
+        effort: WorkerEffort = WorkerEffort.none,
     ) -> None:
         """Initialize WorkerNode with default classification labels.
 
@@ -68,6 +70,8 @@ class TinyCUAWorkerNode(DecisionNode):
             config: Node configuration. Uses default if None.
             route_map: Optional pre-configured RouteMap. Created with
                 default handlers if None.
+            effort: WorkerEffort level controlling analysis depth.
+                Defaults to WorkerEffort.none (pass_limit=0).
         """
         super().__init__(
             node_id=node_id,
@@ -84,6 +88,7 @@ class TinyCUAWorkerNode(DecisionNode):
         self.route_map = route_map or self._build_default_route_map()
         self._queue: NodeQueue | None = None
         self._last_input: NodeInputLike | None = None
+        self._effort = effort
 
     def _build_default_route_map(self) -> RouteMap:
         """Build the default RouteMap with all five route handlers.
@@ -168,23 +173,24 @@ class TinyCUAWorkerNode(DecisionNode):
     def _route_task_creation(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode.
+        """Deterministic route: spawn TaskCreateNode then TaskAnalyzerNode then AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskCreateNode followed by
-        TaskAnalyzerNode (mode=initial_analysis), ensuring terminal response
-        path is maintained.
+        TaskAnalyzerNode (mode=initial_analysis) and AnalysisEffortNode,
+        ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_create).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
         from tinycua.loops.task_create import TinyCUATaskCreateNode
 
         # Clear stale worker-spawned nodes
         queue.clear_after_current()
 
-        # Spawn TaskCreateNode and TaskAnalyzerNode after current worker
+        # Spawn TaskCreateNode, TaskAnalyzerNode, and AnalysisEffortNode after current worker
         task_create = TinyCUATaskCreateNode(
             node_id="task_create", config=self.config,
         )
@@ -192,29 +198,33 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        queue.spawn_after_current([task_create, task_analyzer])
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=self._effort,
+        )
+        queue.spawn_after_current([task_create, task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_creation spawned task_create, task_analyzer",
+            "node=%s route_task_creation spawned task_create, task_analyzer, analysis_effort",
             self.node_id,
         )
 
     def _route_task_recreation(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode with TaskInit/TaskCreate tools.
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode + AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskAnalyzerNode with
-        mode="analysis" (includes TaskInit/TaskCreate tools), ensuring
-        terminal response path is maintained.
+        mode="analysis" (includes TaskInit/TaskCreate tools) and
+        AnalysisEffortNode, ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -225,29 +235,33 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="analysis",
         )
-        queue.spawn_after_current([task_analyzer])
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=self._effort,
+        )
+        queue.spawn_after_current([task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_recreation spawned task_analyzer (mode=analysis)",
+            "node=%s route_task_recreation spawned task_analyzer, analysis_effort",
             self.node_id,
         )
 
     def _route_task_reanalysis(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode without TaskInit/TaskCreate.
+        """LLM-assisted route: clear worker-spawned nodes, spawn TaskAnalyzerNode + AnalysisEffortNode.
 
         Clears the queue after current and spawns TaskAnalyzerNode with
-        mode="initial_analysis" (excludes TaskInit/TaskCreate tools),
-        ensuring terminal response path is maintained.
+        mode="initial_analysis" (excludes TaskInit/TaskCreate tools) and
+        AnalysisEffortNode, ensuring terminal response path is maintained.
 
         Args:
             queue: The node queue (may be mutated to spawn task_analyzer).
             result: The decision result.
         """
+        from tinycua.loops.analysis_effort import TinyCUAAnalysisEffortNode
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
 
         # Clear stale worker-spawned nodes
@@ -258,13 +272,16 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id="task_analyzer", config=self.config,
             mode="initial_analysis",
         )
-        queue.spawn_after_current([task_analyzer])
+        analysis_effort = TinyCUAAnalysisEffortNode(
+            node_id="analysis_effort", config=self.config, effort=self._effort,
+        )
+        queue.spawn_after_current([task_analyzer, analysis_effort])
 
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_task_reanalysis spawned task_analyzer (mode=initial_analysis)",
+            "node=%s route_task_reanalysis spawned task_analyzer, analysis_effort",
             self.node_id,
         )
 

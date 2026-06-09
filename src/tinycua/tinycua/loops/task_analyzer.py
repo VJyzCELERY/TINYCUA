@@ -25,19 +25,21 @@ _DEFAULT_ANALYSIS_TOOLS: list[str] = [
 ]
 
 # Valid analysis modes
-_VALID_MODES = frozenset({"analysis", "initial_analysis"})
+_VALID_MODES = frozenset({"analysis", "initial_analysis", "effort_loop_decomposition"})
 
 
 class TinyCUATaskAnalyzerNode(ProcessNode):
     """ProcessNode for task analysis with mode-based tool filtering.
 
-    Supports two modes:
+    Supports three modes:
     - ``initial_analysis``: Excludes TaskInit/TaskCreate tools (post-task-creation).
     - ``analysis``: Standard analysis mode with all analysis tools.
+    - ``effort_loop_decomposition``: Excludes TaskInit/TaskCreate tools, used
+      by AnalysisEffortNode during effort-loop passes.
 
     Attributes:
         node_id: Always "task_analyzer" by default.
-        mode: The analysis mode ("initial_analysis" or "analysis").
+        mode: The analysis mode.
         tool_scope: Filtered list of tool names based on mode.
     """
 
@@ -83,8 +85,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
                 f"Unknown analysis mode: {mode!r}. "
                 f"Valid modes: {sorted(_VALID_MODES)}"
             )
-        if mode == "initial_analysis":
-            # Exclude task creation tools — task already exists
+        if mode in ("initial_analysis", "effort_loop_decomposition"):
+            # Exclude task creation tools — task already exists or is being
+            # decomposed by effort-loop passes
             return [
                 tool
                 for tool in _DEFAULT_ANALYSIS_TOOLS

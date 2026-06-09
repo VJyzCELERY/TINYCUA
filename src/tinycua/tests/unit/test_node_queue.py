@@ -251,3 +251,36 @@ class TestNodeQueueInputTracking:
         """input_for_current() returns empty dict when queue is empty."""
         queue = NodeQueue()
         assert queue.input_for_current() == {}
+
+
+class TestNodeQueueClearInput:
+    """Tests for clear_input()."""
+
+    def test_clear_input_removes_stored_input(self):
+        """clear_input() removes input for the specified node_id."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        queue.set_input(node_a, {"query": "test"})
+
+        queue.clear_input("a")
+
+        assert queue._inputs.get("a") is None
+
+    def test_clear_input_is_noop_for_unknown_node(self):
+        """clear_input() is a no-op when node_id has no stored input."""
+        queue = NodeQueue()
+        queue.clear_input("unknown")
+        # Should not raise
+
+    def test_clear_input_does_not_affect_other_nodes(self):
+        """clear_input() does not remove input for other nodes."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        node_b = _make_node("b")
+        queue.set_input(node_a, {"query": "a"})
+        queue.set_input(node_b, {"query": "b"})
+
+        queue.clear_input("a")
+
+        assert queue._inputs.get("a") is None
+        assert queue._inputs.get("b") == {"query": "b"}
