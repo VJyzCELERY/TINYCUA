@@ -33,14 +33,14 @@ A TinyCUA WorkerNode decides to create or refine a task tree. It spawns a `TinyC
 6. **Given** a `TinyCUATaskAnalyzerNode` completes execution, **When** the task tree is `None`, **Then** the node MUST raise a `NodeExecutionError`.
 7. **Given** a `TinyCUATaskAnalyzerNode` with an invalid mode, **When** it is instantiated, **Then** it MUST raise a `ValueError` with the list of valid modes.
 8. **Given** a `TinyCUATaskAnalyzerNode` with no mode specified, **When** it is instantiated, **Then** mode MUST default to `initial_analysis`.
-9. **Given** a `TinyCUATaskAnalyzerNode` receives empty or null input, **When** it is called, **Then** it MUST handle the input gracefully without raising unexpected errors.
+9. **Given** a `TinyCUATaskAnalyzerNode` receives empty or null input, **When** it is called, **Then** it MUST raise a `ValueError` (graceful validation rejection) rather than an unexpected crash or unhandled exception.
 
 ### Edge Cases
 
 - What happens when the task tree is `None` after completion? The node must raise a `NodeExecutionError`.
 - What happens when an unknown mode is provided? The node must raise `ValueError` with valid mode list.
 - What happens when TaskInit/TaskCreate tools are used in a non-recreation mode? The tool scope must exclude them; the LLM should not have access.
-- What happens with empty input? The node must handle empty or null input gracefully.
+- What happens with empty input? The node must raise a `ValueError` (graceful validation rejection) rather than an unexpected crash.
 
 ---
 

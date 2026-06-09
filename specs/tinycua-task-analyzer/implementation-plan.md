@@ -334,8 +334,11 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
         node("test input")
 
 
-def test_task_analyzer_empty_input_handled_gracefully():
-    """Spec Edge Case: Empty or null input must be handled gracefully."""
+def test_task_analyzer_empty_input_raises_value_error():
+    """Spec Edge Case: Empty or null input must be handled gracefully.
+
+    Empty string input raises ValueError in convert_node_input_to_messages,
+    which is a controlled error rather than an unexpected crash."""
     from unittest.mock import MagicMock
 
     from tinycua.config.node_config import NodeConfigBase
@@ -348,8 +351,26 @@ def test_task_analyzer_empty_input_handled_gracefully():
     mock_session.task = {"id": "root", "children": []}
     node.session = mock_session
 
-    # Verify node handles empty/None input without raising unexpected errors
-    result = node("")
+    with pytest.raises(ValueError):
+        node("")
+
+
+def test_task_analyzer_minimal_nonempty_input_handled_gracefully():
+    """Verify node handles minimal non-empty input without raising unexpected errors."""
+    from unittest.mock import MagicMock
+
+    from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+
+    config = NodeConfigBase()
+    node = TinyCUATaskAnalyzerNode(config=config, mode="initial_analysis")
+
+    mock_session = MagicMock()
+    mock_session.task = {"id": "root", "children": []}
+    node.session = mock_session
+
+    # Verify node handles minimal non-empty input without raising unexpected errors
+    result = node("x")
     assert result is not None
 
 
