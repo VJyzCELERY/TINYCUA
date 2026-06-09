@@ -267,10 +267,10 @@ class TinyCUAWorkerNode(DecisionNode):
         # Clear stale worker-spawned nodes
         queue.clear_after_current()
 
-        # Spawn TaskAnalyzerNode with initial_analysis mode (excludes TaskInit/TaskCreate)
+        # Spawn TaskAnalyzerNode with reanalysis mode (excludes TaskInit/TaskCreate)
         task_analyzer = TinyCUATaskAnalyzerNode(
             node_id="task_analyzer", config=self.config,
-            mode="initial_analysis",
+            mode="reanalysis",
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,

@@ -506,6 +506,7 @@ def test_task_analyzer_direct_mutation_updates_session_task():
 | `tinycua/loops/task_analyzer.py` | Modify | Extend mode set, tool scope, add task tree validation |
 | `tinycua/loops/worker.py` | Modify | Migrate `_route_task_recreation()` from `mode="analysis"` to `mode="recreation"` |
 | `tests/unit/test_task_analyzer_node.py` | Modify | Add tests for all five modes, tool scope, validation |
+| `tests/integration/test_worker_node_llm_decision_integration.py` | Modify | Minor assertion adjustments for worker route mode migration |
 
 ## Data Model Changes
 
