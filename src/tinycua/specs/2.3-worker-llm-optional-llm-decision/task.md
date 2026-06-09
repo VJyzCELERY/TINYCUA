@@ -120,8 +120,8 @@ Implementation tasks for TinyCUAWorkerNode Optional LLM Decision (Milestone 2.3)
 ## Review and Merge
 
 - [x] Create pull request <!-- id: 23 -->
-- [ ] Address review feedback <!-- id: 24 -->
-- [ ] Merge to main branch <!-- id: 25 -->
+- [x] Address review feedback <!-- id: 24 -->
+- [x] Merge to main branch <!-- id: 25 -->
 
 ---
 
