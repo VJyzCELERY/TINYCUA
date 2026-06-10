@@ -47,11 +47,11 @@ Implementation tasks for TaskTree Active Task Lifecycle (Milestone 3.1). Check o
 
 ## Documentation Phase
 
-- [ ] No API docs needed for this milestone (internal helpers only) <!-- id: 22 -->
+- [x] No API docs needed for this milestone (internal helpers only) <!-- id: 22 -->
 
 ## Review and Merge
 
-- [ ] Commit changes and push to PR branch <!-- id: 23 -->
+- [x] Commit changes and push to PR branch <!-- id: 23 -->
 - [ ] Address review feedback <!-- id: 24 -->
 - [ ] Merge to base branch <!-- id: 25 -->
 
