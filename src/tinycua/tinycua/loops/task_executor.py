@@ -173,10 +173,18 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 raise
 
         assert last_response is not None  # noqa: S101
+        summary_text = last_response.content[:500]
+        if len(last_response.content) > 500:
+            logger.warning(
+                "node=%s task_id=%s summary truncated from %d to 500 chars",
+                self.node_id,
+                task.task_id,
+                len(last_response.content),
+            )
         result_dict = self._build_execution_result(
             task,
             status=status,
-            summary=last_response.content[:500],
+            summary=summary_text,
         )
 
         logger.info(
