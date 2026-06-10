@@ -184,10 +184,10 @@ def test_analysis_effort_node_assessor_no_tasks():
 - **Description**: Core `TinyCUATaskAssessorNode` implementation as a concrete `ProcessNode`.
 - **Dependencies**: `tinycua.loops.node.ProcessNode`, `tinycua.config.node_config.NodeConfigBase`
 
-#### [MODIFY] `tinycua/config/node_config.py`
+#### [DEFERRED] `tinycua/config/node_config.py`
 
-- **Description**: No config subclass added — uses base `NodeConfigBase`. The design proposed `TinyCUATaskAssessorNodeConfig` with `assessment_schema` and `allow_task_updates`, but these are deferred to Phase 2.
-- **Rationale**: MVP requires no custom config fields.
+- **Description**: No changes in Phase 1 — listed for cross-reference with design.md only. The design proposed `TinyCUATaskAssessorNodeConfig` with `assessment_schema` and `allow_task_updates`, but these are deferred to Phase 2. No file modification occurs in this milestone.
+- **Rationale**: MVP requires no custom config fields. Uses base `NodeConfigBase` as-is.
 
 #### [MODIFY] `tinycua/loops/__init__.py`
 

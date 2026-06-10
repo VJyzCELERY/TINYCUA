@@ -101,12 +101,12 @@ When TinyCUA is processing a complex task that requires decomposition, the `Anal
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUATaskAssessorNode class | TODO | Core node implementation |
-| effort-loop mode | TODO | Full-tree assessment |
+| TinyCUATaskAssessorNode class | DONE | Core node implementation |
+| effort-loop mode | DONE | Full-tree assessment |
 | reviewer-replan mode | TODO | Deferred to future milestone |
-| LLM response parsing | TODO | JSON extraction and validation |
-| Integration with AnalysisEffortNode | TODO | Queue mechanics |
-| Unit tests | TODO | Comprehensive test coverage |
+| LLM response parsing | DONE | JSON extraction and validation |
+| Integration with AnalysisEffortNode | DONE | Queue mechanics |
+| Unit tests | DONE | Comprehensive test coverage |
 
 ---
 

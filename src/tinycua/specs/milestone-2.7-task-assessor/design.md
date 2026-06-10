@@ -128,14 +128,14 @@ class TinyCUATaskAssessorNode(ProcessNode):
 
 ## Implementation Phases
 
-### Phase 1 — MVP _(required for initial release)_
+### Phase 1 — MVP _(required for initial release)_ — COMPLETE
 
-- [ ] ~~Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`~~ (deferred to Phase 2 per Schema Changes section)
-- [ ] Implement `TinyCUATaskAssessorNode` class with effort-loop mode
-- [ ] Implement LLM response parsing for task ID extraction
-- [ ] Implement `on_complete` queue advancement logic
-- [ ] Add unit tests for node initialization, `__call__`, and `on_complete`
-- [ ] Add integration tests with `AnalysisEffortNode`
+- [x] ~~Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`~~ (deferred to Phase 2 per Schema Changes section)
+- [x] Implement `TinyCUATaskAssessorNode` class with effort-loop mode
+- [x] Implement LLM response parsing for task ID extraction
+- [x] Implement `on_complete` queue advancement logic
+- [x] Add unit tests for node initialization, `__call__`, and `on_complete`
+- [x] Add integration tests with `AnalysisEffortNode`
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
