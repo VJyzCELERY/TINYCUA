@@ -165,7 +165,7 @@ def test_analysis_effort_node_assessor_no_tasks():
 - [x] Unit tests for `__call__` with various task tree states (3 tests)
 - [x] Unit tests for `on_complete` queue advancement (2 tests)
 - [x] Integration tests with `AnalysisEffortNode` (5 tests in `test_analysis_effort_integration.py`)
-- [x] Full test suite: `cd src/tinycua && uv run pytest` — 15/15 pass
+- [x] Full test suite: `cd src/tinycua && uv run pytest` — 575/575 pass (including all 15 TaskAssessor-related tests)
 
 ### Manual Verification
 
