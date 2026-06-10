@@ -15,37 +15,37 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
 
 ## Implementation Phase
 
-- [ ] Create `tinycua/models/reviewer_decision.py` with ReviewerRetryState dataclass <!-- id: 2 -->
+- [ ] [FR-016–FR-019] Create `tinycua/models/reviewer_decision.py` with ReviewerRetryState dataclass <!-- id: 2 -->
   - [ ] ReviewerRetryState: increment(), reset(), can_retry(), is_threshold_reached()
-- [ ] Export ReviewerDecision + ReviewerRetryState from `tinycua/models/__init__.py` <!-- id: 3 -->
-- [ ] Create `tinycua/loops/task_executor.py` with TinyCUATaskExecutorNode <!-- id: 4 -->
+- [ ] [FR-020–FR-021] Export ReviewerDecision + ReviewerRetryState from `tinycua/models/__init__.py` <!-- id: 3 -->
+- [ ] [FR-001–FR-008] Create `tinycua/loops/task_executor.py` with TinyCUATaskExecutorNode <!-- id: 4 -->
   - [ ] Extend ProcessNode, implement __call__ with ReAct execution
   - [ ] Implement on_complete to advance queue
   - [ ] Raise NodeExecutionError when no active task provided
-- [ ] Create `tinycua/loops/result_reviewer.py` with TinyCUAResultReviewerNode <!-- id: 5 -->
+- [ ] [FR-009–FR-015] Create `tinycua/loops/result_reviewer.py` with TinyCUAResultReviewerNode <!-- id: 5 -->
   - [ ] Extend ProcessNode, implement __call__ to evaluate execution result
   - [ ] Implement on_complete to dispatch based on decision (accept/retry/replan/open_question)
   - [ ] Fallback to retry when decision cannot be parsed
-- [ ] Update `tinycua/loops/__init__.py` to export new node classes <!-- id: 6 -->
-- [ ] Add `_reviewer_retry_state` to TinyCUALoop.__init__ <!-- id: 7 -->
-- [ ] Implement TinyCUALoop._on_reviewer_retry() (replace no-op stub) <!-- id: 8 -->
+- [ ] [FR-020–FR-021] Update `tinycua/loops/__init__.py` to export new node classes <!-- id: 6 -->
+- [ ] [FR-006, FR-010, FR-016–FR-019] Add `_reviewer_retry_state` to TinyCUALoop.__init__ <!-- id: 7 -->
+- [ ] [FR-003, FR-010] Implement TinyCUALoop._on_reviewer_retry() (replace no-op stub) <!-- id: 8 -->
   - [ ] Increment retry count via _reviewer_retry_state.increment()
   - [ ] Log warning if threshold reached
   - [ ] Preserve active task
-- [ ] Implement TinyCUALoop._on_reviewer_replan() (replace no-op stub) <!-- id: 9 -->
+- [ ] [FR-004, FR-011] Implement TinyCUALoop._on_reviewer_replan() (replace no-op stub) <!-- id: 9 -->
   - [ ] Log replan event
   - [ ] Preserve active task
   - [ ] Signal for TaskAssessor + TaskAnalyzer spawning
-- [ ] Implement TinyCUALoop._on_reviewer_open_question() (replace no-op stub) <!-- id: 10 -->
+- [ ] [FR-005, FR-012] Implement TinyCUALoop._on_reviewer_open_question() (replace no-op stub) <!-- id: 10 -->
   - [ ] Log open question event
   - [ ] Preserve active task
   - [ ] Signal for mandatory_passthrough installation
-- [ ] Update TinyCUALoop._on_reviewer_accept() to reset retry counter <!-- id: 11 -->
-- [ ] Replace AnalysisEffortNode._spawn_task_executor() stub <!-- id: 12 -->
+- [ ] [FR-002] Update TinyCUALoop._on_reviewer_accept() to reset retry counter <!-- id: 11 -->
+- [ ] [FR-022–FR-023] Replace AnalysisEffortNode._spawn_task_executor() stub <!-- id: 12 -->
   - [ ] Import TinyCUATaskExecutorNode and TinyCUAResultReviewerNode
   - [ ] Instantiate and spawn after current position
   - [ ] Ensure terminal response path
-- [ ] Replace WorkerNode._route_proceed_execution() stub <!-- id: 13 -->
+- [ ] [FR-022–FR-023] Replace WorkerNode._route_proceed_execution() stub <!-- id: 13 -->
 
 <!-- id: 14 removed per ISSUE-027 (redundant with task 20) -->
 

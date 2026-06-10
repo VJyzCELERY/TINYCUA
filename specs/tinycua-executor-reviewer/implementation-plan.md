@@ -9,6 +9,18 @@ Implement `TinyCUATaskExecutorNode` (ReAct-style task execution) and `TinyCUARes
 - **Priority**: P0
 - **Estimated Effort**: L
 
+### FR-to-Implementation Coverage
+
+| FR Range | Component | Description |
+|----------|-----------|-------------|
+| FR-001–FR-008 | `task_executor.py` | TaskExecutor node: ReAct execution, on_complete, active task validation |
+| FR-009–FR-015 | `result_reviewer.py` | ResultReviewer node: decision dispatch, retry/open_question/replan/accept |
+| FR-016–FR-019 | `reviewer_decision.py` | ReviewerRetryState dataclass: increment, reset, can_retry, threshold |
+| FR-020–FR-021 | `loops/__init__.py` + `models/__init__.py` | Export new node classes and data models |
+| FR-022–FR-023 | `AnalysisEffortNode` + `WorkerNode` | Replace task executor spawn and routing stubs |
+| FR-024 | `TinyCUALoop` handlers | Implement `_on_reviewer_retry/replan/open_question` (replace no-ops) |
+| FR-025 | Verification | Verify no SDK public API changes |
+
 ## Environment Pre-requisites
 
 No external prerequisites — this feature is self-contained within `tinycua.loops` and `tinycua.models`.
