@@ -36,6 +36,8 @@ Implement `TinyCUATaskExecutorNode` (ReAct-style task execution) and `TinyCUARes
 
 ## Success Criteria — Integration Tests (TDD First)
 
+> **Note**: Create `src/tinycua/tests/integration/test_executor_reviewer_integration.py` if it doesn't exist. The directory `src/tinycua/tests/integration/` already exists.
+
 ```python
 # Test file: src/tinycua/tests/integration/test_executor_reviewer_integration.py
 """Integration tests for executor→reviewer path."""
@@ -93,11 +95,30 @@ def test_executor_reviewer_replan_path():
     active_task = loop.get_active_task()
     queue = loop._queue
 
-    # Act — reviewer decides replan
-    loop._on_reviewer_replan(active_task)
+    # Build a ResultReviewer with loop injection
+    reviewer_node = TinyCUAResultReviewerNode(
+        config=loop.session_config, loop=loop,
+    )
+    replan_decision = ReviewerDecision(
+        outcome=ReviewerOutcome.REPLAN,
+        rationale="Execution result insufficient, needs replanning",
+    )
+    mock_response = LLMResult(
+        content=replan_decision.model_dump_json(),
+        metadata={
+            "reviewer_decision": replan_decision,
+            "active_task": active_task,
+        },
+    )
 
-    # Assert — queue should have assessor + analyzer prepended
-    # (exact assertion depends on spawning mechanism in design)
+    # Act — reviewer dispatches replan decision via on_complete
+    reviewer_node.on_complete(queue, mock_response)
+
+    # Assert — queue should have assessor + analyzer + executor prepended
+    queue_items = [n.node_id for n in queue.items]
+    assert "task_assessor" in queue_items
+    assert "task_analyzer" in queue_items
+    assert "task_executor" in queue_items
 
 
 def test_retry_threshold_enforcement():

@@ -63,7 +63,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 - **FR-012**: On `accept`, the system MUST update the active task status to `done` and recompute the next active task via DFS.
 - **FR-013**: On `retry`, the system MUST preserve the same active task and advance to TaskExecutor for re-execution.
 - **FR-014**: On `replan`, the system MUST spawn `TaskAssessor(scope=active_task_or_local_region)` and `TaskAnalyzer(mode=local_replan, init_enabled=false)` before TaskExecutor. Replan MUST NOT spawn `AnalysisEffortNode`.
-- **FR-015**: On `open_question`, the system MUST keep ResultReviewer active and install mandatory_passthrough targeting this node/session.
+- **FR-015**: On `open_question`, the system MUST keep ResultReviewer active and preserve the active task context. Installing MandatoryPassthrough routing is deferred to Milestone 3.3.
 - **FR-016**: The reviewer retry failure threshold MUST default to 5, be configurable, and be tracked at the loop or root-session level.
 - **FR-017**: The retry failure counter MUST reset on a successful `accept`.
 - **FR-018**: The retry failure threshold MUST be distinct from `NodeRetryPolicy.max_attempts`.
@@ -156,17 +156,15 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ## Open Questions _(optional)_
 
-1. **Retry state storage location**: Should `ReviewerRetryState` be stored on `TinyCUALoop` or on `Session`?
+1. **Retry state storage location**: Store on `TinyCUALoop` as `self._reviewer_retry_state: ReviewerRetryState`. The loop owns execution state; the session is a data container. This is consistent with `root_task` and `_active_task_id` being on the loop.
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Store on `TinyCUALoop` as `self._reviewer_retry_state: ReviewerRetryState`. The loop owns execution state; the session is a data container. This is consistent with `root_task` and `_active_task_id` being on the loop.
+   - **Status**: Resolved (design.md technical decision #1)
 
-2. **TaskExecutor ReAct loop depth**: Should TaskExecutor have a maximum number of ReAct iterations per task?
+2. **TaskExecutor ReAct loop depth**: Configurable `max_react_iterations` (default 10) to prevent infinite tool-call loops. This is distinct from `NodeRetryPolicy.max_attempts` which controls LLM call retries.
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
-   - **Proposed Answer**: Yes — use a configurable `max_react_iterations` (default 10) to prevent infinite tool-call loops. This is distinct from `NodeRetryPolicy.max_attempts` which controls LLM call retries.
+   - **Status**: Resolved (design.md technical decision #5)
 
 ---
 

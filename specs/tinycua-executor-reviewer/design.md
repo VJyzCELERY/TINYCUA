@@ -57,7 +57,7 @@ TinyCUALoop
 |-----------|-------------|-------|
 | `tinycua/loops/task_executor.py` | New | TaskExecutorNode ProcessNode |
 | `tinycua/loops/result_reviewer.py` | New | ResultReviewerNode ProcessNode |
-| `tinycua/models/task.py` | Extended | ReviewerRetryState added alongside existing ReviewerDecision model |
+| `tinycua/models/reviewer_decision.py` | New | ReviewerRetryState dataclass (retry failure tracking) |
 | `tinycua/loops/analysis_effort.py` | Modified | `_spawn_task_executor()` replaces stub |
 | `tinycua/loops/worker.py` | Modified | `_route_proceed_execution()` replaces stub |
 | `tinycua/loops/tinycua_loop.py` | Modified | `_on_reviewer_retry/replan/open_question` become real |
@@ -105,7 +105,9 @@ TaskExecutor produces an `LLMResult` whose content is a structured execution sum
 
 ```python
 # Conceptual flow in TaskExecutor.__call__:
-active_task = loop.get_active_task()  # injected via NodeInput metadata
+active_task = input.metadata.get("active_task")  # injected via NodeInput metadata
+if active_task is None:
+    raise NodeExecutionError("No active task provided")
 llm_result = super().__call__(input)  # ReAct execution via LLM
 task_result = TaskResult(
     task_id=active_task.task_id,
@@ -186,16 +188,99 @@ class TinyCUATaskExecutorNode(ProcessNode):
         Raises:
             NodeExecutionError: If no active task is provided or execution fails.
         """
+        # Extract active task from NodeInput metadata
+        active_task = input.metadata.get("active_task")
+        if active_task is None:
+            raise NodeExecutionError("No active task provided")
+
+        # Obtain tools from session
+        tools = self._session.get_tools()
+
+        # ReAct loop with iteration cap
+        messages = self._build_initial_messages(active_task)
+        iteration = 0
+        while iteration < self.max_react_iterations:
+            iteration += 1
+
+            # Invoke LLM with tools
+            llm_result = self._agent._call_llm(messages, tools)
+
+            # Process tool calls if present
+            if llm_result.tool_calls:
+                tool_results = self._execute_tools(llm_result.tool_calls, tools)
+                messages.extend(self._format_tool_results(tool_results))
+            else:
+                # No tool calls — task execution complete
+                break
+
+            # Check for context retrieval needs
+            if self._needs_context(active_task, llm_result):
+                context = self._enhanced_context_retrieval(active_task, self._session)
+                messages.append({"role": "context", "content": context})
+
+        if iteration >= self.max_react_iterations:
+            logger.warning(f"TaskExecutor reached max iterations ({self.max_react_iterations})")
+
+        # Propagate active_task so ResultReviewer.on_complete can access it
+        llm_result.metadata["active_task"] = active_task
+        return llm_result
+
+    def _build_initial_messages(self, active_task: Task) -> list[dict]:
+        """Build initial message list for ReAct execution.
+
+        Includes system instruction and task description.
+        Tools are passed separately to _call_llm.
+
+        Args:
+            active_task: The active task to execute.
+
+        Returns:
+            List of message dicts for LLM invocation.
+        """
+        return [{"role": "user", "content": active_task.description}]
+
+    def _needs_context(self, active_task: Task, llm_result: LLMResult) -> bool:
+        """Check if enhanced context retrieval is needed.
+
+        Returns True if the LLM signals it needs more context
+        or if the task has a context_required flag.
+
+        Args:
+            active_task: The active task.
+            llm_result: The LLM result to evaluate.
+
+        Returns:
+            True if enhanced context is needed.
+        """
+        return False  # Implementation detail — configurable
+
+    def _enhanced_context_retrieval(self, active_task: Task, session: Session) -> str:
+        """Retrieve additional context for task execution.
+
+        Implements FR-006. Uses session's context retrieval pipeline.
+
+        Args:
+            active_task: The active task.
+            session: The current session.
+
+        Returns:
+            Additional context string.
+        """
+        return session.retrieve_context(active_task)  # Placeholder
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Advance queue after execution completes.
 
-        Queue behavior: advance to next node (ResultReviewer).
+        Queue behavior: default advancement to next node (ResultReviewer).
+        No explicit queue mutation needed — the queue runner advances automatically
+        after __call__ returns. The spawner (AnalysisEffortNode._spawn_task_executor)
+        seeds [TaskExecutor, ResultReviewer] in order.
 
         Args:
             queue: The node queue (advanced after execution).
             response: The execution summary response.
         """
+        pass  # Default ProcessNode.on_complete is sufficient
 ```
 
 ### TinyCUAResultReviewerNode
@@ -215,12 +300,15 @@ class TinyCUAResultReviewerNode(ProcessNode):
         self,
         node_id: str = "result_reviewer",
         config: NodeConfigBase,
+        loop=None,
     ) -> None:
         """Initialize ResultReviewerNode.
 
         Args:
             node_id: Unique identifier for this node.
             config: Node configuration.
+            loop: The TinyCUALoop instance. Injected by spawner after construction
+                  to enable callback dispatch (accept/retry/replan/open_question).
         """
         super().__init__(
             node_id=node_id,
@@ -229,9 +317,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "You are a result reviewer. Evaluate the execution result "
                 "of the current task. Determine if the task was completed "
                 "successfully (accept), needs re-execution (retry), needs "
-                "replanning (replan), or requires user input (open_question)."
+                "replanning (replan), or requires user input (open_question). "
+                "Respond with exactly one word: accept, retry, replan, or open_question."
             ),
         )
+        self._loop = loop
 
     def __call__(self, input: NodeInputLike) -> LLMResult:
         """Evaluate the execution result and decide accept/retry/replan/open_question.
@@ -242,6 +332,45 @@ class TinyCUAResultReviewerNode(ProcessNode):
         Returns:
             LLMResult with the review decision.
         """
+        # Call LLM to evaluate the result
+        llm_result = super().__call__(input)
+
+        # Parse decision from LLM output
+        decision = self._extract_decision(llm_result.content)
+
+        # Fallback to retry if parsing fails
+        if decision is None:
+            logger.warning(f"ResultReviewer could not parse decision: {llm_result.content}")
+            decision = ReviewerOutcome.RETRY
+            rationale = f"Parse failure: {llm_result.content}"
+        else:
+            rationale = llm_result.content
+
+        reviewer_decision = ReviewerDecision(
+            outcome=decision,
+            rationale=rationale,
+        )
+
+        # Return LLMResult with structured decision
+        return LLMResult(
+            content=reviewer_decision.model_dump_json(),
+            metadata={"reviewer_decision": reviewer_decision},
+        )
+
+    def _extract_decision(self, llm_output: str) -> ReviewerOutcome | None:
+        """Extract ReviewerOutcome from LLM output using word-boundary matching.
+
+        Args:
+            llm_output: Raw LLM output string.
+
+        Returns:
+            Matched ReviewerOutcome or None if no match found.
+        """
+        import re
+        match = re.fullmatch(r'\s*(accept|retry|replan|open_question)\s*', llm_output, re.IGNORECASE)
+        if match:
+            return ReviewerOutcome(match.group(1).lower())
+        return None
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Dispatch based on reviewer decision.
@@ -256,6 +385,31 @@ class TinyCUAResultReviewerNode(ProcessNode):
             queue: The node queue (may be mutated based on decision).
             response: The review decision response.
         """
+        reviewer_decision = response.metadata.get("reviewer_decision")
+        if reviewer_decision is None:
+            return
+
+        decision = reviewer_decision.outcome
+        active_task = response.metadata.get("active_task")
+
+        if decision == ReviewerOutcome.ACCEPT:
+            self._loop._on_reviewer_accept(active_task)
+            # Queue advances to terminal node automatically
+        elif decision == ReviewerOutcome.RETRY:
+            self._loop._on_reviewer_retry(active_task)
+            # Queue advances to TaskExecutor automatically (same task)
+        elif decision == ReviewerOutcome.REPLAN:
+            self._loop._on_reviewer_replan(active_task)
+            # on_complete owns queue mutation — _on_reviewer_replan has no queue param
+            queue.clear_after_current()
+            task_assessor = TaskAssessor(scope=active_task.region)
+            task_analyzer = TaskAnalyzer(mode="local_replan", init_enabled=False)
+            task_executor = TinyCUATaskExecutorNode(config=self.config)
+            queue.spawn_after_current([task_assessor, task_analyzer, task_executor])
+            queue.ensure_terminal(self._loop.default_terminal_node)
+        elif decision == ReviewerOutcome.OPEN_QUESTION:
+            self._loop._on_reviewer_open_question(active_task)
+            # Queue behavior: keep ResultReviewer active (Milestone 3.3)
 ```
 
 ### TinyCUALoop Reviewer Handlers (Replacements for Stubs)
@@ -278,15 +432,22 @@ class TinyCUALoop(BaseLoop):
         Caller spawns: TaskAssessor(scope=active_task_or_local_region)
         → TaskAnalyzer(mode=local_replan, init_enabled=false)
         → TaskExecutor
+
+        Note: Queue mutation is owned by ResultReviewer.on_complete,
+        which has access to the queue parameter. This handler only
+        logs and preserves the active task.
         """
+        self._logger.info(f"Replan requested for task {active_task.task_id}")
 
     def _on_reviewer_open_question(self, active_task: Task) -> None:
-        """Handle open_question decision: preserve active task, signal
-        for mandatory_passthrough installation.
+        """Handle open_question decision: preserve active task, log event.
 
-        Caller installs mandatory_passthrough targeting this
-        ResultReviewer node/session.
+        MandatoryPassthrough routing is deferred to Milestone 3.3.
         """
+        self._logger.info(
+            "open_question for task %s — mandatory_passthrough deferred to Milestone 3.3",
+            active_task.task_id,
+        )
 
     def _on_reviewer_accept(self, active_task: Task) -> bool:
         """Already implemented in Milestone 3.1. Resets retry counter."""
@@ -317,6 +478,8 @@ def _spawn_task_executor(self, queue: NodeQueue) -> None:
     result_reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=self.config,
     )
+    # Inject loop reference so on_complete can dispatch reviewer decisions
+    result_reviewer._loop = self._loop
     queue.spawn_after_current([task_executor, result_reviewer])
     queue.ensure_terminal(self.default_response_node)
 ```
@@ -347,6 +510,8 @@ def _route_proceed_execution(
     result_reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=self.config,
     )
+    # Inject loop reference so on_complete can dispatch reviewer decisions
+    result_reviewer._loop = self._loop
     queue.spawn_after_current([task_executor, result_reviewer])
     queue.ensure_terminal(self.default_response_node)
 ```
@@ -434,13 +599,13 @@ def _route_proceed_execution(
 
 1. **TaskExecutor tool execution model**: Should TaskExecutor use the SDK's tool execution pipeline (agent._call_llm with tools) or a custom ReAct loop?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
-   - **Proposed Answer**: Use the SDK's tool execution pipeline via `agent._call_llm(messages, tools)` which handles tool call dispatch and result accumulation. TaskExecutor builds the messages and tools, calls the agent, and interprets the final result. This avoids duplicating tool execution logic.
+   - **Status**: Resolved
+   - **Resolution**: Use the SDK's tool execution pipeline via `agent._call_llm(messages, tools)` which handles tool call dispatch and result accumulation. TaskExecutor builds the messages and tools, calls the agent, and interprets the final result. This avoids duplicating tool execution logic.
 
 2. **ResultReviewer decision parsing**: Should the reviewer use a tool call (structured output) or free-text parsing to extract the decision?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
-   - **Proposed Answer**: Use free-text parsing with word-boundary matching (consistent with DecisionNode classification pattern). The LLM is instructed to respond with exactly one of: accept, retry, replan, open_question. Fallback to retry on parse failure.
+   - **Status**: Resolved
+   - **Resolution**: Use free-text parsing with word-boundary matching (consistent with DecisionNode classification pattern). The LLM is instructed to respond with exactly one of: accept, retry, replan, open_question. Fallback to retry on parse failure.
 
 ---
 
