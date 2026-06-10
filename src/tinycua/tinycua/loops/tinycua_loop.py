@@ -17,6 +17,7 @@ from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
+from tinycua.models.task import Task, TaskResult
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
@@ -55,6 +56,8 @@ class TinyCUALoop(BaseLoop):
         self.root_session = root_session or Session()
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
+        self.root_task: Task | None = None
+        self._active_task_id: str | None = None
 
         if queue is not None:
             self.queue = queue
@@ -504,3 +507,245 @@ class TinyCUALoop(BaseLoop):
             )
 
         return messages
+
+    def get_active_task(self) -> Task | None:
+        """Find the active task via DFS pre-order traversal.
+
+        Uses _active_task_id as a traversal hint when set.
+        Uses active_child_id hints to resume from a specific child when available.
+        Updates active_child_id lazily during traversal.
+
+        Returns:
+            The first unfinished task, or None if all tasks are complete.
+        """
+        if self.root_task is None:
+            return None
+
+        # If _active_task_id is set, try to find that task first
+        if self._active_task_id is not None:
+            task = self._find_task_by_id(self.root_task, self._active_task_id)
+            if task is not None and task.status not in ("done", "failed"):
+                return task
+            # If task not found or already done, clear the hint and fall through
+            self._active_task_id = None
+
+        return self._dfs_find_active(self.root_task)
+
+    def _dfs_find_active(self, task: Task) -> Task | None:
+        """Internal DFS helper to find the first unfinished task.
+
+        Algorithm (DFS pre-order, children-first):
+        1. Search children first (prefer hint via active_child_id).
+        2. For each child, recurse with _dfs_find_active.
+        3. If any child returns a task, return it immediately.
+        4. If no child returned a task (all children done or no children):
+           a. If this task is unfinished (status in {pending, in_progress, blocked}),
+              return this task.
+           b. Otherwise, return None.
+
+        Args:
+            task: The subtree root to search.
+
+        Returns:
+            The first unfinished task in DFS pre-order, or None.
+        """
+        # 1. Search children first (with active_child_id hint)
+        if task.children:
+            # If there's an active_child_id hint, try that child first
+            if task.active_child_id is not None:
+                for child in task.children:
+                    if child.task_id == task.active_child_id:
+                        result = self._dfs_find_active(child)
+                        if result is not None:
+                            # Update the hint to point to the selected child
+                            task.active_child_id = child.task_id
+                            return result
+                # Hint was invalid — fall through to standard DFS
+
+            # Standard DFS: iterate children in order
+            for child in task.children:
+                result = self._dfs_find_active(child)
+                if result is not None:
+                    # Update hint to point to the first unfinished child
+                    task.active_child_id = child.task_id
+                    return result
+
+        # 2. If no child returned an active task, check this task
+        if task.status not in ("done", "failed"):
+            return task
+
+        # 3. Return None if all complete
+        return None
+
+    def set_active_task(self, task_id: str) -> None:
+        """Explicitly set the active task by ID.
+
+        Args:
+            task_id: The task_id to set as active.
+
+        Raises:
+            ValueError: If task_id is not found in the task tree.
+        """
+        task = self._find_task_by_id(self.root_task, task_id)
+        if task is None:
+            raise ValueError(f"Task not found: {task_id}")
+        self._active_task_id = task_id
+
+    def _find_task_by_id(self, root: Task | None, task_id: str) -> Task | None:
+        """Find a task by ID in the tree (DFS).
+
+        Args:
+            root: The subtree root to search.
+            task_id: The task_id to find.
+
+        Returns:
+            The task if found, else None.
+        """
+        if root is None:
+            return None
+        if root.task_id == task_id:
+            return root
+        for child in root.children:
+            found = self._find_task_by_id(child, task_id)
+            if found is not None:
+                return found
+        return None
+
+    def update_active_task_result(self, result: TaskResult) -> None:
+        """Update the active task's result field.
+
+        Args:
+            result: The TaskResult to assign to the active task.
+
+        Raises:
+            ValueError: If no active task, or result.task_id doesn't match active task.
+        """
+        active = self.get_active_task()
+        if active is None:
+            raise ValueError("No active task to update")
+        if result.task_id != active.task_id:
+            raise ValueError(
+                f"Result task_id '{result.task_id}' does not match "
+                f"active task_id '{active.task_id}'"
+            )
+        active.result = result
+
+    def _on_reviewer_accept(self, active_task: Task) -> bool:
+        """Mark active task as done and recompute next active task.
+
+        Walks up parent chain marking parents done when all children complete.
+        Returns True if root task is done, False otherwise.
+
+        Args:
+            active_task: The task that was accepted.
+
+        Returns:
+            True if root task is done, False otherwise.
+        """
+        # Mark this task as done
+        active_task.status = "done"
+
+        # Walk up parent chain
+        self._walk_parent_chain_done(active_task)
+
+        # Check if root is done
+        return self._is_root_task_done()
+
+    def _walk_parent_chain_done(self, task: Task) -> None:
+        """Walk up parent chain marking parents done when all children complete.
+
+        Note: This is a best-effort parent walk. In a tree without parent pointers,
+        we need to traverse from root each time. For simplicity, we check if all
+        siblings of the task are done, then mark the parent done recursively.
+
+        Args:
+            task: The task that was just completed.
+        """
+        # Find parent of this task by traversing from root
+        parent = self._find_parent(self.root_task, task.task_id)
+        if parent is None:
+            return  # task is root or not found
+
+        # Check if all children of parent are done
+        all_done = all(child.status in ("done", "failed") for child in parent.children)
+        if all_done:
+            parent.status = "done"
+            # Recurse up
+            self._walk_parent_chain_done(parent)
+
+    def _find_parent(self, root: Task | None, child_id: str) -> Task | None:
+        """Find the parent of a task by child_id.
+
+        Args:
+            root: The subtree root to search.
+            child_id: The task_id of the child to find parent for.
+
+        Returns:
+            The parent task if found, else None.
+        """
+        if root is None:
+            return None
+        for child in root.children:
+            if child.task_id == child_id:
+                return root
+            found = self._find_parent(child, child_id)
+            if found is not None:
+                return found
+        return None
+
+    def _on_reviewer_retry(self, active_task: Task) -> None:
+        """Preserve active task on retry decision.
+
+        Args:
+            active_task: The task that should be retried.
+        """
+        # No-op for now — active task preserved (Milestone 3.2)
+        pass
+
+    def _on_reviewer_replan(self, active_task: Task) -> None:
+        """Preserve active task on replan decision.
+
+        Args:
+            active_task: The task that should be replanned.
+        """
+        # No-op for now — active task preserved (Milestone 3.2)
+        pass
+
+    def _on_reviewer_open_question(self, active_task: Task) -> None:
+        """Preserve active task on open_question decision.
+
+        Args:
+            active_task: The task with an open question.
+        """
+        # No-op for now — active task preserved (Milestone 3.2)
+        pass
+
+    def _is_root_task_done(self) -> bool:
+        """Check if root task and all children are complete.
+
+        Returns:
+            True if root task status is 'done' or 'failed' and all children
+            are also 'done' or 'failed'.
+        """
+        if self.root_task is None:
+            return False
+        if self.root_task.status not in ("done", "failed"):
+            return False
+        # Check all children recursively
+        return self._is_subtree_done(self.root_task)
+
+    def _is_subtree_done(self, task: Task) -> bool:
+        """Check if a task and all its descendants are complete.
+
+        Args:
+            task: The subtree root to check.
+
+        Returns:
+            True if task and all descendants are 'done' or 'failed'.
+        """
+        if task.status not in ("done", "failed"):
+            return False
+        for child in task.children:
+            if not self._is_subtree_done(child):
+                return False
+        return True
