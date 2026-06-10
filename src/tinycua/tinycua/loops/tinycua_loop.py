@@ -57,7 +57,9 @@ class TinyCUALoop(BaseLoop):
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
-        self.session_config = session_config if session_config is not None else SessionConfig()
+        self.session_config = (
+            session_config if session_config is not None else SessionConfig()
+        )
         self.default_terminal_node = default_terminal_node
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
@@ -146,7 +148,10 @@ class TinyCUALoop(BaseLoop):
                 break
 
             content, should_advance = await self._execute_node(
-                node, agent, tools, override_instructions,
+                node,
+                agent,
+                tools,
+                override_instructions,
             )
             last_content = content
             iterations += 1
@@ -199,10 +204,14 @@ class TinyCUALoop(BaseLoop):
         metadata: dict[str, Any] = {}
         if self.root_session.input_context:
             for msg in self.root_session.input_context:
-                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                messages.append(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                )
                 if "metadata" in msg:
                     metadata.update(msg["metadata"])
-        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
+        return NodeInput(
+            input_type="continuation", messages=messages, metadata=metadata
+        )
 
     def _record_node_output(
         self,
@@ -218,10 +227,12 @@ class TinyCUALoop(BaseLoop):
             tool_calls: Optional list of tool call dicts.
         """
         if content:
-            self.root_session.chat_history.append({
-                "role": "assistant",
-                "content": content,
-            })
+            self.root_session.chat_history.append(
+                {
+                    "role": "assistant",
+                    "content": content,
+                }
+            )
 
         llm_result = LLMResult(
             content=content,
@@ -268,7 +279,10 @@ class TinyCUALoop(BaseLoop):
             # fall back to sync-like flow using agent._call_llm() without stream.
             if isinstance(node, DecisionNode):
                 content, should_advance, _decision = await self._execute_decision_node(
-                    node, agent, tools, override_instructions,
+                    node,
+                    agent,
+                    tools,
+                    override_instructions,
                 )
                 iterations += 1
                 if node.is_terminal:
@@ -278,7 +292,9 @@ class TinyCUALoop(BaseLoop):
                 continue
 
             messages, resolved_tools = self._prepare_node(
-                node, tools, override_instructions,
+                node,
+                tools,
+                override_instructions,
             )
 
             # Stream from agent._call_llm() and yield events
@@ -360,7 +376,9 @@ class TinyCUALoop(BaseLoop):
                 return passthrough_content, True, decision
 
         messages, resolved_tools = self._prepare_node(
-            node, tools, override_instructions,
+            node,
+            tools,
+            override_instructions,
         )
 
         async def _analyze(msgs: list[dict[str, str]]) -> LLMResult:
@@ -368,7 +386,8 @@ class TinyCUALoop(BaseLoop):
             return LLMResult(content=raw.get("content") or "", role="assistant")
 
         async def _classify(
-            msgs: list[dict[str, str]], analysis: LLMResult,
+            msgs: list[dict[str, str]],
+            analysis: LLMResult,
         ) -> LLMResult:
             classification_messages = list(msgs)
             classification_messages.append(
@@ -385,14 +404,18 @@ class TinyCUALoop(BaseLoop):
                 }
             )
             raw = await agent._call_llm(  # type: ignore[arg-type]
-                classification_messages, resolved_tools,
+                classification_messages,
+                resolved_tools,
             )
             return LLMResult(
-                content=raw.get("content") or "", role="assistant",
+                content=raw.get("content") or "",
+                role="assistant",
             )
 
         decision = await node._execute_with_retry(  # type: ignore[misc]
-            messages, analyze=_analyze, classify=_classify,
+            messages,
+            analyze=_analyze,
+            classify=_classify,
         )
 
         content = (
@@ -436,7 +459,10 @@ class TinyCUALoop(BaseLoop):
         # DecisionNode subclasses: two-step analysis + classification + route dispatch
         if isinstance(node, DecisionNode):
             content, should_advance, _decision = await self._execute_decision_node(
-                node, agent, tools, override_instructions,
+                node,
+                agent,
+                tools,
+                override_instructions,
             )
             return content, should_advance
 
@@ -446,7 +472,9 @@ class TinyCUALoop(BaseLoop):
         # they don't need an LLM call — they capture/transform content.
         if node.is_terminal:
             messages, resolved_tools = self._prepare_node(
-                node, tools, override_instructions,
+                node,
+                tools,
+                override_instructions,
             )
             response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
             content = response.get("content") or ""
@@ -457,7 +485,7 @@ class TinyCUALoop(BaseLoop):
                 metadata=response.get("metadata", {}),
             )
         else:
-            self._prepare_node(node, tools, override_instructions)
+            node.ensure_session(self.root_session)
             # Delegate to node.__call__() if the node has its own LLM client,
             # so custom logic (ReAct loops, decision parsing) runs.
             # Fall back to agent._call_llm() for nodes without a configured
@@ -471,7 +499,10 @@ class TinyCUALoop(BaseLoop):
                 else:
                     llm_result = LLMResult(content=str(result), role="assistant")
             else:
-                if hasattr(node, "__call__") and type(node).__call__ is not ProcessNode.__call__:
+                if (
+                    hasattr(node, "__call__")
+                    and type(node).__call__ is not ProcessNode.__call__
+                ):
                     logger.warning(
                         "Fallback path: node %s overrides ProcessNode.__call__ "
                         "but node.config.llm_client is None — custom logic "
@@ -479,7 +510,9 @@ class TinyCUALoop(BaseLoop):
                         node.node_id,
                     )
                 messages, resolved_tools = self._prepare_node(
-                    node, tools, override_instructions,
+                    node,
+                    tools,
+                    override_instructions,
                 )
                 response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
                 llm_result = LLMResult(
@@ -508,10 +541,14 @@ class TinyCUALoop(BaseLoop):
         metadata: dict[str, Any] = {}
         if self.root_session.input_context:
             for msg in self.root_session.input_context:
-                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                messages.append(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                )
                 if "metadata" in msg:
                     metadata.update(msg["metadata"])
-        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
+        return NodeInput(
+            input_type="continuation", messages=messages, metadata=metadata
+        )
 
     def _build_node_messages(
         self,
@@ -556,7 +593,10 @@ class TinyCUALoop(BaseLoop):
             )
 
         # Add chat history if policy says so
-        if node.config.message_policy.include_chat_history and self.root_session.chat_history:
+        if (
+            node.config.message_policy.include_chat_history
+            and self.root_session.chat_history
+        ):
             messages.extend(
                 {
                     "role": m["role"],
@@ -749,9 +789,7 @@ class TinyCUALoop(BaseLoop):
             _depth: Current recursion depth (used for cycle detection).
         """
         if _depth >= self._MAX_PARENT_WALK_DEPTH:
-            logger.error(
-                "Parent walk exceeded max depth (%d); possible cycle", _depth
-            )
+            logger.error("Parent walk exceeded max depth (%d); possible cycle", _depth)
             return
 
         # Find parent of this task by traversing from root

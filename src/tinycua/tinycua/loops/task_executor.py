@@ -31,13 +31,17 @@ class TinyCUATaskExecutorNode(ProcessNode):
     Attributes:
         node_id: Always "task_executor" by default.
         max_react_iterations: Maximum ReAct iterations (default 10).
+        max_summary_length: Maximum characters for execution summary (default 500).
     """
+
+    MAX_SUMMARY_LENGTH: int = 500
 
     def __init__(
         self,
         node_id: str = "task_executor",
         config: NodeConfigBase | None = None,
         max_react_iterations: int = 10,
+        max_summary_length: int | None = None,
     ) -> None:
         """Initialize TaskExecutorNode.
 
@@ -45,6 +49,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration. Uses default if None.
             max_react_iterations: Maximum ReAct iterations before forced stop.
+            max_summary_length: Max chars for execution summary. Uses class
+                default (MAX_SUMMARY_LENGTH) if None.
         """
         super().__init__(
             node_id=node_id,
@@ -55,6 +61,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             ),
         )
         self.max_react_iterations = max_react_iterations
+        self.max_summary_length = max_summary_length or self.MAX_SUMMARY_LENGTH
 
     def _extract_active_task(self, input_data: NodeInputLike) -> Any:
         """Extract the active task from node input metadata.
@@ -173,13 +180,14 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 raise
 
         assert last_response is not None  # noqa: S101
-        summary_text = last_response.content[:500]
-        if len(last_response.content) > 500:
+        summary_text = last_response.content[: self.max_summary_length]
+        if len(last_response.content) > self.max_summary_length:
             logger.warning(
-                "node=%s task_id=%s summary truncated from %d to 500 chars",
+                "node=%s task_id=%s summary truncated from %d to %d chars",
                 self.node_id,
                 task.task_id,
                 len(last_response.content),
+                self.max_summary_length,
             )
         result_dict = self._build_execution_result(
             task,
