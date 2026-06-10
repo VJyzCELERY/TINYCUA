@@ -30,7 +30,7 @@ AnalysisEffortNode
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua.loops.task_assessor` | New | Core TaskAssessorNode implementation |
-| `tinycua.config.node_config` | Modified | Add `TinyCUATaskAssessorNodeConfig` |
+| `tinycua.config.node_config` | Modified (Phase 2) | Add `TinyCUATaskAssessorNodeConfig` |
 | `tinycua.loops.analysis_effort` | Modified | Integrate TaskAssessor prepending |
 | `tinycua.loops.node` | Unchanged | ProcessNode base class |
 | `tinycua.loops.node_queue` | Unchanged | Queue mechanics |
@@ -130,7 +130,7 @@ class TinyCUATaskAssessorNode(ProcessNode):
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`
+- [ ] ~~Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`~~ (deferred to Phase 2 per Schema Changes section)
 - [ ] Implement `TinyCUATaskAssessorNode` class with effort-loop mode
 - [ ] Implement LLM response parsing for task ID extraction
 - [ ] Implement `on_complete` queue advancement logic
