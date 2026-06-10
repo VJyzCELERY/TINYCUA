@@ -32,7 +32,7 @@ tinycua.loops.tinycua_loop
 ├── set_active_task(task_id) → None
 ├── update_active_task_result(result) → None
 ├── _dfs_find_active(task) → Task | None       [internal DFS]
-├── _on_reviewer_accept(active_task) → None   [task-tree update]
+├── _on_reviewer_accept(active_task) → bool   [root-done flag, True→aggregation]
 ├── _on_reviewer_retry(active_task) → None    [preserve active]
 ├── _on_reviewer_replan(active_task) → None   [preserve + spawn]
 ├── _on_reviewer_open_question(active_task) → None [preserve + passthrough]
@@ -127,7 +127,15 @@ class TinyCUALoop(BaseLoop):
         """
         Update the active task's result field.
         Raises ValueError if no active task is set.
+        Raises ValueError if result.task_id does not match active task.
         """
+        if self._active_task_id is None:
+            raise ValueError("No active task set")
+        if result.task_id != self._active_task_id:
+            raise ValueError(
+                f"Result task_id '{result.task_id}' does not match "
+                f"active task '{self._active_task_id}'"
+            )
 ```
 
 ### DFS Pre-Order Traversal
@@ -138,6 +146,10 @@ def _dfs_find_active(self, task: Task) -> Task | None:
     DFS pre-order traversal returning the first unfinished task.
     Unfinished means status in {"pending", "in_progress", "blocked"}.
     When active_child_id is set, descends into that child first.
+
+    Note: This recursive approach is suitable for typical task trees (<100 levels deep).
+    Python's default recursion limit is 1000. For production safety, an iterative
+    stack-based approach can be substituted without changing the external API.
     """
     # 1. Check if this task is unfinished → return it
     # 2. If active_child_id is set, search that child first
@@ -191,6 +203,7 @@ def _on_reviewer_open_question(self, active_task: Task) -> None:
 |------------|---------------------|-------|
 | `set_active_task()` with unknown ID | `ValueError("Task not found: {task_id}")` | Task ID not in tree |
 | `update_active_task_result()` with no active task | `ValueError("No active task set")` | No task is currently active |
+| `update_active_task_result()` with mismatched task_id | `ValueError("Result task_id '{result.task_id}' does not match active task '{active.task_id}'")` | Result's task_id doesn't match active task |
 | `get_active_task()` with empty tree | Returns `None` | Graceful — no task to select |
 | Task tree is `None` | Returns `None` | Graceful — no tree exists |
 

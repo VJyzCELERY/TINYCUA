@@ -290,6 +290,16 @@ def test_update_active_task_result_no_active_raises():
         loop.update_active_task_result(result)
 
 
+def test_update_active_task_result_mismatched_task_id():
+    """update_active_task_result raises ValueError when result.task_id doesn't match active task."""
+    loop = TinyCUALoop()
+    loop.root_task = _make_linear_tree()
+    loop.set_active_task("T-2")
+    result = TaskResult(task_id="T-999", execution_status="succeeded")
+    with pytest.raises(ValueError, match="does not match"):
+        loop.update_active_task_result(result)
+
+
 def test_on_reviewer_accept_marks_done():
     """_on_reviewer_accept marks the active task as done and returns False (not root done)."""
     loop = TinyCUALoop()
@@ -411,12 +421,22 @@ def test_task_children_is_append_only():
     assert hasattr(parent.children, "append"), "children list must support append"
 
 
+SDK_PUBLIC_API_SNAPSHOT = {
+    "Agent", "AgentConfig", "AgentExecutor", "AgentPolicy", "BaseLoop",
+    "ContentPart", "FileAttachment", "LLMClient", "LanguageModel",
+    "Skill", "SkillRegistry", "StreamingFileAttachment", "Tool",
+    "agent", "core", "models", "providers", "security", "skills", "tool", "tools",
+}
+
+
 def test_sdk_public_api_unchanged():
     """FR-018: System MUST NOT modify tinycua-sdk public APIs."""
     import tinycua_sdk
-    # Verify core public API surface is intact
-    assert hasattr(tinycua_sdk, "TinyCUALoop")
-    assert callable(tinycua_sdk.TinyCUALoop)
+    current_api = {name for name in dir(tinycua_sdk) if not name.startswith("_")}
+    added = current_api - SDK_PUBLIC_API_SNAPSHOT
+    removed = SDK_PUBLIC_API_SNAPSHOT - current_api
+    assert not added, f"New public API items added to SDK: {added}"
+    assert not removed, f"Public API items removed from SDK: {removed}"
 
 
 def test_is_root_task_done_all_complete():
@@ -478,6 +498,9 @@ def test_is_root_task_done_no_children():
 - [ ] No performance tests needed for this milestone
 
 ## Proposed Changes
+
+> All file paths in this section are relative to `src/tinycua/` (the subproject root).
+> The module-qualified names in the Architecture Changes table use the Python import path (e.g., `tinycua.models.task`).
 
 ### Models Module
 
