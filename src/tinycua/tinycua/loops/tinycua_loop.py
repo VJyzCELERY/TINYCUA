@@ -17,7 +17,7 @@ from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
-from tinycua.models.task import Task, TaskResult
+from tinycua.models.task import ReviewerDecision, Task, TaskResult
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
@@ -567,7 +567,9 @@ class TinyCUALoop(BaseLoop):
                 result = self._dfs_find_active(child)
                 if result is not None:
                     # Update hint to point to the first unfinished child
-                    task.active_child_id = child.task_id
+                    # (only write if changed to avoid unnecessary overwrites)
+                    if task.active_child_id != child.task_id:
+                        task.active_child_id = child.task_id
                     return result
 
         # 2. If no child returned an active task, check this task
@@ -631,10 +633,15 @@ class TinyCUALoop(BaseLoop):
         active.result = result
 
     def _on_reviewer_accept(self, active_task: Task) -> bool:
-        """Mark active task as done and recompute next active task.
+        """Mark active task as done and check if root task is complete.
 
-        Walks up parent chain marking parents done when all children complete.
-        Returns True if root task is done, False otherwise.
+        Walks up the parent chain marking parent tasks as done when all their
+        children complete. Does NOT recompute the next active task — callers
+        should call get_active_task() after this method returns.
+
+        Returns True if root task is done (should route to aggregation),
+        False otherwise (caller should route to next active task via
+        get_active_task()).
 
         Args:
             active_task: The task that was accepted.
@@ -642,6 +649,10 @@ class TinyCUALoop(BaseLoop):
         Returns:
             True if root task is done, False otherwise.
         """
+        # Set reviewer_decision per design spec (step 1)
+        if active_task.result is not None:
+            active_task.result.reviewer_decision = ReviewerDecision(outcome="accept")
+
         # Mark this task as done
         active_task.status = "done"
 
