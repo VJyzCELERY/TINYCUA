@@ -141,16 +141,16 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUATaskExecutorNode | TODO | Node for ReAct-style execution |
-| TinyCUAResultReviewerNode | TODO | Node for result review |
-| ReviewerRetryState | TODO | Retry failure counter with threshold |
-| AnalysisEffortNode._spawn_task_executor | TODO | Replace stub with real spawning |
-| WorkerNode._route_proceed_execution | TODO | Replace stub with real spawning |
-| TinyCUALoop._on_reviewer_retry | TODO | Replace no-op with real impl |
-| TinyCUALoop._on_reviewer_replan | TODO | Replace no-op with real impl |
-| TinyCUALoop._on_reviewer_open_question | TODO | Replace no-op with real impl |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| TinyCUATaskExecutorNode | Done | Node for ReAct-style execution |
+| TinyCUAResultReviewerNode | Done | Node for result review |
+| ReviewerRetryState | Done | Retry failure counter with threshold |
+| AnalysisEffortNode._spawn_task_executor | Done | Replace stub with real spawning |
+| WorkerNode._route_proceed_execution | Done | Replace stub with real spawning |
+| TinyCUALoop._on_reviewer_retry | Done | Replace no-op with real impl |
+| TinyCUALoop._on_reviewer_replan | Done | Replace no-op with real impl |
+| TinyCUALoop._on_reviewer_open_question | Done | Replace no-op with real impl |
+| Unit tests | Done | |
+| Integration tests | Done | |
 
 ---
 

@@ -26,15 +26,6 @@ def _make_execution_result(status: str = "succeeded") -> LLMResult:
     return LLMResult(content=f"Task {status}", role="assistant", metadata={"status": status})
 
 
-def _make_reviewer_decision(outcome: str = "accept", rationale: str = "Test") -> LLMResult:
-    """Create a mock LLMResult simulating reviewer decision."""
-    decision_data = {"outcome": outcome, "rationale": rationale}
-    return LLMResult(
-        content=decision_json(outcome, rationale),
-        metadata={"reviewer_decision": decision_data},
-    )
-
-
 def decision_json(outcome: str, rationale: str = "Test") -> str:
     """Build a JSON string representing a ReviewerDecision."""
     return f'{{"outcome": "{outcome}", "rationale": "{rationale}"}}'

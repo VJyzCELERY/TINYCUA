@@ -557,19 +557,19 @@ def _route_proceed_execution(
 > Do NOT follow it as an execution plan. For TDD-first execution order, see `task.md`
 > "TDD Phase (Tests First)" section — tests MUST be written before implementation.
 
-- [ ] Create `tinycua/models/reviewer_decision.py` with `ReviewerRetryState` dataclass
-- [ ] Create `tinycua/loops/task_executor.py` with `TinyCUATaskExecutorNode`
-- [ ] Create `tinycua/loops/result_reviewer.py` with `TinyCUAResultReviewerNode`
-- [ ] Update `tinycua/loops/__init__.py` to export new node classes
-- [ ] Add `_reviewer_retry_state` to `TinyCUALoop.__init__`
-- [ ] Implement `TinyCUALoop._on_reviewer_retry()` (replace no-op)
-- [ ] Implement `TinyCUALoop._on_reviewer_replan()` (replace no-op)
-- [ ] Implement `TinyCUALoop._on_reviewer_open_question()` (replace no-op)
-- [ ] Update `TinyCUALoop._on_reviewer_accept()` to reset retry counter
-- [ ] Update `AnalysisEffortNode._spawn_task_executor()` (replace stub)
-- [ ] Update `WorkerNode._route_proceed_execution()` (replace stub)
-- [ ] Write unit tests for TaskExecutorNode, ResultReviewerNode, ReviewerRetryState
-- [ ] Write unit tests for updated loop handlers and spawning logic
+- [x] Create `tinycua/models/reviewer_decision.py` with `ReviewerRetryState` dataclass
+- [x] Create `tinycua/loops/task_executor.py` with `TinyCUATaskExecutorNode`
+- [x] Create `tinycua/loops/result_reviewer.py` with `TinyCUAResultReviewerNode`
+- [x] Update `tinycua/loops/__init__.py` to export new node classes
+- [x] Add `_reviewer_retry_state` to `TinyCUALoop.__init__`
+- [x] Implement `TinyCUALoop._on_reviewer_retry()` (replace no-op)
+- [x] Implement `TinyCUALoop._on_reviewer_replan()` (replace no-op)
+- [x] Implement `TinyCUALoop._on_reviewer_open_question()` (replace no-op)
+- [x] Update `TinyCUALoop._on_reviewer_accept()` to reset retry counter
+- [x] Update `AnalysisEffortNode._spawn_task_executor()` (replace stub)
+- [x] Update `WorkerNode._route_proceed_execution()` (replace stub)
+- [x] Write unit tests for TaskExecutorNode, ResultReviewerNode, ReviewerRetryState
+- [x] Write unit tests for updated loop handlers and spawning logic
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 

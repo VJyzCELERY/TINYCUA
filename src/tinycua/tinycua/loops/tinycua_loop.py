@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -180,6 +181,27 @@ class TinyCUALoop(BaseLoop):
         messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         return messages, resolved_tools
+
+    def _build_node_input(self, node: Node) -> NodeInput:
+        """Build a NodeInput from the root session's input context.
+
+        Constructs a NodeInput envelope so node.__call__() receives
+        structured input with metadata (e.g., active_task).
+
+        Args:
+            node: The node that will receive the input.
+
+        Returns:
+            NodeInput constructed from the root session input context.
+        """
+        messages: list[dict[str, Any]] = []
+        metadata: dict[str, Any] = {}
+        if self.root_session.input_context:
+            for msg in self.root_session.input_context:
+                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                if "metadata" in msg:
+                    metadata.update(msg["metadata"])
+        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
 
     def _record_node_output(
         self,
@@ -417,22 +439,50 @@ class TinyCUALoop(BaseLoop):
             )
             return content, should_advance
 
-        # Non-decision nodes: build messages and call agent._call_llm() directly
-        messages, resolved_tools = self._prepare_node(
-            node, tools, override_instructions,
-        )
+        # Non-decision nodes: delegate to node.__call__() so custom logic
+        # (ReAct loops, decision parsing, active_task extraction) runs.
+        # Terminal nodes (e.g. ResponseNode) skip node.__call__ because
+        # they don't need an LLM call — they capture/transform content.
+        if node.is_terminal:
+            messages, resolved_tools = self._prepare_node(
+                node, tools, override_instructions,
+            )
+            response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+            content = response.get("content") or ""
+            llm_result = LLMResult(
+                content=content,
+                role=response.get("role", "assistant"),
+                tool_calls=response.get("tool_calls", []),
+                metadata=response.get("metadata", {}),
+            )
+        else:
+            self._prepare_node(node, tools, override_instructions)
+            # Delegate to node.__call__() if the node has its own LLM client,
+            # so custom logic (ReAct loops, decision parsing) runs.
+            # Fall back to agent._call_llm() for nodes without a configured
+            # client (e.g. test stubs, nodes relying on agent transport).
+            if getattr(node.config, "llm_client", None) is not None:
+                input_data = self._build_node_input(node)
+                result = await asyncio.to_thread(node, input_data)
+                # Node __call__ may return LLMResult or plain str (test stubs)
+                if isinstance(result, LLMResult):
+                    llm_result = result
+                else:
+                    llm_result = LLMResult(content=str(result), role="assistant")
+            else:
+                messages, resolved_tools = self._prepare_node(
+                    node, tools, override_instructions,
+                )
+                response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                llm_result = LLMResult(
+                    content=response.get("content") or "",
+                    role=response.get("role", "assistant"),
+                    tool_calls=response.get("tool_calls", []),
+                    metadata=response.get("metadata", {}),
+                )
+            content = llm_result.content or ""
 
-        response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
-        content = response.get("content") or ""
-
-        llm_result = LLMResult(
-            content=content,
-            role=response.get("role", "assistant"),
-            tool_calls=response.get("tool_calls", []),
-            metadata=response.get("metadata", {}),
-        )
         self._record_node_output(node, content, llm_result.tool_calls)
-
         node.on_complete(self.queue, llm_result)
 
         return content, True
