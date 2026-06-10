@@ -143,21 +143,26 @@ class TinyCUALoop(BaseLoop):
 ```python
 def _dfs_find_active(self, task: Task) -> Task | None:
     """
-    DFS pre-order traversal returning the first unfinished task.
-    Unfinished means status in {"pending", "in_progress", "blocked"}.
-    When active_child_id is set, descends into that child first.
-
-    Note: This recursive approach is suitable for typical task trees (<100 levels deep).
-    Python's default recursion limit is 1000. For production safety, an iterative
-    stack-based approach can be substituted without changing the external API.
+    DFS traversal returning the first unfinished task.
+    
+    Algorithm:
+    1. Search children first (prefer hint via active_child_id).
+    2. For each child, recurse with _dfs_find_active.
+    3. If any child returns a task, return it immediately.
+    4. If no child returned a task (all children done or no children):
+       a. If this task is unfinished (status in {pending, in_progress, blocked}),
+          return this task.
+       b. Otherwise, return None.
+    
+    This means a parent task is only returned when all its children
+    are complete — the traversal goes deep before returning up.
+    
+    Note: If active_child_id references a non-existent child, fall back
+    to standard left-to-right child iteration.
     """
-    # 1. Check if this task is unfinished → return it
-    # 2. If active_child_id is set, search that child first
-    # 3. Then search remaining children in order
-    # 4. Return None if all children are complete
-    # Note: If active_child_id references a non-existent child, fall back to
-    # standard pre-order traversal (ignore the hint and iterate children in
-    # insertion order).
+    # 1. Search children first (with active_child_id hint)
+    # 2. If no child returned an active task, check this task
+    # 3. Return None if all complete
 ```
 
 ### Task-Tree Completion/Update Algorithm
@@ -166,6 +171,9 @@ def _dfs_find_active(self, task: Task) -> Task | None:
 def _on_reviewer_accept(self, active_task: Task) -> bool:
     """
     Handle ResultReviewer accept decision.
+
+    Precondition: active_task.result MUST be set before calling this method.
+    Callers should first call update_active_task_result() to set the execution result.
 
     Returns True if root task is done (should route to aggregation).
     Returns False if there is a next active task (should route to executor).

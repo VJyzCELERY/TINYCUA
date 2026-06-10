@@ -307,28 +307,33 @@ def test_on_reviewer_accept_marks_done():
     active = loop.get_active_task()
     assert active is not None
     assert active.task_id == "T-2"
+    # Set up result (as would happen in real flow)
+    active.result = TaskResult(task_id="T-2", execution_status="succeeded")
     result = loop._on_reviewer_accept(active)
     assert result is False  # root not done yet
     assert active.status == "done"
 
 
 def test_on_reviewer_accept_root_done():
-    """_on_reviewer_accept returns True when root task becomes done."""
+    """_on_reviewer_accept returns True when last leaf is accepted and root becomes done."""
     loop = TinyCUALoop()
     root = Task(
         task_id="ROOT",
         title="Root",
         status="pending",
         children=[
-            Task(task_id="T-1", title="Task 1", status="done"),
+            Task(task_id="T-1", title="Task 1", status="pending"),
         ],
     )
     loop.root_task = root
     active = loop.get_active_task()
     assert active is not None
-    assert active.task_id == "T-1"
+    assert active.task_id == "T-1"  # T-1 is pending → active ✓
+    # Simulate execution + result
+    active.result = TaskResult(task_id="T-1", execution_status="succeeded")
+    active.status = "done"  # execution marks done
     result = loop._on_reviewer_accept(active)
-    assert result is True  # root is done
+    assert result is True  # T-1 was the last remaining child → root is done
 
 
 def test_on_reviewer_accept_parent_walk():
@@ -342,6 +347,8 @@ def test_on_reviewer_accept_parent_walk():
 
     active = loop.get_active_task()
     assert active is not None and active.task_id == "T-1.2"
+    # Set up result (as would happen in real flow)
+    active.result = TaskResult(task_id="T-1.2", execution_status="succeeded")
     result = loop._on_reviewer_accept(active)
     # T-1.2 is done, T-1 has no more unfinished children → T-1 marked done too
     assert t1.status == "done", "Parent should be marked done when all children complete"
@@ -361,6 +368,8 @@ def test_on_reviewer_accept_parent_walk_partial():
 
     active = loop.get_active_task()
     assert active is not None and active.task_id == "T-1.2"
+    # Set up result (as would happen in real flow)
+    active.result = TaskResult(task_id="T-1.2", execution_status="succeeded")
     result = loop._on_reviewer_accept(active)
     # T-1.2 done, T-1 fully done → T-1 marked done
     assert t1.status == "done"
