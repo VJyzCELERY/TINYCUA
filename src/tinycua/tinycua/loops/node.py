@@ -413,8 +413,12 @@ class ProcessNode(Node):
                 # For record_failure / route_failure, continue with last response
 
         assert last_response is not None  # noqa: S101
+        if hasattr(self, "on_start") and callable(self.on_start):
+            self.on_start()
         self.record_output(last_response)
         self.propagate()
+        if hasattr(self, "on_end") and callable(self.on_end):
+            self.on_end()
         return last_response
 
 

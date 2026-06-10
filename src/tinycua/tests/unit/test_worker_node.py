@@ -408,10 +408,10 @@ class TestWorkerNodeRouteTaskRecreation:
         # Old spawned node should be cleared
         node_ids = [n.node_id for n in queue.items]
         assert "old_spawned" not in node_ids
-        # TaskAnalyzerNode should be spawned with mode="analysis"
+        # TaskAnalyzerNode should be spawned with mode="recreation"
         assert "task_analyzer" in node_ids
         task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
-        assert task_analyzer.mode == "analysis"
+        assert task_analyzer.mode == "recreation"
 
     def test_ensures_terminal_response_path(self) -> None:
         """_route_task_recreation ensures terminal response path exists."""
@@ -462,9 +462,9 @@ class TestWorkerNodeRouteTaskReanalysis:
 
         worker._route_task_reanalysis(queue, result)
 
-        # TaskAnalyzerNode should be spawned with mode="initial_analysis"
+        # TaskAnalyzerNode should be spawned with mode="reanalysis"
         task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
-        assert task_analyzer.mode == "initial_analysis"
+        assert task_analyzer.mode == "reanalysis"
 
     def test_ensures_terminal_response_path(self) -> None:
         """_route_task_reanalysis ensures terminal response path exists."""

@@ -211,9 +211,9 @@ def test_worker_node_route_task_recreation():
     assert "old_spawned" not in node_ids
     assert "task_analyzer" in node_ids
 
-    # CRITICAL: Assert mode is "analysis" (NOT "initial_analysis")
+    # CRITICAL: Assert mode is "recreation" (NOT "initial_analysis")
     task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
-    assert task_analyzer.mode == "analysis"  # Includes TaskInit/TaskCreate
+    assert task_analyzer.mode == "recreation"  # Includes TaskInit/TaskCreate
 
 
 def test_worker_node_route_task_reanalysis():
@@ -240,7 +240,7 @@ def test_worker_node_route_task_reanalysis():
 
     # Assert — TaskAnalyzerNode spawned without task_init/task_create tools
     task_analyzer = [n for n in queue.items if n.node_id == "task_analyzer"][0]
-    assert task_analyzer.mode == "initial_analysis"  # Excludes TaskInit/TaskCreate
+    assert task_analyzer.mode == "reanalysis"  # Excludes TaskInit/TaskCreate
 
 
 def test_worker_node_route_passthrough():
