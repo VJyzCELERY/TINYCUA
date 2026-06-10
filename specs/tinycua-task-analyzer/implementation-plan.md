@@ -317,14 +317,11 @@ def test_task_analyzer_task_tree_validation_none_raises_error():
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="initial_analysis")
 
-    # LLM returns without mutating session.task — task stays None
-    mock_llm = MagicMock()
+    # Mock _call_llm on the node to return a valid response without a real LLM
     mock_response = MagicMock()
-    mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message = MagicMock()
-    mock_response.choices[0].message.content = "No changes made."
-    mock_response.choices[0].message.tool_calls = []
-    mock_llm.chat.completions.create.return_value = mock_response
+    mock_response.content = "No changes made."
+    mock_response.tool_calls = []
+    node._call_llm = MagicMock(return_value=mock_response)
 
     mock_session = MagicMock()
     mock_session.task = None  # task is None — should trigger validation
@@ -554,7 +551,7 @@ _VALID_MODES = frozenset({
 
 | Method | Description |
 |--------|-------------|
-| `_validate_task_tree_non_none(response)` | Validates task tree is non-None after completion; raises `NodeExecutionError` if `None` |
+| `_validate_task_tree_non_none()` | Validates task tree is non-None after completion; raises `NodeExecutionError` if `None` |
 
 ## Dependencies
 

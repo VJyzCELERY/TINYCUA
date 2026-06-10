@@ -151,14 +151,14 @@ def _validate_task_tree_non_none(self) -> None:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Extend `_VALID_MODES` to include all five modes: `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, `local_replan`
-- [ ] Update `_resolve_tool_scope()` to allow TaskInit/TaskCreate only in `recreation` mode
-- [ ] Add `_validate_task_tree_non_none()` method to check task tree after completion
-- [ ] Call `_validate_task_tree_non_none()` at the end of `__call__()` before returning
-- [ ] Update module docstring and class docstring to reflect all five modes
-- [ ] Write unit tests for all five modes, tool scope validation, and task tree validation
-- [ ] Logging: `__call__()` already logs mode and completion status via `logger.info()` (see existing `task_analyzer.py`). No changes needed — confirm existing logging survives refactoring.
-- [ ] Retry/lifecycle inheritance: `__call__()` delegates to `ProcessNode.__call__()` which handles the full retry loop per `NodeRetryPolicy`. No changes needed — confirm `super().__call__()` call survives refactoring.
+- [x] Extend `_VALID_MODES` to include all five modes: `initial_analysis`, `recreation`, `reanalysis`, `effort_loop_decomposition`, `local_replan`
+- [x] Update `_resolve_tool_scope()` to allow TaskInit/TaskCreate only in `recreation` mode
+- [x] Add `_validate_task_tree_non_none()` method to check task tree after completion
+- [x] Call `_validate_task_tree_non_none()` at the end of `__call__()` before returning
+- [x] Update module docstring and class docstring to reflect all five modes
+- [x] Write unit tests for all five modes, tool scope validation, and task tree validation
+- [x] Logging: `__call__()` already logs mode and completion status via `logger.info()` (see existing `task_analyzer.py`). No changes needed — confirm existing logging survives refactoring.
+- [x] Retry/lifecycle inheritance: `__call__()` delegates to `ProcessNode.__call__()` which handles the full retry loop per `NodeRetryPolicy`. No changes needed — confirm `super().__call__()` call survives refactoring.
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
