@@ -156,7 +156,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
                     break
 
             if iteration >= self.max_react_iterations:
-                status = "succeeded"
+                status = "max_iterations_reached"
                 logger.warning(
                     "node=%s reached max_react_iterations=%d",
                     self.node_id,

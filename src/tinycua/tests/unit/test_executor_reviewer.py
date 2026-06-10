@@ -289,14 +289,19 @@ def test_task_executor_call_sets_failed_status_on_exception():
 
 
 def test_task_executor_respects_max_react_iterations():
-    """TaskExecutor loop stops at max_react_iterations."""
+    """TaskExecutor loop stops at max_react_iterations and reports max_iterations_reached."""
     config = NodeConfigBase()
     call_count = 0
 
     def mock_llm(messages):
         nonlocal call_count
         call_count += 1
-        return {"content": "thinking...", "role": "assistant", "tool_calls": []}
+        # Return tool_calls on every call to force the loop to exhaust iterations
+        return {
+            "content": "thinking...",
+            "role": "assistant",
+            "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "test", "arguments": "{}"}}],
+        }
 
     config.llm_client = mock_llm
     executor = TinyCUATaskExecutorNode(config=config, max_react_iterations=3)
@@ -308,9 +313,8 @@ def test_task_executor_respects_max_react_iterations():
     )
 
     result = executor(input_data)
-    # With tool_calls=[] and non-empty content, loop breaks after first iteration
-    assert call_count == 1
-    assert result.metadata["execution_result"]["execution_status"] == "succeeded"
+    assert call_count == 3
+    assert result.metadata["execution_result"]["execution_status"] == "max_iterations_reached"
 
 
 def test_task_executor_on_complete_advances_queue():
