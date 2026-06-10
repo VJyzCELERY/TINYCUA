@@ -30,7 +30,7 @@ from unittest.mock import Mock, patch
 from tinycua.models.task import Task, TaskResult
 from tinycua.models.node_input import NodeInput
 from tinycua.models.node_result import LLMResult
-from tinycua.models.reviewer_decision import ReviewerDecision, ReviewerOutcome
+from tinycua.models.task import ReviewerDecision, ReviewerOutcome
 
 
 def _build_loop_with_active_task():
@@ -226,7 +226,7 @@ def test_retry_counter_resets_on_accept():
 #### NEW `src/tinycua/tinycua/loops/result_reviewer.py`
 
 - **TinyCUAResultReviewerNode(ProcessNode)**: Evaluates TaskExecutor output. Decides accept/retry/replan/open_question. Uses `ReviewerRetryState` from loop to check threshold. `on_complete` dispatches based on decision.
-- **Dependencies**: `ProcessNode` from `tinycua.loops.node`, `ReviewerDecision` from `tinycua.models.reviewer_decision`, `ReviewerRetryState` from `tinycua.models.reviewer_decision`.
+- **Dependencies**: `ProcessNode` from `tinycua.loops.node`, `ReviewerDecision` from `tinycua.models.task`, `ReviewerRetryState` from `tinycua.models.reviewer_decision`.
 
 #### MODIFY `src/tinycua/tinycua/loops/__init__.py`
 
