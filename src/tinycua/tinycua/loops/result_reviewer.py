@@ -137,18 +137,22 @@ class TinyCUAResultReviewerNode(ProcessNode):
             queue: The node queue to mutate.
             active_task: The task being replanned.
         """
+        if self.loop is None:
+            logger.error("Cannot spawn replan nodes: loop reference is None")
+            return
+
         from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
         from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
         from tinycua.loops.task_executor import TinyCUATaskExecutorNode
 
         task_assessor = TinyCUATaskAssessorNode(
             node_id="task_assessor",
-            config=self.loop.session_config if self.loop is not None else None,
+            config=self.loop.session_config,
             mode="reviewer_replan",
         )
         task_analyzer = TinyCUATaskAnalyzerNode(
             node_id="task_analyzer",
-            config=self.loop.session_config if self.loop is not None else None,
+            config=self.loop.session_config,
             mode="local_replan",
         )
         # TaskExecutorNode intentionally does NOT receive loop — it does not
@@ -156,7 +160,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         # reviewer receives loop so it can dispatch decisions to loop handlers.
         task_executor = TinyCUATaskExecutorNode(
             node_id="task_executor",
-            config=self.loop.session_config if self.loop is not None else None,
+            config=self.loop.session_config,
         )
 
         queue.spawn_after_current([task_assessor, task_analyzer, task_executor])

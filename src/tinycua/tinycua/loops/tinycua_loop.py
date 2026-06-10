@@ -511,7 +511,9 @@ class TinyCUALoop(BaseLoop):
                         "Fallback path: node %s overrides ProcessNode.__call__ "
                         "but node.config.llm_client is None — custom logic "
                         "(ReAct loops, decision parsing) will be bypassed. "
-                        "Provide a configured llm_client to enable custom node behavior.",
+                        "To fix: set node.config.llm_client or ensure SessionConfig "
+                        "passes a valid llm_client to spawned nodes (via "
+                        "analysis_effort/worker constructors).",
                         node.node_id,
                     )
                 messages, resolved_tools = self._prepare_node(
