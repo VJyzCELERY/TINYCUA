@@ -423,7 +423,16 @@ class TinyCUALoop(BaseLoop):
 
         If threshold reached, logs a warning. Callers should check
         can_retry() before re-queuing TaskExecutor.
+
+        Args:
+            active_task: The active task to preserve (NOT modified here).
         """
+        self._reviewer_retry_state.increment()
+        if not self._reviewer_retry_state.can_retry():
+            self._logger.warning(
+                "Retry threshold reached for task %s — no further retries allowed",
+                active_task.task_id,
+            )
 
     def _on_reviewer_replan(self, active_task: Task) -> None:
         """Handle replan decision: preserve active task, log event.
