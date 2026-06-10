@@ -41,7 +41,7 @@ Introduces structured `Task`, `TaskResult`, and `ReviewerDecision` models into `
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Unit Tests (TDD First)
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 

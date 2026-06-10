@@ -1,6 +1,6 @@
 # Feature Specification: TaskTree Active Task Lifecycle
 
-**Status**: Draft
+**Status**: Approved
 **Created**: 2026-06-10
 **Last Updated**: 2026-06-10
 **Subproject(s) Affected**: tinycua (models/task, loops/tinycua_loop)
@@ -113,9 +113,9 @@ TinyCUA's execution loop needs to track which task in a decomposed task tree is 
 
 ### Integration Tests
 
-- Test active task handoff: loop selects active task, TaskExecutor receives it, ResultReviewer updates it.
-- Test full lifecycle: task creation -> active task selection -> execution -> review -> next active task.
-- Test root-done path: all tasks complete -> root done -> aggregation entry signal.
+> **Note**: Integration tests requiring TaskExecutor and ResultReviewer are deferred to
+> Milestone 3.2. Milestone 3.1 validates lifecycle behavior through unit tests (see
+> `implementation-plan.md`). Add this section when TaskExecutor and ResultReviewer exist.
 
 ### Manual Tests _(if applicable)_
 

@@ -1,7 +1,7 @@
 # Design Document: TaskTree Active Task Lifecycle
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Approved
 **Last Updated**: 2026-06-10
 
 ---
