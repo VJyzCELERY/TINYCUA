@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import ProcessNode
 
@@ -69,6 +69,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         node_id: str = "analysis_effort",
         config: NodeConfigBase | None = None,
         effort: WorkerEffort = WorkerEffort.none,
+        loop: Any | None = None,
     ) -> None:
         """Initialize AnalysisEffortNode.
 
@@ -76,6 +77,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration. Uses default if None.
             effort: The configured effort level. Defaults to "none".
+            loop: Reference to TinyCUALoop for passing to spawned nodes.
         """
         super().__init__(
             node_id=node_id,
@@ -90,6 +92,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         self.effort = effort
         self.pass_limit = effort_to_pass_limit(effort)
         self.pass_count = 0
+        self._loop = loop
 
     def _should_spawn_executor(self) -> bool:
         """Check if pass_limit has been reached.
@@ -149,6 +152,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         )
         result_reviewer = TinyCUAResultReviewerNode(
             node_id="result_reviewer", config=self.config,
+            loop=self._loop,
         )
 
         # Spawn executor + reviewer after current position

@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
-    from tinycua.models.reviewer_decision import ReviewerRetryState
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +106,18 @@ class TinyCUAResultReviewerNode(ProcessNode):
             raise NodeExecutionError(msg)
 
         from tinycua.config.types import LLMResult
+        from tinycua.models.node_input import NodeInput
 
         messages = self.build_messages(self.session, input_data)
         response = self._call_llm(messages)
         decision_data = self._parse_decision(response)
+
+        # Forward active_task from input metadata into decision_data
+        # so on_complete can dispatch to loop handlers (ISSUE-001 fix).
+        if isinstance(input_data, NodeInput):
+            active_task = input_data.metadata.get("active_task")
+            if active_task is not None:
+                decision_data["active_task"] = active_task
 
         logger.info(
             "node=%s decision=%s",

@@ -7,7 +7,6 @@ the active task. on_complete advances queue with ResultReviewer next.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 

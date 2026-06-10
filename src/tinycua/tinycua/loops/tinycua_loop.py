@@ -307,6 +307,7 @@ class TinyCUALoop(BaseLoop):
         # Provide queue reference and adjust labels dynamically (WorkerNode)
         if isinstance(node, TinyCUAWorkerNode):
             node._queue = self.queue
+            node._loop = self
             node.classification_labels = node._get_classification_labels(self.queue)
 
         # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.analysis_effort import WorkerEffort
 from tinycua.loops.node import DecisionNode, DecisionResult
@@ -87,6 +87,7 @@ class TinyCUAWorkerNode(DecisionNode):
         self.default_response_node = ResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
         self._queue: NodeQueue | None = None
+        self._loop: Any | None = None
         self._last_input: NodeInputLike | None = None
         self._effort = effort
 
@@ -200,6 +201,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_create, task_analyzer, analysis_effort])
 
@@ -237,6 +239,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 
@@ -274,6 +277,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 
@@ -347,6 +351,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         result_reviewer = TinyCUAResultReviewerNode(
             node_id="result_reviewer", config=self.config,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_executor, result_reviewer])
 
