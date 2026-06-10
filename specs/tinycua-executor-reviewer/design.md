@@ -41,6 +41,8 @@ AnalysisEffortNode / WorkerNode._route_proceed_execution()
             ├── replan  → spawn TaskAssessor + TaskAnalyzer → TaskExecutor
             └── open_question → keep ResultReviewer active + mandatory_passthrough
 
+Edge case: If TaskAssessor finds no unfinished tasks in the local region, TaskAnalyzer is skipped and the flow goes directly to TaskExecutor (per TaskAssessor contract).
+
 TinyCUALoop
   ├── _reviewer_retry_state: ReviewerRetryState
   ├── _on_reviewer_accept(active_task) → bool     [already implemented]
@@ -55,7 +57,7 @@ TinyCUALoop
 |-----------|-------------|-------|
 | `tinycua/loops/task_executor.py` | New | TaskExecutorNode ProcessNode |
 | `tinycua/loops/result_reviewer.py` | New | ResultReviewerNode ProcessNode |
-| `tinycua/models/reviewer_decision.py` | New (or extended) | ReviewerRetryState model |
+| `tinycua/models/task.py` | Extended | ReviewerRetryState added alongside existing ReviewerDecision model |
 | `tinycua/loops/analysis_effort.py` | Modified | `_spawn_task_executor()` replaces stub |
 | `tinycua/loops/worker.py` | Modified | `_route_proceed_execution()` replaces stub |
 | `tinycua/loops/tinycua_loop.py` | Modified | `_on_reviewer_retry/replan/open_question` become real |
@@ -146,14 +148,14 @@ class TinyCUATaskExecutorNode(ProcessNode):
     def __init__(
         self,
         node_id: str = "task_executor",
-        config: NodeConfigBase | None = None,
+        config: NodeConfigBase,
         max_react_iterations: int = 10,
     ) -> None:
         """Initialize TaskExecutorNode.
 
         Args:
             node_id: Unique identifier for this node.
-            config: Node configuration. Uses default if None.
+            config: Node configuration.
             max_react_iterations: Max ReAct iterations per task execution.
         """
         super().__init__(
@@ -212,13 +214,13 @@ class TinyCUAResultReviewerNode(ProcessNode):
     def __init__(
         self,
         node_id: str = "result_reviewer",
-        config: NodeConfigBase | None = None,
+        config: NodeConfigBase,
     ) -> None:
         """Initialize ResultReviewerNode.
 
         Args:
             node_id: Unique identifier for this node.
-            config: Node configuration. Uses default if None.
+            config: Node configuration.
         """
         super().__init__(
             node_id=node_id,
@@ -357,7 +359,7 @@ def _route_proceed_execution(
 | TaskExecutor LLM call fails | Standard `NodeRetryPolicy` retry | If exhausted, `NodeExecutionError` raised |
 | ResultReviewer cannot parse decision | Falls back to `retry` | Prevents infinite replan loops |
 | Retry threshold reached | Reviewer must accept or escalate | `_on_reviewer_retry` logs warning |
-| Replan but no unfinished tasks found | Skip analyzer, go directly to TaskExecutor | Per TaskAssessor contract |
+| Replan but no unfinished tasks found | Skip analyzer, go to TaskExecutor | Per TaskAssessor contract — no code change needed |
 
 ---
 
