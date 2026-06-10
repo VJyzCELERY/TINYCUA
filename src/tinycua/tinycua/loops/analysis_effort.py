@@ -132,24 +132,35 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         )
 
     def _spawn_task_executor(self, queue: NodeQueue) -> None:
-        """Spawn TaskExecutor and ensure terminal response path.
+        """Spawn TaskExecutor and ResultReviewer, ensure terminal response path.
 
-        Creates TinyCUATaskExecutorNode and spawns it after the current
-        position, ensuring terminal response path is maintained.
-
-        Note: TaskExecutor is deferred to Milestone 3.2. This is a stub
-        that ensures the terminal path is maintained (FR-008).
+        Creates TinyCUATaskExecutorNode and TinyCUAResultReviewerNode, spawns
+        them after the current position, ensuring terminal response path is
+        maintained.
 
         Args:
             queue: The node queue to mutate.
         """
-        # TaskExecutor is deferred to Milestone 3.2
-        # Ensure terminal response path is maintained (FR-008)
+        from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        task_executor = TinyCUATaskExecutorNode(
+            node_id="task_executor", config=self.config,
+        )
+        result_reviewer = TinyCUAResultReviewerNode(
+            node_id="result_reviewer", config=self.config,
+        )
+
+        # Spawn executor + reviewer after current position
+        queue.spawn_after_current([task_executor, result_reviewer])
+
+        # Ensure terminal response path is maintained
         terminal = next((n for n in queue.items if n.is_terminal), None)
         if terminal is not None:
             queue.ensure_terminal(terminal)
+
         logger.info(
-            "node=%s spawn_task_executor (stub — Milestone 3.2)",
+            "node=%s spawned task_executor and result_reviewer",
             self.node_id,
         )
 

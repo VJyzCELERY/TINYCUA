@@ -16,6 +16,7 @@ from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInput
+from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.session import Session
 from tinycua.models.task import ReviewerDecision, Task, TaskResult
 
@@ -58,6 +59,7 @@ class TinyCUALoop(BaseLoop):
         self.default_terminal_node = default_terminal_node
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
+        self._reviewer_retry_state: ReviewerRetryState = ReviewerRetryState()
 
         if queue is not None:
             self.queue = queue
@@ -633,11 +635,12 @@ class TinyCUALoop(BaseLoop):
         active.result = result
 
     def _on_reviewer_accept(self, active_task: Task) -> bool:
-        """Mark active task as done and check if root task is complete.
+        """Mark active task as done, reset retry counter, and check if root task is complete.
 
         Walks up the parent chain marking parent tasks as done when all their
-        children complete. Does NOT recompute the next active task — callers
-        should call get_active_task() after this method returns.
+        children complete. Resets the retry counter since the task was accepted.
+        Does NOT recompute the next active task — callers should call
+        get_active_task() after this method returns.
 
         Returns True if root task is done (should route to aggregation),
         False otherwise (caller should route to next active task via
@@ -649,6 +652,9 @@ class TinyCUALoop(BaseLoop):
         Returns:
             True if root task is done, False otherwise.
         """
+        # Reset retry counter on accept
+        self._reviewer_retry_state.reset()
+
         # Set reviewer_decision per design spec (step 1)
         if active_task.result is not None:
             active_task.result.reviewer_decision = ReviewerDecision(outcome="accept")
@@ -716,29 +722,53 @@ class TinyCUALoop(BaseLoop):
     def _on_reviewer_retry(self, active_task: Task) -> None:
         """Preserve active task on retry decision.
 
+        Increments the retry counter and logs a warning if threshold is
+        reached. Preserves the active task for re-execution.
+
         Args:
             active_task: The task that should be retried.
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        self._reviewer_retry_state.increment()
+        if self._reviewer_retry_state.is_threshold_reached():
+            logger.warning(
+                "reviewer retry threshold reached: retry_count=%d threshold=%d",
+                self._reviewer_retry_state.retry_count,
+                self._reviewer_retry_state.threshold,
+            )
+        logger.info(
+            "reviewer_retry task_id=%s retry_count=%d",
+            active_task.task_id,
+            self._reviewer_retry_state.retry_count,
+        )
 
     def _on_reviewer_replan(self, active_task: Task) -> None:
         """Preserve active task on replan decision.
 
+        Logs the replan event. Preserves the active task. The caller
+        (ResultReviewerNode.on_complete) should spawn TaskAssessor +
+        TaskAnalyzer before TaskExecutor.
+
         Args:
             active_task: The task that should be replanned.
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        logger.info(
+            "reviewer_replan task_id=%s",
+            active_task.task_id,
+        )
 
     def _on_reviewer_open_question(self, active_task: Task) -> None:
         """Preserve active task on open_question decision.
 
+        Logs the open question event. Preserves the active task. The caller
+        should install mandatory_passthrough for user escalation.
+
         Args:
             active_task: The task with an open question.
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        logger.info(
+            "reviewer_open_question task_id=%s",
+            active_task.task_id,
+        )
 
     def _is_root_task_done(self) -> bool:
         """Check if root task and all children are complete.

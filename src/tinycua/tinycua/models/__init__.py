@@ -16,6 +16,7 @@ from tinycua.models.node_input import (
 from tinycua.models.node_payload import NodePayload
 from tinycua.models.session import Session
 from tinycua.models.state_object import StateObject
+from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.task import (
     ExecutionStatus,
     ReviewerDecision,
@@ -37,6 +38,7 @@ __all__ = [
     "QueryAnalystResponse",
     "ReviewerDecision",
     "ReviewerOutcome",
+    "ReviewerRetryState",
     "Session",
     "StateObject",
     "Task",
