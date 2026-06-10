@@ -132,20 +132,20 @@ _The following table includes additional defensive error cases beyond spec requi
 
 ### Phase 1 — MVP _(required for initial release)_ — COMPLETE
 
-- [x] ~~Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`~~ (deferred to Phase 2 per Schema Changes section)
+- [ ] ~~Create `TinyCUATaskAssessorNodeConfig` in `tinycua.config.node_config`~~ (deferred to Phase 2 per Schema Changes section)
 - [x] Implement `TinyCUATaskAssessorNode` class with effort-loop mode
 - [x] Implement LLM response parsing for task ID extraction
 - [x] Implement `on_complete` queue advancement logic
 - [x] Add unit tests for node initialization, `__call__`, and `on_complete`
 - [x] Add integration tests with `AnalysisEffortNode`
 
-### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
+### Phase 2 — Enhancements _(deferred to Milestone 2.8, after Phase 1 review)_
 
-- [ ] Implement reviewer-replan mode for local-region assessment
+- [ ] Implement reviewer-replan mode for local-region assessment (FR-004)
 - [ ] Add structured assessment output via `assessment_schema`
 - [ ] Add task status update capabilities during assessment
 
-> **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
+> **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed. Target milestone: 2.8.
 
 ---
 

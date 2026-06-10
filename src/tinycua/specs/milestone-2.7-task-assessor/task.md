@@ -2,7 +2,7 @@
 
 Implementation tasks for TinyCUATaskAssessorNode. Check off items as completed.
 
-> **Note**: Phase 1 (MVP) is complete — all tasks below are checked. Phase 2 is deferred.
+> **Note**: Phase 1 (MVP) implementation and documentation tasks are complete. Review and merge tasks (19-20) are pending. Phase 2 is deferred.
 
 ## TDD Phase (Tests First)
 
