@@ -1,7 +1,7 @@
 # Design Document: TaskExecutor and ResultReviewer Nodes
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Reviewed — Ready for Implementation (2026-06-11)
 **Last Updated**: 2026-06-10
 
 ---

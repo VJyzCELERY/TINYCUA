@@ -1,6 +1,6 @@
 # Feature Specification: TaskExecutor and ResultReviewer Nodes
 
-**Status**: Draft
+**Status**: Reviewed — Ready for Implementation (2026-06-11)
 **Created**: 2026-06-10
 **Last Updated**: 2026-06-10
 **Subproject(s) Affected**: tinycua (loops/task_executor, loops/result_reviewer, loops/tinycua_loop)
@@ -90,7 +90,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 - [ ] **Accept marks task done**: On accept, the active task status is set to done and DFS recomputes the next active task.
 - [ ] **Retry preserves task**: On retry, the same task remains active and TaskExecutor is re-queued.
 - [ ] **Replan spawns assessor+analyzer**: On replan, TaskAssessor and TaskAnalyzer (mode=local_replan) are spawned before TaskExecutor.
-- [ ] **Open question keeps reviewer active**: On open_question, ResultReviewer remains active with mandatory_passthrough.
+- [ ] **Open question preserves active task**: On open_question, the system keeps ResultReviewer active and preserves the active task context. MandatoryPassthrough routing is deferred to Milestone 3.3.
 - [ ] **Retry threshold enforced**: After 5 retries (default), the reviewer cannot retry again — must accept or escalate.
 - [ ] **Retry counter resets on accept**: After a successful accept, the retry counter resets to 0.
 - [ ] **AnalysisEffortNode spawns executor**: `_spawn_task_executor()` creates TaskExecutor + ResultReviewer in the queue.
