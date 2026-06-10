@@ -52,10 +52,10 @@ TaskAssessmentResult:
 
 ### Schema Changes _(if applicable)_
 
-- Add `TinyCUATaskAssessorNodeConfig` to `tinycua.config.node_config` with fields:
+- **Phase 2 (deferred)**: `TinyCUATaskAssessorNodeConfig` with fields:
   - `assessment_schema: dict | None` — Optional schema for structured assessment output
   - `allow_task_updates: bool = True` — Whether node can update task status during assessment
-- No changes to existing data structures; new config extends `NodeConfigBase`.
+- **MVP (Phase 1)**: No config subclass — uses base `NodeConfigBase` directly.
 
 ---
 

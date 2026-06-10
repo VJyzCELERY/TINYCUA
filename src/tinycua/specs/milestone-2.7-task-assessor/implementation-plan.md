@@ -169,7 +169,7 @@ def test_analysis_effort_node_assessor_no_tasks():
 
 ### Manual Verification
 
-- [ ] Verify TaskAssessor behavior in a live TinyCUA session with complex task trees (deferred to integration testing).
+- [ ] Verify TaskAssessor behavior in a live TinyCUA session — **deferred to Phase 2 integration testing** (requires full TinyCUA environment setup).
 
 ### Performance Considerations
 
