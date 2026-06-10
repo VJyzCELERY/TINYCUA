@@ -81,12 +81,16 @@ def test_executor_reviewer_retry_path():
 def test_executor_reviewer_replan_path():
     """Executor → reviewer → replan → assessor → analyzer → executor.
 
-    Verifies: replan preserves active task and dispatches through on_complete.
+    Verifies: replan preserves active task, spawns TaskAssessor + TaskAnalyzer
+    via queue.spawn_after_current (FR-014).
     """
     # Arrange
     loop = _build_loop_with_active_task()
     active_task = loop.get_active_task()
     assert active_task is not None
+
+    mock_queue = MagicMock()
+    loop.queue = mock_queue
 
     # Act — reviewer decides replan
     loop._on_reviewer_replan(active_task)
@@ -94,6 +98,18 @@ def test_executor_reviewer_replan_path():
     # Assert — active task preserved
     assert loop.get_active_task() is not None
     assert loop.get_active_task().task_id == active_task.task_id
+
+    # Assert — TaskAssessor + TaskAnalyzer + TaskExecutor spawned (FR-014)
+    mock_queue.spawn_after_current.assert_called_once()
+    spawned_nodes = mock_queue.spawn_after_current.call_args[0][0]
+    from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
+    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+    from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+    assert len(spawned_nodes) == 3
+    assert isinstance(spawned_nodes[0], TinyCUATaskAssessorNode)
+    assert isinstance(spawned_nodes[1], TinyCUATaskAnalyzerNode)
+    assert isinstance(spawned_nodes[2], TinyCUATaskExecutorNode)
 
 
 def test_on_complete_dispatch_replan():
@@ -186,3 +202,34 @@ def test_retry_counter_resets_on_accept():
 
     # Assert
     assert loop._reviewer_retry_state.retry_count == 0
+
+
+def test_retry_threshold_blocks_dispatch():
+    """After threshold reached, on_complete with outcome=retry dispatches to accept."""
+    # Arrange
+    loop = _build_loop_with_active_task()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    # Exhaust retries
+    for _ in range(5):
+        loop._on_reviewer_retry(active_task)
+
+    # Mock loop handlers
+    mock_loop = MagicMock()
+    mock_loop._reviewer_retry_state = loop._reviewer_retry_state
+    reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
+    queue = NodeQueue()
+
+    decision_data = {"outcome": "retry", "rationale": "Should be blocked", "active_task": active_task}
+    response = LLMResult(
+        content='{"outcome": "retry"}',
+        metadata={"reviewer_decision": decision_data},
+    )
+
+    # Act
+    reviewer.on_complete(queue, response)
+
+    # Assert
+    mock_loop._on_reviewer_retry.assert_not_called()
+    mock_loop._on_reviewer_accept.assert_called_once_with(active_task)

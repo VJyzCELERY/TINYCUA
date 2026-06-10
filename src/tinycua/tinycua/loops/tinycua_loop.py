@@ -745,15 +745,30 @@ class TinyCUALoop(BaseLoop):
     def _on_reviewer_replan(self, active_task: Task) -> None:
         """Preserve active task on replan decision.
 
-        Logs the replan event. Preserves the active task. The caller
-        (ResultReviewerNode.on_complete) should spawn TaskAssessor +
-        TaskAnalyzer before TaskExecutor.
+        Spawns TaskAssessor + TaskAnalyzer before TaskExecutor (FR-014).
+        Replan MUST NOT spawn AnalysisEffortNode.
 
         Args:
             active_task: The task that should be replanned.
         """
+        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+        from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        task_assessor = TinyCUATaskAssessorNode(
+            node_id="task_assessor", config=self.session_config, mode="reviewer_replan",
+        )
+        task_analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=self.session_config, mode="local_replan",
+        )
+        task_executor = TinyCUATaskExecutorNode(
+            node_id="task_executor", config=self.session_config,
+        )
+
+        self.queue.spawn_after_current([task_assessor, task_analyzer, task_executor])
+
         logger.info(
-            "reviewer_replan task_id=%s",
+            "reviewer_replan task_id=%s spawned task_assessor, task_analyzer, task_executor",
             active_task.task_id,
         )
 

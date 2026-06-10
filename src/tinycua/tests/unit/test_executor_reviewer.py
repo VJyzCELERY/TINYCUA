@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 
+from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.task import Task
@@ -138,9 +140,14 @@ def test_on_reviewer_retry_preserves_task():
 
 def test_on_reviewer_replan_preserves_task():
     """_on_reviewer_replan() preserves the active task."""
+    from unittest.mock import MagicMock
+
     loop = _build_loop_with_active_task()
     active_task = loop.get_active_task()
     assert active_task is not None
+
+    mock_queue = MagicMock()
+    loop.queue = mock_queue
 
     loop._on_reviewer_replan(active_task)
     assert loop.get_active_task() is not None
@@ -172,3 +179,18 @@ def test_on_reviewer_accept_resets_retry_counter():
     # Accept should reset
     loop._on_reviewer_accept(active_task)
     assert loop._reviewer_retry_state.retry_count == 0
+
+
+def test_parse_decision_word_boundary():
+    """Fallback regex matches only exact keywords, not substrings."""
+    reviewer = TinyCUAResultReviewerNode()
+    # Should match exact keyword
+    response = LLMResult(content="accept", metadata={})
+    assert reviewer._parse_decision(response) == {"outcome": "accept", "rationale": "accept"}
+    # Should NOT match substring
+    response = LLMResult(content="The task cannot accept any more retries", metadata={})
+    # Should fall back to retry (default)
+    assert reviewer._parse_decision(response)["outcome"] == "retry"
+    # Should match with whitespace
+    response = LLMResult(content="  retry  ", metadata={})
+    assert reviewer._parse_decision(response) == {"outcome": "retry", "rationale": "  retry  "}

@@ -8,6 +8,7 @@ based on decision.
 from __future__ import annotations
 
 import json
+import re
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -77,11 +78,10 @@ class TinyCUAResultReviewerNode(ProcessNode):
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # Fallback: check if outcome keyword appears in response
-        content_lower = response.content.lower()
-        for outcome in ("accept", "retry", "replan", "open_question"):
-            if outcome in content_lower:
-                return {"outcome": outcome, "rationale": response.content[:200]}
+        # Fallback: check if outcome keyword appears in response (word-boundary match)
+        match = re.fullmatch(r'\s*(accept|retry|replan|open_question)\s*', response.content, re.IGNORECASE)
+        if match:
+            return {"outcome": match.group(1).lower(), "rationale": response.content[:200]}
 
         # Default fallback: retry
         logger.warning(
@@ -149,7 +149,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
             if outcome == "accept" and active_task is not None:
                 self.loop._on_reviewer_accept(active_task)
             elif outcome == "retry" and active_task is not None:
-                self.loop._on_reviewer_retry(active_task)
+                if self.loop._reviewer_retry_state.can_retry():
+                    self.loop._on_reviewer_retry(active_task)
+                else:
+                    # Force accept when threshold reached
+                    self.loop._on_reviewer_accept(active_task)
             elif outcome == "replan" and active_task is not None:
                 self.loop._on_reviewer_replan(active_task)
             elif outcome == "open_question" and active_task is not None:
