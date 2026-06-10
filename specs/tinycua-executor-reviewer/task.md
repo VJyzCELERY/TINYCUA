@@ -52,7 +52,6 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 14 -->
 - [ ] Write unit tests for ReviewerRetryState <!-- id: 15 -->
   - [ ] test_increment, test_reset, test_can_retry, test_threshold_enforced
 - [ ] Write unit tests for TinyCUATaskExecutorNode <!-- id: 16 -->

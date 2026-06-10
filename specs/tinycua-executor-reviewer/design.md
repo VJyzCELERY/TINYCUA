@@ -532,6 +532,10 @@ def _route_proceed_execution(
 
 ### Phase 1 — MVP _(required for initial release)_
 
+> **⚠️ EXECUTION ORDER**: This checklist is a feature summary grouped by component.
+> Do NOT follow it as an execution plan. For TDD-first execution order, see `task.md`
+> "TDD Phase (Tests First)" section — tests MUST be written before implementation.
+
 - [ ] Create `tinycua/models/reviewer_decision.py` with `ReviewerRetryState` dataclass
 - [ ] Create `tinycua/loops/task_executor.py` with `TinyCUATaskExecutorNode`
 - [ ] Create `tinycua/loops/result_reviewer.py` with `TinyCUAResultReviewerNode`

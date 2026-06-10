@@ -30,7 +30,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 4. **Given** ResultReviewer decides `retry` and the retry count reaches the failure threshold (default 5), **When** the reviewer evaluates again, **Then** it must either accept or escalate — no further retry is allowed.
 5. **Given** ResultReviewer determines the task decomposition itself is flawed, **When** the reviewer decides `replan`, **Then** TaskAssessor and TaskAnalyzer (mode=local_replan) are spawned before TaskExecutor.
 6. **Given** ResultReviewer needs user input to proceed, **When** the reviewer decides `open_question`, **Then** the ResultReviewer remains active with mandatory_passthrough targeting this ResultReviewer node.
-7. **Given** ResultReviewer decides `accept` for the root task and all children are complete, **When** the loop processes the decision, **Then** the loop routes to ResultAggregationNode.
+7. **Given** ResultReviewer decides `accept` for the root task and all children are complete, **When** the loop processes the decision, **Then** the active task is marked done and the loop reaches a terminal state (ResultAggregationNode routing deferred to Milestone 3.4).
 8. **Given** ResultReviewer decides `accept` for a non-root task, **When** the loop processes the decision, **Then** the loop recomputes the next active task and routes to TaskExecutor.
 9. **Given** TaskExecutor needs additional context not available in the task, **When** it calls `enhanced_context_retrieval`, **Then** it receives relevant context and continues execution.
 10. **Given** TaskExecutor is blocked and needs user input, **When** it emits a mandatory passthrough request, **Then** the user is prompted and the response is routed back to TaskExecutor.
