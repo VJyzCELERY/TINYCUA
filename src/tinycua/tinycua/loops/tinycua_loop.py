@@ -21,8 +21,9 @@ from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.session import Session
 from tinycua.models.task import ReviewerDecision, Task, TaskResult
 
+from tinycua.config.session_config import SessionConfig
+
 if TYPE_CHECKING:
-    from tinycua.config.session_config import SessionConfig
     from tinycua.loops.node import Node
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
@@ -56,13 +57,7 @@ class TinyCUALoop(BaseLoop):
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
-        self.session_config = session_config
-        if self.session_config is None:
-            logger.warning(
-                "TinyCUALoop initialized with session_config=None; "
-                "nodes requiring LLM clients will degrade silently. "
-                "Provide a SessionConfig with a valid llm_client for full functionality."
-            )
+        self.session_config = session_config if session_config is not None else SessionConfig()
         self.default_terminal_node = default_terminal_node
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
