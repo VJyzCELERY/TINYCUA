@@ -8,7 +8,7 @@ from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.models.task import ReviewerDecision, Task
+from tinycua.models.task import Task
 
 
 def _build_loop_with_active_task() -> TinyCUALoop:
@@ -28,10 +28,10 @@ def _make_execution_result(status: str = "succeeded") -> LLMResult:
 
 def _make_reviewer_decision(outcome: str = "accept", rationale: str = "Test") -> LLMResult:
     """Create a mock LLMResult simulating reviewer decision."""
-    decision = ReviewerDecision(outcome=outcome, rationale=rationale)  # type: ignore[arg-type]
+    decision_data = {"outcome": outcome, "rationale": rationale}
     return LLMResult(
         content=decision_json(outcome, rationale),
-        metadata={"reviewer_decision": decision},
+        metadata={"reviewer_decision": decision_data},
     )
 
 

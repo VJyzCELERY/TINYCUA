@@ -425,7 +425,15 @@ class TinyCUALoop(BaseLoop):
         response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
         content = response.get("content") or ""
 
-        self._record_node_output(node, content, response.get("tool_calls"))
+        llm_result = LLMResult(
+            content=content,
+            role=response.get("role", "assistant"),
+            tool_calls=response.get("tool_calls", []),
+            metadata=response.get("metadata", {}),
+        )
+        self._record_node_output(node, content, llm_result.tool_calls)
+
+        node.on_complete(self.queue, llm_result)
 
         return content, True
 
