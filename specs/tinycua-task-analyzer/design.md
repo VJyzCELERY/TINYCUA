@@ -21,7 +21,7 @@ TaskAnalyzerNode(ProcessNode)
 ├── mode: TaskAnalyzerMode (enum-like frozenset)
 ├── tool_scope: list[str]  (resolved from mode)
 ├── _resolve_tool_scope(mode) → list[str]
-├── _validate_task_tree_non_none(response) → None
+├── _validate_task_tree_non_none() → None
 └── __call__(input) → LLMResult
         ├── build messages (inherited from ProcessNode)
         ├── call LLM with mode-scoped tools
