@@ -85,20 +85,20 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **TaskExecutor executes active task**: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
-- [ ] **ResultReviewer evaluates and decides**: Given a TaskResult, ResultReviewer decides accept/retry/replan/open_question.
-- [ ] **Accept marks task done**: On accept, the active task status is set to done and DFS recomputes the next active task.
-- [ ] **Retry preserves task**: On retry, the same task remains active and TaskExecutor is re-queued.
-- [ ] **Replan spawns assessor+analyzer**: On replan, TaskAssessor and TaskAnalyzer (mode=local_replan) are spawned before TaskExecutor.
-- [ ] **Open question preserves active task**: On open_question, the system keeps ResultReviewer active and preserves the active task context. MandatoryPassthrough routing is deferred to Milestone 3.3.
-- [ ] **Retry threshold enforced**: After 5 retries (default), the reviewer cannot retry again — must accept or escalate.
-- [ ] **Retry counter resets on accept**: After a successful accept, the retry counter resets to 0.
-- [ ] **AnalysisEffortNode spawns executor**: `_spawn_task_executor()` creates TaskExecutor + ResultReviewer in the queue.
-- [ ] **Worker proceed_execution spawns executor**: `_route_proceed_execution()` creates TaskExecutor + ResultReviewer in the queue.
-- [ ] **Loop stubs implemented**: `_on_reviewer_retry/replan/open_question` are real implementations, not no-ops.
-- [ ] **No SDK changes**: All implementation lives in `tinycua.loops` and `tinycua.models`.
-- [ ] **Unit tests pass**: All new nodes and retry state logic have unit tests.
-- [ ] **Integration tests pass**: End-to-end executor→reviewer path works with mocked LLM.
+- [x] **TaskExecutor executes active task**: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
+- [x] **ResultReviewer evaluates and decides**: Given a TaskResult, ResultReviewer decides accept/retry/replan/open_question.
+- [x] **Accept marks task done**: On accept, the active task status is set to done and DFS recomputes the next active task.
+- [x] **Retry preserves task**: On retry, the same task remains active and TaskExecutor is re-queued.
+- [x] **Replan spawns assessor+analyzer**: On replan, TaskAssessor and TaskAnalyzer (mode=local_replan) are spawned before TaskExecutor.
+- [x] **Open question preserves active task**: On open_question, the system keeps ResultReviewer active and preserves the active task context. MandatoryPassthrough routing is deferred to Milestone 3.3.
+- [x] **Retry threshold enforced**: After 5 retries (default), the reviewer cannot retry again — must accept or escalate.
+- [x] **Retry counter resets on accept**: After a successful accept, the retry counter resets to 0.
+- [x] **AnalysisEffortNode spawns executor**: `_spawn_task_executor()` creates TaskExecutor + ResultReviewer in the queue.
+- [x] **Worker proceed_execution spawns executor**: `_route_proceed_execution()` creates TaskExecutor + ResultReviewer in the queue.
+- [x] **Loop stubs implemented**: `_on_reviewer_retry/replan/open_question` are real implementations, not no-ops.
+- [x] **No SDK changes**: All implementation lives in `tinycua.loops` and `tinycua.models`.
+- [x] **Unit tests pass**: All new nodes and retry state logic have unit tests.
+- [x] **Integration tests pass**: End-to-end executor→reviewer path works with mocked LLM.
 
 ---
 

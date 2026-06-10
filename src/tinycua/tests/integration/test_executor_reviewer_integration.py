@@ -107,7 +107,7 @@ def test_on_complete_dispatch_replan():
 
     mock_loop = MagicMock()
     mock_loop._on_reviewer_replan = MagicMock()
-    mock_loop.session_config = None
+    mock_loop.session_config = MagicMock()
     mock_loop.default_terminal_node = MagicMock()
 
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
@@ -132,6 +132,38 @@ def test_on_complete_dispatch_replan():
     assert len(queue.items) >= 3  # current + assessor + analyzer + executor
 
 
+def test_on_complete_replan_skips_queue_mutation_when_config_missing():
+    """Replan skips queue mutations when session_config is None.
+
+    Verifies: on_complete still calls _on_reviewer_replan but logs an error
+    and does not mutate the queue when session_config is not set.
+    """
+    loop = _build_loop_with_active_task()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    mock_loop = MagicMock()
+    mock_loop._on_reviewer_replan = MagicMock()
+    mock_loop.session_config = None
+    mock_loop.default_terminal_node = MagicMock()
+
+    reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
+    decision_data = {"outcome": "replan", "rationale": "Needs replanning", "active_task": active_task}
+    response = LLMResult(
+        content='{"outcome": "replan"}',
+        metadata={"reviewer_decision": decision_data},
+    )
+    queue = NodeQueue()
+    from tinycua.loops.response_node import ResponseNode
+    queue.items.append(ResponseNode())
+
+    reviewer.on_complete(queue, response)
+
+    mock_loop._on_reviewer_replan.assert_called_once_with(active_task)
+    # Queue should NOT be mutated
+    assert len(queue.items) == 1
+
+
 def test_on_complete_dispatch_all_outcomes():
     """ResultReviewerNode.on_complete dispatches all four outcomes correctly.
 
@@ -143,7 +175,7 @@ def test_on_complete_dispatch_all_outcomes():
     assert active_task is not None
 
     mock_loop = MagicMock()
-    mock_loop.session_config = None
+    mock_loop.session_config = MagicMock()
     mock_loop.default_terminal_node = MagicMock()
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
 

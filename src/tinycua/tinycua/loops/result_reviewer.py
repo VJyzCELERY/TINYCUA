@@ -184,10 +184,13 @@ class TinyCUAResultReviewerNode(ProcessNode):
                     self.loop._on_reviewer_accept(active_task)
             elif outcome == "replan" and active_task is not None:
                 self.loop._on_reviewer_replan(active_task)
-                queue.clear_after_current()
-                self._spawn_replan_nodes(queue, active_task)
-                if self.loop.default_terminal_node is not None:
-                    queue.ensure_terminal(self.loop.default_terminal_node)
+                if getattr(self.loop, 'session_config', None) is not None:
+                    queue.clear_after_current()
+                    self._spawn_replan_nodes(queue, active_task)
+                    if self.loop.default_terminal_node is not None:
+                        queue.ensure_terminal(self.loop.default_terminal_node)
+                else:
+                    logger.error("replan skipped: loop or config not available for queue mutation")
             elif outcome == "open_question" and active_task is not None:
                 self.loop._on_reviewer_open_question(active_task)
 
