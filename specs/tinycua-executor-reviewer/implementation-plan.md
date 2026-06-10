@@ -37,7 +37,7 @@ Implement `TinyCUATaskExecutorNode` (ReAct-style task execution) and `TinyCUARes
 ## Success Criteria — Integration Tests (TDD First)
 
 ```python
-# Test file: tests/test_executor_reviewer_integration.py
+# Test file: src/tinycua/tests/integration/test_executor_reviewer_integration.py
 """Integration tests for executor→reviewer path."""
 
 

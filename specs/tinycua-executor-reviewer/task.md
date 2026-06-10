@@ -4,7 +4,7 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests in `tests/test_executor_reviewer_integration.py` (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Write integration tests in `src/tinycua/tests/integration/test_executor_reviewer_integration.py` (defined in implementation-plan.md) <!-- id: 0 -->
   - [ ] test_executor_reviewer_accept_path
   - [ ] test_executor_reviewer_retry_path
   - [ ] test_executor_reviewer_replan_path
