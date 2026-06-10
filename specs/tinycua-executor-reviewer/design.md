@@ -605,6 +605,10 @@ def _route_proceed_execution(
    - **Reason**: The queue is seeded with `[TaskExecutor, ResultReviewer]` by the spawner. TaskExecutor completing means it's done; the queue advances to ResultReviewer naturally.
    - **Alternatives Considered**: TaskExecutor explicitly spawns ResultReviewer — rejected for unnecessary complexity; the queue already has the correct ordering.
 
+7. **Decision**: `_execute_node` uses `agent._call_llm()` as fallback when `node.config.llm_client` is None (architectural constraint).
+   - **Reason**: `SessionConfig` does not set `llm_client` by default. When the loop's `_execute_node` runs a ProcessNode (e.g., TaskExecutor, ResultReviewer) whose config lacks `llm_client`, it falls back to `agent._call_llm()` instead of delegating to `node.__call__()`. This means the node's custom logic (TaskExecutor's ReAct loop, ResultReviewer's decision parsing) is bypassed — the loop performs a plain LLM call and returns raw metadata. A defensive warning log at `tinycua_loop.py:474-480` detects this bypass and emits a warning when a node overrides `ProcessNode.__call__` but the config lacks `llm_client`.
+   - **Alternatives Considered**: Inject `llm_client` into all node configs — rejected because spawner nodes (AnalysisEffortNode, WorkerNode) create nodes without `llm_client` by design; the loop-level fallback keeps the execution model simple for standard nodes while allowing advanced nodes to opt into full `__call__` behavior by including `llm_client` on their config.
+
 ---
 
 ## Risks & Mitigations
@@ -617,6 +621,7 @@ def _route_proceed_execution(
 | Replan path spawns assessor but no tasks selected | Low | Low | Per TaskAssessor contract: if no tasks selected, skip analyzer, go to executor |
 | Worker._route_proceed_execution stub replacement breaks existing tests | Low | Medium | Run full test suite after replacement; ensure backward compatibility |
 | TaskExecutor mutates active task (contract violation) | Low | High | Enforce read-only access pattern; unit test verifies task is not mutated |
+| `_execute_node` fallback bypasses node custom logic when `llm_client` is None | Medium | Medium | Warning log at `tinycua_loop.py:474-480` detects bypass; documented as intentional architectural constraint (Decision #7). Nodes that require custom logic should include `llm_client` on their config. |
 
 ---
 
