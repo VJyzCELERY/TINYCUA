@@ -21,11 +21,6 @@ def _build_loop_with_active_task() -> TinyCUALoop:
     return loop
 
 
-def _make_execution_result(status: str = "succeeded") -> LLMResult:
-    """Create a mock LLMResult simulating executor output."""
-    return LLMResult(content=f"Task {status}", role="assistant", metadata={"status": status})
-
-
 def decision_json(outcome: str, rationale: str = "Test") -> str:
     """Build a JSON string representing a ReviewerDecision."""
     return f'{{"outcome": "{outcome}", "rationale": "{rationale}"}}'

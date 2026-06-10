@@ -11,7 +11,7 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionNode, DecisionResult
+from tinycua.loops.node import DecisionNode, DecisionResult, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
@@ -471,6 +471,13 @@ class TinyCUALoop(BaseLoop):
                 else:
                     llm_result = LLMResult(content=str(result), role="assistant")
             else:
+                if hasattr(node, "__call__") and type(node).__call__ is not ProcessNode.__call__:
+                    logger.warning(
+                        "Fallback path: node %s overrides ProcessNode.__call__ "
+                        "but node.config.llm_client is None — custom logic "
+                        "(ReAct loops, decision parsing) will be bypassed.",
+                        node.node_id,
+                    )
                 messages, resolved_tools = self._prepare_node(
                     node, tools, override_instructions,
                 )
