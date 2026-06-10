@@ -51,7 +51,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 - **FR-001**: System MUST provide `TinyCUATaskExecutorNode` as a concrete component.
 - **FR-002**: TaskExecutor MUST receive the active task reference from TinyCUALoop as input.
-- **FR-003**: TaskExecutor MUST execute the active task using available tools in a ReAct-style loop (observe → think → act → observe).
+- **FR-003**: TaskExecutor MUST execute the active task using available tools in a ReAct-style loop (observe → think → act → observe). *(Scaffolding only in Milestone 3.2: the ReAct loop and tool-call detection are implemented, but actual tool dispatch is deferred to a future milestone. The loop currently completes in a single LLM iteration.)*
 - **FR-004**: TaskExecutor MUST produce a `TaskResult` with `task_id` matching the active task, `execution_status` reflecting the outcome, and a `summary` of what was done.
 - **FR-005**: TaskExecutor MUST NOT mutate the active task or task tree structure — it receives a read-only snapshot.
 - **FR-006**: TaskExecutor MAY use `enhanced_context_retrieval` to gather additional context during execution.
@@ -85,7 +85,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **TaskExecutor executes active task** *(scaffolding — tool dispatch deferred)*: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
+- [x] **TaskExecutor executes active task** *(scaffolding — tool dispatch deferred to future milestone; current implementation provides ReAct loop structure and tool-call detection but does not execute tools)*: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
 - [x] **ResultReviewer evaluates and decides**: Given a TaskResult, ResultReviewer decides accept/retry/replan/open_question.
 - [x] **Accept marks task done**: On accept, the active task status is set to done and DFS recomputes the next active task.
 - [x] **Retry preserves task**: On retry, the same task remains active and TaskExecutor is re-queued.

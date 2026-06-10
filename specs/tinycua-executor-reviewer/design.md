@@ -197,6 +197,10 @@ class TinyCUATaskExecutorNode(ProcessNode):
         tools = self._session.get_tools()
 
         # ReAct loop with iteration cap
+        # NOTE (Milestone 3.2 scaffolding): Tool calls are detected and logged
+        # but NOT dispatched. Actual tool execution (dispatch via SDK tool pipeline,
+        # accumulate results into messages) is deferred to a future milestone.
+        # The loop currently completes in a single LLM iteration with no tool use.
         messages = self._build_initial_messages(active_task)
         iteration = 0
         while iteration < self.max_react_iterations:
@@ -207,8 +211,16 @@ class TinyCUATaskExecutorNode(ProcessNode):
 
             # Process tool calls if present
             if llm_result.tool_calls:
-                tool_results = self._execute_tools(llm_result.tool_calls, tools)
-                messages.extend(self._format_tool_results(tool_results))
+                # TODO (deferred): dispatch tools via SDK tool pipeline,
+                # append tool results to messages, continue loop.
+                # Current behavior: log and break (no tool execution).
+                logger.info(
+                    "node=%s iteration=%d tool_calls=%d (not executed — agent tool pipeline required)",
+                    self.node_id,
+                    iteration,
+                    len(llm_result.tool_calls),
+                )
+                break
             else:
                 # No tool calls — task execution complete
                 break
@@ -631,6 +643,7 @@ def _route_proceed_execution(
    - **Owner**: @VJyzCELERY
    - **Status**: Resolved
    - **Resolution**: Use the SDK's tool execution pipeline via `agent._call_llm(messages, tools)` which handles tool call dispatch and result accumulation. TaskExecutor builds the messages and tools, calls the agent, and interprets the final result. This avoids duplicating tool execution logic.
+   - **Milestone 3.2 note**: The ReAct loop structure and tool-call detection are implemented, but actual tool dispatch is intentionally deferred. The current implementation logs tool calls but does not execute them — the loop completes in a single LLM iteration. Full tool execution will be wired in a future milestone.
 
 2. **ResultReviewer decision parsing**: Should the reviewer use a tool call (structured output) or free-text parsing to extract the decision?
    - **Owner**: @VJyzCELERY
