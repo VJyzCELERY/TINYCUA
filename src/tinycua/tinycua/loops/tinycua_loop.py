@@ -503,10 +503,11 @@ class TinyCUALoop(BaseLoop):
                     hasattr(node, "__call__")
                     and type(node).__call__ is not ProcessNode.__call__
                 ):
-                    logger.warning(
+                    logger.error(
                         "Fallback path: node %s overrides ProcessNode.__call__ "
                         "but node.config.llm_client is None — custom logic "
-                        "(ReAct loops, decision parsing) will be bypassed.",
+                        "(ReAct loops, decision parsing) will be bypassed. "
+                        "Provide a configured llm_client to enable custom node behavior.",
                         node.node_id,
                     )
                 messages, resolved_tools = self._prepare_node(

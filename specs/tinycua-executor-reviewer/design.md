@@ -211,9 +211,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
 
             # Process tool calls if present
             if llm_result.tool_calls:
-                # TODO (deferred): dispatch tools via SDK tool pipeline,
-                # append tool results to messages, continue loop.
-                # Current behavior: log and break (no tool execution).
+                # Deferred: Tool dispatch via SDK tool pipeline (tracked in Milestone 4.x).
+                # Current behavior: logs tool calls and breaks the ReAct loop.
                 logger.info(
                     "node=%s iteration=%d tool_calls=%d (not executed — agent tool pipeline required)",
                     self.node_id,

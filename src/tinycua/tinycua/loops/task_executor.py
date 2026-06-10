@@ -33,6 +33,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
         node_id: Always "task_executor" by default.
         max_react_iterations: Maximum ReAct iterations (default 10).
         max_summary_length: Maximum characters for execution summary (default 500).
+            Kept at 500 to bound metadata payload size in TaskResult while
+            retaining the core execution narrative. Override via constructor.
     """
 
     MAX_SUMMARY_LENGTH: int = 500
