@@ -12,7 +12,7 @@
 - **Goals**: Provide a structured `Task` model, `TaskResult` model, `ReviewerDecision` model, DFS-based active task selection, and task-tree completion/update algorithm so that **TinyCUALoop** can **manage the full active task lifecycle from selection through execution, review, and completion**.
 - **Gaps**: The current `Session` model stores `task` as a plain `str | None`. There is no structured Task tree, no `TaskResult` model, no `ReviewerDecision` model, and no active task selection or completion/update algorithm. TaskExecutor and ResultReviewer cannot participate in the active task handoff protocol without these primitives.
 - **Non-Goals**: This spec does NOT cover TaskExecutor node behavior (Milestone 3.2), ResultReviewer node behavior (Milestone 3.2), ResultAggregationNode (Milestone 3.4), or ResponseNode (Milestone 3.5). It does NOT cover task creation tools or task analysis nodes.
-- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Task models must be immutable value objects for transport and mutable only through explicit TinyCUALoop task helpers. The `Session.task` field will be replaced with a structured Task tree.
+- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Task models are mutable dataclasses that should be treated as immutable value objects during transport (copy-on-transfer). Mutation of Task trees must go through explicit TinyCUALoop task helpers — direct mutation outside the loop is prohibited. The `Session.task` field will remain as `str | None` for backward compatibility. The structured Task tree is owned by TinyCUALoop as `self.root_task`, separate from `Session`.
 
 ---
 

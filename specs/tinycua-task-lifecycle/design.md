@@ -31,7 +31,7 @@ tinycua.loops.tinycua_loop
 ├── get_active_task() → Task | None          [DFS pre-order]
 ├── set_active_task(task_id) → None
 ├── update_active_task_result(result) → None
-├── _resolve_next_active_task() → Task | None [internal DFS]
+├── _dfs_find_active(task) → Task | None       [internal DFS]
 ├── _on_reviewer_accept(active_task) → None   [task-tree update]
 ├── _on_reviewer_retry(active_task) → None    [preserve active]
 ├── _on_reviewer_replan(active_task) → None   [preserve + spawn]
@@ -143,6 +143,9 @@ def _dfs_find_active(self, task: Task) -> Task | None:
     # 2. If active_child_id is set, search that child first
     # 3. Then search remaining children in order
     # 4. Return None if all children are complete
+    # Note: If active_child_id references a non-existent child, fall back to
+    # standard pre-order traversal (ignore the hint and iterate children in
+    # insertion order).
 ```
 
 ### Task-Tree Completion/Update Algorithm
@@ -165,6 +168,12 @@ def _on_reviewer_accept(self, active_task: Task) -> bool:
     7. If root reached and done → return True
     8. Otherwise → DFS from parent's next sibling → return False
     """
+    # Note: This algorithm simplifies the target architecture doc's
+    # on_result_reviewer_accept behavior. The architecture doc allows
+    # re-evaluation of parent task completion after all children are done
+    # (parent may need re-execution). This simplification marks parents as
+    # done when all children complete. The re-evaluation behavior can be
+    # added in a later milestone if needed.
 
 def _on_reviewer_retry(self, active_task: Task) -> None:
     """Preserve active task. No recomputation needed."""
