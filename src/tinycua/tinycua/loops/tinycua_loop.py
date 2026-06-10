@@ -209,6 +209,10 @@ class TinyCUALoop(BaseLoop):
                 )
                 if "metadata" in msg:
                     metadata.update(msg["metadata"])
+        # Inject active task so TaskExecutor/ResultReviewer can access it
+        active_task = self.get_active_task()
+        if active_task is not None:
+            metadata["active_task"] = active_task
         return NodeInput(
             input_type="continuation", messages=messages, metadata=metadata
         )

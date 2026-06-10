@@ -54,7 +54,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "You are a result reviewer node. Evaluate the execution result "
                 "and decide: 'accept' (task is complete), 'retry' (retry execution), "
                 "'replan' (needs replanning), or 'open_question' (cannot be solved). "
-                "Provide a rationale for your decision."
+                "Respond with JSON: {\"outcome\": \"...\", \"rationale\": \"...\"}"
             ),
         )
         self.loop = loop
