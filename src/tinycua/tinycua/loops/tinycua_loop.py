@@ -662,7 +662,9 @@ class TinyCUALoop(BaseLoop):
         # Check if root is done
         return self._is_root_task_done()
 
-    def _walk_parent_chain_done(self, task: Task) -> None:
+    _MAX_PARENT_WALK_DEPTH = 100
+
+    def _walk_parent_chain_done(self, task: Task, _depth: int = 0) -> None:
         """Walk up parent chain marking parents done when all children complete.
 
         Note: This is a best-effort parent walk. In a tree without parent pointers,
@@ -671,7 +673,14 @@ class TinyCUALoop(BaseLoop):
 
         Args:
             task: The task that was just completed.
+            _depth: Current recursion depth (used for cycle detection).
         """
+        if _depth >= self._MAX_PARENT_WALK_DEPTH:
+            logger.error(
+                "Parent walk exceeded max depth (%d); possible cycle", _depth
+            )
+            return
+
         # Find parent of this task by traversing from root
         parent = self._find_parent(self.root_task, task.task_id)
         if parent is None:
@@ -682,7 +691,7 @@ class TinyCUALoop(BaseLoop):
         if all_done:
             parent.status = "done"
             # Recurse up
-            self._walk_parent_chain_done(parent)
+            self._walk_parent_chain_done(parent, _depth + 1)
 
     def _find_parent(self, root: Task | None, child_id: str) -> Task | None:
         """Find the parent of a task by child_id.

@@ -303,6 +303,8 @@ def test_task_children_is_append_only():
     assert hasattr(parent.children, "append"), "children list must support append"
 
 
+# IMPORTANT: Update this snapshot when upgrading tinycua_sdk.
+# To refresh: run `python -c "import tinycua_sdk; print({n for n in dir(tinycua_sdk) if not n.startswith('_')})"`
 SDK_PUBLIC_API_SNAPSHOT = {
     "Agent", "AgentConfig", "AgentExecutor", "AgentPolicy", "BaseLoop",
     "ContentPart", "FileAttachment", "LLMClient", "LanguageModel",

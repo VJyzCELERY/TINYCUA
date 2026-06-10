@@ -127,14 +127,14 @@ TinyCUA's execution loop needs to track which task in a decomposed task tree is 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Task model | TODO | |
-| TaskResult model | TODO | |
-| ReviewerDecision model | TODO | |
-| DFS active task selection | TODO | |
-| set_active_task / update_active_task_result | TODO | |
-| Task-tree completion/update algorithm | TODO | |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| Task model | DONE | `tinycua/models/task.py` |
+| TaskResult model | DONE | |
+| ReviewerDecision model | DONE | |
+| DFS active task selection | DONE | `get_active_task()` with `active_child_id` hint |
+| set_active_task / update_active_task_result | DONE | With ValueError validation |
+| Task-tree completion/update algorithm | DONE | `_on_reviewer_accept` + parent walk |
+| Unit tests | DONE | 32 tests (7 model + 25 lifecycle) |
+| Integration tests | DEFERRED | Deferred to Milestone 3.2 per spec note |
 
 ---
 
