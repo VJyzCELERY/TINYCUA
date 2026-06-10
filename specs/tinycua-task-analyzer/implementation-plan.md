@@ -426,46 +426,46 @@ def test_task_analyzer_direct_mutation_updates_session_task():
 
 ### Key Test Scenarios (Spec-Aligned Integration Tests)
 
-- [ ] **Scenario 1** — `test_task_analyzer_integration_with_tool_policy`: TaskAnalyzerNode integrates with `NodeToolPolicy` for mode-dependent tool filtering across all modes
-- [ ] **Scenario 2** — `test_task_analyzer_lifecycle_hooks_in_queue`: TaskAnalyzerNode in a minimal queue with mock LLM verifies lifecycle hooks (`on_start`, `on_end`) fire correctly
-- [ ] **Scenario 3** — `test_task_analyzer_recreation_in_queue_receives_task_tools`: TaskAnalyzerNode(mode=recreation) in a queue after TaskCreateNode — verify mock LLM receives TaskInit/TaskCreate tools
-- [ ] **Scenario 4** — `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools`: TaskAnalyzerNode(mode=initial_analysis) in a queue — verify mock LLM does NOT receive TaskInit/TaskCreate tools
-- [ ] **Scenario 5** — `test_task_analyzer_task_tree_validation_none_raises_error`: Mock LLM returns without mutating session.task — `NodeExecutionError` raised when task tree is `None` after completion
-- [ ] **Scenario 6** — `test_task_analyzer_direct_mutation_updates_session_task`: When LLM invokes tools, session.task must be mutated (not None) after loop execution
+- [x] **Scenario 1** — `test_task_analyzer_integration_with_tool_policy`: TaskAnalyzerNode integrates with `NodeToolPolicy` for mode-dependent tool filtering across all modes
+- [x] **Scenario 2** — `test_task_analyzer_lifecycle_hooks_in_queue`: TaskAnalyzerNode in a minimal queue with mock LLM verifies lifecycle hooks (`on_start`, `on_end`) fire correctly
+- [x] **Scenario 3** — `test_task_analyzer_recreation_in_queue_receives_task_tools`: TaskAnalyzerNode(mode=recreation) in a queue after TaskCreateNode — verify mock LLM receives TaskInit/TaskCreate tools
+- [x] **Scenario 4** — `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools`: TaskAnalyzerNode(mode=initial_analysis) in a queue — verify mock LLM does NOT receive TaskInit/TaskCreate tools
+- [x] **Scenario 5** — `test_task_analyzer_task_tree_validation_none_raises_error`: Mock LLM returns without mutating session.task — `NodeExecutionError` raised when task tree is `None` after completion
+- [x] **Scenario 6** — `test_task_analyzer_direct_mutation_updates_session_task`: When LLM invokes tools, session.task must be mutated (not None) after loop execution
 
 ### Additional Unit-Level Tests
 
-- [ ] **Unit 1** — `test_task_analyzer_all_five_modes_are_valid`: All five analysis modes are accepted by the constructor
-- [ ] **Unit 2** — `test_task_analyzer_recreation_allows_task_creation_tools`: `recreation` mode includes TaskInit and TaskCreate in tool scope
-- [ ] **Unit 3** — `test_task_analyzer_non_recreation_excludes_task_creation_tools`: All modes except recreation exclude TaskInit and TaskCreate
-- [ ] **Unit 4** — `test_task_analyzer_invalid_mode_raises_value_error`: Unknown modes raise `ValueError` with valid mode list
-- [ ] **Unit 5** — `test_task_analyzer_default_mode_is_initial_analysis`: Default mode is `initial_analysis` (replaces legacy `analysis`)
-- [ ] **Unit 6** — `test_task_analyzer_empty_input_handled_gracefully`: Empty or null input must be handled gracefully (spec edge case)
+- [x] **Unit 1** — `test_task_analyzer_all_five_modes_are_valid`: All five analysis modes are accepted by the constructor
+- [x] **Unit 2** — `test_task_analyzer_recreation_allows_task_creation_tools`: `recreation` mode includes TaskInit and TaskCreate in tool scope
+- [x] **Unit 3** — `test_task_analyzer_non_recreation_excludes_task_creation_tools`: All modes except recreation exclude TaskInit and TaskCreate
+- [x] **Unit 4** — `test_task_analyzer_invalid_mode_raises_value_error`: Unknown modes raise `ValueError` with valid mode list
+- [x] **Unit 5** — `test_task_analyzer_default_mode_is_initial_analysis`: Default mode is `initial_analysis` (replaces legacy `analysis`)
+- [x] **Unit 6** — `test_task_analyzer_empty_input_handled_gracefully`: Empty or null input must be handled gracefully (spec edge case)
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (spec-aligned, defined above) — these must pass for implementation to be complete:
+- [x] Integration tests (spec-aligned, defined above) — these must pass for implementation to be complete:
   1. `test_task_analyzer_integration_with_tool_policy` — mode-dependent tool filtering across all modes
   2. `test_task_analyzer_lifecycle_hooks_in_queue` — queue-based lifecycle hooks fire correctly
   3. `test_task_analyzer_recreation_in_queue_receives_task_tools` — recreation mode in queue receives TaskInit/TaskCreate tools
   4. `test_task_analyzer_initial_analysis_in_queue_excludes_task_tools` — initial_analysis mode in queue excludes TaskInit/TaskCreate
   5. `test_task_analyzer_task_tree_validation_none_raises_error` — NodeExecutionError when task tree is None
-- [ ] Unit tests for tool scope filtering, task tree validation, error handling (6 additional unit tests defined above)
-- [ ] Unit test for empty input edge case: `test_task_analyzer_empty_input_handled_gracefully`
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Unit tests for tool scope filtering, task tree validation, error handling (6 additional unit tests defined above)
+- [x] Unit test for empty input edge case: `test_task_analyzer_empty_input_handled_gracefully`
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify all five modes are documented in the class docstring
-- [ ] Verify legacy `analysis` mode is removed (not just aliased)
-- [ ] Verify `__call__` logs mode and completion status via `logger.info()` (FR-007)
-- [ ] Verify `__call__` calls `super().__call__()` to inherit retry behavior from ProcessNode (FR-008)
+- [x] Verify all five modes are documented in the class docstring
+- [x] Verify legacy `analysis` mode is removed (not just aliased)
+- [x] Verify `__call__` logs mode and completion status via `logger.info()` (FR-007)
+- [x] Verify `__call__` calls `super().__call__()` to inherit retry behavior from ProcessNode (FR-008)
 
 ### Performance Considerations
 
-- [ ] No performance impact — changes are purely logical (mode set, tool scope, validation)
+- [x] No performance impact — changes are purely logical (mode set, tool scope, validation)
 
 ## Proposed Changes
 
@@ -566,8 +566,8 @@ _VALID_MODES = frozenset({
 
 ### Internal Dependencies
 
-- [ ] Depends on `ProcessNode` base class (existing)
-- [ ] Depends on `NodeExecutionError` from `tinycua.loops.node` (existing)
+- [x] Depends on `ProcessNode` base class (existing)
+- [x] Depends on `NodeExecutionError` from `tinycua.loops.node` (existing)
 
 ## Risks and Mitigations
 
