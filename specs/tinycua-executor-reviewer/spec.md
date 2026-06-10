@@ -12,7 +12,7 @@
 - **Goals**: Provide `TinyCUATaskExecutorNode` and `TinyCUAResultReviewerNode` so the TinyCUA execution loop can **execute active tasks via ReAct-style processing and evaluate execution results with accept/retry/replan/open_question decisions**, completing the executor → reviewer → decision path that is the core execution loop of the architecture.
 - **Gaps**: Milestone 3.1 delivered the Task/TaskResult/ReviewerDecision models and DFS active-task lifecycle helpers, but there are no concrete nodes that perform task execution or result review. The `AnalysisEffortNode._spawn_task_executor()` is a stub. The `WorkerNode._route_proceed_execution()` does not spawn TaskExecutor or ResultReviewer. The `_on_reviewer_retry/replan/open_question` methods on `TinyCUALoop` are no-op stubs. Without these nodes, the execution loop cannot actually run tasks or evaluate outcomes.
 - **Non-Goals**: This spec does NOT cover ResultAggregationNode (Milestone 3.4), ResponseNode enhancements (Milestone 3.5), propagation/dedupe (Milestone 4.1), tool scoping (Milestone 4.2), or streaming (Milestone 4.4). It does NOT cover the `MandatoryPassthrough` routing for `open_question` (Milestone 3.3) — this spec only covers the reviewer emitting the `open_question` decision; the routing mechanism is deferred.
-- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. TaskExecutor must NOT mutate the active task or task tree — it receives a read-only snapshot and produces a `TaskResult`. ResultReviewer may update active task status/result but must NOT mutate task tree structure. The reviewer retry failure threshold (default 5) is distinct from `NodeRetryPolicy.max_attempts` and must be tracked at the loop or root-session level.
+- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. TaskExecutor must NOT mutate the active task or task tree — it receives a read-only snapshot and produces a `TaskResult`. ResultReviewer may update active task status/result but must NOT mutate task tree structure. The reviewer retry failure threshold (default 5) is distinct from the retry policy's max attempts and must be tracked at the loop or root-session level.
 
 ---
 
@@ -41,7 +41,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 - What happens when ResultReviewer receives a `TaskResult` with `execution_status="blocked"`? The reviewer should decide `open_question` or `retry` depending on the block reason.
 - What happens when the retry failure threshold is reached and the reviewer still cannot accept? The reviewer must accept or escalate — it cannot retry again.
 - What happens when replan spawns TaskAssessor + TaskAnalyzer but no unfinished tasks are selected? The system skips directly to TaskExecutor (no analyzer spawned per TaskAssessor contract).
-- What happens when TaskExecutor's LLM call fails? The standard `NodeRetryPolicy` handles retry; if exhausted, `NodeExecutionError` is raised.
+- What happens when TaskExecutor's LLM call fails? The standard retry policy handles retry; if exhausted, `NodeExecutionError` is raised.
 
 ---
 
@@ -49,7 +49,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide `TinyCUATaskExecutorNode` as a concrete `ProcessNode`.
+- **FR-001**: System MUST provide `TinyCUATaskExecutorNode` as a concrete component.
 - **FR-002**: TaskExecutor MUST receive the active task reference from TinyCUALoop as input.
 - **FR-003**: TaskExecutor MUST execute the active task using available tools in a ReAct-style loop (observe → think → act → observe).
 - **FR-004**: TaskExecutor MUST produce a `TaskResult` with `task_id` matching the active task, `execution_status` reflecting the outcome, and a `summary` of what was done.
@@ -57,7 +57,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 - **FR-006**: TaskExecutor MAY use `enhanced_context_retrieval` to gather additional context during execution.
 - **FR-007**: TaskExecutor MAY emit a mandatory passthrough / HITL request if blocked on user input.
 - **FR-008**: On completion, TaskExecutor MUST advance the queue (next node is ResultReviewer).
-- **FR-009**: System MUST provide `TinyCUAResultReviewerNode` as a concrete `ProcessNode`.
+- **FR-009**: System MUST provide `TinyCUAResultReviewerNode` as a concrete component.
 - **FR-010**: ResultReviewer MUST receive the TaskExecutor execution result as input.
 - **FR-011**: ResultReviewer MUST decide one of: `accept`, `retry`, `replan`, `open_question`.
 - **FR-012**: On `accept`, the system MUST update the active task status to `done` and recompute the next active task via DFS.
@@ -66,7 +66,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 - **FR-015**: On `open_question`, the system MUST keep ResultReviewer active and preserve the active task context. Installing MandatoryPassthrough routing is deferred to Milestone 3.3.
 - **FR-016**: The reviewer retry failure threshold MUST default to 5, be configurable, and be tracked at the loop or root-session level.
 - **FR-017**: The retry failure counter MUST reset on a successful `accept`.
-- **FR-018**: The retry failure threshold MUST be distinct from `NodeRetryPolicy.max_attempts`.
+- **FR-018**: The retry failure threshold MUST be distinct from any node-level retry policy.
 - **FR-019**: When the retry failure threshold is reached, the reviewer MUST accept or escalate — no further retry is permitted.
 - **FR-020**: TaskExecutor node ID MUST be `"task_executor"` by default.
 - **FR-021**: ResultReviewer node ID MUST be `"result_reviewer"` by default.
@@ -77,8 +77,8 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ### Key Entities _(include if feature involves data)_
 
-- **TaskExecutor**: A ProcessNode that executes the active task using tools and produces a TaskResult. Receives a read-only active task snapshot; must not mutate the task tree.
-- **ResultReviewer**: A ProcessNode that evaluates TaskExecutor output and decides accept/retry/replan/open_question. Quality gate between execution and response. Tracks retry failure count.
+- **TaskExecutor**: A component that executes the active task using tools and produces a TaskResult. Receives a read-only active task snapshot; must not mutate the task tree.
+- **ResultReviewer**: A component that evaluates TaskExecutor output and decides accept/retry/replan/open_question. Quality gate between execution and response. Tracks retry failure count.
 - **ReviewerRetryState**: Tracks the retry failure count for the current active task. Reset on accept. Default threshold: 5. Stored at loop or root-session level.
 
 ---
@@ -141,8 +141,8 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUATaskExecutorNode | TODO | ProcessNode for ReAct-style execution |
-| TinyCUAResultReviewerNode | TODO | ProcessNode for result review |
+| TinyCUATaskExecutorNode | TODO | Node for ReAct-style execution |
+| TinyCUAResultReviewerNode | TODO | Node for result review |
 | ReviewerRetryState | TODO | Retry failure counter with threshold |
 | AnalysisEffortNode._spawn_task_executor | TODO | Replace stub with real spawning |
 | WorkerNode._route_proceed_execution | TODO | Replace stub with real spawning |
@@ -161,7 +161,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
    - **Target**: 2026-06-10
    - **Status**: Resolved (design.md technical decision #1)
 
-2. **TaskExecutor ReAct loop depth**: Configurable `max_react_iterations` (default 10) to prevent infinite tool-call loops. This is distinct from `NodeRetryPolicy.max_attempts` which controls LLM call retries.
+2. **TaskExecutor ReAct loop depth**: Configurable `max_react_iterations` (default 10) to prevent infinite tool-call loops. This is distinct from the retry policy's max attempts which controls LLM call retries.
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
    - **Status**: Resolved (design.md technical decision #5)
@@ -170,12 +170,12 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ## Review Checklist
 
-- [ ] No implementation details — code, framework, or architecture choices must live in design docs only
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details — code, framework, or architecture choices must live in design docs only
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
 
 ---
 

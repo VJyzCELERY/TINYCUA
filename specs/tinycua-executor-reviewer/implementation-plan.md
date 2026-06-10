@@ -11,26 +11,10 @@ Implement `TinyCUATaskExecutorNode` (ReAct-style task execution) and `TinyCUARes
 
 ## Environment Pre-requisites
 
-### Configuration
+No external prerequisites — this feature is self-contained within `tinycua.loops` and `tinycua.models`.
 
-- [ ] **None** — no configuration dependencies for this feature
-
-### Running Services
-
-- [ ] **None** — no external services needed
-
-### Data / Fixtures
-
-- [ ] **None** — no data or fixtures needed
-
-### Access / Permissions
-
-- [ ] **None** — no special access required
-
-### Developer Tooling
-
-- [ ] **Runtime**: Python 3.11+
-- [ ] **Package manager**: uv
+- [x] **Runtime**: Python 3.11+
+- [x] **Package manager**: uv
 
 ---
 
@@ -242,7 +226,7 @@ def test_retry_counter_resets_on_accept():
 #### NEW `src/tinycua/tinycua/loops/result_reviewer.py`
 
 - **TinyCUAResultReviewerNode(ProcessNode)**: Evaluates TaskExecutor output. Decides accept/retry/replan/open_question. Uses `ReviewerRetryState` from loop to check threshold. `on_complete` dispatches based on decision.
-- **Dependencies**: `ProcessNode` from `tinycua.loops.node`, `ReviewerDecision` from `tinycua.models.task`, `ReviewerRetryState` from `tinycua.models.reviewer_decision`.
+- **Dependencies**: `ProcessNode` from `tinycua.loops.node`, `ReviewerDecision` from `tinycua.models.reviewer_decision`, `ReviewerRetryState` from `tinycua.models.reviewer_decision`.
 
 #### MODIFY `src/tinycua/tinycua/loops/__init__.py`
 

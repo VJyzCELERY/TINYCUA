@@ -46,9 +46,8 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
   - [ ] Instantiate and spawn after current position
   - [ ] Ensure terminal response path
 - [ ] Replace WorkerNode._route_proceed_execution() stub <!-- id: 13 -->
-  - [ ] Import TinyCUATaskExecutorNode and TinyCUAResultReviewerNode
-  - [ ] Clear after current, spawn executor+reviewer
-  - [ ] Ensure terminal response path
+
+<!-- id: 14 removed per ISSUE-027 (redundant with task 20) -->
 
 ## Testing Phase
 
