@@ -11,6 +11,7 @@ Implementation tasks for TinyCUATaskAssessorNode. Check off items as completed.
 - [x] Write unit tests for `on_complete` queue advancement <!-- id: 2 -->
 - [x] Write integration tests for AnalysisEffortNode → TaskAssessor flow <!-- id: 3 -->
 - [x] Run all tests — expect RED (before implementation) <!-- id: 4 -->
+  <!-- Verified RED on 2026-06-10 — all tests failed as expected before implementation -->
 
 ## Implementation Phase
 

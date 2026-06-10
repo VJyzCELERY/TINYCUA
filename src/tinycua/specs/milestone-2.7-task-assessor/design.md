@@ -120,6 +120,9 @@ class TinyCUATaskAssessorNode(ProcessNode):
 | Malformed LLM response | Log warning, treat as empty selection | Graceful degradation |
 | Empty task tree | Return empty selection | Normal operation |
 | Invalid task IDs | Log warning, filter invalid IDs | Robust parsing |
+| LLM service failure (timeout/API error) | Propagate per policy or retry | Use existing LLM retry/backoff policy |
+| Unexpected response structure | Log warning, treat as empty selection | Valid JSON but wrong shape |
+| LLM rate limiting | Backoff/retry or propagate | Respect rate limit headers |
 
 ---
 

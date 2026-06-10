@@ -12,7 +12,7 @@
 - **Goals**: Provide task tree assessment capability so TinyCUA can select unfinished tasks for decomposition or reanalysis during effort-loop and reviewer-replan flows.
 - **Gaps**: The current TinyCUA architecture lacks a dedicated node for evaluating task completeness and selecting which tasks need further processing. Without this, the effort loop cannot determine which tasks to send to TaskAnalyzer, and the reviewer replan path cannot identify tasks that need local replanning.
 - **Non-Goals**: This spec does NOT cover task execution (TaskExecutor), task analysis/decomposition (TaskAnalyzer), or task creation (TaskCreate). It does NOT cover the full reviewer replan integration beyond the assessor's role.
-- **Contracts to honor**: Must integrate with existing `ProcessNode` base class, `NodeQueue` mechanics, and `AnalysisEffortNode` effort-loop prepending behavior.
+- **Constraints**: Must integrate with existing `ProcessNode` base class, `NodeQueue` mechanics, and `AnalysisEffortNode` effort-loop prepending behavior.
 
 ---
 
@@ -63,13 +63,13 @@ When TinyCUA is processing a complex task that requires decomposition, the `Anal
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **TaskAssessor evaluates task tree**: Node correctly identifies unfinished tasks in the task tree.
-- [ ] **TaskAssessor selects only unfinished tasks**: Completed tasks are never selected for processing.
-- [ ] **TaskAssessor returns empty selection when appropriate**: No tasks are selected when all tasks are complete.
-- [ ] **TaskAssessor integrates with AnalysisEffortNode**: Queue advances correctly based on selection results.
-- [ ] **TaskAssessor handles malformed responses**: Graceful degradation with logging when LLM responses are invalid.
-- [ ] **TaskAssessor supports effort-loop mode**: Full-tree assessment works as designed.
-- [ ] **TaskAssessor propagates selection**: Selected task list is available for TaskAnalyzer consumption.
+- [x] **TaskAssessor evaluates task tree**: Node correctly identifies unfinished tasks in the task tree.
+- [x] **TaskAssessor selects only unfinished tasks**: Completed tasks are never selected for processing.
+- [x] **TaskAssessor returns empty selection when appropriate**: No tasks are selected when all tasks are complete.
+- [x] **TaskAssessor integrates with AnalysisEffortNode**: Queue advances correctly based on selection results.
+- [x] **TaskAssessor handles malformed responses**: Graceful degradation with logging when LLM responses are invalid.
+- [x] **TaskAssessor supports effort-loop mode**: Full-tree assessment works as designed.
+- [x] **TaskAssessor propagates selection**: Selected task list is available for TaskAnalyzer consumption.
 
 ---
 
