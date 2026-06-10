@@ -11,7 +11,7 @@
 
 - **Goals**: Provide task tree assessment capability so TinyCUA can select unfinished tasks for decomposition or reanalysis during effort-loop and reviewer-replan flows.
 - **Gaps**: The current TinyCUA architecture lacks a dedicated node for evaluating task completeness and selecting which tasks need further processing. Without this, the effort loop cannot determine which tasks to send to TaskAnalyzer, and the reviewer replan path cannot identify tasks that need local replanning.
-- **Non-Goals**: This spec does NOT cover task execution (TaskExecutor), task analysis/decomposition (TaskAnalyzer), or task creation (TaskCreate). It does NOT cover the full reviewer replan integration beyond the assessor's role.
+- **Non-Goals**: This spec does NOT cover task execution (TaskExecutor), task analysis/decomposition (TaskAnalyzer), or task creation (TaskCreate). It does NOT cover the reviewer replan orchestration or integration beyond defining the assessor's local-region mode (FR-004).
 - **Constraints**: Must integrate with existing `ProcessNode` base class, `NodeQueue` mechanics, and `AnalysisEffortNode` effort-loop prepending behavior.
 
 ---

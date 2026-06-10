@@ -115,6 +115,8 @@ class TinyCUATaskAssessorNode(ProcessNode):
 
 ### Error Handling
 
+_The following table includes additional defensive error cases beyond spec requirements, implemented for robustness._
+
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
 | Malformed LLM response | Log warning, treat as empty selection | Graceful degradation |
