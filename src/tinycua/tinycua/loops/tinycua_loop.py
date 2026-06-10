@@ -743,32 +743,22 @@ class TinyCUALoop(BaseLoop):
         )
 
     def _on_reviewer_replan(self, active_task: Task) -> None:
-        """Preserve active task on replan decision.
+        """Handle replan decision: log event, preserve active task.
 
-        Spawns TaskAssessor + TaskAnalyzer before TaskExecutor (FR-014).
-        Replan MUST NOT spawn AnalysisEffortNode.
+        Queue mutation is owned by ResultReviewer.on_complete per the
+        design doc (design.md:397-408):
+        - clear_after_current()
+        - spawn TaskAssessor + TaskAnalyzer + TaskExecutor
+        - ensure_terminal(terminal_node)
+
+        This handler only logs and preserves the active task (by doing nothing
+        to it). See ResultReviewer.on_complete for the full dispatch.
 
         Args:
-            active_task: The task that should be replanned.
+            active_task: The active task to preserve (NOT modified here).
         """
-        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
-        from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
-        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
-
-        task_assessor = TinyCUATaskAssessorNode(
-            node_id="task_assessor", config=self.session_config, mode="reviewer_replan",
-        )
-        task_analyzer = TinyCUATaskAnalyzerNode(
-            node_id="task_analyzer", config=self.session_config, mode="local_replan",
-        )
-        task_executor = TinyCUATaskExecutorNode(
-            node_id="task_executor", config=self.session_config,
-        )
-
-        self.queue.spawn_after_current([task_assessor, task_analyzer, task_executor])
-
         logger.info(
-            "reviewer_replan task_id=%s spawned task_assessor, task_analyzer, task_executor",
+            "reviewer_replan task_id=%s — queue mutation handled by ResultReviewer.on_complete",
             active_task.task_id,
         )
 

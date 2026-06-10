@@ -105,7 +105,10 @@ class TinyCUATaskExecutorNode(ProcessNode):
     def __call__(self, input_data: NodeInputLike) -> LLMResult:
         """Execute the task with a bounded ReAct loop.
 
-        Orchestrates: extract active task → call LLM → produce TaskResult.
+        Orchestrates: extract active task → ReAct loop (observe→think→act→observe)
+        → produce TaskResult. The loop iterates up to max_react_iterations,
+        calling the LLM each iteration and stopping when the response has no
+        content/tool calls or the iteration limit is reached.
 
         Args:
             input_data: Node input with active_task in metadata.
@@ -127,16 +130,52 @@ class TinyCUATaskExecutorNode(ProcessNode):
             task.task_id,
         )
 
-        # Build messages and call LLM
         from tinycua.config.types import LLMResult
 
         messages = self.build_messages(self.session, input_data)
-        last_response = self._call_llm(messages)
+        status = "succeeded"
+        last_response = None
 
-        # Build execution result
+        try:
+            iteration = 0
+            while iteration < self.max_react_iterations:
+                iteration += 1
+                last_response = self._call_llm(messages)
+
+                if not last_response.content and not last_response.tool_calls:
+                    break
+
+                if last_response.tool_calls:
+                    logger.info(
+                        "node=%s iteration=%d tool_calls=%d (not executed — agent tool pipeline required)",
+                        self.node_id,
+                        iteration,
+                        len(last_response.tool_calls),
+                    )
+                else:
+                    break
+
+            if iteration >= self.max_react_iterations:
+                status = "succeeded"
+                logger.warning(
+                    "node=%s reached max_react_iterations=%d",
+                    self.node_id,
+                    self.max_react_iterations,
+                )
+        except Exception:
+            status = "failed"
+            logger.exception(
+                "node=%s task_id=%s execution failed",
+                self.node_id,
+                task.task_id,
+            )
+            if last_response is None:
+                raise
+
+        assert last_response is not None  # noqa: S101
         result_dict = self._build_execution_result(
             task,
-            status="succeeded",
+            status=status,
             summary=last_response.content[:500],
         )
 

@@ -131,6 +131,34 @@ class TinyCUAResultReviewerNode(ProcessNode):
             metadata={"reviewer_decision": decision_data},
         )
 
+    def _spawn_replan_nodes(self, queue: NodeQueue, active_task: Any) -> None:
+        """Spawn TaskAssessor + TaskAnalyzer + TaskExecutor for replan.
+
+        Args:
+            queue: The node queue to mutate.
+            active_task: The task being replanned.
+        """
+        from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
+        from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        task_assessor = TinyCUATaskAssessorNode(
+            node_id="task_assessor",
+            config=self.loop.session_config if self.loop is not None else None,
+            mode="reviewer_replan",
+        )
+        task_analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer",
+            config=self.loop.session_config if self.loop is not None else None,
+            mode="local_replan",
+        )
+        task_executor = TinyCUATaskExecutorNode(
+            node_id="task_executor",
+            config=self.loop.session_config if self.loop is not None else None,
+        )
+
+        queue.spawn_after_current([task_assessor, task_analyzer, task_executor])
+
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Dispatch based on reviewer decision.
 
@@ -156,6 +184,10 @@ class TinyCUAResultReviewerNode(ProcessNode):
                     self.loop._on_reviewer_accept(active_task)
             elif outcome == "replan" and active_task is not None:
                 self.loop._on_reviewer_replan(active_task)
+                queue.clear_after_current()
+                self._spawn_replan_nodes(queue, active_task)
+                if self.loop.default_terminal_node is not None:
+                    queue.ensure_terminal(self.loop.default_terminal_node)
             elif outcome == "open_question" and active_task is not None:
                 self.loop._on_reviewer_open_question(active_task)
 

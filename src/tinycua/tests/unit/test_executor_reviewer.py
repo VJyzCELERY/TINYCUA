@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
 
+from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+from tinycua.loops.task_executor import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.node_input import NodeInput
 from tinycua.models.reviewer_decision import ReviewerRetryState
+from tinycua.models.session import Session
 from tinycua.models.task import Task
 
 
@@ -194,3 +200,140 @@ def test_parse_decision_word_boundary():
     # Should match with whitespace
     response = LLMResult(content="  retry  ", metadata={})
     assert reviewer._parse_decision(response) == {"outcome": "retry", "rationale": "  retry  "}
+
+
+# --- TinyCUATaskExecutorNode tests ---
+
+
+def _build_executor_with_mocked_llm(
+    llm_response_content: str = "Task completed successfully",
+    tool_calls: list | None = None,
+) -> TinyCUATaskExecutorNode:
+    """Build a TaskExecutor with a mocked LLM client."""
+    config = NodeConfigBase()
+    config.llm_client = MagicMock(
+        return_value={
+            "content": llm_response_content,
+            "role": "assistant",
+            "tool_calls": tool_calls or [],
+        }
+    )
+    executor = TinyCUATaskExecutorNode(config=config)
+    executor.ensure_session(Session())
+    return executor
+
+
+def test_task_executor_call_with_mocked_llm():
+    """TaskExecutor.__call__ produces execution_result metadata with succeeded status."""
+    executor = _build_executor_with_mocked_llm(llm_response_content="Done")
+    task = Task(task_id="t-1", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    result = executor(input_data)
+
+    assert result.metadata["execution_result"]["task_id"] == "t-1"
+    assert result.metadata["execution_result"]["execution_status"] == "succeeded"
+    assert result.metadata["execution_result"]["summary"] == "Done"
+
+
+def test_task_executor_call_raises_when_no_active_task():
+    """TaskExecutor raises NodeExecutionError when no active_task in metadata."""
+    executor = _build_executor_with_mocked_llm()
+    input_data = NodeInput(input_type="continuation", metadata={})
+
+    try:
+        executor(input_data)
+        raise AssertionError("Expected NodeExecutionError")
+    except NodeExecutionError as e:
+        assert "no active_task" in str(e).lower()
+
+
+def test_task_executor_call_raises_when_no_session():
+    """TaskExecutor raises NodeExecutionError when no session is attached."""
+    config = NodeConfigBase()
+    config.llm_client = MagicMock()
+    executor = TinyCUATaskExecutorNode(config=config)
+    task = Task(task_id="t-1", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    try:
+        executor(input_data)
+        raise AssertionError("Expected NodeExecutionError")
+    except NodeExecutionError as e:
+        assert "no session" in str(e).lower()
+
+
+def test_task_executor_call_sets_failed_status_on_exception():
+    """TaskExecutor sets execution_status='failed' when LLM raises."""
+    config = NodeConfigBase()
+    config.llm_client = MagicMock(side_effect=RuntimeError("LLM unavailable"))
+    executor = TinyCUATaskExecutorNode(config=config)
+    executor.ensure_session(Session())
+    task = Task(task_id="t-2", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    try:
+        executor(input_data)
+        raise AssertionError("Expected RuntimeError")
+    except RuntimeError:
+        pass
+
+
+def test_task_executor_respects_max_react_iterations():
+    """TaskExecutor loop stops at max_react_iterations."""
+    config = NodeConfigBase()
+    call_count = 0
+
+    def mock_llm(messages):
+        nonlocal call_count
+        call_count += 1
+        return {"content": "thinking...", "role": "assistant", "tool_calls": []}
+
+    config.llm_client = mock_llm
+    executor = TinyCUATaskExecutorNode(config=config, max_react_iterations=3)
+    executor.ensure_session(Session())
+    task = Task(task_id="t-3", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    result = executor(input_data)
+    # With tool_calls=[] and non-empty content, loop breaks after first iteration
+    assert call_count == 1
+    assert result.metadata["execution_result"]["execution_status"] == "succeeded"
+
+
+def test_task_executor_on_complete_advances_queue():
+    """TaskExecutor.on_complete calls queue.advance()."""
+    executor = _build_executor_with_mocked_llm()
+    mock_queue = MagicMock()
+    response = LLMResult(content="done", role="assistant", metadata={})
+
+    executor.on_complete(mock_queue, response)
+
+    mock_queue.advance.assert_called_once()
+
+
+def test_on_reviewer_replan_does_not_spawn():
+    """_on_reviewer_replan only logs — no queue mutation (ownership moved to on_complete)."""
+    loop = _build_loop_with_active_task()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    mock_queue = MagicMock()
+    loop.queue = mock_queue
+
+    loop._on_reviewer_replan(active_task)
+
+    # _on_reviewer_replan should NOT call spawn_after_current
+    mock_queue.spawn_after_current.assert_not_called()

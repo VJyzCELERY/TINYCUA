@@ -79,10 +79,10 @@ def test_executor_reviewer_retry_path():
 
 
 def test_executor_reviewer_replan_path():
-    """Executor → reviewer → replan → assessor → analyzer → executor.
+    """Executor → reviewer → replan path.
 
-    Verifies: replan preserves active task, spawns TaskAssessor + TaskAnalyzer
-    via queue.spawn_after_current (FR-014).
+    Verifies: replan preserves active task. Queue mutation (spawn) is owned
+    by ResultReviewer.on_complete, not _on_reviewer_replan (design.md:397-408).
     """
     # Arrange
     loop = _build_loop_with_active_task()
@@ -99,24 +99,15 @@ def test_executor_reviewer_replan_path():
     assert loop.get_active_task() is not None
     assert loop.get_active_task().task_id == active_task.task_id
 
-    # Assert — TaskAssessor + TaskAnalyzer + TaskExecutor spawned (FR-014)
-    mock_queue.spawn_after_current.assert_called_once()
-    spawned_nodes = mock_queue.spawn_after_current.call_args[0][0]
-    from tinycua.loops.task_assessor import TinyCUATaskAssessorNode
-    from tinycua.loops.task_analyzer import TinyCUATaskAnalyzerNode
-    from tinycua.loops.task_executor import TinyCUATaskExecutorNode
-
-    assert len(spawned_nodes) == 3
-    assert isinstance(spawned_nodes[0], TinyCUATaskAssessorNode)
-    assert isinstance(spawned_nodes[1], TinyCUATaskAnalyzerNode)
-    assert isinstance(spawned_nodes[2], TinyCUATaskExecutorNode)
+    # Assert — _on_reviewer_replan does NOT spawn (ownership moved to on_complete)
+    mock_queue.spawn_after_current.assert_not_called()
 
 
 def test_on_complete_dispatch_replan():
-    """ResultReviewerNode.on_complete dispatches replan to loop handler.
+    """ResultReviewerNode.on_complete dispatches replan with queue mutations.
 
-    Verifies: on_complete extracts active_task from metadata and calls
-    loop._on_reviewer_replan (FR-014 path).
+    Verifies: on_complete calls loop._on_reviewer_replan, clears queue
+    after current, spawns replan nodes, and ensures terminal node.
     """
     # Arrange
     loop = _build_loop_with_active_task()
@@ -125,6 +116,8 @@ def test_on_complete_dispatch_replan():
 
     mock_loop = MagicMock()
     mock_loop._on_reviewer_replan = MagicMock()
+    mock_loop.session_config = None
+    mock_loop.default_terminal_node = MagicMock()
 
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
     decision_data = {"outcome": "replan", "rationale": "Needs replanning", "active_task": active_task}
@@ -133,12 +126,19 @@ def test_on_complete_dispatch_replan():
         metadata={"reviewer_decision": decision_data},
     )
     queue = NodeQueue()
+    # Add a placeholder current node so spawn_after_current works
+    from tinycua.loops.response_node import ResponseNode
+    queue.items.append(ResponseNode())
 
     # Act
     reviewer.on_complete(queue, response)
 
-    # Assert
+    # Assert — loop handler called
     mock_loop._on_reviewer_replan.assert_called_once_with(active_task)
+
+    # Assert — queue mutations happened (clear_after_current + spawn + ensure_terminal)
+    # After clear_after_current, only current node remains; after spawn, 3 more added
+    assert len(queue.items) >= 3  # current + assessor + analyzer + executor
 
 
 def test_on_complete_dispatch_all_outcomes():
@@ -152,8 +152,9 @@ def test_on_complete_dispatch_all_outcomes():
     assert active_task is not None
 
     mock_loop = MagicMock()
+    mock_loop.session_config = None
+    mock_loop.default_terminal_node = MagicMock()
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
-    queue = NodeQueue()
 
     for outcome in ("accept", "retry", "replan", "open_question"):
         mock_loop.reset_mock()
@@ -163,7 +164,15 @@ def test_on_complete_dispatch_all_outcomes():
             metadata={"reviewer_decision": decision_data},
         )
 
-        reviewer.on_complete(queue, response)
+        # replan requires a non-empty queue; use mock for that case
+        if outcome == "replan":
+            queue = MagicMock()
+            reviewer.on_complete(queue, response)
+            queue.clear_after_current.assert_called()
+            queue.ensure_terminal.assert_called()
+        else:
+            queue = NodeQueue()
+            reviewer.on_complete(queue, response)
 
         handler = getattr(mock_loop, f"_on_reviewer_{outcome}")
         handler.assert_called_once_with(active_task)
