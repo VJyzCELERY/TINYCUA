@@ -9,6 +9,8 @@ Implement `TinyCUATaskExecutorNode` (ReAct-style task execution) and `TinyCUARes
 - **Priority**: P0
 - **Estimated Effort**: L
 
+> **Note**: Import paths referenced in this document (e.g., `ReviewerDecision` in `tinycua.models.task`, `ReviewerRetryState` in `tinycua.models.reviewer_decision`) should be verified against the current codebase at implementation time. If future milestones refactor these models, update the paths here accordingly.
+
 ### FR-to-Implementation Coverage
 
 | FR Range | Component | Description |
