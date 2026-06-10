@@ -65,7 +65,7 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
 
 ## Verification Phase
 
-- [ ] Verify no SDK public API changes: `git diff main -- src/tinycua-sdk/` shows no changes <!-- id: 21 -->
+- [ ] [FR-025] Verify no SDK public API changes: `git diff main -- src/tinycua-sdk/` shows no changes <!-- id: 21 -->
 - [ ] Manual test: run `create_tinycua_agent(...).run(...)` with a simple task and verify executor→reviewer path completes <!-- id: 22 -->
 - [ ] Verify ReAct iteration cap prevents infinite loops <!-- id: 23 -->
 - [ ] Verify retry threshold enforcement: after 5 retries, reviewer cannot retry <!-- id: 24 -->

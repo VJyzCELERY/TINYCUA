@@ -464,10 +464,17 @@ class TinyCUALoop(BaseLoop):
         )
 
     def _on_reviewer_accept(self, active_task: Task) -> bool:
-        """Already implemented in Milestone 3.1. Resets retry counter."""
+        """Handle accept decision: reset retry counter, mark task done.
+
+        Already implemented in Milestone 3.1 (sets active_task.status = 'done').
+        Updated in this milestone to also reset the retry counter.
+        """
+        self._reviewer_retry_state.reset()
+        # Existing implementation in Milestone 3.1 handles task status update
 
     def get_reviewer_retry_state(self) -> ReviewerRetryState:
         """Return the current reviewer retry state."""
+        return self._reviewer_retry_state
 ```
 
 ### AnalysisEffortNode._spawn_task_executor (Updated)
