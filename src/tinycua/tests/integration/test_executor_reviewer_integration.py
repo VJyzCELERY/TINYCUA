@@ -132,11 +132,11 @@ def test_on_complete_dispatch_replan():
     assert len(queue.items) >= 3  # current + assessor + analyzer + executor
 
 
-def test_on_complete_replan_skips_queue_mutation_when_config_missing():
-    """Replan skips queue mutations when session_config is None.
+def test_on_complete_replan_mutates_queue_regardless_of_session_config():
+    """Replan mutates queue even when session_config has no llm_client.
 
-    Verifies: on_complete still calls _on_reviewer_replan but logs an error
-    and does not mutate the queue when session_config is not set.
+    Verifies: on_complete calls _on_reviewer_replan AND mutates the queue
+    (clear_after_current + spawn + ensure_terminal) regardless of session_config.
     """
     loop = _build_loop_with_active_task()
     active_task = loop.get_active_task()
@@ -160,8 +160,8 @@ def test_on_complete_replan_skips_queue_mutation_when_config_missing():
     reviewer.on_complete(queue, response)
 
     mock_loop._on_reviewer_replan.assert_called_once_with(active_task)
-    # Queue should NOT be mutated
-    assert len(queue.items) == 1
+    # Queue SHOULD be mutated — replan always proceeds
+    assert len(queue.items) >= 3  # current + assessor + analyzer + executor
 
 
 def test_on_complete_dispatch_all_outcomes():
