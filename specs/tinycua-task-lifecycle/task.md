@@ -4,8 +4,8 @@ Implementation tasks for TaskTree Active Task Lifecycle (Milestone 3.1). Check o
 
 ## TDD Phase (Tests First)
 
-- [ ] Write unit tests for Task, TaskResult, ReviewerDecision models in `tests/unit/test_task_models.py` <!-- id: 0 -->
-- [ ] Write unit tests for TinyCUALoop active task lifecycle helpers in `tests/unit/test_task_lifecycle.py` <!-- id: 1 -->
+- [ ] Write unit tests for Task, TaskResult, ReviewerDecision models in `src/tinycua/tests/unit/test_task_models.py` <!-- id: 0 -->
+- [ ] Write unit tests for TinyCUALoop active task lifecycle helpers in `src/tinycua/tests/unit/test_task_lifecycle.py` <!-- id: 1 -->
 - [ ] Run tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
 
 ## Implementation Phase

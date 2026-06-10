@@ -252,6 +252,7 @@ def _on_reviewer_open_question(self, active_task: Task) -> None:
 | Backward compatibility breakage from Session.task changes | Low | Medium | Keep `Session.task` as string; loop owns the structured tree separately |
 | Accept algorithm infinite loop when walking up parent chain | Low | High | Add cycle detection (visited set) and depth limit to parent walk |
 | Task tree mutation during traversal causes inconsistency | Low | High | Traverse a snapshot or validate tree integrity before traversal |
+| Accept algorithm simplification defers parent re-evaluation | Low | Medium | Track as deferred — revisit when parent re-execution is needed in a later milestone |
 
 ---
 

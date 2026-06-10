@@ -223,6 +223,22 @@ def test_get_active_task_with_traversal_hint():
     assert active.task_id == "T-2.2"
 
 
+def test_get_active_task_updates_hint_during_traversal():
+    """FR-010: active_child_id is lazily updated as DFS descends (no initial hint)."""
+    loop = TinyCUALoop()
+    tree = _make_nested_tree()
+    loop.root_task = tree
+    # Before traversal, root has no hint
+    assert tree.active_child_id is None
+    # Get active task triggers DFS traversal
+    active = loop.get_active_task()
+    assert active is not None
+    # After traversal, root's active_child_id should be set to the selected child
+    assert tree.active_child_id is not None, "active_child_id should be written back during traversal"
+    # Verify the hint points to the correct child
+    assert tree.active_child_id == active.task_id or tree.active_child_id in [c.task_id for c in tree.children]
+
+
 def test_get_active_task_hint_nonexistent_fallback():
     """get_active_task falls back to standard DFS when active_child_id is invalid."""
     loop = TinyCUALoop()
@@ -340,6 +356,53 @@ def test_on_reviewer_open_question_preserves_active():
     next_active = loop.get_active_task()
     assert next_active is not None
     assert next_active.task_id == active.task_id
+
+
+def test_task_children_is_append_only():
+    """FR-017: Task.children is append-only — no external mutation helpers exist."""
+    parent = Task(task_id="T-1", title="Parent")
+    child = Task(task_id="T-1.1", title="Child")
+    parent.children.append(child)
+    assert len(parent.children) == 1
+    # Verify Task dataclass does not expose add_child/remove_child methods
+    assert not hasattr(Task, "add_child"), "Task should not expose add_child helper"
+    assert not hasattr(Task, "remove_child"), "Task should not expose remove_child helper"
+    # Verify children list is mutable (append works) but Task doesn't encourage direct mutation
+    assert hasattr(parent.children, "append"), "children list must support append"
+
+
+def test_sdk_public_api_unchanged():
+    """FR-018: System MUST NOT modify tinycua-sdk public APIs."""
+    import tinycua_sdk
+    # Verify core public API surface is intact
+    assert hasattr(tinycua_sdk, "TinyCUALoop")
+    assert callable(tinycua_sdk.TinyCUALoop)
+
+
+def test_is_root_task_done_all_complete():
+    """_is_root_task_done returns True when root and all children are done."""
+    loop = TinyCUALoop()
+    root = Task(task_id="ROOT", title="Root", status="done",
+                children=[Task(task_id="T-1", title="Task 1", status="done")])
+    loop.root_task = root
+    assert loop._is_root_task_done() is True
+
+
+def test_is_root_task_done_children_pending():
+    """_is_root_task_done returns False when children are still pending."""
+    loop = TinyCUALoop()
+    root = Task(task_id="ROOT", title="Root", status="pending",
+                children=[Task(task_id="T-1", title="Task 1", status="pending")])
+    loop.root_task = root
+    assert loop._is_root_task_done() is False
+
+
+def test_is_root_task_done_no_children():
+    """_is_root_task_done returns True when root has no children and is done."""
+    loop = TinyCUALoop()
+    root = Task(task_id="ROOT", title="Root", status="done")
+    loop.root_task = root
+    assert loop._is_root_task_done() is True
 ```
 
 ### Key Test Scenarios
@@ -351,6 +414,7 @@ def test_on_reviewer_open_question_preserves_active():
 - [ ] **Scenario 5**: `update_active_task_result` with active task and with no active task
 - [ ] **Scenario 6**: Accept marks task done, recomputes next active, signals root done
 - [ ] **Scenario 7**: Retry/replan/open_question preserve the same active task
+- [ ] **Scenario 8**: `_is_root_task_done` returns correct boolean for edge cases
 
 ## Verification Plan
 
@@ -375,30 +439,30 @@ def test_on_reviewer_open_question_preserves_active():
 
 ### Models Module
 
-#### [NEW] src/tinycua/tinycua/models/task.py
+#### [NEW] tinycua/models/task.py
 
 - **Description**: New module containing `Task`, `TaskResult`, `ReviewerDecision` dataclasses and `TaskStatus`, `ExecutionStatus`, `ReviewerOutcome` type aliases.
 - **Dependencies**: None (pure data models, no external deps).
 
-#### [MODIFY] src/tinycua/tinycua/models/__init__.py
+#### [MODIFY] tinycua/models/__init__.py
 
 - **Description**: Export new model types (`Task`, `TaskResult`, `ReviewerDecision`, `TaskStatus`, `ExecutionStatus`, `ReviewerOutcome`).
 - **Breaking changes**: None — additions only.
 
 ### Loops Module
 
-#### [MODIFY] src/tinycua/tinycua/loops/tinycua_loop.py
+#### [MODIFY] tinycua/loops/tinycua_loop.py
 
 - **Description**: Add `root_task` and `_active_task_id` attributes to `TinyCUALoop.__init__`. Implement `get_active_task()`, `set_active_task()`, `update_active_task_result()`, `_dfs_find_active()`, `_on_reviewer_accept()`, `_on_reviewer_retry()`, `_on_reviewer_replan()`, `_on_reviewer_open_question()`, and `_is_root_task_done()`.
 - **Breaking changes**: None — additions only to existing class.
 
 ### Test Files
 
-#### [NEW] src/tinycua/tests/unit/test_task_models.py
+#### [NEW] tests/unit/test_task_models.py
 
 - **Description**: Unit tests for `Task`, `TaskResult`, `ReviewerDecision` dataclass construction, defaults, and field validation.
 
-#### [NEW] src/tinycua/tests/unit/test_task_lifecycle.py
+#### [NEW] tests/unit/test_task_lifecycle.py
 
 - **Description**: Unit tests for TinyCUALoop active task lifecycle helpers (DFS traversal, set/update, reviewer decision handling).
 
