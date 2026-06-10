@@ -321,6 +321,46 @@ def test_on_reviewer_accept_root_done():
     assert result is True  # root is done
 
 
+def test_on_reviewer_accept_parent_walk():
+    """_on_reviewer_accept walks up parent chain when last child is accepted."""
+    loop = TinyCUALoop()
+    t1_1 = Task(task_id="T-1.1", title="Child 1.1", status="done")
+    t1_2 = Task(task_id="T-1.2", title="Child 1.2", status="pending")
+    t1 = Task(task_id="T-1", title="Parent 1", status="pending", children=[t1_1, t1_2])
+    root = Task(task_id="ROOT", title="Root", status="pending", children=[t1])
+    loop.root_task = root
+
+    active = loop.get_active_task()
+    assert active is not None and active.task_id == "T-1.2"
+    result = loop._on_reviewer_accept(active)
+    # T-1.2 is done, T-1 has no more unfinished children → T-1 marked done too
+    assert t1.status == "done", "Parent should be marked done when all children complete"
+    # Root still has no other children, so root is done
+    assert result is True
+
+
+def test_on_reviewer_accept_parent_walk_partial():
+    """_on_reviewer_accept walks up but stops when parent still has unfinished siblings."""
+    loop = TinyCUALoop()
+    t1_1 = Task(task_id="T-1.1", title="Child 1.1", status="done")
+    t1_2 = Task(task_id="T-1.2", title="Child 1.2", status="pending")
+    t2 = Task(task_id="T-2", title="Sibling", status="pending")
+    t1 = Task(task_id="T-1", title="Parent 1", status="pending", children=[t1_1, t1_2])
+    root = Task(task_id="ROOT", title="Root", status="pending", children=[t1, t2])
+    loop.root_task = root
+
+    active = loop.get_active_task()
+    assert active is not None and active.task_id == "T-1.2"
+    result = loop._on_reviewer_accept(active)
+    # T-1.2 done, T-1 fully done → T-1 marked done
+    assert t1.status == "done"
+    # Root has T-2 still pending → root NOT done
+    assert result is False, "Root should not be done — T-2 is still pending"
+    # Next DFS should find T-2
+    next_active = loop.get_active_task()
+    assert next_active is not None and next_active.task_id == "T-2"
+
+
 def test_on_reviewer_retry_preserves_active():
     """_on_reviewer_retry keeps the same active task."""
     loop = TinyCUALoop()
@@ -413,8 +453,10 @@ def test_is_root_task_done_no_children():
 - [ ] **Scenario 4**: `set_active_task` with valid and invalid IDs
 - [ ] **Scenario 5**: `update_active_task_result` with active task and with no active task
 - [ ] **Scenario 6**: Accept marks task done, recomputes next active, signals root done
-- [ ] **Scenario 7**: Retry/replan/open_question preserve the same active task
-- [ ] **Scenario 8**: `_is_root_task_done` returns correct boolean for edge cases
+- [ ] **Scenario 7**: Accept walks up parent chain when last child completes (multi-level parent-walk)
+- [ ] **Scenario 8**: Accept walks up but stops when sibling is still pending (partial parent-walk)
+- [ ] **Scenario 9**: Retry/replan/open_question preserve the same active task
+- [ ] **Scenario 10**: `_is_root_task_done` returns correct boolean for edge cases
 
 ## Verification Plan
 

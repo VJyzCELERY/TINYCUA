@@ -260,12 +260,12 @@ def _on_reviewer_open_question(self, active_task: Task) -> None:
 
 1. **Task tree serialization**: Should Task/TaskResult be serializable to JSON for transcript export?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
+   - **Status**: Accepted
    - **Proposed Answer**: Yes, dataclasses with `field(default_factory=dict)` and standard types are JSON-serializable by default with a simple encoder. No special serialization needed.
 
 2. **Thread safety**: Is concurrent access to the task tree a concern?
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
+   - **Status**: Accepted
    - **Proposed Answer**: No — TinyCUA is single-threaded per execution loop. Task tree mutations happen sequentially within the loop's node execution cycle.
 
 ---

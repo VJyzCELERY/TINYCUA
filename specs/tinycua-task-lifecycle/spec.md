@@ -65,7 +65,7 @@ TinyCUA's execution loop needs to track which task in a decomposed task tree is 
 - **FR-014**: On ResultReviewer `replan`, the system MUST preserve the same active task and spawn TaskAssessor + TaskAnalyzer.
 - **FR-015**: On ResultReviewer `open_question`, the system MUST preserve the same active task and install mandatory_passthrough.
 - **FR-016**: When the root task is complete (all children done, root status updated), the system MUST signal that ResultAggregationNode should be entered.
-- **FR-017**: `Task.children` MUST be an append-only list managed through explicit mutation helpers.
+- **FR-017**: `Task.children` is an append-only list. No explicit `add_child`/`remove_child` helpers are exposed in this milestone — mutation occurs through TinyCUALoop lifecycle methods only (`update_active_task_result`, `_on_reviewer_accept`, etc.).
 - **FR-018**: System MUST NOT modify `tinycua-sdk` public APIs.
 
 ### Key Entities _(include if feature involves data)_
@@ -143,13 +143,13 @@ TinyCUA's execution loop needs to track which task in a decomposed task tree is 
 1. **Task tree storage location**: Should the root task tree be stored on `Session.task` (replacing the current `str | None`) or on `TinyCUALoop` directly?
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
+   - **Status**: Accepted
    - **Proposed Answer**: Store on `TinyCUALoop` as `self.root_task: Task | None`. `Session.task` remains a string for backward compatibility or is removed. The loop owns the task tree per the ownership rules in the design doc.
 
 2. **active_child_id update timing**: Should `active_child_id` be updated immediately when a child is selected, or lazily on the next `get_active_task()` call?
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-10
-   - **Status**: Proposed
+   - **Status**: Accepted
    - **Proposed Answer**: Update lazily on `get_active_task()` — the traversal writes back the hint as it descends. This avoids stale hints from intermediate mutations.
 
 ---
