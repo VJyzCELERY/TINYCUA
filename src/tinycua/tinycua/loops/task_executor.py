@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -75,8 +76,6 @@ class TinyCUATaskExecutorNode(ProcessNode):
         Raises:
             NodeExecutionError: If no active task is provided.
         """
-        from tinycua.models.node_input import NodeInput
-
         if isinstance(input_data, NodeInput):
             task = input_data.metadata.get("active_task")
             if task is not None:
@@ -153,6 +152,11 @@ class TinyCUATaskExecutorNode(ProcessNode):
                     break
 
                 if last_response.tool_calls:
+                    # Tool dispatch is deferred — the SDK's agent tool pipeline
+                    # is required to execute tools and accumulate results back
+                    # into messages.  For now the loop terminates after a single
+                    # LLM call; max_react_iterations is effectively unused until
+                    # tool execution is wired up.
                     logger.info(
                         "node=%s iteration=%d tool_calls=%d (not executed — agent tool pipeline required)",
                         self.node_id,

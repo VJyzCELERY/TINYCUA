@@ -85,7 +85,7 @@ After TaskAnalyzer and TaskAssessor have decomposed a task and AnalysisEffortNod
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [x] **TaskExecutor executes active task**: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
+- [x] **TaskExecutor executes active task** *(scaffolding — tool dispatch deferred)*: Given an active task, TaskExecutor runs ReAct-style execution and produces a valid TaskResult.
 - [x] **ResultReviewer evaluates and decides**: Given a TaskResult, ResultReviewer decides accept/retry/replan/open_question.
 - [x] **Accept marks task done**: On accept, the active task status is set to done and DFS recomputes the next active task.
 - [x] **Retry preserves task**: On retry, the same task remains active and TaskExecutor is re-queued.

@@ -106,10 +106,10 @@ def test_on_complete_dispatch_replan():
     mock_loop.default_terminal_node = MagicMock()
 
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
-    decision_data = {"outcome": "replan", "rationale": "Needs replanning", "active_task": active_task}
+    decision_data = {"outcome": "replan", "rationale": "Needs replanning"}
     response = LLMResult(
         content='{"outcome": "replan"}',
-        metadata={"reviewer_decision": decision_data},
+        metadata={"reviewer_decision": decision_data, "active_task": active_task},
     )
     queue = NodeQueue()
     # Add a placeholder current node so spawn_after_current works
@@ -143,10 +143,10 @@ def test_on_complete_replan_mutates_queue_regardless_of_session_config():
     mock_loop.default_terminal_node = MagicMock()
 
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
-    decision_data = {"outcome": "replan", "rationale": "Needs replanning", "active_task": active_task}
+    decision_data = {"outcome": "replan", "rationale": "Needs replanning"}
     response = LLMResult(
         content='{"outcome": "replan"}',
-        metadata={"reviewer_decision": decision_data},
+        metadata={"reviewer_decision": decision_data, "active_task": active_task},
     )
     queue = NodeQueue()
     from tinycua.loops.response_node import ResponseNode
@@ -176,10 +176,10 @@ def test_on_complete_dispatch_all_outcomes():
 
     for outcome in ("accept", "retry", "replan", "open_question"):
         mock_loop.reset_mock()
-        decision_data = {"outcome": outcome, "rationale": f"Test {outcome}", "active_task": active_task}
+        decision_data = {"outcome": outcome, "rationale": f"Test {outcome}"}
         response = LLMResult(
             content=f'{{"outcome": "{outcome}"}}',
-            metadata={"reviewer_decision": decision_data},
+            metadata={"reviewer_decision": decision_data, "active_task": active_task},
         )
 
         # replan requires a non-empty queue; use mock for that case
@@ -248,10 +248,10 @@ def test_retry_threshold_blocks_dispatch():
     reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
     queue = NodeQueue()
 
-    decision_data = {"outcome": "retry", "rationale": "Should be blocked", "active_task": active_task}
+    decision_data = {"outcome": "retry", "rationale": "Should be blocked"}
     response = LLMResult(
         content='{"outcome": "retry"}',
-        metadata={"reviewer_decision": decision_data},
+        metadata={"reviewer_decision": decision_data, "active_task": active_task},
     )
 
     # Act

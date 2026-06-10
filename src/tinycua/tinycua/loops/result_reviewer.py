@@ -112,12 +112,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
         response = self._call_llm(messages)
         decision_data = self._parse_decision(response)
 
-        # Forward active_task from input metadata into decision_data
-        # so on_complete can dispatch to loop handlers (ISSUE-001 fix).
+        # Forward active_task from input metadata as a top-level metadata key
+        # so on_complete can dispatch to loop handlers with a typed Task reference.
+        active_task = None
         if isinstance(input_data, NodeInput):
             active_task = input_data.metadata.get("active_task")
-            if active_task is not None:
-                decision_data["active_task"] = active_task
 
         logger.info(
             "node=%s decision=%s",
@@ -128,7 +127,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         return LLMResult(
             content=response.content,
             role="assistant",
-            metadata={"reviewer_decision": decision_data},
+            metadata={"reviewer_decision": decision_data, "active_task": active_task},
         )
 
     def _spawn_replan_nodes(self, queue: NodeQueue, active_task: Any) -> None:
@@ -152,6 +151,9 @@ class TinyCUAResultReviewerNode(ProcessNode):
             config=self.loop.session_config if self.loop is not None else None,
             mode="local_replan",
         )
+        # TaskExecutorNode intentionally does NOT receive loop — it does not
+        # access loop-level state (retry counts, active task ID, etc.).  The
+        # reviewer receives loop so it can dispatch decisions to loop handlers.
         task_executor = TinyCUATaskExecutorNode(
             node_id="task_executor",
             config=self.loop.session_config if self.loop is not None else None,
@@ -171,7 +173,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         """
         decision_data = response.metadata.get("reviewer_decision", {})
         outcome = decision_data.get("outcome", "retry")
-        active_task = decision_data.get("active_task")
+        active_task = response.metadata.get("active_task")
 
         if self.loop is not None:
             if outcome == "accept" and active_task is not None:
