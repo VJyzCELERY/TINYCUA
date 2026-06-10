@@ -57,6 +57,12 @@ class TinyCUALoop(BaseLoop):
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
         self.session_config = session_config
+        if self.session_config is None:
+            logger.warning(
+                "TinyCUALoop initialized with session_config=None; "
+                "nodes requiring LLM clients will degrade silently. "
+                "Provide a SessionConfig with a valid llm_client for full functionality."
+            )
         self.default_terminal_node = default_terminal_node
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
