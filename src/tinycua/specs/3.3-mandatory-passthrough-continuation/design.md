@@ -2,7 +2,7 @@
 
 **Spec**: ./spec.md
 **Status**: Draft
-**Last Updated**: 2026-06-11
+**Last Updated**: 2026-06-11 (review-revision)
 **Milestone**: 3.3 — Mandatory Passthrough and Continuation Routing
 
 ---
@@ -69,25 +69,23 @@ MandatoryPassthrough:
 
 ### Storage Mechanism
 
-The `MandatoryPassthrough` directive is stored in `root_session.input_context` as a special message with metadata:
+The `MandatoryPassthrough` directive is stored as a loop-level field (`_pending_mandatory_passthrough`) rather than in `input_context`, because `TinyCUALoop.run()` replaces `root_session.input_context` with incoming messages on every invocation (see `run()` line 119). Any directive stored in `input_context` during one `run()` call would be lost before the next `run()` can detect it.
 
 ```python
-# Injected into root_session.input_context by _on_reviewer_open_question()
-{
-    "role": "user",
-    "content": "",  # empty — this is a routing directive, not user content
-    "metadata": {
-        "mandatory_passthrough": MandatoryPassthrough(
-            target_node_id="result_reviewer",
-            target_session_id="<result_reviewer session_id>",
-            reason="open_question needs user continuation",
-            allow_query_analyst_restart=True,
-        )
-    }
-}
+# Stored on TinyCUALoop instance by _on_reviewer_open_question()
+self._pending_mandatory_passthrough: MandatoryPassthrough | None = None
 ```
 
-**Why input_context?** `_build_query_analyst_input()` already extracts metadata from `root_session.input_context` messages into `NodeInput.metadata`. This means the passthrough directive flows naturally through the existing message pipeline without new storage mechanisms. The `check_mandatory_passthrough()` precheck already reads from `NodeInput.metadata["mandatory_passthrough"]`.
+**Injection point:** In `_execute_decision_node()`, after building the QueryAnalyst input via `_build_query_analyst_input()`, the loop injects `self._pending_mandatory_passthrough` into the input metadata before the precheck runs:
+
+```python
+input_data = self._build_query_analyst_input()
+if self._pending_mandatory_passthrough is not None:
+    input_data.metadata["mandatory_passthrough"] = self._pending_mandatory_passthrough
+mandatory = node.check_mandatory_passthrough(input_data)
+```
+
+**Why not input_context?** `_build_query_analyst_input()` extracts metadata from `root_session.input_context` messages — this is correct for the message pipeline and still happens. But the passthrough directive itself must survive the `input_context` reset between `run()` calls, which requires a persistent field on the loop. The injection in `_execute_decision_node()` is a single additional line that merges the pending directive into the same `NodeInput.metadata` dict where `check_mandatory_passthrough()` already reads from.
 
 ---
 
@@ -99,9 +97,9 @@ The `MandatoryPassthrough` directive is stored in `root_session.input_context` a
 def _on_reviewer_open_question(self, active_task: Task) -> None:
     """Install MandatoryPassthrough targeting ResultReviewer for open_question.
 
-    Creates a MandatoryPassthrough directive and injects it into
-    root_session.input_context so the next user continuation is
-    routed deterministically to the ResultReviewer.
+    Creates a MandatoryPassthrough directive and stores it on the loop
+    so the next user continuation is routed deterministically to the
+    ResultReviewer.
 
     Args:
         active_task: The task with an open question.
@@ -123,18 +121,17 @@ def _on_reviewer_open_question(self, active_task: Task) -> None:
 
 ```python
 def _install_mandatory_passthrough(self, mandatory: MandatoryPassthrough) -> None:
-    """Inject a MandatoryPassthrough directive into root_session.input_context.
+    """Store a MandatoryPassthrough directive on the loop for the next run().
+
+    Persists the directive on the loop so it survives the input_context
+    reset at the start of the next run() invocation.
 
     Args:
         mandatory: The passthrough directive to install.
     """
     # Clear any existing passthrough first (only latest is active)
     self._clear_mandatory_passthrough()
-    self.root_session.input_context.append({
-        "role": "user",
-        "content": "",
-        "metadata": {"mandatory_passthrough": mandatory},
-    })
+    self._pending_mandatory_passthrough = mandatory
     logger.info(
         "installed_mandatory_passthrough target=%s session=%s reason=%s",
         mandatory.target_node_id,
@@ -145,12 +142,8 @@ def _install_mandatory_passthrough(self, mandatory: MandatoryPassthrough) -> Non
 
 ```python
 def _clear_mandatory_passthrough(self) -> None:
-    """Remove any existing MandatoryPassthrough from root_session.input_context."""
-    self.root_session.input_context = [
-        msg for msg in self.root_session.input_context
-        if not (isinstance(msg.get("metadata"), dict)
-                and "mandatory_passthrough" in msg["metadata"])
-    ]
+    """Remove the pending MandatoryPassthrough directive from the loop."""
+    self._pending_mandatory_passthrough = None
 ```
 
 ```python
@@ -160,10 +153,53 @@ def _find_result_reviewer(self) -> Node | None:
     Returns:
         The ResultReviewer node if found, None otherwise.
     """
-    for node in self.queue.items():
+    for node in self.queue.items:
         if isinstance(node, TinyCUAResultReviewerNode):
             return node
     return None
+```
+
+### _execute_decision_node() — Pending Passthrough Injection + Consumption
+
+The loop's `_execute_decision_node()` is modified to (a) inject the pending passthrough into the QueryAnalyst input, and (b) clear it after successful forward:
+
+```python
+# Inside _execute_decision_node(), before the precheck:
+if isinstance(node, TinyCUAQueryAnalystNode):
+    input_data = self._build_query_analyst_input()
+
+    # Inject pending MandatoryPassthrough from previous run() (FR-003)
+    if self._pending_mandatory_passthrough is not None:
+        input_data.metadata["mandatory_passthrough"] = (
+            self._pending_mandatory_passthrough
+        )
+
+    mandatory = node.check_mandatory_passthrough(input_data)
+    if mandatory is not None:
+        logger.info(
+            "node=%s mandatory_passthrough detected in loop, bypassing LLM",
+            node.node_id,
+        )
+        from tinycua.models.classification import PASSTHROUGH
+
+        passthrough_content = (
+            f"[Passthrough] target={mandatory.target_node_id} "
+            f"reason={mandatory.reason}"
+        )
+        self._record_node_output(node, passthrough_content)
+        decision = DecisionResult(
+            route_label=PASSTHROUGH,
+            analysis_response=LLMResult(content="", role="assistant"),
+            classification_response=LLMResult(
+                content=PASSTHROUGH, role="assistant"
+            ),
+        )
+        node.on_complete(self.queue, decision)
+
+        # Clear passthrough after successful forward to prevent stale re-use (FR-010)
+        self._clear_mandatory_passthrough()
+
+        return passthrough_content, True, decision
 ```
 
 ### QueryAnalyst.route_passthrough (Currently a No-Op)
@@ -179,7 +215,7 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 | No active ResultReviewer node | Warning log, no passthrough installed | Fallback to normal classification |
 | ResultReviewer has no session | Warning log, no passthrough installed | Should not happen in practice |
 | Stale passthrough (session mismatch) | Fallback to LLM classification | Existing behavior in `check_mandatory_passthrough` |
-| Passthrough consumed after forward | Cleared from input_context | Prevents stale re-use |
+| Passthrough consumed after forward | Cleared from loop field (`_clear_mandatory_passthrough()`) | Prevents stale re-use on next `run()` |
 
 ---
 
@@ -187,16 +223,17 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 ### Phase 1 — MVP (required for initial release)
 
+- [ ] Add `_pending_mandatory_passthrough` field to `TinyCUALoop`
 - [ ] Implement `_install_mandatory_passthrough()` on `TinyCUALoop`
 - [ ] Implement `_clear_mandatory_passthrough()` on `TinyCUALoop`
 - [ ] Implement `_find_result_reviewer()` on `TinyCUALoop`
 - [ ] Update `_on_reviewer_open_question()` to install MandatoryPassthrough
-- [ ] Add unit tests for installation, clearing, and forwarding
+- [ ] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input and clear it after successful forward
+- [ ] Add unit tests for installation, clearing, injection, and forwarding
 - [ ] Add integration test for end-to-end open_question → passthrough → continuation
 
 ### Phase 2 — Enhancements (post-MVP)
 
-- [ ] Clear passthrough after successful forward in `_execute_decision_node()` (consumption tracking)
 - [ ] Support `allow_query_analyst_restart=False` behavior in stale guard (already exists in `check_mandatory_passthrough`)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
@@ -205,9 +242,9 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 ## Technical Decisions
 
-1. **Decision**: Store MandatoryPassthrough in `root_session.input_context` metadata
-   - **Reason**: `_build_query_analyst_input()` already extracts metadata from `input_context` messages into `NodeInput.metadata`. This reuses the existing pipeline without new storage mechanisms.
-   - **Alternatives Considered**: Store on loop as `self._pending_mandatory_passthrough` — rejected because it requires a new injection point in `_build_query_analyst_input()` and creates a parallel storage path.
+1. **Decision**: Store MandatoryPassthrough as a loop-level field (`_pending_mandatory_passthrough`) and inject it in `_execute_decision_node()`
+   - **Reason**: `TinyCUALoop.run()` replaces `root_session.input_context` on each invocation (line 119), so any passthrough stored in `input_context` during one `run()` call would be lost before the next. Loop-level storage survives the reset. The injection is a single line in `_execute_decision_node()` that merges the pending directive into `NodeInput.metadata` before the precheck.
+   - **Alternatives Considered**: Store in `input_context` metadata — rejected; `run()` replaces `input_context` (`self.root_session.input_context = list(messages)`) on each call, destroying the passthrough before the next `run()` can detect it.
 
 2. **Decision**: `_on_reviewer_open_question()` finds ResultReviewer via queue scan
    - **Reason**: The queue contains all active nodes. Scanning for `TinyCUAResultReviewerNode` is simple and reliable.
@@ -231,17 +268,16 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| input_context metadata message may confuse downstream nodes | Low | Medium | Empty content string + metadata-only message; nodes that don't check metadata will ignore it |
 | ResultReviewer may not be in queue when open_question fires | Low | Low | `_find_result_reviewer()` returns None; warning logged; no passthrough installed; falls back to normal flow |
-| Stale passthrough from a previous run cycle | Medium | Low | `_clear_mandatory_passthrough()` before installing; stale guard in `check_mandatory_passthrough()` |
+| Stale passthrough from a previous run cycle | Medium | Low | Cleared after successful forward in `_execute_decision_node()`; stale guard in `check_mandatory_passthrough()` as second line of defense |
 | User sends empty continuation after open_question | Low | Low | QueryAnalyst classifies empty input as uncertain; normal behavior |
 
 ---
 
 ## Open Questions (optional)
 
-1. **Should the passthrough message be removed from input_context after forwarding, or kept for audit?**
-   - **Status**: Proposed — remove after forwarding to prevent stale re-use. Audit trail is already in chat_history/session_context.
+1. ~~**Should the MandatoryPassthrough be stored on the loop or in root session metadata?**~~ _(Resolved — loop-level storage, see Technical Decision #1)_
+2. ~~**Should the passthrough message be removed from input_context after forwarding, or kept for audit?**~~ _(Resolved — stored on loop as `_pending_mandatory_passthrough`, cleared via `_clear_mandatory_passthrough()` after successful forward. Audit trail is in chat_history/session_context.)_
 
 ---
 
