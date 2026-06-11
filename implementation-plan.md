@@ -272,38 +272,51 @@ def test_response_node_digester_integration():
     mock_queue = MagicMock()
     mock_queue.current = response_node
 
-    # Mock the digest result that will be incorporated
+    # ===== Phase 1: __call__ with insufficient context + digester enabled =====
+    # Per design: __call__ sets _needs_digestion flag and returns a placeholder.
+    # Actual suspension (suspend_for_digestion) is deferred to on_complete.
+    with patch.object(response_node, '_suspend_for_digestion') as mock_suspend:
+        result = response_node(input_data)
+
+        # Verify the flag is set — suspension defers to on_complete
+        assert response_node._needs_digestion is True
+        # _suspend_for_digestion should NOT be called during __call__
+        mock_suspend.assert_not_called()
+
+    # ===== Phase 2: on_complete triggers suspension =====
+    with patch.object(response_node, '_suspend_for_digestion') as mock_suspend:
+        response_node.on_complete(mock_queue, result)
+        mock_suspend.assert_called_once()
+        # Verify the queue was passed for suspension operation
+        call_args = mock_suspend.call_args
+        assert call_args[0][1] is mock_queue  # second positional arg is the queue
+
+    # ===== Phase 3: Simulate resume after digestion with enriched context =====
     digest_result = AggregatedResult(
         root_task_id="root",
         task_summaries=["Digested: Additional context gathered"],
         final_context="Digested: Additional context gathered",
     )
 
-    # Patch _suspend_for_digestion to verify it's called with correct args
-    with patch.object(response_node, '_suspend_for_digestion') as mock_suspend:
-        # Patch _gather_context_via_tools to return enriched context
-        enriched_context = ResponseContext(
-            aggregated_result=digest_result,
-            session_context=[{"role": "assistant", "content": "Digested context"}],
-            latest_output="digested output",
-            continuation_payload=None,
-        )
-        with patch.object(response_node, '_gather_context_via_tools', return_value=enriched_context):
-            # Patch _synthesize_response to verify resume produces output
-            synthesized = LLMResult(content="Final response after digestion")
-            with patch.object(response_node, '_synthesize_response', return_value=synthesized):
-                # Execute — should trigger suspension path
-                # __call__ will internally convert NodeInput to ResponseContext before processing
-                result = response_node(input_data)
+    # Build input for the resumed call (sufficient context after digestion)
+    resume_input = _make_node_input(messages=[{
+        "role": "system",
+        "content": "Sufficient context: Enriched after digestion"
+    }])
 
-                # Verify suspension was triggered (called with the internal ResponseContext)
-                mock_suspend.assert_called_once()
+    # Reset the flag for the resumed call
+    response_node._needs_digestion = False
 
-                # Verify the result is a valid LLMResult with content
-                assert isinstance(result, LLMResult)
-                assert isinstance(result.content, str)
-                assert len(result.content) > 0
-                assert result.content == "Final response after digestion"
+    # Mock the resume path: context is sufficient, synthesize directly
+    with patch.object(response_node, '_synthesize_response', return_value=LLMResult(content="Final response after digestion")):
+        with patch.object(response_node, '_check_context_sufficiency', return_value=True):
+            resume_result = response_node(resume_input)
+
+            # Verify the final synthesized result
+            assert isinstance(resume_result, LLMResult)
+            assert isinstance(resume_result.content, str)
+            assert len(resume_result.content) > 0
+            assert resume_result.content == "Final response after digestion"
 ```
 
 ### Key Test Scenarios

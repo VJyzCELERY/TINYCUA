@@ -1,6 +1,6 @@
 # TinyCUAResponseNode
 
-> **Package:** `tinycua.loops.response`
+> **Package:** `tinycua.loops.response_node`
 > **Status:** Ready for Implementation
 
 ## Role
