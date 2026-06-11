@@ -193,13 +193,17 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         if self.loop is not None:
             if outcome == "accept" and active_task is not None:
-                self.loop._on_reviewer_accept(active_task)
+                root_done = self.loop._on_reviewer_accept(active_task)
+                if root_done:
+                    self.loop._route_to_aggregation(queue)
             elif outcome == "retry" and active_task is not None:
                 if self.loop._reviewer_retry_state.can_retry():
                     self.loop._on_reviewer_retry(active_task)
                 else:
                     # Force accept when threshold reached
-                    self.loop._on_reviewer_accept(active_task)
+                    root_done = self.loop._on_reviewer_accept(active_task)
+                    if root_done:
+                        self.loop._route_to_aggregation(queue)
             elif outcome == "replan" and active_task is not None:
                 self.loop._on_reviewer_replan(active_task)
                 queue.clear_after_current()
