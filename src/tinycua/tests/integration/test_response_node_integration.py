@@ -28,11 +28,16 @@ def empty_aggregated() -> AggregatedResult | None:
     return None
 
 
-def _make_session_with_context(context_str: str) -> Session:
+def _make_session_with_context(
+    context_str: str,
+    *,
+    aggregated_result: AggregatedResult | None = None,
+) -> Session:
     session = Session()
-    session.session_context.append(
-        {"role": "assistant", "content": context_str}
-    )
+    entry: dict = {"role": "assistant", "content": context_str}
+    if aggregated_result is not None:
+        entry["aggregated_result"] = aggregated_result
+    session.session_context.append(entry)
     return session
 
 
@@ -46,7 +51,14 @@ class TestTinyCUAResponseNodeDirectSynthesis:
 
         config = NodeConfigBase()
         node = TinyCUAResponseNode(config=config)
-        session = _make_session_with_context("[AggregatedResult] Root: Done")
+        session = _make_session_with_context(
+            "Root: Done",
+            aggregated_result=AggregatedResult(
+                root_task_id="root",
+                task_summaries=["Root: Done"],
+                final_context="Root: Done",
+            ),
+        )
         node.ensure_session(session)
 
         # Wire in a mock LLM client so ProcessNode.__call__ works
@@ -170,7 +182,14 @@ class TestResponseNodeRetryBehavior:
         )
 
         node = TinyCUAResponseNode(config=config)
-        session = _make_session_with_context("[AggregatedResult] Test")
+        session = _make_session_with_context(
+            "Test",
+            aggregated_result=AggregatedResult(
+                root_task_id="root",
+                task_summaries=["Test"],
+                final_context="Test",
+            ),
+        )
         node.ensure_session(session)
 
         from tinycua.models.node_input import NodeInput

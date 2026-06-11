@@ -335,12 +335,12 @@ def test_response_node_digester_integration():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for `TinyCUAResponseNode` — test initialization, `__call__`, `_check_context_sufficiency`, `_suspend_for_digestion`, `_gather_context_via_tools`, `_synthesize_response`, `on_complete`
-- [ ] Unit tests for `ResponseContext` helper — test context aggregation from NodeInput
-- [ ] Unit tests for continuation routing — test MandatoryPassthrough handling
-- [ ] Unit tests for retry behavior — test retry exhaustion fallback
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for `TinyCUAResponseNode` — test initialization, `__call__`, `_check_context_sufficiency`, `_suspend_for_digestion`, `_gather_context_via_tools`, `_synthesize_response`, `on_complete`
+- [x] Unit tests for `ResponseContext` helper — test context aggregation from NodeInput
+- [x] Unit tests for continuation routing — test MandatoryPassthrough handling
+- [x] Unit tests for retry behavior — test retry exhaustion fallback
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
@@ -348,9 +348,9 @@ def test_response_node_digester_integration():
 
 ### Performance Considerations
 
-- [ ] Context sufficiency check is lightweight — no LLM call required
-- [ ] Digester suspension uses existing queue machinery (no new infrastructure)
-- [ ] Retry limits prevent infinite loops during synthesis
+- [x] Context sufficiency check is lightweight — no LLM call required
+- [x] Digester suspension uses existing queue machinery (no new infrastructure)
+- [x] Retry limits prevent infinite loops during synthesis
 
 ## Proposed Changes
 
@@ -504,11 +504,11 @@ No public API changes — all changes are internal to `tinycua.loops`. The `Tiny
 
 ### Internal Dependencies
 
-- [ ] Depends on Milestone 3.4 (`ResultAggregationNode`) — provides `AggregatedResult` input
-- [ ] Depends on Milestone 2.5 (`TinyCUAInformationDigesterNode`) — optional digester suspension path
-- [ ] Depends on Milestone 3.3 (MandatoryPassthrough continuation routing) — for consolidated continuation
-- [ ] Depends on Milestone 1.7 (`NodeQueue.suspend_current_and_prepend`) — queue suspension machinery
-- [ ] Relies on `NodeRetryPolicy` and `NodeToolPolicy` — already available in `node_config.py`
+- [x] Depends on Milestone 3.4 (`ResultAggregationNode`) — provides `AggregatedResult` input
+- [x] Depends on Milestone 2.5 (`TinyCUAInformationDigesterNode`) — optional digester suspension path
+- [x] Depends on Milestone 3.3 (MandatoryPassthrough continuation routing) — for consolidated continuation
+- [x] Depends on Milestone 1.7 (`NodeQueue.suspend_current_and_prepend`) — queue suspension machinery
+- [x] Relies on `NodeRetryPolicy` and `NodeToolPolicy` — already available in `node_config.py`
 
 ## Risks and Mitigations
 

@@ -210,22 +210,9 @@ class TinyCUAResponseNode(ProcessNode):
             # string marker parsing to avoid fragile format coupling.
             found_marker = False
             for entry in reversed(session_context):
-                # Preferred: structured field from ResultAggregationNode
                 if "aggregated_result" in entry:
                     aggregated_result = entry["aggregated_result"]
                     latest_output = aggregated_result.final_context
-                    found_marker = True
-                    break
-                # Fallback: legacy string marker parsing
-                content = entry.get("content", "")
-                if isinstance(content, str) and "[AggregatedResult]" in content:
-                    title = content.replace("[AggregatedResult]", "").strip()
-                    aggregated_result = AggregatedResult(
-                        root_task_id="root",
-                        task_summaries=[title],
-                        final_context=content,
-                    )
-                    latest_output = content
                     found_marker = True
                     break
             if session_context and not found_marker:
