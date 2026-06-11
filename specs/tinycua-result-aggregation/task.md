@@ -24,7 +24,7 @@ Implementation tasks for TinyCUAResultAggregationNode. Check off items as comple
 - [ ] Implement `TinyCUAResultAggregationNode` class <!-- id: 4 --> <!-- Depends: [2, 3] -->
   - [ ] Extend `ProcessNode` with `node_id="result_aggregation"`
   - [ ] `__init__`: accept optional `loop` reference
-  - [ ] `__call__`: guard (session + root task done), call `_traverse_bfs_right_to_left`, call `_consolidate`, record result, propagate
+  - [ ] `__call__`: guard (session + root task done), materialize traversal results (`list(_traverse_bfs_right_to_left(...))`), call `_consolidate`, record result, propagate
   - [ ] `_consolidate(traversal_results) -> AggregatedResult`: build consolidated result from traversed tasks
   - [ ] `on_complete`: call `queue.advance()` to advance to `ResponseNode`
   - [ ] Handle tasks with no result gracefully (skip / record "not_executed")

@@ -415,8 +415,8 @@ class AggregatedResult:
 - `__init__(self, node_id="result_aggregation", config=None, loop=None)` — accepts optional `loop` reference for access to `root_task` and `session`.
 - `__call__(self, input: NodeInputLike) -> LLMResult`:
   1. Guard: assert `session` is attached and root task is done (`session.task` / `loop.root_task` is done).
-  2. Traverse task tree via `_traverse_bfs_right_to_left(root_task)` generator.
-  3. Consolidate traversal results via `_consolidate(traversal_results)` → `AggregatedResult`.
+  2. Traverse task tree: `traversal_results = list(self._traverse_bfs_right_to_left(root_task))`.
+  3. Consolidate: `result = self._consolidate(traversal_results)` → `AggregatedResult`.
   4. Record result to session context / response metadata.
   5. `propagate()`.
   6. Return `LLMResult` with `AggregatedResult` in `metadata["aggregated_result"]`.
