@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Created**: 2026-06-12
-**Last Updated**: 2026-06-12
+**Last Updated**: 2026-06-12 (review fixes applied)
 **Subproject(s) Affected**: tinycua
 
 ---
@@ -27,7 +27,7 @@
   - Must preserve `is_terminal=True` contract
   - Must work within existing `NodeQueue` bootstrap (terminal at end of queue)
   - Must integrate with TinyCUALoop's existing response handling
-  - Must support both streamed and non-streamed output modes
+  - Must support both streamed and non-streamed output modes (streaming wiring deferred to a future milestone; `NodeStreamPolicy` config infrastructure exists but ResponseNode-specific stream output handling is Phase 2)
   - Must use `NodeRetryPolicy` for retry behavior
 
 ---
@@ -49,7 +49,7 @@ The TinyCUALoop completes its execution path (e.g., task executor → result rev
 
 - What happens when aggregated context is empty?
 - What happens when the digester returns no useful context?
-- How does the system handle retry exhaustion during response synthesis?
+- How does the system handle retry exhaustion during response synthesis? (Resolved: return a configurable fallback message rather than raising, to maintain graceful terminal behavior — see design.md OQ 2.)
 - What is the behavior with null/empty NodeInput?
 - How does terminal output normalization handle non-string LLM results?
 
@@ -65,7 +65,7 @@ The TinyCUALoop completes its execution path (e.g., task executor → result rev
 - **FR-004**: When context is insufficient and InformationDigester is enabled, ResponseNode MUST suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=response_node)])` and resume after digestion.
 - **FR-005**: When context is insufficient and the digester path is unavailable, ResponseNode MAY use allowed tools directly to gather additional context.
 - **FR-006**: ResponseNode MUST normalize terminal output to a string.
-- **FR-007**: ResponseNode MUST support consolidated continuation behavior — user continuation routing must reach the active ResponseNode session without LLM rerouting.
+- **FR-007**: ResponseNode MUST support consolidated continuation behavior — user continuation routing must reach the active ResponseNode session without LLM rerouting. "Consolidated" means the continuation is delivered via the existing `MandatoryPassthrough` mechanism (M3.3): a deterministic directive stored on the loop that routes the next user input directly to the target node (ResponseNode), bypassing QueryAnalyst classification. This avoids redundant LLM calls and ensures the continuation reaches the same session context.
 - **FR-008**: ResponseNode MUST respect `NodeRetryPolicy` for retry behavior during synthesis.
 - **FR-009**: ResponseNode MUST use the same base toolset as `TaskExecutor` (as specified by `NodeToolPolicy`).
 

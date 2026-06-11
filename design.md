@@ -2,7 +2,7 @@
 
 **Spec**: `./spec.md`
 **Status**: Draft
-**Last Updated**: 2026-06-12
+**Last Updated**: 2026-06-12 (review fixes applied)
 
 ---
 
@@ -106,7 +106,7 @@ class TinyCUAResponseNode(ProcessNode):
         digester_enabled: bool = True,
     ) -> None: ...
     
-    def __call__(self, input: NodeInputLike) -> str: ...
+    def __call__(self, input: NodeInputLike) -> LLMResult: ...
     
     def _check_context_sufficiency(self, context: ResponseContext) -> bool: ...
     
@@ -114,10 +114,10 @@ class TinyCUAResponseNode(ProcessNode):
     
     def _gather_context_via_tools(self, context: ResponseContext) -> ResponseContext: ...
     
-    def _synthesize_response(self, context: ResponseContext) -> str: ...
+    def _synthesize_response(self, context: ResponseContext) -> LLMResult: ...
     
-    def on_complete(self) -> str:
-        """Called by queue after execution. Returns final string."""
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
+        """Called by queue after execution with the response for queue mutations."""
 ```
 
 ### Error Handling
@@ -128,6 +128,27 @@ class TinyCUAResponseNode(ProcessNode):
 | Empty context | Falls back to digester or tools | Never silently returns empty |
 | Digester unavailable | Falls back to direct tools | Graceful degradation |
 | Digester returns no context | Proceeds with available context | Logs warning, synthesizes what it has |
+
+---
+
+### Tool Policy Configuration
+
+ResponseNode integrates with `NodeToolPolicy` (defined in `tinycua/config/node_config.py`) to satisfy FR-009. The policy is configured as follows:
+
+```python
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+
+config = NodeConfigBase()
+config.tool_policy = NodeToolPolicy(
+    node_tools=[],              # No response-specific tools yet
+    include_agent_tools="all",  # Share same toolset as TaskExecutor
+)
+```
+
+This configuration:
+- Passes all outer agent tools through to ResponseNode via `resolve_tools()`
+- Allows the loop to apply the same tool filtering (allow/deny lists) as TaskExecutor
+- Uses the same `NodeToolPolicy.include_agent_tools` mechanism already tested in M3.x nodes (see InformationDigesterNode for the inverse pattern — `include_agent_tools="none"`)
 
 ---
 
@@ -146,6 +167,7 @@ class TinyCUAResponseNode(ProcessNode):
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
+- [ ] **Streaming output mode**: Wire `NodeStreamPolicy` configuration into ResponseNode to emit streamed output. The config infrastructure (`NodeStreamPolicy` on `NodeConfigBase`) already exists, but ResponseNode-specific stream event wiring and user-facing stream output are deferred until a future milestone.
 - [ ] Information-digestion suspension path to gather additional context mid-response (deferred to milestone 3.6 per roadmap)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
@@ -162,8 +184,9 @@ class TinyCUAResponseNode(ProcessNode):
    - **Reason**: No new queue machinery needed. The suspension API is already implemented and tested.
    - **Alternatives Considered**: Custom suspension logic in ResponseNode — rejected to avoid duplicating queue infrastructure.
 
-3. **Decision**: ResponseNode uses same base toolset as TaskExecutor
-   - **Reason**: The design doc specifies this explicitly. Both nodes need access to information-gathering tools.
+3. **Decision**: ResponseNode uses same base toolset as TaskExecutor via `NodeToolPolicy`
+   - **Reason**: FR-009 requires ResponseNode to share the same tool scope as TaskExecutor. The existing `NodeConfigBase.tool_policy: NodeToolPolicy` already provides the resolution mechanism.
+   - **Implementation**: Configure `NodeToolPolicy(include_agent_tools="all")` on the ResponseNode config. This passes all outer agent tools through (subject to any deny list), giving ResponseNode the same tool access as TaskExecutor. The `resolve_tools()` method on `NodeToolPolicy` handles the filtering, and the result is passed to the LLM as available tools.
    - **Alternatives Considered**: Dedicated response-only toolset — rejected per spec requirement.
 
 4. **Decision**: Context sufficiency thresholds are configurable via NodeConfig
@@ -190,8 +213,10 @@ class TinyCUAResponseNode(ProcessNode):
    - Status: Discussion
 
 2. **Should retry exhaustion during synthesis return a fallback message or raise?**
-   - Current thinking: Return a configurable fallback message (e.g., "I encountered an error generating the final response.") rather than raising, to maintain graceful terminal behavior.
-   - Status: Discussion
+   - **Decided**: Return a configurable fallback message (e.g., "I encountered an error generating the final response.") rather than raising, to maintain graceful terminal behavior as the terminal node.
+   - **Rationale**: As the terminal node, ResponseNode must always produce output. Raising `NodeExecutionError` would break the queue and leave the user with no response. A fallback message (configurable via `NodeConfig.metadata["fallback_message"]`) is the safer, user-friendly choice.
+   - **Implementation**: Set `NodeRetryPolicy.on_retry_exhausted = "record_failure"` so the last response is preserved. If that response is empty or invalid, synthesize the fallback message as the final `LLMResult.content`.
+   - **Status**: Decided
 
 ---
 
