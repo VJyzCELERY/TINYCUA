@@ -170,11 +170,16 @@ def test_stale_passthrough_restart_false_drops_continuation():
     from tinycua.models.node_input import NodeInput
 
     input_data = NodeInput(
-        content="user continuation",
+        input_type="continuation",
+        messages=[{"role": "user", "content": "user continuation"}],
         metadata={"mandatory_passthrough": loop._pending_mandatory_passthrough},
     )
-    result = loop.query_analyst.check_mandatory_passthrough(
-        input_data=input_data, session=loop.root_session
+    from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+
+    qa = TinyCUAQueryAnalystNode()
+    qa.ensure_session(session)
+    result = qa.check_mandatory_passthrough(
+        input_data=input_data,
     )
 
     # Assert — passthrough is dropped, no restart
@@ -446,16 +451,16 @@ async def test_new_user_query_clears_pending_passthrough():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: `_on_reviewer_open_question` installs `MandatoryPassthrough` with correct `target_node_id` and `target_session_id`
-- [ ] **Scenario 2**: `_execute_decision_node` injects pending passthrough into QueryAnalyst input metadata and clears it after successful forward
-- [ ] **Scenario 3**: Queue restart — `_ensure_query_analyst_at_front()` moves QueryAnalyst to front when passthrough is pending
-- [ ] **Scenario 4**: Two-call end-to-end — first `run()` simulates open_question → install passthrough; second `run()` detects passthrough via queue restart → consumes it → clears it
-- [ ] **Edge case**: `_on_reviewer_open_question` with no ResultReviewer in queue — warns and does not install
-- [ ] **Edge case**: Multiple sequential open_questions — each replaces the previous passthrough
-- [ ] **Edge case**: Stale passthrough with `allow_query_analyst_restart=False` — continuation is dropped silently
-- [ ] **Edge case**: User sends new top-level query while passthrough pending — stale passthrough is cleared during `run()` and falls back to LLM classification
-- [ ] **Edge case**: `_on_reviewer_open_question(None)` — no active task, passthrough not installed
-- [ ] **Edge case**: `_find_result_reviewer()` with multiple ResultReviewers — returns first match
+- [x] **Scenario 1**: `_on_reviewer_open_question` installs `MandatoryPassthrough` with correct `target_node_id` and `target_session_id`
+- [x] **Scenario 2**: `_execute_decision_node` injects pending passthrough into QueryAnalyst input metadata and clears it after successful forward
+- [x] **Scenario 3**: Queue restart — `_ensure_query_analyst_at_front()` moves QueryAnalyst to front when passthrough is pending
+- [x] **Scenario 4**: Two-call end-to-end — first `run()` simulates open_question → install passthrough; second `run()` detects passthrough via queue restart → consumes it → clears it
+- [x] **Edge case**: `_on_reviewer_open_question` with no ResultReviewer in queue — warns and does not install
+- [x] **Edge case**: Multiple sequential open_questions — each replaces the previous passthrough
+- [x] **Edge case**: Stale passthrough with `allow_query_analyst_restart=False` — continuation is dropped silently
+- [x] **Edge case**: User sends new top-level query while passthrough pending — stale passthrough is cleared during `run()` and falls back to LLM classification
+- [x] **Edge case**: `_on_reviewer_open_question(None)` — no active task, passthrough not installed
+- [x] **Edge case**: `_find_result_reviewer()` with multiple ResultReviewers — returns first match
 
 ## Verification Plan
 
