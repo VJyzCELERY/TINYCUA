@@ -423,7 +423,7 @@ class AggregatedResult:
 - `_traverse_bfs_right_to_left(task: Task, max_inspected_tasks: int | None = None, context_sufficient_fn: Callable | None = None) -> Iterator[Task]`:
   - Generator-based guided BFS right-to-left / most-recent-first.
   - Uses `collections.deque` with a reversed children queue.
-  - Supports early termination via `stop_traversal` attribute or `max_inspected_tasks` threshold.
+  - Supports early termination via `context_sufficient_fn` callback or `max_inspected_tasks` threshold.
   - Inspects each visited task's context, result, artifacts, and reviewer decisions.
   - Yields each inspected task for the caller to consume.
 - `_consolidate(traversal_results: list[Task]) -> AggregatedResult`:
