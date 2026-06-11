@@ -14,7 +14,7 @@ from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_input import NodeInput
 from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.session import Session
-from tinycua.models.task import Task
+from tinycua.models.task import Task, TaskResult
 
 
 # --- ReviewerRetryState tests ---
@@ -236,9 +236,10 @@ def test_task_executor_call_with_mocked_llm():
 
     result = executor(input_data)
 
-    assert result.metadata["execution_result"]["task_id"] == "t-1"
-    assert result.metadata["execution_result"]["execution_status"] == "succeeded"
-    assert result.metadata["execution_result"]["summary"] == "Done"
+    exec_result: TaskResult = result.metadata["execution_result"]
+    assert exec_result.task_id == "t-1"
+    assert exec_result.execution_status == "succeeded"
+    assert exec_result.summary == "Done"
 
 
 def test_task_executor_call_raises_when_no_active_task():
@@ -271,8 +272,8 @@ def test_task_executor_call_raises_when_no_session():
         assert "no session" in str(e).lower()
 
 
-def test_task_executor_call_sets_failed_status_on_exception():
-    """TaskExecutor sets execution_status='failed' when LLM raises."""
+def test_task_executor_call_reraises_when_llm_fails_on_first_iteration():
+    """TaskExecutor re-raises when LLM fails on first iteration."""
     config = NodeConfigBase()
     config.llm_client = MagicMock(side_effect=RuntimeError("LLM unavailable"))
     executor = TinyCUATaskExecutorNode(config=config)
@@ -288,6 +289,37 @@ def test_task_executor_call_sets_failed_status_on_exception():
         raise AssertionError("Expected RuntimeError")
     except RuntimeError:
         pass
+
+
+def test_task_executor_call_sets_failed_status_after_partial_execution():
+    """TaskExecutor sets execution_status='failed' when LLM fails mid-execution."""
+    config = NodeConfigBase()
+    call_count = 0
+
+    def mock_llm(messages):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Return tool_calls to keep the loop going past the first iteration
+            return {
+                "content": "partial",
+                "role": "assistant",
+                "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "test", "arguments": "{}"}}],
+            }
+        raise RuntimeError("LLM unavailable mid-execution")
+
+    config.llm_client = mock_llm
+    executor = TinyCUATaskExecutorNode(config=config)
+    executor.ensure_session(Session())
+    task = Task(task_id="t-2b", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    result = executor(input_data)
+    exec_result: TaskResult = result.metadata["execution_result"]
+    assert exec_result.execution_status == "failed"
 
 
 def test_task_executor_respects_max_react_iterations():
@@ -316,7 +348,8 @@ def test_task_executor_respects_max_react_iterations():
 
     result = executor(input_data)
     assert call_count == 3
-    assert result.metadata["execution_result"]["execution_status"] == "max_iterations_reached"
+    exec_result: TaskResult = result.metadata["execution_result"]
+    assert exec_result.execution_status == "max_iterations_reached"
 
 
 def test_task_executor_on_complete_advances_queue():
@@ -343,3 +376,94 @@ def test_on_reviewer_replan_does_not_spawn():
 
     # _on_reviewer_replan should NOT call spawn_after_current
     mock_queue.spawn_after_current.assert_not_called()
+
+
+# --- ResultReviewer _parse_decision coverage tests ---
+
+
+def test_parse_decision_json_input():
+    """_parse_decision: regex-first means JSON content is matched by keyword regex."""
+    reviewer = TinyCUAResultReviewerNode()
+    response = LLMResult(
+        content='{"outcome": "accept", "rationale": "task is done"}',
+        role="assistant",
+    )
+    result = reviewer._parse_decision(response)
+    # With regex-first priority, "accept" is matched by the keyword regex
+    # and rationale becomes the raw content (truncated to 200 chars)
+    assert result["outcome"] == "accept"
+    assert "task is done" in result["rationale"]
+
+
+def test_parse_decision_garbage_input_triggers_fallback():
+    """_parse_decision falls back to retry when input is unparseable garbage."""
+    reviewer = TinyCUAResultReviewerNode()
+    response = LLMResult(
+        content="!!!random garbage with no keywords!!!",
+        role="assistant",
+    )
+    result = reviewer._parse_decision(response)
+    assert result["outcome"] == "retry"
+    assert "Could not parse decision" in result["rationale"]
+
+
+def test_parse_decision_empty_content_triggers_fallback():
+    """_parse_decision falls back to retry when content is empty."""
+    reviewer = TinyCUAResultReviewerNode()
+    response = LLMResult(content="", role="assistant")
+    result = reviewer._parse_decision(response)
+    assert result["outcome"] == "retry"
+
+
+def test_parse_decision_none_content_triggers_fallback():
+    """_parse_decision falls back to retry when content is None."""
+    reviewer = TinyCUAResultReviewerNode()
+    response = LLMResult(content=None, role="assistant")
+    result = reviewer._parse_decision(response)
+    assert result["outcome"] == "retry"
+
+
+# --- ResultReviewer __call__ coverage tests ---
+
+
+def test_result_reviewer_call_with_mocked_llm():
+    """ResultReviewer.__call__ returns LLMResult with reviewer_decision metadata."""
+    config = NodeConfigBase()
+    config.llm_client = MagicMock(
+        return_value={"content": "accept", "role": "assistant"}
+    )
+    reviewer = TinyCUAResultReviewerNode(config=config)
+    reviewer.ensure_session(Session())
+
+    task = Task(task_id="r-1", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    result = reviewer(input_data)
+
+    assert isinstance(result, LLMResult)
+    assert "reviewer_decision" in result.metadata
+    assert result.metadata["reviewer_decision"]["outcome"] == "accept"
+    assert result.metadata["active_task"] is task
+
+
+def test_result_reviewer_call_raises_when_no_session():
+    """ResultReviewer raises NodeExecutionError when no session is attached."""
+    config = NodeConfigBase()
+    config.llm_client = MagicMock()
+    reviewer = TinyCUAResultReviewerNode(config=config)
+    # No ensure_session call
+
+    task = Task(task_id="r-2", title="T", description="D", status="in_progress")
+    input_data = NodeInput(
+        input_type="continuation",
+        metadata={"active_task": task},
+    )
+
+    try:
+        reviewer(input_data)
+        raise AssertionError("Expected NodeExecutionError")
+    except NodeExecutionError as e:
+        assert "no session" in str(e).lower()

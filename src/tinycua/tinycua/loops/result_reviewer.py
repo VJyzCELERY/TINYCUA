@@ -62,8 +62,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
     def _parse_decision(self, response: LLMResult) -> dict[str, Any]:
         """Parse reviewer decision from LLM response.
 
-        Attempts to parse JSON from the response. Falls back to retry
-        if parsing fails.
+        Attempts regex keyword match first (fast, robust), then falls back
+        to JSON parsing for LLMs that comply with the format instruction.
 
         Args:
             response: The LLM response containing reviewer decision.
@@ -71,17 +71,26 @@ class TinyCUAResultReviewerNode(ProcessNode):
         Returns:
             Dict with 'outcome' and 'rationale' keys.
         """
+        # Primary path: search for outcome keyword (fast, robust)
+        if response.content:
+            match = re.search(
+                r'(accept|retry|replan|open_question)',
+                response.content,
+                re.IGNORECASE,
+            )
+            if match:
+                return {
+                    "outcome": match.group(1).lower(),
+                    "rationale": response.content[:200],
+                }
+
+        # Secondary path: try JSON parsing (for LLMs that comply with format instruction)
         try:
             data = json.loads(response.content)
             if isinstance(data, dict) and "outcome" in data:
                 return data
         except (json.JSONDecodeError, TypeError):
             pass
-
-        # Fallback: search for outcome keyword anywhere in response (allows surrounding text)
-        match = re.search(r'(accept|retry|replan|open_question)', response.content, re.IGNORECASE)
-        if match:
-            return {"outcome": match.group(1).lower(), "rationale": response.content[:200]}
 
         # Default fallback: retry
         raw_preview = (response.content or "")[:200]

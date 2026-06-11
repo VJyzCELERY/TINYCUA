@@ -65,6 +65,14 @@ class TinyCUALoop(BaseLoop):
         self._active_task_id: str | None = None
         self._reviewer_retry_state: ReviewerRetryState = ReviewerRetryState()
 
+        if self.session_config.llm_client is None:
+            logger.warning(
+                "TinyCUALoop created without llm_client in session_config — "
+                "ProcessNode custom logic (ReAct loops, decision parsing) will "
+                "be bypassed. Set SessionConfig(llm_client=<client>) to enable "
+                "custom node behavior. See design.md Decision #7."
+            )
+
         if queue is not None:
             self.queue = queue
         else:

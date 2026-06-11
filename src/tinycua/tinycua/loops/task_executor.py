@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import NodeExecutionError, ProcessNode
 from tinycua.models.node_input import NodeInput
+from tinycua.models.task import TaskResult
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -92,8 +93,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
         task: Any,
         status: str = "succeeded",
         summary: str = "",
-    ) -> dict[str, Any]:
-        """Build a TaskResult dict from the execution.
+    ) -> TaskResult:
+        """Build a TaskResult from the execution.
 
         Args:
             task: The task that was executed.
@@ -101,15 +102,15 @@ class TinyCUATaskExecutorNode(ProcessNode):
             summary: Human-readable summary.
 
         Returns:
-            Dict representation of TaskResult.
+            Typed TaskResult instance.
         """
-        return {
-            "task_id": task.task_id,
-            "execution_status": status,
-            "summary": summary,
-            "artifacts": [],
-            "metadata": {"executor_iterations": self.max_react_iterations},
-        }
+        return TaskResult(
+            task_id=task.task_id,
+            execution_status=status,
+            summary=summary,
+            artifacts=[],
+            metadata={"executor_iterations": self.max_react_iterations},
+        )
 
     def __call__(self, input_data: NodeInputLike) -> LLMResult:
         """Execute the task with a bounded ReAct loop.
@@ -202,7 +203,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 len(last_response.content),
                 effective_max_summary,
             )
-        result_dict = self._build_execution_result(
+        result = self._build_execution_result(
             task,
             status=status,
             summary=summary_text,
@@ -212,13 +213,13 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "node=%s task_id=%s execution_complete status=%s",
             self.node_id,
             task.task_id,
-            result_dict["execution_status"],
+            result.execution_status,
         )
 
         return LLMResult(
             content=last_response.content,
             role="assistant",
-            metadata={"execution_result": result_dict},
+            metadata={"execution_result": result},
         )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
