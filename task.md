@@ -6,6 +6,7 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 
 - [x] Resolve spec/design open questions (sufficiency definition, digester default behavior) <!-- id: -2 -->
 - [x] Update spec/design with decided answers <!-- id: -1 -->
+- [ ] Verify implementation readiness: dependencies available, docs finalized, cross-references consistent <!-- id: -0.5 -->
 
 ## TDD Phase (Tests First)
 

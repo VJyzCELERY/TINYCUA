@@ -1,7 +1,7 @@
 # Design Document: TinyCUAResponseNode
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Ready for Implementation
 **Last Updated**: 2026-06-12 (review fixes applied)
 
 ---

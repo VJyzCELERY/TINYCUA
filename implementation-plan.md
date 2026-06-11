@@ -52,7 +52,18 @@ from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy, NodeTool
 from tinycua.loops.response_node import TinyCUAResponseNode, ResponseContext
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.loops.result_aggregation import AggregatedResult
+try:
+    from tinycua.loops.result_aggregation import AggregatedResult
+except ImportError:
+    from dataclasses import dataclass, field
+    from typing import Any
+
+    @dataclass
+    class AggregatedResult:
+        root_task_id: str = ""
+        task_summaries: list[str] = field(default_factory=list)
+        final_context: str | None = None
+        artifacts: list[Any] = field(default_factory=list)
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
@@ -208,12 +219,12 @@ def test_response_node_aggregation_integration():
     When the loop runs and reaches the response node,
     Then it produces a final string response."""
     from unittest.mock import MagicMock, patch
-    from tinycua.loops.response_node import TinyCUAResponseNode as NewResponseNode
+    from tinycua.loops.response_node import TinyCUAResponseNode
     from tinycua.loops.tinycua_loop import TinyCUALoop
 
     # Create a response node with sufficient context config
     config = NodeConfigBase()
-    node = NewResponseNode(config=config)
+    node = TinyCUAResponseNode(config=config)
 
     # Create a mock loop that yields sufficient context
     loop = MagicMock(spec=TinyCUALoop)
@@ -247,12 +258,12 @@ def test_response_node_digester_integration():
     Then suspension occurs, InformationDigesterNode is prepended, digest result is
     incorporated, and ResponseNode resumes to produce final output."""
     from unittest.mock import MagicMock, patch
-    from tinycua.loops.response_node import TinyCUAResponseNode as NewResponseNode
+    from tinycua.loops.response_node import TinyCUAResponseNode
     from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 
     config = NodeConfigBase()
     config.metadata["digester_enabled"] = True
-    response_node = NewResponseNode(config=config)
+    response_node = TinyCUAResponseNode(config=config)
     session = Session()
     response_node.ensure_session(session)
 
