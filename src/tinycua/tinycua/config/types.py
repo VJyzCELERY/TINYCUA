@@ -46,7 +46,7 @@ class LLMResult:
 
     content: str = ""
     role: str = "assistant"
-    tool_calls: list[dict] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

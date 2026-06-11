@@ -23,7 +23,7 @@ This implementation introduces `TinyCUAResultAggregationNode` — a `ProcessNode
 
 ### Data / Fixtures
 
-- [ ] **None** — test fixtures are built programmatically in test files
+- [x] **None** — test fixtures are built programmatically in test files
 
 ### Access / Permissions
 
@@ -369,22 +369,22 @@ def test_force_accept_on_threshold_routes_to_aggregation():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for `AggregatedResult` construction — test all fields, empty fields, serialization
-- [ ] Unit tests for `_traverse_bfs_right_to_left` — test multi-level trees, early termination, empty trees
-- [ ] Unit tests for `_consolidate` — test with various combinations of results/artifacts/decisions
-- [ ] Unit tests for `TinyCUAResultAggregationNode.__call__` — test guard, propagation, error cases
-- [ ] Unit tests for `on_complete` — verify queue advancement and session context recording
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for `AggregatedResult` construction — test all fields, empty fields, serialization
+- [x] Unit tests for `_traverse_bfs_right_to_left` — test multi-level trees, early termination, empty trees
+- [x] Unit tests for `_consolidate` — test with various combinations of results/artifacts/decisions
+- [x] Unit tests for `TinyCUAResultAggregationNode.__call__` — test guard, propagation, error cases
+- [x] Unit tests for `on_complete` — verify queue advancement and session context recording
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] N/A — all behavior is verifiable through automated tests.
+- [x] N/A — all behavior is verifiable through automated tests.
 
 ### Performance Considerations
 
-- [ ] Traversal of deep/wide task trees should be bounded by configurable `max_inspected_tasks`
-- [ ] Aggregation produces no new LLM content — purely mechanical consolidation
+- [x] Traversal of deep/wide task trees should be bounded by configurable `max_inspected_tasks`
+- [x] Aggregation produces no new LLM content — purely mechanical consolidation
 
 ## Proposed Changes
 
@@ -526,10 +526,10 @@ No public API changes — all changes are internal to `tinycua.loops`. The `Aggr
 
 ### Internal Dependencies
 
-- [ ] Depends on Milestone 3.2 (`TaskExecutor`, `ResultReviewer`) — already implemented
-- [ ] Depends on Milestone 3.3 (mandatory passthrough and continuation routing) — already implemented
+- [x] Depends on Milestone 3.2 (`TaskExecutor`, `ResultReviewer`) — already implemented
+- [x] Depends on Milestone 3.3 (mandatory passthrough and continuation routing) — already implemented
 - [x] Blocks Milestone 3.5 (`ResponseNode` integration)
-- [ ] Relies on `tinycua.loops.node_queue.spawn_after_current()` and `ensure_terminal()` — already available
+- [x] Relies on `tinycua.loops.node_queue.spawn_after_current()` and `ensure_terminal()` — already available
 
 ## Risks and Mitigations
 
