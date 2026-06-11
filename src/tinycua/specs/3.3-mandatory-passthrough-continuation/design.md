@@ -294,6 +294,14 @@ if isinstance(node, TinyCUAQueryAnalystNode):
         self._clear_mandatory_passthrough()
 
         return passthrough_content, True, decision
+
+    # Stale passthrough — clear so it doesn't persist across run() calls
+    if self._pending_mandatory_passthrough is not None:
+        logger.info(
+            "node=%s clearing stale mandatory passthrough (session mismatch)",
+            node.node_id,
+        )
+        self._clear_mandatory_passthrough()
 ```
 
 ### run() — Queue Restart for Passthrough Detection

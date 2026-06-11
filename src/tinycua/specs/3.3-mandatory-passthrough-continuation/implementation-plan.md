@@ -167,8 +167,14 @@ def test_stale_passthrough_restart_false_drops_continuation():
     )
 
     # Act — simulate precheck with stale session
+    from tinycua.models.node_input import NodeInput
+
+    input_data = NodeInput(
+        content="user continuation",
+        metadata={"mandatory_passthrough": loop._pending_mandatory_passthrough},
+    )
     result = loop.query_analyst.check_mandatory_passthrough(
-        input_data=None, session=loop.root_session
+        input_data=input_data, session=loop.root_session
     )
 
     # Assert — passthrough is dropped, no restart
