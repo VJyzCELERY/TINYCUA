@@ -92,8 +92,8 @@ Implementation tasks for TinyCUAResultAggregationNode. Check off items as comple
 
 ## Review and Merge
 
-- [ ] Run `/review-loop` to start review cycle <!-- id: 22 --> <!-- Depends: [18] -->
-- [ ] Address review feedback <!-- id: 23 --> <!-- Depends: [22] -->
+- [x] Run `/review-loop` to start review cycle <!-- id: 22 --> <!-- Depends: [18] -->
+- [x] Address review feedback <!-- id: 23 --> <!-- Depends: [22] -->
 - [x] Commit final version and push <!-- id: 24 --> <!-- Depends: [23] -->
 
 ---

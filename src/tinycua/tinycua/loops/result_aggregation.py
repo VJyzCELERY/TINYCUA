@@ -271,8 +271,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
     def _max_depth(self, tasks: list[Task]) -> int:
         """Compute the actual maximum depth among a list of tasks.
 
-        Uses parent-child relationships to track depth via BFS level
-        boundaries.  The root task is depth 0, its children depth 1, etc.
+        Builds a parent map in a single pass, then computes depths in a
+        second pass for O(n) time complexity.  The root task is depth 0,
+        its children depth 1, etc.
 
         Args:
             tasks: List of tasks from traversal (BFS order).
@@ -284,11 +285,15 @@ class TinyCUAResultAggregationNode(ProcessNode):
             return 0
 
         depth_map: dict[str, int] = {tasks[0].task_id: 0}
+        child_to_parent: dict[str, str] = {}
         for task in tasks:
-            for parent in tasks:
-                if any(c.task_id == task.task_id for c in parent.children):
-                    depth_map[task.task_id] = depth_map.get(parent.task_id, 0) + 1
-                    break
+            for child in task.children or []:
+                child_to_parent[child.task_id] = task.task_id
+
+        for task in tasks:
+            parent_id = child_to_parent.get(task.task_id)
+            if parent_id is not None:
+                depth_map[task.task_id] = depth_map.get(parent_id, 0) + 1
 
         return max(depth_map.values())
 
