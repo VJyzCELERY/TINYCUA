@@ -50,7 +50,7 @@ _execute_decision_node(QueryAnalyst)
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | tinycua.loops.tinycua_loop | Modified | `_on_reviewer_open_question()` installs MandatoryPassthrough; `_install_mandatory_passthrough()` helper; `_clear_mandatory_passthrough()` after consumption |
-| tinycua.loops.query_analyst | Modified | `route_passthrough()` forwards input to target node (currently a no-op) |
+| tinycua.loops.query_analyst | No change | Precheck and stale guard already implemented; `route_passthrough()` is a no-op acknowledged by design (see Technical Decision #5) |
 | tinycua.loops.result_reviewer | No change | Already calls `loop._on_reviewer_open_question()` — no modification needed |
 | tinycua.models.classification | No change | `MandatoryPassthrough` dataclass already exists |
 
@@ -73,7 +73,7 @@ MandatoryPassthrough:
 
 ### Storage Mechanism
 
-The `MandatoryPassthrough` directive is stored as a loop-level field (`_pending_mandatory_passthrough`) rather than in `input_context`, because `TinyCUALoop.run()` replaces `root_session.input_context` with incoming messages on every invocation (see `run()` line 119). Any directive stored in `input_context` during one `run()` call would be lost before the next `run()` can detect it.
+The `MandatoryPassthrough` directive is stored as a loop-level field (`_pending_mandatory_passthrough`) rather than in `input_context`, because `TinyCUALoop.run()` replaces `root_session.input_context` with incoming messages on every invocation (see `run()` method — the `self.root_session.input_context = list(messages)` assignment). Any directive stored in `input_context` during one `run()` call would be lost before the next `run()` can detect it.
 
 ```python
 # Stored on TinyCUALoop instance by _on_reviewer_open_question()
@@ -164,6 +164,9 @@ def _on_reviewer_open_question(self, active_task: Task) -> None:
     Args:
         active_task: The task with an open question.
     """
+    if active_task is None:
+        logger.warning("Cannot install passthrough: no active task")
+        return
     # Find the ResultReviewer node in the queue to get its session_id
     reviewer_node = self._find_result_reviewer()
     if reviewer_node is None or reviewer_node.session is None:
@@ -208,10 +211,12 @@ def _clear_mandatory_passthrough(self) -> None:
 
 ```python
 def _find_result_reviewer(self) -> Node | None:
-    """Find the active ResultReviewer node in the queue.
+    """Find the first active ResultReviewer node in the queue.
 
-    Returns:
-        The ResultReviewer node if found, None otherwise.
+    Returns the first TinyCUAResultReviewerNode found by scanning
+    queue.items in order. If multiple ResultReviewers exist, only
+    the first is targeted. Returns None if no ResultReviewer is in
+    the queue.
     """
     for node in self.queue.items:
         if isinstance(node, TinyCUAResultReviewerNode):
@@ -344,7 +349,7 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 ### Phase 2 — Enhancements (post-MVP)
 
-- [ ] Support `allow_query_analyst_restart=False` behavior in stale guard (already exists in `check_mandatory_passthrough`)
+- [ ] Add explicit unit tests for `allow_query_analyst_restart=False` stale guard behavior (behavior already exists in `check_mandatory_passthrough` but lacks dedicated test coverage)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
@@ -353,7 +358,7 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 ## Technical Decisions
 
 1. **Decision**: Store MandatoryPassthrough as a loop-level field (`_pending_mandatory_passthrough`) and inject it in `_execute_decision_node()`
-   - **Reason**: `TinyCUALoop.run()` replaces `root_session.input_context` on each invocation (line 119), so any passthrough stored in `input_context` during one `run()` call would be lost before the next. Loop-level storage survives the reset. The injection is a single line in `_execute_decision_node()` that merges the pending directive into `NodeInput.metadata` before the precheck.
+   - **Reason**: `TinyCUALoop.run()` replaces `root_session.input_context` on each invocation (the `self.root_session.input_context = list(messages)` assignment), so any passthrough stored in `input_context` during one `run()` call would be lost before the next. Loop-level storage survives the reset. The injection is a single line in `_execute_decision_node()` that merges the pending directive into `NodeInput.metadata` before the precheck.
    - **Alternatives Considered**: Store in `input_context` metadata — rejected; `run()` replaces `input_context` (`self.root_session.input_context = list(messages)`) on each call, destroying the passthrough before the next `run()` can detect it.
 
 2. **Decision**: `_on_reviewer_open_question()` finds ResultReviewer via queue scan

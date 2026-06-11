@@ -1,5 +1,7 @@
 # Implementation: Mandatory Passthrough and Continuation Routing
 
+**Last Updated**: 2026-06-11 (review-revision-2)
+
 Wire the end-to-end `open_question` continuation path: when `ResultReviewer` decides `open_question`, a `MandatoryPassthrough` directive is installed targeting the ResultReviewer's node/session, and the next user input is routed deterministically back to it — bypassing LLM classification.
 
 ## Context
@@ -133,6 +135,150 @@ def test_clear_mandatory_passthrough():
     assert loop._pending_mandatory_passthrough is None
 
 
+def test_stale_passthrough_restart_false_drops_continuation():
+    """Stale passthrough with allow_query_analyst_restart=False is dropped silently."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Install a passthrough with allow_query_analyst_restart=False
+    stale_session = Session()  # different session = stale
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="reviewer_1",
+        target_session_id=stale_session.session_id,
+        allow_query_analyst_restart=False,
+    )
+
+    # Act — simulate precheck with stale session
+    result = loop.query_analyst.check_mandatory_passthrough(
+        input_data=None, session=loop.root_session
+    )
+
+    # Assert — passthrough is dropped, no restart
+    assert result is None
+
+
+def test_clear_mandatory_passthrough_removes_pending_directive():
+    """_clear_mandatory_passthrough removes the pending directive."""
+    # Arrange
+    loop = TinyCUALoop()
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="reviewer_1",
+        target_session_id="session_1",
+    )
+
+    # Act
+    loop._clear_mandatory_passthrough()
+
+    # Assert — passthrough is cleared
+    assert loop._pending_mandatory_passthrough is None
+
+
+def test_no_active_task_does_not_install_passthrough():
+    """_on_reviewer_open_question(None) does not install passthrough when no active task."""
+    # Arrange
+    loop = TinyCUALoop()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(loop.root_session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Act
+    loop._on_reviewer_open_question(None)
+
+    # Assert — no passthrough installed
+    assert loop._pending_mandatory_passthrough is None
+
+
+def test_find_result_reviewer_returns_first_match():
+    """_find_result_reviewer returns the first ResultReviewer in queue."""
+    # Arrange
+    loop = TinyCUALoop()
+    reviewer_a = TinyCUAResultReviewerNode(
+        node_id="reviewer_a",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer_b = TinyCUAResultReviewerNode(
+        node_id="reviewer_b",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    loop.queue.items = [loop.queue.items[0], reviewer_a, reviewer_b, loop.queue.items[-1]]
+
+    # Act
+    result = loop._find_result_reviewer()
+
+    # Assert — first match is returned
+    assert result is not None
+    assert result.node_id == "reviewer_a"
+
+
+def test_execute_decision_node_injects_passthrough_into_metadata():
+    """_execute_decision_node injects pending passthrough into QueryAnalyst input metadata."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Install a pending passthrough
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="reviewer_1",
+        target_session_id=session.session_id,
+        reason="test injection",
+    )
+
+    # Act — simulate _execute_decision_node building QueryAnalyst input
+    input_data = loop._build_query_analyst_input()
+    if loop._pending_mandatory_passthrough is not None:
+        input_data.metadata["mandatory_passthrough"] = loop._pending_mandatory_passthrough
+
+    # Assert — passthrough is injected into metadata
+    assert "mandatory_passthrough" in input_data.metadata
+    assert input_data.metadata["mandatory_passthrough"].target_node_id == "reviewer_1"
+    assert input_data.metadata["mandatory_passthrough"].target_session_id == session.session_id
+
+
+def test_ensure_query_analyst_at_front_moves_existing_qa():
+    """_ensure_query_analyst_at_front moves QueryAnalyst to front when it exists elsewhere."""
+    # Arrange
+    loop = TinyCUALoop()
+    from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+
+    qa = TinyCUAQueryAnalystNode()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    terminal = loop.queue.items[-1]
+    # Queue: [reviewer, qa, terminal] — QA is NOT at front
+    loop.queue.items = [reviewer, qa, terminal]
+
+    # Act
+    loop._ensure_query_analyst_at_front()
+
+    # Assert — QA is now at front
+    assert isinstance(loop.queue.items[0], TinyCUAQueryAnalystNode)
+    assert loop.queue.items[0] is qa
+
+
 # Test file: tests/integration/test_tinycua_loop_integration.py (append)
 """Integration tests for mandatory passthrough in the loop — two-call end-to-end flow."""
 
@@ -250,6 +396,10 @@ async def test_open_question_to_continuation_two_call_flow():
 - [ ] **Scenario 4**: Two-call end-to-end — first `run()` simulates open_question → install passthrough; second `run()` detects passthrough via queue restart → consumes it → clears it
 - [ ] **Edge case**: `_on_reviewer_open_question` with no ResultReviewer in queue — warns and does not install
 - [ ] **Edge case**: Multiple sequential open_questions — each replaces the previous passthrough
+- [ ] **Edge case**: Stale passthrough with `allow_query_analyst_restart=False` — continuation is dropped silently
+- [ ] **Edge case**: User sends new top-level query while passthrough pending — bypasses passthrough, enters normal classification
+- [ ] **Edge case**: `_on_reviewer_open_question(None)` — no active task, passthrough not installed
+- [ ] **Edge case**: `_find_result_reviewer()` with multiple ResultReviewers — returns first match
 
 ## Verification Plan
 
@@ -282,7 +432,7 @@ async def test_open_question_to_continuation_two_call_flow():
 - **Implement `_find_result_reviewer()`:** Scan `self.queue.items` for `TinyCUAResultReviewerNode` instances; return first match or None.
 - **Implement `_ensure_query_analyst_at_front()`:** Ensure QueryAnalyst is at `items[0]` of the queue. If already at front, no-op. If found elsewhere in the queue, move it to front. If not found (already popped), create a fresh `TinyCUAQueryAnalystNode()` and prepend. Called from `run()` when a passthrough is pending.
 - **Update `run()`:** At the start, after setting `input_context` and before the main execution loop, check if `self._pending_mandatory_passthrough is not None`. If so, call `self._ensure_query_analyst_at_front()` so the injection in `_execute_decision_node()` is reachable on this `run()` call.
-- **Update `_on_reviewer_open_question(active_task)`:** Call `_find_result_reviewer()` to locate the active reviewer. If found with a session, create a `MandatoryPassthrough` targeting its `node_id` and `session_id`, then call `_install_mandatory_passthrough()`. If not found, log a warning and return.
+- **Update `_on_reviewer_open_question(active_task)`:** If `active_task` is None, log a warning and return without installing passthrough. Otherwise, call `_find_result_reviewer()` to locate the active reviewer. If found with a session, create a `MandatoryPassthrough` targeting its `node_id` and `session_id`, then call `_install_mandatory_passthrough()`. If not found, log a warning and return.
 - **Update `_execute_decision_node()`:** Before the existing `check_mandatory_passthrough` call in the QueryAnalyst branch, inject `self._pending_mandatory_passthrough` into `input_data.metadata["mandatory_passthrough"]` if it is not None. After the passthrough is consumed (successful forward), call `self._clear_mandatory_passthrough()`.
 
 - **Rationale**: The loop-level field survives the `input_context` reset between `run()` calls. The injection in `_execute_decision_node()` is a single additional line that merges the pending directive into the same `NodeInput.metadata` dict where `check_mandatory_passthrough()` already reads from. The queue restart (`_ensure_query_analyst_at_front`) ensures that `_execute_decision_node()` is actually reached on the continuation `run()` call, since the queue would otherwise start from the terminal node.

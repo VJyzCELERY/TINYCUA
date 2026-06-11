@@ -49,7 +49,7 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 
 - **FR-001**: On `open_question` decision, `TinyCUALoop` MUST install a `MandatoryPassthrough` directive targeting the ResultReviewer's `node_id` and the ResultReviewer's session `session_id`.
 - **FR-002**: The `MandatoryPassthrough` MUST set `allow_query_analyst_restart=true` by default so stale continuations fall back to QueryAnalyst classification rather than being dropped.
-- **FR-003**: The installed `MandatoryPassthrough` MUST be placed in the root session input context metadata so that the next user continuation enters `QueryAnalyst` with the directive available for precheck.
+- **FR-003**: The installed `MandatoryPassthrough` MUST be stored as a loop-level field that persists across `run()` invocations, and MUST be injected into `QueryAnalyst` input metadata before the precheck runs.
 - **FR-004**: `QueryAnalyst.check_mandatory_passthrough()` MUST detect the installed directive and return it when the session guard matches.
 - **FR-005**: When a valid `MandatoryPassthrough` is detected, `QueryAnalyst` MUST forward the user input to the target node/session without LLM classification.
 - **FR-006**: The passthrough forwarding MUST preserve the user's continuation input so the target node (ResultReviewer) receives it as its next input.
@@ -116,7 +116,7 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 | QueryAnalyst precheck integration | Done | Already implemented in Milestone 2.1 |
 | Stale guard behavior | Done | Already implemented in check_mandatory_passthrough |
 | Passthrough forwarding to ResultReviewer | TODO | Wire the forwarding mechanism |
-| Active task preservation | Done | Already implemented in _on_reviewer_open_question stub |
+| Active task preservation | Done | Passive — task is preserved because _on_reviewer_open_question stub does not modify it |
 | Unit tests | TODO | |
 | Integration tests | TODO | |
 
@@ -127,14 +127,14 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 1. **Should the MandatoryPassthrough be stored on the loop or in root session metadata?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-11
-   - **Status**: Proposed
-   - **Proposed Answer**: Store in root session input context metadata so QueryAnalyst can detect it during precheck. The loop installs it; the session carries it.
+   - **Status**: Resolved
+   - **Resolved Answer**: Store as a loop-level field (`_pending_mandatory_passthrough`). `TinyCUALoop.run()` replaces `root_session.input_context` on each invocation, so input_context storage would lose the directive between calls. Loop-level storage survives the reset; injection into QueryAnalyst input metadata happens in `_execute_decision_node()`. See design.md Technical Decision #1.
 
 2. **Should open_question set allow_query_analyst_restart=False to force the user to answer the question?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-11
-   - **Status**: Proposed
-   - **Proposed Answer**: Default to True for safety — if the user sends a new top-level query instead of answering, QueryAnalyst classifies it normally rather than forcing it to the stale reviewer.
+   - **Status**: Resolved
+   - **Resolved Answer**: Default to True for safety — if the user sends a new top-level query instead of answering, QueryAnalyst classifies it normally rather than forcing it to the stale reviewer. See design.md Technical Decision #3.
 
 ---
 
