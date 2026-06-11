@@ -165,14 +165,14 @@ This configuration:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] **ResponseContext helper**: Build context aggregation from NodeInput
-- [ ] **Context sufficiency check**: Implement analysis logic with configurable thresholds
-- [ ] **Direct synthesis path**: When context is sufficient, build LLM input and produce final response
-- [ ] **Digester suspension path**: When enabled and context insufficient, suspend and prepend InformationDigesterNode; resume after digest returns
-- [ ] **Direct tool fallback**: When digester unavailable, allow ResponseNode to use tools directly
-- [ ] **Terminal normalization**: Ensure output is always a normalized string
-- [ ] **Retry compliance**: Integrate with existing NodeRetryPolicy
-- [ ] **Continuation routing**: Handle MandatoryPassthrough for continuation delivery
+- [x] **ResponseContext helper**: Build context aggregation from NodeInput
+- [x] **Context sufficiency check**: Implement analysis logic with configurable thresholds
+- [x] **Direct synthesis path**: When context is sufficient, build LLM input and produce final response
+- [x] **Digester suspension path**: When enabled and context insufficient, suspend and prepend InformationDigesterNode; resume after digest returns
+- [x] **Direct tool fallback**: When digester unavailable, allow ResponseNode to use tools directly
+- [x] **Terminal normalization**: Ensure output is always a normalized string
+- [x] **Retry compliance**: Integrate with existing NodeRetryPolicy
+- [x] **Continuation routing**: Handle MandatoryPassthrough for continuation delivery
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
