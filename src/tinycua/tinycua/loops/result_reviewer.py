@@ -17,6 +17,7 @@ from tinycua.loops.node import ProcessNode
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.config.types import LLMResult
+    from tinycua.loops.loop_types import DecisionResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
 
@@ -177,7 +178,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         queue.spawn_after_current([task_assessor, task_analyzer, task_executor])
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Dispatch based on reviewer decision.
 
         Routes to the appropriate handler on the loop based on the
@@ -193,13 +194,17 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         if self.loop is not None:
             if outcome == "accept" and active_task is not None:
-                self.loop._on_reviewer_accept(active_task)
+                root_done = self.loop._on_reviewer_accept(active_task)
+                if root_done:
+                    self.loop._route_to_aggregation(queue)
             elif outcome == "retry" and active_task is not None:
                 if self.loop._reviewer_retry_state.can_retry():
                     self.loop._on_reviewer_retry(active_task)
                 else:
                     # Force accept when threshold reached
-                    self.loop._on_reviewer_accept(active_task)
+                    root_done = self.loop._on_reviewer_accept(active_task)
+                    if root_done:
+                        self.loop._route_to_aggregation(queue)
             elif outcome == "replan" and active_task is not None:
                 self.loop._on_reviewer_replan(active_task)
                 queue.clear_after_current()

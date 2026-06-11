@@ -15,6 +15,7 @@ from tinycua.loops.node import DecisionNode, DecisionResult, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.result_aggregation import TinyCUAResultAggregationNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.classification import MandatoryPassthrough
 from tinycua.models.node_input import NodeInput
@@ -1076,3 +1077,22 @@ class TinyCUALoop(BaseLoop):
             if not self._is_subtree_done(child):
                 return False
         return True
+
+    def _route_to_aggregation(self, queue: NodeQueue) -> None:
+        """Route to aggregation: clear queue after current, spawn aggregation then response nodes, and ensure the queue ends with a terminal node.
+
+        Called by ``ResultReviewer.on_complete`` when ``_on_reviewer_accept``
+        returns ``True`` (root task is done).
+
+        Args:
+            queue: The node queue to mutate.
+        """
+        aggregation_node = TinyCUAResultAggregationNode(loop=self)
+        response_node = ResponseNode()
+        queue.clear_after_current()
+        queue.spawn_after_current([aggregation_node, response_node])
+        queue.ensure_terminal(response_node)
+        logger.info(
+            "node=result_reviewer _route_to_aggregation — "
+            "spawned result_aggregation + response nodes"
+        )
