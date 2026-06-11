@@ -188,15 +188,17 @@ def test_on_reviewer_accept_resets_retry_counter():
 
 
 def test_parse_decision_word_boundary():
-    """Fallback regex matches only exact keywords, not substrings."""
+    """Fallback regex matches outcome keywords anywhere in response."""
     reviewer = TinyCUAResultReviewerNode()
     # Should match exact keyword
     response = LLMResult(content="accept", metadata={})
     assert reviewer._parse_decision(response) == {"outcome": "accept", "rationale": "accept"}
-    # Should NOT match substring
+    # Should match keyword embedded in surrounding text (relaxed regex)
     response = LLMResult(content="The task cannot accept any more retries", metadata={})
-    # Should fall back to retry (default)
-    assert reviewer._parse_decision(response)["outcome"] == "retry"
+    assert reviewer._parse_decision(response) == {
+        "outcome": "accept",
+        "rationale": "The task cannot accept any more retries",
+    }
     # Should match with whitespace
     response = LLMResult(content="  retry  ", metadata={})
     assert reviewer._parse_decision(response) == {"outcome": "retry", "rationale": "  retry  "}

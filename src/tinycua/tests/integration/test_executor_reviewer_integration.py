@@ -93,7 +93,8 @@ def test_on_complete_dispatch_replan():
     """ResultReviewerNode.on_complete dispatches replan with queue mutations.
 
     Verifies: on_complete calls loop._on_reviewer_replan, clears queue
-    after current, spawns replan nodes, and ensures terminal node.
+    after current, spawns replan nodes (TaskAssessor, TaskAnalyzer,
+    TaskExecutor), and ensures terminal node.
     """
     # Arrange
     loop = _build_loop_with_active_task()
@@ -126,6 +127,13 @@ def test_on_complete_dispatch_replan():
     # After clear_after_current, only current node remains; after spawn, 3 more added
     assert len(queue.items) >= 3  # current + assessor + analyzer + executor
 
+    # Assert — spawned node types match replan spec (FR-014):
+    # TaskAssessor, TaskAnalyzer, TaskExecutor in that order
+    spawned_node_ids = [n.node_id for n in queue.items[1:]]  # skip current node
+    assert "task_assessor" in spawned_node_ids
+    assert "task_analyzer" in spawned_node_ids
+    assert "task_executor" in spawned_node_ids
+
 
 def test_on_complete_replan_mutates_queue_regardless_of_session_config():
     """Replan mutates queue even when session_config has no llm_client.
@@ -157,6 +165,12 @@ def test_on_complete_replan_mutates_queue_regardless_of_session_config():
     mock_loop._on_reviewer_replan.assert_called_once_with(active_task)
     # Queue SHOULD be mutated — replan always proceeds
     assert len(queue.items) >= 3  # current + assessor + analyzer + executor
+
+    # Assert — spawned node types match replan spec (FR-014)
+    spawned_node_ids = [n.node_id for n in queue.items[1:]]  # skip current node
+    assert "task_assessor" in spawned_node_ids
+    assert "task_analyzer" in spawned_node_ids
+    assert "task_executor" in spawned_node_ids
 
 
 def test_on_complete_dispatch_all_outcomes():

@@ -78,8 +78,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # Fallback: check if outcome keyword appears in response (word-boundary match)
-        match = re.fullmatch(r'\s*(accept|retry|replan|open_question)\s*', response.content, re.IGNORECASE)
+        # Fallback: search for outcome keyword anywhere in response (allows surrounding text)
+        match = re.search(r'(accept|retry|replan|open_question)', response.content, re.IGNORECASE)
         if match:
             return {"outcome": match.group(1).lower(), "rationale": response.content[:200]}
 

@@ -34,7 +34,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
         max_react_iterations: Maximum ReAct iterations (default 10).
         max_summary_length: Maximum characters for execution summary (default 2000).
             Bounds metadata payload size in TaskResult while retaining the core
-            execution narrative. Override via constructor for verbose tasks.
+            execution narrative. Override via constructor for verbose tasks
+            (e.g. ``TinyCUATaskExecutorNode(max_summary_length=5000)``).
     """
 
     MAX_SUMMARY_LENGTH: int = 2000
@@ -158,8 +159,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
                     # (no tool execution). max_react_iterations IS enforced here
                     # but only relevant when tool_calls are empty and the LLM keeps
                     # responding. Tool execution via the SDK agent pipeline is
-                    # deferred to Milestone 4.x.
-                    # TODO(tool-dispatch): tracked in Milestone 4.x
+                    # deferred to Milestone 4.x (tool-dispatch).
                     logger.info(
                         "node=%s iteration=%d tool_calls=%d (not executed — agent tool pipeline required)",
                         self.node_id,
