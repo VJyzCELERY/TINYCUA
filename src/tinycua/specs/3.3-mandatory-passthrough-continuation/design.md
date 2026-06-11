@@ -349,7 +349,7 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 ### Phase 2 — Enhancements (post-MVP)
 
-- [ ] Add explicit unit tests for `allow_query_analyst_restart=False` stale guard behavior (behavior already exists in `check_mandatory_passthrough` but lacks dedicated test coverage)
+- [ ] Add integration-level test for stale passthrough with `allow_query_analyst_restart=False` across multiple `run()` invocations (isolation-level test `test_stale_passthrough_restart_false_drops_continuation` already exists)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 

@@ -165,20 +165,7 @@ def test_stale_passthrough_restart_false_drops_continuation():
     assert result is None
 
 
-def test_clear_mandatory_passthrough_removes_pending_directive():
-    """_clear_mandatory_passthrough removes the pending directive."""
-    # Arrange
-    loop = TinyCUALoop()
-    loop._pending_mandatory_passthrough = MandatoryPassthrough(
-        target_node_id="reviewer_1",
-        target_session_id="session_1",
-    )
 
-    # Act
-    loop._clear_mandatory_passthrough()
-
-    # Assert — passthrough is cleared
-    assert loop._pending_mandatory_passthrough is None
 
 
 def test_no_active_task_does_not_install_passthrough():
@@ -386,6 +373,59 @@ async def test_open_question_to_continuation_two_call_flow():
     # Verify the loop produced a result (even if it's just the terminal response).
     assert isinstance(result_2, str)
     assert len(result_2) > 0
+
+
+async def test_new_user_query_clears_pending_passthrough():
+    """New user query clears pending stale passthrough via run() bypass path.
+
+    When a passthrough is pending but the user sends a new top-level query
+    (not a continuation), the passthrough is stale and should be cleared
+    during the next run() — falling back to normal LLM classification.
+    """
+    loop = TinyCUALoop()
+
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=NodeConfigBase(llm_client=MockLLM(content='{"outcome": "completed", "rationale": "Done"}')),
+        loop=loop,
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    terminal = ResponseNode()
+    loop.queue.items = [loop.queue.items[0], reviewer, terminal]
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "ok", "tool_calls": None}
+    )
+
+    # Simulate a stale passthrough from a previous run() (e.g. user abandoned
+    # the continuation and sent a new unrelated query). The passthrough targets
+    # a different session to make it stale.
+    stale_session = Session()
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="result_reviewer",
+        target_session_id=stale_session.session_id,
+    )
+    assert loop._pending_mandatory_passthrough is not None
+
+    # New user query arrives — run() should detect the stale passthrough,
+    # clear it, and fall back to normal LLM classification.
+    result = await loop.run(
+        agent=agent,
+        messages=[{"role": "user", "content": "tell me a joke"}],
+        tools=[],
+        stream=False,
+    )
+
+    # Assert: stale passthrough was cleared during run()
+    assert loop._pending_mandatory_passthrough is None, (
+        "stale passthrough should have been cleared during run()"
+    )
+    assert isinstance(result, str)
+    assert len(result) > 0
 ```
 
 ### Key Test Scenarios
@@ -397,7 +437,7 @@ async def test_open_question_to_continuation_two_call_flow():
 - [ ] **Edge case**: `_on_reviewer_open_question` with no ResultReviewer in queue — warns and does not install
 - [ ] **Edge case**: Multiple sequential open_questions — each replaces the previous passthrough
 - [ ] **Edge case**: Stale passthrough with `allow_query_analyst_restart=False` — continuation is dropped silently
-- [ ] **Edge case**: User sends new top-level query while passthrough pending — bypasses passthrough, enters normal classification
+- [ ] **Edge case**: User sends new top-level query while passthrough pending — stale passthrough is cleared during `run()` and falls back to LLM classification
 - [ ] **Edge case**: `_on_reviewer_open_question(None)` — no active task, passthrough not installed
 - [ ] **Edge case**: `_find_result_reviewer()` with multiple ResultReviewers — returns first match
 

@@ -49,7 +49,7 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 
 - **FR-001**: On `open_question` decision, `TinyCUALoop` MUST install a `MandatoryPassthrough` directive targeting the ResultReviewer's `node_id` and the ResultReviewer's session `session_id`.
 - **FR-002**: The `MandatoryPassthrough` MUST set `allow_query_analyst_restart=true` by default so stale continuations fall back to QueryAnalyst classification rather than being dropped.
-- **FR-003**: The installed `MandatoryPassthrough` MUST be stored as a loop-level field that persists across `run()` invocations, and MUST be injected into `QueryAnalyst` input metadata before the precheck runs.
+- **FR-003**: The installed `MandatoryPassthrough` MUST persist across `run()` invocations and be available to `QueryAnalyst`'s precheck before classification runs.
 - **FR-004**: `QueryAnalyst.check_mandatory_passthrough()` MUST detect the installed directive and return it when the session guard matches.
 - **FR-005**: When a valid `MandatoryPassthrough` is detected, `QueryAnalyst` MUST forward the user input to the target node/session without LLM classification.
 - **FR-006**: The passthrough forwarding MUST preserve the user's continuation input so the target node (ResultReviewer) receives it as its next input.
