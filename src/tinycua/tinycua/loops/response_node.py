@@ -217,7 +217,7 @@ class TinyCUAResponseNode(ProcessNode):
                     break
             if session_context and not found_marker:
                 logger.warning(
-                    "node=%s session_context has %d entries but no [AggregatedResult] marker found",
+                    "node=%s session_context has %d entries but no aggregated_result metadata found",
                     self.node_id,
                     len(session_context),
                 )
@@ -240,7 +240,8 @@ class TinyCUAResponseNode(ProcessNode):
         """Analyse whether the available context is sufficient for synthesis.
 
         Returns ``True`` if:
-        - An ``AggregatedResult`` is present (primary indicator).
+        - An ``AggregatedResult`` is present and contains at least one of
+          ``task_summaries`` or ``final_context`` (primary indicator).
         - The number of session context messages meets the configurable
           ``sufficiency_threshold`` (secondary heuristic).
 
@@ -250,9 +251,11 @@ class TinyCUAResponseNode(ProcessNode):
         Returns:
             ``True`` if context is sufficient for direct synthesis.
         """
-        # Primary check: aggregated result present
+        # Primary check: aggregated result present with meaningful content
         if context.aggregated_result is not None:
-            return True
+            ar = context.aggregated_result
+            if ar.task_summaries or ar.final_context:
+                return True
 
         # Secondary check: session context size meets threshold
         threshold = self.config.metadata.get("sufficiency_threshold")
@@ -281,22 +284,33 @@ class TinyCUAResponseNode(ProcessNode):
     def _handle_continuation(self, context: ResponseContext) -> LLMResult:
         """Handle a consolidated continuation (MandatoryPassthrough).
 
-        Delivers a synthetic response acknowledging the continuation
-        without an LLM rerouting call.
+        Attempts to synthesize a response from the available context.
+        Falls back to a simple acknowledgement if context is insufficient.
 
         Args:
-            context: The response context (unused for now).
+            context: The response context with continuation payload.
 
         Returns:
-            An ``LLMResult`` with a simple acknowledgement.
+            An ``LLMResult`` synthesised from context, or an acknowledgement
+            if context is insufficient.
         """
-        # Simply return an acknowledgement result.
-        # The continuation payload is consumed here.
+        self._continuation_payload = None  # consumed
+
+        if self._check_context_sufficiency(context):
+            logger.info(
+                "node=%s continuation with sufficient context, synthesising response",
+                self.node_id,
+            )
+            return self._synthesize_response(context)
+
+        logger.info(
+            "node=%s continuation with insufficient context, returning acknowledgement",
+            self.node_id,
+        )
         content = (
             "Continuation received.  Processing existing context "
             "to produce the final response."
         )
-        self._continuation_payload = None  # consumed
         return LLMResult(content=content, role="assistant")
 
     # ------------------------------------------------------------------

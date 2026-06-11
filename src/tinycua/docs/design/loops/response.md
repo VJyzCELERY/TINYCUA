@@ -57,7 +57,7 @@ class ResponseContext:
     aggregated_result: AggregatedResult | None  # from ResultAggregationNode
     session_context: list[dict[str, Any]]        # propagated context
     latest_output: str | None                    # latest node output
-    continuation_payload: dict | None            # user continuation data
+    continuation_payload: Any  # MandatoryPassthrough | None — user continuation data
 ```
 
 ## Context Sufficiency Check

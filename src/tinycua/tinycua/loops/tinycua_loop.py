@@ -534,7 +534,7 @@ class TinyCUALoop(BaseLoop):
                     try:
                         node.ensure_session(self.root_session)
                         input_data = self._build_node_input(node)
-                        result = node(input_data)
+                        result = await asyncio.to_thread(node, input_data)
                         if isinstance(result, LLMResult):
                             llm_result = result
                         else:
