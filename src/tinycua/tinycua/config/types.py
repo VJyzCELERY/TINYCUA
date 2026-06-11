@@ -6,6 +6,8 @@ Currently defined as simple stubs to satisfy type annotations in node config.
 
 from __future__ import annotations
 
+from typing import Any
+
 from dataclasses import dataclass, field
 
 
@@ -45,7 +47,7 @@ class LLMResult:
     content: str = ""
     role: str = "assistant"
     tool_calls: list[dict] = field(default_factory=list)
-    metadata: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

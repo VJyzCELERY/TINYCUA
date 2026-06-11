@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.loops.node import DecisionResult, NodeExecutionError, ProcessNode
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -297,13 +297,13 @@ class TinyCUAResultAggregationNode(ProcessNode):
 
         return max(depth_map.values())
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook: advance the queue to ResponseNode.
 
         Args:
             queue: The node queue to advance.
-            response: The LLM response containing AggregatedResult
-                in metadata.
+            response: The LLM response or DecisionResult containing
+                AggregatedResult in metadata.
         """
         logger.info(
             "node=%s on_complete — advancing queue",
