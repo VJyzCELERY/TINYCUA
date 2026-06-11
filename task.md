@@ -4,8 +4,8 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 
 ## Pre-Implementation
 
-- [ ] Resolve spec/design open questions (sufficiency definition, digester default behavior) <!-- id: -2 -->
-- [ ] Update spec/design with decided answers <!-- id: -1 -->
+- [x] Resolve spec/design open questions (sufficiency definition, digester default behavior) <!-- id: -2 -->
+- [x] Update spec/design with decided answers <!-- id: -1 -->
 
 ## TDD Phase (Tests First)
 
@@ -87,7 +87,8 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 ## Documentation Phase
 
 - [ ] Update `CHANGELOG.md` with Milestone 3.5 entry <!-- id: 19 -->
-- [ ] Update any relevant docs in `src/tinycua/docs/` <!-- id: 20 -->
+- [ ] Update `src/tinycua/docs/design/loops/response.md` with implementation details and decisions <!-- id: 20 -->
+- [ ] Update `src/tinycua/docs/design/loops/` index if applicable <!-- id: 20b -->
 
 ---
 

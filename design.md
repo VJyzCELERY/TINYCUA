@@ -173,7 +173,7 @@ This configuration:
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
 - [ ] **Streaming output mode**: Wire `NodeStreamPolicy` configuration into ResponseNode to emit streamed output. The config infrastructure (`NodeStreamPolicy` on `NodeConfigBase`) already exists, but ResponseNode-specific stream event wiring and user-facing stream output are deferred until a future milestone.
-- [ ] Information-digestion suspension path to gather additional context mid-response (deferred to milestone 3.6 per roadmap)
+- [ ] Information-digester suspension path to gather additional context mid-response (deferred to milestone 3.6 per roadmap)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 

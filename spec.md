@@ -135,6 +135,10 @@ Objective, measurable checks that prove the problem is solved.
 
 ---
 
+## References
+
+- **Roadmap Issue**: [#87 - Roadmap: TinyCUA Prototype for WildClawBench Harness Evaluation](https://github.com/VJyzCELERY/TINYCUA/issues/87) — Milestone 3.5: TinyCUAResponseNode
+
 ## Review Checklist
 
 - [x] No implementation details (no code, framework, or architecture choices)
