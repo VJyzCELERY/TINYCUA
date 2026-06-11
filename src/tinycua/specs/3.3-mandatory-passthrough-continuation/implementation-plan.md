@@ -80,16 +80,26 @@ def test_on_reviewer_open_question_installs_passthrough():
 
 
 def test_on_reviewer_open_question_preserves_active_task():
-    """_on_reviewer_open_question does not modify the active task status."""
+    """_on_reviewer_open_question does not modify the active task status during installation."""
     # Arrange
     loop = TinyCUALoop()
-    active_task = Task(task_id="task_1", description="test task")
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+    active_task = Task(task_id="task_1", description="test task", status="in_progress")
 
     # Act
     loop._on_reviewer_open_question(active_task)
 
-    # Assert — task is unchanged (no mutation)
+    # Assert — task is unchanged (status preserved, not marked done or removed)
     assert active_task.task_id == "task_1"
+    assert active_task.status == "in_progress"  # status was preserved
+    assert loop._pending_mandatory_passthrough is not None  # passthrough was installed
 
 
 def test_on_reviewer_open_question_no_reviewer_logs_warning():
