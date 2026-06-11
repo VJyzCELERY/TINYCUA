@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult
@@ -196,8 +196,6 @@ class TinyCUAResponseNode(ProcessNode):
         Returns:
             A populated ``ResponseContext``.
         """
-        from tinycua.loops.result_aggregation import AggregatedResult
-
         aggregated_result: AggregatedResult | None = None
         session_context: list[dict[str, Any]] = []
         latest_output: str | None = None
