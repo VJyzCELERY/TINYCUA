@@ -15,13 +15,13 @@ from tinycua.models.session import Session
 from tinycua.models.task import Task
 
 from tests.mock_llm import MockLLM
-from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, StubResponseNode
 
 
 async def test_tinycua_loop_executes_node_queue():
     """Tests queue execution path (no bootstrap) — validates sequential node processing."""
     stub = StubNode("processed by stub")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -46,7 +46,7 @@ async def test_tinycua_loop_executes_node_queue():
 
 async def test_tinycua_loop_ensure_terminal_bootstrap():
     """TinyCUALoop auto-appends terminal node when default_terminal_node is set."""
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     loop = TinyCUALoop(default_terminal_node=terminal)
     stub = StubNode("test")
     loop.queue.items = [stub]
@@ -109,7 +109,7 @@ async def test_tinycua_loop_tool_scoping():
 async def test_tinycua_loop_override_instructions():
     """TinyCUALoop passes override_instructions to nodes."""
     stub = StubNode("override test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
     loop = TinyCUALoop(queue=queue)
@@ -134,7 +134,7 @@ async def test_tinycua_loop_override_instructions():
 async def test_tinycua_loop_stream_false_returns_string():
     """TinyCUALoop run(stream=False) returns a string."""
     stub = StubNode("string result")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
     loop = TinyCUALoop(queue=queue)
@@ -159,7 +159,7 @@ async def test_tinycua_loop_stream_false_returns_string():
 async def test_tinycua_loop_stream_true_returns_iterator():
     """TinyCUALoop run(stream=True) returns an async iterator with content deltas."""
     stub = StubNode("streaming response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 

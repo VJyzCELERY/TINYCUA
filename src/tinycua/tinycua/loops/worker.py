@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.analysis_effort import WorkerEffort
 from tinycua.loops.node import DecisionNode, DecisionResult
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.route_map import RouteMap
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class TinyCUAWorkerNode(DecisionNode):
             ),
             classification_labels=list(_DEFAULT_WORKER_LABELS),  # All five labels
         )
-        self.default_response_node = ResponseNode(config=self.config)
+        self.default_response_node = TinyCUAResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
         self._queue: NodeQueue | None = None
         self._loop: Any | None = None

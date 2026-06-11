@@ -1,6 +1,6 @@
 """Shared test helpers for TinyCUALoop tests.
 
-Provides lightweight StubNode and ResponseNode classes for unit and
+Provides lightweight StubNode and StubResponseNode classes for unit and
 integration tests without requiring the full ProcessNode machinery.
 """
 
@@ -54,7 +54,7 @@ class StubNode(Node):
         return self.processed_content
 
 
-class ResponseNode(Node):
+class StubResponseNode(Node):
     """Terminal test node that captures the final response content.
 
     Used as a terminal node in queue bootstrap tests to verify
@@ -72,7 +72,7 @@ class ResponseNode(Node):
         content: str = "final response",
         node_id: str = "response",
     ) -> None:
-        """Initialize ResponseNode.
+        """Initialize StubResponseNode.
 
         Args:
             content: Content to associate with this terminal node.

@@ -114,8 +114,8 @@ def test_on_complete_dispatch_replan():
     )
     queue = NodeQueue()
     # Add a placeholder current node so spawn_after_current works
-    from tinycua.loops.response_node import ResponseNode
-    queue.items.append(ResponseNode())
+    from tinycua.loops.response_node import TinyCUAResponseNode
+    queue.items.append(TinyCUAResponseNode())
 
     # Act
     reviewer.on_complete(queue, response)
@@ -157,8 +157,8 @@ def test_on_complete_replan_mutates_queue_regardless_of_session_config():
         metadata={"reviewer_decision": decision_data, "active_task": active_task},
     )
     queue = NodeQueue()
-    from tinycua.loops.response_node import ResponseNode
-    queue.items.append(ResponseNode())
+    from tinycua.loops.response_node import TinyCUAResponseNode
+    queue.items.append(TinyCUAResponseNode())
 
     reviewer.on_complete(queue, response)
 

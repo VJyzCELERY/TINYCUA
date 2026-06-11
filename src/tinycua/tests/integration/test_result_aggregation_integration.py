@@ -6,7 +6,7 @@ from tinycua.loops.result_aggregation import (
     AggregatedResult,
     TinyCUAResultAggregationNode,
 )
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import Task, TaskResult
@@ -143,7 +143,7 @@ def test_on_complete_advances_queue():
     queue = NodeQueue(
         items=[
             TinyCUAResultAggregationNode(),
-            ResponseNode(),
+            TinyCUAResponseNode(),
         ]
     )
     response = LLMResult(

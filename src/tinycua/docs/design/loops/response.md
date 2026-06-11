@@ -1,7 +1,7 @@
 # TinyCUAResponseNode
 
-> **Package:** `tinycua.loops.response`
-> **Status:** Target architecture
+> **Package:** `tinycua.loops.response_node`
+> **Status:** Implemented (Milestone 3.5)
 
 ## Role
 
@@ -16,17 +16,55 @@ the user-facing answer. It is not a generic `PrimaryNode`.
 - Does not execute tasks.
 - Does not review results.
 
+## Three-Phase Execution
+
+ResponseNode processes in three phases on every `__call__`:
+
+1. **Context Sufficiency Check**: Analyzes whether available context is sufficient.
+2. **Optional Context Gathering**: If insufficient, either suspends for digester or uses tools directly.
+3. **Final Response Synthesis**: Builds LLM input and produces the normalized terminal output.
+
+```text
+ResponseNode enters:
+  1. Build ResponseContext from NodeInput.
+  2. Analyze available context (_check_context_sufficiency).
+     → If sufficient: skip to phase 3.
+     → If insufficient:
+        a. If digester enabled: set _needs_digestion flag, return early;
+           actual suspension via on_complete() prepends InformationDigesterNode.
+        b. If digester unavailable: use allowed tools directly (_gather_context_via_tools).
+  3. Synthesize final response (_synthesize_response).
+  4. Normalize output to string (terminal normalization).
+```
+
 ## Inputs
 
 - `AggregatedResult` from ResultAggregationNode.
 - Accumulated root/session context.
 - Latest propagated node output.
 - Optional digested information from InformationDigesterNode.
+- Optional continuation payload from MandatoryPassthrough.
 
 ## Outputs / State Produced
 
-- Final user-facing response string.
-- May maintain a session for audit/todo/tool execution.
+- Final user-facing response string (always normalized to `LLMResult` with string `content`).
+
+## Data Model
+
+```python
+@dataclass
+class ResponseContext:
+    aggregated_result: AggregatedResult | None  # from ResultAggregationNode
+    session_context: list[dict[str, Any]]        # propagated context
+    latest_output: str | None                    # latest node output
+    continuation_payload: Any  # MandatoryPassthrough | None — user continuation data
+```
+
+## Context Sufficiency Check
+
+Sufficiency is determined by checking if `aggregated_result` is not None and contains
+at least one of `task_summaries` or `final_context`. This provides a clear, testable
+criterion. Thresholds are configurable via `NodeConfig.metadata`.
 
 ## Tools
 
@@ -35,37 +73,18 @@ the user-facing answer. It is not a generic `PrimaryNode`.
 | Information digestion request | May request InformationDigesterNode for additional context. |
 | Direct tool access | May use allowed tools directly when context is insufficient. |
 
-## LLM Input Construction
-
-ResponseNode's LLM input is built primarily from:
-1. Accumulated root/session_context.
-2. Latest propagated node output.
-
-It may maintain a session for audit/todo/tool execution, but its message policy treats
-it as a continuation of the current TinyCUA session.
-
-## Context Sufficiency Check
-
-On every call, ResponseNode first analyzes whether available context is sufficient:
-
-```text
-ResponseNode enters:
-  1. Analyze available context.
-     → If sufficient: produce final answer.
-     → If insufficient:
-        a. Use allowed tools directly, OR
-        b. Request InformationDigesterNode (if enabled).
-```
+ResponseNode shares the same base toolset as TaskExecutor via `NodeToolPolicy(include_agent_tools="all")`.
 
 ## Queue Behavior / `on_complete()`
 
 ```text
-ResponseNode completes:
+ResponseNode completes normally:
   → Terminal node: queue processing ends.
-  → Return final response string or stream events.
+  → Return final response string.
 
 ResponseNode suspends for digestion:
-  → suspend_current_and_prepend([InformationDigesterNode(parent=ResponseNode)])
+  → on_complete() detects _needs_digestion flag
+  → Calls queue.suspend_current_and_prepend([InformationDigesterNode(parent=ResponseNode)])
   → Digester completes → ResponseNode resumes.
 ```
 
@@ -73,25 +92,31 @@ ResponseNode suspends for digestion:
 
 When ResponseNode suspends for information digestion:
 
-1. Constructs `NodeInput(messages=[...], payloads=[...])` from selected
-   `session_context` messages plus optional digest request payload.
-2. Calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=response_node)])`.
+1. `__call__` sets `_needs_digestion = True` and returns early.
+2. `on_complete()` calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])`.
 3. Digester uses selected-output propagation targeting its parent session.
 4. Digest lands in suspended ResponseNode's `session_context`.
-5. ResponseNode resumes only after digest output has propagated back.
+5. ResponseNode resumes and re-checks sufficiency before synthesizing.
 
-## Propagation
+A `max_digest_attempts` counter prevents infinite loops (digester → response → digester).
 
-- This is the terminal node; no further queue propagation.
-- Returns final response string to `TinyCUALoop`.
+## Continuation Routing
+
+ResponseNode supports consolidated continuation via `MandatoryPassthrough`:
+
+- When `_continuation_payload` is set, the continuation is delivered directly without LLM rerouting.
+- The loop's `_execute_node` handles routing continuation payloads to the active ResponseNode session.
 
 ## Failure / Retry Behavior
 
-Retry according to `NodeRetryPolicy`.
+- Retries according to `NodeRetryPolicy`.
+- On retry exhaustion, returns a configurable fallback message (via `NodeConfig.metadata["fallback_message"]`) instead of raising, maintaining graceful terminal behavior.
 
 ## Related Config
 
-- `NodeToolPolicy` — information digestion and direct tool scope.
+- `NodeConfigBase.metadata["digester_enabled"]` — enable/disable digester path (default: True).
+- `NodeConfigBase.metadata["fallback_message"]` — configurable fallback on retry exhaustion.
+- `NodeToolPolicy(include_agent_tools="all")` — shares same toolset as TaskExecutor.
 - `NodeRetryPolicy` — retry behavior.
 
 ## Related

@@ -14,7 +14,7 @@ from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, DecisionResult, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.result_aggregation import TinyCUAResultAggregationNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.classification import MandatoryPassthrough
@@ -87,7 +87,7 @@ class TinyCUALoop(BaseLoop):
             self.queue = queue
         else:
             query_analyst = TinyCUAQueryAnalystNode()
-            response_node = ResponseNode()
+            response_node = TinyCUAResponseNode()
             self.queue = NodeQueue(items=[query_analyst, response_node])
 
     async def run(
@@ -476,6 +476,36 @@ class TinyCUALoop(BaseLoop):
         should_advance = decision.route_label != "uncertain"
         return content, should_advance, decision
 
+    async def _execute_node_with_client(
+        self, node: Node, effective_llm_client: Any
+    ) -> LLMResult:
+        """Inject LLM client, execute node via __call__, restore original client state.
+
+        Temporarily injects the effective LLM client into the node's config,
+        delegates to ``node.__call__()`` via ``asyncio.to_thread``, and
+        restores the original client state afterwards.
+
+        Args:
+            node: The node to execute.
+            effective_llm_client: The LLM client to inject for execution.
+
+        Returns:
+            The ``LLMResult`` produced by node execution.
+        """
+        original_client = getattr(node.config, "llm_client", None)
+        if original_client is None and hasattr(node.config, "llm_client"):
+            node.config.llm_client = effective_llm_client
+        try:
+            node.ensure_session(self.root_session)
+            input_data = self._build_node_input(node)
+            result = await asyncio.to_thread(node, input_data)
+            if isinstance(result, LLMResult):
+                return result
+            return LLMResult(content=str(result), role="assistant")
+        finally:
+            if original_client is None and hasattr(node.config, "llm_client"):
+                node.config.llm_client = None
+
     async def _execute_node(
         self,
         node: Node,
@@ -516,22 +546,50 @@ class TinyCUALoop(BaseLoop):
 
         # Non-decision nodes: delegate to node.__call__() so custom logic
         # (ReAct loops, decision parsing, active_task extraction) runs.
-        # Terminal nodes (e.g. ResponseNode) skip node.__call__ because
-        # they don't need an LLM call — they capture/transform content.
+        # Terminal nodes: TinyCUAResponseNode uses __call__ for three-phase
+        # execution (context sufficiency → digester/tools → synthesis);
+        # other terminals use the default LLM call path.
         if node.is_terminal:
-            messages, resolved_tools = self._prepare_node(
-                node,
-                tools,
-                override_instructions,
-            )
-            response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
-            content = response.get("content") or ""
-            llm_result = LLMResult(
-                content=content,
-                role=response.get("role", "assistant"),
-                tool_calls=response.get("tool_calls", []),
-                metadata=response.get("metadata", {}),
-            )
+            if isinstance(node, TinyCUAResponseNode):
+                effective_llm_client = getattr(node.config, "llm_client", None) or getattr(
+                    self.session_config, "llm_client", None
+                )
+                if effective_llm_client is not None:
+                    # Inject client and delegate to __call__ for three-phase
+                    llm_result = await self._execute_node_with_client(
+                        node, effective_llm_client
+                    )
+                else:
+                    # No LLM client — use the default terminal path via
+                    # agent._call_llm() so tests and fallback scenarios work.
+                    messages, resolved_tools = self._prepare_node(
+                        node,
+                        tools,
+                        override_instructions,
+                    )
+                    response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                    llm_result = LLMResult(
+                        content=response.get("content") or "",
+                        role=response.get("role", "assistant"),
+                        tool_calls=response.get("tool_calls", []),
+                        metadata=response.get("metadata", {}),
+                    )
+                content = llm_result.content or ""
+            else:
+                # Default terminal path for non-ResponseNode terminals
+                messages, resolved_tools = self._prepare_node(
+                    node,
+                    tools,
+                    override_instructions,
+                )
+                response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                content = response.get("content") or ""
+                llm_result = LLMResult(
+                    content=content,
+                    role=response.get("role", "assistant"),
+                    tool_calls=response.get("tool_calls", []),
+                    metadata=response.get("metadata", {}),
+                )
         else:
             node.ensure_session(self.root_session)
             # Delegate to node.__call__() if the node has its own LLM client,
@@ -546,21 +604,9 @@ class TinyCUALoop(BaseLoop):
             )
             if effective_llm_client is not None:
                 # Temporarily inject the effective client so node.__call__ can use it
-                original_client = getattr(node.config, "llm_client", None)
-                if original_client is None and hasattr(node.config, "llm_client"):
-                    node.config.llm_client = effective_llm_client
-                try:
-                    input_data = self._build_node_input(node)
-                    result = await asyncio.to_thread(node, input_data)
-                    # Node __call__ may return LLMResult or plain str (test stubs)
-                    if isinstance(result, LLMResult):
-                        llm_result = result
-                    else:
-                        llm_result = LLMResult(content=str(result), role="assistant")
-                finally:
-                    # Restore original client state if we injected one
-                    if original_client is None and hasattr(node.config, "llm_client"):
-                        node.config.llm_client = None
+                llm_result = await self._execute_node_with_client(
+                    node, effective_llm_client
+                )
             else:
                 if (
                     hasattr(node, "__call__")
@@ -1088,7 +1134,7 @@ class TinyCUALoop(BaseLoop):
             queue: The node queue to mutate.
         """
         aggregation_node = TinyCUAResultAggregationNode(loop=self)
-        response_node = ResponseNode()
+        response_node = TinyCUAResponseNode()
         queue.clear_after_current()
         queue.spawn_after_current([aggregation_node, response_node])
         queue.ensure_terminal(response_node)
