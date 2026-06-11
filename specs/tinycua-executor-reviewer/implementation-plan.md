@@ -40,43 +40,29 @@ No external prerequisites — this feature is self-contained within `tinycua.loo
 # Test file: src/tinycua/tests/integration/test_executor_reviewer_integration.py
 """Integration tests for executor→reviewer path."""
 
-from unittest.mock import Mock, patch
-from tinycua.models.task import Task, TaskResult
-from tinycua.models.node_input import NodeInput
-from tinycua.models.node_result import LLMResult
-from tinycua.models.task import ReviewerDecision, ReviewerOutcome
+from unittest.mock import MagicMock
+from tinycua.config.types import LLMResult
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.models.task import Task
 
 
-def _build_loop_with_active_task():
+def _build_loop_with_active_task() -> "TinyCUALoop":
     """Build a TinyCUALoop with one active task for testing."""
     from tinycua.loops.tinycua_loop import TinyCUALoop
-    task = Task(task_id="test-1", description="Test task", status="active")
-    queue = Mock()
+    task = Task(task_id="test-1", title="Test Task", description="Test task", status="in_progress")
+    queue = NodeQueue()
     loop = TinyCUALoop(queue=queue)
-    loop._task_tree = Mock()
-    loop._task_tree.get_active_task.return_value = task
+    loop.root_task = task
+    loop._active_task_id = "test-1"
     return loop
 
 
-def _make_execution_result(status: str) -> LLMResult:
-    """Create a mock LLMResult simulating executor output."""
-    return LLMResult(content=f"Task {status}", metadata={"status": status})
-
-
-def _make_reviewer_decision(outcome: str) -> LLMResult:
-    """Create a mock LLMResult simulating reviewer decision."""
-    decision = ReviewerDecision(outcome=ReviewerOutcome(outcome), rationale="Test")
-    return LLMResult(content=decision.model_dump_json(), metadata={"reviewer_decision": decision})
-
-
-def _make_node_input(active_task: Task) -> NodeInput:
-    """Create a NodeInput with active_task in metadata."""
-    return NodeInput(content=active_task.description, metadata={"active_task": active_task})
-
-
-def _make_reviewer_input(executor_result: LLMResult) -> NodeInput:
-    """Create a NodeInput wrapping executor output for the reviewer."""
-    return NodeInput(content=executor_result.content, metadata=executor_result.metadata)
+# Note: The helper functions below (_make_execution_result, _make_reviewer_decision, etc.)
+# existed in an earlier version of this document but were removed because the actual
+# integration tests (test_executor_reviewer_integration.py) use inline patterns and
+# simplified helpers (e.g., decision_json()) instead. These sketches are retained here
+# as a conceptual reference — always verify actual imports and APIs against the
+# current codebase before implementing.
 
 
 def test_executor_reviewer_accept_path():

@@ -52,6 +52,12 @@ class TinyCUALoop(BaseLoop):
             root_session: The root session for this loop. Created if not provided.
             queue: Node queue for execution. Created if not provided.
             session_config: Session configuration to apply.
+                **Important**: If ``session_config.llm_client`` is None (the default),
+                custom ``ProcessNode.__call__`` logic (e.g., TaskExecutor's ReAct loop
+                and ResultReviewer's decision parsing) is **bypassed** — the loop falls
+                back to ``agent._call_llm()`` instead. Set
+                ``SessionConfig(llm_client=<client>)`` to enable custom node behavior.
+                See design.md Decision #7 for details.
             max_iterations: Maximum loop iterations before forced stop.
             default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
         """

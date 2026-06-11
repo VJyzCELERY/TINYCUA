@@ -47,7 +47,7 @@ Implementation tasks for Milestone 3.2 — Executor & Reviewer Nodes. Check off 
   - [x] Ensure terminal response path
 - [x] [FR-022–FR-023] Replace WorkerNode._route_proceed_execution() stub <!-- id: 13 -->
 
-<!-- id: 14 removed per ISSUE-027 (redundant with task 20) -->
+<!-- id: 14 removed — was "Run integration tests — expect GREEN", redundant with full suite run at task 20 -->
 
 ## Testing Phase
 
