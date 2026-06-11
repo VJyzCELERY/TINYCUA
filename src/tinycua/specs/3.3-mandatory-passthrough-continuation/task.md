@@ -6,29 +6,29 @@ Implementation tasks for Mandatory Passthrough and Continuation Routing (Milesto
 
 ## TDD Phase (Tests First)
 
-- [ ] Write unit tests for `_on_reviewer_open_question` installing MandatoryPassthrough <!-- id: 0 -->
-- [ ] Write unit tests for `_install_mandatory_passthrough`, `_clear_mandatory_passthrough`, `_find_result_reviewer` <!-- id: 1 -->
-- [ ] Write unit tests for `_execute_decision_node` passthrough injection and consumption <!-- id: 2 -->
-- [ ] Write unit tests for `_ensure_query_analyst_at_front` queue restart logic <!-- id: 2b -->
-- [ ] Write integration test for two-call end-to-end open_question → passthrough → continuation <!-- id: 3 -->
-- [ ] Run all new tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
+- [x] Write unit tests for `_on_reviewer_open_question` installing MandatoryPassthrough <!-- id: 0 -->
+- [x] Write unit tests for `_install_mandatory_passthrough`, `_clear_mandatory_passthrough`, `_find_result_reviewer` <!-- id: 1 -->
+- [x] Write unit tests for `_execute_decision_node` passthrough injection and consumption <!-- id: 2 -->
+- [x] Write unit tests for `_ensure_query_analyst_at_front` queue restart logic <!-- id: 2b -->
+- [x] Write integration test for two-call end-to-end open_question → passthrough → continuation <!-- id: 3 -->
+- [x] Run all new tests — expect RED (failures) since no implementation yet <!-- id: 4 -->
 
 ## Implementation Phase
 
-- [ ] Add `_pending_mandatory_passthrough: MandatoryPassthrough | None = None` field to `TinyCUALoop.__init__` <!-- id: 5 -->
-- [ ] Implement `_install_mandatory_passthrough(self, mandatory)` method on `TinyCUALoop` <!-- id: 6 -->
-- [ ] Implement `_clear_mandatory_passthrough(self)` method on `TinyCUALoop` <!-- id: 7 -->
-- [ ] Implement `_find_result_reviewer(self)` method on `TinyCUALoop` — scan queue for `TinyCUAResultReviewerNode`; returns node or None — session check is in `_on_reviewer_open_question` <!-- id: 8 -->
-- [ ] Implement `_ensure_query_analyst_at_front(self)` method on `TinyCUALoop` — restart queue to QueryAnalyst when passthrough is pending <!-- id: 8b -->
-- [ ] Update `run()` to call `_ensure_query_analyst_at_front()` when `_pending_mandatory_passthrough` is set <!-- id: 8c -->
-- [ ] Update `_on_reviewer_open_question(self, active_task)` from log-only stub to install MandatoryPassthrough <!-- id: 9 -->
-- [ ] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input metadata before precheck <!-- id: 10 -->
-- [ ] Update `_execute_decision_node()` to call `_clear_mandatory_passthrough()` after successful passthrough forward <!-- id: 11 -->
+- [x] Add `_pending_mandatory_passthrough: MandatoryPassthrough | None = None` field to `TinyCUALoop.__init__` <!-- id: 5 -->
+- [x] Implement `_install_mandatory_passthrough(self, mandatory)` method on `TinyCUALoop` <!-- id: 6 -->
+- [x] Implement `_clear_mandatory_passthrough(self)` method on `TinyCUALoop` <!-- id: 7 -->
+- [x] Implement `_find_result_reviewer(self)` method on `TinyCUALoop` — scan queue for `TinyCUAResultReviewerNode`; returns node or None — session check is in `_on_reviewer_open_question` <!-- id: 8 -->
+- [x] Implement `_ensure_query_analyst_at_front(self)` method on `TinyCUALoop` — restart queue to QueryAnalyst when passthrough is pending <!-- id: 8b -->
+- [x] Update `run()` to call `_ensure_query_analyst_at_front()` when `_pending_mandatory_passthrough` is set <!-- id: 8c -->
+- [x] Update `_on_reviewer_open_question(self, active_task)` from log-only stub to install MandatoryPassthrough <!-- id: 9 -->
+- [x] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input metadata before precheck <!-- id: 10 -->
+- [x] Update `_execute_decision_node()` to call `_clear_mandatory_passthrough()` after successful passthrough forward <!-- id: 11 -->
 
 ## Testing Phase
 
-- [ ] Run all new tests — expect GREEN (all pass) <!-- id: 12 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — confirm no regressions <!-- id: 13 -->
+- [x] Run all new tests — expect GREEN (all pass) <!-- id: 12 -->
+- [x] Run full test suite: `cd src/tinycua && uv run pytest` — confirm no regressions <!-- id: 13 -->
 
 ## Verification Phase
 

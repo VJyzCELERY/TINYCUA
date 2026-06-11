@@ -9,10 +9,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.classification import MandatoryPassthrough
 from tinycua.models.session import Session
+from tinycua.models.task import Task
 from tinycua_sdk.agent import BaseLoop
 
+from tests.mock_llm import MockLLM
 from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
 
 
@@ -511,3 +515,272 @@ async def test_tinycua_loop_ensure_terminal_bootstrap():
 
     assert len(ensure_terminal_called) == 1
     assert ensure_terminal_called[0] is terminal_node
+
+
+# --- Mandatory Passthrough Unit Tests ---
+
+
+def test_on_reviewer_open_question_installs_passthrough():
+    """_on_reviewer_open_question installs MandatoryPassthrough targeting ResultReviewer."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+    active_task = Task(task_id="task_1", title="test task", description="test task")
+
+    # Act
+    loop._on_reviewer_open_question(active_task)
+
+    # Assert
+    assert loop._pending_mandatory_passthrough is not None
+    assert loop._pending_mandatory_passthrough.target_node_id == "reviewer_1"
+    assert loop._pending_mandatory_passthrough.target_session_id == session.session_id
+    assert loop._pending_mandatory_passthrough.allow_query_analyst_restart is True
+
+
+def test_on_reviewer_open_question_preserves_active_task():
+    """_on_reviewer_open_question does not modify the active task status during installation."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+    active_task = Task(task_id="task_1", title="test task", description="test task", status="in_progress")
+
+    # Act
+    loop._on_reviewer_open_question(active_task)
+
+    # Assert — task is unchanged (status preserved, not marked done or removed)
+    assert active_task.task_id == "task_1"
+    assert active_task.status == "in_progress"  # status was preserved
+    assert loop._pending_mandatory_passthrough is not None  # passthrough was installed
+
+
+def test_on_reviewer_open_question_no_reviewer_logs_warning():
+    """_on_reviewer_open_question warns when no ResultReviewer found in queue."""
+    # Arrange
+    loop = TinyCUALoop()
+    active_task = Task(task_id="task_1", title="test task", description="test task")
+
+    # Act
+    loop._on_reviewer_open_question(active_task)
+
+    # Assert
+    assert loop._pending_mandatory_passthrough is None
+
+
+def test_install_mandatory_passthrough_clears_previous():
+    """_install_mandatory_passthrough replaces any existing passthrough."""
+    # Arrange
+    loop = TinyCUALoop()
+    first = MandatoryPassthrough(target_node_id="first", reason="first")
+    second = MandatoryPassthrough(target_node_id="second", reason="second")
+
+    # Act
+    loop._install_mandatory_passthrough(first)
+    loop._install_mandatory_passthrough(second)
+
+    # Assert
+    assert loop._pending_mandatory_passthrough.target_node_id == "second"
+
+
+def test_clear_mandatory_passthrough():
+    """_clear_mandatory_passthrough removes the pending directive."""
+    # Arrange
+    loop = TinyCUALoop()
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="test", reason="test"
+    )
+
+    # Act
+    loop._clear_mandatory_passthrough()
+
+    # Assert
+    assert loop._pending_mandatory_passthrough is None
+
+
+def test_stale_passthrough_restart_false_drops_continuation():
+    """Stale passthrough with allow_query_analyst_restart=False is dropped silently."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Install a passthrough with allow_query_analyst_restart=False
+    stale_session = Session()  # different session = stale
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="reviewer_1",
+        target_session_id=stale_session.session_id,
+        allow_query_analyst_restart=False,
+    )
+
+    # Act — simulate precheck with stale session
+    from tinycua.models.node_input import NodeInput
+
+    input_data = NodeInput(
+        input_type="continuation",
+        messages=[{"role": "user", "content": "user continuation"}],
+        metadata={"mandatory_passthrough": loop._pending_mandatory_passthrough},
+    )
+    from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+    qa = TinyCUAQueryAnalystNode()
+    qa.ensure_session(session)
+    result = qa.check_mandatory_passthrough(
+        input_data=input_data,
+    )
+
+    # Assert — passthrough is dropped, no restart
+    assert result is None
+
+
+def test_no_active_task_does_not_install_passthrough():
+    """_on_reviewer_open_question(None) does not install passthrough when no active task."""
+    # Arrange
+    loop = TinyCUALoop()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(loop.root_session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Act
+    loop._on_reviewer_open_question(None)
+
+    # Assert — no passthrough installed
+    assert loop._pending_mandatory_passthrough is None
+
+
+def test_find_result_reviewer_returns_first_match():
+    """_find_result_reviewer returns the first ResultReviewer in queue."""
+    # Arrange
+    loop = TinyCUALoop()
+    reviewer_a = TinyCUAResultReviewerNode(
+        node_id="reviewer_a",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer_b = TinyCUAResultReviewerNode(
+        node_id="reviewer_b",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    loop.queue.items = [loop.queue.items[0], reviewer_a, reviewer_b, loop.queue.items[-1]]
+
+    # Act
+    result = loop._find_result_reviewer()
+
+    # Assert — first match is returned
+    assert result is not None
+    assert result.node_id == "reviewer_a"
+
+
+def test_execute_decision_node_injects_passthrough_into_metadata():
+    """_build_query_analyst_input can carry passthrough when injected."""
+    # Arrange
+    loop = TinyCUALoop()
+    session = Session()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    reviewer.ensure_session(session)
+    loop.queue.items = [loop.queue.items[0], reviewer, loop.queue.items[-1]]
+
+    # Install a pending passthrough
+    loop._pending_mandatory_passthrough = MandatoryPassthrough(
+        target_node_id="reviewer_1",
+        target_session_id=session.session_id,
+        reason="test injection",
+    )
+
+    # Act — simulate _execute_decision_node building QueryAnalyst input
+    input_data = loop._build_query_analyst_input()
+    if loop._pending_mandatory_passthrough is not None:
+        input_data.metadata["mandatory_passthrough"] = loop._pending_mandatory_passthrough
+
+    # Assert — passthrough is injected into metadata
+    assert "mandatory_passthrough" in input_data.metadata
+    assert input_data.metadata["mandatory_passthrough"].target_node_id == "reviewer_1"
+    assert input_data.metadata["mandatory_passthrough"].target_session_id == session.session_id
+
+
+def test_ensure_query_analyst_at_front_moves_existing_qa():
+    """_ensure_query_analyst_at_front moves QueryAnalyst to front when it exists elsewhere."""
+    # Arrange
+    loop = TinyCUALoop()
+    from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+
+    qa = TinyCUAQueryAnalystNode()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    terminal = loop.queue.items[-1]
+    # Queue: [reviewer, qa, terminal] — QA is NOT at front
+    loop.queue.items = [reviewer, qa, terminal]
+
+    # Act
+    loop._ensure_query_analyst_at_front()
+
+    # Assert — QA is now at front
+    assert isinstance(loop.queue.items[0], TinyCUAQueryAnalystNode)
+    assert loop.queue.items[0] is qa
+
+
+def test_ensure_query_analyst_at_front_already_at_front():
+    """_ensure_query_analyst_at_front is no-op when QA is already at front."""
+    # Arrange
+    loop = TinyCUALoop()
+    original_items = list(loop.queue.items)
+
+    # Act
+    loop._ensure_query_analyst_at_front()
+
+    # Assert — unchanged
+    assert loop.queue.items[0] is original_items[0]
+    assert len(loop.queue.items) == len(original_items)
+
+
+def test_ensure_query_analyst_at_front_creates_fresh():
+    """_ensure_query_analyst_at_front creates fresh QA when none found in queue."""
+    # Arrange
+    loop = TinyCUALoop()
+    from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="reviewer_1",
+        config=NodeConfigBase(llm_client=MockLLM()),
+        loop=loop,
+    )
+    terminal = loop.queue.items[-1]
+    # Queue with no QA
+    loop.queue.items = [reviewer, terminal]
+
+    # Act
+    loop._ensure_query_analyst_at_front()
+
+    # Assert — fresh QA was created and placed at front
+    assert isinstance(loop.queue.items[0], TinyCUAQueryAnalystNode)
+    # The new QA should be a different instance
+    assert loop.queue.items[0].node_id == "query_analyst"

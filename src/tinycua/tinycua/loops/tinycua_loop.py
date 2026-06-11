@@ -16,6 +16,7 @@ from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.worker import TinyCUAWorkerNode
+from tinycua.models.classification import MandatoryPassthrough
 from tinycua.models.node_input import NodeInput
 from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.session import Session
@@ -25,6 +26,7 @@ from tinycua.config.session_config import SessionConfig
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
+    from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
 
@@ -70,6 +72,7 @@ class TinyCUALoop(BaseLoop):
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
         self._reviewer_retry_state: ReviewerRetryState = ReviewerRetryState()
+        self._pending_mandatory_passthrough: MandatoryPassthrough | None = None
 
         if self.session_config.llm_client is None:
             logger.warning(
@@ -146,6 +149,11 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The final response content string.
         """
+        # If a mandatory passthrough is pending, ensure QueryAnalyst is at front
+        # so the passthrough injection in _execute_decision_node is reachable.
+        if self._pending_mandatory_passthrough is not None:
+            self._ensure_query_analyst_at_front()
+
         last_content = ""
         iterations = 0
 
@@ -278,6 +286,11 @@ class TinyCUALoop(BaseLoop):
         Yields:
             Stream event dicts from the LLM.
         """
+        # If a mandatory passthrough is pending, ensure QueryAnalyst is at front
+        # so the passthrough injection in _execute_decision_node is reachable.
+        if self._pending_mandatory_passthrough is not None:
+            self._ensure_query_analyst_at_front()
+
         iterations = 0
 
         while not self.queue.is_empty():
@@ -370,6 +383,10 @@ class TinyCUALoop(BaseLoop):
         # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)
         if isinstance(node, TinyCUAQueryAnalystNode):
             input_data = self._build_query_analyst_input()
+            had_pending = self._pending_mandatory_passthrough is not None
+            # Inject pending mandatory passthrough into metadata if present
+            if self._pending_mandatory_passthrough is not None:
+                input_data.metadata["mandatory_passthrough"] = self._pending_mandatory_passthrough
             mandatory = node.check_mandatory_passthrough(input_data)
             if mandatory is not None:
                 logger.info(
@@ -391,7 +408,19 @@ class TinyCUALoop(BaseLoop):
                     ),
                 )
                 node.on_complete(self.queue, decision)
+                # Clear passthrough after successful forward
+                self._clear_mandatory_passthrough()
                 return passthrough_content, True, decision
+
+            # If a pending passthrough was injected but check_mandatory_passthrough
+            # returned None (stale/expired), clear it so the loop doesn't keep
+            # attempting to restart on subsequent runs.
+            if had_pending:
+                logger.info(
+                    "node=%s stale pending mandatory_passthrough detected and cleared",
+                    node.node_id,
+                )
+                self._clear_mandatory_passthrough()
 
         messages, resolved_tools = self._prepare_node(
             node,
@@ -902,19 +931,121 @@ class TinyCUALoop(BaseLoop):
             active_task.task_id,
         )
 
-    def _on_reviewer_open_question(self, active_task: Task) -> None:
-        """Preserve active task on open_question decision.
-
-        Logs the open question event. Preserves the active task. The caller
-        should install mandatory_passthrough for user escalation.
+    def _install_mandatory_passthrough(self, mandatory: MandatoryPassthrough) -> None:
+        """Store a MandatoryPassthrough directive on the loop, replacing any existing one.
 
         Args:
-            active_task: The task with an open question.
+            mandatory: The MandatoryPassthrough directive to store.
         """
+        if self._pending_mandatory_passthrough is not None:
+            logger.info(
+                "mandatory_passthrough replacing existing: old_target=%s new_target=%s",
+                self._pending_mandatory_passthrough.target_node_id,
+                mandatory.target_node_id,
+            )
+        self._pending_mandatory_passthrough = mandatory
         logger.info(
-            "reviewer_open_question task_id=%s",
-            active_task.task_id,
+            "mandatory_passthrough installed: target_node_id=%s target_session_id=%s reason=%s",
+            mandatory.target_node_id,
+            mandatory.target_session_id,
+            mandatory.reason,
         )
+
+    def _clear_mandatory_passthrough(self) -> None:
+        """Remove the pending mandatory passthrough directive."""
+        self._pending_mandatory_passthrough = None
+
+    def _find_result_reviewer(self) -> TinyCUAResultReviewerNode | None:
+        """Find the active ResultReviewer node in the queue.
+
+        Scans ``self.queue.items`` for ``TinyCUAResultReviewerNode``
+        instances and returns the first match.
+
+        Returns:
+            The first ResultReviewer node found, or None if not found.
+        """
+        # Local import to avoid circular dependency
+        from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+
+        for item in self.queue.items:
+            if isinstance(item, TinyCUAResultReviewerNode):
+                return item
+        return None
+
+    def _ensure_query_analyst_at_front(self) -> None:
+        """Ensure QueryAnalyst is at the front of the queue.
+
+        If QueryAnalyst is already at ``items[0]``, this is a no-op.
+        If found elsewhere in the queue, moves it to front.
+        If not found at all (already popped), creates a fresh
+        ``TinyCUAQueryAnalystNode`` and prepends it.
+        """
+        # Local import to avoid circular dependency
+        from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+
+        # If already at front, no-op
+        if self.queue.items and isinstance(self.queue.items[0], TinyCUAQueryAnalystNode):
+            return
+
+        # Find QA elsewhere in queue and move to front
+        for i, item in enumerate(self.queue.items):
+            if isinstance(item, TinyCUAQueryAnalystNode):
+                self.queue.items.pop(i)
+                self.queue.items.insert(0, item)
+                logger.info(
+                    "mandatory_passthrough: moved QueryAnalyst to queue front (index=%d)",
+                    i,
+                )
+                return
+
+        # Not found — create fresh QA and prepend
+        fresh_qa = TinyCUAQueryAnalystNode()
+        self.queue.items.insert(0, fresh_qa)
+        logger.info(
+            "mandatory_passthrough: created fresh QueryAnalyst at queue front",
+        )
+
+    def _on_reviewer_open_question(self, active_task: Task | None) -> None:
+        """Handle open_question decision by installing a MandatoryPassthrough.
+
+        If ``active_task`` is None, logs a warning and returns without
+        installing a passthrough. Otherwise, finds the active
+        ResultReviewer in the queue and installs a MandatoryPassthrough
+        targeting its node and session.
+
+        Args:
+            active_task: The active task that triggered the open_question,
+                or None if no active task exists.
+        """
+        if active_task is None:
+            logger.warning(
+                "reviewer_open_question called with None active_task — "
+                "no passthrough installed",
+            )
+            return
+
+        reviewer = self._find_result_reviewer()
+        if reviewer is not None and reviewer.session is not None:
+            mandatory = MandatoryPassthrough(
+                target_node_id=reviewer.node_id,
+                target_session_id=reviewer.session.session_id,
+                reason="open_question",
+                allow_query_analyst_restart=True,
+            )
+            self._install_mandatory_passthrough(mandatory)
+            logger.info(
+                "reviewer_open_question task_id=%s — "
+                "mandatory_passthrough installed targeting node=%s session=%s",
+                active_task.task_id,
+                reviewer.node_id,
+                reviewer.session.session_id,
+            )
+        else:
+            logger.warning(
+                "reviewer_open_question task_id=%s — "
+                "no ResultReviewer found in queue, skipping",
+                active_task.task_id,
+            )
 
     def _is_root_task_done(self) -> bool:
         """Check if root task and all children are complete.
