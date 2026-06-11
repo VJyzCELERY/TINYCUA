@@ -1,7 +1,5 @@
 """Unit tests for TinyCUAResultAggregationNode and AggregatedResult."""
 
-from typing import Any
-
 import pytest
 
 from tinycua.config.types import LLMResult

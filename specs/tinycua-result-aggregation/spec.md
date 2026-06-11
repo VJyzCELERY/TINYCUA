@@ -69,14 +69,14 @@ After `TinyCUAResultReviewerNode` accepts the root task (the top-level task in t
 
 Objective, measurable checks that prove the problem is solved.
 
-- [ ] **Node exists and extends ProcessNode**: `TinyCUAResultAggregationNode` is defined in `tinycua.loops.result_aggregation` and extends `ProcessNode`.
-- [ ] **AggregatedResult model exists**: The `AggregatedResult` dataclass is defined and contains all required fields.
-- [ ] **BFS right-to-left traversal**: The node traverses the task tree in most-recent-first order (children visited right-to-left).
-- [ ] **Early termination works**: The node can stop traversal early when sufficient context is gathered, producing a partial but valid `AggregatedResult`.
-- [ ] **Read-only**: The node does not modify any task's status, result, or children.
-- [ ] **Queue advancement**: `on_complete` advances the queue (via `queue.advance()` or equivalent).
-- [ ] **Integration with loop**: When `ResultReviewer` accepts the root task, `TinyCUALoop` routes to aggregation, then to `ResponseNode`.
-- [ ] **All tests pass**: `cd src/tinycua && uv run pytest` passes for the result_aggregation module.
+- [x] **Node exists and extends ProcessNode**: `TinyCUAResultAggregationNode` is defined in `tinycua.loops.result_aggregation` and extends `ProcessNode`.
+- [x] **AggregatedResult model exists**: The `AggregatedResult` dataclass is defined and contains all required fields.
+- [x] **BFS right-to-left traversal**: The node traverses the task tree in most-recent-first order (children visited right-to-left).
+- [x] **Early termination works**: The node can stop traversal early when sufficient context is gathered, producing a partial but valid `AggregatedResult`.
+- [x] **Read-only**: The node does not modify any task's status, result, or children.
+- [x] **Queue advancement**: `on_complete` advances the queue (via `queue.advance()` or equivalent).
+- [x] **Integration with loop**: When `ResultReviewer` accepts the root task, `TinyCUALoop` routes to aggregation, then to `ResponseNode`.
+- [x] **All tests pass**: `cd src/tinycua && uv run pytest` passes for the result_aggregation module.
 
 ---
 

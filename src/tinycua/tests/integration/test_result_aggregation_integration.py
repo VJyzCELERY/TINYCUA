@@ -1,7 +1,5 @@
 """Integration tests for TinyCUAResultAggregationNode."""
 
-from unittest.mock import MagicMock
-
 from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.result_aggregation import (

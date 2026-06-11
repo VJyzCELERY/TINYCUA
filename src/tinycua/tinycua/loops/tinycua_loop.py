@@ -1079,8 +1079,7 @@ class TinyCUALoop(BaseLoop):
         return True
 
     def _route_to_aggregation(self, queue: NodeQueue) -> None:
-        """Route to aggregation: clear queue after current, spawn aggregation
-        then response nodes, and ensure the queue ends with a terminal node.
+        """Route to aggregation: clear queue after current, spawn aggregation then response nodes, and ensure the queue ends with a terminal node.
 
         Called by ``ResultReviewer.on_complete`` when ``_on_reviewer_accept``
         returns ``True`` (root task is done).
