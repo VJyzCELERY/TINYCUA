@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 
 TaskStatus = Literal["pending", "in_progress", "blocked", "done", "failed"]
-ExecutionStatus = Literal["not_started", "running", "succeeded", "failed", "blocked"]
+ExecutionStatus = Literal["not_started", "running", "succeeded", "failed", "blocked", "max_iterations_reached"]
 ReviewerOutcome = Literal["accept", "retry", "replan", "open_question"]
 
 

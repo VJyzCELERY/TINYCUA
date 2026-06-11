@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -10,17 +11,19 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionNode, DecisionResult
+from tinycua.loops.node import DecisionNode, DecisionResult, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInput
+from tinycua.models.reviewer_decision import ReviewerRetryState
 from tinycua.models.session import Session
 from tinycua.models.task import ReviewerDecision, Task, TaskResult
 
+from tinycua.config.session_config import SessionConfig
+
 if TYPE_CHECKING:
-    from tinycua.config.session_config import SessionConfig
     from tinycua.loops.node import Node
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
@@ -49,15 +52,32 @@ class TinyCUALoop(BaseLoop):
             root_session: The root session for this loop. Created if not provided.
             queue: Node queue for execution. Created if not provided.
             session_config: Session configuration to apply.
+                **Important**: If ``session_config.llm_client`` is None (the default),
+                custom ``ProcessNode.__call__`` logic (e.g., TaskExecutor's ReAct loop
+                and ResultReviewer's decision parsing) is **bypassed** — the loop falls
+                back to ``agent._call_llm()`` instead. Set
+                ``SessionConfig(llm_client=<client>)`` to enable custom node behavior.
+                See design.md Decision #7 for details.
             max_iterations: Maximum loop iterations before forced stop.
             default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
-        self.session_config = session_config
+        self.session_config = (
+            session_config if session_config is not None else SessionConfig()
+        )
         self.default_terminal_node = default_terminal_node
         self.root_task: Task | None = None
         self._active_task_id: str | None = None
+        self._reviewer_retry_state: ReviewerRetryState = ReviewerRetryState()
+
+        if self.session_config.llm_client is None:
+            logger.warning(
+                "TinyCUALoop created without llm_client in session_config — "
+                "ProcessNode custom logic (ReAct loops, decision parsing) will "
+                "be bypassed. Set SessionConfig(llm_client=<client>) to enable "
+                "custom node behavior. See design.md Decision #7."
+            )
 
         if queue is not None:
             self.queue = queue
@@ -142,7 +162,10 @@ class TinyCUALoop(BaseLoop):
                 break
 
             content, should_advance = await self._execute_node(
-                node, agent, tools, override_instructions,
+                node,
+                agent,
+                tools,
+                override_instructions,
             )
             last_content = content
             iterations += 1
@@ -179,6 +202,35 @@ class TinyCUALoop(BaseLoop):
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         return messages, resolved_tools
 
+    def _build_node_input(self, node: Node) -> NodeInput:
+        """Build a NodeInput from the root session's input context.
+
+        Constructs a NodeInput envelope so node.__call__() receives
+        structured input with metadata (e.g., active_task).
+
+        Args:
+            node: The node that will receive the input.
+
+        Returns:
+            NodeInput constructed from the root session input context.
+        """
+        messages: list[dict[str, Any]] = []
+        metadata: dict[str, Any] = {}
+        if self.root_session.input_context:
+            for msg in self.root_session.input_context:
+                messages.append(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                )
+                if "metadata" in msg:
+                    metadata.update(msg["metadata"])
+        # Inject active task so TaskExecutor/ResultReviewer can access it
+        active_task = self.get_active_task()
+        if active_task is not None:
+            metadata["active_task"] = active_task
+        return NodeInput(
+            input_type="continuation", messages=messages, metadata=metadata
+        )
+
     def _record_node_output(
         self,
         node: Node,
@@ -193,10 +245,12 @@ class TinyCUALoop(BaseLoop):
             tool_calls: Optional list of tool call dicts.
         """
         if content:
-            self.root_session.chat_history.append({
-                "role": "assistant",
-                "content": content,
-            })
+            self.root_session.chat_history.append(
+                {
+                    "role": "assistant",
+                    "content": content,
+                }
+            )
 
         llm_result = LLMResult(
             content=content,
@@ -243,7 +297,10 @@ class TinyCUALoop(BaseLoop):
             # fall back to sync-like flow using agent._call_llm() without stream.
             if isinstance(node, DecisionNode):
                 content, should_advance, _decision = await self._execute_decision_node(
-                    node, agent, tools, override_instructions,
+                    node,
+                    agent,
+                    tools,
+                    override_instructions,
                 )
                 iterations += 1
                 if node.is_terminal:
@@ -253,7 +310,9 @@ class TinyCUALoop(BaseLoop):
                 continue
 
             messages, resolved_tools = self._prepare_node(
-                node, tools, override_instructions,
+                node,
+                tools,
+                override_instructions,
             )
 
             # Stream from agent._call_llm() and yield events
@@ -305,6 +364,7 @@ class TinyCUALoop(BaseLoop):
         # Provide queue reference and adjust labels dynamically (WorkerNode)
         if isinstance(node, TinyCUAWorkerNode):
             node._queue = self.queue
+            node._loop = self
             node.classification_labels = node._get_classification_labels(self.queue)
 
         # Precheck: mandatory_passthrough for QueryAnalyst (FR-005/FR-006)
@@ -334,7 +394,9 @@ class TinyCUALoop(BaseLoop):
                 return passthrough_content, True, decision
 
         messages, resolved_tools = self._prepare_node(
-            node, tools, override_instructions,
+            node,
+            tools,
+            override_instructions,
         )
 
         async def _analyze(msgs: list[dict[str, str]]) -> LLMResult:
@@ -342,7 +404,8 @@ class TinyCUALoop(BaseLoop):
             return LLMResult(content=raw.get("content") or "", role="assistant")
 
         async def _classify(
-            msgs: list[dict[str, str]], analysis: LLMResult,
+            msgs: list[dict[str, str]],
+            analysis: LLMResult,
         ) -> LLMResult:
             classification_messages = list(msgs)
             classification_messages.append(
@@ -359,14 +422,18 @@ class TinyCUALoop(BaseLoop):
                 }
             )
             raw = await agent._call_llm(  # type: ignore[arg-type]
-                classification_messages, resolved_tools,
+                classification_messages,
+                resolved_tools,
             )
             return LLMResult(
-                content=raw.get("content") or "", role="assistant",
+                content=raw.get("content") or "",
+                role="assistant",
             )
 
         decision = await node._execute_with_retry(  # type: ignore[misc]
-            messages, analyze=_analyze, classify=_classify,
+            messages,
+            analyze=_analyze,
+            classify=_classify,
         )
 
         content = (
@@ -410,19 +477,90 @@ class TinyCUALoop(BaseLoop):
         # DecisionNode subclasses: two-step analysis + classification + route dispatch
         if isinstance(node, DecisionNode):
             content, should_advance, _decision = await self._execute_decision_node(
-                node, agent, tools, override_instructions,
+                node,
+                agent,
+                tools,
+                override_instructions,
             )
             return content, should_advance
 
-        # Non-decision nodes: build messages and call agent._call_llm() directly
-        messages, resolved_tools = self._prepare_node(
-            node, tools, override_instructions,
-        )
+        # Non-decision nodes: delegate to node.__call__() so custom logic
+        # (ReAct loops, decision parsing, active_task extraction) runs.
+        # Terminal nodes (e.g. ResponseNode) skip node.__call__ because
+        # they don't need an LLM call — they capture/transform content.
+        if node.is_terminal:
+            messages, resolved_tools = self._prepare_node(
+                node,
+                tools,
+                override_instructions,
+            )
+            response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+            content = response.get("content") or ""
+            llm_result = LLMResult(
+                content=content,
+                role=response.get("role", "assistant"),
+                tool_calls=response.get("tool_calls", []),
+                metadata=response.get("metadata", {}),
+            )
+        else:
+            node.ensure_session(self.root_session)
+            # Delegate to node.__call__() if the node has its own LLM client,
+            # so custom logic (ReAct loops, decision parsing) runs.
+            # Fall back to agent._call_llm() for nodes without a configured
+            # client (e.g. test stubs, nodes relying on agent transport).
+            # Check node.config.llm_client first, then fall back to
+            # session_config.llm_client (the default production path when
+            # SessionConfig has an llm_client set — see design.md Decision #7).
+            effective_llm_client = getattr(node.config, "llm_client", None) or getattr(
+                self.session_config, "llm_client", None
+            )
+            if effective_llm_client is not None:
+                # Temporarily inject the effective client so node.__call__ can use it
+                original_client = getattr(node.config, "llm_client", None)
+                if original_client is None and hasattr(node.config, "llm_client"):
+                    node.config.llm_client = effective_llm_client
+                try:
+                    input_data = self._build_node_input(node)
+                    result = await asyncio.to_thread(node, input_data)
+                    # Node __call__ may return LLMResult or plain str (test stubs)
+                    if isinstance(result, LLMResult):
+                        llm_result = result
+                    else:
+                        llm_result = LLMResult(content=str(result), role="assistant")
+                finally:
+                    # Restore original client state if we injected one
+                    if original_client is None and hasattr(node.config, "llm_client"):
+                        node.config.llm_client = None
+            else:
+                if (
+                    hasattr(node, "__call__")
+                    and type(node).__call__ is not ProcessNode.__call__
+                ):
+                    logger.error(
+                        "Fallback path: node %s overrides ProcessNode.__call__ "
+                        "but neither node.config.llm_client nor "
+                        "session_config.llm_client is set — custom logic "
+                        "(ReAct loops, decision parsing) will be bypassed. "
+                        "To fix: set SessionConfig.llm_client or "
+                        "node.config.llm_client.",
+                        node.node_id,
+                    )
+                messages, resolved_tools = self._prepare_node(
+                    node,
+                    tools,
+                    override_instructions,
+                )
+                response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                llm_result = LLMResult(
+                    content=response.get("content") or "",
+                    role=response.get("role", "assistant"),
+                    tool_calls=response.get("tool_calls", []),
+                    metadata=response.get("metadata", {}),
+                )
+            content = llm_result.content or ""
 
-        response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
-        content = response.get("content") or ""
-
-        self._record_node_output(node, content, response.get("tool_calls"))
+        self._record_node_output(node, content, llm_result.tool_calls)
+        node.on_complete(self.queue, llm_result)
 
         return content, True
 
@@ -439,10 +577,14 @@ class TinyCUALoop(BaseLoop):
         metadata: dict[str, Any] = {}
         if self.root_session.input_context:
             for msg in self.root_session.input_context:
-                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                messages.append(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                )
                 if "metadata" in msg:
                     metadata.update(msg["metadata"])
-        return NodeInput(input_type="continuation", messages=messages, metadata=metadata)
+        return NodeInput(
+            input_type="continuation", messages=messages, metadata=metadata
+        )
 
     def _build_node_messages(
         self,
@@ -487,7 +629,10 @@ class TinyCUALoop(BaseLoop):
             )
 
         # Add chat history if policy says so
-        if node.config.message_policy.include_chat_history and self.root_session.chat_history:
+        if (
+            node.config.message_policy.include_chat_history
+            and self.root_session.chat_history
+        ):
             messages.extend(
                 {
                     "role": m["role"],
@@ -633,11 +778,12 @@ class TinyCUALoop(BaseLoop):
         active.result = result
 
     def _on_reviewer_accept(self, active_task: Task) -> bool:
-        """Mark active task as done and check if root task is complete.
+        """Mark active task as done, reset retry counter, and check if root task is complete.
 
         Walks up the parent chain marking parent tasks as done when all their
-        children complete. Does NOT recompute the next active task — callers
-        should call get_active_task() after this method returns.
+        children complete. Resets the retry counter since the task was accepted.
+        Does NOT recompute the next active task — callers should call
+        get_active_task() after this method returns.
 
         Returns True if root task is done (should route to aggregation),
         False otherwise (caller should route to next active task via
@@ -649,6 +795,9 @@ class TinyCUALoop(BaseLoop):
         Returns:
             True if root task is done, False otherwise.
         """
+        # Reset retry counter on accept
+        self._reviewer_retry_state.reset()
+
         # Set reviewer_decision per design spec (step 1)
         if active_task.result is not None:
             active_task.result.reviewer_decision = ReviewerDecision(outcome="accept")
@@ -676,9 +825,7 @@ class TinyCUALoop(BaseLoop):
             _depth: Current recursion depth (used for cycle detection).
         """
         if _depth >= self._MAX_PARENT_WALK_DEPTH:
-            logger.error(
-                "Parent walk exceeded max depth (%d); possible cycle", _depth
-            )
+            logger.error("Parent walk exceeded max depth (%d); possible cycle", _depth)
             return
 
         # Find parent of this task by traversing from root
@@ -716,29 +863,58 @@ class TinyCUALoop(BaseLoop):
     def _on_reviewer_retry(self, active_task: Task) -> None:
         """Preserve active task on retry decision.
 
+        Increments the retry counter and logs a warning if threshold is
+        reached. Preserves the active task for re-execution.
+
         Args:
             active_task: The task that should be retried.
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        self._reviewer_retry_state.increment()
+        if self._reviewer_retry_state.is_threshold_reached():
+            logger.warning(
+                "reviewer retry threshold reached: retry_count=%d threshold=%d",
+                self._reviewer_retry_state.retry_count,
+                self._reviewer_retry_state.threshold,
+            )
+        logger.info(
+            "reviewer_retry task_id=%s retry_count=%d",
+            active_task.task_id,
+            self._reviewer_retry_state.retry_count,
+        )
 
     def _on_reviewer_replan(self, active_task: Task) -> None:
-        """Preserve active task on replan decision.
+        """Handle replan decision: log event, preserve active task.
+
+        Queue mutation is owned by ResultReviewer.on_complete per the
+        design doc (design.md:397-408):
+        - clear_after_current()
+        - spawn TaskAssessor + TaskAnalyzer + TaskExecutor
+        - ensure_terminal(terminal_node)
+
+        This handler only logs and preserves the active task (by doing nothing
+        to it). See ResultReviewer.on_complete for the full dispatch.
 
         Args:
-            active_task: The task that should be replanned.
+            active_task: The active task to preserve (NOT modified here).
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        logger.info(
+            "reviewer_replan task_id=%s — queue mutation handled by ResultReviewer.on_complete",
+            active_task.task_id,
+        )
 
     def _on_reviewer_open_question(self, active_task: Task) -> None:
         """Preserve active task on open_question decision.
 
+        Logs the open question event. Preserves the active task. The caller
+        should install mandatory_passthrough for user escalation.
+
         Args:
             active_task: The task with an open question.
         """
-        # No-op for now — active task preserved (Milestone 3.2)
-        pass
+        logger.info(
+            "reviewer_open_question task_id=%s",
+            active_task.task_id,
+        )
 
     def _is_root_task_done(self) -> bool:
         """Check if root task and all children are complete.

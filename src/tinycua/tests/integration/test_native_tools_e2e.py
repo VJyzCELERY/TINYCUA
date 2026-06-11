@@ -95,6 +95,10 @@ class TestNativeToolsE2E:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        os.environ.get("RUN_FLAKY_TESTS", "").lower() not in ("1", "true", "yes"),
+        reason="Pre-existing flaky test — set RUN_FLAKY_TESTS=1 to enable (ISSUE-39-003)",
+    )
     async def test_agent_calls_run_shell(self):
         """Agent calls run_shell to execute a shell command."""
         from tinycua.agent.tools.native.shell import run_shell

@@ -63,8 +63,9 @@ def test_execution_status_literal_values():
     """ExecutionStatus accepts only the defined literal values."""
     valid_statuses: list[ExecutionStatus] = [
         "not_started", "running", "succeeded", "failed", "blocked",
+        "max_iterations_reached",
     ]
-    assert len(valid_statuses) == 5
+    assert len(valid_statuses) == 6
 
 
 def test_reviewer_outcome_literal_values():

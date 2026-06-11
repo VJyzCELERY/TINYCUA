@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import ProcessNode
 
@@ -69,6 +69,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         node_id: str = "analysis_effort",
         config: NodeConfigBase | None = None,
         effort: WorkerEffort = WorkerEffort.none,
+        loop: Any | None = None,
     ) -> None:
         """Initialize AnalysisEffortNode.
 
@@ -76,6 +77,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration. Uses default if None.
             effort: The configured effort level. Defaults to "none".
+            loop: Reference to TinyCUALoop for passing to spawned nodes.
         """
         super().__init__(
             node_id=node_id,
@@ -90,6 +92,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         self.effort = effort
         self.pass_limit = effort_to_pass_limit(effort)
         self.pass_count = 0
+        self._loop = loop
 
     def _should_spawn_executor(self) -> bool:
         """Check if pass_limit has been reached.
@@ -132,24 +135,36 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         )
 
     def _spawn_task_executor(self, queue: NodeQueue) -> None:
-        """Spawn TaskExecutor and ensure terminal response path.
+        """Spawn TaskExecutor and ResultReviewer, ensure terminal response path.
 
-        Creates TinyCUATaskExecutorNode and spawns it after the current
-        position, ensuring terminal response path is maintained.
-
-        Note: TaskExecutor is deferred to Milestone 3.2. This is a stub
-        that ensures the terminal path is maintained (FR-008).
+        Creates TinyCUATaskExecutorNode and TinyCUAResultReviewerNode, spawns
+        them after the current position, ensuring terminal response path is
+        maintained.
 
         Args:
             queue: The node queue to mutate.
         """
-        # TaskExecutor is deferred to Milestone 3.2
-        # Ensure terminal response path is maintained (FR-008)
+        from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        task_executor = TinyCUATaskExecutorNode(
+            node_id="task_executor", config=self.config,
+        )
+        result_reviewer = TinyCUAResultReviewerNode(
+            node_id="result_reviewer", config=self.config,
+            loop=self._loop,
+        )
+
+        # Spawn executor + reviewer after current position
+        queue.spawn_after_current([task_executor, result_reviewer])
+
+        # Ensure terminal response path is maintained
         terminal = next((n for n in queue.items if n.is_terminal), None)
         if terminal is not None:
             queue.ensure_terminal(terminal)
+
         logger.info(
-            "node=%s spawn_task_executor (stub — Milestone 3.2)",
+            "node=%s spawned task_executor and result_reviewer",
             self.node_id,
         )
 

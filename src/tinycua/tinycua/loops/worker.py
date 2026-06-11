@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.analysis_effort import WorkerEffort
 from tinycua.loops.node import DecisionNode, DecisionResult
@@ -87,6 +87,7 @@ class TinyCUAWorkerNode(DecisionNode):
         self.default_response_node = ResponseNode(config=self.config)
         self.route_map = route_map or self._build_default_route_map()
         self._queue: NodeQueue | None = None
+        self._loop: Any | None = None
         self._last_input: NodeInputLike | None = None
         self._effort = effort
 
@@ -200,6 +201,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_create, task_analyzer, analysis_effort])
 
@@ -237,6 +239,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 
@@ -274,6 +277,7 @@ class TinyCUAWorkerNode(DecisionNode):
         )
         analysis_effort = TinyCUAAnalysisEffortNode(
             node_id="analysis_effort", config=self.config, effort=self._effort,
+            loop=self._loop,
         )
         queue.spawn_after_current([task_analyzer, analysis_effort])
 
@@ -325,20 +329,37 @@ class TinyCUAWorkerNode(DecisionNode):
     def _route_proceed_execution(
         self, queue: NodeQueue, result: DecisionResult,
     ) -> None:
-        """LLM-assisted route: ensure terminal response path (Milestone 2.3).
+        """LLM-assisted route: spawn TaskExecutor + ResultReviewer.
 
-        TaskExecutor and ResultReviewer spawning deferred to Milestone 3.2 (Phase 2).
-        Handler ensures queue reaches stable state with terminal response.
+        Clears the queue after current and spawns TaskExecutorNode
+        followed by ResultReviewerNode, ensuring terminal response path
+        is maintained.
 
         Args:
-            queue: The node queue (may be mutated to ensure terminal path).
+            queue: The node queue (may be mutated to spawn executor+reviewer).
             result: The decision result.
         """
+        from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        # Clear stale worker-spawned nodes
+        queue.clear_after_current()
+
+        # Spawn TaskExecutorNode and ResultReviewerNode after current worker
+        task_executor = TinyCUATaskExecutorNode(
+            node_id="task_executor", config=self.config,
+        )
+        result_reviewer = TinyCUAResultReviewerNode(
+            node_id="result_reviewer", config=self.config,
+            loop=self._loop,
+        )
+        queue.spawn_after_current([task_executor, result_reviewer])
+
         # Ensure terminal response path is maintained
         queue.ensure_terminal(self.default_response_node)
 
         logger.info(
-            "node=%s route_proceed_execution ensured terminal response path",
+            "node=%s route_proceed_execution spawned task_executor, result_reviewer",
             self.node_id,
         )
 
