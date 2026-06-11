@@ -196,30 +196,95 @@ def test_tasks_with_missing_results():
     assert len(result.task_summaries) >= 1
 
 
-def test_loop_wiring_root_accept_triggers_aggregation():
-    """Integration test: Full path from root task accept through
-    ResultReviewer -> TinyCUAResultAggregationNode -> ResponseNode."""
+def _build_loop_with_active_task() -> TinyCUALoop:
+    """Build a TinyCUALoop with one active task for testing.
+
+    Replicates the helper pattern from
+    tests/integration/test_executor_reviewer_integration.py.
+    """
+    task = Task(task_id="test-1", title="Test Task", description="Test task", status="in_progress")
+    queue = NodeQueue()
+    loop = TinyCUALoop(queue=queue)
+    loop.root_task = task
+    loop._active_task_id = "test-1"
+    return loop
+
+
+def test_on_reviewer_accept_returns_true_for_root():
+    """Given a root task with all children done,
+    When _on_reviewer_accept is called on the root task,
+    Then it returns True (root task is done).
+
+    Queue mutation is NOT the responsibility of _on_reviewer_accept —
+    that happens in ResultReviewer.on_complete (see
+    test_root_accept_routes_to_aggregation).
+    """
     from tinycua.loops.tinycua_loop import TinyCUALoop
-    from tinycua.loops.node_queue import NodeQueue
 
-    loop = TinyCUALoop()
-
-    # Set up root task
+    # Use the helper to set up a loop with an active task, then replace it
+    # with a proper root + child tree
+    loop = _build_loop_with_active_task()
     root = Task(task_id="root", title="Root", status="in_progress",
                 children=[Task(task_id="child", title="Child", status="done")])
     loop.root_task = root
+    loop._active_task_id = "root"
 
-    # Simulate ResultReviewer accepting the root task
+    # Act
     is_root_done = loop._on_reviewer_accept(root)
 
-    # Assert
+    # Assert — root is done, but queue is NOT mutated here
     assert is_root_done is True
-    # Loop should have routed to aggregation (check queue contains aggregation node)
-    queue_had_aggregation = any(
+    # Verify no queue mutation: queue should NOT contain aggregation node
+    assert not any(
         type(n).__name__ == "TinyCUAResultAggregationNode"
         for n in loop.queue.items
+    ), "_on_reviewer_accept must NOT mutate the queue"
+
+
+def test_root_accept_routes_to_aggregation():
+    """Given a root task is accepted,
+    When ResultReviewer.on_complete is called with outcome=accept,
+    Then _on_reviewer_accept is called and _route_to_aggregation is invoked
+    to mutate the queue with aggregation → response nodes.
+
+    Tests the full routing path via ResultReviewer.on_complete, not the
+    low-level _on_reviewer_accept handler.
+    """
+    from unittest.mock import MagicMock
+
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+
+    # Build loop with active root task (all children done so root becomes
+    # done when accepted)
+    root = Task(task_id="root", title="Root", status="in_progress",
+                children=[Task(task_id="child", title="Child", status="done")])
+    queue = NodeQueue()
+    loop = TinyCUALoop(queue=queue)
+    loop.root_task = root
+    loop._active_task_id = "root"
+
+    # Mock the loop so we can intercept _route_to_aggregation without
+    # requiring TinyCUAResultAggregationNode or ResponseNode to exist yet
+    mock_loop = MagicMock()
+    mock_loop._on_reviewer_accept = loop._on_reviewer_accept  # real handler
+    mock_loop._route_to_aggregation = MagicMock()
+    mock_loop._reviewer_retry_state = loop._reviewer_retry_state
+
+    reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
+    decision_data = {"outcome": "accept", "rationale": "Root complete"}
+    response = LLMResult(
+        content='{"outcome": "accept"}',
+        metadata={"reviewer_decision": decision_data, "active_task": root},
     )
-    assert queue_had_aggregation, "Queue should contain TinyCUAResultAggregationNode"
+
+    # Act
+    reviewer.on_complete(queue, response)
+
+    # Assert — _on_reviewer_accept was called (handles task status changes)
+    mock_loop._on_reviewer_accept.assert_called_once_with(root)
+    # Assert — _route_to_aggregation was invoked (queue mutation: clear + spawn)
+    mock_loop._route_to_aggregation.assert_called_once_with(queue)
 ```
 
 ### Key Test Scenarios
