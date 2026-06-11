@@ -69,14 +69,16 @@ class AggregatedResult:
         task_summaries: Human-readable summaries of each inspected task.
         accepted_results: TaskResult objects from accepted tasks.
         artifacts: Artifact dicts collected from task results.
-        final_context: Consolidated context string for ResponseNode.
+        final_context: Consolidated context string for ResponseNode. Built by joining
+            each task summary ("{title}: {summary}" or "{title}: not_executed") with
+            newline separators, prefixed with the root task title.
         response_continuation: Continuation text to guide ResponseNode synthesis.
         metadata: Additional metadata (traversal depth, count of tasks inspected, etc.).
     """
     root_task_id: str
-    task_summaries: list[str]
+    task_summaries: list[str]  # Each entry: "{task.title}: {task.result.summary}" or "{task.title}: not_executed" if no result
     accepted_results: list[TaskResult]
-    artifacts: list[dict]
+    artifacts: list[dict[str, Any]]
     final_context: str
     response_continuation: str
     metadata: dict
@@ -101,7 +103,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
     def __init__(
         self,
         node_id: str = "result_aggregation",
-        config: NodeConfigBase,
+        config: NodeConfigBase | None = None,
         loop: Any | None = None,
     ) -> None:
         ...
@@ -120,6 +122,25 @@ class TinyCUAResultAggregationNode(ProcessNode):
         """Advance queue to the next node (expected: ResponseNode)."""
 ```
 
+### ResponseNode Input Contract
+
+`ResponseNode` (Milestone 3.5) expects the following inputs from upstream nodes:
+
+| Input Source | Expected Content | How AggregatedResult Maps |
+|--------------|------------------|---------------------------|
+| `AggregatedResult` (from `ResultAggregationNode`) | Task summaries, accepted results, artifacts, final context, response continuation | `aggregated_result.task_summaries`, `.accepted_results`, `.artifacts`, `.final_context`, `.response_continuation` |
+| Accumulated root/session context | Prior session messages and context | Already available via `session.context` |
+| Latest propagated node output | Output from the previous node in queue | `AggregatedResult` is propagated as the node output |
+
+The `AggregatedResult` fields map directly to `ResponseNode`'s LLM input construction:
+- `final_context` → consolidated context string for response synthesis
+- `response_continuation` → guidance text for continuation of the response
+- `task_summaries` → human-readable summaries for grounding the response
+- `accepted_results` → structured `TaskResult` objects for detailed inspection
+- `artifacts` → artifact dicts for file/reference inclusion
+
+See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` design.
+
 ### Error Handling
 
 | Error Case | Exception / Response | Notes |
@@ -136,7 +157,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
 ### Phase 1 — MVP _(required for initial release)_
 
 - [ ] **AggregatedResult dataclass**: Define `AggregatedResult` with all fields in `tinycua/loops/result_aggregation.py`.
-- [ ] **BFS traversal helper**: Implement `_traverse_bfs_right_to_left(task_tree, max_depth=None, context_sufficient_fn=None) -> Iterator[Task]`.
+- [ ] **BFS traversal helper**: Implement `_traverse_bfs_right_to_left(task_tree, max_inspected_tasks=None, context_sufficient_fn=None) -> Iterator[Task]`.
 - [ ] **TinyCUAResultAggregationNode class**: Implement `ProcessNode` subclass with:
   - `__call__`: guard check, traversal, consolidation, recording.
   - `_consolidate(traversal_results) -> AggregatedResult`: build final result.
@@ -167,13 +188,17 @@ class TinyCUAResultAggregationNode(ProcessNode):
    - **Reason**: Aggregation is a mechanical consolidation operation — no LLM inference is needed. The existing task data (summaries, results, artifacts) is already structured.
    - **Alternatives Considered**: LLM-based summary of the entire task tree — deferred to potential Phase 2 enhancement.
 
+4. **Decision**: "Sufficient response-ready context" is defined as having inspected at least one task with an accepted result (`TaskResult` with `execution_status == "succeeded"`) AND at least one artifact, OR reaching the configurable `max_inspected_tasks` threshold.
+   - **Reason**: Provides a concrete, testable criterion for early termination. The MVP phase uses `max_inspected_tasks` as the primary threshold; the "one result + one artifact" heuristic is an optional optimization that can be enabled in Phase 2.
+   - **Alternatives Considered**: Token-budget-based sufficiency (deferred to Phase 2); purely random sampling (not deterministic).
+
 ---
 
 ## Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Task tree is very deep/wide, causing slow traversal | Low | Medium | Early termination heuristic stops after sufficient context; `max_depth` config limits traversal depth. |
+| Task tree is very deep/wide, causing slow traversal | Low | Medium | Early termination heuristic stops after sufficient context; `max_inspected_tasks` config limits the count of inspected tasks. |
 | `AggregatedResult` grows too large for LLM context window | Low | Medium | `final_context` and `task_summaries` are produced from existing summaries; aggregation does not add new content. ResponseNode is responsible for context window management. |
 | Loop wiring breaks existing accept path for non-root tasks | Low | High | Guard the root-task check explicitly: only route to aggregation when `task.parent is None`. Non-root accept continues with existing behavior. |
 

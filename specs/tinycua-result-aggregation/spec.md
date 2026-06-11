@@ -10,7 +10,7 @@
 ## Problem Statement _(mandatory)_
 
 - **Goals**: Provide `TinyCUAResultAggregationNode` so the TinyCUA execution loop can **consolidate results from an accepted root task tree and produce response-ready context** for `ResponseNode`, completing the accepted-task path in the architecture flow.
-- **Gaps**: Milestone 3.2 delivered `TinyCUATaskExecutorNode` and `TinyCUAResultReviewerNode`, and Milestone 3.3 handled mandatory passthrough and continuation routing. When `ResultReviewer` accepts the root task, the loop currently has **no node that traverses the completed task tree, inspects results/artifacts/reviewer decisions, and consolidates them** into a structured aggregate for `ResponseNode`. The architecture design for `TinyCUAResultAggregationNode` exists in `docs/design/loops/result_aggregation.md` and `docs/design/loops/node.md` but has not been implemented.
+- **Gaps**: Milestone 3.2 delivered `TinyCUATaskExecutorNode` and `TinyCUAResultReviewerNode`, and Milestone 3.3 handled mandatory passthrough and continuation routing. When `ResultReviewer` accepts the root task, the loop currently has **no node that traverses the completed task tree, inspects results/artifacts/reviewer decisions, and consolidates them** into a structured aggregate for `ResponseNode`. The architecture design for `TinyCUAResultAggregationNode` exists in `src/tinycua/docs/design/loops/result_aggregation.md` and `src/tinycua/docs/design/loops/node.md` but has not been implemented.
 - **Non-Goals**: This spec does NOT cover final response synthesis (Milestone 3.5 — ResponseNode), information digestion suspension (Milestone 3.6), propagation/dedupe (Milestone 4.1), tool scoping (Milestone 4.2), retry/validation (Milestone 4.3), or streaming/transcript events (Milestone 4.4). It does NOT cover the initial queue bootstrap or root-task tracking (Milestone 3.1). Aggregation is read-only: it does NOT execute tasks, review results, or synthesize user-facing responses.
 - **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must not mutate the task tree — aggregation is purely read-only inspection. Must follow the existing `ProcessNode` contract. The `AggregatedResult` model must be compatible with `ResponseNode`'s input contract.
 
@@ -28,6 +28,10 @@ After `TinyCUAResultReviewerNode` accepts the root task (the top-level task in t
 2. **Given** a root task tree with nested accepted tasks at multiple depths, **When** the aggregation node traverses, **Then** it visits children right-to-left / most-recent-first and consolidates results from all depths.
 3. **Given** sufficient response-ready context is found early in traversal, **When** the aggregation node inspects tasks, **Then** it may stop early without exhaustive BFS.
 4. **Given** `TinyCUAResultAggregationNode` produces an `AggregatedResult`, **When** `on_complete` is called, **Then** the queue advances to the next node (expected: `ResponseNode`).
+
+### Early Termination Criterion
+
+**"Sufficient response-ready context"** is defined as: having inspected at least one task with an accepted result (`TaskResult` with `execution_status == "succeeded"`) AND at least one artifact, OR reaching a configurable `max_inspected_tasks` threshold (default: all tasks in the tree for MVP). This provides a concrete, testable criterion for the early termination feature in acceptance scenario 3.
 
 ### Edge Cases
 
@@ -127,9 +131,9 @@ Objective, measurable checks that prove the problem is solved.
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

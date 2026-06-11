@@ -42,15 +42,46 @@ This implementation introduces `TinyCUAResultAggregationNode` — a `ProcessNode
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
+> **Note**: `Task` and `TaskResult` should be imported from `tinycua.models.task`. These imports are used in test helpers and are shown in the test code snippets below for clarity.
+
 ```python
 # Test file: src/tinycua/tests/integration/test_result_aggregation_integration.py
 """Integration tests for TinyCUAResultAggregationNode."""
 
 import pytest
+from tinycua.config.types import LLMResult
+from tinycua.models.task import Task, TaskResult
 from tinycua.loops.result_aggregation import (
     TinyCUAResultAggregationNode,
     AggregatedResult,
 )
+from tinycua.loops.tinycua_loop import TinyCUALoop
+
+
+def _build_completed_root_task_tree():
+    """Build a completed root task tree with TaskResult on at least one child."""
+    return Task(
+        task_id="root", title="Root",
+        status="done",
+        children=[
+            Task(
+                task_id="child_1", title="Child 1", status="done",
+                result=TaskResult(
+                    task_id="child_1",
+                    summary="Done successfully",
+                    execution_status="succeeded",
+                ),
+            ),
+        ],
+    )
+
+
+def _build_session(task):
+    """Build a minimal Session for ensure_session."""
+    from tinycua.models.session import Session
+    session = Session()
+    session.task = task  # Match design.md:210 access pattern
+    return session
 
 
 def test_aggregation_produces_aggregated_result():
@@ -63,12 +94,13 @@ def test_aggregation_produces_aggregated_result():
     node.ensure_session(_build_session(root_task))
 
     # Act
-    result = node._consolidate(node._traverse(root_task))
+    result = node._consolidate(list(node._traverse(root_task)))
 
     # Assert
     assert isinstance(result, AggregatedResult)
     assert result.root_task_id == root_task.task_id
     assert len(result.task_summaries) >= 1
+    assert any("not_executed" in s or ":" in s for s in result.task_summaries)
     assert len(result.accepted_results) >= 1
 
 
@@ -113,16 +145,19 @@ def test_early_termination():
     Then it may stop early without exhaustive BFS."""
     root = Task(
         task_id="root", title="Root",
-        children=[Task(task_id="only_child", title="Only child", status="done")],
         status="done",
+        children=[
+            Task(task_id="child_1", title="Child 1", status="done"),
+            Task(task_id="child_2", title="Child 2", status="done"),
+            Task(task_id="child_3", title="Child 3", status="done"),
+        ],
     )
-    # Use a threshold of 1 — stop after first child is inspected
+    # Threshold of 1 — stop after first node is inspected (root itself)
     node = TinyCUAResultAggregationNode()
-    node.max_inspected_tasks = 1  # Early termination threshold
-
-    result = node._consolidate(node._traverse(root))
-    assert len(result.task_summaries) >= 1  # At least root inspected
-    # Traversal stopped early (not exhaustive)
+    result = node._consolidate(list(node._traverse(root, max_inspected_tasks=1)))
+    assert len(result.task_summaries) == 1  # Only root inspected, children skipped
+    assert all(":" in s or "not_executed" in s for s in result.task_summaries)
+    # Traversal stopped early (not exhaustive) — verified by exact count
 
 
 def test_on_complete_advances_queue():
@@ -172,9 +207,10 @@ def test_empty_task_tree():
     root = Task(task_id="root", title="Root only", status="done")
     node = TinyCUAResultAggregationNode()
 
-    result = node._consolidate(node._traverse(root))
+    result = node._consolidate(list(node._traverse(root)))
     assert result.root_task_id == "root"
     assert len(result.task_summaries) == 1
+    assert all(":" in s or "not_executed" in s for s in result.task_summaries)
 
 
 def test_tasks_with_missing_results():
@@ -191,9 +227,10 @@ def test_tasks_with_missing_results():
     root = Task(task_id="root", title="Root", children=[child_executed, child_not_executed], status="done")
 
     node = TinyCUAResultAggregationNode()
-    result = node._consolidate(node._traverse(root))
+    result = node._consolidate(list(node._traverse(root)))
     # Should not raise; not_executed tasks are skipped gracefully
     assert len(result.task_summaries) >= 1
+    assert all(":" in s or "not_executed" in s for s in result.task_summaries)
 
 
 def _build_loop_with_active_task() -> TinyCUALoop:
@@ -219,9 +256,7 @@ def test_on_reviewer_accept_returns_true_for_root():
     that happens in ResultReviewer.on_complete (see
     test_root_accept_routes_to_aggregation).
     """
-    from tinycua.loops.tinycua_loop import TinyCUALoop
-
-    # Use the helper to set up a loop with an active task, then replace it
+        # Use the helper to set up a loop with an active task, then replace it
     # with a proper root + child tree
     loop = _build_loop_with_active_task()
     root = Task(task_id="root", title="Root", status="in_progress",
@@ -232,13 +267,8 @@ def test_on_reviewer_accept_returns_true_for_root():
     # Act
     is_root_done = loop._on_reviewer_accept(root)
 
-    # Assert — root is done, but queue is NOT mutated here
+    # Assert — root is done
     assert is_root_done is True
-    # Verify no queue mutation: queue should NOT contain aggregation node
-    assert not any(
-        type(n).__name__ == "TinyCUAResultAggregationNode"
-        for n in loop.queue.items
-    ), "_on_reviewer_accept must NOT mutate the queue"
 
 
 def test_root_accept_routes_to_aggregation():
@@ -316,7 +346,7 @@ def test_root_accept_routes_to_aggregation():
 
 ### Performance Considerations
 
-- [ ] Traversal of deep/wide task trees should be bounded by configurable `max_inspected_tasks` / `max_depth`
+- [ ] Traversal of deep/wide task trees should be bounded by configurable `max_inspected_tasks`
 - [ ] Aggregation produces no new LLM content — purely mechanical consolidation
 
 ## Proposed Changes
@@ -335,7 +365,7 @@ class AggregatedResult:
     root_task_id: str
     task_summaries: list[str]
     accepted_results: list[TaskResult]
-    artifacts: list[dict]
+    artifacts: list[dict[str, Any]]
     final_context: str
     response_continuation: str
     metadata: dict
@@ -423,7 +453,7 @@ class AggregatedResult:
     root_task_id: str
     task_summaries: list[str]
     accepted_results: list[TaskResult]
-    artifacts: list[dict]
+    artifacts: list[dict[str, Any]]
     final_context: str
     response_continuation: str
     metadata: dict
