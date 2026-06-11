@@ -116,8 +116,8 @@ Objective, measurable checks that prove the problem is solved.
 ## Open Questions _(optional)_
 
 1. **Should `AggregatedResult` live in `tinycua.loops.result_aggregation` or `tinycua.models`?**
-   - **Status**: Proposed
-   - **Proposed Answer**: Co-locate with the node in `tinycua.loops.result_aggregation` for simplicity, re-export from `tinycua.loops` if needed by `ResponseNode`.
+   - **Status**: Decided
+   - **Decision**: Co-locate with the node in `tinycua.loops.result_aggregation` for simplicity, re-export from `tinycua.loops` if needed by `ResponseNode`.
 
 2. **How does `TinyCUALoop` know to route to `ResultAggregationNode` vs continuing to the next active task?**
    - **Status**: Decided

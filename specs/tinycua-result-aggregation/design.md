@@ -101,7 +101,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
     def __init__(
         self,
         node_id: str = "result_aggregation",
-        config: NodeConfigBase | None = None,
+        config: NodeConfigBase,
         loop: Any | None = None,
     ) -> None:
         ...
