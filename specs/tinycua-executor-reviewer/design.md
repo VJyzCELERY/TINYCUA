@@ -134,6 +134,10 @@ reviewer_decision = ReviewerDecision(
 
 ## API / Interface Contracts
 
+> **Note**: The code sketches below are conceptual and may not reflect the exact
+> implementation. See the actual source files in `src/tinycua/tinycua/loops/` for
+> the authoritative implementation.
+
 ### TinyCUATaskExecutorNode
 
 ```python
@@ -145,6 +149,9 @@ class TinyCUATaskExecutorNode(ProcessNode):
     Attributes:
         node_id: Always "task_executor" by default.
         max_react_iterations: Maximum ReAct loops per task (default 10).
+        max_summary_length: Maximum chars for execution summary (default 2000).
+            Can be overridden per-invocation via
+            ``NodeInput.metadata["max_summary_length"]``.
     """
 
     def __init__(
@@ -152,6 +159,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
         node_id: str = "task_executor",
         config: NodeConfigBase,
         max_react_iterations: int = 10,
+        max_summary_length: int | None = None,
     ) -> None:
         """Initialize TaskExecutorNode.
 
@@ -159,6 +167,9 @@ class TinyCUATaskExecutorNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration.
             max_react_iterations: Max ReAct iterations per task execution.
+            max_summary_length: Max chars for execution summary. Defaults to
+                2000. Can be overridden per-invocation via
+                ``NodeInput.metadata["max_summary_length"]``.
         """
         super().__init__(
             node_id=node_id,
@@ -172,6 +183,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             ),
         )
         self.max_react_iterations = max_react_iterations
+        self.max_summary_length = max_summary_length or 2000
 
     def __call__(self, input: NodeInputLike) -> LLMResult:
         """Execute the active task using ReAct-style processing.
@@ -231,6 +243,16 @@ class TinyCUATaskExecutorNode(ProcessNode):
 
         if iteration >= self.max_react_iterations:
             logger.warning(f"TaskExecutor reached max iterations ({self.max_react_iterations})")
+
+        # Truncate summary to max_summary_length (allows per-task override)
+        # Per-task override: set input.metadata["max_summary_length"] to an int > 0
+        # to override the instance default for this invocation only.
+        # See TaskExecutor.__call__ in task_executor.py for the authoritative logic.
+        if len(llm_result.content) > self.max_summary_length:
+            logger.warning(
+                f"Summary truncated from {len(llm_result.content)} to "
+                f"{self.max_summary_length} chars"
+            )
 
         # Propagate active_task so ResultReviewer.on_complete can access it
         llm_result.metadata["active_task"] = active_task

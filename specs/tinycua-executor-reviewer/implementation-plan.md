@@ -36,6 +36,13 @@ No external prerequisites — this feature is self-contained within `tinycua.loo
 
 > **Note**: Create `src/tinycua/tests/integration/test_executor_reviewer_integration.py` if it doesn't exist. The directory `src/tinycua/tests/integration/` already exists.
 
+> **⚠️ WARNING — Conceptual Sketches**: The code blocks below are conceptual sketches
+> written before implementation. Actual import paths, class names, method signatures,
+> and API contracts may differ from the live codebase. Always verify against the
+> current source files in `src/tinycua/tinycua/` before using these as reference.
+> The authoritative integration tests live in
+> `src/tinycua/tests/integration/test_executor_reviewer_integration.py`.
+
 ```python
 # Test file: src/tinycua/tests/integration/test_executor_reviewer_integration.py
 """Integration tests for executor→reviewer path."""
