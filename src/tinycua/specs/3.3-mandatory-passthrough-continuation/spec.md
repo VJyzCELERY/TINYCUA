@@ -116,7 +116,7 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 | QueryAnalyst precheck integration | Done | Already implemented in Milestone 2.1 |
 | Stale guard behavior | Done | Already implemented in check_mandatory_passthrough |
 | Passthrough forwarding to ResultReviewer | TODO | Wire the forwarding mechanism |
-| Active task preservation | Done | Passive — task is preserved because _on_reviewer_open_question stub does not modify it |
+| Active task preservation | Done | Task context is preserved — _on_reviewer_open_question does not modify the active task |
 | Unit tests | TODO | |
 | Integration tests | TODO | |
 
