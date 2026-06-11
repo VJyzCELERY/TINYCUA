@@ -467,14 +467,13 @@ class TinyCUAResponseNode(ProcessNode):
             )
             return LLMResult(content=fallback, role="assistant")
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if self.config.metadata.get("strict_mode", False):
                 raise
-            logger.error(
+            logger.exception(
                 "node=%s unexpected error during synthesis: %s",
                 self.node_id,
                 exc,
-                exc_info=True,
             )
             fallback = self.config.metadata.get(
                 "fallback_message",
