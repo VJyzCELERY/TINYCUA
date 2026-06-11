@@ -344,7 +344,7 @@ def test_response_node_digester_integration():
 
 ### Manual Verification
 
-- [ ] N/A — all behavior is verifiable through automated tests.
+- [x] N/A — all behavior is verifiable through automated tests.
 
 ### Performance Considerations
 

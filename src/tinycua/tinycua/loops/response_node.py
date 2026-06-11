@@ -363,9 +363,11 @@ class TinyCUAResponseNode(ProcessNode):
     ) -> ResponseContext:
         """Use available tools to gather additional context.
 
-        Currently a placeholder that returns the context unchanged.
+        Currently a placeholder that returns the context unchanged,
+        meaning synthesis will proceed with insufficient context.
         Full implementation will use ``NodeToolPolicy(include_agent_tools="all")``
         to invoke agent tools for context gathering.
+        Tracking: M3.6 (see project roadmap).
 
         Args:
             context: The current response context.
@@ -375,7 +377,8 @@ class TinyCUAResponseNode(ProcessNode):
         """
         logger.warning(
             "node=%s _gather_context_via_tools called — placeholder implementation, "
-            "no tools invoked. Full implementation planned for M3.6.",
+            "no tools invoked. Synthesis will proceed with unchanged (possibly insufficient) "
+            "context. Full implementation planned for M3.6.",
             self.node_id,
         )
         # Placeholder: just returns the context as-is.
