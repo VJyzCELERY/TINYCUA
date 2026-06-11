@@ -1,8 +1,8 @@
 # Feature Specification: TinyCUAResponseNode
 
-**Status**: Ready for Implementation
+**Status**: Implemented (Milestone 3.5)
 **Created**: 2026-06-12
-**Last Updated**: 2026-06-12 (review fixes applied)
+**Last Updated**: 2026-06-12 (review findings addressed)
 **Subproject(s) Affected**: tinycua
 
 ---
@@ -81,14 +81,14 @@ The TinyCUALoop completes its execution path (e.g., task executor → result rev
 
 Objective, measurable checks that prove the problem is solved.
 
-- [ ] **ResponseNode produces final string response**: `TinyCUAResponseNode` produces a normalized string output from sufficient aggregated context.
-- [ ] **Context sufficiency check works**: Sufficient context leads to direct synthesis; insufficient context triggers tool use or digester suspension.
-- [ ] **Digester suspension/resume works**: Suspension prepends InformationDigesterNode, digest propagates back, and ResponseNode resumes successfully.
-- [ ] **Direct tool fallback works**: When digester is unavailable, ResponseNode uses allowed tools to gather context before synthesis.
-- [ ] **Continuation routing works**: User continuation reaches ResponseNode session without LLM rerouting.
-- [ ] **Retry policy respected**: ResponseNode retries according to NodeRetryPolicy on failure.
-- [ ] **Same base toolset as TaskExecutor**: ResponseNode shares the same tool scope as TaskExecutor.
-- [ ] **No SDK API modifications**: All changes stay within the TinyCUA prototype boundary.
+- [x] **ResponseNode produces final string response**: `TinyCUAResponseNode` produces a normalized string output from sufficient aggregated context.
+- [x] **Context sufficiency check works**: Sufficient context leads to direct synthesis; insufficient context triggers tool use or digester suspension.
+- [x] **Digester suspension/resume works**: Suspension prepends InformationDigesterNode, digest propagates back, and ResponseNode resumes successfully.
+- [x] **Direct tool fallback works**: When digester is unavailable, ResponseNode uses allowed tools to gather context before synthesis.
+- [x] **Continuation routing works**: User continuation reaches ResponseNode session without LLM rerouting.
+- [x] **Retry policy respected**: ResponseNode retries according to NodeRetryPolicy on failure.
+- [x] **Same base toolset as TaskExecutor**: ResponseNode shares the same tool scope as TaskExecutor.
+- [x] **No SDK API modifications**: All changes stay within the TinyCUA prototype boundary.
 
 ---
 

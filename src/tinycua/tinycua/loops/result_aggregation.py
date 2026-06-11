@@ -135,12 +135,13 @@ class TinyCUAResultAggregationNode(ProcessNode):
         traversal_results = list(self._traverse_bfs_right_to_left(root_task))
         result = self._consolidate(traversal_results)
 
-        # Record to session context
+        # Record to session context (include structured field for ResponseNode)
         if result.final_context:
             self.session.session_context.append(
                 {
                     "role": "assistant",
                     "content": f"[AggregatedResult] {result.final_context}",
+                    "aggregated_result": result,
                 }
             )
 

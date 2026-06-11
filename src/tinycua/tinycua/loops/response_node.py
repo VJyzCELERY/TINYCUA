@@ -205,11 +205,20 @@ class TinyCUAResponseNode(ProcessNode):
         # Extract aggregated result from session context
         if self.session is not None:
             session_context = list(self.session.session_context or [])
-            # Look for aggregated result marker in the last session entry
+            # Look for aggregated result in session context entries.
+            # Prefer structured metadata (set by ResultAggregatedNode) over
+            # string marker parsing to avoid fragile format coupling.
+            found_marker = False
             for entry in reversed(session_context):
+                # Preferred: structured field from ResultAggregationNode
+                if "aggregated_result" in entry:
+                    aggregated_result = entry["aggregated_result"]
+                    latest_output = aggregated_result.final_context
+                    found_marker = True
+                    break
+                # Fallback: legacy string marker parsing
                 content = entry.get("content", "")
                 if isinstance(content, str) and "[AggregatedResult]" in content:
-                    # Extract title from the marker
                     title = content.replace("[AggregatedResult]", "").strip()
                     aggregated_result = AggregatedResult(
                         root_task_id="root",
@@ -217,7 +226,14 @@ class TinyCUAResponseNode(ProcessNode):
                         final_context=content,
                     )
                     latest_output = content
+                    found_marker = True
                     break
+            if session_context and not found_marker:
+                logger.warning(
+                    "node=%s session_context has %d entries but no [AggregatedResult] marker found",
+                    self.node_id,
+                    len(session_context),
+                )
 
         return ResponseContext(
             aggregated_result=aggregated_result,
@@ -358,8 +374,9 @@ class TinyCUAResponseNode(ProcessNode):
         Returns:
             The (possibly enriched) response context.
         """
-        logger.info(
-            "node=%s _gather_context_via_tools called — placeholder implementation",
+        logger.warning(
+            "node=%s _gather_context_via_tools called — placeholder implementation, "
+            "no tools invoked. Full implementation planned for M3.6.",
             self.node_id,
         )
         # Placeholder: just returns the context as-is.
@@ -450,6 +467,8 @@ class TinyCUAResponseNode(ProcessNode):
             return LLMResult(content=fallback, role="assistant")
 
         except Exception as exc:  # noqa: BLE001
+            if self.config.metadata.get("strict_mode", False):
+                raise
             logger.error(
                 "node=%s unexpected error during synthesis: %s",
                 self.node_id,

@@ -321,15 +321,15 @@ def test_response_node_digester_integration():
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Direct synthesis with sufficient context produces a final string response
-- [ ] **Scenario 2**: Context sufficiency check correctly identifies sufficient vs. insufficient context
-- [ ] **Scenario 3**: Continuation routing delivers continuation without LLM rerouting
-- [ ] **Scenario 4**: Retry policy is respected — fallback message returned on exhaustion
-- [ ] **Scenario 5**: Terminal output is always normalized to a string
-- [ ] **Edge case**: Empty/None aggregated result triggers fallback to digester or tools
-- [ ] **Edge case**: Fallback message on retry exhaustion
-- [ ] **Integration**: Full queue integration with loop
-- [ ] **Scenario 6**: Digester suspension — verifies `_suspend_for_digestion` is called when context is insufficient and digester is enabled, then resumes with enriched context
+- [x] **Scenario 1**: Direct synthesis with sufficient context produces a final string response
+- [x] **Scenario 2**: Context sufficiency check correctly identifies sufficient vs. insufficient context
+- [x] **Scenario 3**: Continuation routing delivers continuation without LLM rerouting
+- [x] **Scenario 4**: Retry policy is respected — fallback message returned on exhaustion
+- [x] **Scenario 5**: Terminal output is always normalized to a string
+- [x] **Edge case**: Empty/None aggregated result triggers fallback to digester or tools
+- [x] **Edge case**: Fallback message on retry exhaustion
+- [x] **Integration**: Full queue integration with loop
+- [x] **Scenario 6**: Digester suspension — verifies `_suspend_for_digestion` is called when context is insufficient and digester is enabled, then resumes with enriched context
 
 ## Verification Plan
 
