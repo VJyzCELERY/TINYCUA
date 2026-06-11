@@ -69,14 +69,14 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Open question installs passthrough**: When ResultReviewer decides `open_question`, a `MandatoryPassthrough` is installed targeting the ResultReviewer's node_id and session_id.
-- [ ] **QueryAnalyst detects passthrough**: QueryAnalyst's precheck detects the installed `MandatoryPassthrough` and bypasses LLM classification.
-- [ ] **Continuation reaches ResultReviewer**: The user's continuation input is forwarded to the ResultReviewer without LLM rerouting.
-- [ ] **Stale guard works**: When `target_session_id` mismatches, the passthrough falls back to restart (allow_query_analyst_restart=true) or silent drop (false).
-- [ ] **Active task preserved**: The active task context is not lost during the passthrough cycle.
-- [ ] **No SDK changes**: All implementation lives in `tinycua.loops` and `tinycua.models`.
-- [ ] **Unit tests pass**: All new and modified node/loop logic has unit tests.
-- [ ] **Integration tests pass**: End-to-end open_question → passthrough → continuation path works with mocked LLM.
+- [x] **Open question installs passthrough**: When ResultReviewer decides `open_question`, a `MandatoryPassthrough` is installed targeting the ResultReviewer's node_id and session_id.
+- [x] **QueryAnalyst detects passthrough**: QueryAnalyst's precheck detects the installed `MandatoryPassthrough` and bypasses LLM classification.
+- [x] **Continuation reaches ResultReviewer**: The user's continuation input is forwarded to the ResultReviewer without LLM rerouting.
+- [x] **Stale guard works**: When `target_session_id` mismatches, the passthrough falls back to restart (allow_query_analyst_restart=true) or silent drop (false).
+- [x] **Active task preserved**: The active task context is not lost during the passthrough cycle.
+- [x] **No SDK changes**: All implementation lives in `tinycua.loops` and `tinycua.models`.
+- [x] **Unit tests pass**: All new and modified node/loop logic has unit tests.
+- [x] **Integration tests pass**: End-to-end open_question → passthrough → continuation path works with mocked LLM.
 
 ---
 
