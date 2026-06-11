@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.result_aggregation import AggregatedResult
+    from tinycua.models.classification import MandatoryPassthrough
     from tinycua.models.node_input import NodeInputLike
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class ResponseContext:
     aggregated_result: AggregatedResult | None
     session_context: list[dict[str, Any]]
     latest_output: str | None
-    continuation_payload: Any  # MandatoryPassthrough | None
+    continuation_payload: MandatoryPassthrough | None = None
 
 
 class TinyCUAResponseNode(ProcessNode):
@@ -375,7 +376,7 @@ class TinyCUAResponseNode(ProcessNode):
         Returns:
             The (possibly enriched) response context.
         """
-        logger.warning(
+        logger.info(
             "node=%s _gather_context_via_tools called — placeholder implementation, "
             "no tools invoked. Synthesis will proceed with unchanged (possibly insufficient) "
             "context. Full implementation planned for M3.6.",
@@ -433,7 +434,19 @@ class TinyCUAResponseNode(ProcessNode):
                     ),
                 })
             if context.session_context:
-                for entry in context.session_context:
+                ctx_entries = context.session_context
+                max_msgs = self.config.message_policy.max_context_messages
+                if max_msgs is not None and len(ctx_entries) > max_msgs:
+                    logger.warning(
+                        "node=%s truncating session_context from %d to %d entries "
+                        "(max_context_messages=%d)",
+                        self.node_id,
+                        len(ctx_entries),
+                        max_msgs,
+                        max_msgs,
+                    )
+                    ctx_entries = ctx_entries[-max_msgs:]
+                for entry in ctx_entries:
                     messages.append({
                         "role": str(entry.get("role", "assistant")),
                         "content": str(entry.get("content", "")),

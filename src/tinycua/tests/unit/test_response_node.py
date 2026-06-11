@@ -448,6 +448,22 @@ class TestOnComplete:
             mock_suspend.assert_not_called()
 
 
+class TestToolPolicyCompliance:
+    """Tool policy compliance (FR-009)."""
+
+    def test_response_node_same_toolset_as_task_executor(self):
+        """ResponseNode uses same base toolset as TaskExecutor (FR-009)."""
+        from tinycua.loops.response_node import TinyCUAResponseNode
+        from tinycua.loops.task_executor import TinyCUATaskExecutorNode
+
+        config = NodeConfigBase()
+        response_node = TinyCUAResponseNode(config=config)
+        executor_node = TinyCUATaskExecutorNode(config=config)
+
+        assert response_node.config.tool_policy.include_agent_tools == \
+               executor_node.config.tool_policy.include_agent_tools
+
+
 class TestTerminalNormalization:
     """Terminal output normalization to string."""
 
