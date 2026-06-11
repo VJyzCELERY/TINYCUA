@@ -161,6 +161,10 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
 
 - [ ] **AggregatedResult dataclass**: Define `AggregatedResult` with all fields in `tinycua/loops/result_aggregation.py`.
 - [ ] **BFS traversal helper**: Implement `_traverse_bfs_right_to_left(task_tree, max_inspected_tasks=None, context_sufficient_fn=None) -> Iterator[Task]`.
+  - `context_sufficient_fn` signature: `Optional[Callable[[Task, AggregatedResult], bool]]`
+    - Called for each inspected task with `(current_task, partial_result)`.
+    - Return `True` to stop traversal early (context sufficient).
+    - Ignored in MVP; default `None` means no callback.
 - [ ] **TinyCUAResultAggregationNode class**: Implement `ProcessNode` subclass with:
   - `__call__`: guard check, traversal, consolidation, recording.
   - `_consolidate(traversal_results) -> AggregatedResult`: build final result.

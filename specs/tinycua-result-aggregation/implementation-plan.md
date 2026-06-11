@@ -424,6 +424,10 @@ class AggregatedResult:
   - Generator-based guided BFS right-to-left / most-recent-first.
   - Uses `collections.deque` with a reversed children queue.
   - Supports early termination via `context_sufficient_fn` callback or `max_inspected_tasks` threshold.
+    - `context_sufficient_fn` signature: `Optional[Callable[[Task, AggregatedResult], bool]]`
+      - Called for each inspected task with `(current_task, partial_result)`.
+      - Return `True` to stop traversal early (context sufficient).
+      - Default `None` means no callback (used for MVP).
   - Inspects each visited task's context, result, artifacts, and reviewer decisions.
   - Yields each inspected task for the caller to consume.
 - `_consolidate(traversal_results: list[Task]) -> AggregatedResult`:
