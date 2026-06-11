@@ -319,7 +319,7 @@ class TinyCUAResponseNode(ProcessNode):
 
     def _suspend_for_digestion(
         self,
-        context: ResponseContext,  # noqa: ARG002
+        context: ResponseContext,
         queue: NodeQueue,
     ) -> None:
         """Suspend the current node and prepend an ``InformationDigesterNode``.
