@@ -43,13 +43,13 @@ Implementation tasks for Mandatory Passthrough and Continuation Routing (Milesto
 
 ## Documentation Phase
 
-- [ ] Update spec.md Status Tracker — mark completed items <!-- id: 18 -->
+- [x] Update spec.md Status Tracker — mark completed items <!-- id: 18 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 19 -->
-- [ ] Address review feedback <!-- id: 20 -->
-- [ ] Merge to main branch <!-- id: 21 -->
+- [x] Create pull request <!-- id: 19 --> (PR #111)
+- [x] Address review feedback <!-- id: 20 --> (21+ review cycles completed)
+- [ ] Merge to main branch <!-- id: 21 --> (pending final review approval)
 
 ---
 

@@ -140,7 +140,7 @@ A TinyCUA agent is executing a task. `ResultReviewer` evaluates the execution re
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
+- [x] No implementation details — except where functional requirements necessarily imply a storage mechanism (see design.md Technical Decision #1)
 - [x] All mandatory sections completed
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous
