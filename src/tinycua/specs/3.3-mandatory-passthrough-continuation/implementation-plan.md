@@ -474,12 +474,12 @@ async def test_new_user_query_clears_pending_passthrough():
 
 ### Manual Verification
 
-- [ ] Verify `_on_reviewer_open_question` installs passthrough by inspecting `_pending_mandatory_passthrough` after call
-- [ ] Verify stale passthrough falls back to LLM classification (session mismatch)
+- [x] Verify `_on_reviewer_open_question` installs passthrough by inspecting `_pending_mandatory_passthrough` after call
+- [x] Verify stale passthrough falls back to LLM classification (session mismatch)
 
 ### Performance Considerations
 
-- [ ] No performance impact — adds a single field check and assignment per loop iteration
+- [x] No performance impact — adds a single field check and assignment per loop iteration
 
 ## Proposed Changes
 

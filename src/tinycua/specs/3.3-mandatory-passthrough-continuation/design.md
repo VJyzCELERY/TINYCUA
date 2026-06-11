@@ -357,20 +357,20 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 
 ### Phase 1 — MVP (required for initial release)
 
-- [ ] Add `_pending_mandatory_passthrough` field to `TinyCUALoop`
-- [ ] Implement `_install_mandatory_passthrough()` on `TinyCUALoop`
-- [ ] Implement `_clear_mandatory_passthrough()` on `TinyCUALoop`
-- [ ] Implement `_find_result_reviewer()` on `TinyCUALoop`
-- [ ] Implement `_ensure_query_analyst_at_front()` on `TinyCUALoop` — ensures QueryAnalyst is at the front of the queue when a passthrough is pending, so `_execute_decision_node()` can detect it
-- [ ] Update `run()` to call `_ensure_query_analyst_at_front()` when `_pending_mandatory_passthrough is not None`
-- [ ] Update `_on_reviewer_open_question()` to install MandatoryPassthrough
-- [ ] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input and clear it after successful forward
-- [ ] Add unit tests for installation, clearing, injection, forwarding, and queue restart
-- [ ] Add integration test for end-to-end open_question → passthrough → continuation (two-call flow)
+- [x] Add `_pending_mandatory_passthrough` field to `TinyCUALoop`
+- [x] Implement `_install_mandatory_passthrough()` on `TinyCUALoop`
+- [x] Implement `_clear_mandatory_passthrough()` on `TinyCUALoop`
+- [x] Implement `_find_result_reviewer()` on `TinyCUALoop`
+- [x] Implement `_ensure_query_analyst_at_front()` on `TinyCUALoop` — ensures QueryAnalyst is at the front of the queue when a passthrough is pending, so `_execute_decision_node()` can detect it
+- [x] Update `run()` to call `_ensure_query_analyst_at_front()` when `_pending_mandatory_passthrough is not None`
+- [x] Update `_on_reviewer_open_question()` to install MandatoryPassthrough
+- [x] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input and clear it after successful forward
+- [x] Add unit tests for installation, clearing, injection, forwarding, and queue restart
+- [x] Add integration test for end-to-end open_question → passthrough → continuation (two-call flow)
 
 ### Phase 2 — Enhancements (post-MVP)
 
-- [ ] Add integration-level test for stale passthrough with `allow_query_analyst_restart=False` across multiple `run()` invocations (isolation-level test `test_stale_passthrough_restart_false_drops_continuation` already exists)
+- [x] Add integration-level test for stale passthrough with `allow_query_analyst_restart=False` across multiple `run()` invocations (isolation-level test `test_stale_passthrough_restart_false_drops_continuation` already exists)
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
