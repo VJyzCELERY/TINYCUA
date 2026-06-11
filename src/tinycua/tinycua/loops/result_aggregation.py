@@ -137,13 +137,12 @@ class TinyCUAResultAggregationNode(ProcessNode):
 
         # Record to session context
         if result.final_context:
-            if self.session is not None:
-                self.session.session_context.append(
-                    {
-                        "role": "assistant",
-                        "content": f"[AggregatedResult] {result.final_context}",
-                    }
-                )
+            self.session.session_context.append(
+                {
+                    "role": "assistant",
+                    "content": f"[AggregatedResult] {result.final_context}",
+                }
+            )
 
         self.propagate()
 
@@ -171,7 +170,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
         - ``context_sufficient_fn`` callback: called for each inspected task
           with ``(current_task, partial_result)``.  Return ``True`` to stop.
           The ``partial_result`` is built incrementally from already-inspected
-          tasks via ``_build_partial_result``.
+          tasks via ``_update_partial_from_task``.
 
         Args:
             task: The root task to start traversal from.
@@ -239,37 +238,12 @@ class TinyCUAResultAggregationNode(ProcessNode):
             if task.result.artifacts:
                 partial.artifacts.extend(task.result.artifacts)
 
-    def _build_partial_result(self, tasks: list[Task]) -> AggregatedResult:
-        """Build a partial AggregatedResult from a list of tasks.
-
-        Used internally to provide context to ``context_sufficient_fn``
-        during traversal.
-
-        Args:
-            tasks: List of tasks inspected so far.
-
-        Returns:
-            A partial AggregatedResult built from the given tasks.
-        """
-        if not tasks:
-            return AggregatedResult(root_task_id="")
-
-        result = AggregatedResult(root_task_id=tasks[0].task_id)
-        for task in tasks:
-            self._update_partial_from_task(result, task)
-        return result
-
     def _consolidate(self, traversal_results: list[Task]) -> AggregatedResult:
         """Build an AggregatedResult from a list of inspected tasks.
 
-        Collects:
-        - ``root_task_id`` (from the first task, assumed to be the root)
-        - ``task_summaries`` (one per inspected task)
-        - ``accepted_results`` (TaskResult from each task that has one)
-        - ``artifacts`` (flattened from all task results)
-        - ``final_context`` (joined summaries with newlines)
-        - ``response_continuation`` (empty for MVP)
-        - ``metadata`` (traversal depth, task count)
+        Delegates to ``_update_partial_from_task`` for each task to avoid
+        duplicating summary-building logic.  Then sets ``final_context``
+        and ``metadata``.
 
         Args:
             traversal_results: List of tasks from the traversal, in
@@ -281,32 +255,12 @@ class TinyCUAResultAggregationNode(ProcessNode):
         if not traversal_results:
             return AggregatedResult(root_task_id="")
 
-        root_task = traversal_results[0]
-        result = AggregatedResult(root_task_id=root_task.task_id)
-
-        summaries: list[str] = []
-        accepted_results: list[TaskResult] = []
-        artifacts: list[dict[str, Any]] = []
+        result = AggregatedResult(root_task_id=traversal_results[0].task_id)
 
         for task in traversal_results:
-            # Build task summary
-            if task.result and task.result.summary:
-                summary = f"{task.title}: {task.result.summary}"
-            else:
-                summary = f"{task.title}: not_executed"
-            summaries.append(summary)
+            self._update_partial_from_task(result, task)
 
-            # Collect TaskResult if present
-            if task.result is not None:
-                accepted_results.append(task.result)
-                # Collect artifacts
-                if task.result.artifacts:
-                    artifacts.extend(task.result.artifacts)
-
-        result.task_summaries = summaries
-        result.accepted_results = accepted_results
-        result.artifacts = artifacts
-        result.final_context = "\n".join(summaries)
+        result.final_context = "\n".join(result.task_summaries)
         result.metadata = {
             "task_count": len(traversal_results),
             "depth": self._max_depth(traversal_results),
@@ -315,36 +269,28 @@ class TinyCUAResultAggregationNode(ProcessNode):
         return result
 
     def _max_depth(self, tasks: list[Task]) -> int:
-        """Compute the maximum depth among a list of tasks.
+        """Compute the actual maximum depth among a list of tasks.
 
-        Depth is computed by walking up the parent chain. Since tasks in
-        the traversal don't have parent pointers, we estimate depth by
-        the nesting level in the traversal order.
+        Uses parent-child relationships to track depth via BFS level
+        boundaries.  The root task is depth 0, its children depth 1, etc.
 
         Args:
-            tasks: List of tasks from traversal.
+            tasks: List of tasks from traversal (BFS order).
 
         Returns:
-            Estimated maximum depth (0 for root, 1 for children, etc.).
+            Maximum depth (0 for root, 1 for children, etc.).
         """
-        # Simple heuristic: tasks are in BFS order, so depth increases
-        # as we go. We estimate depth from the index.
-        # A more accurate approach would be to compute based on children
-        # structure, but BFS ordering makes this a good approximation.
         if not tasks:
             return 0
-        # Count levels by tracking when children start appearing
-        # For BFS: root is depth 0, its children are depth 1, etc.
-        # We can estimate by the position of the first task that is
-        # a child of any previously seen task.
-        seen_ids = set()
-        depth = 0
+
+        depth_map: dict[str, int] = {tasks[0].task_id: 0}
         for task in tasks:
-            if task.task_id not in seen_ids:
-                seen_ids.add(task.task_id)
-            # BFS: after seeing root + all its children, we move to depth 1
-            # This simplification is fine for metadata purposes.
-        return len(tasks)  # rough upper bound
+            for parent in tasks:
+                if any(c.task_id == task.task_id for c in parent.children):
+                    depth_map[task.task_id] = depth_map.get(parent.task_id, 0) + 1
+                    break
+
+        return max(depth_map.values())
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Post-completion hook: advance the queue to ResponseNode.

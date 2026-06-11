@@ -87,8 +87,8 @@ Implementation tasks for TinyCUAResultAggregationNode. Check off items as comple
 ## Documentation Phase
 
 - [x] Update module-level docstring in `result_aggregation.py` <!-- id: 19 --> <!-- Depends: [4] -->
-- [ ] Add `TinyCUAResultAggregationNode` to any relevant README or documentation <!-- id: 20 --> <!-- Depends: [4] -->
-- [ ] Update `CHANGELOG.md` or equivalent if it exists <!-- id: 21 --> <!-- Depends: [4] -->
+- [x] N/A: `TinyCUAResultAggregationNode` is an internal loop node, not user-facing; no README update needed <!-- id: 20 --> <!-- Depends: [4] -->
+- [x] N/A: No CHANGELOG.md exists in this repo <!-- id: 21 --> <!-- Depends: [4] -->
 
 ## Review and Merge
 

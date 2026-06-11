@@ -159,19 +159,19 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] **AggregatedResult dataclass**: Define `AggregatedResult` with all fields in `tinycua/loops/result_aggregation.py`.
-- [ ] **BFS traversal helper**: Implement `_traverse_bfs_right_to_left(task_tree, max_inspected_tasks=None, context_sufficient_fn=None) -> Iterator[Task]`.
+- [x] **AggregatedResult dataclass**: Define `AggregatedResult` with all fields in `tinycua/loops/result_aggregation.py`.
+- [x] **BFS traversal helper**: Implement `_traverse_bfs_right_to_left(task_tree, max_inspected_tasks=None, context_sufficient_fn=None) -> Iterator[Task]`.
   - `context_sufficient_fn` signature: `Optional[Callable[[Task, AggregatedResult], bool]]`
     - Called for each inspected task with `(current_task, partial_result)`.
     - Return `True` to stop traversal early (context sufficient).
     - Ignored in MVP; default `None` means no callback.
-- [ ] **TinyCUAResultAggregationNode class**: Implement `ProcessNode` subclass with:
+- [x] **TinyCUAResultAggregationNode class**: Implement `ProcessNode` subclass with:
   - `__call__`: guard check, traversal, consolidation, recording.
   - `_consolidate(traversal_results) -> AggregatedResult`: build final result.
   - `on_complete`: queue advancement.
-- [ ] **Loop wiring**: Modify `TinyCUALoop._on_reviewer_accept` to detect root task accept and spawn `[ResultAggregationNode, ResponseNode]`.
-- [ ] **Module exports**: Add to `tinycua/loops/__init__.py`.
-- [ ] **Tests**: Unit tests for AggregatedResult, traversal, and node behavior. Integration test for root-task-accept → aggregation → response path.
+- [x] **Loop wiring**: Modify `TinyCUALoop._on_reviewer_accept` to detect root task accept and spawn `[ResultAggregationNode, ResponseNode]`.
+- [x] **Module exports**: Add to `tinycua/loops/__init__.py`.
+- [x] **Tests**: Unit tests for AggregatedResult, traversal, and node behavior. Integration test for root-task-accept → aggregation → response path.
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
