@@ -693,7 +693,7 @@ def test_find_result_reviewer_returns_first_match():
     assert result.node_id == "reviewer_a"
 
 
-def test_execute_decision_node_injects_passthrough_into_metadata():
+def test_build_query_analyst_input_injects_pending_passthrough():
     """_build_query_analyst_input can carry passthrough when injected."""
     # Arrange
     loop = TinyCUALoop()

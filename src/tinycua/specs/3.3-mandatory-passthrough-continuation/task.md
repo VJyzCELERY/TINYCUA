@@ -32,14 +32,14 @@ Implementation tasks for Mandatory Passthrough and Continuation Routing (Milesto
 
 ## Verification Phase
 
-- [ ] Verify `_on_reviewer_open_question` installs passthrough with correct `target_node_id` and `target_session_id` <!-- id: 14 -->
-- [ ] Verify stale passthrough (session mismatch) falls back to LLM classification <!-- id: 15 -->
-- [ ] Verify active task is preserved (not mutated) during passthrough cycle <!-- id: 16 -->
-- [ ] Verify passthrough is cleared after successful forward — no stale re-use <!-- id: 17 -->
-- [ ] Verify no-active-task edge case: `_on_reviewer_open_question(None)` does not install passthrough <!-- id: 17d -->
-- [ ] Verify queue restart: `_ensure_query_analyst_at_front` places QueryAnalyst at items[0] when passthrough is pending <!-- id: 17b -->
-- [ ] Verify two-call flow: first `run()` with open_question → second `run()` with continuation detects and consumes passthrough <!-- id: 17c -->
-- [ ] Verify user restart bypasses pending passthrough: new top-level query enters normal QueryAnalyst classification <!-- id: 17e -->
+- [x] Verify `_on_reviewer_open_question` installs passthrough with correct `target_node_id` and `target_session_id` <!-- id: 14 -->
+- [x] Verify stale passthrough (session mismatch) falls back to LLM classification <!-- id: 15 -->
+- [x] Verify active task is preserved (not mutated) during passthrough cycle <!-- id: 16 -->
+- [x] Verify passthrough is cleared after successful forward — no stale re-use <!-- id: 17 -->
+- [x] Verify no-active-task edge case: `_on_reviewer_open_question(None)` does not install passthrough <!-- id: 17d -->
+- [x] Verify queue restart: `_ensure_query_analyst_at_front` places QueryAnalyst at items[0] when passthrough is pending <!-- id: 17b -->
+- [x] Verify two-call flow: first `run()` with open_question → second `run()` with continuation detects and consumes passthrough <!-- id: 17c -->
+- [x] Verify user restart bypasses pending passthrough: new top-level query enters normal QueryAnalyst classification <!-- id: 17e -->
 
 ## Documentation Phase
 

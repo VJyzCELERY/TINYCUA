@@ -466,11 +466,11 @@ async def test_new_user_query_clears_pending_passthrough():
 
 ### Automated Tests
 
-- [ ] Unit tests for `_on_reviewer_open_question`, `_install_mandatory_passthrough`, `_clear_mandatory_passthrough`, `_find_result_reviewer`
-- [ ] Unit tests for `_execute_decision_node` passthrough injection and consumption
-- [ ] Unit tests for `_ensure_query_analyst_at_front` queue restart logic
-- [ ] Integration test for two-call end-to-end open_question → passthrough → continuation path
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Unit tests for `_on_reviewer_open_question`, `_install_mandatory_passthrough`, `_clear_mandatory_passthrough`, `_find_result_reviewer`
+- [x] Unit tests for `_execute_decision_node` passthrough injection and consumption
+- [x] Unit tests for `_ensure_query_analyst_at_front` queue restart logic
+- [x] Integration test for two-call end-to-end open_question → passthrough → continuation path
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 

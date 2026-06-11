@@ -126,23 +126,27 @@ def _ensure_query_analyst_at_front(self) -> None:
     and prepended. This is safe because QueryAnalyst's session is attached lazily
     by ensure_session() during _execute_decision_node().
     """
-    # Already at front — nothing to do
+    # If already at front, no-op
     if self.queue.items and isinstance(self.queue.items[0], TinyCUAQueryAnalystNode):
         return
 
-    # Try to find existing QueryAnalyst further back in the queue
-    qa: TinyCUAQueryAnalystNode | None = None
-    for i, node in enumerate(self.queue.items):
-        if isinstance(node, TinyCUAQueryAnalystNode):
-            qa = self.queue.items.pop(i)
-            break
+    # Find QA elsewhere in queue and move to front
+    for i, item in enumerate(self.queue.items):
+        if isinstance(item, TinyCUAQueryAnalystNode):
+            self.queue.items.pop(i)
+            self.queue.items.insert(0, item)
+            logger.info(
+                "mandatory_passthrough: moved QueryAnalyst to queue front (index=%d)",
+                i,
+            )
+            return
 
-    # Not found — create a fresh instance (session attached lazily later)
-    if qa is None:
-        qa = TinyCUAQueryAnalystNode()
-
-    # Prepend to front
-    self.queue.items.insert(0, qa)
+    # Not found — create fresh QA and prepend
+    fresh_qa = TinyCUAQueryAnalystNode()
+    self.queue.items.insert(0, fresh_qa)
+    logger.info(
+        "mandatory_passthrough: created fresh QueryAnalyst at queue front",
+    )
 ```
 
 This ensures the `_execute_decision_node()` passthrough injection is always reachable when a continuation follows an `open_question` decision.
@@ -154,15 +158,16 @@ This ensures the `_execute_decision_node()` passthrough injection is always reac
 ### Modified Functions
 
 ```python
-def _on_reviewer_open_question(self, active_task: Task) -> None:
+def _on_reviewer_open_question(self, active_task: Task | None) -> None:
     """Install MandatoryPassthrough targeting ResultReviewer for open_question.
 
     Creates a MandatoryPassthrough directive and stores it on the loop
     so the next user continuation is routed deterministically to the
-    ResultReviewer.
+    ResultReviewer. If ``active_task`` is None, logs a warning and
+    returns without installing a passthrough.
 
     Args:
-        active_task: The task with an open question.
+        active_task: The task with an open question (may be None).
     """
     if active_task is None:
         logger.warning("Cannot install passthrough: no active task")
@@ -192,11 +197,15 @@ def _install_mandatory_passthrough(self, mandatory: MandatoryPassthrough) -> Non
     Args:
         mandatory: The passthrough directive to install.
     """
-    # Clear any existing passthrough first (only latest is active)
-    self._clear_mandatory_passthrough()
+    if self._pending_mandatory_passthrough is not None:
+        logger.info(
+            "mandatory_passthrough replacing existing: old_target=%s new_target=%s",
+            self._pending_mandatory_passthrough.target_node_id,
+            mandatory.target_node_id,
+        )
     self._pending_mandatory_passthrough = mandatory
     logger.info(
-        "installed_mandatory_passthrough target=%s session=%s reason=%s",
+        "mandatory_passthrough installed: target_node_id=%s target_session_id=%s reason=%s",
         mandatory.target_node_id,
         mandatory.target_session_id,
         mandatory.reason,
@@ -234,23 +243,27 @@ def _ensure_query_analyst_at_front(self) -> None:
     and prepended. This is safe because QueryAnalyst's session is attached lazily
     by ensure_session() during _execute_decision_node().
     """
-    # Already at front — nothing to do
+    # If already at front, no-op
     if self.queue.items and isinstance(self.queue.items[0], TinyCUAQueryAnalystNode):
         return
 
-    # Try to find existing QueryAnalyst further back in the queue
-    qa: TinyCUAQueryAnalystNode | None = None
-    for i, node in enumerate(self.queue.items):
-        if isinstance(node, TinyCUAQueryAnalystNode):
-            qa = self.queue.items.pop(i)
-            break
+    # Find QA elsewhere in queue and move to front
+    for i, item in enumerate(self.queue.items):
+        if isinstance(item, TinyCUAQueryAnalystNode):
+            self.queue.items.pop(i)
+            self.queue.items.insert(0, item)
+            logger.info(
+                "mandatory_passthrough: moved QueryAnalyst to queue front (index=%d)",
+                i,
+            )
+            return
 
-    # Not found — create a fresh instance (session attached lazily later)
-    if qa is None:
-        qa = TinyCUAQueryAnalystNode()
-
-    # Prepend to front
-    self.queue.items.insert(0, qa)
+    # Not found — create fresh QA and prepend
+    fresh_qa = TinyCUAQueryAnalystNode()
+    self.queue.items.insert(0, fresh_qa)
+    logger.info(
+        "mandatory_passthrough: created fresh QueryAnalyst at queue front",
+    )
 ```
 
 ### _execute_decision_node() — Pending Passthrough Injection + Consumption
