@@ -60,6 +60,8 @@ on_complete():
 ### New Entities
 
 ```python
+from dataclasses import dataclass, field
+
 @dataclass
 class AggregatedResult:
     """Consolidated result from traversing an accepted root task tree.
@@ -73,15 +75,16 @@ class AggregatedResult:
             each task summary ("{title}: {summary}" or "{title}: not_executed") with
             newline separators, prefixed with the root task title.
         response_continuation: Continuation text to guide ResponseNode synthesis.
+            Implementation-defined for MVP; empty string is valid.
         metadata: Additional metadata (traversal depth, count of tasks inspected, etc.).
     """
     root_task_id: str
-    task_summaries: list[str]  # Each entry: "{task.title}: {task.result.summary}" or "{task.title}: not_executed" if no result
-    accepted_results: list[TaskResult]
-    artifacts: list[dict[str, Any]]
-    final_context: str
-    response_continuation: str
-    metadata: dict
+    task_summaries: list[str] = field(default_factory=list)
+    accepted_results: list[TaskResult] = field(default_factory=list)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
+    final_context: str = ""
+    response_continuation: str = ""
+    metadata: dict = field(default_factory=dict)
 ```
 
 The `AggregatedResult` dataclass is defined in `tinycua.loops.result_aggregation` and re-exported from `tinycua.loops`.

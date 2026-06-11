@@ -397,15 +397,17 @@ def test_force_accept_on_threshold_routes_to_aggregation():
 
 **`AggregatedResult` dataclass**:
 ```python
+from dataclasses import dataclass, field
+
 @dataclass
 class AggregatedResult:
     root_task_id: str
-    task_summaries: list[str]
-    accepted_results: list[TaskResult]
-    artifacts: list[dict[str, Any]]
-    final_context: str
-    response_continuation: str
-    metadata: dict
+    task_summaries: list[str] = field(default_factory=list)
+    accepted_results: list[TaskResult] = field(default_factory=list)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
+    final_context: str = ""
+    response_continuation: str = ""
+    metadata: dict = field(default_factory=dict)
 ```
 
 **`TinyCUAResultAggregationNode` class**:
@@ -492,16 +494,18 @@ class AggregatedResult:
 ### New Types
 
 ```python
+from dataclasses import dataclass, field
+
 @dataclass
 class AggregatedResult:
     """Consolidated result from traversing an accepted root task tree."""
     root_task_id: str
-    task_summaries: list[str]
-    accepted_results: list[TaskResult]
-    artifacts: list[dict[str, Any]]
-    final_context: str
-    response_continuation: str
-    metadata: dict
+    task_summaries: list[str] = field(default_factory=list)
+    accepted_results: list[TaskResult] = field(default_factory=list)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
+    final_context: str = ""
+    response_continuation: str = ""
+    metadata: dict = field(default_factory=dict)
 ```
 
 ## API Changes
