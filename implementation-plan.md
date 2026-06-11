@@ -348,7 +348,7 @@ def test_response_node_digester_integration():
 - **[Description]**: Upgrade the existing `ResponseNode` stub into `TinyCUAResponseNode` with full three-phase execution.
 - **[Rationale]**: The current stub only captures LLM output content. The full implementation adds context sufficiency analysis, digester suspension, tool fallback, continuation routing, and terminal normalization as specified in the design.
 - **Changes**:
-  - Rename class from `ResponseNode` to `TinyCUAResponseNode` (keep `ResponseNode` as an alias for backward compat or replace entirely — see design).
+  - Rename class from `ResponseNode` to `TinyCUAResponseNode`. **DO NOT keep `ResponseNode` as an alias** — the existing test helper `ResponseNode(Node)` in `tinycua_loop_helpers.py` creates an import collision (same name, different base class).
   - Add `ResponseContext` dataclass for aggregated context.
   - Add `__init__` with standard `node_id` and `config` parameters. Digester enable/disable is configured via `config.metadata["digester_enabled"]` (default: `True`).
   - Add `_check_context_sufficiency(self, context: ResponseContext) -> bool` — analyze available context before synthesis.
@@ -369,21 +369,39 @@ def test_response_node_digester_integration():
 
 #### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
 
-- **[Description]**: Update imports to export `TinyCUAResponseNode` (and `ResponseNode` alias if kept).
+- **[Description]**: Update imports to export `TinyCUAResponseNode`. Do NOT export `ResponseNode` as an alias — the production class is renamed to avoid collision with the test helper.
 - **[Rationale]**: Expose the upgraded class via the public `tinycua.loops` namespace.
 - **Changes**:
   - Update import: `from tinycua.loops.response_node import TinyCUAResponseNode`
   - Add to `__all__`: `"TinyCUAResponseNode"`
+  - Remove any existing `"ResponseNode"` entry from `__all__`
 
 #### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
 
 - **[Description]**: Wire TinyCUAResponseNode into the loop's terminal node handling and continuation routing.
 - **[Rationale]**: The loop needs to handle ResponseNode's suspension/resume flow and consolidated continuation routing.
 - **Changes**:
-  - Update import to use `TinyCUAResponseNode` (or keep `ResponseNode` alias).
+  - Update import to use `TinyCUAResponseNode` (no `ResponseNode` alias — the production class is renamed to avoid collision with test helper `StubResponseNode`).
   - Modify `_execute_node` for terminal nodes: when the terminal node is a `TinyCUAResponseNode` and has suspension pending, handle the queue mutation.
   - Modify `_route_to_aggregation` to use `TinyCUAResponseNode`.
   - Ensure continuation routing via MandatoryPassthrough reaches the active ResponseNode session.
+
+#### [RENAME] `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py` — `ResponseNode` → `StubResponseNode`
+
+- **[Description]**: Rename the existing test helper class `ResponseNode(Node)` to `StubResponseNode(Node)` to avoid naming collision with the production `TinyCUAResponseNode` (previously `ResponseNode`). Both had the same name but extended different base classes (`Node` vs `ProcessNode`), creating import ambiguity in existing tests.
+- **[Rationale]**: The implementation plan previously proposed keeping `ResponseNode` as an alias for `TinyCUAResponseNode`. However, the test helper `ResponseNode(Node)` in `tinycua_loop_helpers.py:57` is used by existing queue bootstrap tests as a lightweight terminal stub. If the production `ResponseNode` became an alias, these tests might accidentally import the real class, causing failures due to missing LLM client dependencies. Renaming the test helper to `StubResponseNode` avoids the collision entirely.
+- **Changes**:
+  - In `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py`:
+    - Rename class `ResponseNode(Node)` to `StubResponseNode(Node)`
+    - Update docstring to reflect the new name
+  - In `src/tinycua/tests/` — find and update all imports of `ResponseNode` from `tinycua_loop_helpers` to use `StubResponseNode`:
+    ```bash
+    grep -rn "from.*tinycua_loop_helpers.*import.*ResponseNode" src/tinycua/tests/
+    ```
+  - Verify no existing tests break:
+    ```bash
+    cd src/tinycua && uv run pytest
+    ```
 
 #### [MODIFY] `src/tinycua/tinycua/config/node_config.py` (if needed)
 
@@ -413,10 +431,12 @@ def test_response_node_digester_integration():
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua.loops.response_node` | Modify | Upgrade `ResponseNode` stub to full `TinyCUAResponseNode` with three-phase execution |
-| `tinycua.loops.__init__` | Modify | Export `TinyCUAResponseNode` |
+| `tinycua.loops.response_node` | Modify | Upgrade `ResponseNode` stub to full `TinyCUAResponseNode`; no `ResponseNode` alias kept |
+| `tinycua.loops.__init__` | Modify | Export `TinyCUAResponseNode` only (no `ResponseNode` alias) |
 | `tinycua.loops.tinycua_loop` | Modify | Wire suspension/resume and continuation routing |
 | `tinycua.config.node_config` | Modify (if needed) | Add response-specific config options |
+| `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py` | Modify | Rename `ResponseNode(Node)` to `StubResponseNode(Node)` to avoid naming collision |
+| All existing test imports | Modify | Update imports from `ResponseNode` → `StubResponseNode` in test files referencing the helper |
 | `src/tinycua/tests/unit/test_response_node.py` | New | Unit tests for ResponseNode |
 | `src/tinycua/tests/integration/test_response_node_integration.py` | New | Integration tests |
 
@@ -444,7 +464,7 @@ No schema changes to existing entities. The existing `AggregatedResult`, `NodeIn
 
 ## API Changes
 
-No public API changes — all changes are internal to `tinycua.loops`. The `TinyCUAResponseNode` is re-exported from `tinycua.loops` for convenience. The existing `ResponseNode` name may be kept as an alias for backward compatibility.
+No public API changes — all changes are internal to `tinycua.loops`. The `TinyCUAResponseNode` is re-exported from `tinycua.loops` for convenience. The `ResponseNode` alias is **not** kept — the existing test helper `ResponseNode(Node)` is renamed to `StubResponseNode(Node)` to avoid naming collision.
 
 ## Dependencies
 
