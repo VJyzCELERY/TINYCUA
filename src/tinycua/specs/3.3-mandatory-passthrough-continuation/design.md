@@ -2,7 +2,7 @@
 
 **Spec**: ./spec.md
 **Status**: Draft
-**Last Updated**: 2026-06-11 (review-revision)
+**Last Updated**: 2026-06-11 (review-revision-2)
 **Milestone**: 3.3 — Mandatory Passthrough and Continuation Routing
 
 ---
@@ -24,6 +24,10 @@ User sends continuation
 TinyCUALoop.run(agent, messages, ...)
   │  root_session.input_context = messages
   │  + MandatoryPassthrough metadata injected from previous open_question
+  │
+  ├─ [QUEUE RESTART] If _pending_mandatory_passthrough is set,
+  │   ensure QueryAnalyst is at front of the queue so the
+  │   passthrough can be detected. (See Queue Restart section.)
   │
   ▼
 _execute_decision_node(QueryAnalyst)
@@ -86,6 +90,62 @@ mandatory = node.check_mandatory_passthrough(input_data)
 ```
 
 **Why not input_context?** `_build_query_analyst_input()` extracts metadata from `root_session.input_context` messages — this is correct for the message pipeline and still happens. But the passthrough directive itself must survive the `input_context` reset between `run()` calls, which requires a persistent field on the loop. The injection in `_execute_decision_node()` is a single additional line that merges the pending directive into the same `NodeInput.metadata` dict where `check_mandatory_passthrough()` already reads from.
+
+---
+
+### Queue Restart for Passthrough Detection
+
+**Problem:** The `NodeQueue` uses `items[0]` as the "current" node and never rewinds. After a `run()` call where `open_question` fires, the queue has advanced past `QueryAnalyst` (it has been popped by `advance()`). On the next `run()` call, the loop starts from whatever node is at `items[0]` — typically the terminal `ResponseNode`. Since `_execute_decision_node()` is only called for `DecisionNode` subclasses (i.e., `QueryAnalyst`), the pending `MandatoryPassthrough` injected in `_execute_decision_node()` is **never reached**.
+
+**Solution:** At the start of `run()`, before the main execution loop, check if `_pending_mandatory_passthrough` is set. If so, ensure `QueryAnalyst` is at the front of the queue so the passthrough detection path is visited:
+
+```python
+async def run(self, agent, messages, ...):
+    self.root_session.input_context = list(messages)
+
+    # FR-001/FR-003: If a passthrough is pending from a previous open_question,
+    # ensure QueryAnalyst is at the front of the queue so _execute_decision_node()
+    # can inject the directive into the input metadata and detect it.
+    if self._pending_mandatory_passthrough is not None:
+        self._ensure_query_analyst_at_front()
+
+    if self.default_terminal_node is not None:
+        self.queue.ensure_terminal(self.default_terminal_node)
+    ...
+```
+
+The helper method `_ensure_query_analyst_at_front()`:
+
+```python
+def _ensure_query_analyst_at_front(self) -> None:
+    """Ensure QueryAnalyst is at the front of the queue for passthrough detection.
+
+    If QueryAnalyst is already at items[0], this is a no-op.
+    If QueryAnalyst exists elsewhere in the queue, it is moved to the front.
+    If QueryAnalyst has been popped (not in the queue), a new instance is created
+    and prepended. This is safe because QueryAnalyst's session is attached lazily
+    by ensure_session() during _execute_decision_node().
+    """
+    # Already at front — nothing to do
+    if self.queue.items and isinstance(self.queue.items[0], TinyCUAQueryAnalystNode):
+        return
+
+    # Try to find existing QueryAnalyst further back in the queue
+    qa: TinyCUAQueryAnalystNode | None = None
+    for i, node in enumerate(self.queue.items):
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            qa = self.queue.items.pop(i)
+            break
+
+    # Not found — create a fresh instance (session attached lazily later)
+    if qa is None:
+        qa = TinyCUAQueryAnalystNode()
+
+    # Prepend to front
+    self.queue.items.insert(0, qa)
+```
+
+This ensures the `_execute_decision_node()` passthrough injection is always reachable when a continuation follows an `open_question` decision.
 
 ---
 
@@ -159,6 +219,35 @@ def _find_result_reviewer(self) -> Node | None:
     return None
 ```
 
+```python
+def _ensure_query_analyst_at_front(self) -> None:
+    """Ensure QueryAnalyst is at the front of the queue for passthrough detection.
+
+    If QueryAnalyst is already at items[0], this is a no-op.
+    If QueryAnalyst exists elsewhere in the queue, it is moved to the front.
+    If QueryAnalyst has been popped (not in the queue), a new instance is created
+    and prepended. This is safe because QueryAnalyst's session is attached lazily
+    by ensure_session() during _execute_decision_node().
+    """
+    # Already at front — nothing to do
+    if self.queue.items and isinstance(self.queue.items[0], TinyCUAQueryAnalystNode):
+        return
+
+    # Try to find existing QueryAnalyst further back in the queue
+    qa: TinyCUAQueryAnalystNode | None = None
+    for i, node in enumerate(self.queue.items):
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            qa = self.queue.items.pop(i)
+            break
+
+    # Not found — create a fresh instance (session attached lazily later)
+    if qa is None:
+        qa = TinyCUAQueryAnalystNode()
+
+    # Prepend to front
+    self.queue.items.insert(0, qa)
+```
+
 ### _execute_decision_node() — Pending Passthrough Injection + Consumption
 
 The loop's `_execute_decision_node()` is modified to (a) inject the pending passthrough into the QueryAnalyst input, and (b) clear it after successful forward:
@@ -202,6 +291,25 @@ if isinstance(node, TinyCUAQueryAnalystNode):
         return passthrough_content, True, decision
 ```
 
+### run() — Queue Restart for Passthrough Detection
+
+The loop's `run()` method is modified to restart the queue from QueryAnalyst when a passthrough is pending:
+
+```python
+async def run(self, agent, messages, ...):
+    self.root_session.input_context = list(messages)
+
+    # FR-001/FR-003: Queue restart — when a passthrough is pending from a
+    # previous open_question, ensure QueryAnalyst is at the front of the
+    # queue so _execute_decision_node() can inject the directive.
+    if self._pending_mandatory_passthrough is not None:
+        self._ensure_query_analyst_at_front()
+
+    if self.default_terminal_node is not None:
+        self.queue.ensure_terminal(self.default_terminal_node)
+    ...
+```
+
 ### QueryAnalyst.route_passthrough (Currently a No-Op)
 
 The existing `route_passthrough()` is documented as "a no-op at queue level — the actual forwarding happens via MandatoryPassthrough metadata." This is correct for the current architecture: the loop's `_execute_decision_node()` detects the passthrough and calls `node.on_complete()` with the PASSTHROUGH route, then the queue advances normally.
@@ -227,10 +335,12 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 - [ ] Implement `_install_mandatory_passthrough()` on `TinyCUALoop`
 - [ ] Implement `_clear_mandatory_passthrough()` on `TinyCUALoop`
 - [ ] Implement `_find_result_reviewer()` on `TinyCUALoop`
+- [ ] Implement `_ensure_query_analyst_at_front()` on `TinyCUALoop` — ensures QueryAnalyst is at the front of the queue when a passthrough is pending, so `_execute_decision_node()` can detect it
+- [ ] Update `run()` to call `_ensure_query_analyst_at_front()` when `_pending_mandatory_passthrough is not None`
 - [ ] Update `_on_reviewer_open_question()` to install MandatoryPassthrough
 - [ ] Update `_execute_decision_node()` to inject `_pending_mandatory_passthrough` into QueryAnalyst input and clear it after successful forward
-- [ ] Add unit tests for installation, clearing, injection, and forwarding
-- [ ] Add integration test for end-to-end open_question → passthrough → continuation
+- [ ] Add unit tests for installation, clearing, injection, forwarding, and queue restart
+- [ ] Add integration test for end-to-end open_question → passthrough → continuation (two-call flow)
 
 ### Phase 2 — Enhancements (post-MVP)
 
@@ -262,6 +372,14 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
    - **Reason**: The forwarding mechanism is the loop-level passthrough detection in `_execute_decision_node()`, not the route handler. The route handler's role is to log and acknowledge.
    - **Alternatives Considered**: Move forwarding into route_passthrough — rejected; the loop already handles the passthrough detection and calling `on_complete()` with the PASSTHROUGH route.
 
+6. **Decision**: Restart queue to QueryAnalyst at start of `run()` when passthrough is pending
+   - **Reason**: After a `run()` call where `open_question` fires, the queue has advanced past QueryAnalyst. On the next `run()`, the loop starts from the terminal node and never reaches `_execute_decision_node()`, making the passthrough undetectable. By moving QueryAnalyst back to the front at the start of `run()`, the passthrough injection in `_execute_decision_node()` is always reachable.
+   - **Implementation**: `_ensure_query_analyst_at_front()` scans the queue for an existing QueryAnalyst (moving it to front), or creates a fresh one if it has been popped. Called from `run()` only when `_pending_mandatory_passthrough is not None`.
+   - **Alternatives Considered**:
+     - Return `should_advance=False` from ResultReviewer on `open_question` — rejected; would prevent the loop from reaching the terminal node and returning a response.
+     - Reset entire queue to initial state at each `run()` — rejected; loses dynamic queue mutations (spawned nodes) between calls.
+     - Check for pending passthrough in `_execute_node()` for any node, not just DecisionNodes — rejected; couples non-DecisionNode logic to query analyst concerns.
+
 ---
 
 ## Risks & Mitigations
@@ -269,6 +387,7 @@ The existing `route_passthrough()` is documented as "a no-op at queue level — 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | ResultReviewer may not be in queue when open_question fires | Low | Low | `_find_result_reviewer()` returns None; warning logged; no passthrough installed; falls back to normal flow |
+| Queue advanced past QueryAnalyst on continuation run() | Medium | High | `_ensure_query_analyst_at_front()` called from `run()` when `_pending_mandatory_passthrough` is set; moves QueryAnalyst to front of queue so passthrough injection is reachable |
 | Stale passthrough from a previous run cycle | Medium | Low | Cleared after successful forward in `_execute_decision_node()`; stale guard in `check_mandatory_passthrough()` as second line of defense |
 | User sends empty continuation after open_question | Low | Low | QueryAnalyst classifies empty input as uncertain; normal behavior |
 
