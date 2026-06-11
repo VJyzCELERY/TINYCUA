@@ -84,9 +84,12 @@ class TinyCUAResultReviewerNode(ProcessNode):
             return {"outcome": match.group(1).lower(), "rationale": response.content[:200]}
 
         # Default fallback: retry
+        raw_preview = (response.content or "")[:200]
         logger.warning(
-            "node=%s could not parse reviewer decision, falling back to retry",
+            "node=%s could not parse reviewer decision, falling back to retry "
+            "raw_response=%r",
             self.node_id,
+            raw_preview,
         )
         return {"outcome": "retry", "rationale": "Could not parse decision, defaulting to retry"}
 

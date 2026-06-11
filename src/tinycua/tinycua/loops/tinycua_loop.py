@@ -494,14 +494,29 @@ class TinyCUALoop(BaseLoop):
             # so custom logic (ReAct loops, decision parsing) runs.
             # Fall back to agent._call_llm() for nodes without a configured
             # client (e.g. test stubs, nodes relying on agent transport).
-            if getattr(node.config, "llm_client", None) is not None:
-                input_data = self._build_node_input(node)
-                result = await asyncio.to_thread(node, input_data)
-                # Node __call__ may return LLMResult or plain str (test stubs)
-                if isinstance(result, LLMResult):
-                    llm_result = result
-                else:
-                    llm_result = LLMResult(content=str(result), role="assistant")
+            # Check node.config.llm_client first, then fall back to
+            # session_config.llm_client (the default production path when
+            # SessionConfig has an llm_client set — see design.md Decision #7).
+            effective_llm_client = getattr(node.config, "llm_client", None) or getattr(
+                self.session_config, "llm_client", None
+            )
+            if effective_llm_client is not None:
+                # Temporarily inject the effective client so node.__call__ can use it
+                original_client = getattr(node.config, "llm_client", None)
+                if original_client is None and hasattr(node.config, "llm_client"):
+                    node.config.llm_client = effective_llm_client
+                try:
+                    input_data = self._build_node_input(node)
+                    result = await asyncio.to_thread(node, input_data)
+                    # Node __call__ may return LLMResult or plain str (test stubs)
+                    if isinstance(result, LLMResult):
+                        llm_result = result
+                    else:
+                        llm_result = LLMResult(content=str(result), role="assistant")
+                finally:
+                    # Restore original client state if we injected one
+                    if original_client is None and hasattr(node.config, "llm_client"):
+                        node.config.llm_client = None
             else:
                 if (
                     hasattr(node, "__call__")
@@ -509,11 +524,11 @@ class TinyCUALoop(BaseLoop):
                 ):
                     logger.error(
                         "Fallback path: node %s overrides ProcessNode.__call__ "
-                        "but node.config.llm_client is None — custom logic "
+                        "but neither node.config.llm_client nor "
+                        "session_config.llm_client is set — custom logic "
                         "(ReAct loops, decision parsing) will be bypassed. "
-                        "To fix: set node.config.llm_client or ensure SessionConfig "
-                        "passes a valid llm_client to spawned nodes (via "
-                        "analysis_effort/worker constructors).",
+                        "To fix: set SessionConfig.llm_client or "
+                        "node.config.llm_client.",
                         node.node_id,
                     )
                 messages, resolved_tools = self._prepare_node(

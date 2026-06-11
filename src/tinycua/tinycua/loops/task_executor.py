@@ -187,14 +187,20 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 raise
 
         assert last_response is not None  # noqa: S101
-        summary_text = last_response.content[: self.max_summary_length]
-        if len(last_response.content) > self.max_summary_length:
+        # Allow per-task override via input metadata; fall back to instance default
+        effective_max_summary = self.max_summary_length
+        if isinstance(input_data, NodeInput):
+            metadata_override = input_data.metadata.get("max_summary_length")
+            if isinstance(metadata_override, int) and metadata_override > 0:
+                effective_max_summary = metadata_override
+        summary_text = last_response.content[:effective_max_summary]
+        if len(last_response.content) > effective_max_summary:
             logger.warning(
                 "node=%s task_id=%s summary truncated from %d to %d chars",
                 self.node_id,
                 task.task_id,
                 len(last_response.content),
-                self.max_summary_length,
+                effective_max_summary,
             )
         result_dict = self._build_execution_result(
             task,
