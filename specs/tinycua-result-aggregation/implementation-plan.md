@@ -418,13 +418,13 @@ class AggregatedResult:
   4. Record result to session context / response metadata.
   5. `propagate()`.
   6. Return `LLMResult` with `AggregatedResult` in `metadata["aggregated_result"]`.
-- `_traverse_bfs_right_to_left(task: Task) -> Iterator[Task]`:
+- `_traverse_bfs_right_to_left(task: Task, max_inspected_tasks: int | None = None, context_sufficient_fn: Callable | None = None) -> Iterator[Task]`:
   - Generator-based guided BFS right-to-left / most-recent-first.
   - Uses `collections.deque` with a reversed children queue.
   - Supports early termination via `stop_traversal` attribute or `max_inspected_tasks` threshold.
   - Inspects each visited task's context, result, artifacts, and reviewer decisions.
   - Yields each inspected task for the caller to consume.
-- `_consolidate(traversed_tasks: list[Task]) -> AggregatedResult`:
+- `_consolidate(traversal_results: list[Task]) -> AggregatedResult`:
   - Builds `AggregatedResult` from inspected tasks.
   - Collects: `root_task_id`, `task_summaries`, `accepted_results`, `artifacts`, `final_context`, `response_continuation`, `metadata`.
 - `on_complete(self, queue: NodeQueue, response: LLMResult) -> None`:
