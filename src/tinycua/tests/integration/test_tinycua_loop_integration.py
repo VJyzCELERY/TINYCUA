@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import collections.abc
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
@@ -231,7 +230,7 @@ async def test_open_question_to_continuation_two_call_flow():
 
     # Run the loop — this should process task_executor → result_reviewer →
     # open_question → install passthrough → terminal → exit
-    result_1 = await loop.run(
+    await loop.run(
         agent=agent,
         messages=[{"role": "user", "content": "write a script"}],
         tools=[],

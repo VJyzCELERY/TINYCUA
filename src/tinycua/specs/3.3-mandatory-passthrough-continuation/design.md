@@ -210,7 +210,7 @@ def _clear_mandatory_passthrough(self) -> None:
 ```
 
 ```python
-def _find_result_reviewer(self) -> Node | None:
+def _find_result_reviewer(self) -> TinyCUAResultReviewerNode | None:
     """Find the first active ResultReviewer node in the queue.
 
     Returns the first TinyCUAResultReviewerNode found by scanning
