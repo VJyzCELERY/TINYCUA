@@ -352,19 +352,20 @@ def test_response_node_digester_integration():
   - Add `ResponseContext` dataclass for aggregated context.
   - Add `__init__` with standard `node_id` and `config` parameters. Digester enable/disable is configured via `config.metadata["digester_enabled"]` (default: `True`).
   - Add `_check_context_sufficiency(self, context: ResponseContext) -> bool` — analyze available context before synthesis.
-  - Add `_suspend_for_digestion(self, context: ResponseContext) -> None` — suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])`.
+  - Add `_suspend_for_digestion(self, context: ResponseContext, queue: NodeQueue) -> None` — called from `on_complete`; suspend via `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=self)])`.
   - Add `_gather_context_via_tools(self, context: ResponseContext) -> ResponseContext` — use allowed tools directly.
   - Add `_synthesize_response(self, context: ResponseContext) -> LLMResult` — build LLM input and produce final response.
   - Modify `__call__` to implement three-phase execution:
     1. Build `ResponseContext` from `NodeInput`.
     2. Check context sufficiency.
     3. If sufficient → synthesize directly.
-    4. If insufficient + digester enabled → suspend and prepend InformationDigesterNode.
+    4. If insufficient + digester enabled → set `self._needs_digestion = True`, return a placeholder result; actual suspension happens in `on_complete`.
     5. If insufficient + no digester → gather context via tools.
     6. Normalize terminal output to string.
     7. Record output and propagate.
   - Modify `on_complete` to handle queue mutations (digester prepend, etc.).
   - Add `_continuation_payload` attribute for consolidated continuation behavior.
+  - Add `_needs_digestion` flag — set during `__call__` when context is insufficient and digester enabled; checked in `on_complete`.
   - Ensure retry compliance via inherited `ProcessNode.__call__` retry loop.
 
 #### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
@@ -382,7 +383,21 @@ def test_response_node_digester_integration():
 - **[Rationale]**: The loop needs to handle ResponseNode's suspension/resume flow and consolidated continuation routing.
 - **Changes**:
   - Update import to use `TinyCUAResponseNode` (no `ResponseNode` alias — the production class is renamed to avoid collision with test helper `StubResponseNode`).
-  - Modify `_execute_node` for terminal nodes: when the terminal node is a `TinyCUAResponseNode` and has suspension pending, handle the queue mutation.
+  - Modify `_execute_node` for terminal nodes: add an `isinstance(node, TinyCUAResponseNode)` type check to invoke `node.__call__()` instead of the direct LLM path:
+    ```python
+    if node.is_terminal:
+        if isinstance(node, TinyCUAResponseNode):
+            # ResponseNode needs __call__ for its three-phase execution
+            node.ensure_session(self.root_session)
+            input_data = self._build_node_input(node)
+            result = node(input_data)
+            llm_result = result if isinstance(result, LLMResult) else LLMResult(content=str(result))
+        else:
+            # Default terminal path for non-ResponseNode terminals (existing behavior)
+            messages, resolved_tools = self._prepare_node(...)
+            response = await agent._call_llm(messages, resolved_tools)
+            llm_result = LLMResult(content=response.get("content") or "", ...)
+    ```
   - Modify `_route_to_aggregation` to use `TinyCUAResponseNode`.
   - Ensure continuation routing via MandatoryPassthrough reaches the active ResponseNode session.
 
@@ -477,7 +492,7 @@ No public API changes — all changes are internal to `tinycua.loops`. The `Tiny
 ### Internal Dependencies
 
 - [ ] Depends on Milestone 3.4 (`ResultAggregationNode`) — provides `AggregatedResult` input
-- [ ] Depends on Milestone 2.5 (`InformationDigesterNode`) — optional digester suspension path
+- [ ] Depends on Milestone 2.5 (`TinyCUAInformationDigesterNode`) — optional digester suspension path
 - [ ] Depends on Milestone 3.3 (MandatoryPassthrough continuation routing) — for consolidated continuation
 - [ ] Depends on Milestone 1.7 (`NodeQueue.suspend_current_and_prepend`) — queue suspension machinery
 - [ ] Relies on `NodeRetryPolicy` and `NodeToolPolicy` — already available in `node_config.py`

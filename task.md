@@ -30,8 +30,8 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 
 ### Task 3: Digester suspension path <!-- id: 4 -->
 
-- [ ] Implement `_suspend_for_digestion(self, context: ResponseContext) -> None` — suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])` <!-- id: 4a -->
-- [ ] Wire suspension into `__call__` — when context insufficient and `digester_enabled=True` (via `config.metadata`), suspend and prepend InformationDigesterNode <!-- id: 4b -->
+- [ ] Implement `_suspend_for_digestion(self, context: ResponseContext, queue: NodeQueue) -> None` — suspend via `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=self)])` <!-- id: 4a -->
+- [ ] Wire suspension into `__call__` — when context insufficient and `digester_enabled=True` (via `config.metadata`), set `_needs_digestion` flag; actual suspension via `on_complete` prepends TinyCUAInformationDigesterNode <!-- id: 4b -->
 - [ ] Add `max_digest_attempts` counter to prevent infinite loops <!-- id: 4c -->
 - [ ] Implement resume flow — when digest returns, re-check sufficiency and synthesize <!-- id: 4d -->
 - [ ] Write unit tests for digester suspension path <!-- id: 4e -->

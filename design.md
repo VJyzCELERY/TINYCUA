@@ -115,14 +115,18 @@ class TinyCUAResponseNode(ProcessNode):
     
     def _check_context_sufficiency(self, context: ResponseContext) -> bool: ...
     
-    def _suspend_for_digestion(self, context: ResponseContext) -> None: ...
+    def _suspend_for_digestion(self, context: ResponseContext, queue: NodeQueue) -> None:
+        """Called from on_complete — suspends current node and prepends InformationDigesterNode."""
     
     def _gather_context_via_tools(self, context: ResponseContext) -> ResponseContext: ...
     
     def _synthesize_response(self, context: ResponseContext) -> LLMResult: ...
     
     def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
-        """Called by queue after execution with the response for queue mutations."""
+        """Called by queue after execution with the response for queue mutations.
+        
+        When `_needs_digestion` is True, calls `_suspend_for_digestion(context, queue)`
+        to prepend TinyCUAInformationDigesterNode before returning."""
 ```
 
 ### Error Handling
@@ -197,6 +201,11 @@ This configuration:
 4. **Decision**: Context sufficiency thresholds are configurable via NodeConfig
    - **Reason**: Different use cases may require different sufficiency criteria. Making it configurable avoids hardcoding a brittle heuristic.
    - **Alternatives Considered**: Hardcoded threshold — simpler but not flexible enough for research prototyping.
+
+5. **Decision**: `TinyCUAResponseNode` is the only terminal node that gets `__call__`-based execution
+   - **Reason**: The loop's `_execute_node` currently bypasses `node.__call__()` for all terminal nodes and calls `agent._call_llm()` directly. This works for simple terminal stubs but doesn't support `TinyCUAResponseNode`'s three-phase execution (context sufficiency check, optional digester suspension, response synthesis). A type check (`isinstance(node, TinyCUAResponseNode)`) in `_execute_node` ensures `__call__` is invoked only for this node while other terminal nodes continue to use the direct LLM path.
+   - **Implementation**: In `tinycua_loop._execute_node()`, before the existing `if node.is_terminal:` direct LLM path, check `isinstance(node, TinyCUAResponseNode)` and call `node.__call__()` with the appropriate input.
+   - **Alternatives Considered**: (A) Make all terminal nodes use `__call__` — more consistent but would require refactoring existing terminal stubs and risks breaking existing queue bootstrap tests. (B) Make `TinyCUAResponseNode` non-terminal internally — violates the `is_terminal` contract for queue behavior.
 
 ---
 
