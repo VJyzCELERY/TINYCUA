@@ -9,7 +9,7 @@ from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node import DecisionNode, Node, NodeExecutionError, ProcessNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.result_aggregation import (
     AggregatedResult,
     TinyCUAResultAggregationNode,
@@ -31,6 +31,7 @@ __all__ = [
     "NodeQueue",
     "ProcessNode",
     "ResponseNode",
+    "TinyCUAResponseNode",
     "RouteMap",
     "TinyCUAAnalysisEffortNode",
     "TinyCUAInformationDigesterNode",

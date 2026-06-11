@@ -17,7 +17,7 @@ from tinycua.models.task import Task
 from tinycua_sdk.agent import BaseLoop
 
 from tests.mock_llm import MockLLM
-from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, StubResponseNode
 
 
 # --- Basic construction tests ---
@@ -82,7 +82,7 @@ def test_tinycua_loop_custom_max_iterations():
 async def test_execute_node_calls_agent_with_node_messages():
     """_execute_node() builds messages from node and calls agent._call_llm()."""
     stub = StubNode("node output")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -103,7 +103,7 @@ async def test_execute_node_calls_agent_with_node_messages():
 async def test_execute_node_records_chat_history():
     """_execute_node() appends each node's LLM call to root_session.chat_history."""
     stub = StubNode("history test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -125,7 +125,7 @@ async def test_execute_node_records_chat_history():
 async def test_execute_node_records_session_context():
     """_execute_node() records session_context via node.record_output()."""
     stub = StubNode("context test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -146,7 +146,7 @@ async def test_execute_node_records_session_context():
 
 async def test_execute_node_stops_at_terminal():
     """_execute_node() stops processing when a terminal node is encountered."""
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [terminal]
 
@@ -170,7 +170,7 @@ async def test_execute_node_stops_at_terminal():
 async def test_message_merging_populates_input_context():
     """run() merges SDK messages into root_session.input_context."""
     stub = StubNode("merge test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -197,7 +197,7 @@ async def test_message_merging_populates_input_context():
 async def test_message_merging_preserves_order():
     """Merged messages retain their original order."""
     stub = StubNode("order test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -266,7 +266,7 @@ async def test_tool_scoping_all_tools():
 async def test_override_instructions_passed_to_node():
     """override_instructions reaches node.build_instruction() during message building."""
     stub = StubNode("override test")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -291,7 +291,7 @@ async def test_override_instructions_passed_to_node():
 async def test_stream_false_returns_string():
     """run(stream=False) returns a string response."""
     stub = StubNode("string result")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -312,7 +312,7 @@ async def test_stream_false_returns_string():
 async def test_stream_true_returns_async_iterator():
     """run(stream=True) returns an async iterator with content deltas."""
     stub = StubNode("streaming response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -343,7 +343,7 @@ async def test_stream_true_returns_async_iterator():
 async def test_run_records_user_message():
     """run() records user messages in input_context (not chat_history)."""
     stub = StubNode("response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -368,7 +368,7 @@ async def test_run_records_user_message():
 async def test_run_records_assistant_response():
     """run() records assistant response in chat_history."""
     stub = StubNode("response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -389,7 +389,7 @@ async def test_run_records_assistant_response():
 async def test_run_calls_build_system_message_with_override():
     """run() passes override_instructions to node execution via _build_node_messages."""
     stub = StubNode("response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -415,7 +415,7 @@ async def test_run_calls_build_system_message_with_override():
 async def test_run_with_empty_messages():
     """run() handles empty messages list gracefully."""
     stub = StubNode("response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -436,7 +436,7 @@ async def test_run_with_empty_messages():
 
 async def test_run_stream_records_chat_history():
     """run(stream=True) records accumulated content in chat_history."""
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [terminal]
 
@@ -463,7 +463,7 @@ async def test_run_stream_records_chat_history():
 async def test_ensure_terminal_skipped_when_no_default():
     """run() skips ensure_terminal() when default_terminal_node is None."""
     stub = StubNode("response")
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [stub, terminal]
 
@@ -489,7 +489,7 @@ async def test_ensure_terminal_skipped_when_no_default():
 
 async def test_tinycua_loop_ensure_terminal_bootstrap():
     """run() calls ensure_terminal() on queue at bootstrap."""
-    terminal_node = ResponseNode()
+    terminal_node = StubResponseNode()
 
     loop = TinyCUALoop(default_terminal_node=terminal_node)
     queue = loop.queue

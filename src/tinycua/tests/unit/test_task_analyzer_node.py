@@ -167,9 +167,9 @@ def test_task_analyzer_lifecycle_hooks_in_queue():
     # not that hooks fire — hooks are tested via the direct __call__ path above.
     from tinycua.loops.tinycua_loop import TinyCUALoop
     from tinycua.loops.node_queue import NodeQueue
-    from tinycua.loops.response_node import ResponseNode
+    from tests.unit.helpers.tinycua_loop_helpers import StubResponseNode
 
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [node, terminal]
 
@@ -192,7 +192,7 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
     """Spec Test 3: TaskAnalyzerNode(mode=recreation) in a queue —
     verify the node's tool_scope includes TaskInit/TaskCreate for recreation mode."""
     from tinycua.loops.tinycua_loop import TinyCUALoop
-    from tinycua.loops.response_node import ResponseNode
+    from tests.unit.helpers.tinycua_loop_helpers import StubResponseNode
 
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="recreation")
@@ -202,7 +202,7 @@ def test_task_analyzer_recreation_in_queue_receives_task_tools():
     assert "TaskCreate" in node.tool_scope, "TaskCreate must be in tool scope for recreation mode"
 
     # Also verify the node can execute successfully in a queue
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [node, terminal]
 
@@ -224,7 +224,7 @@ def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     """Spec Test 4: TaskAnalyzerNode(mode=initial_analysis) in a queue —
     verify the node's tool_scope excludes TaskInit/TaskCreate."""
     from tinycua.loops.tinycua_loop import TinyCUALoop
-    from tinycua.loops.response_node import ResponseNode
+    from tests.unit.helpers.tinycua_loop_helpers import StubResponseNode
 
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="initial_analysis")
@@ -234,7 +234,7 @@ def test_task_analyzer_initial_analysis_in_queue_excludes_task_tools():
     assert "TaskCreate" not in node.tool_scope, "TaskCreate must NOT be in tool scope for initial_analysis"
 
     # Also verify the node can execute successfully in a queue
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [node, terminal]
 
@@ -314,7 +314,7 @@ def test_task_analyzer_direct_mutation_updates_session_task():
     from the mock and that session.task mutation is validated.
     """
     from tinycua.loops.tinycua_loop import TinyCUALoop
-    from tinycua.loops.response_node import ResponseNode
+    from tests.unit.helpers.tinycua_loop_helpers import StubResponseNode
 
     config = NodeConfigBase()
     node = TinyCUATaskAnalyzerNode(config=config, mode="recreation")
@@ -325,7 +325,7 @@ def test_task_analyzer_direct_mutation_updates_session_task():
     mock_session.session_context = []  # Real list for record_output
     mock_session.chat_history = []  # Real list for chat_history recording
 
-    terminal = ResponseNode()
+    terminal = StubResponseNode()
     queue = NodeQueue()
     queue.items = [node, terminal]
 

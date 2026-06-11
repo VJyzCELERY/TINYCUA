@@ -7,7 +7,7 @@ from typing import Any
 from tinycua_sdk.agent import Agent
 
 from tinycua.config.session_config import SessionConfig
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
@@ -46,7 +46,7 @@ def create_tinycua_agent(
         session = Session()
     if session_config is not None:
         session.session_config = session_config
-    terminal_node = ResponseNode()
+    terminal_node = TinyCUAResponseNode()
     loop = TinyCUALoop(
         root_session=session,
         session_config=session_config,

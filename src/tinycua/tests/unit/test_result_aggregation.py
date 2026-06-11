@@ -8,7 +8,7 @@ from tinycua.loops.result_aggregation import (
     AggregatedResult,
     TinyCUAResultAggregationNode,
 )
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import TinyCUAResponseNode
 from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import Task, TaskResult
@@ -565,7 +565,7 @@ class TestOnComplete:
         queue = NodeQueue(
             items=[
                 TinyCUAResultAggregationNode(),
-                ResponseNode(),
+                TinyCUAResponseNode(),
             ]
         )
         response = LLMResult(
@@ -599,7 +599,7 @@ class TestOnComplete:
         caplog.set_level(logging.INFO)
 
         node = TinyCUAResultAggregationNode()
-        queue = NodeQueue(items=[node, ResponseNode()])
+        queue = NodeQueue(items=[node, TinyCUAResponseNode()])
         response = LLMResult(
             content="",
             metadata={
@@ -634,7 +634,7 @@ class TestLoopWiring:
     def test_route_to_aggregation_spawns_nodes(self):
         """Given _route_to_aggregation is called,
         When the queue has a current node,
-        Then it spawns ResultAggregationNode and ResponseNode after current."""
+        Then it spawns ResultAggregationNode and TinyCUAResponseNode after current."""
         queue = NodeQueue(
             items=[
                 TinyCUAResultReviewerNode(),
@@ -650,7 +650,7 @@ class TestLoopWiring:
         spawned_ids = [item.node_id for item in queue.items]
         assert "result_aggregation" in spawned_ids
         assert "response" in spawned_ids
-        # ResponseNode should be terminal
+        # TinyCUAResponseNode should be terminal
         assert queue.items[-1].is_terminal
 
     def test_on_reviewer_accept_returns_true_for_root(self):
