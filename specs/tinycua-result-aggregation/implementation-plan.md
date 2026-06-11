@@ -94,7 +94,7 @@ def test_aggregation_produces_aggregated_result():
     node.ensure_session(_build_session(root_task))
 
     # Act
-    result = node._consolidate(list(node._traverse(root_task)))
+    result = node._consolidate(list(node._traverse_bfs_right_to_left(root_task)))
 
     # Assert
     assert isinstance(result, AggregatedResult)
@@ -124,7 +124,7 @@ def test_bfs_right_to_left_traversal():
     node = TinyCUAResultAggregationNode()
 
     # Act — traverse and collect task IDs in order visited
-    visited_ids = [t.task_id for t in node._traverse(root)]
+    visited_ids = [t.task_id for t in node._traverse_bfs_right_to_left(root)]
 
     # Assert — right-to-left BFS: child_2 before child_1
     # Level 0: root
@@ -154,7 +154,7 @@ def test_early_termination():
     )
     # Threshold of 1 — stop after first node is inspected (root itself)
     node = TinyCUAResultAggregationNode()
-    result = node._consolidate(list(node._traverse(root, max_inspected_tasks=1)))
+    result = node._consolidate(list(node._traverse_bfs_right_to_left(root, max_inspected_tasks=1)))
     assert len(result.task_summaries) == 1  # Only root inspected, children skipped
     assert all(":" in s or "not_executed" in s for s in result.task_summaries)
     # Traversal stopped early (not exhaustive) — verified by exact count
@@ -194,7 +194,7 @@ def test_read_only_guarantee():
     original_child_result = child.result
 
     node = TinyCUAResultAggregationNode()
-    list(node._traverse(root))  # Materialize the generator
+    list(node._traverse_bfs_right_to_left(root))  # Materialize the generator
 
     assert child.status == original_child_status
     assert child.result == original_child_result
@@ -207,7 +207,7 @@ def test_empty_task_tree():
     root = Task(task_id="root", title="Root only", status="done")
     node = TinyCUAResultAggregationNode()
 
-    result = node._consolidate(list(node._traverse(root)))
+    result = node._consolidate(list(node._traverse_bfs_right_to_left(root)))
     assert result.root_task_id == "root"
     assert len(result.task_summaries) == 1
     assert all(":" in s or "not_executed" in s for s in result.task_summaries)
@@ -227,7 +227,7 @@ def test_tasks_with_missing_results():
     root = Task(task_id="root", title="Root", children=[child_executed, child_not_executed], status="done")
 
     node = TinyCUAResultAggregationNode()
-    result = node._consolidate(list(node._traverse(root)))
+    result = node._consolidate(list(node._traverse_bfs_right_to_left(root)))
     # Should not raise; not_executed tasks are skipped gracefully
     assert len(result.task_summaries) >= 1
     assert all(":" in s or "not_executed" in s for s in result.task_summaries)
@@ -256,7 +256,7 @@ def test_on_reviewer_accept_returns_true_for_root():
     that happens in ResultReviewer.on_complete (see
     test_root_accept_routes_to_aggregation).
     """
-        # Use the helper to set up a loop with an active task, then replace it
+    # Use the helper to set up a loop with an active task, then replace it
     # with a proper root + child tree
     loop = _build_loop_with_active_task()
     root = Task(task_id="root", title="Root", status="in_progress",
@@ -314,6 +314,43 @@ def test_root_accept_routes_to_aggregation():
     # Assert — _on_reviewer_accept was called (handles task status changes)
     mock_loop._on_reviewer_accept.assert_called_once_with(root)
     # Assert — _route_to_aggregation was invoked (queue mutation: clear + spawn)
+    mock_loop._route_to_aggregation.assert_called_once_with(queue)
+
+
+def test_force_accept_on_threshold_routes_to_aggregation():
+    """Given retry threshold is reached,
+    When ResultReviewer.on_complete is called with outcome=retry,
+    Then _on_reviewer_accept is called (force-accept) and _route_to_aggregation
+    is invoked when root task is done."""
+    from unittest.mock import MagicMock
+
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.loops.result_reviewer import TinyCUAResultReviewerNode
+
+    root = Task(task_id="root", title="Root", status="in_progress",
+                children=[Task(task_id="child", title="Child", status="done")])
+    queue = NodeQueue()
+    loop = TinyCUALoop(queue=queue)
+    loop.root_task = root
+    loop._active_task_id = "root"
+    # Exhaust retry threshold
+    loop._reviewer_retry_state.retry_count = loop._reviewer_retry_state.threshold
+
+    mock_loop = MagicMock()
+    mock_loop._on_reviewer_accept = loop._on_reviewer_accept
+    mock_loop._route_to_aggregation = MagicMock()
+    mock_loop._reviewer_retry_state = loop._reviewer_retry_state
+
+    reviewer = TinyCUAResultReviewerNode(loop=mock_loop)
+    decision_data = {"outcome": "retry", "rationale": "Threshold reached"}
+    response = LLMResult(
+        content='{"outcome": "retry"}',
+        metadata={"reviewer_decision": decision_data, "active_task": root},
+    )
+
+    reviewer.on_complete(queue, response)
+
+    mock_loop._on_reviewer_accept.assert_called_once_with(root)
     mock_loop._route_to_aggregation.assert_called_once_with(queue)
 ```
 
@@ -376,12 +413,12 @@ class AggregatedResult:
 - `__init__(self, node_id="result_aggregation", config=None, loop=None)` — accepts optional `loop` reference for access to `root_task` and `session`.
 - `__call__(self, input: NodeInputLike) -> LLMResult`:
   1. Guard: assert `session` is attached and root task is done (`session.task` / `loop.root_task` is done).
-  2. Traverse task tree via `_traverse(root_task)` generator.
+  2. Traverse task tree via `_traverse_bfs_right_to_left(root_task)` generator.
   3. Consolidate traversal results via `_consolidate(traversal_results)` → `AggregatedResult`.
   4. Record result to session context / response metadata.
   5. `propagate()`.
   6. Return `LLMResult` with `AggregatedResult` in `metadata["aggregated_result"]`.
-- `_traverse(task: Task) -> Iterator[Task]`:
+- `_traverse_bfs_right_to_left(task: Task) -> Iterator[Task]`:
   - Generator-based guided BFS right-to-left / most-recent-first.
   - Uses `collections.deque` with a reversed children queue.
   - Supports early termination via `stop_traversal` attribute or `max_inspected_tasks` threshold.
@@ -417,11 +454,19 @@ class AggregatedResult:
     - `queue.ensure_terminal(ResponseNode)`
   - **Modify `ResultReviewer.on_complete`**: After calling `loop._on_reviewer_accept(active_task)`, if it returns `True`, call `loop._route_to_aggregation(queue)`.
 
+#### [MODIFY] `src/tinycua/tinycua/loops/result_reviewer.py`
+
+- **[Description]**: Capture the return value of `_on_reviewer_accept` and route to aggregation when root task is accepted.
+- **[Rationale]**: Currently `on_complete` calls `self.loop._on_reviewer_accept(active_task)` in two places (normal accept at line 196 and force-accept on retry threshold at line 202) but ignores the boolean result in both.
+- **Changes**:
+  - **Line 196 (normal accept)**: `self.loop._on_reviewer_accept(active_task)` → `root_done = self.loop._on_reviewer_accept(active_task)` + `if root_done: self.loop._route_to_aggregation(queue)`
+  - **Line 202 (force-accept on threshold)**: `self.loop._on_reviewer_accept(active_task)` → `root_done = self.loop._on_reviewer_accept(active_task)` + `if root_done: self.loop._route_to_aggregation(queue)`
+
 ### Tests
 
 #### [NEW] `src/tinycua/tests/unit/test_result_aggregation.py`
 
-- **[Description]**: Unit tests for `AggregatedResult` construction, `_traverse` helper (BFS right-to-left, early termination, empty tree), `_consolidate`, and `on_complete` queue advancement.
+- **[Description]**: Unit tests for `AggregatedResult` construction, `_traverse_bfs_right_to_left` helper (BFS right-to-left, early termination, empty tree), `_consolidate`, and `on_complete` queue advancement.
 - **[Dependencies]**: `pytest`, `tinycua.loops.result_aggregation`, `tinycua.models.task`.
 
 #### [NEW] `src/tinycua/tests/integration/test_result_aggregation_integration.py`
