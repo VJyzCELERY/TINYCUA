@@ -52,18 +52,7 @@ from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy, NodeTool
 from tinycua.loops.response_node import TinyCUAResponseNode, ResponseContext
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
-try:
-    from tinycua.loops.result_aggregation import AggregatedResult
-except ImportError:
-    from dataclasses import dataclass, field
-    from typing import Any
-
-    @dataclass
-    class AggregatedResult:
-        root_task_id: str = ""
-        task_summaries: list[str] = field(default_factory=list)
-        final_context: str | None = None
-        artifacts: list[Any] = field(default_factory=list)
+from tinycua.loops.result_aggregation import AggregatedResult
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
@@ -458,7 +447,7 @@ def test_response_node_digester_integration():
 ```python
 from dataclasses import dataclass, field
 from typing import Any
-from tinycua.result_aggregation import AggregatedResult
+from tinycua.loops.result_aggregation import AggregatedResult
 
 @dataclass
 class ResponseContext:
