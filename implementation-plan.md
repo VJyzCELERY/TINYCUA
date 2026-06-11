@@ -1,0 +1,386 @@
+# Implementation: TinyCUAResponseNode
+
+This implementation upgrades the existing `ResponseNode` stub into a full `TinyCUAResponseNode` — a terminal `ProcessNode` that serves as the terminal node of the TinyCUALoop. It performs context sufficiency analysis, optional context gathering (via InformationDigesterNode suspension or direct tool fallback), final response synthesis, consolidated continuation routing, and terminal output normalization.
+
+## Context
+
+- **Spec Reference**: `./spec.md`
+- **Design Reference**: `./design.md`
+- **Priority**: P0
+- **Estimated Effort**: L
+
+## Environment Pre-requisites
+
+> No special environment setup is needed — all dependencies already exist in the `tinycua` subproject.
+
+### Configuration
+
+- [x] **None** — this feature has no configuration dependencies
+
+### Running Services
+
+- [x] **None** — no external services needed
+
+### Data / Fixtures
+
+- [x] **None** — test fixtures are built programmatically in test files
+
+### Access / Permissions
+
+- [x] **None** — no special access required
+
+### Developer Tooling
+
+- [x] **Runtime**: Python 3.11+
+- [x] **Package manager**: uv
+- [x] **Additional CLI tools**: pytest
+- [x] **None** — no special tooling required
+
+---
+
+## Success Criteria — Integration Tests (TDD First)
+
+Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
+
+```python
+# Test file: src/tinycua/tests/integration/test_response_node_integration.py
+"""Integration tests for TinyCUAResponseNode."""
+
+import pytest
+from tinycua.config.types import LLMResult
+from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy, NodeToolPolicy
+from tinycua.loops.response_node import TinyCUAResponseNode, ResponseContext
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.loops.result_aggregation import AggregatedResult
+from tinycua.models.node_input import NodeInput
+from tinycua.models.session import Session
+
+
+def _make_node_input(messages: list[dict] | None = None) -> NodeInput:
+    return NodeInput(
+        input_type="continuation",
+        messages=messages or [{"role": "user", "content": "test"}],
+    )
+
+
+def _make_sufficient_context() -> ResponseContext:
+    """Build a ResponseContext with sufficient aggregated context."""
+    return ResponseContext(
+        aggregated_result=AggregatedResult(
+            root_task_id="root",
+            task_summaries=["Root: Completed successfully"],
+            final_context="Root: Completed successfully",
+        ),
+        session_context=[{"role": "assistant", "content": "Some context"}],
+        latest_output="intermediate output",
+        continuation_payload=None,
+    )
+
+
+def _make_insufficient_context() -> ResponseContext:
+    """Build a ResponseContext with no aggregated result (insufficient)."""
+    return ResponseContext(
+        aggregated_result=None,
+        session_context=[],
+        latest_output=None,
+        continuation_payload=None,
+    )
+
+
+def test_response_node_direct_synthesis():
+    """Given a ResponseNode with sufficient context,
+    When executed,
+    Then it produces a final string response without invoking tools or digester."""
+    config = NodeConfigBase()
+    node = TinyCUAResponseNode(config=config)
+    session = Session()
+    session.session_context.append(
+        {"role": "assistant", "content": "[AggregatedResult] Root: Done"}
+    )
+    node.ensure_session(session)
+
+    input_data = _make_node_input()
+    result = node(input_data)
+
+    assert isinstance(result, LLMResult)
+    assert isinstance(result.content, str)
+    assert len(result.content) > 0
+
+
+def test_response_node_is_terminal():
+    """Given a TinyCUAResponseNode,
+    When initialized,
+    Then is_terminal is True."""
+    node = TinyCUAResponseNode()
+    assert node.is_terminal is True
+    assert node.node_id == "response"
+
+
+def test_context_sufficiency_check():
+    """Given a ResponseContext with sufficient aggregated result,
+    When _check_context_sufficiency is called,
+    Then it returns True.
+    Given a ResponseContext with no aggregated result,
+    Then it returns False."""
+    config = NodeConfigBase()
+    node = TinyCUAResponseNode(config=config)
+
+    sufficient = _make_sufficient_context()
+    assert node._check_context_sufficiency(sufficient) is True
+
+    insufficient = _make_insufficient_context()
+    assert node._check_context_sufficiency(insufficient) is False
+
+
+def test_response_node_continuation_routing():
+    """Given a user continuation directed at the ResponseNode session,
+    When the consolidated continuation behavior is triggered,
+    Then the continuation is delivered without LLM rerouting (via MandatoryPassthrough)."""
+    from tinycua.models.classification import MandatoryPassthrough
+
+    config = NodeConfigBase()
+    node = TinyCUAResponseNode(config=config)
+    session = Session()
+    node.ensure_session(session)
+
+    # Simulate a MandatoryPassthrough targeting this node
+    passthrough = MandatoryPassthrough(
+        target_node_id=node.node_id,
+        target_session_id=session.session_id,
+        reason="continuation",
+    )
+    # Store on the loop / node for the continuation check
+    node._continuation_payload = passthrough
+
+    input_data = _make_node_input()
+    result = node(input_data)
+
+    assert isinstance(result, LLMResult)
+    # Should produce content directly without LLM rerouting
+
+
+def test_response_node_retry_behavior():
+    """Given a ResponseNode configured with retry limits,
+    When synthesis fails repeatedly,
+    Then retry policy is respected and a fallback message is returned on exhaustion."""
+    config = NodeConfigBase()
+    config.retry_policy = NodeRetryPolicy(
+        max_attempts=3,
+        on_retry_exhausted="record_failure",
+    )
+    config.metadata["fallback_message"] = "I encountered an error generating the final response."
+
+    node = TinyCUAResponseNode(config=config)
+    session = Session()
+    session.session_context.append(
+        {"role": "assistant", "content": "[AggregatedResult] Test"}
+    )
+    node.ensure_session(session)
+
+    # No LLM client configured — will hit retry exhaustion
+    input_data = _make_node_input()
+    result = node(input_data)
+
+    assert isinstance(result, LLMResult)
+    # Should return fallback message on exhaustion
+    assert result.content == config.metadata["fallback_message"]
+
+
+def test_response_node_terminal_normalization():
+    """Given a non-string LLM result,
+    When the ResponseNode processes it,
+    Then terminal output is normalized to a string."""
+    config = NodeConfigBase()
+    node = TinyCUAResponseNode(config=config)
+    session = Session()
+    node.ensure_session(session)
+
+    # Test with dict-like content fed through NodeInput
+    input_data = _make_node_input()
+    result = node(input_data)
+
+    assert isinstance(result.content, str)
+
+
+def test_response_node_aggregation_integration():
+    """Given a queue with TinyCUAResponseNode as the terminal,
+    When the loop runs and reaches the response node,
+    Then it produces a final string response."""
+    from tinycua.loops.response_node import TinyCUAResponseNode as NewResponseNode
+
+    response_node = NewResponseNode()
+    queue = NodeQueue(items=[response_node])
+    assert queue.current is response_node
+    assert response_node.is_terminal is True
+```
+
+### Key Test Scenarios
+
+- [ ] **Scenario 1**: Direct synthesis with sufficient context produces a final string response
+- [ ] **Scenario 2**: Context sufficiency check correctly identifies sufficient vs. insufficient context
+- [ ] **Scenario 3**: Continuation routing delivers continuation without LLM rerouting
+- [ ] **Scenario 4**: Retry policy is respected — fallback message returned on exhaustion
+- [ ] **Scenario 5**: Terminal output is always normalized to a string
+- [ ] **Edge case**: Empty/None aggregated result triggers fallback to digester or tools
+- [ ] **Edge case**: Fallback message on retry exhaustion
+- [ ] **Integration**: Full queue integration with loop
+
+## Verification Plan
+
+### Automated Tests
+
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for `TinyCUAResponseNode` — test initialization, `__call__`, `_check_context_sufficiency`, `_suspend_for_digestion`, `_gather_context_via_tools`, `_synthesize_response`, `on_complete`
+- [ ] Unit tests for `ResponseContext` helper — test context aggregation from NodeInput
+- [ ] Unit tests for continuation routing — test MandatoryPassthrough handling
+- [ ] Unit tests for retry behavior — test retry exhaustion fallback
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+
+### Manual Verification
+
+- [ ] N/A — all behavior is verifiable through automated tests.
+
+### Performance Considerations
+
+- [ ] Context sufficiency check is lightweight — no LLM call required
+- [ ] Digester suspension uses existing queue machinery (no new infrastructure)
+- [ ] Retry limits prevent infinite loops during synthesis
+
+## Proposed Changes
+
+### `tinycua.loops.response_node` (Modified Module)
+
+#### [MODIFY] `src/tinycua/tinycua/loops/response_node.py`
+
+- **[Description]**: Upgrade the existing `ResponseNode` stub into `TinyCUAResponseNode` with full three-phase execution.
+- **[Rationale]**: The current stub only captures LLM output content. The full implementation adds context sufficiency analysis, digester suspension, tool fallback, continuation routing, and terminal normalization as specified in the design.
+- **Changes**:
+  - Rename class from `ResponseNode` to `TinyCUAResponseNode` (keep `ResponseNode` as an alias for backward compat or replace entirely — see design).
+  - Add `ResponseContext` dataclass for aggregated context.
+  - Add `__init__` with `digester_enabled: bool = True` parameter.
+  - Add `_check_context_sufficiency(self, context: ResponseContext) -> bool` — analyze available context before synthesis.
+  - Add `_suspend_for_digestion(self, context: ResponseContext) -> None` — suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])`.
+  - Add `_gather_context_via_tools(self, context: ResponseContext) -> ResponseContext` — use allowed tools directly.
+  - Add `_synthesize_response(self, context: ResponseContext) -> LLMResult` — build LLM input and produce final response.
+  - Modify `__call__` to implement three-phase execution:
+    1. Build `ResponseContext` from `NodeInput`.
+    2. Check context sufficiency.
+    3. If sufficient → synthesize directly.
+    4. If insufficient + digester enabled → suspend and prepend InformationDigesterNode.
+    5. If insufficient + no digester → gather context via tools.
+    6. Normalize terminal output to string.
+    7. Record output and propagate.
+  - Modify `on_complete` to handle queue mutations (digester prepend, etc.).
+  - Add `_continuation_payload` attribute for consolidated continuation behavior.
+  - Ensure retry compliance via inherited `ProcessNode.__call__` retry loop.
+
+#### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
+
+- **[Description]**: Update imports to export `TinyCUAResponseNode` (and `ResponseNode` alias if kept).
+- **[Rationale]**: Expose the upgraded class via the public `tinycua.loops` namespace.
+- **Changes**:
+  - Update import: `from tinycua.loops.response_node import TinyCUAResponseNode`
+  - Add to `__all__`: `"TinyCUAResponseNode"`
+
+#### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
+
+- **[Description]**: Wire TinyCUAResponseNode into the loop's terminal node handling and continuation routing.
+- **[Rationale]**: The loop needs to handle ResponseNode's suspension/resume flow and consolidated continuation routing.
+- **Changes**:
+  - Update import to use `TinyCUAResponseNode` (or keep `ResponseNode` alias).
+  - Modify `_execute_node` for terminal nodes: when the terminal node is a `TinyCUAResponseNode` and has suspension pending, handle the queue mutation.
+  - Modify `_route_to_aggregation` to use `TinyCUAResponseNode`.
+  - Ensure continuation routing via MandatoryPassthrough reaches the active ResponseNode session.
+
+#### [MODIFY] `src/tinycua/tinycua/config/node_config.py` (if needed)
+
+- **[Description]**: Add response-specific configuration options.
+- **[Rationale]**: Context sufficiency thresholds and digester enable/disable should be configurable via `NodeConfig`.
+- **Changes** (if needed):
+  - Add `TinyCUAResponseNodeConfig` extending `NodeConfigBase` with:
+    - `digester_enabled: bool = True`
+    - `sufficiency_threshold: int | None = None` (configurable threshold)
+    - `fallback_message: str = "I encountered an error generating the final response."`
+  - OR add these fields to `NodeConfigBase.metadata` as a simpler approach.
+
+### Tests
+
+#### [NEW] `src/tinycua/tests/unit/test_response_node.py`
+
+- **[Description]**: Unit tests for `TinyCUAResponseNode` initialization, context sufficiency check, response synthesis, digester suspension, tool fallback, continuation routing, retry behavior, and terminal normalization.
+- **[Dependencies]**: `pytest`, `tinycua.loops.response_node`, `tinycua.config.node_config`, `tinycua.config.types`.
+
+#### [NEW] `src/tinycua/tests/integration/test_response_node_integration.py`
+
+- **[Description]**: Integration tests from the "Success Criteria — Integration Tests" section above.
+- **[Dependencies]**: `pytest`, `tinycua.loops.response_node`, `tinycua.loops.node_queue`, `tinycua.loops.tinycua_loop`.
+
+---
+
+## Architecture Changes
+
+| Component | Change Type | Description |
+|-----------|-------------|-------------|
+| `tinycua.loops.response_node` | Modify | Upgrade `ResponseNode` stub to full `TinyCUAResponseNode` with three-phase execution |
+| `tinycua.loops.__init__` | Modify | Export `TinyCUAResponseNode` |
+| `tinycua.loops.tinycua_loop` | Modify | Wire suspension/resume and continuation routing |
+| `tinycua.config.node_config` | Modify (if needed) | Add response-specific config options |
+| `src/tinycua/tests/unit/test_response_node.py` | New | Unit tests for ResponseNode |
+| `src/tinycua/tests/integration/test_response_node_integration.py` | New | Integration tests |
+
+## Data Model Changes
+
+### New Types
+
+```python
+from dataclasses import dataclass, field
+from typing import Any
+
+@dataclass
+class ResponseContext:
+    """Aggregated context fed into TinyCUAResponseNode."""
+    aggregated_result: Any | None  # AggregatedResult from ResultAggregationNode
+    session_context: list[dict[str, str]]  # Propagated context
+    latest_output: str | None  # Latest node output
+    continuation_payload: dict | None  # User continuation data
+```
+
+### Schema Changes
+
+No schema changes to existing entities. The existing `AggregatedResult`, `NodeInput`, and `NodePayload` data models are sufficient.
+
+## API Changes
+
+No public API changes — all changes are internal to `tinycua.loops`. The `TinyCUAResponseNode` is re-exported from `tinycua.loops` for convenience. The existing `ResponseNode` name may be kept as an alias for backward compatibility.
+
+## Dependencies
+
+### External Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| (none) | — | All dependencies are internal to the project |
+
+### Internal Dependencies
+
+- [ ] Depends on Milestone 3.4 (`ResultAggregationNode`) — provides `AggregatedResult` input
+- [ ] Depends on Milestone 2.5 (`InformationDigesterNode`) — optional digester suspension path
+- [ ] Depends on Milestone 3.3 (MandatoryPassthrough continuation routing) — for consolidated continuation
+- [ ] Depends on Milestone 1.7 (`NodeQueue.suspend_current_and_prepend`) — queue suspension machinery
+- [ ] Relies on `NodeRetryPolicy` and `NodeToolPolicy` — already available in `node_config.py`
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Digester suspension may cause infinite loops (digester → response → digester) | High | Guard with max-digest-attempts counter in NodeConfig; reset on tool-gathered context |
+| Context sufficiency heuristic may be wrong | Medium | Make thresholds configurable; log sufficiency decisions for tuning |
+| Continuation routing may conflict with existing MandatoryPassthrough | Medium | Test continuation paths thoroughly; existing M3.3 tests provide baseline |
+| Tool use during response may have side effects | Low | Same tools as TaskExecutor, already designed for safe execution |
+| ResponseNode suspension changes queue state in ways the loop doesn't expect | Medium | Integration tests for full queue lifecycle; guard suspension calls with state checks |
+
+---
+
+*Generated from spec.md and design.md*
+*Last updated: 2026-06-12*
