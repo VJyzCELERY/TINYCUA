@@ -213,6 +213,64 @@ def test_response_node_aggregation_integration():
     queue = NodeQueue(items=[response_node])
     assert queue.current is response_node
     assert response_node.is_terminal is True
+
+
+def test_response_node_digester_integration():
+    """Given a ResponseNode with insufficient context and digester enabled,
+    When executed,
+    Then suspension occurs, InformationDigesterNode is prepended, digest result is
+    incorporated, and ResponseNode resumes to produce final output."""
+    from unittest.mock import MagicMock, patch
+    from tinycua.loops.response_node import TinyCUAResponseNode as NewResponseNode
+    from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+
+    config = NodeConfigBase()
+    config.metadata["digester_enabled"] = True
+    response_node = NewResponseNode(config=config)
+    session = Session()
+    response_node.ensure_session(session)
+
+    # Insufficient context — no aggregated_result
+    input_data = _make_insufficient_context()
+
+    # Verify precondition: context is insufficient
+    assert response_node._check_context_sufficiency(input_data) is False
+
+    # Mock the queue to capture suspension behavior
+    mock_queue = MagicMock()
+    mock_queue.current = response_node
+
+    # Mock the digest result that will be incorporated
+    digest_result = AggregatedResult(
+        root_task_id="root",
+        task_summaries=["Digested: Additional context gathered"],
+        final_context="Digested: Additional context gathered",
+    )
+
+    # Patch _suspend_for_digestion to verify it's called with correct args
+    with patch.object(response_node, '_suspend_for_digestion') as mock_suspend:
+        # Patch _gather_context_via_tools to return enriched context
+        enriched_context = ResponseContext(
+            aggregated_result=digest_result,
+            session_context=[{"role": "assistant", "content": "Digested context"}],
+            latest_output="digested output",
+            continuation_payload=None,
+        )
+        with patch.object(response_node, '_gather_context_via_tools', return_value=enriched_context):
+            # Patch _synthesize_response to verify resume produces output
+            synthesized = LLMResult(content="Final response after digestion")
+            with patch.object(response_node, '_synthesize_response', return_value=synthesized):
+                # Execute — should trigger suspension path
+                result = response_node(input_data)
+
+                # Verify suspension was triggered
+                mock_suspend.assert_called_once_with(input_data)
+
+                # Verify the result is a valid LLMResult with content
+                assert isinstance(result, LLMResult)
+                assert isinstance(result.content, str)
+                assert len(result.content) > 0
+                assert result.content == "Final response after digestion"
 ```
 
 ### Key Test Scenarios
@@ -225,6 +283,7 @@ def test_response_node_aggregation_integration():
 - [ ] **Edge case**: Empty/None aggregated result triggers fallback to digester or tools
 - [ ] **Edge case**: Fallback message on retry exhaustion
 - [ ] **Integration**: Full queue integration with loop
+- [ ] **Scenario 6**: Digester suspension — verifies `_suspend_for_digestion` is called when context is insufficient and digester is enabled, then resumes with enriched context
 
 ## Verification Plan
 
@@ -258,7 +317,7 @@ def test_response_node_aggregation_integration():
 - **Changes**:
   - Rename class from `ResponseNode` to `TinyCUAResponseNode` (keep `ResponseNode` as an alias for backward compat or replace entirely — see design).
   - Add `ResponseContext` dataclass for aggregated context.
-  - Add `__init__` with `digester_enabled: bool = True` parameter.
+  - Add `__init__` with standard `node_id` and `config` parameters. Digester enable/disable is configured via `config.metadata["digester_enabled"]` (default: `True`).
   - Add `_check_context_sufficiency(self, context: ResponseContext) -> bool` — analyze available context before synthesis.
   - Add `_suspend_for_digestion(self, context: ResponseContext) -> None` — suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])`.
   - Add `_gather_context_via_tools(self, context: ResponseContext) -> ResponseContext` — use allowed tools directly.
@@ -298,11 +357,10 @@ def test_response_node_aggregation_integration():
 - **[Description]**: Add response-specific configuration options.
 - **[Rationale]**: Context sufficiency thresholds and digester enable/disable should be configurable via `NodeConfig`.
 - **Changes** (if needed):
-  - Add `TinyCUAResponseNodeConfig` extending `NodeConfigBase` with:
+  - Add these fields to `NodeConfigBase.metadata` as the simpler approach:
     - `digester_enabled: bool = True`
     - `sufficiency_threshold: int | None = None` (configurable threshold)
     - `fallback_message: str = "I encountered an error generating the final response."`
-  - OR add these fields to `NodeConfigBase.metadata` as a simpler approach.
 
 ### Tests
 
@@ -336,12 +394,13 @@ def test_response_node_aggregation_integration():
 ```python
 from dataclasses import dataclass, field
 from typing import Any
+from tinycua.result_aggregation import AggregatedResult
 
 @dataclass
 class ResponseContext:
     """Aggregated context fed into TinyCUAResponseNode."""
-    aggregated_result: Any | None  # AggregatedResult from ResultAggregationNode
-    session_context: list[dict[str, str]]  # Propagated context
+    aggregated_result: AggregatedResult | None  # from ResultAggregationNode
+    session_context: list[dict[str, Any]]  # propagated context
     latest_output: str | None  # Latest node output
     continuation_payload: dict | None  # User continuation data
 ```

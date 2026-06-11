@@ -73,7 +73,7 @@ Session Context ──┤
 # ResponseContext: Aggregated context fed into ResponseNode
 ResponseContext:
     aggregated_result: AggregatedResult | None  # from ResultAggregationNode
-    session_context: list[SessionContextEntry]   # propagated context
+    session_context: list[dict[str, Any]]        # propagated context
     latest_output: str | None                    # latest node output
     continuation_payload: dict | None            # user continuation data
 ```
@@ -103,8 +103,13 @@ class TinyCUAResponseNode(ProcessNode):
         self,
         node_id: str = "response",
         config: NodeConfigBase | None = None,
-        digester_enabled: bool = True,
-    ) -> None: ...
+    ) -> None:
+        """
+        Args:
+            node_id: Identifier for this node (default: "response").
+            config: Node configuration. Digester enable/disable is configured via
+                    config.metadata["digester_enabled"] (default: True).
+        """
     
     def __call__(self, input: NodeInputLike) -> LLMResult: ...
     
@@ -209,8 +214,10 @@ This configuration:
 ## Open Questions _(optional)_
 
 1. **What exactly constitutes "sufficient" context?**
-   - Current thinking: Sufficiency = aggregated result is not None AND has a non-empty set of response-relevant data. May need refinement during implementation.
-   - Status: Discussion
+   - **Decided**: Sufficiency = `aggregated_result is not None` AND (`task_summaries` is non-empty OR `final_context` is non-empty). This provides a clear, testable criterion for implementation.
+   - **Rationale**: This definition aligns with the spec's proposed answer and ensures we have meaningful data to synthesize a response from.
+   - **Implementation**: `_check_context_sufficiency()` checks `aggregated_result.task_summaries` and `aggregated_result.final_context` for non-emptiness.
+   - Status: Decided
 
 2. **Should retry exhaustion during synthesis return a fallback message or raise?**
    - **Decided**: Return a configurable fallback message (e.g., "I encountered an error generating the final response.") rather than raising, to maintain graceful terminal behavior as the terminal node.

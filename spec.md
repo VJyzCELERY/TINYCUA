@@ -21,13 +21,13 @@
   - Detailed task traversal or task-tree search (belongs to ResultAggregation and task helpers)
   - InformationDigesterNode implementation (handled in milestone 2.5)
   - AggregatedResult construction (handled in milestone 3.4)
-  - SDk API modifications outside TinyCUA prototype
+  - SDK API modifications outside TinyCUA prototype
 - **Constraints**:
   - Must extend `ProcessNode` base class
   - Must preserve `is_terminal=True` contract
   - Must work within existing `NodeQueue` bootstrap (terminal at end of queue)
   - Must integrate with TinyCUALoop's existing response handling
-  - Must support both streamed and non-streamed output modes (streaming wiring deferred to a future milestone; `NodeStreamPolicy` config infrastructure exists but ResponseNode-specific stream output handling is Phase 2)
+  - Must support both streamed and non-streamed output modes (streaming wiring deferred to a future milestone)
   - Must use `NodeRetryPolicy` for retry behavior
 
 ---
@@ -62,7 +62,7 @@ The TinyCUALoop completes its execution path (e.g., task executor → result rev
 - **FR-001**: `TinyCUAResponseNode` MUST extend `ProcessNode` and be marked as terminal (`is_terminal=True`).
 - **FR-002**: ResponseNode MUST perform a context sufficiency check on every call before producing output.
 - **FR-003**: When context is sufficient, ResponseNode MUST synthesize and return the final response string directly.
-- **FR-004**: When context is insufficient and InformationDigester is enabled, ResponseNode MUST suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=response_node)])` and resume after digestion.
+- **FR-004**: When context is insufficient and InformationDigester is enabled, ResponseNode MUST suspend execution, prepend an InformationDigesterNode to the queue, and resume after digestion completes.
 - **FR-005**: When context is insufficient and the digester path is unavailable, ResponseNode MAY use allowed tools directly to gather additional context.
 - **FR-006**: ResponseNode MUST normalize terminal output to a string.
 - **FR-007**: ResponseNode MUST support consolidated continuation behavior — user continuation routing must reach the active ResponseNode session without LLM rerouting. "Consolidated" means the continuation is delivered via the existing `MandatoryPassthrough` mechanism (M3.3): a deterministic directive stored on the loop that routes the next user input directly to the target node (ResponseNode), bypassing QueryAnalyst classification. This avoids redundant LLM calls and ensures the continuation reaches the same session context.
@@ -119,42 +119,27 @@ Objective, measurable checks that prove the problem is solved.
 
 ---
 
-## Status Tracker _(optional)_
-
-| Item | Status | Notes |
-|------|--------|-------|
-| TinyCUAResponseNode class | TODO | Extends ProcessNode, terminal |
-| Context sufficiency check | TODO | Analyze available context before synthesis |
-| Digester suspension path | TODO | suspend_current_and_prepend integration |
-| Direct tool fallback | TODO | Same base toolset as TaskExecutor |
-| Continuation behavior | TODO | Consolidated continuation routing |
-| Terminal normalization | TODO | Ensure string output |
-| Retry integration | TODO | NodeRetryPolicy compliance |
-| Tests | TODO | Unit + integration tests |
-
----
-
 ## Open Questions _(optional)_
 
 1. **What constitutes "sufficient" context?**
    - **Owner**: @agent
    - **Target**: 2026-06-13
-   - **Status**: Discussion
-   - **Proposed Answer**: Sufficiency is determined by analyzing aggregated context size and completeness — must contain at least a response-ready result from the aggregation node.
+   - **Status**: Decided
+   - **Answer**: Sufficiency is determined by checking if `aggregated_result` is not None and contains at least one of `task_summaries` or `final_context`. This provides a clear, testable criterion for implementation.
 
 2. **Should the digester suspension be opt-in or default behavior?**
    - **Owner**: @agent
    - **Target**: 2026-06-13
-   - **Status**: Discussion
-   - **Proposed Answer**: Default-enabled, configurable via NodeConfig.
+   - **Status**: Decided
+   - **Answer**: Default-enabled, configurable via NodeConfig. The digester provides valuable additional context gathering when needed, so it should be on by default but allow explicit opt-out.
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

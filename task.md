@@ -2,6 +2,11 @@
 
 Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items as completed.
 
+## Pre-Implementation
+
+- [ ] Resolve spec/design open questions (sufficiency definition, digester default behavior) <!-- id: -2 -->
+- [ ] Update spec/design with decided answers <!-- id: -1 -->
+
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for TinyCUAResponseNode (defined in implementation-plan.md) <!-- id: 0 -->
@@ -25,7 +30,7 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 ### Task 3: Digester suspension path <!-- id: 4 -->
 
 - [ ] Implement `_suspend_for_digestion(self, context: ResponseContext) -> None` — suspend via `queue.suspend_current_and_prepend([InformationDigesterNode(parent=self)])` <!-- id: 4a -->
-- [ ] Wire suspension into `__call__` — when context insufficient and `digester_enabled=True`, suspend and prepend InformationDigesterNode <!-- id: 4b -->
+- [ ] Wire suspension into `__call__` — when context insufficient and `digester_enabled=True` (via `config.metadata`), suspend and prepend InformationDigesterNode <!-- id: 4b -->
 - [ ] Add `max_digest_attempts` counter to prevent infinite loops <!-- id: 4c -->
 - [ ] Implement resume flow — when digest returns, re-check sufficiency and synthesize <!-- id: 4d -->
 - [ ] Write unit tests for digester suspension path <!-- id: 4e -->
@@ -83,12 +88,6 @@ Implementation tasks for Milestone 3.5 — TinyCUAResponseNode. Check off items 
 
 - [ ] Update `CHANGELOG.md` with Milestone 3.5 entry <!-- id: 19 -->
 - [ ] Update any relevant docs in `src/tinycua/docs/` <!-- id: 20 -->
-
-## Review and Merge
-
-- [ ] Create pull request for Milestone 3.5 <!-- id: 21 -->
-- [ ] Address review feedback <!-- id: 22 -->
-- [ ] Merge to main branch <!-- id: 23 -->
 
 ---
 
