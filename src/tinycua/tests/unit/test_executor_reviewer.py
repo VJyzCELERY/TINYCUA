@@ -467,3 +467,150 @@ def test_result_reviewer_call_raises_when_no_session():
         raise AssertionError("Expected NodeExecutionError")
     except NodeExecutionError as e:
         assert "no session" in str(e).lower()
+
+
+# --- ResultReviewer on_complete coverage tests ---
+
+
+def _build_reviewer_with_loop() -> tuple[TinyCUAResultReviewerNode, TinyCUALoop]:
+    """Build a ResultReviewer with a mock loop for on_complete tests."""
+    task = Task(task_id="oc-1", title="T", description="D", status="in_progress")
+    queue = NodeQueue()
+    loop = TinyCUALoop(queue=queue)
+    loop.root_task = task
+    loop._active_task_id = "oc-1"
+
+    reviewer = TinyCUAResultReviewerNode(loop=loop)
+    reviewer.ensure_session(Session())
+    return reviewer, loop
+
+
+def test_result_reviewer_on_complete_accept():
+    """on_complete dispatches to _on_reviewer_accept for accept outcome."""
+    reviewer, loop = _build_reviewer_with_loop()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    response = LLMResult(
+        content="done",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "accept", "rationale": "task complete"},
+            "active_task": active_task,
+        },
+    )
+    mock_queue = MagicMock()
+    reviewer.on_complete(mock_queue, response)
+    assert active_task.status == "done"
+
+
+def test_result_reviewer_on_complete_retry():
+    """on_complete dispatches to _on_reviewer_retry for retry outcome."""
+    reviewer, loop = _build_reviewer_with_loop()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    response = LLMResult(
+        content="retry",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "retry", "rationale": "needs work"},
+            "active_task": active_task,
+        },
+    )
+    mock_queue = MagicMock()
+    reviewer.on_complete(mock_queue, response)
+    assert loop._reviewer_retry_state.retry_count == 1
+    assert active_task.status == "in_progress"
+
+
+def test_result_reviewer_on_complete_retry_threshold_reached():
+    """on_complete forces accept when retry threshold is reached."""
+    reviewer, loop = _build_reviewer_with_loop()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    # Exhaust retries
+    for _ in range(5):
+        loop._reviewer_retry_state.increment()
+
+    response = LLMResult(
+        content="retry",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "retry", "rationale": "keep trying"},
+            "active_task": active_task,
+        },
+    )
+    mock_queue = MagicMock()
+    reviewer.on_complete(mock_queue, response)
+    # Should force accept when threshold reached
+    assert active_task.status == "done"
+
+
+def test_result_reviewer_on_complete_replan():
+    """on_complete dispatches to _on_reviewer_replan and spawns nodes."""
+    reviewer, loop = _build_reviewer_with_loop()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    response = LLMResult(
+        content="replan",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "replan", "rationale": "needs new plan"},
+            "active_task": active_task,
+        },
+    )
+    mock_queue = MagicMock()
+    reviewer.on_complete(mock_queue, response)
+    mock_queue.clear_after_current.assert_called_once()
+    mock_queue.spawn_after_current.assert_called_once()
+
+
+def test_result_reviewer_on_complete_open_question():
+    """on_complete dispatches to _on_reviewer_open_question."""
+    reviewer, loop = _build_reviewer_with_loop()
+    active_task = loop.get_active_task()
+    assert active_task is not None
+
+    response = LLMResult(
+        content="open_question",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "open_question", "rationale": "unclear"},
+            "active_task": active_task,
+        },
+    )
+    mock_queue = MagicMock()
+    reviewer.on_complete(mock_queue, response)
+    # open_question just logs — task should still be in_progress
+    assert active_task.status == "in_progress"
+
+
+def test_result_reviewer_on_complete_no_loop():
+    """on_complete with no loop reference just logs and returns."""
+    reviewer = TinyCUAResultReviewerNode()
+    reviewer.ensure_session(Session())
+
+    response = LLMResult(
+        content="accept",
+        role="assistant",
+        metadata={
+            "reviewer_decision": {"outcome": "accept", "rationale": "done"},
+            "active_task": None,
+        },
+    )
+    mock_queue = MagicMock()
+    # Should not raise — just logs
+    reviewer.on_complete(mock_queue, response)
+
+
+def test_result_reviewer_spawn_replan_nodes_no_loop():
+    """_spawn_replan_nodes with no loop reference logs error and returns."""
+    reviewer = TinyCUAResultReviewerNode()
+    mock_queue = MagicMock()
+    task = Task(task_id="sr-1", title="T", description="D")
+    # Should not raise — just logs error
+    reviewer._spawn_replan_nodes(mock_queue, task)
+    mock_queue.spawn_after_current.assert_not_called()
