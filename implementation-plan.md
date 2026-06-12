@@ -1,8 +1,6 @@
-# Implementation: Tool Scoping (Milestone 4.2)
+# Implementation: Retry, Validation, and Monitor Hook
 
-Implement per-node tool scoping so that every TinyCUA node sees only the tools it is authorized to use, with shared `enhanced_context_retrieval` cache behavior working correctly for its consumers.
-
-> **Path convention**: All paths in this document are repo-absolute paths relative to the workspace root. For example, `src/tinycua/tinycua/config/tool_scopes.py` maps to the actual file location in the repository.
+Completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This plan fills those gaps.
 
 ## Context
 
@@ -19,7 +17,9 @@ Implement per-node tool scoping so that every TinyCUA node sees only the tools i
 
 ### Running Services
 
-- [ ] **None** — no external services needed
+| Service | Required | How to Start | Health Check |
+|---------|----------|--------------|--------------|
+| - [ ] **None** — no external services needed | | | |
 
 ### Data / Fixtures
 
@@ -31,7 +31,7 @@ Implement per-node tool scoping so that every TinyCUA node sees only the tools i
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.12+
+- [ ] **Runtime**: Python 3.12+, uv
 - [ ] **Package manager**: uv
 - [ ] **None** — no special tooling required
 
@@ -42,416 +42,321 @@ Implement per-node tool scoping so that every TinyCUA node sees only the tools i
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: src/tinycua/tests/integration/test_tool_scoping_integration.py
-"""Integration tests for tool scoping — Milestone 4.2."""
+# Test file: src/tinycua/tests/integration/test_retry_integration.py
+"""Integration tests for retry, validation, and monitor hook through TinyCUALoop."""
 
 
-def test_task_executor_receives_correct_tools():
-    """TaskExecutor node receives task tools + selected outer tools + enhanced_context_retrieval."""
-    # Arrange
-    loop = TinyCUALoop(...)
-    agent_tools = [MockTool("web_search"), MockTool("calculator"), MockTool("file_read")]
-    task_executor_node = TinyCUATaskExecutorNode(...)
-
-    # Act
-    resolved = loop._prepare_node(task_executor_node, agent_tools)
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_execute" in tool_names
-    assert "task_result_update" in tool_names
-    assert "enhanced_context_retrieval" in tool_names
-    assert "web_search" in tool_names
-    assert "calculator" in tool_names
-    assert "file_read" in tool_names
+import pytest
+from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
+from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.models.node_input import NodeInput
+from tinycua.models.session import Session
 
 
-def test_task_analyzer_excludes_task_init_in_creation_mode():
-    """TaskAnalyzerNode in task_creation mode does NOT receive TaskInit/TaskCreate."""
-    # Arrange
-    policy = task_analyzer_tool_scope(mode="task_creation")
+class MockLLM:
+    """Mock LLM returning a sequence of responses."""
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.call_count = 0
 
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_init" not in tool_names
-    assert "task_create" not in tool_names
-    assert "task_inspect" in tool_names
-    assert "task_update" in tool_names
-    assert "task_decompose" in tool_names
+    def __call__(self, messages, **kwargs):
+        idx = min(self.call_count, len(self._responses) - 1)
+        self.call_count += 1
+        return self._responses[idx]
 
 
-def test_task_analyzer_includes_task_init_in_recreation_mode():
-    """TaskAnalyzerNode in task_recreation mode DOES receive TaskInit/TaskCreate."""
-    # Arrange
-    policy = task_analyzer_tool_scope(mode="task_recreation")
+class RecordingMonitor:
+    """Monitor that records all hook calls for assertion."""
+    def __init__(self):
+        self.before_calls = []
+        self.after_calls = []
+        self.exhausted_calls = []
 
-    # Act
-    resolved = policy.resolve_tools([])
+    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
+        self.before_calls.append({
+            "node_id": node_id, "session_id": session_id,
+            "attempt": attempt, "message_count": len(messages),
+        })
+        return None
 
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_init" in tool_names
-    assert "task_create" in tool_names
-    assert "task_inspect" in tool_names
+    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
+        self.after_calls.append({
+            "node_id": node_id, "session_id": session_id,
+            "attempt": attempt, "is_valid": validation_result.is_valid,
+        })
+        return None
 
-
-def test_response_node_includes_enhanced_context_retrieval():
-    """ResponseNode receives final response tools + enhanced_context_retrieval."""
-    # Arrange
-    policy = response_tool_scope(allow_digest=True)
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "final_response_synthesis" in tool_names
-    assert "enhanced_context_retrieval" in tool_names
-
-
-def test_information_digester_scope():
-    """InformationDigesterNode receives only enhanced_context_retrieval + digest_information."""
-    # Arrange
-    policy = information_digester_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "enhanced_context_retrieval" in tool_names
-    assert "digest_information" in tool_names
-    assert len(tool_names) == 2
+    def on_retry_exhausted(self, node_id, session_id, error, attempts):
+        self.exhausted_calls.append({
+            "node_id": node_id, "session_id": session_id,
+            "error": str(error), "attempts": attempts,
+        })
+        return None
 
 
-def test_enhanced_context_retrieval_caches_per_session():
-    """enhanced_context_retrieval lazily creates and reuses cache per session scope."""
-    # Arrange
-    tool = EnhancedContextRetrievalTool()
-    session_context = [{"role": "user", "content": "Test context"}]
+def test_retry_with_validation_fn_integration():
+    """End-to-end: node retries when custom validation_fn rejects output."""
+    reject_calls = [0]
 
-    # Act
-    result1 = tool(session_context=session_context, query="test")
-    result2 = tool(session_context=session_context, query="test")
+    def reject_first_call(result):
+        reject_calls[0] += 1
+        if reject_calls[0] <= 1:
+            return ValidationResult(is_valid=False, errors=["Custom validation failed"])
+        return ValidationResult(is_valid=True, errors=[])
 
-    # Assert
-    assert result1 is not None
-    assert result2 is not None
-    # Cache file should be reused (same cache path)
-
-
-def test_enhanced_context_retrieval_isolated_per_invocation():
-    """Two different invocation scopes get independent caches."""
-    # Arrange
-    tool1 = EnhancedContextRetrievalTool()
-    tool2 = EnhancedContextRetrievalTool()
-    context1 = [{"role": "user", "content": "Context A"}]
-    context2 = [{"role": "user", "content": "Context B"}]
-
-    # Act
-    result1 = tool1(session_context=context1, query="test")
-    result2 = tool2(session_context=context2, query="test")
-
-    # Assert
-    assert result1 is not None
-    assert result2 is not None
-    # Each tool invocation gets its own cache
-
-
-def test_deny_wins_over_allow_for_outer_tools():
-    """denied_agent_tool_names takes precedence over include_agent_tools='selected'."""
-    # Arrange
-    policy = NodeToolPolicy(
-        node_tools=[],
-        include_agent_tools="selected",
-        allowed_agent_tool_names=["web_search", "calculator"],
-        denied_agent_tool_names=["calculator"],
+    mock_llm = MockLLM([
+        {"role": "assistant", "content": "bad response"},
+        {"role": "assistant", "content": "good response"},
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            validation_fn=reject_first_call,
+        ),
     )
-    outer_tools = [MockTool("web_search"), MockTool("calculator"), MockTool("file_read")]
-
-    # Act
-    resolved = policy.resolve_tools(outer_tools)
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "web_search" in tool_names
-    assert "calculator" not in tool_names
-    assert "file_read" not in tool_names
+    node = ProcessNode(node_id="test", config=config, instruction="Do work")
+    node.session = Session()
+    result = node("input")
+    assert result.content == "good response"
+    assert mock_llm.call_count == 2
 
 
-def test_node_tools_always_included_even_if_denied():
-    """Node tools are always included even if their names appear in denied_agent_tool_names."""
-    # Arrange
-    node_tool = MockTool("web_search")
-    policy = NodeToolPolicy(
-        node_tools=[node_tool],
-        include_agent_tools="none",
-        denied_agent_tool_names=["web_search"],
+def test_exhaustion_record_failure_integration():
+    """End-to-end: retry exhaustion writes failure state to session."""
+    mock_llm = MockLLM([
+        {"role": "assistant", "content": "bad"},
+        {"role": "assistant", "content": "bad again"},
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            required_tool_calls=["required_tool"],
+            on_retry_exhausted="record_failure",
+        ),
     )
-    outer_tools = [MockTool("web_search"), MockTool("calculator")]
-
-    # Act
-    resolved = policy.resolve_tools(outer_tools)
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "web_search" in tool_names  # Node tool is always included
-    assert "calculator" not in tool_names
+    node = ProcessNode(node_id="test", config=config, instruction="Do work")
+    node.session = Session()
+    node("input")
+    # Session should have failure state recorded
+    contents = [e.content for e in node.session.session_context]
+    assert any("RETRY_EXHAUSTED" in c for c in contents)
 
 
-def test_empty_allowed_list_includes_no_outer_tools():
-    """include_agent_tools='selected' with empty allowed list includes no outer tools."""
-    # Arrange
-    policy = NodeToolPolicy(
-        node_tools=[MockTool("task_execute")],
-        include_agent_tools="selected",
-        allowed_agent_tool_names=[],
+def test_exhaustion_raise_integration():
+    """End-to-end: retry exhaustion raises NodeExecutionError."""
+    mock_llm = MockLLM([
+        {"role": "assistant", "content": "bad"},
+        {"role": "assistant", "content": "still bad"},
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            required_tool_calls=["required_tool"],
+            on_retry_exhausted="raise",
+        ),
     )
-    outer_tools = [MockTool("web_search"), MockTool("calculator")]
-
-    # Act
-    resolved = policy.resolve_tools(outer_tools)
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_execute" in tool_names
-    assert "web_search" not in tool_names
-    assert "calculator" not in tool_names
+    node = ProcessNode(node_id="test", config=config, instruction="Do work")
+    node.session = Session()
+    with pytest.raises(NodeExecutionError, match="Retry exhausted"):
+        node("input")
 
 
-def test_query_analyst_receives_classification_and_read_only_tools():
-    """QueryAnalystNode receives classification + read-only task/context inspection tools, no mutation tools."""
-    # Arrange
-    policy = query_analyst_tool_scope()
+def test_monitor_hook_observes_full_cycle():
+    """End-to-end: monitor hook is called at correct trigger points."""
+    monitor = RecordingMonitor()
+    mock_llm = MockLLM([
+        {"role": "assistant", "content": "bad"},
+        {"role": "assistant", "content": "good"},
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            required_tool_calls=["required_tool"],
+        ),
+        monitor=monitor,
+    )
+    node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
+    node.session = Session()
+    node("input")
 
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_inspect" in tool_names
-    assert "task_update" not in tool_names
-    assert "task_init" not in tool_names
-
-
-def test_task_create_receives_root_creation_tools_only():
-    """TaskCreateNode receives deterministic root task creation tools (TaskInit/TaskCreate) only."""
-    # Arrange
-    policy = task_create_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_init" in tool_names
-    assert "task_create" in tool_names
-    assert "task_inspect" not in tool_names
-    assert "task_update" not in tool_names
-
-
-def test_task_assessor_receives_assessment_tools():
-    """TaskAssessorNode receives task assessment/read/update tools."""
-    # Arrange
-    policy = task_assessor_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_inspect" in tool_names
-    assert "task_update" in tool_names
-    assert "task_init" not in tool_names
-
-
-def test_worker_receives_decision_tools_only():
-    """WorkerNode receives worker decision tools only."""
-    # Arrange
-    policy = worker_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert len(tool_names) > 0  # Has decision tools
-    assert "task_execute" not in tool_names
-
-
-def test_result_reviewer_receives_review_and_update_tools():
-    """ResultReviewerNode receives review/decision + task result/context update tools."""
-    # Arrange
-    policy = result_reviewer_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_result_update" in tool_names
-    assert "task_init" not in tool_names
-
-
-def test_result_aggregation_receives_aggregation_tools():
-    """ResultAggregationNode receives aggregation/consolidation tools."""
-    # Arrange
-    policy = result_aggregation_tool_scope()
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert len(tool_names) > 0
-    assert "task_execute" not in tool_names
-
-
-def test_task_analyzer_excludes_task_init_in_reanalysis_mode():
-    """TaskAnalyzerNode in task_reanalysis mode does NOT receive TaskInit/TaskCreate."""
-    # Arrange
-    policy = task_analyzer_tool_scope(mode="task_reanalysis")
-
-    # Act
-    resolved = policy.resolve_tools([])
-
-    # Assert
-    tool_names = [t.name for t in resolved]
-    assert "task_init" not in tool_names
-    assert "task_create" not in tool_names
-    assert "task_inspect" in tool_names
-    assert "task_update" in tool_names
-    assert "task_decompose" in tool_names
+    assert len(monitor.before_calls) == 2  # 2 attempts
+    assert monitor.before_calls[0]["attempt"] == 1
+    assert monitor.before_calls[1]["attempt"] == 2
+    assert len(monitor.after_calls) == 1  # only 1 failed validation (attempt 1)
+    assert monitor.after_calls[0]["is_valid"] is False
+    assert len(monitor.exhausted_calls) == 0  # succeeded on attempt 2
 ```
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: TaskExecutor receives correct tool mix (task tools + selected outer tools + enhanced_context_retrieval)
-- [x] **Scenario 2**: TaskAnalyzerNode path-specific scoping (creation vs recreation vs reanalysis modes)
-- [x] **Scenario 3**: enhanced_context_retrieval cache isolation and reuse
-- [x] **Scenario 4**: Deny-wins-over-allow behavior for outer tools
-- [x] **Scenario 5**: Node tools always included even if denied
-- [x] **Edge case**: Empty allowed_agent_tool_names list
+- [ ] **Scenario 1**: Node retries with custom `validation_fn` — first call rejected, second accepted
+- [ ] **Scenario 2**: Retry exhaustion with `record_failure` writes failure state to session
+- [ ] **Scenario 3**: Retry exhaustion with `raise` raises `NodeExecutionError`
+- [ ] **Scenario 4**: Monitor hook observes correct trigger points and arguments across retries
+- [ ] **Edge case**: Monitor hook exception does not break node execution
+- [ ] **Edge case**: Custom `retry_continuation_builder` produces retry message
+- [ ] **Edge case**: `max_attempts=0` results in 1 attempt (no retry)
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for each node's tool scope configuration
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for `validate_output()` with custom `validation_fn`
+- [ ] Unit tests for `_build_retry_text()` with custom builder
+- [ ] Unit tests for `_handle_exhaustion()` with all three policies
+- [ ] Unit tests for `DecisionNode` classification validation and retry
+- [ ] Unit tests for `NodeMonitor` hook trigger points and exception handling
+- [ ] Unit tests for `AgentMonitor` delegation to `NodeMonitor`
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify that a TinyCUA agent with tool scoping configured can run through the QueryAnalyst → Worker → TaskCreate → TaskAnalyzer → TaskExecutor → ResultReviewer → Response path with correct tool visibility at each step
+- [ ] Verify monitor hooks do not write to `chat_history` or `session_context`
+- [ ] Verify `record_failure` propagation works with configured `PropagationRule.failure`
 
 ### Performance Considerations
 
-- [ ] No performance impact expected — tool scope resolution is a simple list filter operation
+- [ ] Monitor hook overhead is negligible (optional, lightweight, exception-safe)
 
 ## Proposed Changes
 
-### Tool Scope Definitions
+### Phase 1 — Validation and Retry Completion
 
-#### [NEW] src/tinycua/tinycua/config/tool_scopes.py
+#### [MODIFY] `src/tinycua/tinycua/loops/node.py`
 
-- **Description**: Per-node tool scope definitions and factory functions for all 11 TinyCUA node types
-- **Dependencies**: `tinycua.config.node_config.NodeToolPolicy`, concrete tool stubs
+- **Wire `retry_continuation_builder` into `ProcessNode.__call__()`**: In the retry loop, check if `retry_policy.retry_continuation_builder` is set and use it instead of `self.build_retry_continuation()` when building the retry text.
+- **Implement `_handle_exhaustion()` method**: Extract exhaustion logic into a dedicated method handling `raise`, `record_failure`, and `route_failure` policies.
+- **Implement `_record_failure()` method**: Write a `SessionContextEntry` with `segment="output"` containing failure metadata (node_id, attempt count, errors) and call `self.propagate()` if a propagation rule exists.
+- **Implement `_call_failure_route()` method**: Check if `on_complete()` defines a failure route and call it; return `True` if called, `False` otherwise.
 
-#### [MODIFY] src/tinycua/tinycua/config/node_config.py
+#### [MODIFY] `src/tinycua/tinycua/loops/node.py` (DecisionNode)
 
-- **Description**: Add import for tool_scopes module, ensure NodeToolPolicy dataclass supports all required fields
-- **Breaking changes if any**: None
+- **Add classification validation**: In `DecisionNode.__call__()`, after the classification call, verify the returned label matches one of `classification_labels`. If invalid, treat as validation failure.
+- **Add classification retry loop**: Wrap the classification step in a retry loop that applies the same exhaustion behavior as `ProcessNode`.
 
-### Concrete Tool Stubs
+### Phase 2 — Monitor Hook
 
-#### [NEW] src/tinycua/tinycua/tools/task_tools.py
+#### [NEW] `NodeMonitor` protocol in `src/tinycua/tinycua/config/types.py`
 
-- **Description**: TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate tool stubs
-- **Dependencies**: `tinycua.config.types.Tool`
+- **Define `NodeMonitor` Protocol**: With `on_before_node_call`, `on_after_node_call`, `on_retry_exhausted` methods matching the design spec.
+- **Define `AgentMonitor` Protocol**: With the same method signatures, delegating to `NodeMonitor`.
 
-#### [NEW] src/tinycua/tinycua/tools/todo_tools.py
+#### [MODIFY] `src/tinycua/tinycua/config/node_config.py`
 
-- **Description**: TodoRead, TodoWrite tool stubs
-- **Dependencies**: `tinycua.config.types.Tool`
+- **Add `monitor: NodeMonitor | None = None` field to `NodeConfigBase`**: Allows nodes to be configured with a monitor hook.
 
-#### [NEW] src/tinycua/tinycua/tools/enhanced_context_retrieval.py
+#### [MODIFY] `src/tinycua/tinycua/loops/node.py`
 
-- **Description**: Scoped cache + ReAct search implementation for context retrieval
-- **Dependencies**: `tinycua.config.types.Tool`, filesystem operations
+- **Add `_safe_call()` helper**: Exception-safe monitor hook caller that logs and swallows exceptions.
+- **Wire monitor hooks into `ProcessNode.__call__()`**: Call `monitor.on_before_node_call()` before LLM call, `monitor.on_after_node_call()` after validation failure, `monitor.on_retry_exhausted()` before exhaustion handling.
+- **Incorporate monitor continuations**: If a monitor hook returns a string, append it as an assistant-role continuation to the messages.
 
-#### [NEW] src/tinycua/tinycua/tools/digest_information.py
+#### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
 
-- **Description**: Structured digest output tool stub
-- **Dependencies**: `tinycua.config.types.Tool`
+- **Add `agent_monitor: AgentMonitor | None = None` field to `TinyCUALoop.__init__()`**: Loop-level monitor configuration.
+- **Wire `agent_monitor` in `_execute_node()`**: Call `agent_monitor.on_before_node_call()` before LLM call and `agent_monitor.on_after_node_call()` after; delegate to node monitor if configured.
 
-### Integration
+### Phase 3 — Tests
 
-#### [MODIFY] src/tinycua/tinycua/loops/tinycua_loop.py
+#### [NEW] `src/tinycua/tests/unit/test_retry_validation.py`
 
-- **Description**: Wire concrete tool scopes into node preparation via `_prepare_node()`
-- **Breaking changes if any**: None
+- Unit tests for `validate_output()` with custom `validation_fn` (valid, invalid, exception)
+- Unit tests for `_build_retry_text()` with default and custom builder
+- Unit tests for `_handle_exhaustion()` with `raise`, `record_failure`, `route_failure`
+- Unit tests for `max_attempts=0` (1 attempt, immediate exhaustion)
 
-### Tests
+#### [NEW] `src/tinycua/tests/unit/test_decision_node_retry.py`
 
-#### [NEW] src/tinycua/tests/unit/test_tool_scopes.py
+- Unit tests for `DecisionNode` classification validation (valid label, invalid label)
+- Unit tests for classification retry loop (retry on invalid, exhaustion)
 
-- **Description**: Per-node tool scope unit tests
+#### [NEW] `src/tinycua/tests/unit/test_monitor_hook.py`
 
-#### [NEW] src/tinycua/tests/integration/test_tool_scoping_integration.py
+- Unit tests for `NodeMonitor` hook trigger points
+- Unit tests for hook exception handling (logged, does not break execution)
+- Unit tests for hook continuation message entering retry flow
+- Unit tests for `AgentMonitor` delegation to `NodeMonitor`
 
-- **Description**: End-to-end tool resolution integration tests
+#### [NEW] `src/tinycua/tests/integration/test_retry_integration.py`
+
+- Integration tests for retry through `ProcessNode.__call__()`
+- Integration tests for monitor hook observing full cycle
+- Integration tests for `DecisionNode` classification retry
 
 ## Architecture Changes
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `src/tinycua/tinycua/config/tool_scopes.py` | New | Per-node tool scope factory functions |
-| `src/tinycua/tinycua/tools/task_tools.py` | New | Task mutation tool stubs |
-| `src/tinycua/tinycua/tools/todo_tools.py` | New | Todo tracking tool stubs |
-| `src/tinycua/tinycua/tools/enhanced_context_retrieval.py` | New | Scoped context cache + ReAct search |
-| `src/tinycua/tinycua/tools/digest_information.py` | New | Structured digest output |
-| `src/tinycua/tinycua/loops/tinycua_loop.py` | Modified | Wire tool scopes into node preparation |
+| `tinycua/config/types.py` | Modify | Add `NodeMonitor` and `AgentMonitor` protocols |
+| `tinycua/config/node_config.py` | Modify | Add `monitor` field to `NodeConfigBase` |
+| `tinycua/loops/node.py` | Modify | Wire `retry_continuation_builder`, exhaustion behavior, monitor hooks; add `_safe_call()`, `_handle_exhaustion()`, `_record_failure()`, `_call_failure_route()` |
+| `tinycua/loops/tinycua_loop.py` | Modify | Accept optional `AgentMonitor`, wire in `_execute_node()` |
+| `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion |
+| `tests/unit/test_decision_node_retry.py` | New | Unit tests for DecisionNode classification retry |
+| `tests/unit/test_monitor_hook.py` | New | Unit tests for monitor hook behavior |
+| `tests/integration/test_retry_integration.py` | New | Integration tests for retry through the loop |
 
 ## Data Model Changes
 
 ```python
-# No new data model changes — extends existing NodeToolPolicy with factory functions
-# Tool stubs use existing Tool placeholder from config/types.py
+# New protocol in tinycua/config/types.py
+@runtime_checkable
+class NodeMonitor(Protocol):
+    def on_before_node_call(self, node_id: str, session_id: str, attempt: int,
+                            messages: list[dict], resolved_tools: list) -> str | None: ...
+    def on_after_node_call(self, node_id: str, session_id: str, attempt: int,
+                           result: LLMResult, validation_result: ValidationResult) -> str | None: ...
+    def on_retry_exhausted(self, node_id: str, session_id: str,
+                           error: ValidationError, attempts: int) -> str | None: ...
+
+@runtime_checkable
+class AgentMonitor(Protocol):
+    def on_before_node_call(self, node_id: str, session_id: str, attempt: int,
+                            messages: list[dict], resolved_tools: list) -> str | None: ...
+    def on_after_node_call(self, node_id: str, session_id: str, attempt: int,
+                           result: LLMResult, validation_result: ValidationResult) -> str | None: ...
+    def on_retry_exhausted(self, node_id: str, session_id: str,
+                           error: ValidationError, attempts: int) -> str | None: ...
 ```
 
 ## API Changes
 
-### New Endpoints
-
-None — this is an internal implementation change.
-
 ### Modified Endpoints
 
-None — this is an internal implementation change.
+| Component | Change | Impact |
+|-----------|--------|--------|
+| `NodeConfigBase` | Added `monitor: NodeMonitor \| None = None` | Backwards compatible (default None) |
+| `TinyCUALoop.__init__` | Added `agent_monitor: AgentMonitor \| None = None` | Backwards compatible (default None) |
+| `ProcessNode.__call__` | Now wires `retry_continuation_builder` and calls monitor hooks | Backwards compatible (behavioral change only) |
+| `DecisionNode.__call__` | Now validates classification and retries | Backwards compatible (behavioral change) |
 
 ## Dependencies
 
 ### External Dependencies
 
-None — uses existing project dependencies only.
+- [ ] No new external dependencies
 
 ### Internal Dependencies
 
-- [x] Depends on Milestone 1.2 (NodeToolPolicy resolution mechanism)
-- [x] Blocks Milestone 4.3 (Tool retry/validation) and 4.4 (Tool streaming)
+- [ ] Depends on existing `NodeRetryPolicy` (Milestone 1.2) — already implemented
+- [ ] Depends on existing `validate_output()` (Milestone 1.5) — already implemented
+- [ ] Depends on existing `build_retry_continuation()` (Milestone 1.5) — already implemented
+- [ ] Depends on `PropagationRule.failure` for `record_failure` propagation — already defined in design
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Tool scope definitions drift from design docs | High | Unit tests verify each node's scope against the design doc table |
-| `enhanced_context_retrieval` cache files accumulate | Low | Cache files are in `./tmp/` which is auto-cleaned; can add TTL later |
-| Path-specific task tool scoping mode is not propagated correctly | Medium | Integration test verifies mode-dependent scope through `_prepare_node()` |
-| Placeholder `Tool` class lacks fields needed by concrete tools | Low | Tool stubs use `name` and `description` fields; extend as needed |
+| Monitor hook overhead slows node execution | Low | Hooks are optional and lightweight; `_safe_call` catches exceptions fast |
+| `record_failure` propagation rule not defined for some nodes | Medium | Default to no propagation; nodes that need failure propagation configure `PropagationRule.failure` |
+| DecisionNode retry loop adds latency for invalid classifications | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare |
+| Custom `validation_fn` raises unexpected exceptions | Medium | Existing `validate_output()` already catches `ValueError`, `TypeError`, `KeyError`; additional exception types caught via `_safe_call` for monitor hooks |
 
 ---
 
