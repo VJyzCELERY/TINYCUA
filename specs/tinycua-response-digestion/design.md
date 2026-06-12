@@ -72,7 +72,7 @@ TinyCUALoop (queue iteration)
 |-----------|-------------|-------|
 | `loops/response_node.py` | Modified (exists) | Three-phase execution, digester suspension, max-attempts guard |
 | `loops/information_digester.py` | Modified (exists) | Fresh session, parent propagation, digest production |
-| `loops/__init__.py` | Not Modified | Public exports unchanged |
+| `loops/__init__.py` | Modified | Added `TinyCUAResponseNode` import and export |
 | `config/node_config.py` | Not Modified | Metadata keys `digester_enabled`, `max_digest_attempts`, `sufficiency_threshold` already available via `NodeConfigBase` |
 | `models/digested_information.py` | Not Modified | `DigestedInformation` dataclass already defined |
 | `models/node_input.py` | Not Modified | `NodeInput`, `NodeInputLike` already defined |

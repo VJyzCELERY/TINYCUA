@@ -73,9 +73,9 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 
 ## Changes Made (Documenting Existing Implementation)
 
-### loops/response_node.py
+### `tinycua.loops.response_node` (Modified Module)
 
-#### Modified (documenting existing implementation) src/tinycua/tinycua/loops/response_node.py
+#### [MODIFIED] `src/tinycua/tinycua/loops/response_node.py` (documenting existing implementation)
 
 - **Three-phase execution in `__call__`**: Phase 1 builds `ResponseContext`, Phase 2 checks sufficiency (sufficient → synthesize, insufficient + digester → set flag, insufficient + no digester → tools), Phase 3 normalizes output.
 - **`on_complete` digester trigger**: Checks `_needs_digestion` flag and calls `_suspend_for_digestion` when True.
@@ -85,7 +85,9 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 - **`_synthesize_response`**: Delegates to inherited `ProcessNode.__call__` for LLM invocation; falls back to configurable message on error.
 - **Rationale**: Implements the full response node lifecycle per spec FR-001 through FR-009.
 
-#### Modified (documenting existing implementation) src/tinycua/tinycua/loops/information_digester.py
+### `tinycua.loops.information_digester` (Modified Module)
+
+#### [MODIFIED] `src/tinycua/tinycua/loops/information_digester.py` (documenting existing implementation)
 
 - **Fresh session creation**: `__call__` creates a new `Session()` if none exists, never inherits from parent (FR-005).
 - **Digest production**: `_produce_digest` builds context text, invokes LLM, parses response into `DigestedInformation`.
@@ -95,7 +97,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 
 ### No New Files
 
-No new source files are needed. The implementation modifies existing `response_node.py` and `information_digester.py`. No changes to `loops/__init__.py`, `config/node_config.py`, or `models/digested_information.py`.
+No new source files are needed. The implementation modifies existing `response_node.py` and `information_digester.py`. `loops/__init__.py` is modified to add `TinyCUAResponseNode` import and export. No changes to `config/node_config.py` or `models/digested_information.py`.
 
 ### No Breaking Changes
 
@@ -107,7 +109,7 @@ All modifications are backward-compatible. The `TinyCUAResponseNode` and `Inform
 |-----------|-------------|-------------|
 | `loops/response_node.py` | Modify | Three-phase execution, digester suspension, max-attempts guard, context sufficiency check |
 | `loops/information_digester.py` | Modify | Fresh session, parent propagation, digest production, enhanced retrieval placeholder |
-| `loops/__init__.py` | No Change | Public exports unchanged |
+| `loops/__init__.py` | Modify | Added `TinyCUAResponseNode` import and export |
 | `config/node_config.py` | No Change | Metadata keys are dynamic, no schema changes |
 | `models/digested_information.py` | No Change | `DigestedInformation` dataclass already defined |
 
