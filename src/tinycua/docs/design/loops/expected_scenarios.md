@@ -21,8 +21,8 @@ User sends a new request. No task exists. Worker chooses `task_creation`.
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
-    participant ID as InformationDigester
     participant W as Worker
+    participant ID as InformationDigester
     participant TC as TaskCreate
     participant TA as TaskAnalyzer
     participant AE as AnalysisEffort
@@ -33,10 +33,13 @@ sequenceDiagram
 
     User->>QA: "Fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    QA->>W: route to Worker
+    W->>W: analyze context — insufficient
+    W->>W: suspend_current_and_prepend(InformationDigester)
+    W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output to Worker session
-    W->>W: no task exists → task_creation
+    ID->>W: propagate digested output
+    W->>W: resume — no task exists → task_creation
     W->>TC: spawn TaskCreate
     TC->>TC: create root task deterministically
     TC->>TA: advance (no TaskInit tools)
@@ -69,18 +72,21 @@ User sends a follow-up. Task exists. Worker chooses `proceed_execution` — the 
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
-    participant ID as InformationDigester
     participant W as Worker
+    participant ID as InformationDigester
     participant TE as TaskExecutor
     participant RR as ResultReviewer
     participant RAgg as ResultAggregation
     participant R as Response
 
     User->>QA: "What about the other page?"
-    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    QA->>W: route to Worker
+    W->>W: analyze context — insufficient
+    W->>W: suspend_current_and_prepend(InformationDigester)
+    W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output to Worker session
-    W->>W: task exists, no executor queued → proceed_execution
+    ID->>W: propagate digested output
+    W->>W: resume — task exists, no executor queued → proceed_execution
     W->>TE: spawn TaskExecutor
     TE->>TE: execute next active task
     TE->>RR: advance to ResultReviewer
@@ -208,14 +214,17 @@ Worker routes `passthrough` to forward input to the next worker-owned node.
 ```mermaid
 sequenceDiagram
     participant QA as QueryAnalyst
-    participant ID as InformationDigester
     participant W as Worker
+    participant ID as InformationDigester
     participant TE as TaskExecutor
 
-    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    QA->>W: route to Worker
+    W->>W: analyze context — insufficient
+    W->>W: suspend_current_and_prepend(InformationDigester)
+    W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output to Worker session
-    W->>W: worker-spawned nodes exist → passthrough
+    ID->>W: propagate digested output
+    W->>W: resume — worker-spawned nodes exist → passthrough
     W->>W: advance queue, forward input
     W->>TE: passthrough to TaskExecutor
 ```
@@ -234,20 +243,23 @@ QueryAnalyst routes to `uncertain` — it remains active and waits for user inpu
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
-    participant ID as InformationDigester
     participant W as Worker
+    participant ID as InformationDigester
 
     User->>QA: "I'm not sure what I want yet"
     QA->>QA: analysis call → verdict → uncertain
     QA->>QA: remains active, waits for continuation
     User->>QA: "Actually, fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    QA->>W: route to Worker
+    W->>W: analyze context — insufficient
+    W->>W: suspend_current_and_prepend(InformationDigester)
+    W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output to Worker session
+    ID->>W: propagate digested output
 ```
 
-**Key contracts:** [`query_analyst.md`](query_analyst.md), [`information_digester.md`](information_digester.md) — `uncertain` route.
+**Key contracts:** [`query_analyst.md`](query_analyst.md), [`worker.md`](worker.md), [`information_digester.md`](information_digester.md) — `uncertain` route.
 
 ---
 

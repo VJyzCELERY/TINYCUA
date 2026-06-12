@@ -6,8 +6,9 @@
 ## Role
 
 `TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that gathers and digests
-context for downstream nodes. It is mandatory before `WorkerNode` (spawned by
-`QueryAnalyst`) and optional before `ResponseNode` (spawned when context is insufficient).
+context for downstream nodes. It is spawned via `suspend_current_and_prepend` by
+`WorkerNode` (when context is insufficient for routing) or `ResponseNode` (when context
+is insufficient for final synthesis).
 
 ## Non-Responsibilities
 
@@ -20,10 +21,11 @@ context for downstream nodes. It is mandatory before `WorkerNode` (spawned by
 
 - `NodeInput` with copied, selected subset of parent node's `session_context` messages.
 - Optional digest request payload.
-- When spawned by QueryAnalyst (before Worker): copied session_context from the current
-  session, providing context for Worker's routing decision.
-- When spawned by ResponseNode: copied session_context from the suspended response
-  node's session.
+- When spawned by WorkerNode (via `suspend_current_and_prepend`): copied session_context
+  from the suspended worker node's session, providing context for Worker's routing
+  decision.
+- When spawned by ResponseNode (via `suspend_current_and_prepend`): copied session_context
+  from the suspended response node's session.
 
 ## Session Scope
 

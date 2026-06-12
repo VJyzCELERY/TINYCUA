@@ -67,10 +67,10 @@ Digester completes:
 ### WorkerNode Digester Pattern
 
 ```text
-Before (QueryAnalyst routes to Worker):
-  [QueryAnalyst, WorkerNode, ...]
+Before (WorkerNode analyzes context):
+  [WorkerNode, ...]
 
-QueryAnalyst spawns InformationDigester before Worker:
+WorkerNode suspends for information digestion:
   [TinyCUAInformationDigesterNode(parent=WorkerNode), WorkerNode, ...]
 
 Digester completes, propagates to Worker session:
@@ -97,17 +97,18 @@ When `TinyCUAResponseNode` suspends itself for information digestion:
 
 ## WorkerNode Digester Handoff
 
-When `QueryAnalyst` routes to `WorkerNode`, it always spawns `InformationDigesterNode`
-first:
+When `WorkerNode` determines context is insufficient for its routing decision, it
+suspends itself and prepends `InformationDigesterNode` (same pattern as ResponseNode):
 
-1. QueryAnalyst constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
-   selected `session_context` messages plus an optional digest request payload.
+1. WorkerNode constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
+   selected `worker_node.session.session_context` messages plus an optional digest
+   request payload.
 2. It calls `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=worker_node)])`
    and assigns that `NodeInput` to the prepended digester node.
 3. The digester may read the copied input messages and retrieval tools, but it does not
    re-store the copied messages in its own reusable context.
 4. The digester uses a selected-output propagation rule targeting its parent session; the
-   digest lands in the worker node's `session_context`.
+   digest lands in the suspended worker node's `session_context`.
 5. The worker node resumes only after the digest output has propagated back.
 
 ## Terminal Handling

@@ -5,10 +5,10 @@
 `TinyCUAInformationDigesterNode` uses information-digestion tools to gather and summarize
 context for downstream nodes (`WorkerNode` or `ResponseNode`).
 
-`InformationDigesterNode` is mandatory before `WorkerNode` (spawned by `QueryAnalyst`)
-and optional before `ResponseNode` (spawned when context is insufficient).
-`TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning
-`InformationDigesterNode`.
+`InformationDigesterNode` is spawned via `suspend_current_and_prepend` by `WorkerNode`
+(when context is insufficient for routing) or `ResponseNode` (when context is insufficient
+for final synthesis). `TaskExecutor` should use `enhanced_context_retrieval` directly
+instead of spawning `InformationDigesterNode`.
 
 Primary tools:
 
@@ -29,9 +29,9 @@ a limited ReAct-style search over that cache using grep/search and paginated rea
 - Search/read tools are limited to grep/search within the cache and paginated cache reads. All search and read operations are limited to the cache.
 - `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
-When spawned by `QueryAnalyst` (before `WorkerNode`) or `ResponseNode`, the digester
-receives a copied, selected subset of the parent's current `session_context` via
-`NodeInput(messages=[...])`, plus an optional digest request payload. It should not
+When spawned by `WorkerNode` or `ResponseNode` (via `suspend_current_and_prepend`),
+the digester receives a copied, selected subset of the parent's current `session_context`
+via `NodeInput(messages=[...])`, plus an optional digest request payload. It should not
 duplicate those input messages in its own reusable context; it stores and propagates
 only new digest output.
 

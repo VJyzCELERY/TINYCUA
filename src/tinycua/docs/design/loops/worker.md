@@ -20,8 +20,8 @@ execution advancement.
 ## Inputs
 
 - `NodeInput` from QueryAnalyst, containing the original user query and session context.
-- `DigestedInformation` from InformationDigesterNode (mandatory — QueryAnalyst always
-  spawns InformationDigester before Worker).
+- `DigestedInformation` from InformationDigesterNode (spawned by Worker via
+  `suspend_current_and_prepend` when context is insufficient).
 - Continuation input from downstream nodes when re-entered.
 
 ## Outputs / State Produced
@@ -62,12 +62,6 @@ analysis call → verdict/classification tool call → RouteMap dispatch
 ## Queue Behavior / `on_complete()`
 
 ```text
-QueryAnalyst routes to Worker:
-  → QueryAnalyst constructs NodeInput with selected session_context.
-  → QueryAnalyst calls queue.suspend_current_and_prepend([InformationDigesterNode(parent=worker_node)]).
-  → InformationDigester gathers and digests context, propagates output to Worker session.
-  → WorkerNode resumes with digested context.
-
 WorkerNode enters:
   1. Does task exist?
      ├── No → task_creation route
@@ -79,6 +73,33 @@ WorkerNode enters:
      └── No → LLM decision without passthrough:
               task_recreation, task_reanalysis, proceed_execution
 ```
+
+### Suspension and Resume for Information Digestion
+
+When WorkerNode determines context is insufficient for its routing decision, it
+suspends itself and prepends InformationDigester (same pattern as ResponseNode):
+
+```text
+WorkerNode enters:
+  1. Analyze available context.
+     → If sufficient: proceed to routing decision.
+     → If insufficient:
+        a. Use allowed tools directly, OR
+        b. Request InformationDigesterNode (if enabled).
+
+WorkerNode suspends for digestion:
+  → suspend_current_and_prepend([InformationDigesterNode(parent=WorkerNode)])
+  → Digester completes → WorkerNode resumes.
+```
+
+When WorkerNode suspends for information digestion:
+
+1. Constructs `NodeInput(messages=[...], payloads=[...])` from selected
+   `session_context` messages plus optional digest request payload.
+2. Calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=worker_node)])`.
+3. Digester uses selected-output propagation targeting its parent session.
+4. Digest lands in suspended WorkerNode's `session_context`.
+5. WorkerNode resumes only after digest output has propagated back.
 
 ### Route Queue Shapes
 
@@ -108,7 +129,7 @@ Before (QueryAnalyst routes to existing WorkerNode):
 QueryAnalyst routes to existing WorkerNode:
   [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
-InformationDigester prepended before Worker (mandatory):
+Worker suspends for information digestion:
   [InformationDigesterNode(parent=WorkerNode), WorkerNode, TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 InformationDigester completes, propagates to Worker session:
