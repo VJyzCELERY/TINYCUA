@@ -52,6 +52,18 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 8. **Given** `enhanced_context_retrieval` called by TaskExecutor directly (without spawning InformationDigesterNode), **When** called, **Then** the tool creates its own scoped cache and runs ReAct-style search within it.
 
+9. **Given** a `TinyCUATaskCreateNode`, **When** `resolve_tools()` is called, **Then** the node
+   receives only `TaskInit` and `TaskCreate` tools — no task inspection, update, or execution tools.
+
+10. **Given** a `TinyCUATaskAssessorNode`, **When** `resolve_tools()` is called, **Then** the node
+    receives task assessment/read/update tools — no `TaskInit` or `TaskCreate` tools.
+
+11. **Given** a `TinyCUAResultReviewerNode`, **When** `resolve_tools()` is called, **Then** the node
+    receives review/decision tools and task result/context update tools.
+
+12. **Given** a `TinyCUAResultAggregationNode`, **When** `resolve_tools()` is called, **Then** the node
+    receives aggregation/consolidation tools only.
+
 ### Node Scope Exclusions
 
 `TinyCUAAnalysisEffortNode` is excluded from tool scope definitions because it is a deterministic `ProcessNode` that makes no LLM calls — it only controls queue flow (pass counting and prepending `[TaskAssessor, TaskAnalyzer]` until the configured threshold is reached).
@@ -93,6 +105,7 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 - **enhanced_context_retrieval**: Shared tool for scoped context search/cache. Used by InformationDigesterNode, TaskExecutor, and ResponseNode.
 - **digest_information**: Tool for producing structured digested information. Used by InformationDigesterNode.
 - **TaskInit / TaskCreate**: Task creation tools. Exposed to TaskCreateNode (always) and TaskAnalyzerNode (only in recreation mode).
+- **ResultAggregationTool**: Aggregation/consolidation tool for `ResultAggregationNode`.
 
 ---
 
