@@ -1,0 +1,212 @@
+"""Per-node tool scope definitions and factory functions for TinyCUA nodes.
+
+Each factory function returns a NodeToolPolicy configured with the correct
+tool scope for its corresponding node type. These are used by
+TinyCUALoop._prepare_node() to resolve tools before LLM calls.
+
+Reference:
+    src/tinycua/docs/design/constants/tools.md — authoritative tool-to-node mapping.
+    design.md — design decisions and rationale.
+"""
+
+from __future__ import annotations
+
+from tinycua.config.node_config import NodeToolPolicy
+from tinycua.tools.digest_information import DigestInformationTool
+from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
+from tinycua.tools.task_tools import (
+    FinalResponseSynthesisTool,
+    TaskCreateTool,
+    TaskDecomposeTool,
+    TaskExecuteTool,
+    TaskInitTool,
+    TaskInspectTool,
+    TaskResultUpdateTool,
+    TaskUpdateTool,
+)
+from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
+
+
+def query_analyst_tool_scope() -> NodeToolPolicy:
+    """Classification + read-only task/context inspection tools.
+
+    QueryAnalystNode receives classification tools and read-only
+    task/context inspection tools. No mutation tools are included.
+
+    Returns:
+        NodeToolPolicy for QueryAnalystNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[TaskInspectTool()],
+        include_agent_tools="none",
+    )
+
+
+def information_digester_tool_scope() -> NodeToolPolicy:
+    """Enhanced context retrieval + digest information tools.
+
+    InformationDigesterNode receives exactly two tools:
+    enhanced_context_retrieval and digest_information.
+
+    Returns:
+        NodeToolPolicy for InformationDigesterNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[
+            EnhancedContextRetrievalTool(),
+            DigestInformationTool(),
+        ],
+        include_agent_tools="none",
+    )
+
+
+def worker_tool_scope() -> NodeToolPolicy:
+    """Worker decision tools only.
+
+    WorkerNode receives worker decision tools for routing decisions.
+    No task mutation tools are included.
+
+    Returns:
+        NodeToolPolicy for WorkerNode.
+    """
+    # Worker decision tools — stub names for now
+    return NodeToolPolicy(
+        node_tools=[TaskInspectTool()],
+        include_agent_tools="none",
+    )
+
+
+def task_create_tool_scope() -> NodeToolPolicy:
+    """Deterministic root task creation tools (TaskInit/TaskCreate).
+
+    TaskCreateNode receives only TaskInit and TaskCreate for
+    initializing new task trees.
+
+    Returns:
+        NodeToolPolicy for TaskCreateNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[TaskInitTool(), TaskCreateTool()],
+        include_agent_tools="none",
+    )
+
+
+def task_analyzer_tool_scope(
+    mode: str = "task_creation",
+) -> NodeToolPolicy:
+    """Structural task tools with mode-dependent TaskInit/TaskCreate.
+
+    TaskAnalyzerNode receives task_inspect, task_update, and task_decompose
+    in all modes. TaskInit and TaskCreate are only included in
+    task_recreation mode.
+
+    Args:
+        mode: One of "task_creation", "task_recreation", or "task_reanalysis".
+
+    Returns:
+        NodeToolPolicy for TaskAnalyzerNode.
+    """
+    base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool()]
+    if mode == "task_recreation":
+        base_tools.extend([TaskInitTool(), TaskCreateTool()])
+    return NodeToolPolicy(
+        node_tools=base_tools,
+        include_agent_tools="none",
+    )
+
+
+def task_assessor_tool_scope() -> NodeToolPolicy:
+    """Task assessment/read/update tools.
+
+    TaskAssessorNode receives task_inspect and task_update for
+    assessing task state. No creation tools are included.
+
+    Returns:
+        NodeToolPolicy for TaskAssessorNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[TaskInspectTool(), TaskUpdateTool()],
+        include_agent_tools="none",
+    )
+
+
+def task_executor_tool_scope() -> NodeToolPolicy:
+    """Task execution + selected outer agent tools + enhanced_context_retrieval.
+
+    TaskExecutorNode receives task execution tools, enhanced context
+    retrieval, and selected outer agent tools (web_search, file_read, calculator).
+
+    Returns:
+        NodeToolPolicy for TaskExecutorNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[
+            TaskExecuteTool(),
+            TaskResultUpdateTool(),
+            EnhancedContextRetrievalTool(),
+            TodoReadTool(),
+            TodoWriteTool(),
+        ],
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+    )
+
+
+def result_reviewer_tool_scope() -> NodeToolPolicy:
+    """Review/decision + task result/context update tools.
+
+    ResultReviewerNode receives task_result_update for recording
+    review outcomes.
+
+    Returns:
+        NodeToolPolicy for ResultReviewerNode.
+    """
+    return NodeToolPolicy(
+        node_tools=[TaskResultUpdateTool()],
+        include_agent_tools="none",
+    )
+
+
+def result_aggregation_tool_scope() -> NodeToolPolicy:
+    """Aggregation/consolidation tools.
+
+    ResultAggregationNode receives aggregation tools for consolidating
+    results from multiple task executions.
+
+    Returns:
+        NodeToolPolicy for ResultAggregationNode.
+    """
+    # Aggregation tools — stub for now
+    return NodeToolPolicy(
+        node_tools=[TaskInspectTool()],
+        include_agent_tools="none",
+    )
+
+
+def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
+    """Same base as TaskExecutor + final response synthesis + optional digest.
+
+    ResponseNode has the same base toolset as TaskExecutor, plus
+    enhanced_context_retrieval and optional information-digestion
+    request capability.
+
+    Args:
+        allow_digest: When True, includes digest_information tool.
+
+    Returns:
+        NodeToolPolicy for ResponseNode.
+    """
+    node_tools = [
+        FinalResponseSynthesisTool(),
+        EnhancedContextRetrievalTool(),
+        TodoReadTool(),
+        TodoWriteTool(),
+    ]
+    if allow_digest:
+        node_tools.append(DigestInformationTool())
+
+    return NodeToolPolicy(
+        node_tools=node_tools,
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+    )
