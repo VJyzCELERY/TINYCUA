@@ -129,8 +129,8 @@ When a node completes execution, its session context is propagated according to 
 1. **Should PropagationRule be per-node or per-session?**
    - **Owner**: @VJyzCELERY
    - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Per-node with session-level defaults, allowing nodes to override.
+   - **Status**: Resolved
+   - **Resolution**: Per-node with session-level defaults, allowing nodes to override.
 
 2. **How should propagation interact with compaction?**
    - **Owner**: @VJyzCELERY
@@ -142,9 +142,10 @@ When a node completes execution, its session context is propagated according to 
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices)
+- [x] No implementation details (no code, framework, or architecture choices)
 - [ ] All mandatory sections completed
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Requirements are testable and unambiguous
 - [ ] Scope is clearly bounded with explicit non-goals
 - [ ] Success criteria are measurable
+- [x] Open questions resolved (OQ #1: per-node with session-level defaults, allowing nodes to override)

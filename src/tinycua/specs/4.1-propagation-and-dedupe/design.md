@@ -61,7 +61,9 @@ ChatRecord:
     metadata: dict                     # extensible metadata
 
 # SessionContextEntry — mutable LLM-reusable context with segment metadata
-SessionContextEntry (extends ChatRecord or dict):
+# A separate mutable context record (not an extension of the append-only ChatRecord).
+# Carries the same provenance fields as ChatRecord plus segment metadata.
+SessionContextEntry (dataclass):
     segment: Literal["prior", "input", "output"]
     origin_record_id: str | None
     source_node_id: str | None
@@ -107,11 +109,11 @@ PropagationRule:
 class PropagationRule:
     """Configuration for what crosses node/session boundaries."""
     
-    chat_history: str  # "none" | "parent" | "root" | "parent_and_root"
-    session_context_target: str  # "none" | "parent" | "root" | "parent_and_root"
-    session_context_mode: str  # "none" | "final" | "full" | "selected"
-    token_usage: str  # "none" | "parent" | "root" | "parent_and_root"
-    failure: str  # "none" | "parent" | "root" | "parent_and_root"
+    chat_history: Literal["none", "parent", "root", "parent_and_root"]
+    session_context_target: Literal["none", "parent", "root", "parent_and_root"]
+    session_context_mode: Literal["none", "final", "full", "selected"]
+    token_usage: Literal["none", "parent", "root", "parent_and_root"]
+    failure: Literal["none", "parent", "root", "parent_and_root"]
     dedupe: bool  # True to filter duplicates during propagation
 
 
@@ -236,8 +238,8 @@ def dedupe_records(
 ## Open Questions
 
 1. **Should PropagationRule be per-node or per-session?**
-   - **Status**: Discussion
-   - **Current thinking**: Per-node with session-level defaults, allowing nodes to override.
+   - **Status**: Resolved
+   - **Resolution**: Per-node with session-level defaults, allowing nodes to override.
 
 2. **How should propagation interact with compaction?**
    - **Status**: Discussion
