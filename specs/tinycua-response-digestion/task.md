@@ -25,10 +25,10 @@ Implementation tasks for TinyCUA ResponseNode — Optional Information Digestion
 
 ## Implementation Phase
 
-- [x] Implement `_check_context_sufficiency` in `ResponseNode` <!-- id: 3 -->
+- [x] Implement `_check_context_sufficiency` in `TinyCUAResponseNode` <!-- id: 3 -->
   - [x] Primary check: `aggregated_result` present with `task_summaries` or `final_context`
   - [x] Secondary check: `session_context` size >= configurable `sufficiency_threshold`
-- [x] Implement three-phase execution in `ResponseNode.__call__` <!-- id: 4 -->
+- [x] Implement three-phase execution in `TinyCUAResponseNode.__call__` <!-- id: 4 -->
   - [x] Phase 1: Build `ResponseContext` from session + input
   - [x] Phase 2: Check sufficiency → synthesize directly, or set `_needs_digestion` flag, or fall through to tools
   - [x] Phase 3: Normalize terminal output to string

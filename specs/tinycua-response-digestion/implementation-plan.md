@@ -1,6 +1,6 @@
 # Implementation: TinyCUA ResponseNode — Optional Information Digestion Request
 
-Formalizes the integration contract between `TinyCUAResponseNode` and `TinyCUAInformationDigesterNode`. When `ResponseNode` determines accumulated context is insufficient for a quality final response, it suspends the queue, prepends an `InformationDigesterNode` (with `parent=ResponseNode`), the digester gathers and digests additional context, propagates the digest back to the parent's `session_context`, and the queue advances so `ResponseNode` resumes synthesis.
+Formalizes the integration contract between `TinyCUAResponseNode` and `TinyCUAInformationDigesterNode`. When `TinyCUAResponseNode` determines accumulated context is insufficient for a quality final response, it suspends the queue, prepends an `InformationDigesterNode` (with `parent=TinyCUAResponseNode`), the digester gathers and digests additional context, propagates the digest back to the parent's `session_context`, and the queue advances so `TinyCUAResponseNode` resumes synthesis.
 
 ## Context
 
@@ -57,7 +57,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 ### Automated Tests
 
 - [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for `ResponseNode` — test context sufficiency, suspension, continuation, retry, normalization
+- [x] Unit tests for `TinyCUAResponseNode` — test context sufficiency, suspension, continuation, retry, normalization
 - [x] Unit tests for `InformationDigesterNode` — test fresh session creation, digest production, parent propagation
 - [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
@@ -99,7 +99,7 @@ No new source files are needed. The implementation modifies existing `response_n
 
 ### No Breaking Changes
 
-All modifications are backward-compatible. The `ResponseNode` and `InformationDigesterNode` APIs remain unchanged. Metadata keys are additive and optional with sensible defaults.
+All modifications are backward-compatible. The `TinyCUAResponseNode` and `InformationDigesterNode` APIs remain unchanged. Metadata keys are additive and optional with sensible defaults.
 
 ## Architecture Changes
 

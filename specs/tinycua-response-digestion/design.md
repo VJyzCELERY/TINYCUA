@@ -8,7 +8,7 @@
 
 ## Overview
 
-This design formalizes the **ResponseNode optional information digestion request** path — the integration contract between `TinyCUAResponseNode` and `TinyCUAInformationDigesterNode`. When `ResponseNode` determines that accumulated context is insufficient for a quality final response, it suspends the queue, prepends an `InformationDigesterNode` (with `parent=ResponseNode`), the digester gathers and digests additional context, propagates the digest back to the parent's `session_context`, and the queue advances so `ResponseNode` resumes synthesis. The implementation already exists in `src/tinycua/tinycua/loops/response_node.py` and `src/tinycua/tinycua/loops/information_digester.py`; this design formally documents the contract.
+This design formalizes the **TinyCUAResponseNode optional information digestion request** path — the integration contract between `TinyCUAResponseNode` and `TinyCUAInformationDigesterNode`. When `TinyCUAResponseNode` determines that accumulated context is insufficient for a quality final response, it suspends the queue, prepends an `InformationDigesterNode` (with `parent=TinyCUAResponseNode`), the digester gathers and digests additional context, propagates the digest back to the parent's `session_context`, and the queue advances so `TinyCUAResponseNode` resumes synthesis. The implementation already exists in `src/tinycua/tinycua/loops/response_node.py` and `src/tinycua/tinycua/loops/information_digester.py`; this design formally documents the contract.
 
 ---
 
@@ -253,7 +253,7 @@ def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
 
 ## Open Questions _(optional)_
 
-1. **Should `ResponseNode` select a subset of `session_context` for the digester's input, or pass the full context?**
+1. **Should `TinyCUAResponseNode` select a subset of `session_context` for the digester's input, or pass the full context?**
    - Current implementation passes messages via `NodeInput` (built in `_build_response_context`) per FR-005/FR-006. Selection refinement deferred to Milestone 4.1.
 
 ---
