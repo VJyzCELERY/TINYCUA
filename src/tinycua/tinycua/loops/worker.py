@@ -80,8 +80,13 @@ class TinyCUAWorkerNode(DecisionNode):
             return None
 
         for entry in reversed(self.session.session_context):
-            if isinstance(entry.get("content"), DigestedInformation):
-                return entry["content"]
+            # Handle both dict and SessionContextEntry
+            if isinstance(entry, dict):
+                content = entry.get("content")
+            else:
+                content = entry.content
+            if isinstance(content, DigestedInformation):
+                return content
 
         return None
 
@@ -93,10 +98,13 @@ class TinyCUAWorkerNode(DecisionNode):
         The original query is preserved within DigestedInformation.original_query.
         """
         if self.session is not None and self._current_digest is not None:
-            self.session.session_context.append({
-                "role": "assistant",
-                "content": self._current_digest,
-            })
+            from tinycua.models.session_context_entry import SessionContextEntry
+            self.session.session_context.append(
+                SessionContextEntry(
+                    content=self._current_digest,
+                    segment="output",
+                )
+            )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook for queue mutations.

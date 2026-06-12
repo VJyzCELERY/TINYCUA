@@ -22,6 +22,53 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def build_messages_with_dedupe(
+    session: Session,
+    dedupe_by_origin_record_id: bool = False,
+) -> list[dict[str, Any]]:
+    """Build messages for LLM call with optional deduplication.
+
+    When dedupe_by_origin_record_id=True, filters session_context entries
+    to remove duplicates by origin_record_id (falling back to record_id)
+    before assembling LLM-bound messages.
+
+    Args:
+        session: The session containing context and history.
+        dedupe_by_origin_record_id: Whether to deduplicate by origin_record_id.
+
+    Returns:
+        List of message dictionaries for the LLM call.
+    """
+    messages: list[dict[str, Any]] = []
+
+    # Get session context entries
+    context_entries = session.session_context
+
+    if dedupe_by_origin_record_id:
+        # Deduplicate by origin_record_id
+        seen_origin_ids: dict[str, Any] = {}
+        deduped_entries = []
+
+        for entry in context_entries:
+            # Use origin_record_id if present, otherwise use record_id
+            key = entry.origin_record_id if entry.origin_record_id else entry.record_id
+
+            if key not in seen_origin_ids:
+                seen_origin_ids[key] = entry
+                deduped_entries.append(entry)
+
+        context_entries = deduped_entries
+
+    # Convert entries to message dicts
+    for entry in context_entries:
+        messages.append({
+            "role": "user",  # Default role for context entries
+            "content": str(entry.content),
+        })
+
+    return messages
+
+
 class NodeExecutionError(Exception):
     """Raised when a node execution fails after retry exhaustion."""
 
@@ -176,20 +223,24 @@ class Node(ABC):
             self.config.message_policy.include_session_context
             and session.session_context
         ):
-            messages.extend(
-                {  # type: ignore[misc]
-                    "role": m["role"],
-                    "content": m["content"],
-                }
-                for m in session.session_context
-            )
+            for m in session.session_context:
+                if isinstance(m, dict):
+                    messages.append({
+                        "role": m.get("role", "user"),
+                        "content": str(m.get("content", "")),
+                    })
+                else:
+                    messages.append({
+                        "role": "user",
+                        "content": str(m.content),
+                    })
 
         # Add chat history if policy says so
         if self.config.message_policy.include_chat_history and session.chat_history:
             messages.extend(
-                {  # type: ignore[misc]
-                    "role": m["role"],
-                    "content": m["content"],
+                {
+                    "role": m.role,
+                    "content": str(m.content),
                 }
                 for m in session.chat_history
             )
@@ -286,11 +337,12 @@ class Node(ABC):
             response: The LLM response to record.
         """
         if self.session is not None:
+            from tinycua.models.session_context_entry import SessionContextEntry
             self.session.session_context.append(
-                {
-                    "role": response.role,
-                    "content": response.content,
-                }
+                SessionContextEntry(
+                    content=response.content,
+                    segment="output",
+                )
             )
         logger.info(
             "node=%s record_output content_len=%d",

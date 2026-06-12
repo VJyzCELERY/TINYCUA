@@ -125,7 +125,12 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             return False
 
         for entry in worker.session.session_context:
-            if isinstance(entry.get("content"), DigestedInformation):
+            # Handle both dict and SessionContextEntry
+            if isinstance(entry, dict):
+                content = entry.get("content")
+            else:
+                content = entry.content
+            if isinstance(content, DigestedInformation):
                 return True
 
         return False

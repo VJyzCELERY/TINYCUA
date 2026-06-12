@@ -213,7 +213,7 @@ class TestLifecycleHooks:
         response = LLMResult(content="recorded content")
         node.record_output(response)
         assert len(node.session.session_context) == 1
-        assert node.session.session_context[0]["content"] == "recorded content"
+        assert node.session.session_context[0].content == "recorded content"
 
     def test_record_output_no_session(self) -> None:
         """record_output does not crash when no session."""
