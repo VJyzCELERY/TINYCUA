@@ -340,9 +340,9 @@ def test_task_analyzer_excludes_task_init_in_reanalysis_mode():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for each node's tool scope configuration
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for each node's tool scope configuration
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 

@@ -76,7 +76,7 @@ Implementation tasks for Tool Scoping. Check off items as completed.
 
 ## Documentation Phase
 
-- [ ] Add docstrings to all factory functions in `tinycua/config/tool_scopes.py` and update `src/tinycua/docs/design/constants/tools.md` <!-- id: 19 -->
+- [ ] Add docstrings to all factory functions in `tinycua/config/tool_scopes.py` and update `src/tinycua/docs/prototype/design/constants/tools.md` <!-- id: 19 -->
 - [ ] Create or update `src/tinycua/README.md` tool scoping section <!-- id: 20 -->
 - [ ] Create `CHANGELOG.md` if it doesn't exist, then add entry under Unreleased > Added <!-- id: 21 -->
 

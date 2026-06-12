@@ -18,6 +18,8 @@ which nodes can see those tools.
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
 | TinyCUATaskExecutorNode | task execution tools + selected outer Agent tools + `enhanced_context_retrieval` + exploration/web/context search tools when enabled |
 | TinyCUAResultReviewerNode | review/decision tools |
+| TinyCUAResultAggregationNode | aggregation/consolidation tools |
+| TinyCUAAnalysisEffortNode | N/A — deterministic ProcessNode, no LLM calls |
 | TinyCUAResponseNode | same base toolset as TinyCUATaskExecutorNode + final response/synthesis behavior + optional information-digestion request capability only when enabled |
 
 ## TaskExecutor Direct Context Retrieval
