@@ -1,4 +1,4 @@
-# Design Document: Tool Scoping
+# Design Document: Retry, Validation, and Monitor Hook
 
 **Spec**: [./spec.md](./spec.md)
 **Status**: Draft
@@ -8,9 +8,7 @@
 
 ## Overview
 
-Tool scoping restricts which tools each TinyCUA node can use during its LLM calls. The `NodeToolPolicy` resolution mechanism exists (Milestone 1.2), but concrete tool definitions, per-node scope configurations, and the `enhanced_context_retrieval` cache behavior do not yet exist. This design defines the concrete tool scope for each of the 11 TinyCUA nodes, the shared `enhanced_context_retrieval` cache contract, and how path-specific task tool scoping is enforced.
-
-**Note**: `TinyCUAAnalysisEffortNode` is excluded from tool scope definitions — it is a deterministic `ProcessNode` with no LLM calls. It only controls queue flow (pass counting and prepending).
+This design completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom validation functions, custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This design fills those gaps.
 
 ---
 
@@ -19,267 +17,375 @@ Tool scoping restricts which tools each TinyCUA node can use during its LLM call
 ### Component Overview
 
 ```
-Agent(tools=[web_search, calculator, file_read, ...])   ← outer SDK tool pool
-       │
-       ▼
-TinyCUALoop._prepare_node(node, tools)
-       │
-       ▼
-NodeToolPolicy.resolve_tools(outer_agent_tools)
-       │
-       ├── node_tools (always included)
-       ├── include_agent_tools = none | selected | all
-       ├── allowed_agent_tool_names (for "selected" mode)
-       └── denied_agent_tool_names (deny wins over allow)
-       │
-       ▼
-resolved_tools → node.config.tool_policy produces filtered list
-       │
-       ▼
-LLM call receives only resolved tools
+TinyCUALoop._execute_node(node, agent, tools, ...)
+  │
+  ├── node.ensure_session(root_session)
+  ├── messages = _build_node_messages(node, ...)
+  ├── resolved_tools = node.config.tool_policy.resolve_tools(tools)
+  │
+  ├── AgentMonitor.on_before_node_call(node, messages, tools, attempt)
+  │
+  ├── response = agent._call_llm(messages, resolved_tools)
+  │
+  ├── AgentMonitor.on_after_node_call(node, response, validation_result)
+  │
+  ├── validation = node.validate_output(response)
+  │     ├── check required_tool_calls
+  │     ├── check required_output_schema
+  │     └── call validation_fn (if set)
+  │
+  ├── if invalid:
+  │     ├── build retry continuation (custom or default)
+  │     ├── append continuation to messages
+  │     └── loop back to LLM call
+  │
+  ├── if exhausted:
+  │     ├── AgentMonitor.on_retry_exhausted(node, error)
+  │     └── handle per on_retry_exhausted policy
+  │           ├── raise → NodeExecutionError
+  │           ├── record_failure → write failure state + propagate
+  │           └── route_failure → call on_complete failure route
+  │
+  ├── node.record_output(response)
+  ├── node.propagate()
+  └── node.on_complete(queue, response)
 ```
 
 ### Affected Components
 
-> **Path convention**: All paths in this table are Python module paths relative to the `tinycua` package root (`src/tinycua/tinycua/`). For example, `tinycua/config/tool_scopes.py` maps to `src/tinycua/tinycua/config/tool_scopes.py`.
+> **Path convention**: All paths are relative to `src/tinycua/tinycua/`.
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua/config/node_config.py` | Modified | Add `NodeToolPolicy` factory methods for each node type |
-| `tinycua/config/tool_scopes.py` | New | Per-node tool scope definitions and factory functions |
-| `tinycua/tools/enhanced_context_retrieval.py` | New | Scoped cache + ReAct search implementation |
-| `tinycua/tools/digest_information.py` | New | Structured digest output tool |
-| `tinycua/tools/task_tools.py` | New | TaskInit, TaskCreate, and task mutation tools |
-| `tinycua/tools/todo_tools.py` | New | Todo tracking tools |
-| `tinycua/loops/tinycua_loop.py` | Modified | Wire concrete tool scopes into node preparation |
-| `tests/unit/test_tool_scopes.py` | New | Per-node tool scope unit tests |
-| `tests/integration/test_tool_scoping_integration.py` | New | End-to-end tool resolution integration tests |
+| `tinycua/config/types.py` | Modified | Add `NodeMonitor` and `AgentMonitor` protocols |
+| `tinycua/loops/node.py` | Modified | Wire `validation_fn`, `retry_continuation_builder`, exhaustion behavior; add monitor hook calls |
+| `tinycua/loops/tinycua_loop.py` | Modified | Accept optional `AgentMonitor`, pass to node execution |
+| `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion, monitor hook |
+| `tests/integration/test_retry_integration.py` | New | Integration tests for retry through the loop |
 
 ---
 
 ## Data Model
 
-### Tool Scope Registry
-
-Each node type maps to a `NodeToolPolicy` definition. The registry is a module-level dictionary or factory function per node type.
-
-**Node Tool Scope Summary** (authoritative source: `src/tinycua/docs/design/constants/tools.md`):
-
-> **Note**: The complete tool-to-node mapping is defined in the external file above. For a full review, read `src/tinycua/docs/design/constants/tools.md` alongside this document.
-
-| Node | Factory Function | Node Tools | Outer Tools |
-|------|-----------------|------------|-------------|
-| QueryAnalystNode | `query_analyst_tool_scope()` | Classification + read-only task/context inspection | none |
-| InformationDigesterNode | `information_digester_tool_scope()` | `enhanced_context_retrieval`, `digest_information` | none |
-| WorkerNode | `worker_tool_scope()` | Worker decision tools | none |
-| TaskCreateNode | `task_create_tool_scope()` | `TaskInit`, `TaskCreate` | none |
-| TaskAnalyzerNode | `task_analyzer_tool_scope(mode)` | Structural task tools; `TaskInit`/`TaskCreate` only in `task_recreation` mode | none |
-| TaskAssessorNode | `task_assessor_tool_scope()` | Task assessment/read/update tools | none |
-| TaskExecutorNode | `task_executor_tool_scope()` | Task execution, `enhanced_context_retrieval`, todo tools | selected |
-| ResultReviewerNode | `result_reviewer_tool_scope()` | Review/decision, task result/context update | none |
-| ResultAggregationNode | `result_aggregation_tool_scope()` | Aggregation/consolidation tools | none |
-| ResponseNode | `response_tool_scope(allow_digest)` | Same base as TaskExecutor + final response synthesis + optional digest request | selected |
-| AnalysisEffortNode | *(deterministic ProcessNode — no LLM calls, no tool scope)* | — | — |
+### NodeMonitor Protocol
 
 ```python
-# Conceptual shape — not final implementation
+from typing import Protocol, runtime_checkable
 
-TASK_EXECUTOR_TOOL_SCOPE = NodeToolPolicy(
-    node_tools=[
-        TaskExecuteTool(),
-        TaskResultUpdateTool(),
-        TodoReadTool(),
-        TodoWriteTool(),
-        EnhancedContextRetrievalTool(),
-    ],
-    include_agent_tools="selected",
-    allowed_agent_tool_names=["web_search", "file_read", "calculator"],
-)
+@runtime_checkable
+class NodeMonitor(Protocol):
+    """Transient hook for node lifecycle observation.
 
-RESPONSE_NODE_TOOL_SCOPE = NodeToolPolicy(
-    node_tools=[
-        FinalResponseSynthesisTool(),
-        TodoReadTool(),
-        TodoWriteTool(),
-        EnhancedContextRetrievalTool(),
-    ],
-    include_agent_tools="selected",
-    allowed_agent_tool_names=["web_search", "file_read", "calculator"],
-    # Optional: InformationDigestRequestTool when allow_information_digest_request=True
-)
+    All methods are optional — implement only what you need.
+    Monitor invocations are transient: they do not create sessions,
+    do not write to chat_history or session_context.
+    """
+
+    def on_before_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        messages: list[dict],
+        resolved_tools: list,
+    ) -> str | None:
+        """Called before a node LLM call.
+
+        Args:
+            node_id: The node being executed.
+            session_id: The node's session ID.
+            attempt: Current attempt number (1-indexed).
+            messages: LLM-bound messages.
+            resolved_tools: Tools available for this call.
+
+        Returns:
+            Optional assistant-role continuation message to include
+            in the retry flow, or None for no-op.
+        """
+        ...
+
+    def on_after_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        result: "LLMResult",
+        validation_result: "ValidationResult",
+    ) -> str | None:
+        """Called after a node LLM call, before retry handling.
+
+        Args:
+            node_id: The node that was executed.
+            session_id: The node's session ID.
+            attempt: Current attempt number (1-indexed).
+            result: The raw LLM result.
+            validation_result: Validation outcome.
+
+        Returns:
+            Optional assistant-role continuation message, or None.
+        """
+        ...
+
+    def on_retry_exhausted(
+        self,
+        node_id: str,
+        session_id: str,
+        error: "ValidationError",
+        attempts: int,
+    ) -> str | None:
+        """Called after retry exhaustion, before failure handling.
+
+        Args:
+            node_id: The node that exhausted retries.
+            session_id: The node's session ID.
+            error: The final validation error.
+            attempts: Total attempts made.
+
+        Returns:
+            Optional assistant-role continuation message, or None.
+        """
+        ...
 ```
 
-### Path-Specific Task Tool Scoping
-
-TaskAnalyzerNode's tool scope changes based on the Worker route:
+### AgentMonitor Protocol
 
 ```python
-def task_analyzer_scope(mode: str) -> NodeToolPolicy:
-    base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool()]
-    if mode == "task_recreation":
-        base_tools.extend([TaskInitTool(), TaskCreateTool()])
-    # task_creation and task_reanalysis: no TaskInit/TaskCreate
-    return NodeToolPolicy(
-        node_tools=base_tools,
-        include_agent_tools="none",
-    )
+@runtime_checkable
+class AgentMonitor(Protocol):
+    """Higher-level hook wrapping node monitor behavior.
+
+    Provides loop-level observation across all nodes.
+    """
+
+    def on_before_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        messages: list[dict],
+        resolved_tools: list,
+    ) -> str | None:
+        """Delegates to node monitor if configured."""
+        ...
+
+    def on_after_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        result: "LLMResult",
+        validation_result: "ValidationResult",
+    ) -> str | None:
+        """Delegates to node monitor if configured."""
+        ...
+
+    def on_retry_exhausted(
+        self,
+        node_id: str,
+        session_id: str,
+        error: "ValidationError",
+        attempts: int,
+    ) -> str | None:
+        """Delegates to node monitor if configured."""
+        ...
 ```
 
-### Enhanced Context Retrieval Cache
+### Failure State Recording
+
+When `on_retry_exhausted="record_failure"`, the node writes failure state to its session:
 
 ```python
-EnhancedContextRetrievalTool:
-    - Receives: session or selected session_context
-    - Creates: scoped cache file (one per invocation)
-    - Cache contents: selected context for that session/tool call
-    - Search: ReAct-style grep/search within cache only
-    - Read: paginated cache reads within cache only
-    - Constraint: all operations limited to the cache file
+# In ProcessNode.__call__(), after retry exhaustion:
+from tinycua.models.session_context_entry import SessionContextEntry
+
+failure_entry = SessionContextEntry(
+    content=f"[RETRY_EXHAUSTED] Node {self.node_id} failed after {max_attempts} attempts. "
+            f"Errors: {'; '.join(validation.errors)}",
+    segment="output",
+    metadata={"node_id": self.node_id, "exhausted": True},
+)
+self.session.session_context.append(failure_entry)
 ```
 
 ---
 
 ## API / Interface Contracts
 
-### NodeToolPolicy Factory Functions
+### Enhanced ProcessNode.__call__()
 
 ```python
-def query_analyst_tool_scope() -> NodeToolPolicy:
-    """Classification + read-only task/context inspection tools."""
+class ProcessNode(Node):
+    def __call__(self, input: NodeInputLike) -> LLMResult:
+        """Execute with retry, validation, and monitor hooks."""
+        messages = self.build_messages(self.session, input)
+        retry_policy = self.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)  # 0 → 1 attempt (no retry)
 
-def information_digester_tool_scope() -> NodeToolPolicy:
-    """enhanced_context_retrieval + digest_information tools."""
+        monitor = self.config.monitor  # NodeMonitor | None
 
-def worker_tool_scope() -> NodeToolPolicy:
-    """Worker decision tools only."""
+        last_response = None
+        for attempt in range(1, max_attempts + 1):
+            # Hook: before LLM call
+            if monitor is not None:
+                _safe_call(monitor.on_before_node_call, ...)
 
-def task_create_tool_scope() -> NodeToolPolicy:
-    """Deterministic root task creation tools (TaskInit/TaskCreate)."""
+            last_response = self._call_llm(messages)
 
-def task_analyzer_tool_scope(mode: str) -> NodeToolPolicy:
-    """Structural task tools; TaskInit/TaskCreate only when mode='task_recreation'."""
+            # Validate
+            validation = self.validate_output(last_response)
 
-def task_assessor_tool_scope() -> NodeToolPolicy:
-    """Task assessment/read/update tools."""
+            # Hook: after LLM call
+            if monitor is not None:
+                _safe_call(monitor.on_after_node_call, ...)
 
-def task_executor_tool_scope() -> NodeToolPolicy:
-    """Task execution + selected outer Agent tools + enhanced_context_retrieval."""
+            if validation.is_valid:
+                break
 
-def result_reviewer_tool_scope() -> NodeToolPolicy:
-    """Review/decision + task result/context update tools."""
+            if attempt < max_attempts:
+                # Build retry continuation
+                error = ValidationError("; ".join(validation.errors))
+                retry_text = self._build_retry_text(error, attempt)
+                messages.append({"role": "assistant", "content": retry_text})
+            else:
+                # Exhausted
+                if monitor is not None:
+                    _safe_call(monitor.on_retry_exhausted, ...)
 
-def result_aggregation_tool_scope() -> NodeToolPolicy:
-    """Aggregation/consolidation tools."""
+                self._handle_exhaustion(retry_policy, validation, max_attempts)
 
-def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
-    """Same base as TaskExecutor + final response synthesis + optional digest request."""
+        self.record_output(last_response)
+        self.propagate()
+        self.on_complete(queue=..., response=last_response)
+        return last_response
+
+    def _build_retry_text(self, error: ValidationError, attempt: int) -> str:
+        """Build retry text using custom builder if set, else default."""
+        if self.config.retry_policy.retry_continuation_builder is not None:
+            return self.config.retry_policy.retry_continuation_builder(error, attempt)
+        return self.build_retry_continuation(error, attempt)
+
+    def _handle_exhaustion(self, policy, validation, max_attempts):
+        """Handle retry exhaustion per policy."""
+        if policy.on_retry_exhausted == "raise":
+            raise NodeExecutionError(...)
+        elif policy.on_retry_exhausted == "record_failure":
+            self._record_failure(validation, max_attempts)
+        elif policy.on_retry_exhausted == "route_failure":
+            if not self._call_failure_route():
+                self._record_failure(validation, max_attempts)
+
+    def _record_failure(self, validation, max_attempts):
+        """Write failure state to session."""
+        ...
+
+    def _call_failure_route(self) -> bool:
+        """Call on_complete failure route if defined. Returns True if called."""
+        ...
 ```
 
-### Enhanced Context Retrieval Tool
+### Enhanced DecisionNode.__call__()
 
 ```python
-class EnhancedContextRetrievalTool:
-    def __call__(self, session_context: list[dict], query: str) -> str:
-        """
-        Lazily create a scoped cache file from session_context.
-        Run ReAct-style search over the cache using the query.
-        Return search results from within the cache only.
+class DecisionNode(ProcessNode):
+    def __call__(self, input: NodeInputLike) -> DecisionResult:
+        """Execute with classification validation and retry."""
+        messages = self.build_messages(self.session, input)
 
-        Cache file lifecycle:
-        1. First call for a session: create cache, populate, search.
-        2. Subsequent calls: reuse existing cache file.
-        3. Cache is per-invocation scope (not shared across nodes).
-        """
+        # Step 1: Analysis call (no retry on analysis — retry on classification)
+        analysis_response = self._analysis_call(messages)
+
+        # Step 2: Classification with retry
+        retry_policy = self.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)
+
+        classification_response = None
+        for attempt in range(1, max_attempts + 1):
+            classification_response = self._classification_call(messages, analysis_response)
+
+            # Validate classification label
+            label = classification_response.content.strip().lower()
+            if any(l.lower() in label for l in self.classification_labels):
+                break  # Valid label
+
+            if attempt < max_attempts:
+                error = ValidationError(f"Invalid classification: {label}")
+                retry_text = self._build_retry_text(error, attempt)
+                messages.append({"role": "assistant", "content": retry_text})
+
+        route_label = self._dispatch_route(classification_response)
+        # ... rest of dispatch
 ```
 
-### Task Tools
+### Safe Monitor Hook Caller
 
 ```python
-class TaskInitTool:
-    """Initialize a new task structure. Used by TaskCreateNode and TaskAnalyzerNode (recreation mode)."""
-
-class TaskCreateTool:
-    """Create a root task in session.task. Used by TaskCreateNode and TaskAnalyzerNode (recreation mode)."""
-
-class TaskInspectTool:
-    """Read-only task inspection. Used by QueryAnalyst and TaskAssessor."""
-
-class TaskUpdateTool:
-    """Update task fields. Used by TaskExecutor, ResultReviewer, TaskAssessor."""
-
-class TaskDecomposeTool:
-    """Decompose task into subtasks. Used by TaskAnalyzerNode."""
-
-class TaskResultUpdateTool:
-    """Update task result/artifact fields. Used by TaskExecutor."""
-```
-
-### Todo Tools
-
-```python
-class TodoReadTool:
-    """Read current todo list state."""
-
-class TodoWriteTool:
-    """Update todo list items."""
-```
-
-### Digest Information Tool
-
-```python
-class DigestInformationTool:
-    def __call__(self, context: str, request: str | None = None) -> dict:
-        """
-        Produce structured digested information from context.
-        Returns a DigestedInformation-compatible dict.
-        """
+def _safe_call(hook_method, *args, **kwargs):
+    """Call a monitor hook method, catching exceptions."""
+    try:
+        return hook_method(*args, **kwargs)
+    except Exception:
+        logger.debug("Monitor hook %s failed", hook_method.__name__, exc_info=True)
+        return None
 ```
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Tool Scope Definitions (required)
+### Phase 1 — Validation and Retry Completion (required)
 
-- [ ] Create `tinycua/config/tool_scopes.py` with factory functions for all 11 node types
-- [ ] Implement path-specific `task_analyzer_tool_scope(mode)` with mode-dependent TaskInit/TaskCreate
-- [ ] Implement `response_tool_scope(allow_digest)` with optional information-digestion request capability
-- [ ] Wire tool scopes into node initialization in `TinyCUALoop` or node constructors
+- [ ] Wire `validation_fn` into `validate_output()` — call custom fn and merge errors
+- [ ] Wire `retry_continuation_builder` into retry loop — use custom builder when set
+- [ ] Implement `record_failure` exhaustion — write failure state to session, propagate
+- [ ] Implement `route_failure` exhaustion — call `on_complete()` failure route, fallback to `record_failure`
+- [ ] Implement `max_attempts=0` — no retries, immediate exhaustion
 
-### Phase 2 — Concrete Tool Stubs (required)
+### Phase 2 — DecisionNode Classification Retry (required)
 
-- [ ] Create `tinycua/tools/task_tools.py` with TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate stubs
-- [ ] Create `tinycua/tools/todo_tools.py` with TodoRead, TodoWrite stubs
-- [ ] Create `tinycua/tools/enhanced_context_retrieval.py` with scoped cache + ReAct search stub
-- [ ] Create `tinycua/tools/digest_information.py` with structured digest output stub
+- [ ] Add classification validation in `DecisionNode.__call__()` — verify label in `classification_labels`
+- [ ] Add retry loop for classification step with assistant-role continuation
+- [ ] Apply same exhaustion behavior as ProcessNode
 
-### Phase 3 — Integration and Tests (required)
+### Phase 3 — Monitor Hook (required)
 
-- [ ] Create `tests/unit/test_tool_scopes.py` — test each node's tool scope matches design
-- [ ] Create `tests/integration/test_tool_scoping_integration.py` — test `_prepare_node()` resolves correctly
-- [ ] Test path-specific task tool scoping (creation, recreation, reanalysis)
-- [ ] Test `enhanced_context_retrieval` cache creation and isolation
+- [ ] Define `NodeMonitor` protocol in `tinycua/config/types.py`
+- [ ] Define `AgentMonitor` protocol in `tinycua/config/types.py`
+- [ ] Add `monitor: NodeMonitor | None` field to `NodeConfigBase`
+- [ ] Add `agent_monitor: AgentMonitor | None` field to `TinyCUALoop`
+- [ ] Wire monitor hook calls into `ProcessNode.__call__()` at lifecycle trigger points
+- [ ] Implement `_safe_call()` for exception-safe monitor invocation
+- [ ] Wire `AgentMonitor` into `TinyCUALoop._execute_node()` — delegate to node monitor
 
-> **Note**: Phase 2 tool implementations are stubs that satisfy the interface contract. Full tool behavior is implemented in later milestones.
+### Phase 4 — Tests (required)
+
+- [ ] Unit tests for retry loop, validation, exhaustion behaviors
+- [ ] Unit tests for DecisionNode classification retry
+- [ ] Unit tests for monitor hook trigger points and exception handling
+- [ ] Integration tests for retry through TinyCUALoop
 
 ---
 
 ## Technical Decisions
 
-1. **Decision**: Use factory functions rather than class-based scope definitions.
-   - **Reason**: Simpler to test, easier to parameterize (e.g., `task_analyzer_tool_scope(mode)`), matches the existing `NodeToolPolicy` dataclass pattern.
-   - **Alternatives Considered**: Class-per-scope — rejected because it adds indirection without benefit for a prototype.
+1. **Decision**: `NodeMonitor` is a Protocol (structural typing), not an ABC.
+   - **Reason**: Allows any object with the right methods to serve as a monitor — no inheritance required. Matches Python's duck-typing philosophy and simplifies testing.
+   - **Alternatives Considered**: ABC — rejected because it forces inheritance and is less flexible for a prototype.
 
-2. **Decision**: Tool scopes are defined at module level in `tool_scopes.py`, not embedded in node classes.
-   - **Reason**: Keeps tool scope definitions centralized and testable independently of node logic. Nodes remain unaware of their own tool scope — `TinyCUALoop` resolves tools before calling nodes.
-   - **Alternatives Considered**: Node-owned scope — rejected because it couples node implementation to tool resolution and complicates testing.
+2. **Decision**: Monitor hooks are called via `_safe_call()` with exception catching.
+   - **Reason**: Monitor failures must not break node execution. A buggy monitor should degrade gracefully.
+   - **Alternatives Considered**: Let exceptions propagate — rejected because it violates the transient/non-blocking contract.
 
-3. **Decision**: `enhanced_context_retrieval` uses per-call cache files, not shared cache.
-   - **Reason**: Simpler isolation model — no cache invalidation concerns, no cross-node cache pollution. Each invocation gets a clean, scoped context.
-   - **Alternatives Considered**: Shared session-scoped cache — rejected for prototype complexity; can be optimized later.
+3. **Decision**: `max_attempts=0` means 1 attempt (no retry), not 0 attempts.
+   - **Reason**: A node must always execute at least once. `max_attempts` controls retry count, not total attempts. This matches the existing `max(max_attempts, 1)` pattern in the code.
+   - **Alternatives Considered**: `max_attempts=0` means no execution — rejected because it would require special-casing everywhere.
 
-4. **Decision**: Task tools are stubs that call `session.task` mutation helpers directly.
-   - **Reason**: Matches the design contract that "structural task tool calls directly mutate root session.task through TinyCUALoop task helpers." Stubs satisfy the interface without implementing full task tree mutation logic.
+4. **Decision**: `record_failure` writes a `SessionContextEntry` with `segment="output"` rather than a special failure type.
+   - **Reason**: Keeps the session context model simple — failure is just another output entry with metadata. Downstream consumers can inspect `metadata["exhausted"]` to detect failures.
+   - **Alternatives Considered**: Special `FailureRecord` type — rejected because it adds complexity to the session model.
+
+5. **Decision**: DecisionNode retries only the classification step, not the analysis step.
+   - **Reason**: The analysis is an open-ended LLM call that produces content; validating it is subjective. The classification is a discrete label that can be validated against `classification_labels`. Retrying the analysis would be expensive and low-value.
+   - **Alternatives Considered**: Retry both steps — rejected for cost/complexity.
 
 ---
 
@@ -287,20 +393,20 @@ class DigestInformationTool:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Tool scope definitions drift from design docs | Low | High | Unit tests verify each node's scope against the design doc table |
-| `enhanced_context_retrieval` cache files accumulate | Medium | Low | Cache files are in `./tmp/` which is auto-cleaned; can add TTL later |
-| Path-specific task tool scoping mode is not propagated correctly | Medium | Medium | Integration test verifies mode-dependent scope through `_prepare_node()` |
-| Placeholder `Tool` class lacks fields needed by concrete tools | Low | Low | Tool stubs use `name` and `description` fields; extend as needed |
+| Monitor hook overhead slows node execution | Low | Low | Hooks are optional and lightweight; `_safe_call` catches exceptions fast |
+| `record_failure` propagation rule not defined for some nodes | Medium | Medium | Default to no propagation; nodes that need failure propagation configure `PropagationRule.failure` |
+| DecisionNode retry loop adds latency for invalid classifications | Low | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare with well-prompted LLMs |
+| Custom `validation_fn` raises unexpected exceptions | Medium | Low | `_safe_call` catches all exceptions; validation errors are logged |
 
 ---
 
 ## Open Questions _(optional)_
 
-1. **Should tool scope factory functions be importable from a public `tinycua.tools` package?**
-   - Current thinking: Yes, for testability and external configuration.
+1. **Should `AgentMonitor` support node-level filtering (e.g., monitor only certain node IDs)?**
+   - Current thinking: Not in this milestone. Keep it simple — monitor all nodes, filter in the implementation if needed.
 
-2. **Should `enhanced_context_retrieval` support multiple search strategies beyond ReAct?**
-   - Current thinking: Not in this milestone. Keep it as ReAct-style search; extend later if needed.
+2. **Should failure state recording include the full validation error history across attempts?**
+   - Current thinking: Yes — record all errors, not just the final one, for debugging.
 
 ---
 
@@ -308,12 +414,12 @@ class DigestInformationTool:
 
 - Spec: [./spec.md](./spec.md)
 - Design docs covered:
-  - `src/tinycua/docs/design/config/node_config.md` — full
-  - `src/tinycua/docs/design/constants/tools.md` — full
-  - `src/tinycua/docs/design/tools/task.md` — full
-  - `src/tinycua/docs/design/tools/todo.md` — full
-  - `src/tinycua/docs/design/tools/digester.md` — partial/enhanced retrieval behavior
+  - `src/tinycua/docs/design/loops/node.md` — full (retry, validation, monitor hook sections)
+  - `src/tinycua/docs/design/loops/tinycua_loop.md` — full (monitor hook, error handling sections)
+  - `src/tinycua/docs/design/models/agent_state.md` — partial (failure recording)
+  - `src/tinycua/docs/design/config/node_config.md` — full (NodeRetryPolicy)
 - Existing implementation:
-  - `tinycua/config/node_config.py` — NodeToolPolicy (Milestone 1.2)
-  - `tinycua/config/types.py` — Tool placeholder
-  - `tinycua/loops/tinycua_loop.py` — `_prepare_node()` integration point
+  - `tinycua/config/node_config.py` — NodeRetryPolicy (Milestone 1.2)
+  - `tinycua/config/types.py` — ValidationResult, ValidationError, LLMResult
+  - `tinycua/loops/node.py` — ProcessNode.__call__() retry loop, validate_output(), build_retry_continuation()
+  - `tinycua/loops/tinycua_loop.py` — _execute_node() integration point
