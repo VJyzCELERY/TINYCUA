@@ -10,6 +10,8 @@
 
 Tool scoping restricts which tools each TinyCUA node can use during its LLM calls. The `NodeToolPolicy` resolution mechanism exists (Milestone 1.2), but concrete tool definitions, per-node scope configurations, and the `enhanced_context_retrieval` cache behavior do not yet exist. This design defines the concrete tool scope for each of the 11 TinyCUA nodes, the shared `enhanced_context_retrieval` cache contract, and how path-specific task tool scoping is enforced.
 
+**Note**: `TinyCUAAnalysisEffortNode` is excluded from tool scope definitions — it is a deterministic `ProcessNode` with no LLM calls. It only controls queue flow (pass counting and prepending).
+
 ---
 
 ## Architecture

@@ -50,12 +50,16 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 8. **Given** `enhanced_context_retrieval` called by TaskExecutor directly (without spawning InformationDigesterNode), **When** called, **Then** the tool creates its own scoped cache and runs ReAct-style search within it.
 
+### Node Scope Exclusions
+
+`TinyCUAAnalysisEffortNode` is excluded from tool scope definitions because it is a deterministic `ProcessNode` that makes no LLM calls — it only controls queue flow (pass counting and prepending `[TaskAssessor, TaskAnalyzer]` until the configured threshold is reached).
+
 ### Edge Cases
 
 - What happens when a node's `node_tools` list contains a tool whose name also appears in `denied_agent_tool_names`? (Node tools are always included — deny only applies to outer agent tools.)
 - What happens when `include_agent_tools="selected"` but `allowed_agent_tool_names` is empty? (No outer tools are included.)
 - What happens when `enhanced_context_retrieval` is called with an empty or minimal `session_context`? (It should create a cache with available context and return a "no useful context" fallback.)
-- What happens when two nodes (e.g., TaskExecutor and ResponseNode) both call `enhanced_context_retrieval` on the same session? (Each gets its own scoped cache file — caches are per-call, not shared across nodes.)
+- What happens when two nodes (e.g., TaskExecutor and ResponseNode) both call `enhanced_context_retrieval` on the same session? (Each invocation scope lazily creates and reuses its own cache — caches are per-invocation-scope, not shared across nodes.)
 
 ---
 
@@ -75,7 +79,7 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 - **FR-010**: `TinyCUAResultReviewerNode` tool scope MUST include review/decision tools and task result/context update tools.
 - **FR-011**: Todo tools MUST be exposed through `NodeToolPolicy` to TaskExecutorNode and optionally ResponseNode, not through global agent-node configuration.
 - **FR-012**: `enhanced_context_retrieval` MUST lazily create a scoped context cache file when called and run ReAct-style search within that cache.
-- **FR-013**: `enhanced_context_retrieval` cache MUST be per-call — each invocation creates its own scoped cache file.
+- **FR-013**: `enhanced_context_retrieval` cache MUST be per-session-scope — lazily created on first invocation for a session and reused on subsequent calls within that session.
 - **FR-014**: Task tool calls MUST directly mutate root `session.task` through TinyCUALoop task helpers; nodes MUST NOT return opaque mutation instructions.
 - **FR-015**: Path-specific task tool semantics MUST be enforced: `task_creation` mode = TaskCreateNode only; `task_recreation` = TaskAnalyzerNode gets TaskInit/TaskCreate; `task_reanalysis` = no TaskInit/TaskCreate for TaskAnalyzerNode.
 
@@ -91,12 +95,12 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Every node has a defined tool scope**: All 11 concrete TinyCUA nodes have `NodeToolPolicy` configurations matching `docs/design/constants/tools.md`.
+- [ ] **Every node has a defined tool scope**: All 10 applicable concrete TinyCUA nodes (excluding `TinyCUAAnalysisEffortNode`) have `NodeToolPolicy` configurations matching `docs/design/constants/tools.md`.
 - [ ] **Tool resolution works end-to-end**: `TinyCUALoop._prepare_node()` resolves the correct tools for each node via `node.config.tool_policy.resolve_tools(tools)`.
 - [ ] **Task tools mutate session directly**: Task tool calls directly mutate `session.task` through TinyCUALoop task helpers.
 - [ ] **Path-specific task tool scoping works**: TaskAnalyzerNode receives/excludes TaskInit/TaskCreate based on mode (creation, recreation, reanalysis).
 - [ ] **Todo tools are policy-controlled**: Todo tools are exposed only to nodes whose `NodeToolPolicy` allows them (TaskExecutor, optionally ResponseNode).
-- [ ] **enhanced_context_retrieval cache works**: The tool lazily creates scoped caches, runs ReAct-style search, and caches are per-call.
+- [ ] **enhanced_context_retrieval cache works**: The tool lazily creates scoped caches, runs ReAct-style search, and caches are per-session-scope (created on first call, reused on subsequent calls).
 - [ ] **TaskExecutor can call enhanced_context_retrieval directly**: Without spawning InformationDigesterNode.
 - [ ] **Tests pass**: Unit tests for all node tool scope configurations and integration tests for tool resolution through the loop.
 
