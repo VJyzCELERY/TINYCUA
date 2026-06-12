@@ -74,7 +74,7 @@ class NodeQueue:
     def advance(self) -> Node | None:
         """Advance to the next node.
 
-        Calls propagate() on the current node (if not already propagated),
+        Calls propagate() on the current node,
         then removes it from the queue. Returns the new current node or None.
 
         Returns:
@@ -89,9 +89,7 @@ class NodeQueue:
 
         current_node = self.items[0]
 
-        # Call propagate() if not already propagated
-        if not getattr(current_node, "_propagated", False):
-            current_node.propagate()
+        current_node.propagate()
 
         # Remove current node and clean up input
         self.items.pop(0)
