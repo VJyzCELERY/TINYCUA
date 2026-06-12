@@ -4,8 +4,8 @@ Formalizes the integration contract between `TinyCUAResponseNode` and `TinyCUAIn
 
 ## Context
 
-- **Spec Reference**: `./spec.md` — TinyCUA ResponseNode — Optional Information Digestion Request
-- **Design Reference**: `./design.md` — ResponseNode optional information digestion request
+- **Spec Reference**: `specs/tinycua-response-digestion/spec.md` — TinyCUA ResponseNode — Optional Information Digestion Request
+- **Design Reference**: `specs/tinycua-response-digestion/design.md` — ResponseNode optional information digestion request
 - **Priority**: P1
 - **Estimated Effort**: M
 
