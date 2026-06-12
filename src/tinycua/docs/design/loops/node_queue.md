@@ -55,13 +55,13 @@ persisted suspended state is required.
 
 ```text
 Before:
-  [TinyCUAResponseNode]
+  [ResponseNode]
 
 ResponseNode requests more information:
-  [TinyCUAInformationDigesterNode(parent=TinyCUAResponseNode), TinyCUAResponseNode]
+  [InformationDigesterNode(parent=ResponseNode), ResponseNode]
 
 Digester completes:
-  [TinyCUAResponseNode]
+  [ResponseNode]
 ```
 
 ### WorkerNode Digester Pattern
@@ -71,7 +71,7 @@ Before (WorkerNode analyzes context):
   [WorkerNode, ...]
 
 WorkerNode suspends for information digestion:
-  [TinyCUAInformationDigesterNode(parent=WorkerNode), WorkerNode, ...]
+  [InformationDigesterNode(parent=WorkerNode), WorkerNode, ...]
 
 Digester completes, propagates to Worker session:
   [WorkerNode, ...]
@@ -82,12 +82,12 @@ resumes.
 
 ## ResponseNode Digester Handoff
 
-When `TinyCUAResponseNode` suspends itself for information digestion:
+When `ResponseNode` suspends itself for information digestion:
 
 1. The response node constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
    selected `response_node.session.session_context` messages plus an optional digest
    request payload.
-2. It calls `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=response_node)])`
+2. It calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=response_node)])`
    and assigns that `NodeInput` to the prepended digester node.
 3. The digester may read the copied input messages and retrieval tools, but it does not
    re-store the copied messages in its own reusable context.
