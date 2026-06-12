@@ -33,13 +33,10 @@ sequenceDiagram
 
     User->>QA: "Fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>W: route to Worker
-    W->>W: first entry — suspend for information digestion
-    W->>W: suspend_current_and_prepend(InformationDigester)
-    W->>ID: copied session_context + digest request
+    QA->>ID: spawn InformationDigester (before Worker)
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output
-    W->>W: resume — no task exists → task_creation
+    ID->>W: propagate digested output to Worker session
+    W->>W: no task exists → task_creation
     W->>TC: spawn TaskCreate
     TC->>TC: create root task deterministically
     TC->>TA: advance (no TaskInit tools)
@@ -80,13 +77,10 @@ sequenceDiagram
     participant R as Response
 
     User->>QA: "What about the other page?"
-    QA->>W: route to Worker
-    W->>W: first entry — suspend for information digestion
-    W->>W: suspend_current_and_prepend(InformationDigester)
-    W->>ID: copied session_context + digest request
+    QA->>ID: spawn InformationDigester (before Worker)
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output
-    W->>W: resume — task exists, no executor queued → proceed_execution
+    ID->>W: propagate digested output to Worker session
+    W->>W: task exists, no executor queued → proceed_execution
     W->>TE: spawn TaskExecutor
     TE->>TE: execute next active task
     TE->>RR: advance to ResultReviewer
@@ -214,17 +208,14 @@ Worker routes `passthrough` to forward input to the next worker-owned node.
 ```mermaid
 sequenceDiagram
     participant QA as QueryAnalyst
-    participant W as Worker
     participant ID as InformationDigester
+    participant W as Worker
     participant TE as TaskExecutor
 
-    QA->>W: route to Worker
-    W->>W: first entry — suspend for information digestion
-    W->>W: suspend_current_and_prepend(InformationDigester)
-    W->>ID: copied session_context + digest request
+    QA->>ID: spawn InformationDigester (before Worker)
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output
-    W->>W: resume — worker-spawned nodes exist → passthrough
+    ID->>W: propagate digested output to Worker session
+    W->>W: worker-spawned nodes exist → passthrough
     W->>W: advance queue, forward input
     W->>TE: passthrough to TaskExecutor
 ```
@@ -243,20 +234,17 @@ QueryAnalyst routes to `uncertain` — it remains active and waits for user inpu
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
-    participant W as Worker
     participant ID as InformationDigester
+    participant W as Worker
 
     User->>QA: "I'm not sure what I want yet"
     QA->>QA: analysis call → verdict → uncertain
     QA->>QA: remains active, waits for continuation
     User->>QA: "Actually, fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>W: route to Worker
-    W->>W: first entry — suspend for information digestion
-    W->>W: suspend_current_and_prepend(InformationDigester)
-    W->>ID: copied session_context + digest request
+    QA->>ID: spawn InformationDigester (before Worker)
     ID->>ID: enhanced_context_retrieval + digest_information
-    ID->>W: propagate digested output
+    ID->>W: propagate digested output to Worker session
 ```
 
 **Key contracts:** [`query_analyst.md`](query_analyst.md), [`worker.md`](worker.md), [`information_digester.md`](information_digester.md) — `uncertain` route.

@@ -64,19 +64,6 @@ Digester completes:
   [ResponseNode]
 ```
 
-### WorkerNode Digester Pattern
-
-```text
-Before (WorkerNode analyzes context):
-  [WorkerNode, ...]
-
-WorkerNode suspends for information digestion:
-  [InformationDigesterNode(parent=WorkerNode), WorkerNode, ...]
-
-Digester completes, propagates to Worker session:
-  [WorkerNode, ...]
-```
-
 The prepended node propagates selected output back to its parent before the parent
 resumes.
 
@@ -94,19 +81,6 @@ When `ResponseNode` suspends itself for information digestion:
 4. The digester uses a selected-output propagation rule targeting its parent session; the
    digest lands in the suspended response node's `session_context`.
 5. The response node resumes only after the digest output has propagated back.
-
-## WorkerNode Digester Handoff
-
-When `WorkerNode` enters, it checks whether digestion has already occurred. If not,
-it suspends itself and prepends `InformationDigesterNode`. This prevents recursion:
-WorkerNode MUST NOT suspend for information digestion more than once per entry.
-
-1. WorkerNode checks `session_context` for existing digest output. If found,
-   digestion is already complete — skip suspension and proceed to routing.
-2. If not found, WorkerNode suspends and prepends `InformationDigesterNode`.
-3. The digester gathers context, produces digest output, and propagates it back
-   to the worker node's `session_context`.
-4. The worker node resumes with digested context available in `session_context`.
 
 ## Terminal Handling
 

@@ -19,9 +19,8 @@ execution advancement.
 
 ## Inputs
 
-- `NodeInput` from QueryAnalyst, containing the original user query and session context.
-- `DigestedInformation` from InformationDigesterNode (spawned by Worker via
-  `suspend_current_and_prepend` when context is insufficient).
+- `DigestedInformation` from QueryAnalyst (via InformationDigesterNode spawned before
+  Worker). Contains original query in fallback case, digested context in success case.
 - Continuation input from downstream nodes when re-entered.
 
 ## Outputs / State Produced
@@ -74,30 +73,6 @@ WorkerNode enters:
               task_recreation, task_reanalysis, proceed_execution
 ```
 
-### Suspension and Resume for Information Digestion
-
-On first entry, WorkerNode suspends itself and prepends InformationDigester to gather
-context for its routing decision. The digest output is stored in `session_context`.
-On re-entry, Worker checks `session_context` for existing digest and skips suspension.
-
-**Anti-recursion guarantee:** WorkerNode MUST NOT suspend for information digestion
-more than once per entry. On re-entry after digestion, Worker detects the existing
-digest in `session_context` and proceeds directly to routing without suspending again.
-
-```text
-WorkerNode enters:
-  1. Check session_context for existing digest output from InformationDigester.
-     → If found: proceed to routing decision (re-entry after digestion).
-     → If not found: suspend_current_and_prepend([InformationDigesterNode]).
-
-WorkerNode suspends for digestion:
-  → Digester completes → digest propagates to session_context.
-  → WorkerNode resumes with digested context in session_context.
-
-WorkerNode re-enters:
-  → Detects digest in session_context → skips suspension, proceeds to routing.
-```
-
 ### Route Queue Shapes
 
 ```text
@@ -123,11 +98,8 @@ When QueryAnalyst routes to an existing WorkerNode and the Worker chooses
 Before (QueryAnalyst routes to existing WorkerNode):
   [QueryAnalyst, WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
-QueryAnalyst routes to existing WorkerNode:
-  [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
-
-Worker suspends for information digestion:
-  [InformationDigesterNode(parent=WorkerNode), WorkerNode, TaskExecutor(stale), ResultReviewer, ResponseNode]
+QueryAnalyst spawns InformationDigester before Worker:
+  [InformationDigesterNode(parent=WorkerNode), WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 InformationDigester completes, propagates to Worker session:
   [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
