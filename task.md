@@ -55,7 +55,7 @@ Implementation tasks for Milestone 4.3 — Retry, Validation, and Monitor Hook. 
   - [ ] Wrap call in try/except
   - [ ] Log exceptions at debug level
   - [ ] Return None on exception
-- [ ] Wire monitor hooks into `ProcessNode.__call__()` <!-- id: 12 -->
+- [ ] Wire monitor hooks into `ProcessNode.__call__()` and `DecisionNode.__call__()` <!-- id: 12 -->
   - [ ] Call `monitor.on_before_node_call()` before each LLM call
   - [ ] Call `monitor.on_after_node_call()` after each validation failure
   - [ ] Call `monitor.on_retry_exhausted()` before exhaustion handling

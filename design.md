@@ -207,9 +207,12 @@ failure_entry = SessionContextEntry(
     content=f"[RETRY_EXHAUSTED] Node {self.node_id} failed after {max_attempts} attempts. "
             f"Errors: {'; '.join(validation.errors)}",
     segment="output",
-    metadata={"exhausted": "true"},
 )
 self.session.session_context.append(failure_entry)
+
+# Propagate failure if a propagation rule is configured
+if self.config.propagation and self.config.propagation.failure != "none":
+    self.propagate()
 ```
 
 ---
@@ -217,6 +220,10 @@ self.session.session_context.append(failure_entry)
 ## API / Interface Contracts
 
 ### Enhanced ProcessNode.__call__()
+
+> **Note**: Monitor hooks are orchestrated by the loop through `AgentMonitor`, not
+> called directly by the node. See Technical Decision #6. The `AgentMonitor` delegates
+> to the node's `NodeMonitor` (via `self.config.monitor`) if one is configured.
 
 ```python
 class ProcessNode(Node):
@@ -226,14 +233,8 @@ class ProcessNode(Node):
         retry_policy = self.config.retry_policy
         max_attempts = max(retry_policy.max_attempts, 1)  # 0 → 1 attempt (no retry)
 
-        monitor = self.config.monitor  # NodeMonitor | None
-
         last_response = None
         for attempt in range(1, max_attempts + 1):
-            # Hook: before LLM call
-            if monitor is not None:
-                _safe_call(monitor.on_before_node_call, ...)
-
             last_response = self._call_llm(messages)
 
             # Validate
@@ -242,20 +243,13 @@ class ProcessNode(Node):
             if validation.is_valid:
                 break
 
-            # Hook: after LLM call (after validation so it receives the actual validation result)
-            if monitor is not None:
-                _safe_call(monitor.on_after_node_call, ...)
-
             if attempt < max_attempts:
                 # Build retry continuation
                 error = ValidationError("; ".join(validation.errors))
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append({"role": "assistant", "content": retry_text})
             else:
-                # Exhausted
-                if monitor is not None:
-                    _safe_call(monitor.on_retry_exhausted, ...)
-
+                # Exhausted — handled by loop via AgentMonitor
                 self._handle_exhaustion(retry_policy, validation, max_attempts)
 
         self.record_output(last_response)
@@ -290,6 +284,12 @@ class ProcessNode(Node):
 
 ### Enhanced DecisionNode.__call__()
 
+> **Note**: The code examples below show the loop orchestrating monitor calls through
+> `AgentMonitor`. In practice, `AgentMonitor` delegates to the node's `NodeMonitor`
+> (if configured) — see Technical Decision #6. The node does NOT call its own
+> `NodeMonitor` directly; all monitor invocations are driven by the loop via
+> `AgentMonitor`.
+
 ```python
 class DecisionNode(ProcessNode):
     def __call__(self, input: NodeInputLike) -> DecisionResult:
@@ -316,8 +316,12 @@ class DecisionNode(ProcessNode):
                 error = ValidationError(f"Invalid classification: {label}")
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append({"role": "assistant", "content": retry_text})
+            else:
+                # Retry exhausted — handled by loop via AgentMonitor
+                pass
 
         route_label = self._dispatch_route(classification_response)
+
         # ... rest of dispatch
 ```
 
@@ -387,7 +391,7 @@ def _safe_call(hook_method, *args, **kwargs):
    - **Alternatives Considered**: `max_attempts=0` means no execution — rejected because it would require special-casing everywhere.
 
 4. **Decision**: `record_failure` writes a `SessionContextEntry` with `segment="output"` rather than a special failure type.
-   - **Reason**: Keeps the session context model simple — failure is just another output entry with metadata. Downstream consumers can inspect `metadata["exhausted"]` to detect failures.
+   - **Reason**: Keeps the session context model simple — failure is just another output entry. Downstream consumers can detect failures by checking for the `[RETRY_EXHAUSTED]` prefix in the content field.
    - **Alternatives Considered**: Special `FailureRecord` type — rejected because it adds complexity to the session model.
 
 5. **Decision**: DecisionNode retries only the classification step, not the analysis step.

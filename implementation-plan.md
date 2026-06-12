@@ -55,9 +55,12 @@ from tinycua.models.session import Session
 
 
 class MockLLM:
-    """Mock LLM returning a sequence of responses."""
+    """Mock LLM returning a sequence of LLMResult responses."""
     def __init__(self, responses):
-        self._responses = list(responses)
+        self._responses = [
+            LLMResult(content=r["content"]) if isinstance(r, dict) else r
+            for r in responses
+        ]
         self.call_count = 0
 
     def __call__(self, messages, **kwargs):
@@ -254,7 +257,7 @@ def test_monitor_hook_observes_full_cycle():
 #### [MODIFY] `src/tinycua/tinycua/loops/node.py`
 
 - **Add `_safe_call()` helper**: Exception-safe monitor hook caller that logs and swallows exceptions.
-- **Wire monitor hooks into `ProcessNode.__call__()`**: Call `monitor.on_before_node_call()` before LLM call, `monitor.on_after_node_call()` after validation failure, `monitor.on_retry_exhausted()` before exhaustion handling.
+- **Wire monitor hooks into `ProcessNode.__call__()` and `DecisionNode.__call__()`**: Call `monitor.on_before_node_call()` before LLM call, `monitor.on_after_node_call()` after validation failure, `monitor.on_retry_exhausted()` before exhaustion handling.
 - **Incorporate monitor continuations**: If a monitor hook returns a string, append it as an assistant-role continuation to the messages.
 
 #### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
@@ -347,7 +350,7 @@ class AgentMonitor(Protocol):
 - [ ] Depends on existing `NodeRetryPolicy` (Milestone 1.2) — already implemented
 - [ ] Depends on existing `validate_output()` (Milestone 1.5) — already implemented
 - [ ] Depends on existing `build_retry_continuation()` (Milestone 1.5) — already implemented
-- [ ] Depends on `PropagationRule.failure` for `record_failure` propagation — already defined in design
+- [ ] Depends on `PropagationRule.failure` for `record_failure` propagation — defined in existing codebase (`tinycua/loops/propagation.py`)
 
 ## Risks and Mitigations
 

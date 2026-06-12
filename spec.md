@@ -47,7 +47,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 3. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="raise")`, **When** retry is exhausted, **Then** a `NodeExecutionError` is raised.
 
-4. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="record_failure")`, **When** retry is exhausted, **Then** failure state is written to the node session and propagation occurs according to `PropagationRule.failure`.
+4. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="record_failure")`, **When** retry is exhausted, **Then** failure state is written to the node session. If `PropagationRule.failure` is configured (not `"none"`), failure state is also propagated according to it; otherwise failure state is recorded but not propagated.
 
 5. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="route_failure")`, **When** retry is exhausted and the node defines a failure route in `on_complete()`, **Then** the failure route is called; otherwise behavior falls back to `record_failure`.
 
@@ -104,6 +104,13 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
+> **Note**: Items below are checked off as implementation progresses. All items must
+> be checked before merge.
+
+> **Deferred to Implementation**: The items below cannot be verified until the
+> corresponding code is written. They are intentionally left unchecked at the
+> spec/design review stage and will be checked off during implementation.
+
 - [ ] **Retry loop works**: Invalid node output triggers retry with assistant-role continuation messages up to `max_attempts`.
 - [ ] **Custom validation works**: `validation_fn` is called during `validate_output()` and its errors are merged into the result.
 - [ ] **Custom continuation builder works**: `retry_continuation_builder` produces the retry message when set.
@@ -118,6 +125,10 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 ---
 
 ## Testing Plan _(mandatory)_
+
+> **Deferred to Implementation**: The test items below cannot be written or verified
+> until the corresponding code is implemented. They are intentionally left unchecked
+> at the spec/design review stage and will be checked off during implementation.
 
 ### Unit Tests
 
@@ -134,6 +145,10 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - [ ] Test `NodeMonitor` hook continuation message enters retry flow.
 
 ### Integration Tests
+
+> **Deferred to Implementation**: Integration tests require the full retry/validation/monitor
+> pipeline to be wired before they can be executed. These items will be checked off
+> once the implementation is complete and tests are run.
 
 - [ ] Test end-to-end retry through `TinyCUALoop._execute_node()` — node retries and eventually succeeds or exhausts.
 - [ ] Test monitor hook observing a full node execution cycle (before → after → exhaust if applicable).
@@ -182,9 +197,9 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 ## Review Checklist
 
-- [ ] No implementation details beyond what the design docs specify
-- [ ] All mandatory sections completed
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
-- [ ] Exit criteria match Milestone 4.3 from the roadmap issue
+- [x] No implementation details beyond what the design docs specify
+- [x] All mandatory sections completed
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
+- [x] Exit criteria match Milestone 4.3 from the roadmap issue
