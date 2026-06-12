@@ -59,7 +59,7 @@ TinyCUALoop (queue iteration)
   │
   ├── on_complete(queue, response)
   │     ├── Propagate digest to parent.session_context
-  │     └── queue.advance() → ResponseNode resumes
+  │     └── queue.advance() → TinyCUAResponseNode resumes
   │
   └── `TinyCUAResponseNode` resumes
         ├── __call__ re-checks sufficiency
@@ -197,7 +197,7 @@ def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [x] **ResponseNode three-phase execution**: `__call__` builds context, checks sufficiency, branches to digest/tools/synthesis.
+- [x] **TinyCUAResponseNode three-phase execution**: `__call__` builds context, checks sufficiency, branches to digest/tools/synthesis.
 - [x] **Context sufficiency check**: `_check_context_sufficiency` with primary (aggregated result) and secondary (threshold) heuristics.
 - [x] **Digester suspension in `on_complete`**: When `_needs_digestion=True`, delegates to `_suspend_for_digestion`.
 - [x] **`_suspend_for_digestion` implementation**: Creates `TinyCUAInformationDigesterNode(parent=self)`, calls `queue.suspend_current_and_prepend`.
@@ -205,7 +205,7 @@ def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
 - [x] **`digester_enabled=False` fallback**: Falls through to `_gather_context_via_tools` placeholder.
 - [x] **InformationDigesterNode integration**: Accepts parent, creates fresh session, produces digest, propagates to parent.
 - [x] **Digest propagation**: `on_complete` appends digest to parent's `session_context`, calls `queue.advance()`.
-- [x] **Resumption**: ResponseNode re-evaluates context on next `__call__`, synthesizes if sufficient.
+- [x] **Resumption**: TinyCUAResponseNode re-evaluates context on next `__call__`, synthesizes if sufficient.
 - [x] **Integration tests**: Digester suspension flow tested in `test_response_node_integration.py`.
 
 ### Phase 2 — Enhancements _(post-MVP, deferred to Milestones 4.x)_
