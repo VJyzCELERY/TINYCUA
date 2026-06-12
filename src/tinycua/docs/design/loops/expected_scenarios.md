@@ -34,7 +34,7 @@ sequenceDiagram
     User->>QA: "Fix the login bug"
     QA->>QA: analysis call → verdict → worker
     QA->>W: route to Worker
-    W->>W: analyze context — insufficient
+    W->>W: first entry — suspend for information digestion
     W->>W: suspend_current_and_prepend(InformationDigester)
     W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
@@ -81,7 +81,7 @@ sequenceDiagram
 
     User->>QA: "What about the other page?"
     QA->>W: route to Worker
-    W->>W: analyze context — insufficient
+    W->>W: first entry — suspend for information digestion
     W->>W: suspend_current_and_prepend(InformationDigester)
     W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
@@ -219,7 +219,7 @@ sequenceDiagram
     participant TE as TaskExecutor
 
     QA->>W: route to Worker
-    W->>W: analyze context — insufficient
+    W->>W: first entry — suspend for information digestion
     W->>W: suspend_current_and_prepend(InformationDigester)
     W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information
@@ -252,7 +252,7 @@ sequenceDiagram
     User->>QA: "Actually, fix the login bug"
     QA->>QA: analysis call → verdict → worker
     QA->>W: route to Worker
-    W->>W: analyze context — insufficient
+    W->>W: first entry — suspend for information digestion
     W->>W: suspend_current_and_prepend(InformationDigester)
     W->>ID: copied session_context + digest request
     ID->>ID: enhanced_context_retrieval + digest_information

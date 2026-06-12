@@ -76,26 +76,22 @@ WorkerNode enters:
 
 ### Suspension and Resume for Information Digestion
 
-When WorkerNode determines context is insufficient for its routing decision, it
-suspends itself and prepends InformationDigester (same pattern as ResponseNode):
+On first entry, WorkerNode always suspends itself and prepends InformationDigester
+to gather context for its routing decision:
 
 ```text
-WorkerNode enters:
-  1. Analyze available context.
-     → If sufficient: proceed to routing decision.
-     → If insufficient:
-        a. Use allowed tools directly, OR
-        b. Request InformationDigesterNode (if enabled).
-
-WorkerNode suspends for digestion:
+WorkerNode enters (first time):
   → suspend_current_and_prepend([InformationDigesterNode(parent=WorkerNode)])
-  → Digester completes → WorkerNode resumes.
+  → Digester completes → WorkerNode resumes with digested context.
+
+WorkerNode enters (re-entry with digested context):
+  → Proceed to routing decision with accumulated context.
 ```
 
 When WorkerNode suspends for information digestion:
 
 1. Constructs `NodeInput(messages=[...], payloads=[...])` from selected
-   `session_context` messages plus optional digest request payload.
+   `session_context` messages plus digest request payload.
 2. Calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=worker_node)])`.
 3. Digester uses selected-output propagation targeting its parent session.
 4. Digest lands in suspended WorkerNode's `session_context`.
@@ -182,8 +178,6 @@ are assistant-role continuations.
 
 - `NodeRetryPolicy` — retry behavior for invalid/missing labels.
 - `WorkerEffort` — effort level configuration passed to AnalysisEffortNode.
-- `TinyCUAWorkerNodeConfig.allow_information_digest_request` — controls whether
-  InformationDigester is spawned before Worker (default: `true`).
 
 ## Related
 

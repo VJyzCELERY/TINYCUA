@@ -12,7 +12,7 @@ which nodes can see those tools.
 |------|------------|
 | TinyCUAQueryAnalystNode | classification + read-only task/context tools |
 | TinyCUAInformationDigesterNode | enhanced retrieval + digest tools |
-| TinyCUAWorkerNode | worker decision tools only + optional information-digestion request capability only when enabled |
+| TinyCUAWorkerNode | worker decision tools only + mandatory information-digestion request on first entry |
 | TinyCUATaskCreateNode | deterministic root task creation tools (TaskInit/TaskCreate) |
 | TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when recreation is requested |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
@@ -27,11 +27,10 @@ context, it calls `enhanced_context_retrieval` directly.
 
 ## WorkerNode Information Digestion
 
-`WorkerNode` may suspend itself and prepend `InformationDigesterNode` when context is
-insufficient for its routing decision (same pattern as `ResponseNode`). The digester
-gathers and digests context, then propagates the output to the Worker's session.
-Worker uses this digested context for its routing decision. This behavior is controlled
-by `TinyCUAWorkerNodeConfig.allow_information_digest_request`.
+`WorkerNode` always suspends itself and prepends `InformationDigesterNode` on first
+entry to gather context for its routing decision (same pattern as `ResponseNode`).
+The digester gathers and digests context, then propagates the output to the Worker's
+session. Worker uses this digested context for its routing decision.
 
 ## ResponseNode Same Base Toolset
 
