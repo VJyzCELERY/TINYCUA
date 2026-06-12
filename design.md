@@ -63,6 +63,8 @@ TinyCUALoop._execute_node(node, agent, tools, ...)
 | `tinycua/loops/node.py` | Modified | Wire `validation_fn`, `retry_continuation_builder`, exhaustion behavior; add monitor hook calls |
 | `tinycua/loops/tinycua_loop.py` | Modified | Accept optional `AgentMonitor`, pass to node execution |
 | `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion, monitor hook |
+| `tests/unit/test_decision_node_retry.py` | New | Unit tests for DecisionNode classification retry |
+| `tests/unit/test_monitor_hook.py` | New | Unit tests for monitor hook behavior |
 | `tests/integration/test_retry_integration.py` | New | Integration tests for retry through the loop |
 
 ---
@@ -205,6 +207,7 @@ failure_entry = SessionContextEntry(
     content=f"[RETRY_EXHAUSTED] Node {self.node_id} failed after {max_attempts} attempts. "
             f"Errors: {'; '.join(validation.errors)}",
     segment="output",
+    metadata={"exhausted": "true"},
 )
 self.session.session_context.append(failure_entry)
 ```
