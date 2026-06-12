@@ -63,9 +63,9 @@ def test_propagation_upward_and_forwarding():
     parent_session = Session(session_id="parent", parent_id="root", chat_history=[], session_context=[], input_context=[])
     node_session = Session(session_id="node1", parent_id="parent", chat_history=[], session_context=[], input_context=[])
 
-    prior = SessionContextEntry(content="prior context", segment="prior", source_node_id="n0", created_seq=1)
-    inp = SessionContextEntry(content="input data", segment="input", source_node_id="n1", created_seq=2)
-    out = SessionContextEntry(content="output result", segment="output", source_node_id="n1", created_seq=3)
+    prior = SessionContextEntry(record_id="prior-1", content="prior context", segment="prior", source_node_id="n0", created_seq=1)
+    inp = SessionContextEntry(record_id="input-1", content="input data", segment="input", source_node_id="n1", created_seq=2)
+    out = SessionContextEntry(record_id="output-1", content="output result", segment="output", source_node_id="n1", created_seq=3)
     node_session.session_context = [prior, inp, out]
 
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
@@ -90,17 +90,17 @@ def test_dedupe_on_propagation_filters_duplicates():
     node_session = Session(session_id="node1", parent_id="parent", chat_history=[], session_context=[], input_context=[])
 
     existing = SessionContextEntry(
-        content="already propagated", segment="prior", source_node_id="n0",
+        record_id="existing-1", content="already propagated", segment="prior", source_node_id="n0",
         origin_record_id="orig-123", created_seq=1
     )
     parent_session.session_context = [existing]
 
     duplicate = SessionContextEntry(
-        content="already propagated", segment="prior", source_node_id="n0",
+        record_id="dup-1", content="already propagated", segment="prior", source_node_id="n0",
         origin_record_id="orig-123", created_seq=2
     )
     fresh = SessionContextEntry(
-        content="new context", segment="input", source_node_id="n1",
+        record_id="fresh-1", content="new context", segment="input", source_node_id="n1",
         origin_record_id="orig-456", created_seq=3
     )
     node_session.session_context = [duplicate, fresh]
@@ -121,8 +121,8 @@ def test_terminal_output_exception():
     root_session = Session(session_id="root", chat_history=[], session_context=[], input_context=[])
     terminal_session = Session(session_id="terminal", parent_id="root", chat_history=[], session_context=[], input_context=[])
 
-    out = SessionContextEntry(content="final answer", segment="output", source_node_id="resp1", created_seq=1)
-    prior = SessionContextEntry(content="context", segment="prior", source_node_id="resp1", created_seq=2)
+    out = SessionContextEntry(record_id="out-1", content="final answer", segment="output", source_node_id="resp1", created_seq=1)
+    prior = SessionContextEntry(record_id="prior-2", content="context", segment="prior", source_node_id="resp1", created_seq=2)
     terminal_session.session_context = [prior, out]
 
     result = finalize_terminal_output(terminal_session, root_session)
@@ -160,7 +160,7 @@ def test_empty_output_no_forwarding():
     parent_session = Session(session_id="parent", parent_id="root", chat_history=[], session_context=[], input_context=[])
     node_session = Session(session_id="node1", parent_id="parent", chat_history=[], session_context=[], input_context=[])
 
-    prior = SessionContextEntry(content="prior", segment="prior", source_node_id="n0", created_seq=1)
+    prior = SessionContextEntry(record_id="prior-3", content="prior", segment="prior", source_node_id="n0", created_seq=1)
     node_session.session_context = [prior]
 
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
@@ -176,11 +176,11 @@ def test_empty_output_no_forwarding():
 def test_dedupe_records_by_origin_record_id():
     """dedupe_records filters by origin_record_id when present."""
     source = [
-        SessionContextEntry(content="copy1", segment="prior", origin_record_id="orig-1", created_seq=1),
-        SessionContextEntry(content="copy2", segment="input", origin_record_id="orig-2", created_seq=2),
+        SessionContextEntry(record_id="copy-1", content="copy1", segment="prior", origin_record_id="orig-1", created_seq=1),
+        SessionContextEntry(record_id="copy-2", content="copy2", segment="input", origin_record_id="orig-2", created_seq=2),
     ]
     destination = [
-        SessionContextEntry(content="existing", segment="prior", origin_record_id="orig-1", created_seq=0),
+        SessionContextEntry(record_id="exist-1", content="existing", segment="prior", origin_record_id="orig-1", created_seq=0),
     ]
 
     result = dedupe_records(source, destination)
@@ -232,9 +232,9 @@ def test_node_message_policy_dedupe_by_origin():
     from tinycua.loops.node import build_messages_with_dedupe
 
     session = Session(session_id="s1", chat_history=[], session_context=[], input_context=[])
-    e1 = SessionContextEntry(content="ctx1", segment="prior", origin_record_id="orig-1", created_seq=1)
-    e2 = SessionContextEntry(content="ctx2", segment="input", origin_record_id="orig-2", created_seq=2)
-    e3 = SessionContextEntry(content="ctx1-dup", segment="prior", origin_record_id="orig-1", created_seq=3)
+    e1 = SessionContextEntry(record_id="e1", content="ctx1", segment="prior", origin_record_id="orig-1", created_seq=1)
+    e2 = SessionContextEntry(record_id="e2", content="ctx2", segment="input", origin_record_id="orig-2", created_seq=2)
+    e3 = SessionContextEntry(record_id="e3", content="ctx1-dup", segment="prior", origin_record_id="orig-1", created_seq=3)
     session.session_context = [e1, e2, e3]
 
     messages = build_messages_with_dedupe(session, dedupe_by_origin_record_id=True)
@@ -247,9 +247,9 @@ def test_node_message_policy_dedupe_by_origin():
 
 def test_segmented_context_creation():
     """SessionContextEntry supports all three segment values."""
-    prior = SessionContextEntry(content="p", segment="prior", created_seq=1)
-    inp = SessionContextEntry(content="i", segment="input", created_seq=2)
-    out = SessionContextEntry(content="o", segment="output", created_seq=3)
+    prior = SessionContextEntry(record_id="seg-p", content="p", segment="prior", created_seq=1)
+    inp = SessionContextEntry(record_id="seg-i", content="i", segment="input", created_seq=2)
+    out = SessionContextEntry(record_id="seg-o", content="o", segment="output", created_seq=3)
     assert prior.segment == "prior"
     assert inp.segment == "input"
     assert out.segment == "output"
@@ -415,12 +415,12 @@ ChatRecord(dataclass):
     metadata: dict
 
 SessionContextEntry(dataclass):
-    record_id: str                    # uuid4 hex
+    record_id: str = field(default_factory=lambda: uuid4().hex)  # auto-generated
     segment: Literal["prior", "input", "output"]
     content: str | dict | list[dict]
-    origin_record_id: str | None
-    source_node_id: str | None
-    source_session_id: str | None
+    origin_record_id: str | None = None
+    source_node_id: str | None = None
+    source_session_id: str | None = None
     created_seq: int
 
 PropagationRule(dataclass):

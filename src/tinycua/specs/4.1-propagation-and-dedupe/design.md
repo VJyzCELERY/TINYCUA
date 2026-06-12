@@ -49,7 +49,7 @@ Node terminates
 ChatRecord:
     record_id: str                    # unique identifier (uuid4)
     role: Literal["user", "assistant", "system", "tool"]
-    record_type: str                  # audit category: node_output, internal_continuation, tool_result, retry, queue_lifecycle
+    record_type: str                  # audit category: node_output, internal_continuation, tool_result, retry, queue_lifecycle, propagation
     content: str | dict | list[dict]  # message content
     visibility: Literal["user_visible", "internal", "tool_only"]
     source_node_id: str | None        # node that produced this record
@@ -63,13 +63,16 @@ ChatRecord:
 # SessionContextEntry — mutable LLM-reusable context with segment metadata
 # A separate mutable context record (not an extension of the append-only ChatRecord).
 # Carries the same provenance fields as ChatRecord plus segment metadata.
+# NOTE: This milestone implements SessionContextEntry as a standalone dataclass for simplicity.
+# Extending ChatRecord is a potential future refactoring target (see session.md for the
+# target architecture's extended model).
 SessionContextEntry (dataclass):
-    record_id: str                    # unique identifier (uuid4)
+    record_id: str = field(default_factory=lambda: uuid4().hex)  # auto-generated unique identifier
     segment: Literal["prior", "input", "output"]
     content: str | dict | list[dict]
-    origin_record_id: str | None
-    source_node_id: str | None
-    source_session_id: str | None
+    origin_record_id: str | None = None
+    source_node_id: str | None = None
+    source_session_id: str | None = None
     created_seq: int
 ```
 
@@ -148,7 +151,7 @@ def propagate_on_termination(
 
 def forward_output_to_next(
     node_session: Session,
-    next_node_input: NodeInput,
+    next_node_input: NodeInput,  # existing type defined in tinycua.models.node_input
 ) -> None:
     """
     Forward the output segment to the next node as NodeInput.
@@ -269,4 +272,4 @@ def dedupe_records(
 - ChatRecord design: `src/tinycua/docs/design/models/chat_record.md`
 - NodeQueue design: `src/tinycua/docs/design/loops/node_queue.md`
 - TinyCUALoop design: `src/tinycua/docs/design/loops/tinycua_loop.md`
-- Node design: `src/tinycua/docs/design/loops/node.md`
+- Node design: `src/tinycua/docs/design/loops/node.md` (see also `node.md` for node message assembly and `build_messages_with_dedupe` behavior)

@@ -62,7 +62,7 @@ Each node's session context is segmented for propagation control. Records carry
 metadata so implementation does not rely on index slicing:
 
 ```text
-SessionContextEntry (extends ChatRecord or dict)
+SessionContextEntry (standalone dataclass — extends ChatRecord is a future refactoring target)
   · segment: Literal["prior", "input", "output"]
   · origin_record_id: str | None
   · source_node_id: str | None
