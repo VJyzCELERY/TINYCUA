@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         )
         self._current_digest: DigestedInformation | None = None
 
-    def __call__(self, input: NodeInputLike) -> LLMResult:
+    def __call__(self, input_data: NodeInputLike) -> LLMResult:
         """Execute the digester: call LLM and parse response into DigestedInformation.
 
         Invokes the parent ProcessNode.__call__ to perform the LLM call,
@@ -74,13 +75,13 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Falls back to DigestedInformation.fallback() on parse failure.
 
         Args:
-            input: The node input.
+            input_data: The node input.
 
         Returns:
             The LLM response.
         """
-        original_query = self._extract_original_query(input)
-        response = super().__call__(input)
+        original_query = self._extract_original_query(input_data)
+        response = super().__call__(input_data)
         self._current_digest = self._parse_digest_response(
             response.content, original_query,
         )
@@ -116,14 +117,14 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             )
         except (json.JSONDecodeError, TypeError, KeyError):
             logger.debug(
-                "Digester LLM response not JSON, using raw text as context_summary"
+                "Digester LLM response not JSON, using raw text as context_summary",
             )
             return DigestedInformation(
                 context_summary=content,
                 original_query=original_query,
             )
 
-    def ensure_session(self, root_or_parent_session: Session) -> Session:
+    def ensure_session(self, _root_or_parent_session: Session) -> Session:
         """Create a fresh node session (does not inherit parent).
 
         Overrides the base class to always create a fresh session,
@@ -177,11 +178,6 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Returns:
             The original user query string, or empty string if not found.
         """
-        from tinycua.models.node_input import (
-            NodeInput,
-            convert_node_input_to_messages,
-        )
-
         if isinstance(input_data, NodeInput) and input_data.messages:
             # Try to find the last user message
             for msg in reversed(input_data.messages):

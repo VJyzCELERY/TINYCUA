@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, ClassVar
 
-from tinycua.loops.node import DecisionNode
+from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.models.digested_information import DigestedInformation
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class TinyCUAWorkerNode(DecisionNode):
         _current_digest: The current DigestedInformation for propagation.
     """
 
-    ROUTE_LABELS = [
+    ROUTE_LABELS: ClassVar[list[str]] = [
         "task_creation",
         "task_recreation",
         "task_reanalysis",
@@ -97,7 +97,7 @@ class TinyCUAWorkerNode(DecisionNode):
                 "content": self._current_digest,
             })
 
-    def on_complete(self, queue: NodeQueue, response: Any) -> None:  # type: ignore[override]
+    def on_complete(self, queue: NodeQueue, response: DecisionResult) -> None:  # type: ignore[override]
         """Post-completion hook for queue mutations.
 
         Retrieves DigestedInformation from session_context and stores it

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
-from tinycua.loops.node import DecisionNode, Node
+from tinycua.loops.node import DecisionNode, DecisionResult, Node
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         _queue: Reference to the NodeQueue for queue mutations.
     """
 
-    ROUTE_LABELS = ["worker", "uncertain", "passthrough"]
+    ROUTE_LABELS: ClassVar[list[str]] = ["worker", "uncertain", "passthrough"]
 
     def __init__(
         self,
@@ -46,7 +47,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         *,
         instruction: str = _QUERY_ANALYST_INSTRUCTION,
         classification_labels: list[str] | None = None,
-        queue: NodeQueue | None = None,
         is_terminal: bool = False,
     ) -> None:
         """Initialize QueryAnalystNode.
@@ -57,8 +57,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             instruction: Instruction string for this node type.
             classification_labels: Allowed classification labels.
                 Defaults to ROUTE_LABELS if not provided.
-            queue: The NodeQueue for queue mutations. If not provided,
-                must be set via _queue attribute before _route_worker.
             is_terminal: Whether this node is terminal.
         """
         super().__init__(
@@ -68,10 +66,10 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             classification_labels=classification_labels or self.ROUTE_LABELS,
             is_terminal=is_terminal,
         )
-        self._queue: NodeQueue | None = queue
+        self._queue: NodeQueue | None = None
         self._input: NodeInputLike | None = None
 
-    def _route_worker(self, input_data: NodeInputLike) -> None:
+    def _route_worker(self, _input_data: NodeInputLike = "") -> None:
         """Route to WorkerNode with information digestion.
 
         1. Check if target Worker session already has DigestedInformation
@@ -80,9 +78,8 @@ class TinyCUAQueryAnalystNode(DecisionNode):
            → queue.spawn_after_current([digester, worker_node])
 
         Args:
-            input_data: The node input containing the user query.
+            _input_data: The node input (kept for API compatibility).
         """
-        user_query = self._extract_user_query(input_data)
         queue = self._queue
 
         if queue is None:
@@ -143,11 +140,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             The last user message content, or first message if no user role,
             or empty string if no messages.
         """
-        from tinycua.models.node_input import (
-            NodeInput,
-            convert_node_input_to_messages,
-        )
-
         messages: list[dict[str, Any]] = []
 
         if isinstance(input_data, NodeInput):
@@ -170,7 +162,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         first = messages[0]
         return str(first.get("content", ""))
 
-    def on_complete(self, queue: NodeQueue, response: Any) -> None:  # type: ignore[override]
+    def on_complete(self, queue: NodeQueue, response: DecisionResult | str) -> None:  # type: ignore[override]
         """Post-completion hook for queue mutations.
 
         Dispatches to the appropriate route handler based on the
@@ -181,15 +173,13 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             queue: The node queue that can be mutated.
             response: The final LLM response (DecisionResult or raw).
         """
-        from tinycua.loops.node import DecisionResult
-
         if isinstance(response, DecisionResult):
             route_label = response.route_label
         else:
             route_label = str(response).strip().lower()
 
         if route_label == "worker":
-            self._route_worker(self._input or "")
+            self._route_worker()
         elif route_label == "uncertain":
             logger.info("QueryAnalyst routed to 'uncertain' — no action taken")
         elif route_label == "passthrough":

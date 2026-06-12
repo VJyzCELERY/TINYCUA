@@ -51,7 +51,7 @@ class TinyCUATaskCreateNode(ProcessNode):
         )
 
     def build_messages(
-        self, session: Session, input: NodeInputLike
+        self, session: Session, input_data: NodeInputLike,
     ) -> list[dict[str, str]]:
         """Build messages including DigestedInformation from Worker.
 
@@ -60,12 +60,12 @@ class TinyCUATaskCreateNode(ProcessNode):
 
         Args:
             session: The session containing context and history.
-            input: The node input to convert to continuation messages.
+            input_data: The node input to convert to continuation messages.
 
         Returns:
             List of message dictionaries for the LLM call.
         """
-        messages = super().build_messages(session, input)
+        messages = super().build_messages(session, input_data)
 
         # Scan session_context for DigestedInformation and add enhanced context
         digest_context = self._extract_digest_context(session)
@@ -93,23 +93,23 @@ class TinyCUATaskCreateNode(ProcessNode):
 
                 if content.key_points:
                     parts.append("Key Points:")
-                    for point in content.key_points:
-                        parts.append(f"  - {point}")
+                    parts.extend(f"  - {point}" for point in content.key_points)
 
                 if content.advisory_instructions:
                     parts.append("Advisory Instructions:")
-                    for advice in content.advisory_instructions:
-                        parts.append(f"  - {advice}")
+                    parts.extend(
+                        f"  - {advice}" for advice in content.advisory_instructions
+                    )
 
                 if content.constraints:
                     parts.append("Constraints:")
-                    for constraint in content.constraints:
-                        parts.append(f"  - {constraint}")
+                    parts.extend(
+                        f"  - {constraint}" for constraint in content.constraints
+                    )
 
                 if content.known_gaps:
                     parts.append("Known Gaps:")
-                    for gap in content.known_gaps:
-                        parts.append(f"  - {gap}")
+                    parts.extend(f"  - {gap}" for gap in content.known_gaps)
 
                 parts.append(f"Original Query: {content.original_query}")
                 return "\n".join(parts)

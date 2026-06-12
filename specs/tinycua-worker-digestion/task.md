@@ -73,16 +73,16 @@ Implementation tasks for WorkerNode Information-Digestion via QueryAnalyst. Chec
 
 ## Verification Phase
 
-- [ ] Verify queue transitions match design.md diagrams for fresh spawn case <!-- id: 23 -->
-- [ ] Verify queue transitions match design.md diagrams for reused Worker with existing digest <!-- id: 24 -->
-- [ ] Verify DigestedInformation serialization/deserialization works with session_context <!-- id: 25 -->
-- [ ] Verify no regressions in existing loop tests <!-- id: 26 -->
+- [x] Verify queue transitions match design.md diagrams for fresh spawn case <!-- id: 23 -->
+- [x] Verify queue transitions match design.md diagrams for reused Worker with existing digest <!-- id: 24 -->
+- [x] Verify DigestedInformation serialization/deserialization works with session_context <!-- id: 25 -->
+- [x] Verify no regressions in existing loop tests <!-- id: 26 -->
 
 ## Documentation Phase
 
-- [ ] Update `specs/tinycua-worker-digestion/spec.md` Status Tracker to reflect completion <!-- id: 27 -->
-- [ ] Update README if needed <!-- id: 28 -->
-- [ ] Update changelog <!-- id: 29 -->
+- [x] Update `specs/tinycua-worker-digestion/spec.md` Status Tracker to reflect completion <!-- id: 27 -->
+- [x] Update README if needed <!-- id: 28 -->
+- [x] Update changelog <!-- id: 29 -->
 
 ## Follow-up Milestone
 
