@@ -306,17 +306,19 @@ class Node(ABC):
         """
         logger.debug("node=%s propagate (no-op)", self.node_id)
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook for queue mutations.
 
         Args:
             queue: The node queue that can be mutated.
             response: The final LLM response.
         """
+        # Safely access .content which only exists on LLMResult
+        content = response.content if isinstance(response, LLMResult) else response.route_label
         logger.debug(
             "node=%s on_complete response_len=%d",
             self.node_id,
-            len(response.content),
+            len(content),
         )
 
     @abstractmethod

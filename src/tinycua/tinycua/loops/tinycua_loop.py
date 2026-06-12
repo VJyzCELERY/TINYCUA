@@ -217,11 +217,9 @@ class TinyCUALoop(BaseLoop):
             if node is None:
                 break
 
-            # Wire queue and input on QueryAnalystNode before execution
+            # Wire queue on QueryAnalystNode before execution
             if isinstance(node, TinyCUAQueryAnalystNode):
                 node._queue = self.queue
-                node_input = self.queue.input_for_current()
-                node._input = node_input
 
             messages, resolved_tools = self._prepare_node(
                 node, tools, override_instructions,
@@ -286,11 +284,9 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The response content string.
         """
-        # Wire queue and input on QueryAnalystNode before execution
+        # Wire queue on QueryAnalystNode before execution
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
-            if node_input is not None:
-                node._input = node_input
 
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,

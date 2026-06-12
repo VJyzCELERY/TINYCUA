@@ -9,6 +9,7 @@ from tinycua.models.digested_information import DigestedInformation
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
 
 _WORKER_INSTRUCTION = (
@@ -97,7 +98,7 @@ class TinyCUAWorkerNode(DecisionNode):
                 "content": self._current_digest,
             })
 
-    def on_complete(self, queue: NodeQueue, response: DecisionResult) -> None:  # type: ignore[override]
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook for queue mutations.
 
         Retrieves DigestedInformation from session_context and stores it

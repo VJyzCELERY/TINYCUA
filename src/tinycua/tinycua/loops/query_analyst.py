@@ -14,6 +14,7 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
 
@@ -67,7 +68,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._queue: NodeQueue | None = None
-        self._input: NodeInputLike | None = None
 
     def _route_worker(self, _input_data: NodeInputLike = "") -> None:
         """Route to WorkerNode with information digestion.
@@ -162,7 +162,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         first = messages[0]
         return str(first.get("content", ""))
 
-    def on_complete(self, queue: NodeQueue, response: DecisionResult | str) -> None:  # type: ignore[override]
+    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
         """Post-completion hook for queue mutations.
 
         Dispatches to the appropriate route handler based on the
@@ -171,12 +171,12 @@ class TinyCUAQueryAnalystNode(DecisionNode):
 
         Args:
             queue: The node queue that can be mutated.
-            response: The final LLM response (DecisionResult or raw).
+            response: The final LLM response (LLMResult or DecisionResult).
         """
         if isinstance(response, DecisionResult):
             route_label = response.route_label
         else:
-            route_label = str(response).strip().lower()
+            route_label = response.content.strip().lower()
 
         if route_label == "worker":
             self._route_worker()

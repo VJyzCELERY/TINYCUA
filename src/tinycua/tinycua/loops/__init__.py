@@ -17,8 +17,8 @@ __all__ = [
     "ProcessNode",
     "ResponseNode",
     "TinyCUAInformationDigesterNode",
+    "TinyCUALoop",
     "TinyCUAQueryAnalystNode",
     "TinyCUATaskCreateNode",
-    "TinyCUALoop",
     "TinyCUAWorkerNode",
 ]
