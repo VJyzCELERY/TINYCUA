@@ -17,7 +17,7 @@ applies a mode-specific continuation prompt.
 
 ## Inputs
 
-- Previous query/continuation from upstream node.
+- `DigestedInformation` forwarded by upstream node (Worker or TaskCreate).
 - Mode-specific continuation prompt.
 
 ## Outputs / State Produced

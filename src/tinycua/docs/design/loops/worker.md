@@ -27,8 +27,8 @@ execution advancement.
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
-- Preserves and passes through the original input query downstream; transformed/filter
-  output may be added but must not replace the original query.
+- `DigestedInformation` forwarded to downstream nodes as the node query.
+- `WorkerDecision` used for routing only.
 
 ## Tools
 
@@ -151,8 +151,10 @@ Passthrough advances the Worker and forwards input to the next worker-owned node
 
 ## Propagation
 
-- Preserves the original input query for downstream nodes.
-- Optionally adds transformed/filter output but must not replace the original query.
+- Forwards DigestedInformation (which contains the original query in fallback or
+  digested context in success case) along with WorkerDecision to downstream nodes.
+- WorkerDecision is used for routing only; DigestedInformation is the node query
+  for spawned nodes.
 
 ## Transient Routing Node Behavior
 
@@ -164,9 +166,9 @@ next node receives it as input and later propagates its own input segment upward
 ```text
 Worker -> TaskAnalyzerNode -> TaskExecutor
 
-Worker forwards: [user_query, WorkerDecision]
-TaskAnalyzer context: TaskAnalyzer prior + user_query + WorkerDecision + TaskAnalyzerOutput
-TaskAnalyzer termination: parent gets TaskAnalyzer prior + user_query + WorkerDecision;
+Worker forwards: [DigestedInformation, WorkerDecision]
+TaskAnalyzer context: TaskAnalyzer prior + DigestedInformation + WorkerDecision + TaskAnalyzerOutput
+TaskAnalyzer termination: parent gets TaskAnalyzer prior + DigestedInformation + WorkerDecision;
                           TaskExecutor gets TaskAnalyzerOutput
 ```
 

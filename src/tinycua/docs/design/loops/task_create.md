@@ -17,7 +17,8 @@ deterministic root task creation. It is entered only after Worker chooses
 
 ## Inputs
 
-- The original input query passed through by Worker.
+- `DigestedInformation` forwarded by Worker (contains original query in fallback
+  or digested context in success case).
 - Chat history and selected session context (with dedupe to avoid duplicating entry
   context).
 
