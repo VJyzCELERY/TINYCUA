@@ -27,7 +27,7 @@ Implementation tasks for WorkerNode Information-Digestion via QueryAnalyst. Chec
 - [x] Write TaskCreateNode digested input tests (`test_task_create_digested_information.py`) <!-- id: 5 -->
   - [x] Test `build_messages()` includes DigestedInformation from Worker propagate() output
   - [x] Test TaskCreateNode falls back to raw user_query when no DigestedInformation present
-- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 6 -->
+- [x] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 6 -->
 
 ## Implementation Phase
 
@@ -86,12 +86,12 @@ Implementation tasks for WorkerNode Information-Digestion via QueryAnalyst. Chec
 
 ## Follow-up Milestone
 
-- [ ] Integrate `enhanced_context_retrieval` and `digest_information` tools into InformationDigesterNode <!-- id: NEW -->
+- [ ] Integrate `enhanced_context_retrieval` and `digest_information` tools into InformationDigesterNode <!-- id: 33 -->
 
 ## Review and Merge
 
-- [ ] Update PR #119 description with final implementation details <!-- id: 30 -->
-- [ ] Address review feedback <!-- id: 31 -->
+- [x] Update PR #119 description with final implementation details <!-- id: 30 -->
+- [x] Address review feedback <!-- id: 31 -->
 - [ ] Merge PR to feat/tinycua-research-prototype <!-- id: 32 -->
 
 ---

@@ -231,16 +231,16 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 - [x] Unit tests for QueryAnalyst worker route — test spawn logic, dedup, fresh session
 - [x] Unit tests for WorkerNode — test _get_digested_input(), propagate()
 - [x] Unit tests for InformationDigesterNode — test fresh session creation
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify queue transitions match design.md diagrams (fresh spawn and reused worker cases)
-- [ ] Verify DigestedInformation serialization/deserialization works with session_context
+- [x] Verify queue transitions match design.md diagrams (fresh spawn and reused worker cases)
+- [x] Verify DigestedInformation serialization/deserialization works with session_context
 
 ### Performance Considerations
 
-- [ ] No performance impact — this is structural routing logic only
+- [x] No performance impact — this is structural routing logic only
 
 ## Proposed Changes
 
