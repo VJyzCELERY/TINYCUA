@@ -98,10 +98,11 @@ When `TinyCUAResponseNode` suspends itself for information digestion:
 ## WorkerNode Digester Handoff
 
 When `WorkerNode` enters, it checks whether digestion has already occurred. If not,
-it suspends itself and prepends `InformationDigesterNode`:
+it suspends itself and prepends `InformationDigesterNode`. This prevents recursion:
+WorkerNode MUST NOT suspend for information digestion more than once per entry.
 
 1. WorkerNode checks `session_context` for existing digest output. If found,
-   digestion is already complete — skip suspension.
+   digestion is already complete — skip suspension and proceed to routing.
 2. If not found, WorkerNode suspends and prepends `InformationDigesterNode`.
 3. The digester gathers context, produces digest output, and propagates it back
    to the worker node's `session_context`.

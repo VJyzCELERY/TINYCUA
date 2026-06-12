@@ -80,6 +80,10 @@ On first entry, WorkerNode suspends itself and prepends InformationDigester to g
 context for its routing decision. The digest output is stored in `session_context`.
 On re-entry, Worker checks `session_context` for existing digest and skips suspension.
 
+**Anti-recursion guarantee:** WorkerNode MUST NOT suspend for information digestion
+more than once per entry. On re-entry after digestion, Worker detects the existing
+digest in `session_context` and proceeds directly to routing without suspending again.
+
 ```text
 WorkerNode enters:
   1. Check session_context for existing digest output from InformationDigester.
