@@ -41,6 +41,8 @@ LLM call receives only resolved tools
 
 ### Affected Components
 
+> **Path convention**: All paths in this table are Python module paths relative to the `tinycua` package root (`src/tinycua/tinycua/`). For example, `tinycua/config/tool_scopes.py` maps to `src/tinycua/tinycua/config/tool_scopes.py`.
+
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `tinycua/config/node_config.py` | Modified | Add `NodeToolPolicy` factory methods for each node type |
@@ -312,6 +314,6 @@ class DigestInformationTool:
   - `src/tinycua/docs/design/tools/todo.md` — full
   - `src/tinycua/docs/design/tools/digester.md` — partial/enhanced retrieval behavior
 - Existing implementation:
-  - `src/tinycua/tinycua/config/node_config.py` — NodeToolPolicy (Milestone 1.2)
-  - `src/tinycua/tinycua/config/types.py` — Tool placeholder
-  - `src/tinycua/tinycua/loops/tinycua_loop.py` — `_prepare_node()` integration point
+  - `tinycua/config/node_config.py` — NodeToolPolicy (Milestone 1.2)
+  - `tinycua/config/types.py` — Tool placeholder
+  - `tinycua/loops/tinycua_loop.py` — `_prepare_node()` integration point

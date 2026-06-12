@@ -2,6 +2,8 @@
 
 Implement per-node tool scoping so that every TinyCUA node sees only the tools it is authorized to use, with shared `enhanced_context_retrieval` cache behavior working correctly for its consumers.
 
+> **Path convention**: All paths in this document are repo-absolute paths relative to the workspace root. For example, `src/tinycua/tinycua/config/tool_scopes.py` maps to the actual file location in the repository.
+
 ## Context
 
 - **Spec Reference**: [./spec.md](./spec.md)
@@ -354,41 +356,41 @@ def test_task_analyzer_excludes_task_init_in_reanalysis_mode():
 
 ### Tool Scope Definitions
 
-#### [NEW] src/tinycua/config/tool_scopes.py
+#### [NEW] src/tinycua/tinycua/config/tool_scopes.py
 
 - **Description**: Per-node tool scope definitions and factory functions for all 11 TinyCUA node types
 - **Dependencies**: `tinycua.config.node_config.NodeToolPolicy`, concrete tool stubs
 
-#### [MODIFY] src/tinycua/config/node_config.py
+#### [MODIFY] src/tinycua/tinycua/config/node_config.py
 
 - **Description**: Add import for tool_scopes module, ensure NodeToolPolicy dataclass supports all required fields
 - **Breaking changes if any**: None
 
 ### Concrete Tool Stubs
 
-#### [NEW] src/tinycua/tools/task_tools.py
+#### [NEW] src/tinycua/tinycua/tools/task_tools.py
 
 - **Description**: TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate tool stubs
 - **Dependencies**: `tinycua.config.types.Tool`
 
-#### [NEW] src/tinycua/tools/todo_tools.py
+#### [NEW] src/tinycua/tinycua/tools/todo_tools.py
 
 - **Description**: TodoRead, TodoWrite tool stubs
 - **Dependencies**: `tinycua.config.types.Tool`
 
-#### [NEW] src/tinycua/tools/enhanced_context_retrieval.py
+#### [NEW] src/tinycua/tinycua/tools/enhanced_context_retrieval.py
 
 - **Description**: Scoped cache + ReAct search implementation for context retrieval
 - **Dependencies**: `tinycua.config.types.Tool`, filesystem operations
 
-#### [NEW] src/tinycua/tools/digest_information.py
+#### [NEW] src/tinycua/tinycua/tools/digest_information.py
 
 - **Description**: Structured digest output tool stub
 - **Dependencies**: `tinycua.config.types.Tool`
 
 ### Integration
 
-#### [MODIFY] src/tinycua/loops/tinycua_loop.py
+#### [MODIFY] src/tinycua/tinycua/loops/tinycua_loop.py
 
 - **Description**: Wire concrete tool scopes into node preparation via `_prepare_node()`
 - **Breaking changes if any**: None
@@ -407,12 +409,12 @@ def test_task_analyzer_excludes_task_init_in_reanalysis_mode():
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `src/tinycua/config/tool_scopes.py` | New | Per-node tool scope factory functions |
-| `src/tinycua/tools/task_tools.py` | New | Task mutation tool stubs |
-| `src/tinycua/tools/todo_tools.py` | New | Todo tracking tool stubs |
-| `src/tinycua/tools/enhanced_context_retrieval.py` | New | Scoped context cache + ReAct search |
-| `src/tinycua/tools/digest_information.py` | New | Structured digest output |
-| `src/tinycua/loops/tinycua_loop.py` | Modified | Wire tool scopes into node preparation |
+| `src/tinycua/tinycua/config/tool_scopes.py` | New | Per-node tool scope factory functions |
+| `src/tinycua/tinycua/tools/task_tools.py` | New | Task mutation tool stubs |
+| `src/tinycua/tinycua/tools/todo_tools.py` | New | Todo tracking tool stubs |
+| `src/tinycua/tinycua/tools/enhanced_context_retrieval.py` | New | Scoped context cache + ReAct search |
+| `src/tinycua/tinycua/tools/digest_information.py` | New | Structured digest output |
+| `src/tinycua/tinycua/loops/tinycua_loop.py` | Modified | Wire tool scopes into node preparation |
 
 ## Data Model Changes
 

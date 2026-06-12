@@ -2,6 +2,8 @@
 
 Implementation tasks for Tool Scoping. Check off items as completed.
 
+> **Path convention**: All paths in this document are Python module paths relative to the `tinycua` package root (`src/tinycua/tinycua/`). For example, `tinycua/tools/task_tools.py` maps to `src/tinycua/tinycua/tools/task_tools.py`.
+
 ## TDD Phase (Tests First)
 
 - [ ] Create integration test file `tests/integration/test_tool_scoping_integration.py` with all test scenarios from implementation-plan.md <!-- id: 0 -->

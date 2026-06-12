@@ -7,6 +7,8 @@
 **Milestone**: 4.2 — Tool Scoping
 **Tracking Issue**: https://github.com/VJyzCELERY/TINYCUA/issues/87
 
+> **Path convention**: All paths in this document (e.g., `docs/design/constants/tools.md`, `config/types.py`) are relative to the `tinycua` subproject root (`src/tinycua/`). For example, `docs/design/constants/tools.md` maps to `src/tinycua/docs/design/constants/tools.md`.
+
 ---
 
 ## Problem Statement _(mandatory)_
