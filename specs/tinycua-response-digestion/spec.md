@@ -65,13 +65,13 @@ A TinyCUA loop reaches the terminal `TinyCUAResponseNode` after result aggregati
 
 Objective, measurable checks that prove the problem is solved.
 
-- [ ] **ResponseNode sets `_needs_digestion` flag**: When `__call__` receives insufficient context and `digester_enabled=True`, the flag is set and a placeholder is returned.
-- [ ] **`on_complete` triggers suspension**: When `_needs_digestion=True`, `on_complete` calls `_suspend_for_digestion` which creates a digester and suspends the queue.
-- [ ] **Digester creates fresh session**: `TinyCUAInformationDigesterNode.__call__` creates a new `Session()` if none exists.
-- [ ] **Digest propagates back**: After the digester completes, `on_complete` appends digest to the parent's `session_context` and calls `queue.advance()`.
-- [ ] **ResponseNode resumes**: After the queue advances back to the response node, `__call__` re-evaluates context sufficiency and synthesizes the response.
-- [ ] **`max_digest_attempts` enforced**: After N failed digestion cycles, suspension is skipped and synthesis proceeds with available context.
-- [ ] **`digester_enabled=False` path**: When the flag is `False`, `ResponseNode` skips digestion and falls through to `_gather_context_via_tools`.
+- [x] **ResponseNode sets `_needs_digestion` flag**: When `__call__` receives insufficient context and `digester_enabled=True`, the flag is set and a placeholder is returned.
+- [x] **`on_complete` triggers suspension**: When `_needs_digestion=True`, `on_complete` calls `_suspend_for_digestion` which creates a digester and suspends the queue.
+- [x] **Digester creates fresh session**: `TinyCUAInformationDigesterNode.__call__` creates a new `Session()` if none exists.
+- [x] **Digest propagates back**: After the digester completes, `on_complete` appends digest to the parent's `session_context` and calls `queue.advance()`.
+- [x] **ResponseNode resumes**: After the queue advances back to the response node, `__call__` re-evaluates context sufficiency and synthesizes the response.
+- [x] **`max_digest_attempts` enforced**: After N failed digestion cycles, suspension is skipped and synthesis proceeds with available context.
+- [x] **`digester_enabled=False` path**: When the flag is `False`, `ResponseNode` skips digestion and falls through to `_gather_context_via_tools`.
 
 ---
 
@@ -120,14 +120,14 @@ Objective, measurable checks that prove the problem is solved.
 1. **Should the digester receive the parent's full `session_context` or a selected subset?**
    - **Owner**: @VJyzCELERY
    - **Target**: 2026-06-15
-   - **Status**: Proposed
+   - **Status**: Resolved — per FR-005 (fresh session, not inherited) and design decision #2 (parent passes selected context via `NodeInput`), the digester receives only selected context via `NodeInput(messages=...)`.
    - **Proposed Answer**: Selected subset — the parent `ResponseNode` should pass only relevant context messages via `NodeInput(messages=...)`, not the entire session context, to keep the digester scoped and focused.
 
 ---
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
+- [ ] No implementation details (no code, framework, or architecture choices)
 - [x] All mandatory sections completed
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous

@@ -254,7 +254,7 @@ def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
 ## Open Questions _(optional)_
 
 1. **Should `ResponseNode` select a subset of `session_context` for the digester's input, or pass the full context?**
-   - Current implementation passes messages via `NodeInput` (built in `_build_response_context`). The current code transforms session_context into message dicts. This is acceptable for MVP; future milestones may refine the selection logic.
+   - Current implementation passes messages via `NodeInput` (built in `_build_response_context`) per FR-005/FR-006. Selection refinement deferred to Milestone 4.1.
 
 ---
 

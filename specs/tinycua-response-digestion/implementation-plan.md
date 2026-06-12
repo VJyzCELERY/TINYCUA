@@ -43,136 +43,12 @@ Formalizes the integration contract between `TinyCUAResponseNode` and `TinyCUAIn
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
-```python
-# Test file: src/tinycua/tests/integration/test_response_node_integration.py
-"""Integration tests for TinyCUAResponseNode — digester suspension flow."""
+The test code is defined in `src/tinycua/tests/integration/test_response_node_integration.py` (12,496 bytes). Four test functions cover the critical paths:
 
-
-def test_digester_suspension():
-    """End-to-end: __call__ with insufficient context → on_complete triggers
-    suspension → digester produces digest → digest propagates → response
-    node resumes and synthesizes final response."""
-    # Arrange
-    config = NodeConfigBase()
-    config.metadata["digester_enabled"] = True
-    response_node = TinyCUAResponseNode(config=config)
-    session = Session()
-    response_node.ensure_session(session)
-
-    input_data = NodeInput(
-        input_type="continuation",
-        messages=[{"role": "system", "content": "No aggregated result"}],
-    )
-
-    mock_queue = MagicMock(spec=NodeQueue)
-    mock_queue.current = response_node
-
-    # Act — Phase 1: __call__ sets flag, returns placeholder
-    with patch.object(response_node, "_suspend_for_digestion") as mock_suspend:
-        result = response_node(input_data)
-        assert response_node._needs_digestion is True
-        mock_suspend.assert_not_called()
-
-    # Act — Phase 2: on_complete triggers suspension
-    with patch.object(response_node, "_suspend_for_digestion") as mock_suspend:
-        response_node.on_complete(mock_queue, result)
-        mock_suspend.assert_called_once()
-
-    # Act — Phase 3: resume after digestion with enriched context
-    response_node._needs_digestion = False
-    with patch.object(response_node, "_check_context_sufficiency", return_value=True):
-        with patch.object(
-            response_node, "_synthesize_response",
-            return_value=LLMResult(content="Final response after digestion"),
-        ):
-            resume_result = response_node(input_data)
-            assert resume_result.content == "Final response after digestion"
-
-
-def test_direct_synthesis_no_digestion():
-    """Given sufficient context, ResponseNode synthesizes directly without
-    invoking the digester or setting _needs_digestion."""
-    # Arrange
-    config = NodeConfigBase()
-    node = TinyCUAResponseNode(config=config)
-    session = Session()
-    entry = {"role": "assistant", "content": "Done"}
-    entry["aggregated_result"] = AggregatedResult(
-        root_task_id="root",
-        task_summaries=["Root: Done"],
-        final_context="Root: Done",
-    )
-    session.session_context.append(entry)
-    node.ensure_session(session)
-    node.config.llm_client = MagicMock(
-        return_value=LLMResult(content="Direct synthesis result.")
-    )
-
-    input_data = NodeInput(
-        input_type="continuation",
-        messages=[{"role": "user", "content": "test"}],
-    )
-
-    # Act
-    result = node(input_data)
-
-    # Assert — no digestion was triggered
-    assert node._needs_digestion is False
-    assert isinstance(result, LLMResult)
-    assert result.content == "Direct synthesis result."
-
-
-def test_max_digest_attempts_enforced():
-    """After N failed digestion cycles, suspension is skipped and synthesis
-    proceeds with available (possibly insufficient) context."""
-    # Arrange
-    config = NodeConfigBase()
-    config.metadata["max_digest_attempts"] = 2
-    node = TinyCUAResponseNode(config=config)
-    node._digest_attempts = 2  # Already at max
-
-    mock_queue = MagicMock()
-    mock_context = MagicMock()
-
-    # Act
-    node._suspend_for_digestion(mock_context, mock_queue)
-
-    # Assert — no suspension occurred
-    mock_queue.suspend_current_and_prepend.assert_not_called()
-
-
-def test_digester_enabled_false_fallback():
-    """When digester_enabled=False and context is insufficient,
-    ResponseNode falls through to _gather_context_via_tools."""
-    # Arrange
-    config = NodeConfigBase()
-    config.metadata["digester_enabled"] = False
-    config.llm_client = MagicMock(
-        return_value=LLMResult(content="Tool fallback response.")
-    )
-    node = TinyCUAResponseNode(config=config)
-    session = Session()
-    node.ensure_session(session)
-
-    input_data = NodeInput(
-        input_type="continuation",
-        messages=[{"role": "user", "content": "test"}],
-    )
-
-    # Act
-    with patch.object(node, "_gather_context_via_tools") as mock_tools:
-        mock_tools.return_value = ResponseContext(
-            aggregated_result=None,
-            session_context=[],
-            latest_output=None,
-            continuation_payload=None,
-        )
-        result = node(input_data)
-
-    # Assert — _gather_context_via_tools was called, not _suspend_for_digestion
-    mock_tools.assert_called_once()
-    assert node._needs_digestion is False
-```
+- `test_digester_suspension` — end-to-end: `__call__` with insufficient context → `on_complete` triggers suspension → digester produces digest → digest propagates → response node resumes and synthesizes final response.
+- `test_direct_synthesis_no_digestion` — sufficient context bypasses digestion entirely.
+- `test_max_digest_attempts_enforced` — guard prevents infinite suspend/resume loops.
+- `test_digester_enabled_false_fallback` — falls through to tool-based gathering.
 
 ### Key Test Scenarios
 
@@ -204,7 +80,7 @@ def test_digester_enabled_false_fallback():
 
 ### loops/response_node.py
 
-#### MODIFY src/tinycua/tinycua/loops/response_node.py
+#### Modified (documenting existing implementation) src/tinycua/tinycua/loops/response_node.py
 
 - **Three-phase execution in `__call__`**: Phase 1 builds `ResponseContext`, Phase 2 checks sufficiency (sufficient → synthesize, insufficient + digester → set flag, insufficient + no digester → tools), Phase 3 normalizes output.
 - **`on_complete` digester trigger**: Checks `_needs_digestion` flag and calls `_suspend_for_digestion` when True.
@@ -214,7 +90,7 @@ def test_digester_enabled_false_fallback():
 - **`_synthesize_response`**: Delegates to inherited `ProcessNode.__call__` for LLM invocation; falls back to configurable message on error.
 - **Rationale**: Implements the full response node lifecycle per spec FR-001 through FR-009.
 
-#### MODIFY src/tinycua/tinycua/loops/information_digester.py
+#### Modified (documenting existing implementation) src/tinycua/tinycua/loops/information_digester.py
 
 - **Fresh session creation**: `__call__` creates a new `Session()` if none exists, never inherits from parent (FR-005).
 - **Digest production**: `_produce_digest` builds context text, invokes LLM, parses response into `DigestedInformation`.
