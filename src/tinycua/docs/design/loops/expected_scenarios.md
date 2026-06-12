@@ -21,6 +21,7 @@ User sends a new request. No task exists. Worker chooses `task_creation`.
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
+    participant ID as InformationDigester
     participant W as Worker
     participant TC as TaskCreate
     participant TA as TaskAnalyzer
@@ -32,7 +33,9 @@ sequenceDiagram
 
     User->>QA: "Fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>W: spawn Worker
+    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    ID->>ID: enhanced_context_retrieval + digest_information
+    ID->>W: propagate digested output to Worker session
     W->>W: no task exists → task_creation
     W->>TC: spawn TaskCreate
     TC->>TC: create root task deterministically
@@ -52,6 +55,7 @@ sequenceDiagram
 ```
 
 **Key contracts:** [`query_analyst.md`](query_analyst.md), [`worker.md`](worker.md),
+[`information_digester.md`](information_digester.md),
 [`task_create.md`](task_create.md), [`task_analyzer.md`](task_analyzer.md),
 [`analysis_effort.md`](analysis_effort.md), [`task_executor.md`](task_executor.md),
 [`result_reviewer.md`](result_reviewer.md), [`result_aggregation.md`](result_aggregation.md),
@@ -64,7 +68,8 @@ User sends a follow-up. Task exists. Worker chooses `proceed_execution` — the 
 ```mermaid
 sequenceDiagram
     participant User
-    participant QA as TaskAnalyzer
+    participant QA as QueryAnalyst
+    participant ID as InformationDigester
     participant W as Worker
     participant TE as TaskExecutor
     participant RR as ResultReviewer
@@ -72,7 +77,9 @@ sequenceDiagram
     participant R as Response
 
     User->>QA: "What about the other page?"
-    QA->>W: advance to Worker
+    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    ID->>ID: enhanced_context_retrieval + digest_information
+    ID->>W: propagate digested output to Worker session
     W->>W: task exists, no executor queued → proceed_execution
     W->>TE: spawn TaskExecutor
     TE->>TE: execute next active task
@@ -84,7 +91,7 @@ sequenceDiagram
     R->>User: "The other page is also updated..."
 ```
 
-**Key contract:** [`worker.md`](worker.md) — `proceed_execution` edge case.
+**Key contracts:** [`worker.md`](worker.md), [`information_digester.md`](information_digester.md) — `proceed_execution` edge case.
 
 ---
 
@@ -201,16 +208,19 @@ Worker routes `passthrough` to forward input to the next worker-owned node.
 ```mermaid
 sequenceDiagram
     participant QA as QueryAnalyst
+    participant ID as InformationDigester
     participant W as Worker
     participant TE as TaskExecutor
 
-    QA->>W: route to Worker
+    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    ID->>ID: enhanced_context_retrieval + digest_information
+    ID->>W: propagate digested output to Worker session
     W->>W: worker-spawned nodes exist → passthrough
     W->>W: advance queue, forward input
     W->>TE: passthrough to TaskExecutor
 ```
 
-**Key contract:** [`worker.md`](worker.md) — passthrough route.
+**Key contracts:** [`worker.md`](worker.md), [`information_digester.md`](information_digester.md) — passthrough route.
 
 ---
 
@@ -224,16 +234,20 @@ QueryAnalyst routes to `uncertain` — it remains active and waits for user inpu
 sequenceDiagram
     participant User
     participant QA as QueryAnalyst
+    participant ID as InformationDigester
+    participant W as Worker
 
     User->>QA: "I'm not sure what I want yet"
     QA->>QA: analysis call → verdict → uncertain
     QA->>QA: remains active, waits for continuation
     User->>QA: "Actually, fix the login bug"
     QA->>QA: analysis call → verdict → worker
-    QA->>W: route to Worker
+    QA->>ID: spawn InformationDigester (mandatory before Worker)
+    ID->>ID: enhanced_context_retrieval + digest_information
+    ID->>W: propagate digested output to Worker session
 ```
 
-**Key contract:** [`query_analyst.md`](query_analyst.md) — `uncertain` route.
+**Key contracts:** [`query_analyst.md`](query_analyst.md), [`information_digester.md`](information_digester.md) — `uncertain` route.
 
 ---
 

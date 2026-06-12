@@ -6,20 +6,22 @@
 ## Role
 
 `TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that gathers and digests
-context for downstream nodes. It is optional and invoked only when direct accumulated
-context/tool access is insufficient.
+context for downstream nodes. It is mandatory before `WorkerNode` (spawned by
+`QueryAnalyst`) and optional before `ResponseNode` (spawned when context is insufficient).
 
 ## Non-Responsibilities
 
 - Does not execute tasks.
 - Does not create or mutate tasks.
 - Does not synthesize final user responses (it provides digested context for
-  ResponseNode).
+  WorkerNode and ResponseNode).
 
 ## Inputs
 
 - `NodeInput` with copied, selected subset of parent node's `session_context` messages.
 - Optional digest request payload.
+- When spawned by QueryAnalyst (before Worker): copied session_context from the current
+  session, providing context for Worker's routing decision.
 - When spawned by ResponseNode: copied session_context from the suspended response
   node's session.
 
@@ -43,7 +45,7 @@ or reuse the suspended parent/root session. Specific rules:
 
 ## Outputs / State Produced
 
-- Digested information for downstream consumption.
+- Digested information for downstream consumption (WorkerNode or ResponseNode).
 - If no useful context is found, returns/propagates a continuation-style fallback:
   "the user asked `<user_query>`, no useful extra information was found, so downstream
   should proceed with the user request and plan carefully before action."
@@ -77,7 +79,7 @@ Fallback continuation:
 ```
 
 This fallback is propagated as a continuation prompt to ensure downstream nodes
-(R ResponseNode or other consumers) are aware that no additional context was found and
+(WorkerNode or ResponseNode) are aware that no additional context was found and
 should proceed with the original request.
 
 ## Queue Behavior / `on_complete()`
@@ -100,8 +102,9 @@ InformationDigester completes:
 
 ## Failure / Retry Behavior
 
-Retry according to `NodeRetryPolicy`. Digest failure may prevent ResponseNode from
-having sufficient context for final synthesis.
+Retry according to `NodeRetryPolicy`. Digest failure may prevent WorkerNode from
+having sufficient context for routing decisions, or ResponseNode from having
+sufficient context for final synthesis.
 
 ## Related Config
 

@@ -20,6 +20,8 @@ execution advancement.
 ## Inputs
 
 - `NodeInput` from QueryAnalyst, containing the original user query and session context.
+- `DigestedInformation` from InformationDigesterNode (mandatory — QueryAnalyst always
+  spawns InformationDigester before Worker).
 - Continuation input from downstream nodes when re-entered.
 
 ## Outputs / State Produced
@@ -60,6 +62,12 @@ analysis call → verdict/classification tool call → RouteMap dispatch
 ## Queue Behavior / `on_complete()`
 
 ```text
+QueryAnalyst routes to Worker:
+  → QueryAnalyst constructs NodeInput with selected session_context.
+  → QueryAnalyst calls queue.suspend_current_and_prepend([InformationDigesterNode(parent=worker_node)]).
+  → InformationDigester gathers and digests context, propagates output to Worker session.
+  → WorkerNode resumes with digested context.
+
 WorkerNode enters:
   1. Does task exist?
      ├── No → task_creation route
@@ -98,6 +106,12 @@ Before (QueryAnalyst routes to existing WorkerNode):
   [QueryAnalyst, WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 QueryAnalyst routes to existing WorkerNode:
+  [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
+
+InformationDigester prepended before Worker (mandatory):
+  [InformationDigesterNode(parent=WorkerNode), WorkerNode, TaskExecutor(stale), ResultReviewer, ResponseNode]
+
+InformationDigester completes, propagates to Worker session:
   [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 Worker chooses task_recreation:
@@ -147,10 +161,14 @@ are assistant-role continuations.
 
 - `NodeRetryPolicy` — retry behavior for invalid/missing labels.
 - `WorkerEffort` — effort level configuration passed to AnalysisEffortNode.
+- `TinyCUAWorkerNodeConfig.allow_information_digest_request` — controls whether
+  InformationDigester is spawned before Worker (default: `true`).
 
 ## Related
 
 - [`route_map.md`](route_map.md)
 - [`node.md`](node.md)
 - [`analysis_effort.md`](analysis_effort.md)
+- [`information_digester.md`](information_digester.md)
 - [`../models/classification.md`](../models/classification.md)
+- [`../models/digested_information.md`](../models/digested_information.md)

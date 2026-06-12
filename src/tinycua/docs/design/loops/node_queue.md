@@ -51,6 +51,8 @@ when appropriate. `TinyCUALoop` does not call `advance()` separately after
 A node is suspended when it remains queued but is no longer at `queue[0]`. No dedicated
 persisted suspended state is required.
 
+### ResponseNode Digester Pattern
+
 ```text
 Before:
   [TinyCUAResponseNode]
@@ -60,6 +62,19 @@ ResponseNode requests more information:
 
 Digester completes:
   [TinyCUAResponseNode]
+```
+
+### WorkerNode Digester Pattern
+
+```text
+Before (QueryAnalyst routes to Worker):
+  [QueryAnalyst, WorkerNode, ...]
+
+QueryAnalyst spawns InformationDigester before Worker:
+  [TinyCUAInformationDigesterNode(parent=WorkerNode), WorkerNode, ...]
+
+Digester completes, propagates to Worker session:
+  [WorkerNode, ...]
 ```
 
 The prepended node propagates selected output back to its parent before the parent
@@ -79,6 +94,21 @@ When `TinyCUAResponseNode` suspends itself for information digestion:
 4. The digester uses a selected-output propagation rule targeting its parent session; the
    digest lands in the suspended response node's `session_context`.
 5. The response node resumes only after the digest output has propagated back.
+
+## WorkerNode Digester Handoff
+
+When `QueryAnalyst` routes to `WorkerNode`, it always spawns `InformationDigesterNode`
+first:
+
+1. QueryAnalyst constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
+   selected `session_context` messages plus an optional digest request payload.
+2. It calls `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=worker_node)])`
+   and assigns that `NodeInput` to the prepended digester node.
+3. The digester may read the copied input messages and retrieval tools, but it does not
+   re-store the copied messages in its own reusable context.
+4. The digester uses a selected-output propagation rule targeting its parent session; the
+   digest lands in the worker node's `session_context`.
+5. The worker node resumes only after the digest output has propagated back.
 
 ## Terminal Handling
 
