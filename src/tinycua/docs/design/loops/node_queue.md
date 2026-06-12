@@ -51,15 +51,17 @@ when appropriate. `TinyCUALoop` does not call `advance()` separately after
 A node is suspended when it remains queued but is no longer at `queue[0]`. No dedicated
 persisted suspended state is required.
 
+### ResponseNode Digester Pattern
+
 ```text
 Before:
-  [TinyCUAResponseNode]
+  [ResponseNode]
 
 ResponseNode requests more information:
-  [TinyCUAInformationDigesterNode(parent=TinyCUAResponseNode), TinyCUAResponseNode]
+  [InformationDigesterNode(parent=ResponseNode), ResponseNode]
 
 Digester completes:
-  [TinyCUAResponseNode]
+  [ResponseNode]
 ```
 
 The prepended node propagates selected output back to its parent before the parent
@@ -67,12 +69,12 @@ resumes.
 
 ## ResponseNode Digester Handoff
 
-When `TinyCUAResponseNode` suspends itself for information digestion:
+When `ResponseNode` suspends itself for information digestion:
 
 1. The response node constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
    selected `response_node.session.session_context` messages plus an optional digest
    request payload.
-2. It calls `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=response_node)])`
+2. It calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=response_node)])`
    and assigns that `NodeInput` to the prepended digester node.
 3. The digester may read the copied input messages and retrieval tools, but it does not
    re-store the copied messages in its own reusable context.

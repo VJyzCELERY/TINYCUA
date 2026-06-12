@@ -3,9 +3,12 @@
 > **Status:** Target architecture
 
 `TinyCUAInformationDigesterNode` uses information-digestion tools to gather and summarize
-context for downstream nodes or a suspended `TinyCUAResponseNode`.
+context for downstream nodes (`WorkerNode` or `ResponseNode`).
 
-`InformationDigesterNode` is optional and invoked only when direct accumulated context/tool access is insufficient. InformationDigesterNode is optional and invoked only when direct context/tool access is insufficient. `ResponseNode` should first evaluate whether accumulated context is enough. `TaskExecutor` should use `enhanced_context_retrieval` directly instead of spawning `InformationDigesterNode`.
+`InformationDigesterNode` is spawned by `QueryAnalyst` before routing to `WorkerNode`,
+or by `ResponseNode` via `suspend_current_and_prepend` when context is insufficient
+for final synthesis. `TaskExecutor` should use `enhanced_context_retrieval` directly
+instead of spawning `InformationDigesterNode`.
 
 Primary tools:
 
@@ -26,19 +29,20 @@ a limited ReAct-style search over that cache using grep/search and paginated rea
 - Search/read tools are limited to grep/search within the cache and paginated cache reads. All search and read operations are limited to the cache.
 - `InformationDigesterNode` may call the tool, but the tool owns cache creation.
 
-When spawned by `TinyCUAResponseNode`, the digester receives a copied, selected subset of
-the response node's current `session_context` via `NodeInput(messages=[...])`, plus an
-optional digest request payload. It should not duplicate those input messages in its own
-reusable context; it stores and propagates only new digest output.
+When spawned by `QueryAnalyst` or `ResponseNode`,
+the digester receives a copied, selected subset of the parent's current `session_context`
+via `NodeInput(messages=[...])`, plus an optional digest request payload. It should not
+duplicate those input messages in its own reusable context; it stores and propagates
+only new digest output.
 
 The digester always creates a **fresh node session** — it does not inherit or reuse the
 suspended parent/root session. It avoids eager loading of parent/root context and accesses
 it lazily through `enhanced_context_retrieval` when needed.
 
 The digester uses the selected-output propagation profile targeting its suspended parent.
-The digest lands in the parent response node's `session_context` before the response node
-resumes final synthesis. `chat_history` remains available for audit, but is not passed
-wholesale to the digester unless explicitly selected by the response node.
+The digest lands in the parent node's `session_context` before the parent resumes.
+`chat_history` remains available for audit, but is not passed wholesale to the digester
+unless explicitly selected by the parent node.
 
 ## Related
 

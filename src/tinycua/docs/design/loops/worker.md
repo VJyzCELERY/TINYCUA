@@ -19,14 +19,14 @@ execution advancement.
 
 ## Inputs
 
-- `NodeInput` from QueryAnalyst, containing the original user query and session context.
+- `DigestedInformation` from QueryAnalyst (via InformationDigesterNode spawned before
+  Worker). Contains original query in fallback case, digested context in success case.
 - Continuation input from downstream nodes when re-entered.
 
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
-- Preserves and passes through the original input query downstream; transformed/filter
-  output may be added but must not replace the original query.
+- Preserves and passes through the original input query downstream; transformed/filter output may be added but must not replace the original query.
 
 ## Tools
 
@@ -97,7 +97,10 @@ When QueryAnalyst routes to an existing WorkerNode and the Worker chooses
 Before (QueryAnalyst routes to existing WorkerNode):
   [QueryAnalyst, WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
-QueryAnalyst routes to existing WorkerNode:
+QueryAnalyst spawns InformationDigester before Worker:
+  [InformationDigesterNode(parent=WorkerNode), WorkerNode(reused), TaskExecutor(stale), ResultReviewer, ResponseNode]
+
+InformationDigester completes, propagates to Worker session:
   [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 Worker chooses task_recreation:
@@ -119,8 +122,10 @@ Passthrough advances the Worker and forwards input to the next worker-owned node
 
 ## Propagation
 
-- Preserves the original input query for downstream nodes.
-- Optionally adds transformed/filter output but must not replace the original query.
+- Forwards DigestedInformation (which contains the original query in fallback or
+  digested context in success case) along with WorkerDecision to downstream nodes.
+- WorkerDecision is used for routing only; DigestedInformation is the node query
+  for spawned nodes.
 
 ## Transient Routing Node Behavior
 
@@ -153,4 +158,6 @@ are assistant-role continuations.
 - [`route_map.md`](route_map.md)
 - [`node.md`](node.md)
 - [`analysis_effort.md`](analysis_effort.md)
+- [`information_digester.md`](information_digester.md)
 - [`../models/classification.md`](../models/classification.md)
+- [`../models/digested_information.md`](../models/digested_information.md)
