@@ -94,9 +94,10 @@ Implementation tasks for Milestone 4.3 — Retry, Validation, and Monitor Hook. 
   - [ ] Test hook called with correct arguments
   - [ ] Test hook exception caught and logged
   - [ ] Test hook continuation message enters retry flow
-- [ ] Write unit tests for `AgentMonitor` delegation in `tests/unit/test_monitor_hook.py` <!-- id: 21 -->
-  - [ ] Test `AgentMonitor` delegates to `NodeMonitor` if configured
-  - [ ] Test `AgentMonitor` works without `NodeMonitor`
+- [ ] Write unit tests for independent `AgentMonitor` and `NodeMonitor` hook behavior in `tests/unit/test_monitor_hook.py` <!-- id: 21 -->
+  - [ ] Test `AgentMonitor` fires when configured (loop-level)
+  - [ ] Test `NodeMonitor` fires when configured (node-level)
+  - [ ] Test both fire independently when both configured
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 22 -->
 
 ## Verification Phase

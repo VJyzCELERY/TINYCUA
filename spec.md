@@ -190,8 +190,8 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 2. **Should `AgentMonitor` wrap `NodeMonitor` or be independent?**
    - **Owner**: @VJyzCELERY
-   - **Status**: RESOLVED — `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_node_*()` which delegates to the configured `NodeMonitor` if present. (Resolved in design.md Technical Decision #6)
-   - **Proposed Answer**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_node_*()` which delegates to the configured `NodeMonitor` if present.
+   - **Status**: RESOLVED — `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other. (Resolved in design.md Technical Decision #6)
+   - **Proposed Answer**: `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other.
 
 ---
 

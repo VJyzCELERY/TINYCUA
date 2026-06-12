@@ -215,7 +215,7 @@ def test_monitor_hook_observes_full_cycle():
 - [ ] Unit tests for `_handle_exhaustion()` with all three policies
 - [ ] Unit tests for `DecisionNode` classification validation and retry
 - [ ] Unit tests for `NodeMonitor` hook trigger points and exception handling
-- [ ] Unit tests for `AgentMonitor` delegation to `NodeMonitor`
+- [ ] Unit tests for `AgentMonitor` and `NodeMonitor` independent hook behavior
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
@@ -284,7 +284,7 @@ def test_monitor_hook_observes_full_cycle():
 - Unit tests for `NodeMonitor` hook trigger points
 - Unit tests for hook exception handling (logged, does not break execution)
 - Unit tests for hook continuation message entering retry flow
-- Unit tests for `AgentMonitor` delegation to `NodeMonitor`
+- Unit tests for `AgentMonitor` and `NodeMonitor` independent hook behavior
 
 #### [NEW] `src/tinycua/tests/integration/test_retry_integration.py`
 
