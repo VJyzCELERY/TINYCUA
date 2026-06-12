@@ -11,7 +11,6 @@ Implementation tasks for Tool Scoping. Check off items as completed.
 
 ### Phase 1 — Tool Scope Definitions
 
-- [ ] Create `tinycua/tools/__init__.py` package <!-- id: 2 -->
 - [ ] Create `tinycua/tools/task_tools.py` with TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate stubs <!-- id: 3 -->
   - [ ] Implement TaskInitTool stub
   - [ ] Implement TaskCreateTool stub
@@ -75,9 +74,9 @@ Implementation tasks for Tool Scoping. Check off items as completed.
 
 ## Documentation Phase
 
-- [ ] Update API documentation for tool_scopes module <!-- id: 19 -->
-- [ ] Update README if needed <!-- id: 20 -->
-- [ ] Update changelog <!-- id: 21 -->
+- [ ] Add docstrings to all factory functions in `tinycua/config/tool_scopes.py` and update `src/tinycua/docs/design/constants/tools.md` <!-- id: 19 -->
+- [ ] Create or update `src/tinycua/README.md` tool scoping section <!-- id: 20 -->
+- [ ] Create `CHANGELOG.md` if it doesn't exist, then add entry under Unreleased > Added <!-- id: 21 -->
 
 ## Review and Merge
 

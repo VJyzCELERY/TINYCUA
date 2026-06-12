@@ -61,6 +61,24 @@ LLM call receives only resolved tools
 
 Each node type maps to a `NodeToolPolicy` definition. The registry is a module-level dictionary or factory function per node type.
 
+**Node Tool Scope Summary** (authoritative source: `src/tinycua/docs/design/constants/tools.md`):
+
+> **Note**: The complete tool-to-node mapping is defined in the external file above. For a full review, read `src/tinycua/docs/design/constants/tools.md` alongside this document.
+
+| Node | Factory Function | Node Tools | Outer Tools |
+|------|-----------------|------------|-------------|
+| QueryAnalystNode | `query_analyst_tool_scope()` | Classification + read-only task/context inspection | none |
+| InformationDigesterNode | `information_digester_tool_scope()` | `enhanced_context_retrieval`, `digest_information` | none |
+| WorkerNode | `worker_tool_scope()` | Worker decision tools | none |
+| TaskCreateNode | `task_create_tool_scope()` | `TaskInit`, `TaskCreate` | none |
+| TaskAnalyzerNode | `task_analyzer_tool_scope(mode)` | Structural task tools; `TaskInit`/`TaskCreate` only in `task_recreation` mode | none |
+| TaskAssessorNode | `task_assessor_tool_scope()` | Task assessment/read/update tools | none |
+| TaskExecutorNode | `task_executor_tool_scope()` | Task execution, `enhanced_context_retrieval`, todo tools | selected |
+| ResultReviewerNode | `result_reviewer_tool_scope()` | Review/decision, task result/context update | none |
+| ResultAggregationNode | `result_aggregation_tool_scope()` | Aggregation/consolidation tools | none |
+| ResponseNode | `response_tool_scope(allow_digest)` | Same base as TaskExecutor + final response synthesis + optional digest request | selected |
+| AnalysisEffortNode | *(deterministic ProcessNode — no LLM calls, no tool scope)* | — | — |
+
 ```python
 # Conceptual shape — not final implementation
 

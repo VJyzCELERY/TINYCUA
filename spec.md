@@ -1,7 +1,7 @@
 # Feature Specification: Tool Scoping
 
 **Status**: Draft
-**Created**: 2026-06-13
+**Created**: 2026-06-12
 **Last Updated**: 2026-06-13
 **Subproject(s) Affected**: tinycua (src/tinycua)
 **Milestone**: 4.2 — Tool Scoping
@@ -77,6 +77,7 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 - **FR-008**: `TinyCUATaskAssessorNode` tool scope MUST include task assessment/read/update tools.
 - **FR-009**: `TinyCUAWorkerNode` tool scope MUST include worker decision tools only.
 - **FR-010**: `TinyCUAResultReviewerNode` tool scope MUST include review/decision tools and task result/context update tools.
+- **FR-010b**: `TinyCUAResultAggregationNode` tool scope MUST include aggregation/consolidation tools.
 - **FR-011**: Todo tools MUST be exposed through `NodeToolPolicy` to TaskExecutorNode and optionally ResponseNode, not through global agent-node configuration.
 - **FR-012**: `enhanced_context_retrieval` MUST lazily create a scoped context cache file when called and run ReAct-style search within that cache.
 - **FR-013**: `enhanced_context_retrieval` cache MUST be per-session-scope — lazily created on first invocation for a session and reused on subsequent calls within that session.
