@@ -31,10 +31,10 @@ src/
 - Source: `snake_case.py`
 - Tests: `test_<module>.py`
 - Docs: `kebab-case.md` or `UPPER_CASE.md` (templates)
-- Reviews: `REVIEW_{normalized_branch}.md` (branch slashes `/` → underscores `_`)
+- Reviews: `REVIEW_{branch}.md`
 
 ## Review Files
-- Active review: `./reviews/REVIEW_{normalized_branch}.md`
-- Review log: `./reviews/log/REVIEW_{normalized_branch}.md`
-- Archive: `./reviews/archives/REVIEW_{normalized_branch}_{ID}.md`
+- Active review: `./reviews/REVIEW_{branch}.md`
+- Review log: `./reviews/log/REVIEW_{branch}.md`
+- Archive: `./reviews/archives/REVIEW_{branch}_{ID}.md`
 - All `./reviews/` files are gitignored — never commit

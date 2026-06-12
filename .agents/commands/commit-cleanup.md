@@ -5,8 +5,7 @@ subtask: true
 
 Clean up commit history after a rebase: squash fixup commits, remove duplicates, and keep history linear and meaningful.
 
-> Load skill: commit-cleanup (for command-specific workflow)
-> Load skill: git (for general commit history cleanup)
+> Load skill: git (for commit history cleanup)
 
 **Query**: $1 (natural language query — optional target branch, defaults to `main`)
 
@@ -19,18 +18,21 @@ Clean up commit history after a rebase: squash fixup commits, remove duplicates,
 Before cleaning up commits, load the relevant skill and run the rebase pre-flight:
 
 > Load skill: preflight (for preflight scripts)
-> Load skill: commit-cleanup (for command-specific workflow)
 > Load skill: git (for rebase operations)
 
 ```bash
 uv run python .agents/scripts/preflight-rebase.py --target main --list-commits
 ```
 
-If it exits non-zero, read `.agents/scripts/preflight-rebase.py` and inspect its `<EOF_DESC>` usage block to recover.
+If it exits non-zero, read the script to recover:
+
+```bash
+head -20 .agents/scripts/preflight-rebase.py
+```
 
 ---
 
-Read `.agents/skills/commit-cleanup/SKILL.md` and `.agents/skills/git/SKILL.md` before proceeding for the command-specific cleanup workflow and the general rebase workflow reference.
+Read `.agents/skills/git/SKILL.md` before proceeding for the full rebase workflow reference.
 
 ### 1. Check Current State
 
@@ -95,8 +97,8 @@ Summarize what was cleaned:
 ## Required Context
 
 - Preflight: preflight-rebase.py
-- Skills: commit-cleanup, git, preflight
-- Rules: none
+- Skills: git, preflight
+- Rules: 002-code-standards.md
 - Templates: none
 - Mutates files: yes
 - Mutates git history: yes

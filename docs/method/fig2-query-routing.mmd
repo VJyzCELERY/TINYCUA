@@ -1,0 +1,19 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart LR
+    Q([User Query]) --> QA["QueryAnalystNode\n(DecisionNode)"]
+
+    QA -->|"1. Analysis call"| LLM1["LLM analyzes request"]
+    LLM1 -->|"2. Verdict call"| LLM2["LLM invokes classification tool"]
+    LLM2 --> Route{"Route Label?"}
+
+    Route -->|"passthrough"| Forward["Forward to active\nnode/session"]
+    Route -->|"worker"| WorkerCheck{"WorkerNode\nalready queued?"}
+    Route -->|"uncertain"| Wait(["Wait for user\ncontinuation"])
+
+    WorkerCheck -->|"Yes"| Existing["Forward input to\nexisting WorkerNode"]
+    WorkerCheck -->|"No"| Spawn["Spawn new\nWorkerNode"]
+
+    style QA fill:#d69e2e,stroke:#a8dadc,color:#000
+    style Route fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Spawn fill:#2b6cb0,stroke:#a8dadc,color:#fff
+    style Wait fill:#e9c46a,stroke:#a8dadc,color:#000

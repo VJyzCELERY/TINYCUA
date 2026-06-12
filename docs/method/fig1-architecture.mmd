@@ -1,0 +1,65 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart TB
+    User([User])
+
+    subgraph External["SDK Agent"]
+        TC["Agent.run(query)"]
+    end
+
+    subgraph Loop["TinyCUALoop (extends BaseLoop)"]
+        Q["NodeQueue (sequential)"]
+
+        subgraph Nodes["Processing Nodes"]
+            direction TB
+            QA["QueryAnalystNode\n(DecisionNode)"]
+            WN["WorkerNode\n(DecisionNode)"]
+            TCN["TaskCreateNode\n(ProcessNode)"]
+            TAN["TaskAnalyzerNode\n(ProcessNode)"]
+            AE["AnalysisEffortNode\n(ProcessNode)"]
+            TASS["TaskAssessorNode\n(ProcessNode)"]
+            TEX["TaskExecutorNode\n(ProcessNode, ReAct)"]
+            RR["ResultReviewerNode\n(ProcessNode)"]
+            RAG["ResultAggregationNode\n(ProcessNode)"]
+            RESP["ResponseNode\n(ProcessNode, terminal)"]
+        end
+
+        subgraph OnDemand["On-Demand"]
+            ID["InformationDigesterNode\n(ProcessNode)"]
+        end
+    end
+
+    User -->|"query"| TC
+    TC --> Q
+    Q --> QA
+    QA -->|"passthrough"| RESP
+    QA -->|"worker"| WN
+    QA -->|"uncertain"| UserWait(["Wait for user"])
+
+    WN -->|"task_creation"| TCN
+    WN -->|"task_recreation / task_reanalysis"| TAN
+    WN -->|"passthrough"| RESP
+    WN -->|"proceed_execution"| TEX
+
+    TCN --> TAN
+    TAN --> AE
+    AE -->|"pass < limit"| TASS
+    TASS -->|"more tasks"| TAN
+    AE -->|"pass ≥ limit"| TEX
+    TASS -->|"no more tasks"| AE
+
+    TEX --> RR
+    RR -->|"accept (root done)"| RAG
+    RR -->|"accept (next task)"| TEX
+    RR -->|"retry"| TEX
+    RR -->|"replan"| TASS
+
+    RAG --> RESP
+    RESP -->|"response"| User
+
+    RESP -.-x|"suspend"| ID
+    ID -.-x|"resume"| RESP
+
+    style External fill:#1a1a2e,stroke:#a8dadc,color:#fff
+    style Loop fill:#16213e,stroke:#a8dadc,color:#fff
+    style Nodes fill:#0f3460,stroke:#a8dadc,color:#fff
+    style OnDemand fill:#0f3460,stroke:#a8dadc,color:#fff

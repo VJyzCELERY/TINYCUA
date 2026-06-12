@@ -5,8 +5,7 @@ subtask: true
 
 Create a new worktree and branch for feature development. Use this when you want to start work without creating specs yet.
 
-> Load skill: begin-worktree (for command-specific workflow)
-> Load skill: worktree (for general worktree guidance)
+> Load skill: worktree (for worktree creation)
 
 **Query**: $1 (natural language — specify the branch name or feature description, e.g., "create a worktree for feat/new-ui" or just "new-ui")
 
@@ -42,7 +41,7 @@ If the script exits non-zero, it prints a `[FAIL]` message and an `[ACTION]` ins
 ## Required Context
 
 - Preflight: none
-- Skills: begin-worktree, worktree
+- Skills: worktree
 - Rules: none
 - Templates: none
 - Mutates files: yes

@@ -1,0 +1,22 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart LR
+    Input(["Task Input\n(active task context)"]) --> Think["Reason\n(think about task)"]
+    Think --> Act["Act\n(tool call)"]
+    Act --> Observe["Observe\n(tool result)"]
+    Observe -->|"k < max_steps"| Think
+    Observe -->|"k ≥ max_steps\nor task complete"| Result(["Task Result"])
+
+    subgraph Restrictions["Tool Restrictions"]
+        R1["Cannot select/edit tasks"]
+        R2["Cannot mutate task tree"]
+        R3["Can call enhanced_context_retrieval"]
+    end
+
+    Input -.->|"restricted"| Think
+
+    style Input fill:#264653,stroke:#a8dadc,color:#fff
+    style Think fill:#2a9d8f,stroke:#a8dadc,color:#fff
+    style Act fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Observe fill:#e76f51,stroke:#a8dadc,color:#fff
+    style Result fill:#264653,stroke:#a8dadc,color:#fff
+    style Restrictions fill:#16213e,stroke:#a8dadc,color:#fff

@@ -22,13 +22,15 @@ Before running, load the relevant skills and run the review pre-flight:
 uv run python .agents/scripts/preflight-review.py --scope pr --init-review
 ```
 
-If local is behind remote, sync to the latest remote commit first. Use fast-forward pull when possible. If the remote rebased/diverged, create a backup branch for local commits and stash dirty work before resetting to upstream, then generate the report from the latest code.
+This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW_{branch}.md` with the header and commit range already filled in.
 
-This detects the PR (or branch), determines the commit range, and pre-generates the review file at `./reviews/REVIEW_{normalized_branch}.md` with the header and commit range already filled in. `normalized_branch` is the current branch name with `/` replaced by `_`.
+If the pre-flight exits non-zero, read the script's `<EOF_DESC>` to understand what's wrong:
 
-If the pre-flight exits non-zero, read `.agents/scripts/preflight-review.py` and inspect its `<EOF_DESC>` usage block to understand what's wrong.
+```bash
+head -20 .agents/scripts/preflight-review.py
+```
 
-After pre-flight succeeds, the review file is ready at `./reviews/REVIEW_{normalized_branch}.md`. Read it, then fill in the findings section.
+After pre-flight succeeds, the review file is ready at `./reviews/REVIEW_{branch}.md`. Read it, then fill in the findings section.
 
 Note: Do NOT pass `--review-file` here — the review report doesn't exist yet. The pre-flight only checks unstaged changes and prints scope info.
 
@@ -41,7 +43,7 @@ If reviewing against a PR (detected in scope check below), always read the PR bo
 
 ```bash
 PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
-uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" | uv run python -c "import sys,json; d=json.load(sys.stdin); print(f'TITLE: {d[\"title\"]}\n\nBODY:\n{d[\"body\"]}')"
+uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" | python -c "import sys,json; d=json.load(sys.stdin); print(f'TITLE: {d[\"title\"]}\n\nBODY:\n{d[\"body\"]}')"
 ```
 
 Use the PR title and body to **adjust your review scope** — the PR may be narrower or broader than the branch diff. If the PR body/title do not match the actual changes or do not comply with project standards (missing context, no spec references, etc.), flag this as a **finding** with severity MEDIUM. Include a suggestion for what the PR body/title should say.
@@ -116,8 +118,7 @@ This command **must** determine what files are in scope before reviewing. The re
 Only after you have your preliminary findings, check the review log:
 
 ```bash
-BRANCH=$(git branch --show-current)
-LOG_PATH="./reviews/log/REVIEW_${BRANCH//\//_}.md"
+LOG_PATH="./reviews/log/REVIEW_$(git branch --show-current | tr '/' '-').md"
 if [ -f "$LOG_PATH" ]; then
     echo "Review log exists: $LOG_PATH"
 fi
@@ -134,11 +135,11 @@ If the log exists, read it. For each of your preliminary findings:
 - **If not found in log at all**: Keep as a new OPEN finding.
 
 ### Phase 3: Write Report
-5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW_{normalized_branch}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
+5. **Use the pre-generated review file**: The pre-flight already created `./reviews/REVIEW_{name}.md` with the header and commit range pre-filled. Read it, then use Write to fill in the findings section and remove placeholder markers.
 
 ## Report Path Convention
 
-Review reports ALWAYS go to `./reviews/REVIEW_{normalized_branch}.md` (relative to the repo root / workdir), where `normalized_branch` is the current branch name with `/` replaced by `_`.
+Review reports ALWAYS go to `./reviews/REVIEW_{name}.md` (relative to the repo root / workdir).
 Do NOT write reviews inside the target directory. This keeps reviews findable at a consistent location.
 
 The `$1` argument is the target being reviewed, NOT the output location.
@@ -157,7 +158,7 @@ pytest ...
 
 ## Report Filename
 
-Use format: `REVIEW_{normalized_branch}.md`
+Use format: `REVIEW_{name}.md`
 
 ## Review Report Format
 
@@ -209,8 +210,7 @@ Use format: `REVIEW_{normalized_branch}.md`
 - **Documentation is equal priority to code** — flag missing/stale docs with same severity as code bugs
 - **PR body/title compliance** — if reviewing against a PR, always check that the PR body and title accurately reflect the changes and comply with spec references. Flag non-compliance as a finding
 - **Record the commit range** in the review header — this lets the user know if the review is stale (new commits since review)
-- Always review latest local code. If local is behind remote, sync before creating the report.
-- MUST create the review file at `./reviews/REVIEW_{normalized_branch}.md` — it is gitignored, do NOT `git add` or commit it
+- MUST create the review file at `./reviews/REVIEW_{name}.md` — it is gitignored, do NOT `git add` or commit it
 - Each finding MUST include an executable validation command (prefixed with `uv run`)
 - Use proper Issue Codes (ISSUE-001, ISSUE-002, etc.)
 - Categorize findings by severity

@@ -1,7 +1,7 @@
 """Review log management script.
 
 Creates, validates, and browses review log entries stored in
-./reviews/log/REVIEW_{normalized_branch}.md format.
+./reviews/log/REVIEW_{branch}.md format.
 
 Usage:
     uv run python .agents/scripts/review-log.py --log-create <review-path>
@@ -24,13 +24,12 @@ def run(cmd):
 
 def get_branch() -> str:
     branch = run(["git", "branch", "--show-current"])
-    return branch.replace("/", "_") if branch else "unknown"
+    return branch.replace("/", "-") if branch else "unknown"
 
 
 def get_log_path(branch: str | None = None) -> Path:
     if not branch:
         branch = get_branch()
-    branch = branch.replace("/", "_")
     return Path("./reviews/log") / f"REVIEW_{branch}.md"
 
 

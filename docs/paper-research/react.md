@@ -1,0 +1,7 @@
+# Literature Review: Reasoning and Acting (ReAct)
+
+## Draft
+
+Beyond RAG's focus on knowledge access, Reasoning and Acting (ReAct) (Yao et al., 2023) addresses the reasoning challenge by interleaving reasoning traces with tool-calling actions in a dynamic thought-action-observation loop. In each cycle, the model verbalizes its reasoning (thought), executes an environment action (such as a search query or API call), and receives feedback (observation) that informs the next reasoning step. This mechanism enables models to self-correct reasoning errors mid-execution by grounding thought in environmental feedback, rather than relying solely on internal knowledge.
+
+However, continuous reasoning within a single language model session causes unbounded context growth — each thought, action, and observation accumulates in the context window, increasing the risk of hallucination as the model must attend to expanding volumes of intermediate tokens (Liu et al., 2023). Moreover, ReAct was validated primarily on large-scale models (PaLM-540B, GPT-4); its effectiveness on smaller language models (1B–8B parameters) remains unestablished, as the combined load of reasoning, tool use, and context tracking may overwhelm limited model capacity. TinyCUA addresses these limitations by structuring the execution pipeline into staged processing nodes with isolated context, preventing the unbounded accumulation that characterizes single-session ReAct.

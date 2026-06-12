@@ -14,7 +14,7 @@
 The Query Analyst prepares the request for routing with a fast, high-level scan. It produces:
 
 1. a `Context Enhanced Query` (high-level), and
-2. a `Classification`.
+2. a `Mode Decision`.
 
 The Query Analyst scans session `Context` directly (no search tool needed). Deep, precise context retrieval is the responsibility of the Information Digester.
 
@@ -31,7 +31,7 @@ The Query Analyst scans session `Context` directly (no search tool needed). Deep
 **Output:**
 
 - `Context Enhanced Query` (CEQ) — user query enriched with high-level session context. See [context-retrieval.md](context-retrieval.md) for the deep retrieval flow used by the Information Digester.
-- `Classification` — routing verdict via configurable labels. Canonical schema in [state-objects.md](state-objects.md).
+- `Mode Decision` — routing verdict. Canonical schema in [state-objects.md](state-objects.md).
 
 ---
 
@@ -57,7 +57,7 @@ flowchart TD
     SCAN["High-level context scan"]
     CEQ{{"Context Enhanced Query\n(high-level)"}}
     CLASSIFY["Score request and choose mode"]
-    MD{{"Classification"}}
+    MD{{"Mode Decision"}}
 
     UQ --> SCAN
     FSC --> SCAN
@@ -70,9 +70,9 @@ flowchart TD
 
 ## Classification
 
-The Query Analyst uses a `ClassificationTool` with configurable labels — not a binary small/large verdict.
+The Query Analyst should avoid a simple binary small/large verdict. It should use a score-based mode decision.
 
-The configured labels determine the routing outcome. See [task-classification.md](task-classification.md) for the classification rubric and safeguard rules.
+Scoring is multi-dimensional, using a rubric rather than a binary judgment. See [task-classification.md](task-classification.md) for the scoring dimensions and rubric.
 
 ---
 
@@ -87,6 +87,6 @@ The Query Analyst must guard against three failure modes: Worker overuse, unsafe
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Context scan | Fast, high-level scan | Query Analyst must be fast; deep retrieval is the Information Digester's responsibility |
-| Verdict shape | Classification via configurable labels | Supports passthrough and worker routing via the same QueryAnalyst node |
-| Classification style | Configurable `ClassificationTool` with safeguard rules | Prevents lazy overuse of Worker mode and unsafe Primary Agent routing |
+| Verdict shape | Mode decision | Supports primary-agent routing, Worker routing, and explicit uncertainty handling |
+| Classification style | Score-based with reasons | Prevents lazy overuse of Worker mode and unsafe Primary Agent routing |
 | Enhancement approach | High-level, session-context direct scan | QA receives session context directly; no search tool needed — it scans what it already has |

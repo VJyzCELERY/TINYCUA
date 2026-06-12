@@ -15,17 +15,14 @@ is insufficient for final synthesis.
 - Does not execute tasks.
 - Does not create or mutate tasks.
 - Does not synthesize final user responses (it provides digested context for
-  WorkerNode and ResponseNode).
+  ResponseNode).
 
 ## Inputs
 
 - `NodeInput` with copied, selected subset of parent node's `session_context` messages.
 - Optional digest request payload.
-- When spawned by WorkerNode (via `suspend_current_and_prepend`): copied session_context
-  from the suspended worker node's session, providing context for Worker's routing
-  decision.
-- When spawned by ResponseNode (via `suspend_current_and_prepend`): copied session_context
-  from the suspended response node's session.
+- When spawned by ResponseNode: copied session_context from the suspended response
+  node's session.
 
 ## Session Scope
 
@@ -47,7 +44,7 @@ or reuse the suspended parent/root session. Specific rules:
 
 ## Outputs / State Produced
 
-- Digested information for downstream consumption (WorkerNode or ResponseNode).
+- Digested information for downstream consumption.
 - If no useful context is found, returns/propagates a continuation-style fallback:
   "the user asked `<user_query>`, no useful extra information was found, so downstream
   should proceed with the user request and plan carefully before action."
@@ -81,7 +78,7 @@ Fallback continuation:
 ```
 
 This fallback is propagated as a continuation prompt to ensure downstream nodes
-(WorkerNode or ResponseNode) are aware that no additional context was found and
+(R ResponseNode or other consumers) are aware that no additional context was found and
 should proceed with the original request.
 
 ## Queue Behavior / `on_complete()`
@@ -101,14 +98,11 @@ InformationDigester completes:
   digester unless explicitly selected.
 - Does not re-store copied input messages in its own reusable context; stores and
   propagates only new digest output.
-- Parent nodes (WorkerNode, ResponseNode) can detect whether digestion has already
-  occurred by checking `session_context` for existing digest output.
 
 ## Failure / Retry Behavior
 
-Retry according to `NodeRetryPolicy`. Digest failure may prevent WorkerNode from
-having sufficient context for routing decisions, or ResponseNode from having
-sufficient context for final synthesis.
+Retry according to `NodeRetryPolicy`. Digest failure may prevent ResponseNode from
+having sufficient context for final synthesis.
 
 ## Related Config
 

@@ -1,0 +1,27 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart TB
+    Input(["User Query\n+ Session Context"]) --> QA["TinyCUAQueryAnalystNode\n(DecisionNode)"]
+
+    QA --> Precheck{"Valid\nmandatory_passthrough?"}
+
+    Precheck -->|"Yes"| Forward["Forward to\ntarget node/session"]
+
+    Precheck -->|"No"| Step1["1. Analysis Call\nLLM analyzes request"]
+    Step1 --> Step2["2. Verdict Call\nLLM invokes classification tool"]
+    Step2 --> Route{"Route Label?"}
+
+    Route -->|"worker"| WorkerCheck{"WorkerNode\nalready queued?"}
+    Route -->|"uncertain"| Wait["Remains active\nWait for user continuation"]
+    Route -->|"passthrough"| PT["Forward to\nactive node/session"]
+
+    WorkerCheck -->|"Yes"| Existing["Forward input to\nexisting WorkerNode"]
+    WorkerCheck -->|"No"| Spawn["Spawn new WorkerNode\nbefore ResponseNode"]
+
+    Input -."Transient Context Assembly".-> QA
+
+    style Input fill:#264653,stroke:#a8dadc,color:#fff
+    style QA fill:#d69e2e,stroke:#a8dadc,color:#000
+    style Route fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Spawn fill:#2b6cb0,stroke:#a8dadc,color:#fff
+    style Wait fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Forward fill:#38a169,stroke:#a8dadc,color:#fff

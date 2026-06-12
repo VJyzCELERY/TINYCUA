@@ -71,7 +71,7 @@ If `git rebase <target>` fails with conflicts, do NOT resolve silently. Involve 
 
 #### 4a. Notify the User
 
-Tell the user a conflict occurred by asking directly in your normal response and stopping. Do NOT try to auto-resolve without user input. Do NOT make the question/ask tool the default; use it only if the user or harness explicitly requires that tool.
+Use the question/ask tool to tell the user a conflict occurred (priority). Only write inline if your harness has no such tool. Do NOT try to auto-resolve without user input.
 
 #### 4b. Analyze the Conflicts
 
@@ -94,7 +94,7 @@ For each conflict, tell the user:
 - **What changed on YOUR branch**: The commit message and what it changed
 - **What changed on THEIRS (target)**: The commit message and what it changed
 - **Suggested resolution**: Recommend which side to keep, or how to merge both
-- **Ask for their input**: Ask the user directly in your normal response how to proceed, then stop
+- **Ask for their input**: Use the question/ask tool to ask the user how to proceed
 
 Example:
 ```
@@ -166,7 +166,7 @@ fi
 - Always check for already-applied commits before rebasing
 - Never use `--reapply-cherry-picks` unless you explicitly want duplicates
 - After rebasing, force push is required (`git push --force-with-lease origin <branch>`) — use `--force-with-lease` to avoid overwriting others' changes. Never force-push `main`/`master`.
-- **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input directly in your normal response. Never resolve conflicts silently.
-- At every step that needs user input, ask directly and stop — don't proceed with assumptions. Do NOT default to the question/ask tool unless explicitly required.
+- **Conflicts must involve the user** — analyze and present each conflict, recommend a resolution, and ask for input using the question/ask tool (priority; inline if tool unavailable). Never resolve conflicts silently.
+- Use the question/ask tool at every step that needs user input — don't proceed with assumptions
 
 Begin by reading the git-rebase skill, then check the current branch state and rebase onto the target.

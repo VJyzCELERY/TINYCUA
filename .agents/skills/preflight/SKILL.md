@@ -36,17 +36,13 @@ Run before starting a review. Checks scope, stale reviews, and unstaged changes.
 
 **Mode A — New review** (`--init-review`, no `--review-file`):
 ```bash
-uv run python .agents/scripts/preflight-review.py --scope pr --init-review
+uv run python .agents/scripts/preflight-review.py --scope pr --init-review --review-name "my-review"
 ```
 
 **Mode B — Existing review staleness check** (`--review-file`, no `--init-review`):
 ```bash
-uv run python .agents/scripts/preflight-review.py --scope pr --review-file ./reviews/REVIEW_{normalized_branch}.md
+uv run python .agents/scripts/preflight-review.py --scope pr --review-file ./reviews/REVIEW_foo.md
 ```
-
-Review paths default to `./reviews/REVIEW_{normalized_branch}.md`, where branch slashes (`/`) become underscores (`_`).
-
-For review-updating commands, stale review commit range means the command should update the report against latest HEAD. First sync local code if it is behind remote: fast-forward pull when possible; for rebased/diverged remote state, create a backup branch for local commits and stash dirty work before resetting to upstream. Then validate/clarify/merge and refresh the commit range. `review-implement` is the exception: stale reviews must not be implemented; recommend `/review-verify` and stop.
 
 **Scope-only** (no init, no review file):
 ```bash
@@ -55,7 +51,10 @@ uv run python .agents/scripts/preflight-review.py --scope branch
 
 > ⚠️ Do NOT pass both `--init-review` and `--review-file` — they conflict.
 
-If the preflight exits non-zero, read `.agents/scripts/preflight-review.py` and inspect its `<EOF_DESC>` usage block to understand what's wrong.
+If the preflight exits non-zero, read the script's `<EOF_DESC>` to understand what's wrong:
+```bash
+head -20 .agents/scripts/preflight-review.py
+```
 
 ### preflight-pr.py — PR Number Detection
 
@@ -94,7 +93,7 @@ Before any command that has a preflight script:
 
 1. Read the command file (it tells you which preflight to run)
 2. Run the preflight with appropriate flags
-3. If it fails: read the script manually and inspect the `<EOF_DESC>` usage block
+3. If it fails: read the script manually via `head -20 <script>` to find the `<EOF_DESC>` usage block
 4. Fix the issue, re-run preflight, then proceed
 
 ## Common Pitfalls

@@ -33,7 +33,7 @@ Key framing:
 
 The Information Digester does **not** receive the full Session `Context` as direct input. It accesses the Session `Context` through its Enhanced Context Retrieval tool (below).
 
-- caller: `passthrough` or `worker`
+- caller: `primary_agent` or `worker`
 
 **Tools:**
 
@@ -79,7 +79,7 @@ flowchart TD
 
 In Worker Mode, the Task Analyzer uses Digested Information to create a sequential roadmap. Each task receives its own `context` field.
 
-In Passthrough route, the Primary Agent may invoke Information Digestion if it needs broader context consolidation before response composition.
+In Primary Agent Mode, the Primary Agent may invoke Information Digestion if it needs broader context consolidation before response composition.
 
 ---
 

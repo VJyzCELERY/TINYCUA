@@ -1,0 +1,41 @@
+flowchart TD
+    %% Definisi Node Utama
+    Input["User Query"]
+    AnalystNode["TinyCUAQueryAnalystNode"]
+    WaitCont["Waits for user continuation"]
+    WorkerNode["TinyCUAWorkerNode"]
+    ActiveQueue["Already active or queued node/session"]
+    ReviewerNode["TinyCUAResultReviewerNode"]
+    ResultAgg["ResultAggregationNode"]
+    ResponseNode["ResponseNode"]
+    LocalRecovery["Local Recovery Path<br>(Bypass Analysis)"]
+    MandatoryPass["Mandatory Passthrough<br>(Target Reviewer)"]
+
+    %% Subgraph untuk Pipeline Lifecycle
+    subgraph Pipeline ["TASK LIFECYCLE PIPELINE"]
+        TaskCreate["TaskCreate"]
+        TaskAnalyzer["TaskAnalyzer"]
+        TaskAssessor["TaskAssessor"]
+        TaskExecutor["TaskExecutor"]
+        
+        TaskCreate --> TaskAnalyzer --> TaskAssessor --> TaskExecutor
+    end
+
+    %% Hubungan Alur (Edges)
+    Input --> AnalystNode
+    AnalystNode -- "uncertain" --> WaitCont
+    AnalystNode -- "worker / passthrough" --> WorkerNode
+    
+    WorkerNode -- "passthrough" --> ActiveQueue
+    WorkerNode -- "task_creation / task_recreation / task_reanalysis" --> Pipeline
+
+    %% Alur Keluar dari Pipeline menuju Reviewer
+    TaskExecutor --> ReviewerNode
+
+    %% Percabangan dari Reviewer Node
+    ReviewerNode -- "accept" --> ResultAgg
+    ResultAgg --> ResponseNode
+    
+    ReviewerNode -- "retry" --> TaskExecutor
+    ReviewerNode -- "replan" --> LocalRecovery
+    ReviewerNode -- "open_question" --> MandatoryPass

@@ -1,0 +1,25 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart TB
+    N1(["Node₁ Execution"]) -->|"terminate"| Prop["Context Propagation"]
+
+    Prop -->|"backward (omit output_segment)\n→ parent"| Parent(["Parent Context"])
+    Prop -->|"forward (output_segment only)\n→ next node"| N2(["Node₂ Input"])
+
+    subgraph Transient["Transient Nodes (QueryAnalyst, Worker)"]
+        TN["Assembled Context"]
+        TN -.->|"NOT backward-propagated"| X["✗"]
+        TN -->|"Output becomes durable\nonly through next node's input"| Y["✓"]
+    end
+
+    subgraph Dedup["Deduplication"]
+        DR["origin_record_id check"]
+        DR -->|"duplicate found"| Keep["Keep earliest existing record"]
+        DR -->|"no duplicate"| Add["Add record"]
+    end
+
+    Parent --> Transient
+    N2 --> Dedup
+
+    style Prop fill:#264653,stroke:#a8dadc,color:#fff
+    style Parent fill:#2a9d8f,stroke:#a8dadc,color:#fff
+    style N2 fill:#e9c46a,stroke:#a8dadc,color:#000

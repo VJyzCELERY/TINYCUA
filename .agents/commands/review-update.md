@@ -7,7 +7,7 @@ Updates the PR review by first resolving/minimizing all previously linked commen
 
 > Load skill: review-pr (for updating PR reviews after fixes)
 
-**Query**: $1 (optional natural language query or explicit review file path. If not an explicit review path, default to `./reviews/REVIEW_{normalized_branch}.md`.)
+**Query**: $1 (natural language query or review file path, e.g., "update the PR review from reviews/REVIEW_foo.md" or simply "reviews/REVIEW_foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 
 
@@ -34,11 +34,11 @@ Run the standard preflight:
 
 > Load _common-preflight.md
 > Run `uv run python .agents/scripts/preflight-review.py --scope pr --review-file "$REVIEW_FILE"`
-> If it exits non-zero because the local checkout is behind remote, sync to latest first. Use fast-forward pull when possible; for rebased/diverged remote state, create a backup branch for local commits and stash dirty work before resetting to upstream. If it exits non-zero because the review commit range is stale, run `/review-verify` first to update the local report against latest HEAD, then continue. Do not post stale review state.
+> If it exits non-zero (stale HEAD or unstaged changes), the local report is stale. Print a warning and stop. Tell the user to run `review-validate` first.
 
 ### Instructions
 
-1. **Read the updated review report**: Load the `REVIEW_{normalized_branch}.md` file by default, unless the user supplied an explicit path — note all `**PR Comment**` URLs and the `**PR Review URL**` in the header.
+1. **Read the updated review report**: Load the REVIEW_{name}.md file — note all `**PR Comment**` URLs and the `**PR Review URL**` in the header.
 
 2. **Detect PR**:
    ```bash
@@ -78,11 +78,11 @@ Run the standard preflight:
 - Mutates files: yes
 - Mutates git history: no
 - Mutates remote: yes (replies, resolves, posts new review)
-- Requires user confirmation: no
+- Requires user confirmation: no (but stops if stale)
 
 ## Important
 
 - This command ONLY closes old comments and re-links. The actual posting is done by `review-post`.
-- Always run the preflight first. If stale, update the report through `/review-verify` before posting updates.
+- Always run the preflight first. If stale, stop and tell user to run `review-validate`.
 - Always use `gh.py interact` for all reply/resolve/minimize operations.
 - After running, the local report should have updated `**PR Comment**` URLs pointing to the fresh review.

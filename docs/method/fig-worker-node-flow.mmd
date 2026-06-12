@@ -1,0 +1,69 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart LR
+    Input(["NodeInput\n(user_query +\nQueryAnalystResponse)"])
+
+    subgraph PreCheck["Pre-Check (Deterministic)"]
+        TExist{"Task exists?"}
+    end
+
+    subgraph WorkerNode["TinyCUAWorkerNode (DecisionNode)"]
+        LLM1["Step 1:\nAnalysis Call"]
+        LLM2["Step 2:\nVerdict Call\n(Classification Tool)"]
+    end
+
+    subgraph Routes["Route Handlers"]
+        TC["route_task_creation()"]
+        TR["route_task_recreation()"]
+        TRA["route_task_reanalysis()"]
+        PT["route_passthrough()"]
+        PE["route_proceed_execution()"]
+    end
+
+    subgraph QueueTC["task_creation Queue"]
+        QTC["TaskCreateNode → TaskAnalyzerNode\n→ AnalysisEffortNode\n→ TaskExecutorNode\n→ ResultReviewerNode\n→ ResponseNode"]
+    end
+
+    subgraph QueueTR["task_recreation Queue"]
+        QTR["TaskAnalyzerNode\n(+TaskInit/TaskCreate tools)\n→ AnalysisEffortNode\n→ TaskExecutorNode\n→ ResultReviewerNode\n→ ResponseNode"]
+    end
+
+    subgraph QueueTRA["task_reanalysis Queue"]
+        QTRA["TaskAnalyzerNode\n(no TaskInit/TaskCreate)\n→ AnalysisEffortNode\n→ TaskExecutorNode\n→ ResultReviewerNode\n→ ResponseNode"]
+    end
+
+    subgraph QueuePT["passthrough"]
+        QPT["queue.advance()\n(no new node spawned)"]
+    end
+
+    subgraph QueuePE["proceed_execution Queue"]
+        QPE["TaskExecutorNode\n→ ResultReviewerNode\n→ ResponseNode"]
+    end
+
+    Input --> TExist
+    TExist -->|"NO"| TC
+    TExist -->|"YES"| WExist{"Worker-spawned\nnodes exist?"}
+    WExist -->|"YES"| LLM1
+    WExist -->|"NO"| LLM1
+
+    LLM1 --> LLM2
+
+    LLM2 -->|"task_creation"| TC
+    LLM2 -->|"task_recreation"| TR
+    LLM2 -->|"task_reanalysis"| TRA
+    LLM2 -->|"passthrough"| PT
+    LLM2 -->|"proceed_execution"| PE
+
+    TC --> QTC
+    TR --> QTR
+    TRA --> QTRA
+    PT --> QPT
+    PE --> QPE
+
+    style PreCheck fill:#1a1a2e,stroke:#a8dadc,color:#fff
+    style WorkerNode fill:#16213e,stroke:#a8dadc,color:#fff
+    style Routes fill:#0f3460,stroke:#a8dadc,color:#fff
+    style QueueTC fill:#2d3a1a,stroke:#a8dadc,color:#fff
+    style QueueTR fill:#2d3a1a,stroke:#a8dadc,color:#fff
+    style QueueTRA fill:#2d3a1a,stroke:#a8dadc,color:#fff
+    style QueuePT fill:#2d3a1a,stroke:#a8dadc,color:#fff
+    style QueuePE fill:#2d3a1a,stroke:#a8dadc,color:#fff

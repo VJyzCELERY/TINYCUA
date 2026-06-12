@@ -15,7 +15,7 @@ Archive a completed review cycle: create a permanent log entry, then move the re
 
 ## Prerequisites
 
-- A completed review at `./reviews/REVIEW_{normalized_branch}.md` where branch slashes become underscores
+- A completed review at `./reviews/REVIEW_{branch}.md`
 - All findings must be ADDRESSED, INVALID, or DEFERRED (no OPEN)
 - Zero-finding (approved) reviews also qualify — no findings to resolve
 
@@ -24,8 +24,8 @@ Archive a completed review cycle: create a permanent log entry, then move the re
 1. Read the review report, extract findings with non-OPEN statuses
 2. Create log entry: `uv run python .agents/scripts/review-log.py --log-create "$REVIEW_FILE"`
 3. Get entry ID from script output
-4. Archive: move report to `./reviews/archives/REVIEW_{normalized_branch}_{ID}.md`
-5. Validate log: `uv run python .agents/scripts/review-log.py --validate ./reviews/log/REVIEW_{normalized_branch}.md`
+4. Archive: move report to `./reviews/archives/REVIEW_{branch}_{ID}.md`
+5. Validate log: `uv run python .agents/scripts/review-log.py --validate ./reviews/log/REVIEW_{branch}.md`
 
 ## Common Pitfalls
 - Do NOT archive reviews with OPEN findings

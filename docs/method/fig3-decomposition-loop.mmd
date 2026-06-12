@@ -1,0 +1,18 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart TB
+    WN["WorkerNode\n(task_creation route)"] --> TC["TaskCreateNode\n(deterministic)"]
+    TC --> TA["TaskAnalyzerNode\n(mode: initial)"]
+
+    TA --> AE["AnalysisEffortNode\n(pass_limit: 0/1/2/3)"]
+    AE -->|"pass_count < limit"| TASS["TaskAssessorNode\n(select tasks)"]
+    TASS -->|"tasks to decompose"| TA
+    TASS -->|"no more tasks"| EXEC["TaskExecutorNode"]
+
+    AE -->|"pass_count ≥ limit"| EXEC
+
+    style WN fill:#d69e2e,stroke:#a8dadc,color:#000
+    style TC fill:#38a169,stroke:#a8dadc,color:#fff
+    style TA fill:#e76f51,stroke:#a8dadc,color:#fff
+    style AE fill:#264653,stroke:#a8dadc,color:#fff
+    style TASS fill:#e9c46a,stroke:#a8dadc,color:#000
+    style EXEC fill:#2a9d8f,stroke:#a8dadc,color:#fff

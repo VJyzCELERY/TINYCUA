@@ -22,14 +22,8 @@ which nodes can see those tools.
 
 ## TaskExecutor Direct Context Retrieval
 
-`TaskExecutor` does not spawn `InformationDigesterNode`. If `TaskExecutor` needs more
+`TaskExecutor` does not spawn `InformationDigesterNode`. TaskExecutor does not spawn InformationDigesterNode. If `TaskExecutor` needs more
 context, it calls `enhanced_context_retrieval` directly.
-
-## WorkerNode Information Digestion
-
-`QueryAnalyst` spawns `InformationDigesterNode` before routing to `WorkerNode`.
-The digester gathers and digests context, then propagates the output to the Worker's
-session. Worker receives DigestedInformation as input and uses it for routing decisions.
 
 ## ResponseNode Same Base Toolset
 

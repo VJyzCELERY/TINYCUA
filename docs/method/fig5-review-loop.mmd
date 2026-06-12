@@ -1,0 +1,26 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart TB
+    Start(["Task Result"]) --> Review["ResultReviewerNode"]
+    Review --> Decision{"Review Decision?"}
+
+    Decision -->|"accept"| Status["Update task status/result"]
+    Status --> RootDone{"Root task done?"}
+    RootDone -->|"Yes"| Agg["ResultAggregationNode"]
+    RootDone -->|"No"| NextTask["Find next task\n→ TaskExecutorNode"]
+
+    Decision -->|"retry"| FailCheck{"consecutive_failures\n≥ threshold?"}
+    FailCheck -->|"No"| ExecRetry["Re-execute same task\n(failure context recorded)"]
+    FailCheck -->|"Yes"| Escalate(["Escalate to user"])
+
+    Decision -->|"replan"| Local["TaskAssessorNode\n(scope: active task)\n→ TaskAnalyzerNode\n(mode: local_replan)"]
+
+    Decision -->|"open_question"| Pause(["Install mandatory_passthrough\n→ wait for user"])
+
+    ExecRetry -->|"failure_count++"| Start
+
+    style Start fill:#264653,stroke:#a8dadc,color:#fff
+    style Review fill:#d69e2e,stroke:#a8dadc,color:#000
+    style Decision fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Agg fill:#38a169,stroke:#a8dadc,color:#fff
+    style Escalate fill:#ae2012,stroke:#a8dadc,color:#fff
+    style Pause fill:#e9c46a,stroke:#a8dadc,color:#000

@@ -133,7 +133,7 @@ def check_potential_conflicts(target: str) -> list[str]:
         for f in conflict_files:
             msgs.append(f"       {f}")
         msgs.append("[INFO] Run `git rebase {target}` to see exact conflicts.")
-        msgs.append("[INFO] Ask the user directly before resolving conflicts; do not default to the question/ask tool.")
+        msgs.append("[INFO] Use the question/ask tool to involve the user in conflict resolution.")
     else:
         msgs.append("[INFO] No merge conflicts detected in dry run — rebase should be clean.")
 

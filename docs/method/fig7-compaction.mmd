@@ -1,0 +1,25 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart LR
+    SC["session_context"] -->|"max_context_messages\nor max_context_tokens\nexceeded?"| Check{"Threshold Breach?"}
+
+    Check -->|"No"| Normal["Continue normally"]
+    Check -->|"Yes"| Compact["session.compact_context()"]
+    Compact --> Strategy["CompactionStrategy\n(LLM summarizes)"]
+    Strategy --> Summary["One assistant-role\nsummary message"]
+    Summary -->|"replace"| NewSC["session_context ← [summary]"]
+
+    subgraph Immut["Immutable"]
+        CH["chat_history\n(audit trail)"]
+    end
+
+    subgraph Mut["Mutable"]
+        SC2["session_context\n(compactable)"]
+    end
+
+    CH -.->|"preserved"| CH
+    SC2 -.->|"compacted"| NewSC
+
+    style Check fill:#e9c46a,stroke:#a8dadc,color:#000
+    style Compact fill:#e76f51,stroke:#a8dadc,color:#fff
+    style Strategy fill:#264653,stroke:#a8dadc,color:#fff
+    style NewSC fill:#2a9d8f,stroke:#a8dadc,color:#fff

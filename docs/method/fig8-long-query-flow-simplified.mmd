@@ -1,0 +1,36 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '14px', 'lineColor': '#a8dadc', 'textColor': '#fff'}}}%%
+flowchart LR
+    User(["User Query"])
+
+    subgraph Phase1["Phase 1: Classification"]
+        QA["TinyCUAQueryAnalystNode\n(DecisionNode)"]
+    end
+
+    subgraph Phase2["Phase 2: Task Pipeline"]
+        Worker["TinyCUAWorkerNode\n(DecisionNode)"]
+        TC["TinyCUATaskCreateNode"]
+        Loop["TinyCUAAnalyzerNode\n(Analyze + Evaluate)"]
+        EX["TinyCUATaskExecutorNode"]
+        RR["TinyCUAResultReviewerNode"]
+    end
+
+    subgraph Phase3["Phase 3: Synthesis"]
+        RAG["TinyCUAResultAggregationNode"]
+        RESP["TinyCUAResponseNode"]
+    end
+
+    User --> QA
+    QA -->|"worker"| Worker
+    Worker -->|"task_creation"| TC
+    TC --> Loop
+    Loop -->|"retry"| Loop
+    Loop -->|"pass"| EX
+    EX --> RR
+    RR -->|"retry"| EX
+    RR -->|"accept"| RAG
+    RAG --> RESP
+    RESP -->|"response"| User
+
+    style Phase1 fill:#1a1a2e,stroke:#a8dadc,color:#fff
+    style Phase2 fill:#16213e,stroke:#a8dadc,color:#fff
+    style Phase3 fill:#0f3460,stroke:#a8dadc,color:#fff

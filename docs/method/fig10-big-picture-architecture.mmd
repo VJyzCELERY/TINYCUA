@@ -1,0 +1,221 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px', 'lineColor': '#22d3ee', 'textColor': '#1e293b', 'primaryColor': '#e0f2fe', 'secondaryColor': '#e0f2fe', 'edgeLabelBackground': '#ffffff'}}}%%
+flowchart TB
+    User(["User Query"])
+
+    %% ── SDK Boundary ──
+    subgraph SDK["SDK Boundary — Unmodified"]
+        direction TB
+        AR["Agent.run(query, messages, instructions, stream)"]
+        BL["BaseLoop.run(agent, msgs, tools, override_instructions, stream)"]
+        AR -->|"builds user message + merges SDK messages"| BL
+    end
+
+    %% ── TinyCUALoop ──
+    subgraph Loop["TinyCUALoop extends BaseLoop"]
+        direction TB
+
+        %% ── Root Session ──
+        subgraph RS["Root Session"]
+            direction LR
+            CH["chat_history\n(append-only audit)"]
+            SC["session_context\n(mutable LLM context)"]
+            TT["Task Tree\n(root + children)"]
+            TOD["Todo\n(plan-then-execute)"]
+        end
+
+        %% ── NodeQueue ──
+        subgraph NQ["NodeQueue — Sequential Execution"]
+            direction LR
+
+            subgraph Entry["Entry"]
+                QA["QueryAnalyst\nDecisionNode"]
+            end
+
+            subgraph Planning["Planning & Decomposition"]
+                TC["TaskCreate\nProcessNode"]
+                TA["TaskAnalyzer\nProcessNode"]
+                AE["AnalysisEffort\nProcessNode"]
+                TASS["TaskAssessor\nProcessNode"]
+            end
+
+            subgraph Execution["Execution & Review"]
+                TEX["TaskExecutor\nProcessNode\n(ReAct-style)"]
+                RR["ResultReviewer\nProcessNode"]
+            end
+
+            subgraph Output["Output"]
+                RAG["ResultAggregation\nProcessNode"]
+                RESP["Response\nProcessNode\nterminal"]
+            end
+
+            subgraph OnDemand["On-Demand"]
+                ID["InformationDigester\nProcessNode"]
+            end
+        end
+
+        %% ── Decision Nodes ──
+        subgraph DN["DecisionNode Routing"]
+            direction LR
+            RM["RouteMap\ndispatch table"]
+            TS["Two-Step Decision\nanalysis → verdict\ntool call → dispatch"]
+        end
+
+        %% ── Worker ──
+        subgraph WK["Worker Hub"]
+            WN["Worker\nDecisionNode"]
+        end
+    end
+
+    %% ── Node Policies ──
+    subgraph Policies["Per-Node Configuration"]
+        direction LR
+        TP["NodeToolPolicy\nnode_tools + agent_tools\nallow/deny"]
+        MP["NodeMessagePolicy\ndedupe · chat_history\ncontext selection"]
+        RP["NodeRetryPolicy\nmax_attempts · validation\non_retry_exhausted"]
+        SP["NodeStreamPolicy\nvisibility · events\nfinal_response_only"]
+        PR["PropagationRule\nchat_history · session_context\ntoken_usage · failure · dedupe"]
+    end
+
+    %% ── State Model ──
+    subgraph State["State Model"]
+        direction LR
+        SM["Session\nsession_id · parent_id\nchat_history · session_context"]
+        TM["Task Tree\ntask_id · status · children\nactive_child_id · results"]
+        CR["ChatRecord\nappend-only audit\norigin_record_id · segment"]
+        EL["ExecutionLog\noperational trace\nnode_id · attempt · result"]
+    end
+
+    %% ── Compaction ──
+    subgraph Compact["Compaction"]
+        CS["CompactionStrategy\nSimpleCompaction\ndefault — owns internal Agent"]
+    end
+
+    %% ── Tools ──
+    subgraph Tools["Tool Scopes per Node"]
+        direction LR
+        QT["QA: classification\n+ read-only context"]
+        WT["Worker: decision\ntools only"]
+        DT["Digester: enhanced_retrieval\n+ digest"]
+        CTT["TaskCreate: TaskInit\n/ TaskCreate only"]
+        ANT["Analyzer: task structure;\nTaskInit/TaskCreate\nfor recreation only"]
+        AST["Assessor: assessment\n/ read / update"]
+        EXT["Executor: execution\n+ outer tools\n+ enhanced_retrieval"]
+        RVT["Reviewer: review\n/ decision"]
+        RPT["Response: executor tools\n+ synthesis\n+ digest request"]
+    end
+
+    %% ══════════════════════════════════════════════
+    %%  FLOW EDGES
+    %% ══════════════════════════════════════════════
+
+    %% SDK → Loop
+    User -->|"query"| AR
+    BL -->|"loop.run(agent, messages, tools, instructions, stream)"| NQ
+    BL -->|"initializes"| RS
+
+    %% Entry Routing
+    QA -->|"worker"| WN
+    QA -->|"passthrough"| RESP
+    QA -->|"uncertain"| UserWait(["Wait for user continuation"])
+    UserWait -.->|"user responds\n(mandatory_passthrough)"| QA
+
+    %% Worker Routing
+    WN -->|"task_creation"| TC
+    WN -->|"task_recreation\n/ task_reanalysis"| TA
+    WN -->|"proceed_execution"| TEX
+    WN -->|"passthrough"| TA
+
+    %% Planning Chain
+    TC -->|"on_complete"| TA
+    TA -->|"on_complete"| AE
+    AE -->|"pass < limit"| TASS
+    AE -->|"pass ≥ limit"| TEX
+    TASS -->|"tasks found"| TA
+    TASS -->|"no tasks"| AE
+
+    %% Execution & Review
+    TEX -->|"on_complete"| RR
+    RR -->|"accept\nroot done"| RAG
+    RR -->|"accept\nmore tasks"| TEX
+    RR -->|"retry"| TEX
+    RR -->|"replan"| TASS
+
+    %% Output
+    RAG -->|"on_complete"| RESP
+    RESP -->|"terminal output"| User
+
+    %% Suspension
+    RESP -.->|"suspend\n(context insufficient)"| ID
+    ID -.->|"resume\n(digest propagated)"| RESP
+
+    %% ── State Connections ──
+    RS -.- SM
+    RS -.- TM
+    RS -.- CR
+    RS -.- EL
+    RS -.- Compact
+    NQ -.- SM
+
+    %% ── Policy Connections ──
+    NQ -.- Policies
+    DN -.- RM
+    DN -.- TS
+
+    %% ── Tool Connections ──
+    QT -.- QA
+    WT -.- WN
+    DT -.- ID
+    CTT -.- TC
+    ANT -.- TA
+    AST -.- TASS
+    EXT -.- TEX
+    RVT -.- RR
+    RPT -.- RESP
+
+    %% ══════════════════════════════════════════════
+    %%  STYLES — light fills, dark text for dark mode
+    %% ══════════════════════════════════════════════
+
+    style SDK fill:#e0f2fe,stroke:#0284c7,color:#1e293b
+    style Loop fill:#e0f2fe,stroke:#0284c7,color:#1e293b
+    style NQ fill:#e0f2fe,stroke:#0284c7,color:#1e293b
+    style Entry fill:#dbeafe,stroke:#2563eb,color:#1e293b
+    style Planning fill:#dbeafe,stroke:#2563eb,color:#1e293b
+    style Execution fill:#dbeafe,stroke:#2563eb,color:#1e293b
+    style Output fill:#dbeafe,stroke:#2563eb,color:#1e293b
+    style OnDemand fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style DN fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style WK fill:#ccfbf1,stroke:#14b8a6,color:#1e293b
+    style Policies fill:#f1f5f9,stroke:#64748b,color:#1e293b
+    style State fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style Compact fill:#fee2e2,stroke:#ef4444,color:#1e293b
+    style Tools fill:#f1f5f9,stroke:#64748b,color:#1e293b
+    style RS fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+
+    style User fill:#f43f5e,stroke:#fff,color:#fff
+    style UserWait fill:#38bdf8,stroke:#fff,color:#fff
+
+    %% DecisionNode — vivid purple, light fill
+    style QA fill:#c084fc,stroke:#7c3aed,color:#fff
+    style WN fill:#c084fc,stroke:#7c3aed,color:#fff
+
+    %% ProcessNode — bright blue, light fill
+    style TC fill:#38bdf8,stroke:#0284c7,color:#fff
+    style TA fill:#38bdf8,stroke:#0284c7,color:#fff
+    style AE fill:#38bdf8,stroke:#0284c7,color:#fff
+    style TASS fill:#38bdf8,stroke:#0284c7,color:#fff
+
+    %% Executor — bright red
+    style TEX fill:#f87171,stroke:#dc2626,color:#fff
+
+    %% Reviewer — bright amber
+    style RR fill:#fbbf24,stroke:#d97706,color:#000
+
+    %% Aggregation — bright teal
+    style RAG fill:#2dd4bf,stroke:#0d9488,color:#fff
+
+    %% Response — bright slate
+    style RESP fill:#94a3b8,stroke:#475569,color:#fff
+
+    %% Digester — bright violet
+    style ID fill:#c084fc,stroke:#7c3aed,color:#fff

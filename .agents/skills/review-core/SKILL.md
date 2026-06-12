@@ -26,21 +26,20 @@ Covers the full review lifecycle: scoped code review → clarify vague findings 
 3. Determine scope: PR mode, Branch mode, or Unscoped
 4. Analyze in-scope files (Phase 1: unbiased — no log context)
 5. Cross-reference findings against review log (Phase 2)
-6. Write findings to `./reviews/REVIEW_{normalized_branch}.md` using `.agents/templates/REVIEW-template.md`; normalize branch slashes (`/`) to underscores (`_`) and do not ask for an output path.
+6. Write findings to `./reviews/REVIEW_{name}.md` using `.agents/templates/REVIEW-template.md`
 
 ### Clarify
-Default to `./reviews/REVIEW_{normalized_branch}.md`. For each OPEN finding: improve location precision, replace vague language, add impact analysis, sharpen validation commands. Do NOT change status.
+For each OPEN finding: improve location precision, replace vague language, add impact analysis, sharpen validation commands. Do NOT change status.
 
 ### Verify
-1. Default to `./reviews/REVIEW_{normalized_branch}.md` and sync local code to latest remote first if local is behind. Use fast-forward pull when possible. If the remote rebased/diverged, create a backup branch for local commits and stash dirty work before resetting to upstream.
-2. Check commit range staleness against current HEAD. Stale review range is not a blocker; it means this command updates the review report against latest HEAD.
-3. For each OPEN finding: run validation command (use `uv run` for Python)
-4. Determine: passes → ADDRESSED, stale/inapplicable → INVALID, fails → OPEN
-5. **MUST update Commit Range** after verification: `uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"`
-6. This is **local-only** — no PR replies or resolution. Use `review-update` to push status changes to the remote PR.
+1. Check commit range staleness against current HEAD
+2. For each OPEN finding: run validation command (use `uv run` for Python)
+3. Determine: passes → ADDRESSED, stale → INVALID, fails → OPEN
+4. **MUST update Commit Range** after verification: `uv run python .agents/scripts/update-commit-range.py "$REVIEW_FILE"`
+5. This is **local-only** — no PR replies or resolution. Use `review-update` to push status changes to the remote PR.
 
 ### Validate (full pipeline)
-Run clarify → verify in sequence against `./reviews/REVIEW_{normalized_branch}.md`. Always clarify before verify.
+Run clarify → verify in sequence. Always clarify before verify.
 
 ### Loop (orchestration)
 1. Report → Validate → If OPEN: Implement → Validate again
@@ -56,5 +55,3 @@ Run clarify → verify in sequence against `./reviews/REVIEW_{normalized_branch}
 - After validation returns clean, ALWAYS run one more fresh review
 - **Do NOT truncate `gh.py` output** when gathering PR info — never pipe through `head`, `tail`, or similar. You need the full output for all metadata, body, and commit range.
 - **MUST update Commit Range** after verify — run `update-commit-range.py` to update the review file's commit range so staleness detection works correctly
-- Review staleness is not a reason to stop in review-validate/review-verify/review-clarify. Validate/update against latest HEAD, then refresh the report's commit range.
-- Do not ask where the review file is. Default to `./reviews/REVIEW_{normalized_branch}.md`.

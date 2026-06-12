@@ -7,14 +7,14 @@ Post a completed review report as a GitHub PR review with inline comments. After
 
 > Load skill: review-pr (for posting reviews as PR inline comments)
 
-**Query**: $1 (optional natural language query or explicit review file path. If not an explicit review path, default to `./reviews/REVIEW_{normalized_branch}.md`.)
+**Query**: $1 (natural language query or review file path, e.g., "post the review from reviews/REVIEW_foo.md to PR #42" or simply "reviews/REVIEW_foo.md")
 **PR Number (Optional)**: $2 (if not provided, detect from current branch or parse from query)
 
 ---
 
 ## Overview
 
-This command reads the canonical branch review report by default, extracts each finding, and posts them as a structured PR review with inline comments. All findings are listed in the review body — inline findings link to diff lines, non-inline findings include full details. After posting, it updates the local review report to track the URL of each comment so future commands (verify, clarify) can reply and resolve them automatically.
+This command reads a review report from `$1`, extracts each finding, and posts them as a structured PR review with inline comments. All findings are listed in the review body — inline findings link to diff lines, non-inline findings include full details. After posting, it updates the local review report to track the URL of each comment so future commands (verify, clarify) can reply and resolve them automatically.
 
 ---
 
@@ -23,9 +23,7 @@ This command reads the canonical branch review report by default, extracts each 
 > Load _common-preflight.md
 > Load skill: gh (for gh.py — all posting operations)
 
-1. **Read the review report**: Load the `REVIEW_{normalized_branch}.md` file by default, unless the user supplied an explicit path
-   - If the local checkout is behind remote, sync to latest first. Use fast-forward pull when possible; for rebased/diverged remote state, create a backup branch for local commits and stash dirty work before resetting to upstream.
-   - If the review commit range is stale, run `/review-verify` first to update the local report against latest HEAD. Do not post stale review state.
+1. **Read the review report**: Load the REVIEW_{name}.md file
 2. **Detect PR**: If `$2` is not provided, detect the PR number:
    ```bash
    PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
@@ -50,9 +48,7 @@ This command reads the canonical branch review report by default, extracts each 
      - Post everything in one go with all inline comments and the body
 
     ```bash
-      BRANCH=$(git branch --show-current)
-      NORMALIZED_BRANCH=${BRANCH//\//_}
-      REVIEW_FILE="./reviews/REVIEW_${NORMALIZED_BRANCH}.md"
+     REVIEW_FILE="$1"
      REVIEW_EVENT="APPROVE"  # default
      if grep -q "Change Requested\|Blocked" "$REVIEW_FILE"; then
        REVIEW_EVENT="REQUEST_CHANGES"
@@ -61,17 +57,7 @@ This command reads the canonical branch review report by default, extracts each 
      fi
 
      # Map assessment to emote
-      ASSESSMENT=$(uv run python - "$REVIEW_FILE" <<'PY'
-import sys
-
-prefix = "**Overall Assessment**:"
-with open(sys.argv[1], encoding="utf-8") as fh:
-    for line in fh:
-        if line.startswith(prefix):
-            print(line[len(prefix):].strip())
-            break
-PY
-      )
+      ASSESSMENT=$(grep -oP '\*\*Overall Assessment\*\*:\s*\K.*' "$REVIEW_FILE" | head -1)
       case "$ASSESSMENT" in
         *Approved*) EMOTE="✅" ;;
         *Addressed With Potential Follow-up*) EMOTE="✅" ;;

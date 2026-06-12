@@ -17,8 +17,6 @@ from tinycua_sdk.agent.events import (
     LLMEvent,
     LLMResponse,
     RawSseEvent,
-    ReasoningDeltaEvent,
-    ReasoningDoneEvent,
     ResponseCompletedEvent,
     ResponseCreatedEvent,
     ResponseUsageEvent,
@@ -85,11 +83,9 @@ class ChoiceAccumulator:
 
     index: int
     content_parts: list[str] = dataclass_field(default_factory=list)
-    reasoning_parts: list[str] = dataclass_field(default_factory=list)
     tool_calls: dict[int, ToolCallAccumulator] = dataclass_field(default_factory=dict)
     finish_reason: str | None = None
     content_done_emitted: bool = False
-    reasoning_done_emitted: bool = False
     started_emitted: bool = False
     done_emitted: bool = False
     completion_deferred: bool = False
@@ -712,24 +708,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         acc: ChoiceAccumulator,
         events: list[LLMEvent],
     ) -> None:
-        """Normalize content and reasoning deltas within a streaming chunk.
-
-        Handles both ``delta.content`` (visible text) and
-        ``delta.reasoning_content`` (chain-of-thought tokens from
-        Qwen-compatible servers).
-        """
-        # Reasoning content (checked before visible content for correct event ordering)
-        reasoning = delta.get("reasoning_content")
-        if reasoning:
-            acc.reasoning_parts.append(reasoning)
-            events.append(
-                ReasoningDeltaEvent(
-                    type="response.reasoning.delta",
-                    delta=reasoning,
-                ),
-            )
-
-        # Visible content (unchanged behavior)
+        """Normalize content delta within a streaming chunk."""
         content = delta.get("content")
         if not content:
             return
@@ -799,7 +778,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         acc: ChoiceAccumulator,
         events: list[LLMEvent],
     ) -> None:
-        """Finalize chunk: tool call completion, reasoning done, content done, usage, lifecycle."""
+        """Finalize chunk: tool call completion, content done, usage, lifecycle."""
         if finish_reason == "tool_calls" and acc.tool_calls:
             for tca in acc.tool_calls.values():
                 if not tca.done_emitted:
@@ -814,13 +793,6 @@ class OpenAIChatCompletionsClient(LLMClient):
                             arguments=full_args,
                         ),
                     )
-
-        # Reasoning done — must come BEFORE content done for correct event ordering
-        if finish_reason and acc.reasoning_parts and not acc.reasoning_done_emitted:
-            acc.reasoning_done_emitted = True
-            events.append(
-                ReasoningDoneEvent(type="response.reasoning.done"),
-            )
 
         if finish_reason and acc.content_parts and not acc.content_done_emitted:
             acc.content_done_emitted = True
@@ -896,14 +868,12 @@ class OpenAIChatCompletionsClient(LLMClient):
     def _normalize_non_streaming_response(data: dict[str, Any]) -> LLMResponse:
         """Normalize a Chat Completions non-streaming response to ``LLMResponse``."""
         content = None
-        reasoning_content = None
         tool_calls: list[ToolCallDict] | None = None
 
         choices = data.get("choices", [])
         if choices:
             message = choices[0].get("message", {})
             content = message.get("content") or None
-            reasoning_content = message.get("reasoning_content") or None
 
             raw_tool_calls = message.get("tool_calls")
             if raw_tool_calls:
@@ -938,7 +908,6 @@ class OpenAIChatCompletionsClient(LLMClient):
             usage=usage,
             finish_reason=finish_reason,
             model=data.get("model", ""),
-            reasoning_content=reasoning_content,
         )
 
     @staticmethod

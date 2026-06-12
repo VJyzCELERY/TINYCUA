@@ -1,187 +1,139 @@
-# Feature Specification: TinyCUA Design Simplification — Documentation Reorganization
+# Feature Specification: Design Simplification
 
-**Status**: In Progress
-**Created**: 2026-06-04
-**Last Updated**: 2026-06-04
-**Subproject(s) Affected**: tinycua docs, tinycua architecture roadmap drafts
-
----
-
-## Problem Statement _(mandatory)_
-
-- **Goals**: Reorganize `src/tinycua/docs/design/` so it describes the planned TinyCUA architecture as a SDK-compatible `TinyCUALoop` running a sequential `NodeQueue` of TinyCUA-specific nodes, and produce a reviewable implementation roadmap draft that traces future implementation work back to the design docs.
-- **Gaps**: Current design docs describe a multi-layer graph architecture (`AgentGraph`, `RouterNode`, `AgentNode`, per-agent `AgentLoop`s, and worker subgraphs). The new design should simplify this into one SDK `Agent` configured with a `TinyCUALoop`, while preserving the useful behavior of the old graph/session propagation model.
-- **Non-Goals**:
-  - No runtime implementation in this PR.
-  - No source code changes in this PR.
-  - No tests in this PR.
-  - No SDK modification or SDK API redesign.
-  - No TUI, CLI, HITL UX, interrupt UX, resume UX, or datastore persistence roadmap scope.
-  - No immediate GitHub issue creation; roadmap content is drafted for PR review first.
-  - Provider prompt caching optimization is not a design goal.
-- **Constraints**:
-  - TinyCUA MUST build around the current `tinycua-sdk` contract: `Agent.run(query, messages=None, instructions=None, stream=False, file_attachments=None)` calls `loop.run(agent, messages, tools, override_instructions, stream)`.
-  - The final docs MUST not imply SDK changes are needed for TinyCUA architecture implementation.
-  - Documentation migration MUST use a create/update/reconcile/cleanup order: create new docs and verify content before deleting old docs.
-  - Roadmap drafts MUST live under `docs/roadmap/tinycua_architecture_implementation/` and be treated as temporary review material until converted into real GitHub issues before merge.
+**Status**: Draft
+**Created**: 2026-06-03
+**Last Updated**: 2026-06-03
+**Subproject(s) Affected**: tinycua
 
 ---
 
-## User Scenarios & Testing _(mandatory)_
+## Problem Statement
+
+- **Goals**: Simplify TINYCUA's design documentation and architecture so that the system is easier to understand, extend, and maintain — while preserving all existing capabilities.
+- **Gaps**: The current design has 56 documentation files across 11 directories, with multiple abstraction layers modeled as a multi-agent graph (AgentGraph, AgentNode, AgentLoop, RouterNode, InputGate, OutputGate, Factory). The graph model implies parallel execution, but nodes actually run sequentially. The abstraction doesn't match the runtime reality.
+- **Non-Goals**: This spec does NOT change the underlying SDK (`tinycua-sdk`), tool contracts, or core data structures. It restructures the architecture from a multi-agent graph to a self-supervising loop with a sequential node queue and deterministic routing.
+- **Constraints**: Must preserve all existing capabilities (query analysis, information digestion, task analysis, task assessment, task execution, result review, primary response). Must keep the Task tree and all task tools intact. Per-node configurations (instructions, tools) must remain customizable.
+
+---
+
+## User Scenarios & Testing
 
 ### Primary Scenario
 
-A contributor opens `docs/design/README.md`, follows the new reading order, and can understand how to implement TinyCUA as:
+A developer wants to use TINYCUA to process a user query. Instead of understanding AgentGraph, AgentNode subclasses, factory functions, graph queue semantics, and routing rules, they should be able to:
 
-```text
-SDK Agent
-└── TinyCUALoop extends SDK BaseLoop
-    └── NodeQueue
-        ├── TinyCUAQueryAnalystNode
-        ├── TinyCUAInformationDigesterNode
-        ├── TinyCUAWorkerNode
-        ├── TinyCUATaskAnalyzerNode
-        ├── TinyCUATaskAssessorNode
-        ├── TinyCUATaskExecutorNode
-        ├── TinyCUAResultReviewerNode
-        ├── TinyCUAResultAggregationNode
-        └── TinyCUAResponseNode
-```
-
-The same contributor can then open the roadmap draft and see PR-sized, sequential implementation milestones with design-doc coverage for each milestone.
+1. Create a Session (which holds AgentConfig with all node configs)
+2. Create an Agent with a Loop
+3. Call `agent.run(query="...")` and get results
 
 ### Acceptance Scenarios
 
-1. **Given** the current graph-oriented docs, **When** this PR is complete, **Then** `docs/design/` documents the TinyCUALoop/NodeQueue architecture without presenting `AgentGraph`, `RouterNode`, `AgentNode`, worker QueryAnalyst, or generic `PrimaryNode` as target runtime concepts.
-2. **Given** the current SDK `Agent.run` and `BaseLoop.run` contract, **When** the design docs describe TinyCUA execution, **Then** they show TinyCUA consuming SDK-provided messages, tools, instruction overrides, and stream mode without modifying the SDK.
-3. **Given** the old session propagation docs, **When** the new docs describe propagation, **Then** they preserve the old chat history, session context, token usage, and failure propagation semantics as explicit `PropagationRule` profiles.
-4. **Given** the roadmap requirement, **When** the docs are finalized, **Then** a roadmap main issue draft exists under `docs/roadmap/tinycua_architecture_implementation/` with sequential PR-sized milestones and design-doc coverage.
+1. **Given** a developer has a Session with AgentConfig, **When** they create `Agent(loop=TinyCUALoop(session=session))`, **Then** the system initializes a queue with an entry node (QueryAnalyst) and terminal node (PrimaryAgent).
+
+2. **Given** an active queue `[QueryAnalyst, PrimaryAgent]`, **When** QueryAnalyst classifies as "passthrough", **Then** QueryAnalyst terminates itself, and the queue becomes `[PrimaryAgent]`.
+
+3. **Given** an active queue `[QueryAnalyst, PrimaryAgent]`, **When** QueryAnalyst classifies as "worker", **Then** QueryAnalyst spawns `[InformationDigester, Worker]`, and the queue becomes `[InformationDigester, Worker, PrimaryAgent]`.
+
+4. **Given** a queue `[Worker, PrimaryAgent]`, **When** Worker detects the next node is PrimaryAgent (no work in progress), **Then** Worker spawns TaskAnalyzer with TaskInit enabled.
+
+5. **Given** a queue `[TaskExecutor, PrimaryAgent]`, **When** a new query enters and QueryAnalyst classifies as "worker", **Then** QueryAnalyst spawns `[InformationDigester, Worker]`, Worker detects work in progress (next node is not PrimaryAgent), and spawns QueryAnalyst(Worker) for worker-level routing.
+
+6. **Given** a queue with no terminal node, **When** the loop processes the queue, **Then** the loop auto-appends the default terminal node (PrimaryAgent).
+
+7. **Given** a completed terminal node, **When** the terminal node finishes, **Then** the loop ends and returns the result.
 
 ### Edge Cases
 
-- SDK caller passes `messages=[...]`: design must acknowledge these messages as SDK-provided input context that TinyCUALoop should merge/record according to session policy with dedupe.
-- SDK caller passes `instructions=...`: design must acknowledge the override but preserve TinyCUA node instruction contracts as hardcoded constants plus append-only config.
-- SDK caller passes `stream=True`: design must require node LLM/tool events to be streamable to the caller across all nodes.
-- A node receives a plain string internally: design must convert it to an assistant-role message unless it is the actual external user entry.
-- A user query contains YAML/front-matter-looking text: design must not parse it as trusted internal structured input.
-- QueryAnalyst routes to `worker` while an existing `WorkerNode` is already queued: design must not spawn a duplicate WorkerNode but instead forward input to the existing one.
-- `ResultReviewer` returns `open_question`: design must install a `mandatory_passthrough` targeting the same reviewer so the next user message reaches it deterministically.
-- A resumed/interrupted run prepends `QueryAnalystNode` while a `WorkerNode` is already queued: design must handle existing WorkerNode reuse without duplication.
+- What happens when a node encounters an error? The node writes failure state to its session, and the queue decides whether to continue or abort.
+- What happens when the queue is empty after node termination? The loop auto-appends the default terminal node.
+- What happens with empty or invalid queries? The entry node (QueryAnalyst) validates input and writes appropriate error state.
 
 ---
 
-## Requirements _(mandatory)_
+## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: Documentation MUST define `TinyCUALoop` as extending SDK `BaseLoop` and using the current SDK `loop.run(agent, messages, tools, override_instructions, stream)` contract.
-- **FR-002**: Documentation MUST state that this PR does not modify `tinycua-sdk` and that future TinyCUA implementation should build around SDK APIs.
-- **FR-003**: Documentation MUST describe SDK `Agent.run(..., messages=..., instructions=..., stream=..., file_attachments=...)` compatibility and acknowledge unspecified override behavior conservatively.
-- **FR-004**: Documentation MUST define `NodeQueue` as the sequential execution structure replacing graph/subgraph queues.
-- **FR-005**: Documentation MUST define `Node`, `DecisionNode`, and `ProcessNode` as base abstractions.
-- **FR-006**: Documentation MUST state that concrete runtime nodes are TinyCUA-specific classes with their own config dataclasses.
-- **FR-007**: Documentation MUST define `TinyCUAQueryAnalystNode` as the only top-level QueryAnalyst and as a `DecisionNode`.
-- **FR-008**: Documentation MUST remove the separate worker QueryAnalyst target concept and fold worker-specific classification into `TinyCUAWorkerNode`.
-- **FR-009**: Documentation MUST define `TinyCUAWorkerNode` as a `DecisionNode` with deterministic pre-checks followed by optional LLM decision.
-- **FR-010**: Documentation MUST keep `RouteMap` as a DecisionNode-owned dispatch table mapping validated labels to named route handlers.
-- **FR-011**: Documentation MUST define `TinyCUAInformationDigesterNode`, `TinyCUATaskAnalyzerNode`, `TinyCUATaskAssessorNode`, `TinyCUATaskExecutorNode`, `TinyCUAResultReviewerNode`, and `TinyCUAResponseNode` as `ProcessNode` subclasses.
-- **FR-012**: Documentation MUST use `TinyCUAResponseNode`, not a generic `PrimaryNode`, for final response synthesis.
-- **FR-013**: Documentation MUST describe each node as managing its own session/message context, with possible fresh, inherited, reused, or scoped session initialization.
-- **FR-014**: Documentation MUST state that queue position controls execution order and does not imply automatic context sharing.
-- **FR-015**: Documentation MUST define `NodeInputLike = str | NodeInput | NodePayload | list[dict]` or an equivalent conceptual contract.
-- **FR-016**: Documentation MUST define `NodeInput` and `NodePayload` as internal typed transport models based on `StateObject`-style serialization.
-- **FR-017**: Documentation MUST state that `NodePayload` and `NodeInput` can convert to assistant-role message dicts and can carry existing `list[dict]` session context.
-- **FR-018**: Documentation MUST state that normal internal communication should not rely on YAML/front-matter string parsing.
-- **FR-019**: Documentation MUST include injection safety rules: only queue-created `NodeInput`/`NodePayload` is trusted internal structured input.
-- **FR-020**: Documentation MUST state that only actual external user input is role `user`.
-- **FR-021**: Documentation MUST state that all internal TinyCUA LLM calls, handoffs, continuations, retries, corrections, and monitor continuations are assistant-role continuations.
-- **FR-022**: Documentation MUST distinguish `chat_history` as audit trail from `session_context` as deduped reusable LLM context.
-- **FR-023**: Documentation MUST allow internal node LLM communication to be logged in chat history with source node metadata.
-- **FR-024**: Documentation MUST store only selected, deduped reusable outputs in `session_context`.
-- **FR-025**: Documentation MUST preserve old `Session.terminate_child(...)` propagation behavior as explicit `PropagationRule` profiles.
-- **FR-026**: Documentation MUST define `PropagationRule` controls for chat history, session context, session context mode, token usage, failure, and dedupe.
-- **FR-027**: Documentation MUST define `suspend_current_and_prepend(...)` as a general NodeQueue capability where a node is suspended by remaining in the queue but not at `queue[0]`.
-- **FR-028**: Documentation MUST describe `TinyCUAResponseNode` suspending itself to prepend `TinyCUAInformationDigesterNode`, passing response-node session context to the digester, and resuming after propagation.
-- **FR-029**: Documentation MUST define append-only instruction, continuation, and retry-continuation customization.
-- **FR-030**: Documentation MUST define node-level retry and validation policy while keeping loop mechanics centralized in TinyCUALoop.
-- **FR-031**: Documentation MUST retain AgentMonitor/NodeMonitor as an optional transient hook, not a durable queue node by default.
-- **FR-032**: Documentation MUST define configurable `NodeToolPolicy` so each node can expose node tools plus none/selected/all outer `Agent(tools=[...])`.
-- **FR-033**: Documentation MUST define `NodeStreamPolicy` and require every node's LLM/tool events to be streamable to the caller when `stream=True`.
-- **FR-034**: Documentation MUST require `stream=False` to return the final normalized string from `TinyCUAResponseNode`.
-- **FR-035**: Documentation MUST include a complete migration table for current `docs/design/` files/groups.
-- **FR-036**: Documentation MUST create a reviewable roadmap draft under `docs/roadmap/tinycua_architecture_implementation/` after design docs are finalized.
-- **FR-037**: Roadmap draft milestones MUST be sequential and PR-sized by default, with design docs covered, full/partial coverage, contract implemented, contract deferred, expected PR scope, and exit criteria.
-- **FR-038**: Roadmap draft MUST avoid sub-issue drafts by default; optional sub-issue draft files are allowed only if a milestone cannot reasonably be PR-sized.
-- **FR-039**: Planning docs MUST state the roadmap draft directory is temporary review material to convert into a real GitHub issue and delete before merge unless the user decides otherwise.
-- **FR-040**: Documentation MUST define a `CompactionStrategy` class contract that accepts `messages: list[dict]` and returns exactly one assistant-role message containing the compaction summary.
-- **FR-041**: Documentation MUST state that `SessionConfig` selects the compaction strategy, but the compaction strategy class owns compaction behavior/configuration, including whether it internally uses an Agent.
-- **FR-042**: Documentation MUST document compaction as the explicit exception to the “TinyCUALoop does not create internal Agents” rule: a compaction strategy MAY create/use its own Agent internally.
-- **FR-043**: Documentation MUST state compaction excludes system-role messages by default; callers/nodes choose what context to pass to the compaction strategy.
-- **FR-044**: Documentation MUST clarify that compaction summarizes context only; node continuation prompts remain node responsibility.
-- **FR-045**: Documentation MUST define `SystemPrompt` / `SystemPromptBuilder` or equivalent internal system prompt management that stores ordered prompt fragments separately but renders one final system-role message for LLM calls.
-- **FR-046**: Documentation MUST define `SimpleCompaction` as the default simple `CompactionStrategy` implementation that inherits parent Agent configuration when available, falls back to defaults otherwise, uses no tools, and returns the compaction agent's final response as one assistant-role summary message.
-- **FR-047**: Documentation MUST distinguish `Task` (global parent session overall goal) from `Todo` (small, isolated, linear, non-complex todo list per session that helps nodes plan then execute). Every Node MUST be able to access its session's Todo list.
-- **FR-048**: Documentation MUST define `TinyCUALoop` queue bootstrap: each run ensures `QueryAnalyst` at the front and a terminal `ResponseNode` path at the end.
-- **FR-049**: Documentation MUST define `QueryAnalyst` prechecks before LLM classification, including `mandatory_passthrough` and existing `WorkerNode` reuse.
-- **FR-050**: Documentation MUST define `mandatory_passthrough` as a deterministic continuation directive available to every node.
-- **FR-051**: Documentation MUST define `ResultReviewer` `open_question` continuation using `mandatory_passthrough`.
-- **FR-052**: Documentation MUST define active task selection through DFS pre-order traversal of the Task tree.
-- **FR-053**: Documentation MUST define TaskTree completion/update rules after `ResultReviewer` accept.
-- **FR-054**: Documentation MUST add `TinyCUAResultAggregationNode` as a `ProcessNode` entered only after the root task is accepted/done.
-- **FR-055**: Documentation MUST separate `ResultReviewer`, `ResultAggregationNode`, and `ResponseNode` responsibilities.
-- **FR-056**: Documentation MUST define `enhanced_context_retrieval` cache/file-search behavior.
-- **FR-057**: Documentation MUST define `ResponseNode` as a consolidated continuation/synthesis node.
-- **FR-058**: Documentation MUST state provider prompt caching optimization is not a design goal.
+- **FR-001**: System MUST provide a single entry point: `Agent(loop=TinyCUALoop(session=session))` — no separate AgentGraph, Factory, or RouterNode classes needed.
+- **FR-002**: System MUST use a sequential Node Queue to process queries. Nodes run one at a time. Each node processes the query, produces a result, and may terminate itself or spawn new nodes.
+- **FR-003**: System MUST initialize the queue with an entry node (QueryAnalyst) and terminal node (PrimaryAgent). The entry node always runs first.
+- **FR-004**: System MUST auto-append the default terminal node if the queue has no terminal node after processing.
+- **FR-005**: System MUST support node termination — a node removes itself from the queue and propagates its session to the parent.
+- **FR-006**: System MUST support node spawning — a node can add new nodes to the queue after itself.
+- **FR-007**: System MUST support deterministic routing — QueryAnalyst routes based on classification (passthrough/worker), Worker routes based on queue context (work in progress vs. fresh start).
+- **FR-008**: System MUST support pluggable terminal nodes — PrimaryAgent is the default, but ResultAggregator or other nodes can replace it.
+- **FR-009**: System MUST preserve the Session model — each node has its own Session. Session keeps `parent_id` as a lightweight reference. Nodes inherit/propagate session per their own rules.
+- **FR-010**: System MUST keep the Task tree on the root Session only. Task is not duplicated across nodes.
+- **FR-011**: System MUST preserve all AgentState subclasses and YAML front-matter serialization for cross-node state communication.
+- **FR-012**: System MUST keep per-node configurations (instructions, base tools) customizable via AgentConfig on Session.
+- **FR-013**: System MUST maintain TinyCUAWorker as a DecisionNode in the queue — not a separate agent or subgraph.
+- **FR-014**: System MUST define Agent Interactivity Features as a cross-cutting concern: persistence, HITL, interrupt, and resume.
+- **FR-015**: System MUST provide TodoList per Session — each node's session has its own short-term goal tracking.
+- **FR-016**: System MUST move AgentConfig from AgentState to Session directly. Session holds all node configs at once.
+- **FR-017**: System MUST accept `input: str` as the universal node input, with flexible parsing inside each node for different data formats.
+- **FR-018**: Design documentation MUST be reorganized with `state/` renamed to `models/` to reflect that these are data structures.
+- **FR-019**: Design documentation MUST reduce from 56 files to approximately 20-25 files, with TinyCUALoop and Node Queue as the central design documents.
 
 ### Key Entities
 
-- **TinyCUALoop**: TinyCUA execution loop that extends SDK BaseLoop and processes a NodeQueue.
-- **NodeQueue**: Sequential queue where `queue[0]` is active and queued nodes may be prepended, spawned, or advanced.
-- **Node / DecisionNode / ProcessNode**: Base execution abstractions for TinyCUA-specific nodes.
-- **RouteMap**: DecisionNode-owned dispatch table from decision label to queue mutation handler.
-- **NodeInput / NodePayload**: Internal typed input and payload models for safe node-to-node communication.
-- **Session / SessionConfig**: Per-node/root state and session-level behavior configuration.
-- **CompactionStrategy**: Session-context compaction class selected by SessionConfig; compacts message lists into one assistant summary message and may own an internal Agent.
-- **SimpleCompaction**: Default/simple CompactionStrategy that runs a tool-less compaction Agent over selected session messages using parent Agent configuration where available.
-- **SystemPrompt / SystemPromptBuilder**: Internal prompt assembly structure that keeps static, configurable, and dynamic system prompt sections distinct, then renders one ordered system message for LLM calls.
-- **Task**: The global parent session overall goal; the high-level objective of an entire session.
-- **Todo**: A small, isolated, linear, non-complex todo list stored per session. Nodes use it to plan then execute. Not a full task-planning system — just a simple ordered list.
-- **PropagationRule**: Explicit policy controlling what moves between node sessions and parent/root sessions.
-- **NodeToolPolicy**: Per-node tool scoping policy.
-- **NodeStreamPolicy**: Per-node streaming visibility and metadata policy.
-- **MandatoryPassthrough**: Deterministic continuation directive that any node can emit, targeting a specific node/session for the next user input.
-- **AggregatedResult**: Consolidated output from `ResultAggregationNode` that traverses the accepted task tree and produces response-ready context for `ResponseNode`.
+- **TinyCUALoop**: The central self-supervising loop. Owns the root Session, Task tree, and Node Queue. Initializes queue with entry + terminal nodes. Auto-appends terminal if missing. Lives at `tinycua/loops/tinycua_loop.py`.
+- **NodeQueue**: Sequential processing queue. Nodes run one at a time. Each node processes the query and may terminate itself or spawn new nodes.
+- **Node**: Base processing unit. Has its own Session. Accepts `input: str`. Can terminate itself or spawn new nodes.
+- **FilterNode**: Classifies input and routes. Example: QueryAnalyst (classifies passthrough/worker).
+- **DecisionNode**: Evaluates conditions and mutates the queue. Example: Worker (detects work in progress, spawns appropriate nodes).
+- **ProcessingNode**: Does work and produces output. Example: TaskExecutor, InformationDigester.
+- **TerminalNode**: Ends the loop. Example: PrimaryAgent, ResultAggregator. When a terminal node completes, the loop ends.
+- **Session**: Each node has its own Session. Keeps `parent_id` as reference. Holds chat_history, context, TodoList. AgentConfig lives on root Session. Nodes inherit/propagate session per their own rules.
+- **AgentConfig**: Stores all node configs at once. Lives on root Session. Each node config includes instructions and base tools.
+- **Task**: Tree of task nodes on root Session only. Retains current structure.
+- **AgentState subclasses**: Typed output per node (QueryAnalystState, TaskExecutorState, etc.). Retain current structure but no longer hold AgentConfig.
+- **Agent Interactivity Features**: Cross-cutting features — persistence, HITL, interrupt, resume.
 
 ---
 
-## Success Criteria _(mandatory)_
+## Success Criteria
 
-- [ ] **Docs describe SDK-compatible architecture**: `docs/design/` explains TinyCUALoop without requiring SDK changes.
-- [ ] **Docs remove stale target concepts**: old graph concepts remain only in migration/history context.
-- [ ] **Migration is complete**: every current `docs/design/` file/group has a documented disposition.
-- [ ] **Roadmap draft exists**: roadmap main issue draft is reviewable under `docs/roadmap/tinycua_architecture_implementation/`.
-- [ ] **Roadmap is PR-sized**: milestones are sequential, design-contract-linked, and sized for reviewable implementation PRs.
-- [ ] **Docs-only PR**: no source code or test changes are introduced.
+- [ ] **Developer can create an agent in 2 lines**: `session = Session(...)` then `agent = Agent(loop=TinyCUALoop(session=session))`
+- [ ] **Queue initializes correctly**: Entry node (QueryAnalyst) + terminal node (PrimaryAgent) at start
+- [ ] **Auto-append terminal works**: If queue has no terminal node, loop appends default terminal
+- [ ] **Node termination works**: Nodes remove themselves from queue and propagate session to parent
+- [ ] **Node spawning works**: Nodes add new nodes to queue after themselves
+- [ ] **Deterministic routing works**: QueryAnalyst routes passthrough/worker; Worker detects work in progress
+- [ ] **Pluggable terminal nodes work**: PrimaryAgent can be replaced by ResultAggregator or other nodes
+- [ ] **Task on root only**: Task tree lives on root Session, not duplicated across nodes
+- [ ] **Per-node configs customizable**: Instructions and base tools can be overridden per node via AgentConfig on Session
+- [ ] **Universal input**: All nodes accept `input: str` with flexible parsing
+- [ ] **Documentation is compact**: Design docs organized under `models/` (renamed from `state/`), total file count under 25
+- [ ] **No AgentGraph/RouterNode/InputGate/OutputGate/Factory/TreeNode references remain**
 
 ---
 
-## Testing Plan _(mandatory)_
+## Testing Plan
 
 ### Unit Tests
 
-- None. This PR is documentation-only.
+- Node Queue: initialization, auto-append terminal, node termination, node spawning
+- FilterNode: classification and routing (passthrough/worker)
+- DecisionNode: condition evaluation and queue mutation
+- ProcessingNode: work execution and output
+- TerminalNode: loop termination
+- Session: AgentConfig storage, TodoList, parent_id reference, inherit/propagate rules
+- Task tree: operations on root session only
 
 ### Integration Tests
 
-- None. This PR is documentation-only.
+- End-to-end query processing: QueryAnalyst → Worker → Digest → Analyze → Execute → Review → PrimaryAgent
+- Passthrough flow: QueryAnalyst terminates → PrimaryAgent runs
+- Worker with existing work: Worker detects work in progress → spawns QueryAnalyst(Worker)
+- Queue continuity: resume from persisted queue state
+- Pluggable terminal: ResultAggregator replaces PrimaryAgent
+- Agent Interactivity Features: persistence, HITL, interrupt, resume
 
-### Manual Verification
+### Manual Tests
 
-- Verify `docs/design/` file count target is 30 or fewer after cleanup.
-- Verify migration table covers all old design docs.
-- Search for stale terms and confirm they appear only in migration/history contexts.
-- Verify `docs/design/README.md` reading order matches new architecture.
-- Verify roadmap draft milestones reference design docs and are PR-sized.
+- Verify the external API is truly simple: `Agent(loop=TinyCUALoop(session=session)).run(query="...")`
+- Verify queue lifecycle: init → process → terminate → auto-append terminal → done
+- Verify node spawning and termination work correctly
 
 ---
 
@@ -189,18 +141,30 @@ The same contributor can then open the roadmap draft and see PR-sized, sequentia
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Planning docs rewrite | TODO | Rewrite spec/design/implementation-plan/task from scratch. |
-| Docs/design reorganization | TODO | Create/update/reconcile/delete docs. |
-| Roadmap draft | TODO | Create reviewable main issue draft after docs/design finalization. |
-| Final verification | TODO | Confirm docs-only diff and migration completeness. |
+| Spec | Draft | Awaiting review |
+| Design | In Progress | Being updated with queue lifecycle rules |
+| Documentation reorganization | TODO | Depends on design approval |
+| Implementation | TODO | Depends on design approval |
+
+---
+
+## Open Questions
+
+1. **How should the queue handle concurrent spawning (e.g., Worker spawns multiple nodes at once)?**
+   - Status: Discussion
+   - Current thinking: Nodes are added sequentially to the queue. No parallel spawning.
+
+2. **Should terminal node completion propagate results to parent sessions?**
+   - Status: Discussion
+   - Current thinking: Yes — terminal node writes final result to root session.
 
 ---
 
 ## Review Checklist
 
-- [ ] No runtime implementation details beyond conceptual architecture contracts.
-- [ ] All mandatory sections completed.
-- [ ] Requirements are testable and unambiguous.
-- [ ] Scope is clearly bounded with explicit non-goals.
-- [ ] SDK-boundary constraint is explicit.
-- [ ] Roadmap draft deliverable is explicit.
+- [ ] No implementation details (no code, framework, or architecture choices)
+- [ ] All mandatory sections completed
+- [ ] No `[NEEDS CLARIFICATION]` markers remain
+- [ ] Requirements are testable and unambiguous
+- [ ] Scope is clearly bounded with explicit non-goals
+- [ ] Success criteria are measurable

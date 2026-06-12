@@ -191,7 +191,6 @@ class LLMResponse(TypedDict):
     usage: TokenUsage | None
     finish_reason: str | None
     model: str | None
-    reasoning_content: NotRequired[str | None]
 
 
 # ── Raw SSE event type ──────────────────────────────────────────────────────

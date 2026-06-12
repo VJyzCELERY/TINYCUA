@@ -13,7 +13,7 @@ This decision record has been updated to match the current routing model.
 
 ## Current Routing Context
 
-The [Query Analyst](query-analyst.md) produces a [Context Enhanced Query](state-objects.md) and a [Classification](state-objects.md) — a label chosen from configurable options (`passthrough` or `worker`). See [overview.md](overview.md) for the canonical routing diagram.
+The [Query Analyst](query-analyst.md) produces a [Context Enhanced Query](state-objects.md) and a [Mode Decision](state-objects.md) with three routing paths: `primary_agent`, `worker`, and `uncertain`. See [overview.md](overview.md) for the canonical routing diagram.
 
 The Information Digester is used in two situations:
 - before Worker Mode (narrowed context before task decomposition);
