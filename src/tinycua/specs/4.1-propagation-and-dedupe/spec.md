@@ -79,6 +79,19 @@ When a node completes execution, its session context is propagated according to 
 
 ---
 
+## Traceability
+
+| Scenario | Requirements Exercised |
+|----------|----------------------|
+| 1. Node termination propagation | FR-001, FR-004, FR-005, FR-007 |
+| 2. Dedupe by origin_record_id | FR-006, FR-010 |
+| 3. ChatRecord appended to root chat_history | FR-003, FR-007 |
+| 4. session_context_target=parent_and_root | FR-001, FR-004, FR-007 |
+| 5. Terminal output exception | FR-008 |
+| 6. Dedupe fallback to record_id | FR-006 |
+
+---
+
 ## Testing Plan _(mandatory)_
 
 ### Unit Tests
@@ -135,17 +148,17 @@ When a node completes execution, its session context is propagated according to 
 2. **How should propagation interact with compaction?**
    - **Owner**: @VJyzCELERY
    - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Compaction operates on session_context; propagation happens after compaction. Compacted records lose their individual entry but chat_history preserves the audit trail.
+   - **Status**: Resolved
+   - **Resolution**: Compaction operates on session_context; propagation happens after compaction. Compacted records lose their individual entry but chat_history preserves the audit trail. Propagation never re-propagates already-compacted entries.
 
 ---
 
 ## Review Checklist
 
 - [x] No implementation details (no code, framework, or architecture choices)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
-- [x] Open questions resolved (OQ #1: per-node with session-level defaults, allowing nodes to override)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
+- [x] Open questions resolved (OQ #1: per-node with session-level defaults, allowing nodes to override; OQ #2: propagation after compaction, audit trail preserved)

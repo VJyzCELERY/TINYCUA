@@ -2,6 +2,10 @@
 
 Implementation tasks for Propagation and Dedupe. Check off items as completed.
 
+## Pre-Implementation
+
+- [ ] Update spec.md status from Draft to In Progress <!-- id: 24 -->
+
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/unit/test_propagation.py` <!-- id: 0 -->
@@ -72,7 +76,6 @@ Implementation tasks for Propagation and Dedupe. Check off items as completed.
 
 - [ ] Update `src/tinycua/docs/design/loops/propagation.md` with implementation details <!-- id: 22 -->
 - [ ] Update `src/tinycua/docs/design/models/chat_record.md` if it exists <!-- id: 23 -->
-- [ ] Update spec.md status from Draft to In Progress <!-- id: 24 -->
 
 ## Review and Merge
 

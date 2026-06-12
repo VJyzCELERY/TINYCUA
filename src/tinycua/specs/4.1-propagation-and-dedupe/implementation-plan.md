@@ -337,6 +337,14 @@ def test_segmented_context_creation():
 #### MODIFY `src/tinycua/tinycua/loops/node.py`
 
 - **Add `build_messages_with_dedupe()` helper**: Filters session_context by origin_record_id before building messages for LLM.
+  - Signature:
+    ```python
+    def build_messages_with_dedupe(
+        session: Session,
+        dedupe_by_origin_record_id: bool = False,
+    ) -> list[dict[str, str]]:
+    ```
+  - When `dedupe_by_origin_record_id=True`, filters `session_context` entries to remove duplicates by `origin_record_id` (falling back to `record_id`) before assembling LLM-bound messages.
 - **Update `Node.propagate()`**: No-op default stays; concrete nodes override as needed.
 - **Rationale**: FR-009 dedupe on LLM input.
 
@@ -437,7 +445,7 @@ Session:
 
 ### Internal Dependencies
 
-- [ ] Depends on existing NodeQueue suspension/prepend from Milestone 1.7 (already implemented)
+- [x] Depends on existing NodeQueue suspension/prepend from Milestone 1.7 (already implemented)
 - [ ] Blocks no other features — this is a standalone milestone
 
 ## Risks and Mitigations

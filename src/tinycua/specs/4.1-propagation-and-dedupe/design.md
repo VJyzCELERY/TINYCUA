@@ -64,7 +64,9 @@ ChatRecord:
 # A separate mutable context record (not an extension of the append-only ChatRecord).
 # Carries the same provenance fields as ChatRecord plus segment metadata.
 SessionContextEntry (dataclass):
+    record_id: str                    # unique identifier (uuid4)
     segment: Literal["prior", "input", "output"]
+    content: str | dict | list[dict]
     origin_record_id: str | None
     source_node_id: str | None
     source_session_id: str | None
@@ -82,6 +84,13 @@ PropagationRule:
     failure: Literal["none", "parent", "root", "parent_and_root"]
     dedupe: bool
 ```
+
+### session_context_mode Values
+
+- `none`: No session context is propagated upward.
+- `final`: Only the final session_context entry is propagated.
+- `full`: All session_context entries are propagated.
+- `selected`: Only session_context entries matching a configurable filter (e.g., `visibility="internal"` or `segment="output"`) are propagated. The filter criteria is determined by the propagation profile or node-level configuration.
 
 ### Propagation Profiles
 
@@ -129,6 +138,11 @@ def propagate_on_termination(
     Upward: prior + input segments propagate to parent/root per rule.
     The output segment is NOT propagated upward (forwarded to next node).
     Dedupe is applied when rule.dedupe is True.
+    
+    Replaces the ad-hoc `_transfer_session_context()` with rule-based propagation.
+    When parent_session is None, only root propagation occurs.
+    Non-propagated fields (task, todo, session_config) are NOT transferred by
+    this function — they remain handled elsewhere (e.g., Session identity fields).
     """
 
 
@@ -242,8 +256,8 @@ def dedupe_records(
    - **Resolution**: Per-node with session-level defaults, allowing nodes to override.
 
 2. **How should propagation interact with compaction?**
-   - **Status**: Discussion
-   - **Current thinking**: Compaction operates on session_context; propagation happens after compaction. Compacted records lose their individual entry but chat_history preserves the audit trail.
+   - **Status**: Resolved
+   - **Resolution**: Compaction operates on session_context; propagation happens after compaction. Compacted records lose their individual entry but chat_history preserves the audit trail. Propagation never re-propagates already-compacted entries.
 
 ---
 
