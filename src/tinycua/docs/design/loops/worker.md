@@ -26,8 +26,7 @@ execution advancement.
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
-- `DigestedInformation` forwarded to downstream nodes as the node query.
-- `WorkerDecision` used for routing only.
+- Forwards input to downstream nodes (whatever it received).
 
 ## Tools
 
@@ -138,9 +137,9 @@ next node receives it as input and later propagates its own input segment upward
 ```text
 Worker -> TaskAnalyzerNode -> TaskExecutor
 
-Worker forwards: [DigestedInformation, WorkerDecision]
-TaskAnalyzer context: TaskAnalyzer prior + DigestedInformation + WorkerDecision + TaskAnalyzerOutput
-TaskAnalyzer termination: parent gets TaskAnalyzer prior + DigestedInformation + WorkerDecision;
+Worker forwards: [input, WorkerDecision]
+TaskAnalyzer context: TaskAnalyzer prior + input + WorkerDecision + TaskAnalyzerOutput
+TaskAnalyzer termination: parent gets TaskAnalyzer prior + input + WorkerDecision;
                           TaskExecutor gets TaskAnalyzerOutput
 ```
 
