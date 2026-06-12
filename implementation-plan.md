@@ -4,8 +4,8 @@ This implementation upgrades the existing `ResponseNode` stub into a full `TinyC
 
 ## Context
 
-- **Spec Reference**: `./spec.md`
-- **Design Reference**: `./design.md`
+- **Spec Reference**: `specs/tinycua-response-digestion/spec.md`
+- **Design Reference**: `specs/tinycua-response-digestion/design.md`
 - **Priority**: P0
 - **Estimated Effort**: L
 

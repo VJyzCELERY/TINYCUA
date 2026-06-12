@@ -31,7 +31,7 @@ This implementation introduces `TinyCUAResultAggregationNode` — a `ProcessNode
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.11+
+- [x] **Runtime**: Python 3.12+
 - [x] **Package manager**: uv
 - [x] **Additional CLI tools**: pytest
 - [x] **None** — no special tooling required

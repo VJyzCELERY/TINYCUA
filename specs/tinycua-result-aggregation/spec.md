@@ -108,12 +108,12 @@ Objective, measurable checks that prove the problem is solved.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `AggregatedResult` model | TODO | Dataclass in `tinycua.loops.result_aggregation` |
-| BFS traversal logic | TODO | Right-to-left / most-recent-first |
-| `TinyCUAResultAggregationNode` | TODO | ProcessNode subclass |
-| `on_complete` queue advancement | TODO | Advance to TinyCUAResponseNode |
-| Integration with TinyCUALoop | TODO | Wire root-task-accept → aggregation route |
-| Tests | TODO | Unit + integration tests |
+| `AggregatedResult` model | Done | Dataclass in `tinycua.loops.result_aggregation` |
+| BFS traversal logic | Done | Right-to-left / most-recent-first in `result_aggregation.py` |
+| `TinyCUAResultAggregationNode` | Done | ProcessNode subclass in `result_aggregation.py` |
+| `on_complete` queue advancement | Done | Calls `queue.advance()` |
+| Integration with TinyCUALoop | Done | Wired in `tinycua_loop._on_reviewer_accept` |
+| Tests | Done | Unit + integration tests |
 
 ---
 
