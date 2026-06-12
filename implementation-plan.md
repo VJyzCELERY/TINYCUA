@@ -77,13 +77,13 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 - [x] Digester suspension uses existing queue machinery (no new infrastructure)
 - [x] Retry limits prevent infinite loops during synthesis
 
-## Proposed Changes
+## Changes Made (Documenting Existing Implementation)
 
 ### `tinycua.loops.response_node` (Modified Module)
 
-#### [MODIFY] `src/tinycua/tinycua/loops/response_node.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/response_node.py` (documenting existing implementation)
 
-- **[Description]**: Upgrade the existing `ResponseNode` stub into `TinyCUAResponseNode` with full three-phase execution.
+- **[Description]**: Upgraded the existing `ResponseNode` stub into `TinyCUAResponseNode` with full three-phase execution.
 - **[Rationale]**: The current stub only captures LLM output content. The full implementation adds context sufficiency analysis, digester suspension, tool fallback, continuation routing, and terminal normalization as specified in the design.
 - **Changes**:
   - Rename class from `ResponseNode` to `TinyCUAResponseNode`. **DO NOT keep `ResponseNode` as an alias** — the existing test helper `ResponseNode(Node)` in `tinycua_loop_helpers.py` creates an import collision (same name, different base class).
@@ -106,18 +106,18 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
   - Add `_needs_digestion` flag — set during `__call__` when context is insufficient and digester enabled; checked in `on_complete`.
   - Ensure retry compliance via inherited `ProcessNode.__call__` retry loop.
 
-#### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/__init__.py` (documenting existing implementation)
 
-- **[Description]**: Update imports to export `TinyCUAResponseNode`. Do NOT export `ResponseNode` as an alias — the production class is renamed to avoid collision with the test helper.
+- **[Description]**: Updated imports to export `TinyCUAResponseNode`. Do NOT export `ResponseNode` as an alias — the production class is renamed to avoid collision with the test helper.
 - **[Rationale]**: Expose the upgraded class via the public `tinycua.loops` namespace.
 - **Changes**:
   - Update import: `from tinycua.loops.response_node import TinyCUAResponseNode`
   - Add to `__all__`: `"TinyCUAResponseNode"`
   - Remove any existing `"ResponseNode"` entry from `__all__`
 
-#### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/tinycua_loop.py` (documenting existing implementation)
 
-- **[Description]**: Wire TinyCUAResponseNode into the loop's terminal node handling and continuation routing.
+- **[Description]**: Wired TinyCUAResponseNode into the loop's terminal node handling and continuation routing.
 - **[Rationale]**: The loop needs to handle ResponseNode's suspension/resume flow and consolidated continuation routing.
 - **Changes**:
   - Update import to use `TinyCUAResponseNode` (no `ResponseNode` alias — the production class is renamed to avoid collision with test helper `StubResponseNode`).
@@ -125,9 +125,9 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
   - Modify `_route_to_aggregation` to use `TinyCUAResponseNode`.
   - Ensure continuation routing via MandatoryPassthrough reaches the active ResponseNode session.
 
-#### [RENAME] `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py` — `ResponseNode` → `StubResponseNode`
+#### [RENAMED] `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py` — `ResponseNode` → `StubResponseNode` (already committed)
 
-- **[Description]**: Rename the existing test helper class `ResponseNode(Node)` to `StubResponseNode(Node)` to avoid naming collision with the production `TinyCUAResponseNode` (previously `ResponseNode`). Both had the same name but extended different base classes (`Node` vs `ProcessNode`), creating import ambiguity in existing tests.
+- **[Description]**: Renamed the existing test helper class `ResponseNode(Node)` to `StubResponseNode(Node)` to avoid naming collision with the production `TinyCUAResponseNode` (previously `ResponseNode`). Both had the same name but extended different base classes (`Node` vs `ProcessNode`), creating import ambiguity in existing tests.
 - **[Rationale]**: The implementation plan previously proposed keeping `ResponseNode` as an alias for `TinyCUAResponseNode`. However, the test helper `ResponseNode(Node)` in `tinycua_loop_helpers.py:57` is used by existing queue bootstrap tests as a lightweight terminal stub. If the production `ResponseNode` became an alias, these tests might accidentally import the real class, causing failures due to missing LLM client dependencies. Renaming the test helper to `StubResponseNode` avoids the collision entirely.
 - **Changes**:
   - In `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py`:
@@ -142,9 +142,9 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
     cd src/tinycua && uv run pytest
     ```
 
-#### [MODIFY] `src/tinycua/tinycua/config/node_config.py` (if needed)
+#### [MODIFIED] `src/tinycua/tinycua/config/node_config.py` (if needed) (documenting existing implementation)
 
-- **[Description]**: Add response-specific configuration options.
+- **[Description]**: Added response-specific configuration options.
 - **[Rationale]**: Context sufficiency thresholds and digester enable/disable should be configurable via `NodeConfig`.
 - **Changes** (if needed):
   - Add these fields to `NodeConfigBase.metadata` as the simpler approach:
@@ -154,12 +154,12 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 
 ### Tests
 
-#### [NEW] `src/tinycua/tests/unit/test_response_node.py`
+#### [CREATED] `src/tinycua/tests/unit/test_response_node.py` (already committed)
 
 - **[Description]**: Unit tests for `TinyCUAResponseNode` initialization, context sufficiency check, response synthesis, digester suspension, tool fallback, continuation routing, retry behavior, and terminal normalization.
 - **[Dependencies]**: `pytest`, `tinycua.loops.response_node`, `tinycua.config.node_config`, `tinycua.config.types`.
 
-#### [NEW] `src/tinycua/tests/integration/test_response_node_integration.py`
+#### [CREATED] `src/tinycua/tests/integration/test_response_node_integration.py` (already committed)
 
 - **[Description]**: Integration tests from the "Success Criteria — Integration Tests" section above.
 - **[Dependencies]**: `pytest`, `tinycua.loops.response_node`, `tinycua.loops.node_queue`, `tinycua.loops.tinycua_loop`.
