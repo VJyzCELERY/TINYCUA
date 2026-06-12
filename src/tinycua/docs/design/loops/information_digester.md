@@ -6,9 +6,9 @@
 ## Role
 
 `TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that gathers and digests
-context for downstream nodes. It is spawned via `suspend_current_and_prepend` by
-`WorkerNode` (when context is insufficient for routing) or `ResponseNode` (when context
-is insufficient for final synthesis).
+context for downstream nodes. It is spawned by `QueryAnalyst` before routing to
+`WorkerNode`, or by `ResponseNode` via `suspend_current_and_prepend` when context
+is insufficient for final synthesis.
 
 ## Non-Responsibilities
 
