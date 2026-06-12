@@ -638,10 +638,8 @@ class ProcessNode(Node):
         assert last_response is not None  # noqa: S101
         self.record_output(last_response)
         self.propagate()
-        self.on_complete(
-            queue=object(),  # type: ignore[arg-type]  # placeholder — orchestrator passes real queue
-            response=last_response,
-        )
+        # NOTE: on_complete is NOT called here — the orchestrator
+        # (TinyCUALoop._execute_node) calls on_complete with the real queue.
         return last_response
 
 

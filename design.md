@@ -156,10 +156,11 @@ class NodeMonitor(Protocol):
 ```python
 @runtime_checkable
 class AgentMonitor(Protocol):
-    """Higher-level hook wrapping node monitor behavior.
+    """Loop-level observation hook for all node executions.
 
-    Provides loop-level observation across all nodes.
-    # NOTE: AgentMonitor delegates to NodeMonitor. Implementation wraps node monitor if configured.
+    Independent from NodeMonitor: the loop calls AgentMonitor hooks,
+    and nodes call their own NodeMonitor hooks. Both fire when
+    configured — neither wraps or forwards to the other.
     """
 
     def on_before_node_call(
@@ -170,7 +171,6 @@ class AgentMonitor(Protocol):
         messages: list[dict],
         resolved_tools: list,
     ) -> str | None:
-        """Delegates to node monitor if configured."""
         ...
 
     def on_after_node_call(
@@ -181,7 +181,6 @@ class AgentMonitor(Protocol):
         result: "LLMResult",
         validation_result: "ValidationResult",
     ) -> str | None:
-        """Delegates to node monitor if configured."""
         ...
 
     def on_retry_exhausted(
@@ -191,7 +190,6 @@ class AgentMonitor(Protocol):
         error: "ValidationError",
         attempts: int,
     ) -> str | None:
-        """Delegates to node monitor if configured."""
         ...
 ```
 
@@ -221,9 +219,10 @@ if self.config.propagation and self.config.propagation.failure != "none":
 
 ### Enhanced ProcessNode.__call__()
 
-> **Note**: Monitor hooks are orchestrated by the loop through `AgentMonitor`, not
-> called directly by the node. See Technical Decision #6. The `AgentMonitor` delegates
-> to the node's `NodeMonitor` (via `self.config.monitor`) if one is configured.
+> **Note**: Monitor hooks are invoked independently by two sites: the
+> loop calls `AgentMonitor.on_*()` for loop-level observation, and the
+> node calls its own `NodeMonitor` via `self.config.monitor`. Both fire
+> when configured. See Technical Decision #6.
 
 ```python
 class ProcessNode(Node):
@@ -285,10 +284,10 @@ class ProcessNode(Node):
 ### Enhanced DecisionNode.__call__()
 
 > **Note**: The code examples below show the loop orchestrating monitor calls through
-> `AgentMonitor`. In practice, `AgentMonitor` delegates to the node's `NodeMonitor`
-> (if configured) — see Technical Decision #6. The node does NOT call its own
-> `NodeMonitor` directly; all monitor invocations are driven by the loop via
-> `AgentMonitor`.
+> `AgentMonitor` and `NodeMonitor` are independent hooks — the loop calls
+> `AgentMonitor` at lifecycle points; the node calls its own `NodeMonitor`
+> via `self.config.monitor`. Both fire when configured. See
+> Technical Decision #6.
 
 ```python
 class DecisionNode(ProcessNode):
@@ -398,9 +397,9 @@ def _safe_call(hook_method, *args, **kwargs):
    - **Reason**: The analysis is an open-ended LLM call that produces content; validating it is subjective. The classification is a discrete label that can be validated against `classification_labels`. Retrying the analysis would be expensive and low-value.
    - **Alternatives Considered**: Retry both steps — rejected for cost/complexity.
 
-6. **Decision**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_*()` methods only. `AgentMonitor` is responsible for forwarding to the node's `NodeMonitor` if one is configured. The loop does NOT call `node.monitor` directly — all monitor calls go through `agent_monitor`.
-   - **Reason**: Keeps the monitoring hierarchy simple. The loop only needs to call `AgentMonitor` at lifecycle points; `AgentMonitor` is responsible for forwarding to `NodeMonitor` if one is configured. Avoids the loop managing both hooks independently.
-   - **Alternatives Considered**: Independent hooks — rejected because it would require the loop to coordinate both hooks and manage fallback logic.
+6. **Decision**: `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other.
+   - **Reason**: Simpler implementation with clear separation of concerns. The loop observes at the orchestration level; the node observes at the execution level. No delegation complexity.
+   - **Alternatives Considered**: AgentMonitor wraps NodeMonitor — rejected because it requires AgentMonitor implementations to know about and forward to node-level monitors, coupling the two layers.
 
 ---
 

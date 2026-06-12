@@ -3,7 +3,7 @@
 import pytest
 
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
-from tinycua.config.types import LLMResult, ValidationError
+from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, NodeExecutionError
 from tinycua.models.session import Session
 

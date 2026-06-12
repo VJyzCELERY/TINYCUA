@@ -5,7 +5,6 @@ import pytest
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import NodeExecutionError, ProcessNode
-from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
 
