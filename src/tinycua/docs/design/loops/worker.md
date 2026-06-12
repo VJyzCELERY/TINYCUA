@@ -26,7 +26,8 @@ execution advancement.
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
-- Forwards input to downstream nodes (whatever it received).
+- Preserves and passes through the original input query downstream; transformed/filter
+  output may be added but must not replace the original query.
 
 ## Tools
 
@@ -137,9 +138,9 @@ next node receives it as input and later propagates its own input segment upward
 ```text
 Worker -> TaskAnalyzerNode -> TaskExecutor
 
-Worker forwards: [input, WorkerDecision]
-TaskAnalyzer context: TaskAnalyzer prior + input + WorkerDecision + TaskAnalyzerOutput
-TaskAnalyzer termination: parent gets TaskAnalyzer prior + input + WorkerDecision;
+Worker forwards: [user_query, WorkerDecision]
+TaskAnalyzer context: TaskAnalyzer prior + user_query + WorkerDecision + TaskAnalyzerOutput
+TaskAnalyzer termination: parent gets TaskAnalyzer prior + user_query + WorkerDecision;
                           TaskExecutor gets TaskAnalyzerOutput
 ```
 
