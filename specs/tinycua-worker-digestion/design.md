@@ -65,8 +65,13 @@ QueryAnalyst (DecisionNode)
 ### Queue Transition — Worker Route with Digestion
 
 ```
-Before (QueryAnalyst current):
-  [QueryAnalyst|current, ..., WorkerNode(?), ResponseNode]
+Before (QueryAnalyst current, fresh spawn case — WorkerNode NOT yet in the queue):
+  [QueryAnalyst|current, ..., ResponseNode]
+
+  Note: The fresh spawn case assumes no existing WorkerNode in the queue.
+  If a stale WorkerNode were present, it would be an unexpected state since
+  QueryAnalyst is the entry node and spawns fresh downstream nodes on each
+  `worker` route. Any stale nodes are cleared or superseded by the new spawn.
 
 QueryAnalyst decides worker, no existing digest:
   queue.spawn_after_current([InformationDigesterNode, WorkerNode])
@@ -202,6 +207,12 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         The digester's selected-output propagation targets the WorkerNode's
         session_context. After digestion completes, WorkerNode resumes
         with DigestedInformation available in its session.
+
+        **Query extraction**: The handler extracts the original user query
+        from `input.messages` (the last user message or the first message
+        with role='user') and passes it as the digester's `original_query`
+        parameter. This ensures the digester always has access to the raw
+        user request even when its fresh session has no message history.
         """
 ```
 
@@ -279,7 +290,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| InformationDigesterNode retry exhausted | NodeExecutionError | Digester failure — fallback DigestedInformation used downstream |
+| InformationDigesterNode retry exhausted | NodeExecutionError | Digester failure — fallback DigestedInformation used downstream. **Who catches it**: The QueryAnalyst worker route handler catches `NodeExecutionError` from the digester and calls `DigestedInformation.fallback(original_query)` to produce a graceful fallback. The digester's retry policy is configured to `record_failure` (not `raise`), so it returns the fallback digest directly rather than raising. |
 | QueryAnalyst cannot determine route | Retry via NodeRetryPolicy | Per existing DecisionNode contract |
 | WorkerNode has no DigestedInformation in session | Fallback to raw user_query from session context | Graceful degradation |
 | TaskCreateNode receives no DigestedInformation | Use raw user_query from input | Graceful degradation |
