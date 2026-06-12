@@ -164,10 +164,13 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         for consumption by downstream nodes.
         """
         if self.session is not None and self._current_digest is not None:
-            self.session.session_context.append({
-                "role": "assistant",
-                "content": self._current_digest,
-            })
+            from tinycua.models.session_context_entry import SessionContextEntry
+            self.session.session_context.append(
+                SessionContextEntry(
+                    content=self._current_digest,
+                    segment="output",
+                )
+            )
 
     def _extract_original_query(self, input_data: NodeInputLike) -> str:
         """Extract original user query from input data.

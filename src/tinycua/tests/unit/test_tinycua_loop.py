@@ -343,8 +343,8 @@ async def test_run_records_user_message():
     user_msgs = [m for m in loop.root_session.input_context if m["role"] == "user"]
     assert len(user_msgs) == 1
     assert user_msgs[0]["content"] == "hello"
-    # chat_history should not contain user messages
-    chat_user_msgs = [m for m in loop.root_session.chat_history if m["role"] == "user"]
+    # chat_history should not contain user messages (ChatRecord objects)
+    chat_user_msgs = [m for m in loop.root_session.chat_history if m.role == "user"]
     assert len(chat_user_msgs) == 0
 
 
@@ -364,9 +364,9 @@ async def test_run_records_assistant_response():
     )
     messages = [{"role": "user", "content": "hi"}]
     await loop.run(agent, messages, tools=[], stream=False)
-    assistant_msgs = [m for m in loop.root_session.chat_history if m["role"] == "assistant"]
+    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
     assert len(assistant_msgs) >= 1
-    assert assistant_msgs[-1]["content"] == "Hello there"
+    assert assistant_msgs[-1].content == "Hello there"
 
 
 async def test_run_calls_build_system_message_with_override():
@@ -412,9 +412,9 @@ async def test_run_with_empty_messages():
     result = await loop.run(agent, messages=[], tools=[], stream=False)
     assert isinstance(result, str)
     # No user messages to record, but assistant response is still recorded
-    assistant_msgs = [m for m in loop.root_session.chat_history if m["role"] == "assistant"]
+    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
     assert len(assistant_msgs) >= 1
-    assert assistant_msgs[-1]["content"] == "No input needed"
+    assert assistant_msgs[-1].content == "No input needed"
 
 
 async def test_run_stream_records_chat_history():
@@ -438,9 +438,9 @@ async def test_run_stream_records_chat_history():
     result = await loop.run(agent, messages, tools=[], stream=True)
     events = [e async for e in result]
     assert len(events) == 3
-    assistant_msgs = [m for m in loop.root_session.chat_history if m["role"] == "assistant"]
+    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
     assert len(assistant_msgs) >= 1
-    assert assistant_msgs[-1]["content"] == "Hello world"
+    assert assistant_msgs[-1].content == "Hello world"
 
 
 async def test_ensure_terminal_skipped_when_no_default():

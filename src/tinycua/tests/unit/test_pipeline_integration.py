@@ -84,9 +84,9 @@ class TestFullPipelineIntegration:
         # ProcessNode records LLM response in session_context
         assert len(digester.session.session_context) == 1
         recorded = digester.session.session_context[0]
-        assert recorded["role"] == "assistant"
+        assert recorded.role == "assistant"
         # Content is the raw JSON string from the LLM
-        parsed = json.loads(recorded["content"])
+        parsed = json.loads(recorded.content)
         assert "context_summary" in parsed
         assert "key_points" in parsed
 
@@ -109,9 +109,9 @@ class TestFullPipelineIntegration:
 
         assert len(digester.session.session_context) == 1
         assert isinstance(
-            digester.session.session_context[0]["content"], DigestedInformation
+            digester.session.session_context[0].content, DigestedInformation
         )
-        assert digester.session.session_context[0]["content"] is digest
+        assert digester.session.session_context[0].content is digest
 
     def test_worker_retrieves_digested_information(
         self,
@@ -157,7 +157,7 @@ class TestFullPipelineIntegration:
         worker.propagate()
 
         assert any(
-            isinstance(entry.get("content"), DigestedInformation)
+            isinstance(entry.content, DigestedInformation)
             for entry in worker.session.session_context
         )
 
@@ -228,7 +228,7 @@ class TestFullPipelineIntegration:
         assert len(digester.session.session_context) == 1
 
         # Simulate orchestrator parsing: extract digest from recorded response
-        recorded_content = digester.session.session_context[0]["content"]
+        recorded_content = digester.session.session_context[0].content
         parsed = json.loads(recorded_content)
         digest = DigestedInformation(
             context_summary=parsed["context_summary"],
@@ -324,7 +324,7 @@ class TestFallbackPath:
         worker.propagate()
 
         assert any(
-            isinstance(entry.get("content"), DigestedInformation)
+            isinstance(entry.content, DigestedInformation)
             for entry in worker.session.session_context
         )
 

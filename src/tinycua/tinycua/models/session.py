@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
+    from tinycua.models.chat_record import ChatRecord
+    from tinycua.models.session_context_entry import SessionContextEntry
 
 
 @dataclass
@@ -22,8 +24,8 @@ class Session:
         parent_id: Optional parent session ID for child sessions.
         session_config: Configuration applied to this session.
         input_context: Merged SDK messages from the agent loop.
-        chat_history: List of chat message dicts (role, content, etc.).
-        session_context: List of context entries populated by nodes.
+        chat_history: Append-only durable audit transcript.
+        session_context: Mutable LLM-reusable context with segment metadata.
         task: Optional task description string.
         todo: Optional todo list.
     """
@@ -32,13 +34,13 @@ class Session:
     parent_id: str | None = None
     session_config: SessionConfig | None = None
     input_context: list[dict[str, Any]] = field(default_factory=list)
-    chat_history: list[dict[str, Any]] = field(default_factory=list)
-    session_context: list[dict[str, Any]] = field(default_factory=list)
+    chat_history: list[ChatRecord] = field(default_factory=list)
+    session_context: list[SessionContextEntry] = field(default_factory=list)
     task: str | None = None
     todo: list[dict[str, Any]] = field(default_factory=list)
 
     def compact_context(
-        self, window: list[dict[str, Any]] | None = None
+        self, window: list[SessionContextEntry] | list[dict[str, Any]] | None = None
     ) -> dict[str, Any] | None:
         """Compact context entries using the configured strategy.
 
@@ -63,21 +65,64 @@ class Session:
             return None
 
         strategy = self.session_config.compaction_strategy
-        messages = window if window is not None else self.session_context
+
+        # Convert SessionContextEntry objects to dicts for compaction strategy
+        def _to_dict(entry: SessionContextEntry | dict[str, Any]) -> dict[str, Any]:
+            if isinstance(entry, dict):
+                return entry
+            return entry.to_dict()
+
+        if window is not None:
+            messages = [_to_dict(entry) for entry in window]
+        else:
+            messages = [_to_dict(entry) for entry in self.session_context]
+
         summary = strategy.compact(messages)
 
         if window is None:
-            self.session_context = [summary]
+            # Convert summary dict back to SessionContextEntry if needed
+            from tinycua.models.session_context_entry import SessionContextEntry
+            if isinstance(summary, dict):
+                # Check if the summary dict has SessionContextEntry fields
+                if "record_id" in summary or "segment" in summary:
+                    self.session_context = [SessionContextEntry.from_dict(summary)]
+                else:
+                    # Legacy format: wrap in SessionContextEntry
+                    self.session_context = [SessionContextEntry(
+                        content=summary.get("content", ""),
+                        segment="prior",
+                        created_seq=0,
+                    )]
+            else:
+                self.session_context = [summary]
         elif len(window) > 0:
             # Remove the compacted window entries and append the summary.
             # Find the window by comparing expected sequence within session_context.
             # Assumes window is a contiguous subset of session_context.
+            from tinycua.models.session_context_entry import SessionContextEntry
             window_len = len(window)
             for i in range(len(self.session_context) - window_len + 1):
-                if self.session_context[i : i + window_len] == window:
+                # Compare by converting both to dicts for comparison
+                current_slice = self.session_context[i : i + window_len]
+                current_dicts = [_to_dict(entry) for entry in current_slice]
+                window_dicts = [_to_dict(entry) for entry in window]
+                if current_dicts == window_dicts:
+                    if isinstance(summary, dict):
+                        # Check if the summary dict has SessionContextEntry fields
+                        if "record_id" in summary or "segment" in summary:
+                            summary_entry = SessionContextEntry.from_dict(summary)
+                        else:
+                            # Legacy format: wrap in SessionContextEntry
+                            summary_entry = SessionContextEntry(
+                                content=summary.get("content", ""),
+                                segment="prior",
+                                created_seq=0,
+                            )
+                    else:
+                        summary_entry = summary
                     self.session_context = (
                         self.session_context[: i]
-                        + [summary]
+                        + [summary_entry]
                         + self.session_context[i + window_len :]
                     )
                     break

@@ -110,5 +110,5 @@ class TestInformationDigesterNode:
         # Verify digest was stored in session_context
         assert len(session.session_context) == 1
         entry = session.session_context[0]
-        assert entry["role"] == "assistant"
-        assert entry["content"] is digest
+        assert entry.role == "assistant"
+        assert entry.content is digest
