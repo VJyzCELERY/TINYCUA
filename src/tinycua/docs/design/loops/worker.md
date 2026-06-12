@@ -26,8 +26,7 @@ execution advancement.
 ## Outputs / State Produced
 
 - `DecisionResult` with one of the indexed route labels.
-- Preserves and passes through the original input query downstream; transformed/filter
-  output may be added but must not replace the original query.
+- Preserves and passes through the original input query downstream; transformed/filter output may be added but must not replace the original query.
 
 ## Tools
 
