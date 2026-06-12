@@ -39,7 +39,7 @@ Implement explicit propagation rules and dedupe logic for TinyCUA node context. 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
 ```python
-# Test file: tests/test_propagation.py
+# Test file: tests/unit/test_propagation.py
 """Integration tests for propagation and dedupe."""
 
 from tinycua.models.chat_record import ChatRecord
@@ -359,15 +359,15 @@ def test_segmented_context_creation():
 
 ### Tests
 
-#### NEW `tests/test_propagation.py`
+#### NEW `tests/unit/test_propagation.py`
 
 - **Integration tests** (defined above): All 10 test functions covering propagation, dedupe, terminal output, ChatRecord, profiles, and edge cases.
 
-#### NEW `tests/test_chat_record.py`
+#### NEW `tests/unit/test_chat_record.py`
 
 - **Unit tests**: ChatRecord creation, metadata fields, serialization.
 
-#### NEW `tests/test_session_context_entry.py`
+#### NEW `tests/unit/test_session_context_entry.py`
 
 - **Unit tests**: SessionContextEntry creation, segment values, origin/source IDs.
 

@@ -4,9 +4,9 @@ Implementation tasks for Propagation and Dedupe. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/test_propagation.py` <!-- id: 0 -->
-- [ ] Write unit tests for ChatRecord in `tests/test_chat_record.py` <!-- id: 1 -->
-- [ ] Write unit tests for SessionContextEntry in `tests/test_session_context_entry.py` <!-- id: 2 -->
+- [ ] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/unit/test_propagation.py` <!-- id: 0 -->
+- [ ] Write unit tests for ChatRecord in `tests/unit/test_chat_record.py` <!-- id: 1 -->
+- [ ] Write unit tests for SessionContextEntry in `tests/unit/test_session_context_entry.py` <!-- id: 2 -->
 - [ ] Run all new tests — expect RED (failures) since no implementation exists yet <!-- id: 3 -->
 
 ## Implementation Phase — Data Models
