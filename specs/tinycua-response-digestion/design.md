@@ -61,7 +61,7 @@ TinyCUALoop (queue iteration)
   │     ├── Propagate digest to parent.session_context
   │     └── queue.advance() → ResponseNode resumes
   │
-  └── TinyCUAResponseNode resumes
+  └── `TinyCUAResponseNode` resumes
         ├── __call__ re-checks sufficiency
         └── Synthesizes final response
 ```
@@ -88,7 +88,7 @@ No new entities. The existing `ResponseContext` (in `response_node.py`) and `Dig
 ### Existing Entities (for reference)
 
 ```python
-# ResponseNode internal state
+# `TinyCUAResponseNode` internal state
 @dataclass
 class ResponseContext:
     aggregated_result: AggregatedResult | None
@@ -177,7 +177,7 @@ def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
     """
     Post-completion hook.
     1. Propagate digest to parent.session_context.
-    2. queue.advance() so parent (ResponseNode) resumes.
+     2. queue.advance() so parent (`TinyCUAResponseNode`) resumes.
     """
 ```
 

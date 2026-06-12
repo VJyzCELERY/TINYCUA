@@ -48,8 +48,8 @@ A TinyCUA loop reaches the terminal `TinyCUAResponseNode` after result aggregati
 - **FR-004**: `_suspend_for_digestion` MUST check `max_digest_attempts` (default: 3) and skip suspension if the limit has been reached, logging a warning.
 - **FR-005**: `TinyCUAInformationDigesterNode` MUST accept a `parent: ProcessNode | None` parameter and create a **fresh session** (not inherit the parent's session).
 - **FR-006**: On completion, `InformationDigesterNode.on_complete` MUST propagate the digest output to the parent's `session_context` via `parent_session.session_context.append(...)` and call `queue.advance()` so the parent resumes.
-- **FR-007**: `ResponseNode` MUST support resumption after digestion: when called again, it re-evaluates context sufficiency and proceeds to synthesis if sufficient.
-- **FR-008**: When `digester_enabled` is `False` and context is insufficient, `ResponseNode` MUST fall through to `_gather_context_via_tools` (placeholder in M3.6, full implementation deferred).
+- **FR-007**: `TinyCUAResponseNode` MUST support resumption after digestion: when called again, it re-evaluates context sufficiency and proceeds to synthesis if sufficient.
+- **FR-008**: When `digester_enabled` is `False` and context is insufficient, `TinyCUAResponseNode` MUST fall through to `_gather_context_via_tools` (placeholder in M3.6, full implementation deferred).
 - **FR-009**: The system MUST provide metadata config keys `digester_enabled` (bool, default `True`), `max_digest_attempts` (int, default `3`), and `sufficiency_threshold` (int, optional) in `NodeConfigBase.metadata`.
 
 ### Key Entities
@@ -65,13 +65,13 @@ A TinyCUA loop reaches the terminal `TinyCUAResponseNode` after result aggregati
 
 Objective, measurable checks that prove the problem is solved.
 
-- [x] **ResponseNode sets `_needs_digestion` flag**: When `__call__` receives insufficient context and `digester_enabled=True`, the flag is set and a placeholder is returned.
+- [x] **`TinyCUAResponseNode` sets `_needs_digestion` flag**: When `__call__` receives insufficient context and `digester_enabled=True`, the flag is set and a placeholder is returned.
 - [x] **`on_complete` triggers suspension**: When `_needs_digestion=True`, `on_complete` calls `_suspend_for_digestion` which creates a digester and suspends the queue.
 - [x] **Digester creates fresh session**: `TinyCUAInformationDigesterNode.__call__` creates a new `Session()` if none exists.
 - [x] **Digest propagates back**: After the digester completes, `on_complete` appends digest to the parent's `session_context` and calls `queue.advance()`.
-- [x] **ResponseNode resumes**: After the queue advances back to the response node, `__call__` re-evaluates context sufficiency and synthesizes the response.
+- [x] **`TinyCUAResponseNode` resumes**: After the queue advances back to the response node, `__call__` re-evaluates context sufficiency and synthesizes the response.
 - [x] **`max_digest_attempts` enforced**: After N failed digestion cycles, suspension is skipped and synthesis proceeds with available context.
-- [x] **`digester_enabled=False` path**: When the flag is `False`, `ResponseNode` skips digestion and falls through to `_gather_context_via_tools`.
+- [x] **`digester_enabled=False` path**: When the flag is `False`, `TinyCUAResponseNode` skips digestion and falls through to `_gather_context_via_tools`.
 
 ---
 
@@ -103,7 +103,7 @@ Objective, measurable checks that prove the problem is solved.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Three-phase execution in `ResponseNode.__call__` | Done | Implemented in `response_node.py` |
+| Three-phase execution in `TinyCUAResponseNode.__call__` | Done | Implemented in `response_node.py` |
 | Context sufficiency check (`_check_context_sufficiency`) | Done | Primary + secondary checks |
 | Digester suspension (`_suspend_for_digestion`) | Done | Creates digester, calls `queue.suspend_current_and_prepend` |
 | `on_complete` digester trigger | Done | Checks `_needs_digestion`, calls `_suspend_for_digestion` |
