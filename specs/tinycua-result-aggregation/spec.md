@@ -131,7 +131,7 @@ Objective, measurable checks that prove the problem is solved.
 
 ## Review Checklist
 
-- [x] No implementation details (no code, framework, or architecture choices)
+- [ ] No implementation details (no code, framework, or architecture choices)
 - [x] All mandatory sections completed
 - [x] No `[NEEDS CLARIFICATION]` markers remain
 - [x] Requirements are testable and unambiguous

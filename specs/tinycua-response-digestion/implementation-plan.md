@@ -71,7 +71,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 
 - [x] No performance concerns — single-threaded queue model, no concurrent digestion possible.
 
-## Proposed Changes
+## Changes Made (Documenting Existing Implementation)
 
 ### loops/response_node.py
 

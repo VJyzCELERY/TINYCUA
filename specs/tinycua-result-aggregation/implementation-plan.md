@@ -76,11 +76,11 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
 - [x] Traversal of deep/wide task trees should be bounded by configurable `max_inspected_tasks`
 - [x] Aggregation produces no new LLM content — purely mechanical consolidation
 
-## Proposed Changes
+## Changes Made (Documenting Existing Implementation)
 
 ### `tinycua.loops.result_aggregation` (New Module)
 
-#### [NEW] `src/tinycua/tinycua/loops/result_aggregation.py`
+#### [CREATED] `src/tinycua/tinycua/loops/result_aggregation.py` (already committed)
 
 - **[Description]**: New module containing `AggregatedResult` dataclass and `TinyCUAResultAggregationNode` class.
 - **[Dependencies]**: `tinycua.loops.node` (ProcessNode), `tinycua.models.task` (Task, TaskResult), `tinycua.config.types` (LLMResult), `tinycua.models.node_input` (NodeInputLike), `tinycua.loops.node_queue` (NodeQueue), `tinycua.config.node_config` (NodeConfigBase).
@@ -114,7 +114,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
   - Calls `queue.advance()` to advance to `TinyCUAResponseNode`.
   - Logs completion.
 
-#### [MODIFY] `src/tinycua/tinycua/loops/__init__.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/__init__.py` (already committed)
 
 - **[Description]**: Add imports for `TinyCUAResultAggregationNode` and `AggregatedResult` from the new module.
 - **[Rationale]**: Expose the new classes via the public `tinycua.loops` namespace.
@@ -122,7 +122,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
   - Add: `from tinycua.loops.result_aggregation import TinyCUAResultAggregationNode, AggregatedResult`
   - Add to `__all__`: `"TinyCUAResultAggregationNode"`, `"AggregatedResult"`
 
-#### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/tinycua_loop.py` (already committed)
 
 - **[Description]**: Wire root-task-accept → aggregation routing in `_on_reviewer_accept`.
 - **[Rationale]**: When `ResultReviewer` accepts the root task (no parent), the loop needs to route to `ResultAggregationNode` then `TinyCUAResponseNode`.
@@ -137,7 +137,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
     - `queue.ensure_terminal(TinyCUAResponseNode)`
   - **Modify `ResultReviewer.on_complete`**: After calling `loop._on_reviewer_accept(active_task)`, if it returns `True`, call `loop._route_to_aggregation(queue)`.
 
-#### [MODIFY] `src/tinycua/tinycua/loops/result_reviewer.py`
+#### [MODIFIED] `src/tinycua/tinycua/loops/result_reviewer.py` (already committed)
 
 - **[Description]**: Capture the return value of `_on_reviewer_accept` and route to aggregation when root task is accepted.
 - **[Rationale]**: Currently `on_complete` calls `self.loop._on_reviewer_accept(active_task)` in two places (normal accept at line 196 and force-accept on retry threshold at line 202) but ignores the boolean result in both.
@@ -147,12 +147,12 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
 
 ### Tests
 
-#### [NEW] `src/tinycua/tests/unit/test_result_aggregation.py`
+#### [CREATED] `src/tinycua/tests/unit/test_result_aggregation.py` (already committed)
 
 - **[Description]**: Unit tests for `AggregatedResult` construction, `_traverse_bfs_right_to_left` helper (BFS right-to-left, early termination, empty tree), `_consolidate`, and `on_complete` queue advancement.
 - **[Dependencies]**: `pytest`, `tinycua.loops.result_aggregation`, `tinycua.models.task`.
 
-#### [NEW] `src/tinycua/tests/integration/test_result_aggregation_integration.py`
+#### [CREATED] `src/tinycua/tests/integration/test_result_aggregation_integration.py` (already committed)
 
 - **[Description]**: Integration tests from the "Success Criteria — Integration Tests" section above.
 - **[Dependencies]**: `pytest`, `tinycua.loops.result_aggregation`, `tinycua.loops.tinycua_loop`, `tinycua.loops.node_queue`.
