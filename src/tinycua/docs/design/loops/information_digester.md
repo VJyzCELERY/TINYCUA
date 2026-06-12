@@ -19,11 +19,8 @@ is insufficient for final synthesis.
 
 ## Inputs
 
-- `NodeInput` with copied, selected subset of parent node's `session_context` messages.
+- `NodeInput` with copied, selected subset of QueryAnalyst's `session_context` messages.
 - Optional digest request payload.
-- When spawned by WorkerNode (via `suspend_current_and_prepend`): copied session_context
-  from the suspended worker node's session, providing context for Worker's routing
-  decision.
 - When spawned by ResponseNode (via `suspend_current_and_prepend`): copied session_context
   from the suspended response node's session.
 
