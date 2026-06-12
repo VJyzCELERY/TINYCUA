@@ -97,12 +97,12 @@ PropagationRule:
 
 ### Propagation Profiles
 
-| Profile | chat_history | session_context_target | session_context_mode | token_usage | failure |
-|---------|--------------|------------------------|----------------------|-------------|---------|
-| transient_legacy | parent_and_root | none | none | parent_and_root | parent_and_root |
-| natural_termination_legacy | parent_and_root | parent_and_root | final | parent_and_root | parent_and_root |
-| mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root |
-| selected_internal_output | root | root | selected | root | root |
+| Profile | chat_history | session_context_target | session_context_mode | token_usage | failure | dedupe |
+|---------|--------------|------------------------|----------------------|-------------|---------|--------|
+| transient_legacy | parent_and_root | none | none | parent_and_root | parent_and_root | True |
+| natural_termination_legacy | parent_and_root | parent_and_root | final | parent_and_root | parent_and_root | True |
+| mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root | True |
+| selected_internal_output | root | root | selected | root | root | True |
 
 ### Schema Changes
 

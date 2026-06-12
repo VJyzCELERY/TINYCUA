@@ -63,6 +63,8 @@ metadata so implementation does not rely on index slicing:
 
 ```text
 SessionContextEntry (standalone dataclass — extends ChatRecord is a future refactoring target)
+  · record_id: str           # auto-generated uuid4 hex
+  · content: str | dict | list[dict]
   · segment: Literal["prior", "input", "output"]
   · origin_record_id: str | None
   · source_node_id: str | None
