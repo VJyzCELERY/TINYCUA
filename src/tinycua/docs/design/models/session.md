@@ -13,7 +13,7 @@ Session
   · parent_id: str | None
   · session_config: SessionConfig
   · chat_history: list[ChatRecord]
-  · session_context: list[dict]
+  · session_context: list[SessionContextEntry]
   · agent_state: AgentState | None
   · task: Task | None               # global parent session overall goal
   · todo: Todo | None                # per-session linear plan-then-execute list

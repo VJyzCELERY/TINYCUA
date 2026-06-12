@@ -76,6 +76,7 @@ Implementation tasks for Propagation and Dedupe. Check off items as completed.
 
 - [ ] Update `src/tinycua/docs/design/loops/propagation.md` with implementation details <!-- id: 22 -->
 - [ ] Update `src/tinycua/docs/design/models/chat_record.md` if it exists <!-- id: 23 -->
+- [ ] Update `src/tinycua/docs/design/models/session.md` — align `session_context` type and ensure field definitions match design.md <!-- id: 30 -->
 
 ## Review and Merge
 
