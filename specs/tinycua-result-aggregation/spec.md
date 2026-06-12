@@ -1,6 +1,6 @@
 # Feature Specification: TinyCUAResultAggregationNode
 
-**Status**: Draft
+**Status**: Implemented
 **Created**: 2026-06-11
 **Last Updated**: 2026-06-11
 **Subproject(s) Affected**: tinycua (loops/result_aggregation, loops/tinycua_loop, loops/__init__.py)
@@ -9,10 +9,10 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Provide `TinyCUAResultAggregationNode` so the TinyCUA execution loop can **consolidate results from an accepted root task tree and produce response-ready context** for `ResponseNode`, completing the accepted-task path in the architecture flow.
-- **Gaps**: Milestone 3.2 delivered `TinyCUATaskExecutorNode` and `TinyCUAResultReviewerNode`, and Milestone 3.3 handled mandatory passthrough and continuation routing. When `ResultReviewer` accepts the root task, the loop currently has **no node that traverses the completed task tree, inspects results/artifacts/reviewer decisions, and consolidates them** into a structured aggregate for `ResponseNode`. The architecture design for `TinyCUAResultAggregationNode` exists in `src/tinycua/docs/design/loops/result_aggregation.md` and `src/tinycua/docs/design/loops/node.md` but has not been implemented.
-- **Non-Goals**: This spec does NOT cover final response synthesis (Milestone 3.5 — ResponseNode), information digestion suspension (Milestone 3.6), propagation/dedupe (Milestone 4.1), tool scoping (Milestone 4.2), retry/validation (Milestone 4.3), or streaming/transcript events (Milestone 4.4). It does NOT cover the initial queue bootstrap or root-task tracking (Milestone 3.1). Aggregation is read-only: it does NOT execute tasks, review results, or synthesize user-facing responses.
-- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must not mutate the task tree — aggregation is purely read-only inspection. Must follow the existing `ProcessNode` contract. The `AggregatedResult` model must be compatible with `ResponseNode`'s input contract.
+- **Goals**: Provide `TinyCUAResultAggregationNode` so the TinyCUA execution loop can **consolidate results from an accepted root task tree and produce response-ready context** for `TinyCUAResponseNode`, completing the accepted-task path in the architecture flow.
+- **Gaps**: Milestone 3.2 delivered `TinyCUATaskExecutorNode` and `TinyCUAResultReviewerNode`, and Milestone 3.3 handled mandatory passthrough and continuation routing. When `ResultReviewer` accepts the root task, the loop currently has **no node that traverses the completed task tree, inspects results/artifacts/reviewer decisions, and consolidates them** into a structured aggregate for `TinyCUAResponseNode`. The architecture design for `TinyCUAResultAggregationNode` exists in `src/tinycua/docs/design/loops/result_aggregation.md` and `src/tinycua/docs/design/loops/node.md` but has not been implemented.
+- **Non-Goals**: This spec does NOT cover final response synthesis (Milestone 3.5 — TinyCUAResponseNode), information digestion suspension (Milestone 3.6), propagation/dedupe (Milestone 4.1), tool scoping (Milestone 4.2), retry/validation (Milestone 4.3), or streaming/transcript events (Milestone 4.4). It does NOT cover the initial queue bootstrap or root-task tracking (Milestone 3.1). Aggregation is read-only: it does NOT execute tasks, review results, or synthesize user-facing responses.
+- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must not mutate the task tree — aggregation is purely read-only inspection. Must follow the existing `ProcessNode` contract. The `AggregatedResult` model must be compatible with `TinyCUAResponseNode`'s input contract.
 
 ---
 
@@ -20,14 +20,14 @@
 
 ### Primary Scenario
 
-After `TinyCUAResultReviewerNode` accepts the root task (the top-level task in the task tree is marked `done`), `TinyCUALoop` advances the queue to `TinyCUAResultAggregationNode`. The aggregation node traverses the completed task tree using guided BFS right-to-left / most-recent-first, collects task summaries, accepted results, artifacts, and reviewer decisions, and produces an `AggregatedResult`. The queue then advances to `ResponseNode` for final synthesis.
+After `TinyCUAResultReviewerNode` accepts the root task (the top-level task in the task tree is marked `done`), `TinyCUALoop` advances the queue to `TinyCUAResultAggregationNode`. The aggregation node traverses the completed task tree using guided BFS right-to-left / most-recent-first, collects task summaries, accepted results, artifacts, and reviewer decisions, and produces an `AggregatedResult`. The queue then advances to `TinyCUAResponseNode` for final synthesis.
 
 ### Acceptance Scenarios
 
 1. **Given** a completed root task tree where the root task is `done`, **When** `TinyCUAResultAggregationNode` is invoked, **Then** it produces an `AggregatedResult` containing task summaries and artifacts from all accepted tasks.
 2. **Given** a root task tree with nested accepted tasks at multiple depths, **When** the aggregation node traverses, **Then** it visits children right-to-left / most-recent-first and consolidates results from all depths.
 3. **Given** sufficient response-ready context is found early in traversal, **When** the aggregation node inspects tasks, **Then** it may stop early without exhaustive BFS.
-4. **Given** `TinyCUAResultAggregationNode` produces an `AggregatedResult`, **When** `on_complete` is called, **Then** the queue advances to the next node (expected: `ResponseNode`).
+4. **Given** `TinyCUAResultAggregationNode` produces an `AggregatedResult`, **When** `on_complete` is called, **Then** the queue advances to the next node (expected: `TinyCUAResponseNode`).
 
 ### Early Termination Criterion
 
@@ -53,13 +53,13 @@ After `TinyCUAResultReviewerNode` accepts the root task (the top-level task in t
 - **FR-005**: The node MUST consolidate traversal results into an `AggregatedResult` model with fields: `root_task_id`, `task_summaries`, `accepted_results`, `artifacts`, `final_context`, `response_continuation`, `metadata`.
 - **FR-006**: The node MUST support early termination of traversal when sufficient response-ready context has been gathered.
 - **FR-007**: The node MUST NOT mutate the task tree — all operations are read-only inspection.
-- **FR-008**: On `on_complete`, the node MUST advance the queue to the next node (expected: `ResponseNode`).
-- **FR-009**: The node MUST propagate the `AggregatedResult` as session context for `ResponseNode`.
+- **FR-008**: On `on_complete`, the node MUST advance the queue to the next node (expected: `TinyCUAResponseNode`).
+- **FR-009**: The node MUST propagate the `AggregatedResult` as session context for `TinyCUAResponseNode`.
 - **FR-010**: The `AggregatedResult` model MUST be importable from `tinycua.loops.result_aggregation` or `tinycua.models`.
 
 ### Key Entities
 
-- **AggregatedResult**: Consolidated data structure containing root_task_id, task_summaries, accepted_results, artifacts, final_context, response_continuation, and metadata. Emitted by `TinyCUAResultAggregationNode` and consumed by `ResponseNode`.
+- **AggregatedResult**: Consolidated data structure containing root_task_id, task_summaries, accepted_results, artifacts, final_context, response_continuation, and metadata. Emitted by `TinyCUAResultAggregationNode` and consumed by `TinyCUAResponseNode`.
 - **TinyCUAResultAggregationNode**: A `ProcessNode` that performs read-only traversal of the accepted root task tree and produces `AggregatedResult`.
 - **Task Traversal**: Guided BFS right-to-left / most-recent-first of the root task tree, selecting task nodes for inspection and consolidation.
 
@@ -75,7 +75,7 @@ Objective, measurable checks that prove the problem is solved.
 - [x] **Early termination works**: The node can stop traversal early when sufficient context is gathered, producing a partial but valid `AggregatedResult`.
 - [x] **Read-only**: The node does not modify any task's status, result, or children.
 - [x] **Queue advancement**: `on_complete` advances the queue (via `queue.advance()` or equivalent).
-- [x] **Integration with loop**: When `ResultReviewer` accepts the root task, `TinyCUALoop` routes to aggregation, then to `ResponseNode`.
+- [x] **Integration with loop**: When `ResultReviewer` accepts the root task, `TinyCUALoop` routes to aggregation, then to `TinyCUAResponseNode`.
 - [x] **All tests pass**: `cd src/tinycua && uv run pytest` passes for the result_aggregation module.
 
 ---
@@ -94,8 +94,8 @@ Objective, measurable checks that prove the problem is solved.
 
 ### Integration Tests
 
-- Test full path: `ResultReviewer` accept root task → `TinyCUAResultAggregationNode` → `ResponseNode`
-- Test that aggregation produces valid input for `ResponseNode`
+- Test full path: `ResultReviewer` accept root task → `TinyCUAResultAggregationNode` → `TinyCUAResponseNode`
+- Test that aggregation produces valid input for `TinyCUAResponseNode`
 - Test that `AggregatedResult` propagates as session context
 
 ### Manual Tests _(if applicable)_
@@ -111,7 +111,7 @@ Objective, measurable checks that prove the problem is solved.
 | `AggregatedResult` model | TODO | Dataclass in `tinycua.loops.result_aggregation` |
 | BFS traversal logic | TODO | Right-to-left / most-recent-first |
 | `TinyCUAResultAggregationNode` | TODO | ProcessNode subclass |
-| `on_complete` queue advancement | TODO | Advance to ResponseNode |
+| `on_complete` queue advancement | TODO | Advance to TinyCUAResponseNode |
 | Integration with TinyCUALoop | TODO | Wire root-task-accept → aggregation route |
 | Tests | TODO | Unit + integration tests |
 
@@ -121,11 +121,11 @@ Objective, measurable checks that prove the problem is solved.
 
 1. **Should `AggregatedResult` live in `tinycua.loops.result_aggregation` or `tinycua.models`?**
    - **Status**: Decided
-   - **Decision**: Co-locate with the node in `tinycua.loops.result_aggregation` for simplicity, re-export from `tinycua.loops` if needed by `ResponseNode`.
+   - **Decision**: Co-locate with the node in `tinycua.loops.result_aggregation` for simplicity, re-export from `tinycua.loops` if needed by `TinyCUAResponseNode`.
 
 2. **How does `TinyCUALoop` know to route to `ResultAggregationNode` vs continuing to the next active task?**
    - **Status**: Decided
-   - **Proposed Answer**: The `_on_reviewer_accept` handler on `TinyCUALoop` checks if the accepted task is the root task (no parent). If root → spawn `ResultAggregationNode` then `ResponseNode`. If not root → advance to the next active task (existing behavior from Milestone 3.2).
+   - **Proposed Answer**: The `_on_reviewer_accept` handler on `TinyCUALoop` checks if the accepted task is the root task (no parent). If root → spawn `ResultAggregationNode` then `TinyCUAResponseNode`. If not root → advance to the next active task (existing behavior from Milestone 3.2).
 
 ---
 

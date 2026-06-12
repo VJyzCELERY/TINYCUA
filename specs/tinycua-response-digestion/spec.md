@@ -1,6 +1,6 @@
 # Feature Specification: TinyCUA ResponseNode — Optional Information Digestion Request
 
-**Status**: Draft
+**Status**: Implemented
 **Created**: 2026-06-12
 **Last Updated**: 2026-06-12
 **Subproject(s) Affected**: tinycua (loops/response_node, loops/information_digester, loops/__init__.py, models/digested_information, config/node_config)

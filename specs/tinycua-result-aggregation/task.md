@@ -26,12 +26,12 @@ Implementation tasks for TinyCUAResultAggregationNode. Check off items as comple
   - [x] `__init__`: accept optional `loop` reference
   - [x] `__call__`: guard (session + root task done), materialize traversal results (`list(_traverse_bfs_right_to_left(...))`), call `_consolidate`, record result, propagate
   - [x] `_consolidate(traversal_results) -> AggregatedResult`: build consolidated result from traversed tasks
-  - [x] `on_complete`: call `queue.advance()` to advance to `ResponseNode`
+  - [x] `on_complete`: call `queue.advance()` to advance to `TinyCUAResponseNode`
   - [x] Handle tasks with no result gracefully (skip / record "not_executed")
 
 - [x] Wire loop routing in `tinycua_loop.py` <!-- id: 5 --> <!-- Depends: [4] -->
   - [x] Add import for `TinyCUAResultAggregationNode`
-  - [x] Add `_route_to_aggregation` method: `clear_after_current()`, `spawn_after_current([ResultAggregationNode, ResponseNode])`, `ensure_terminal(ResponseNode)`
+  - [x] Add `_route_to_aggregation` method: `clear_after_current()`, `spawn_after_current([ResultAggregationNode, TinyCUAResponseNode])`, `ensure_terminal(TinyCUAResponseNode)`
   - [x] Modify `ResultReviewer.on_complete`: when `loop._on_reviewer_accept` returns True, call `loop._route_to_aggregation(queue)`
   - [x] Verify non-root accept path unchanged
 

@@ -1,7 +1,7 @@
 # Design Document: TinyCUA ResponseNode — Optional Information Digestion Request
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-12
 
 ---

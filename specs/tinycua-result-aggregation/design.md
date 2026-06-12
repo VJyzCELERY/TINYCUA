@@ -1,14 +1,14 @@
 # Design Document: TinyCUAResultAggregationNode
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-11
 
 ---
 
 ## Overview
 
-This design introduces `TinyCUAResultAggregationNode` — a `ProcessNode` that performs read-only traversal of the accepted root task tree, consolidates task results/artifacts/reviewer decisions, and produces an `AggregatedResult` for `ResponseNode`. The design follows `src/tinycua/docs/design/loops/result_aggregation.md`, `src/tinycua/docs/design/loops/node.md`, and `src/tinycua/docs/design/models/task.md`. It wires root-task-accept routing in `TinyCUALoop` so that when `ResultReviewer` accepts the root task, the queue advances through `ResultAggregationNode` → `ResponseNode`.
+This design introduces `TinyCUAResultAggregationNode` — a `ProcessNode` that performs read-only traversal of the accepted root task tree, consolidates task results/artifacts/reviewer decisions, and produces an `AggregatedResult` for `TinyCUAResponseNode`. The design follows `src/tinycua/docs/design/loops/result_aggregation.md`, `src/tinycua/docs/design/loops/node.md`, and `src/tinycua/docs/design/models/task.md`. It wires root-task-accept routing in `TinyCUALoop` so that when `ResultReviewer` accepts the root task, the queue advances through `ResultAggregationNode` → `TinyCUAResponseNode`.
 
 ---
 
@@ -21,8 +21,8 @@ TinyCUALoop._on_reviewer_accept(task)
   │
   ├── If task is root (no parent):
   │     clear_after_current()
-  │     spawn [ResultAggregationNode, ResponseNode]
-  │     ensure_terminal(ResponseNode)
+  │     spawn [ResultAggregationNode, TinyCUAResponseNode]
+  │     ensure_terminal(TinyCUAResponseNode)
   │
   ├── If task is not root:
   │     (existing behavior — advance to next active task)
@@ -42,7 +42,7 @@ ResultAggregationNode.__call__(input)
   └── 5. propagate()
 
 on_complete():
-  └── queue.advance() → ResponseNode receives AggregatedResult
+  └── queue.advance() → TinyCUAResponseNode receives AggregatedResult
 ```
 
 ### Affected Components
@@ -71,10 +71,10 @@ class AggregatedResult:
         task_summaries: Human-readable summaries of each inspected task.
         accepted_results: TaskResult objects from accepted tasks.
         artifacts: Artifact dicts collected from task results.
-        final_context: Consolidated context string for ResponseNode. Built by joining
+        final_context: Consolidated context string for TinyCUAResponseNode. Built by joining
             each task summary ("{title}: {summary}" or "{title}: not_executed") with
             newline separators, prefixed with the root task title.
-        response_continuation: Continuation text to guide ResponseNode synthesis.
+        response_continuation: Continuation text to guide TinyCUAResponseNode synthesis.
             Implementation-defined for MVP; empty string is valid.
         metadata: Additional metadata (traversal depth, count of tasks inspected, etc.).
     """
@@ -122,12 +122,12 @@ class TinyCUAResultAggregationNode(ProcessNode):
         """
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
-        """Advance queue to the next node (expected: ResponseNode)."""
+        """Advance queue to the next node (expected: TinyCUAResponseNode)."""
 ```
 
-### ResponseNode Input Contract
+### TinyCUAResponseNode Input Contract
 
-`ResponseNode` (Milestone 3.5) expects the following inputs from upstream nodes:
+`TinyCUAResponseNode` (Milestone 3.5) expects the following inputs from upstream nodes:
 
 | Input Source | Expected Content | How AggregatedResult Maps |
 |--------------|------------------|---------------------------|
@@ -135,14 +135,14 @@ class TinyCUAResultAggregationNode(ProcessNode):
 | Accumulated root/session context | Prior session messages and context | Already available via `session.context` |
 | Latest propagated node output | Output from the previous node in queue | `AggregatedResult` is propagated as the node output |
 
-The `AggregatedResult` fields map directly to `ResponseNode`'s LLM input construction:
+The `AggregatedResult` fields map directly to `TinyCUAResponseNode`'s LLM input construction:
 - `final_context` → consolidated context string for response synthesis
 - `response_continuation` → guidance text for continuation of the response
 - `task_summaries` → human-readable summaries for grounding the response
 - `accepted_results` → structured `TaskResult` objects for detailed inspection
 - `artifacts` → artifact dicts for file/reference inclusion
 
-See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` design.
+See `src/tinycua/docs/design/loops/response.md` for the full `TinyCUAResponseNode` design.
 
 ### Error Handling
 
@@ -169,7 +169,7 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
   - `__call__`: guard check, traversal, consolidation, recording.
   - `_consolidate(traversal_results) -> AggregatedResult`: build final result.
   - `on_complete`: queue advancement.
-- [x] **Loop wiring**: Modify `TinyCUALoop._on_reviewer_accept` to detect root task accept and spawn `[ResultAggregationNode, ResponseNode]`.
+- [x] **Loop wiring**: Modify `TinyCUALoop._on_reviewer_accept` to detect root task accept and spawn `[ResultAggregationNode, TinyCUAResponseNode]`.
 - [x] **Module exports**: Add to `tinycua/loops/__init__.py`.
 - [x] **Tests**: Unit tests for AggregatedResult, traversal, and node behavior. Integration test for root-task-accept → aggregation → response path.
 
@@ -188,7 +188,7 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
    - **Alternatives Considered**: Recursive DFS (wrong traversal order), iterative DFS with a stack (would need reversal), eager BFS that collects all nodes before inspection (defeats early termination).
 
 2. **Decision**: Co-locate `AggregatedResult` with the node in `tinycua.loops.result_aggregation`.
-   - **Reason**: The model is only used by `ResultAggregationNode` and `ResponseNode`. Keeping it in the same module avoids cross-package dependency friction. It is re-exported from `tinycua.loops` for convenience.
+   - **Reason**: The model is only used by `ResultAggregationNode` and `TinyCUAResponseNode`. Keeping it in the same module avoids cross-package dependency friction. It is re-exported from `tinycua.loops` for convenience.
    - **Alternatives Considered**: `tinycua.models` — too generic; the model is specific to the aggregation workflow.
 
 3. **Decision**: The node does NOT use an LLM call; it is a pure processing node that inspects the in-memory task tree.
@@ -206,7 +206,7 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Task tree is very deep/wide, causing slow traversal | Low | Medium | Early termination heuristic stops after sufficient context; `max_inspected_tasks` config limits the count of inspected tasks. |
-| `AggregatedResult` grows too large for LLM context window | Low | Medium | `final_context` and `task_summaries` are produced from existing summaries; aggregation does not add new content. ResponseNode is responsible for context window management. |
+| `AggregatedResult` grows too large for LLM context window | Low | Medium | `final_context` and `task_summaries` are produced from existing summaries; aggregation does not add new content. TinyCUAResponseNode is responsible for context window management. |
 | Loop wiring breaks existing accept path for non-root tasks | Low | High | Guard the root-task check explicitly: only route to aggregation when `task.parent is None`. Non-root accept continues with existing behavior. |
 
 ---
@@ -225,6 +225,6 @@ See `src/tinycua/docs/design/loops/response.md` for the full `ResponseNode` desi
   - `src/tinycua/docs/design/loops/result_aggregation.md` — Target architecture for this node
   - `src/tinycua/docs/design/loops/node.md` — Base node hierarchy and responsibility separation
   - `src/tinycua/docs/design/models/task.md` — Task model with active task lifecycle and root-task-done routing
-  - `src/tinycua/docs/design/loops/response.md` — ResponseNode input contract
+  - `src/tinycua/docs/design/loops/response.md` — TinyCUAResponseNode input contract
   - `src/tinycua/docs/design/loops/result_reviewer.md` — ResultReviewer accept path that triggers aggregation
   - Existing implementations: `tinycua/loops/result_reviewer.py`, `tinycua/loops/response_node.py`
