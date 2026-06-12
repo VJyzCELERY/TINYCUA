@@ -85,20 +85,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_result_aggr
 - **[Description]**: New module containing `AggregatedResult` dataclass and `TinyCUAResultAggregationNode` class.
 - **[Dependencies]**: `tinycua.loops.node` (ProcessNode), `tinycua.models.task` (Task, TaskResult), `tinycua.config.types` (LLMResult), `tinycua.models.node_input` (NodeInputLike), `tinycua.loops.node_queue` (NodeQueue), `tinycua.config.node_config` (NodeConfigBase).
 
-**`AggregatedResult` dataclass**:
-```python
-from dataclasses import dataclass, field
-
-@dataclass
-class AggregatedResult:
-    root_task_id: str
-    task_summaries: list[str] = field(default_factory=list)
-    accepted_results: list[TaskResult] = field(default_factory=list)
-    artifacts: list[dict[str, Any]] = field(default_factory=list)
-    final_context: str = ""
-    response_continuation: str = ""
-    metadata: dict = field(default_factory=dict)
-```
+**`AggregatedResult` dataclass** — defined in `src/tinycua/tinycua/loops/result_aggregation.py`.
 
 **`TinyCUAResultAggregationNode` class**:
 - Extends `ProcessNode` with `node_id="result_aggregation"`.
@@ -187,20 +174,7 @@ class AggregatedResult:
 
 ### New Types
 
-```python
-from dataclasses import dataclass, field
-
-@dataclass
-class AggregatedResult:
-    """Consolidated result from traversing an accepted root task tree."""
-    root_task_id: str
-    task_summaries: list[str] = field(default_factory=list)
-    accepted_results: list[TaskResult] = field(default_factory=list)
-    artifacts: list[dict[str, Any]] = field(default_factory=list)
-    final_context: str = ""
-    response_continuation: str = ""
-    metadata: dict = field(default_factory=dict)
-```
+`AggregatedResult` dataclass — defined in `src/tinycua/tinycua/loops/result_aggregation.py`.
 
 ## API Changes
 

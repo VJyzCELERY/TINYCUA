@@ -121,21 +121,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 - **[Rationale]**: The loop needs to handle ResponseNode's suspension/resume flow and consolidated continuation routing.
 - **Changes**:
   - Update import to use `TinyCUAResponseNode` (no `ResponseNode` alias — the production class is renamed to avoid collision with test helper `StubResponseNode`).
-  - Modify `_execute_node` for terminal nodes: add an `isinstance(node, TinyCUAResponseNode)` type check to invoke `node.__call__()` instead of the direct LLM path:
-    ```python
-    if node.is_terminal:
-        if isinstance(node, TinyCUAResponseNode):
-            # ResponseNode needs __call__ for its three-phase execution
-            node.ensure_session(self.root_session)
-            input_data = self._build_node_input(node)
-            result = node(input_data)
-            llm_result = result if isinstance(result, LLMResult) else LLMResult(content=str(result))
-        else:
-            # Default terminal path for non-ResponseNode terminals (existing behavior)
-            messages, resolved_tools = self._prepare_node(...)
-            response = await agent._call_llm(messages, resolved_tools)
-            llm_result = LLMResult(content=response.get("content") or "", ...)
-    ```
+  - Modify `_execute_node` for terminal nodes: add an `isinstance(node, TinyCUAResponseNode)` type check to invoke `node.__call__()` instead of the direct LLM path — see `src/tinycua/tinycua/loops/tinycua_loop.py` for the full implementation.
   - Modify `_route_to_aggregation` to use `TinyCUAResponseNode`.
   - Ensure continuation routing via MandatoryPassthrough reaches the active ResponseNode session.
 
@@ -197,19 +183,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 
 ### New Types
 
-```python
-from dataclasses import dataclass, field
-from typing import Any
-from tinycua.loops.result_aggregation import AggregatedResult
-
-@dataclass
-class ResponseContext:
-    """Aggregated context fed into TinyCUAResponseNode."""
-    aggregated_result: AggregatedResult | None  # from ResultAggregationNode
-    session_context: list[dict[str, Any]]  # propagated context
-    latest_output: str | None  # Latest node output
-    continuation_payload: Any  # MandatoryPassthrough | None — user continuation data
-```
+`ResponseContext` dataclass — defined in `src/tinycua/tinycua/loops/response_node.py`.
 
 ### Schema Changes
 

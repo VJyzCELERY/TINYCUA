@@ -120,24 +120,7 @@ All modifications are backward-compatible. The `ResponseNode` and `InformationDi
 
 No new data models. Existing entities are sufficient:
 
-```python
-# ResponseContext (in response_node.py)
-@dataclass
-class ResponseContext:
-    aggregated_result: AggregatedResult | None
-    session_context: list[dict[str, Any]]
-    latest_output: str | None
-    continuation_payload: MandatoryPassthrough | None = None
-
-# DigestedInformation (in models/digested_information.py)
-@dataclass
-class DigestedInformation:
-    context_summary: str
-    key_points: list[str] = field(default_factory=list)
-    advisory_instructions: list[str] = field(default_factory=list)
-    constraints: list[str] = field(default_factory=list)
-    known_gaps: list[str] = field(default_factory=list)
-```
+`ResponseContext` is defined in `src/tinycua/tinycua/loops/response_node.py`. `DigestedInformation` is defined in `src/tinycua/tinycua/models/digested_information.py`.
 
 ## API Changes
 
