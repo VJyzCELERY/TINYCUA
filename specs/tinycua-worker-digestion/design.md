@@ -1,7 +1,7 @@
 # Design Document: WorkerNode Information-Digestion via QueryAnalyst
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-12
 
 ---

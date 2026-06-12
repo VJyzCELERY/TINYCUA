@@ -1,6 +1,6 @@
 # Feature Specification: WorkerNode Information-Digestion via QueryAnalyst
 
-**Status**: Draft
+**Status**: Implemented
 **Created**: 2026-06-12
 **Last Updated**: 2026-06-12
 **Subproject(s) Affected**: tinycua (loops/query_analyst, loops/worker, loops/information_digester, loops/task_create)
@@ -73,14 +73,14 @@ A user sends a complex request requiring task planning and execution. QueryAnaly
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **QueryAnalyst spawns digester before Worker**: When routing `worker`, an InformationDigesterNode is inserted before the WorkerNode in the queue.
-- [ ] **Digest de-duplication**: QueryAnalyst does not spawn a duplicate InformationDigesterNode when digested context already exists or a digester is already queued.
-- [ ] **DigestedInformation propagated to Worker session**: The digester's output lands in WorkerNode's `session_context` before Worker executes.
-- [ ] **Worker reads DigestedInformation**: WorkerNode uses DigestedInformation from session_context as primary input context.
-- [ ] **Worker forwards DigestedInformation downstream**: WorkerNode includes DigestedInformation in its propagate() output for TaskCreateNode / next node.
-- [ ] **Fallback preserves original query**: When digester finds no useful context, the fallback continuation contains the original user query verbatim.
-- [ ] **TaskCreateNode receives DigestedInformation**: TaskCreateNode input includes DigestedInformation passed through from Worker.
-- [ ] **No SDK API changes**: All implementation lives in `tinycua.loops` without modifying `tinycua-sdk`.
+- [x] **QueryAnalyst spawns digester before Worker**: When routing `worker`, an InformationDigesterNode is inserted before the WorkerNode in the queue.
+- [x] **Digest de-duplication**: QueryAnalyst does not spawn a duplicate InformationDigesterNode when digested context already exists or a digester is already queued.
+- [x] **DigestedInformation propagated to Worker session**: The digester's output lands in WorkerNode's `session_context` before Worker executes.
+- [x] **Worker reads DigestedInformation**: WorkerNode uses DigestedInformation from session_context as primary input context.
+- [x] **Worker forwards DigestedInformation downstream**: WorkerNode includes DigestedInformation in its propagate() output for TaskCreateNode / next node.
+- [x] **Fallback preserves original query**: When digester finds no useful context, the fallback continuation contains the original user query verbatim.
+- [x] **TaskCreateNode receives DigestedInformation**: TaskCreateNode input includes DigestedInformation passed through from Worker.
+- [x] **No SDK API changes**: All implementation lives in `tinycua.loops` without modifying `tinycua-sdk`.
 
 ---
 
@@ -112,16 +112,16 @@ A user sends a complex request requiring task planning and execution. QueryAnaly
 
 | Item | Status | Notes |
 |------|--------|-------|
-| QueryAnalyst worker route with digest spawn | TODO | |
-| InformationDigesterNode (fresh session, digest propagation) | TODO | |
-| DigestedInformation model | TODO | |
-| WorkerNode digested input acceptance | TODO | |
-| WorkerNode forward digested information | TODO | |
-| TaskCreateNode digested context | TODO | |
-| Fallback behavior | TODO | |
-| Deduplication logic | TODO | |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| QueryAnalyst worker route with digest spawn | DONE | |
+| InformationDigesterNode (fresh session, digest propagation) | DONE | |
+| DigestedInformation model | DONE | |
+| WorkerNode digested input acceptance | DONE | |
+| WorkerNode forward digested information | DONE | |
+| TaskCreateNode digested context | DONE | |
+| Fallback behavior | DONE | |
+| Deduplication logic | DONE | |
+| Unit tests | DONE | |
+| Integration tests | DONE | |
 
 ---
 

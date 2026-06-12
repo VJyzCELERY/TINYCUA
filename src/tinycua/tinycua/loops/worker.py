@@ -1,0 +1,108 @@
+"""WorkerNode for task planning and execution orchestration."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from tinycua.loops.node import DecisionNode
+from tinycua.models.digested_information import DigestedInformation
+
+if TYPE_CHECKING:
+    from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.models.node_input import NodeInputLike
+
+_WORKER_INSTRUCTION = (
+    "You are a worker node responsible for task planning and execution "
+    "orchestration. Analyze the digested information and determine the "
+    "appropriate next step: create tasks, recreate tasks, reanalyze, "
+    "pass through, or proceed with execution."
+)
+
+
+class TinyCUAWorkerNode(DecisionNode):
+    """Decision hub for task planning and execution orchestration.
+
+    Receives DigestedInformation from session_context (populated by
+    InformationDigesterNode spawned by QueryAnalyst).
+
+    Attributes:
+        ROUTE_LABELS: Allowed classification labels for routing.
+        _current_digest: The current DigestedInformation for propagation.
+    """
+
+    ROUTE_LABELS = [
+        "task_creation",
+        "task_recreation",
+        "task_reanalysis",
+        "passthrough",
+        "proceed_execution",
+    ]
+
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _WORKER_INSTRUCTION,
+        classification_labels: list[str] | None = None,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize WorkerNode.
+
+        Args:
+            node_id: Unique identifier for this node.
+            config: Node configuration.
+            instruction: Instruction string for this node type.
+            classification_labels: Allowed classification labels.
+                Defaults to ROUTE_LABELS if not provided.
+            is_terminal: Whether this node is terminal.
+        """
+        super().__init__(
+            node_id=node_id,
+            config=config,
+            instruction=instruction,
+            classification_labels=classification_labels or self.ROUTE_LABELS,
+            is_terminal=is_terminal,
+        )
+        self._current_digest: DigestedInformation | None = None
+
+    def _get_digested_input(self) -> DigestedInformation | None:
+        """Retrieve DigestedInformation from session_context.
+
+        Scans session_context for the most recent DigestedInformation
+        entry. Returns None if not found (fallback to raw user_query).
+
+        Returns:
+            The most recent DigestedInformation, or None if not found.
+        """
+        if self.session is None:
+            return None
+
+        for entry in reversed(self.session.session_context):
+            if isinstance(entry.get("content"), DigestedInformation):
+                return entry["content"]
+
+        return None
+
+    def propagate(self) -> None:
+        """Forward DigestedInformation to downstream nodes.
+
+        If a current digest is available, stores it in the session_context
+        so downstream nodes (TaskCreateNode, etc.) receive it as context.
+        The original query is preserved within DigestedInformation.original_query.
+        """
+        if self.session is not None and self._current_digest is not None:
+            self.session.session_context.append({
+                "role": "assistant",
+                "content": self._current_digest,
+            })
+
+    def on_complete(self, queue: NodeQueue, response: Any) -> None:  # type: ignore[override]
+        """Post-completion hook for queue mutations.
+
+        Args:
+            queue: The node queue that can be mutated.
+            response: The final LLM response (DecisionResult).
+        """
+        super().on_complete(queue, response)
