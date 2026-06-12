@@ -9,12 +9,15 @@ Manages the graph of execution nodes with support for:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
+
+logger = logging.getLogger(__name__)
 
 _EMPTY_INPUT: NodeInputLike = cast("NodeInputLike", {})
 
@@ -74,8 +77,9 @@ class NodeQueue:
     def advance(self) -> Node | None:
         """Advance to the next node.
 
-        Calls propagate() on the current node,
-        then removes it from the queue. Returns the new current node or None.
+        Calls propagate() on the current node, forwards output entries
+        to the next node's input, then removes the current node from the queue.
+        Returns the new current node or None.
 
         Returns:
             The next node, or None if the queue becomes empty.
@@ -89,7 +93,28 @@ class NodeQueue:
 
         current_node = self.items[0]
 
+        # Propagate context (prior + input segments) upward
         current_node.propagate()
+
+        # Forward output entries to next node's input
+        if current_node.session is not None and len(self.items) > 1:
+            from tinycua.loops.propagation import forward_output_to_next
+
+            output_entries = forward_output_to_next(current_node.session)
+            if output_entries:
+                next_node = self.items[1]
+                # Convert output entries to NodeInput format for the next node
+                node_input: NodeInputLike = cast(
+                    "NodeInputLike",
+                    [{"role": "user", "content": str(e.content)} for e in output_entries],
+                )
+                self.set_input(next_node, node_input)
+                logger.debug(
+                    "advanced forwarded_output node=%s next=%s entries=%d",
+                    current_node.node_id,
+                    next_node.node_id,
+                    len(output_entries),
+                )
 
         # Remove current node and clean up input
         self.items.pop(0)

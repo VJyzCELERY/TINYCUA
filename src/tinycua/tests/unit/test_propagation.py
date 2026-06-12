@@ -4,14 +4,11 @@ from tinycua.models.chat_record import ChatRecord
 from tinycua.models.session_context_entry import SessionContextEntry
 from tinycua.models.session import Session
 from tinycua.loops.propagation import (
-    PropagationRule,
     propagate_on_termination,
-    forward_output_to_next,
     finalize_terminal_output,
     dedupe_records,
     PROPAGATION_PROFILES,
 )
-from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy
 
 
 def test_propagation_upward_and_forwarding():
@@ -177,7 +174,9 @@ def test_propagation_profiles_all_defined():
     assert nt.session_context_mode == "final"
 
     mp = PROPAGATION_PROFILES["mid_progress_legacy"]
+    assert mp.chat_history == "parent_and_root"
     assert mp.session_context_mode == "full"
+    assert mp.dedupe is True
 
     si = PROPAGATION_PROFILES["selected_internal_output"]
     assert si.chat_history == "root"
@@ -199,8 +198,10 @@ def test_node_message_policy_dedupe_by_origin():
 
     # Only 2 unique entries (by origin_record_id)
     context_msgs = [m for m in messages if m.get("role") == "user"]
-    origin_ids = [m.get("metadata", {}).get("origin_record_id") for m in context_msgs if m.get("metadata")]
-    assert len([x for x in origin_ids if x == "orig-1"]) == 1
+    assert len(context_msgs) == 2
+    contents = [m.get("content") for m in context_msgs]
+    assert "ctx1" in contents
+    assert "ctx2" in contents
 
 
 def test_segmented_context_creation():

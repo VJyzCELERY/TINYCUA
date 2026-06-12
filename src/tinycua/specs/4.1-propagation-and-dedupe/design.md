@@ -1,7 +1,7 @@
 # Design Document: Propagation and Dedupe
 
 **Spec**: ./spec.md
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-12
 **Milestone**: 4.1 — Propagation and Dedupe
 

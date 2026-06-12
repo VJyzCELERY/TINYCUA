@@ -89,8 +89,8 @@ class TestAgentRun:
         assert events[0]["delta"] == "Hi"
         session = agent.loop.root_session
         assert len(session.chat_history) == 1  # assistant only (user in input_context)
-        assert session.chat_history[0]["role"] == "assistant"
-        assert session.chat_history[0]["content"] == "Hi"
+        assert session.chat_history[0].role == "assistant"
+        assert session.chat_history[0].content == "Hi"
         assert session.input_context[0]["role"] == "user"
         assert session.input_context[0]["content"] == "hello"
 
@@ -107,8 +107,8 @@ class TestAgentRun:
         await agent.run("hello")
         session = agent.loop.root_session
         assert len(session.chat_history) == 1  # assistant only
-        assert session.chat_history[0]["role"] == "assistant"
-        assert session.chat_history[0]["content"] == "Hello"
+        assert session.chat_history[0].role == "assistant"
+        assert session.chat_history[0].content == "Hello"
         assert session.input_context[0]["role"] == "user"
         assert session.input_context[0]["content"] == "hello"
 

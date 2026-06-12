@@ -103,7 +103,7 @@ class TestWorkerDigestedInformation:
 
         # After propagate, session_context should contain the digest
         assert any(
-            entry.get("content") is digest
+            entry.content is digest
             for entry in session.session_context
         )
 

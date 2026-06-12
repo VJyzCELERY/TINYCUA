@@ -157,12 +157,6 @@ class TestQueryAnalystDigestSpawn:
         query_analyst.session = worker.session
         query_analyst._queue = queue
 
-        # When we have an existing digest, _route_worker should not spawn
-        input_data = NodeInput(
-            input_type="worker",
-            messages=[{"role": "user", "content": "test"}],
-        )
-
         # Check detection first
         existing = query_analyst._check_existing_digest(worker)
         assert existing is True

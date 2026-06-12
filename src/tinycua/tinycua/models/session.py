@@ -65,18 +65,18 @@ class Session:
             return None
 
         strategy = self.session_config.compaction_strategy
-        
+
         # Convert SessionContextEntry objects to dicts for compaction strategy
         def _to_dict(entry: SessionContextEntry | dict[str, Any]) -> dict[str, Any]:
             if isinstance(entry, dict):
                 return entry
             return entry.to_dict()
-        
+
         if window is not None:
             messages = [_to_dict(entry) for entry in window]
         else:
             messages = [_to_dict(entry) for entry in self.session_context]
-        
+
         summary = strategy.compact(messages)
 
         if window is None:

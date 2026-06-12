@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 from tinycua.models.chat_record import ChatRecord
 from tinycua.models.session import Session
@@ -53,12 +53,12 @@ PROPAGATION_PROFILES: dict[str, PropagationRule] = {
         dedupe=True,
     ),
     "mid_progress_legacy": PropagationRule(
-        chat_history="parent",
+        chat_history="parent_and_root",
         session_context_target="parent",
         session_context_mode="full",
         token_usage="parent",
         failure="parent",
-        dedupe=False,
+        dedupe=True,
     ),
     "selected_internal_output": PropagationRule(
         chat_history="root",
@@ -195,10 +195,12 @@ def propagate_on_termination(
 
     # Append ChatRecord to chat_history if rule says so
     if rule.chat_history != "none" and output_entries:
+        # Join entry contents into a single string for the propagation record
+        propagation_content = "\n".join(str(entry.content) for entry in output_entries)
         record = ChatRecord(
             role="assistant",
             record_type="propagation",
-            content=[entry.content for entry in output_entries],
+            content=propagation_content,
             visibility="internal",
             source_node_id=node_session.session_id,
             source_session_id=node_session.session_id,
@@ -222,13 +224,14 @@ def propagate_on_termination(
 
 def forward_output_to_next(
     node_session: Session,
-    next_node_input: Any,
 ) -> list[SessionContextEntry]:
-    """Forward output segment to next node as NodeInput.
+    """Extract output segment entries for forwarding to next node.
+
+    Called by NodeQueue.advance() after propagate_on_termination() to
+    collect output entries that should be forwarded to the next node's input.
 
     Args:
         node_session: The terminating node's session.
-        next_node_input: Input for the next node.
 
     Returns:
         List of output entries to forward.

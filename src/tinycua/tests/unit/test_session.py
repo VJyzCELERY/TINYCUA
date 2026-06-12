@@ -93,7 +93,8 @@ def test_compact_context_with_explicit_window():
     mock_compact.assert_called_once_with(window)
     assert result["content"] == "subset summary"
     assert len(session.session_context) == 2
-    assert session.session_context[0]["content"] == "subset summary"
+    assert session.session_context[0].content == "subset summary"
+    assert session.session_context[1]["content"] == "after"
 
 
 def test_compact_context_empty_window_returns_none():
@@ -155,5 +156,5 @@ def test_compact_context_full_replacement_with_explicit_window():
 
     assert result["content"] == "greeting summary"
     assert len(session.session_context) == 2
-    assert session.session_context[0]["content"] == "greeting summary"
+    assert session.session_context[0].content == "greeting summary"
     assert session.session_context[1]["content"] == "bye"

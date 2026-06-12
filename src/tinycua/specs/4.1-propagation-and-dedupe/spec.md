@@ -67,15 +67,15 @@ When a node completes execution, its session context is propagated according to 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **PropagationRule implemented**: PropagationRule dataclass with all required fields exists and is configurable per node/session.
-- [ ] **ChatHistory vs SessionContext separation**: chat_history is append-only audit; session_context is mutable and deduped. They are stored and managed independently.
-- [ ] **ChatRecord audit model**: ChatRecord with all required metadata fields is created and appended during node execution.
-- [ ] **Segmented context**: SessionContextEntry supports segment = prior | input | output with source/origin IDs.
-- [ ] **Dedupe on propagation**: When dedupe=True, duplicate records (by origin_record_id, fallback to record_id) are filtered during propagation.
-- [ ] **Dedupe on LLM input**: NodeMessagePolicy.dedupe_by_origin_record_id filters duplicates from final LLM-bound input.
-- [ ] **Terminal output exception**: Terminal ResponseNode output is committed to root session_context and returned to caller, not forwarded.
-- [ ] **Propagation profiles work**: transient_legacy, natural_termination_legacy, mid_progress_legacy, and selected_internal_output profiles produce expected propagation behavior.
-- [ ] **Tests pass**: Unit and integration tests validate propagation, dedupe, and audit behavior.
+- [x] **PropagationRule implemented**: PropagationRule dataclass with all required fields exists and is configurable per node/session.
+- [x] **ChatHistory vs SessionContext separation**: chat_history is append-only audit; session_context is mutable and deduped. They are stored and managed independently.
+- [x] **ChatRecord audit model**: ChatRecord with all required metadata fields is created and appended during node execution.
+- [x] **Segmented context**: SessionContextEntry supports segment = prior | input | output with source/origin IDs.
+- [x] **Dedupe on propagation**: When dedupe=True, duplicate records (by origin_record_id, fallback to record_id) are filtered during propagation.
+- [x] **Dedupe on LLM input**: NodeMessagePolicy.dedupe_by_origin_record_id filters duplicates from final LLM-bound input.
+- [x] **Terminal output exception**: Terminal ResponseNode output is committed to root session_context and returned to caller, not forwarded. (finalize_terminal_output implemented in propagation.py:260-298)
+- [x] **Propagation profiles work**: transient_legacy, natural_termination_legacy, mid_progress_legacy, and selected_internal_output profiles produce expected propagation behavior. (Profiles defined in propagation.py:38-71, tested in test_propagation_profiles_all_defined)
+- [x] **Tests pass**: Unit and integration tests validate propagation, dedupe, and audit behavior. (423 tests passing)
 
 ---
 
@@ -125,15 +125,15 @@ When a node completes execution, its session context is propagated according to 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PropagationRule dataclass | TODO | |
-| ChatRecord model | TODO | |
-| SessionContextEntry with segment | TODO | |
-| Propagation logic in NodeQueue/Loop | TODO | |
-| Dedupe on propagation | TODO | |
-| Dedupe on LLM input | TODO | |
-| Terminal output exception | TODO | |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| PropagationRule dataclass | Done | |
+| ChatRecord model | Done | |
+| SessionContextEntry with segment | Done | |
+| Propagation logic in NodeQueue/Loop | Done | |
+| Dedupe on propagation | Done | |
+| Dedupe on LLM input | Done | |
+| Terminal output exception | Done | |
+| Unit tests | Done | |
+| Integration tests | Done | |
 
 ---
 

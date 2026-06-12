@@ -87,7 +87,11 @@ class TinyCUATaskCreateNode(ProcessNode):
             A formatted string of digest context, or None if no digest.
         """
         for entry in reversed(session.session_context):
-            content = entry.get("content")
+            # Handle both dict and SessionContextEntry
+            if isinstance(entry, dict):
+                content = entry.get("content")
+            else:
+                content = entry.content
             if isinstance(content, DigestedInformation):
                 parts = [f"Context Summary: {content.context_summary}"]
 

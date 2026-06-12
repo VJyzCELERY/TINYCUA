@@ -10,8 +10,9 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionNode, DecisionResult
+from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.session import Session
 
@@ -180,10 +181,15 @@ class TinyCUALoop(BaseLoop):
             The LLMResult that was recorded.
         """
         if content:
-            self.root_session.chat_history.append({
-                "role": "assistant",
-                "content": content,
-            })
+            from tinycua.models.chat_record import ChatRecord
+            self.root_session.chat_history.append(
+                ChatRecord(
+                    role="assistant",
+                    content=content,
+                    source_node_id=node.node_id,
+                    source_session_id=self.root_session.session_id,
+                )
+            )
 
         llm_result = LLMResult(
             content=content,
@@ -249,11 +255,22 @@ class TinyCUALoop(BaseLoop):
                 )
             node.on_complete(self.queue, on_complete_response)
 
-            # Cross-session digest transfer
-            self._transfer_session_context(node)
+            # Propagate context on node termination
+            rule = node.config.propagation or PropagationRule()
+            parent_session = self._find_parent_session(node)
+            propagate_on_termination(
+                node.session or self.root_session,
+                parent_session,
+                self.root_session,
+                rule,
+            )
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
+                finalize_terminal_output(
+                    node.session or self.root_session,
+                    self.root_session,
+                )
                 break
 
             # Advance queue (calls propagate on current node)
@@ -311,49 +328,33 @@ class TinyCUALoop(BaseLoop):
             )
         node.on_complete(self.queue, on_complete_response)
 
-        # Cross-session digest transfer (ISSUE-021): after a node completes,
-        # copy session_context entries to the next node's session so data
-        # flows across session boundaries (e.g., digester → worker).
-        self._transfer_session_context(node)
+        # Propagate context on node termination (ISSUE-601): use the
+        # propagation engine instead of legacy _transfer_session_context().
+        rule = node.config.propagation or PropagationRule()
+        parent_session = self._find_parent_session(node)
+        propagate_on_termination(
+            node.session or self.root_session,
+            parent_session,
+            self.root_session,
+            rule,
+        )
 
         return content
 
-    def _transfer_session_context(self, completed_node: Node) -> None:
-        """Transfer session_context entries from a completed node to the next node.
+    def _find_parent_session(self, node: Node) -> Session | None:
+        """Find the parent session for a node by looking at queue position.
 
-        After a node completes, its session_context may contain data (e.g.,
-        DigestedInformation from InformationDigesterNode) that the next
-        node in the queue needs. This copies entries from the completed
-        node's session to the next node's session so cross-session data
-        flows correctly.
+        In the flat loop architecture, all nodes share root_session.
+        Returns None (no separate parent) since propagate_on_termination()
+        handles propagation to root_session directly.
 
         Args:
-            completed_node: The node that just finished execution.
+            node: The node to find the parent session for.
+
+        Returns:
+            None in the flat loop architecture.
         """
-        # Get the next node in the queue (items[1] since items[0] is current)
-        if len(self.queue.items) < 2:
-            return
-        next_node = self.queue.items[1]
-
-        # Ensure the next node has a session
-        next_node.ensure_session(self.root_session)
-
-        # If the completed node has a different session than the next node,
-        # transfer DigestedInformation entries (and other context) across.
-        if (
-            completed_node.session is not None
-            and next_node.session is not None
-            and completed_node.session is not next_node.session
-        ):
-            for entry in completed_node.session.session_context:
-                # Transfer entries that the next node doesn't already have.
-                content = entry.get("content")
-                already_has = any(
-                    e.get("content") is content
-                    for e in next_node.session.session_context
-                )
-                if not already_has:
-                    next_node.session.session_context.append(dict(entry))
+        return None
 
     def _build_node_messages(
         self,
@@ -389,20 +390,30 @@ class TinyCUALoop(BaseLoop):
             node.config.message_policy.include_session_context
             and self.root_session.session_context
         ):
-            messages.extend(
-                {
-                    "role": m["role"],
-                    "content": m["content"],
-                }
-                for m in self.root_session.session_context
-            )
+            dedupe = node.config.message_policy.dedupe_by_origin_record_id
+            if dedupe:
+                messages.extend(
+                    build_messages_with_dedupe(self.root_session, dedupe_by_origin_record_id=True)
+                )
+            else:
+                for m in self.root_session.session_context:
+                    if isinstance(m, dict):
+                        messages.append({
+                            "role": m.get("role", "user"),
+                            "content": str(m.get("content", "")),
+                        })
+                    else:
+                        messages.append({
+                            "role": "user",
+                            "content": str(m.content),
+                        })
 
         # Add chat history if policy says so
         if node.config.message_policy.include_chat_history and self.root_session.chat_history:
             messages.extend(
                 {
-                    "role": m["role"],
-                    "content": m["content"],
+                    "role": m.role,
+                    "content": str(m.content),
                 }
                 for m in self.root_session.chat_history
             )

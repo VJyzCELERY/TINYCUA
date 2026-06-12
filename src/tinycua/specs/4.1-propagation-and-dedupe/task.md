@@ -47,44 +47,44 @@ Implementation tasks for Propagation and Dedupe. Check off items as completed.
   - [x] Verify NodeMessagePolicy.dedupe_by_origin_record_id is wired
 - [x] Add `build_messages_with_dedupe()` helper to `src/tinycua/tinycua/loops/node.py` <!-- id: 10 -->
   - [x] Filter session_context by origin_record_id when dedupe flag is True
-- [ ] Update `src/tinycua/tinycua/loops/tinycua_loop.py` — integrate propagation engine <!-- id: 11 -->
-  - [ ] Replace _transfer_session_context() with propagate_on_termination() call
-  - [ ] Wire terminal output exception in _run_sync()/_run_stream() finalization
-  - [ ] Apply dedupe_by_origin_record_id in _build_node_messages()
-  - [ ] Update _record_node_output() to append ChatRecord to chat_history
-- [ ] Update `src/tinycua/tinycua/loops/node_queue.py` — propagation hooks on termination <!-- id: 12 -->
-  - [ ] Update advance() to handle output forwarding via forward_output_to_next()
-- [ ] Update `src/tinycua/tinycua/loops/information_digester.py` — segment-aware propagation <!-- id: 13 -->
-  - [ ] Update propagate() to use SessionContextEntry with segment="output"
-- [ ] Update `src/tinycua/tinycua/loops/worker.py` — segment-aware propagation <!-- id: 14 -->
-  - [ ] Update propagate() to use SessionContextEntry with segment metadata
+- [x] Update `src/tinycua/tinycua/loops/tinycua_loop.py` — integrate propagation engine <!-- id: 11 -->
+  - [x] Replace _transfer_session_context() with propagate_on_termination() call
+  - [x] Wire terminal output exception in _run_sync()/_run_stream() finalization
+  - [x] Apply dedupe_by_origin_record_id in _build_node_messages()
+  - [x] Update _record_node_output() to append ChatRecord to chat_history
+- [x] Update `src/tinycua/tinycua/loops/node_queue.py` — propagation hooks on termination <!-- id: 12 -->
+  - [x] Update advance() to handle output forwarding via forward_output_to_next()
+- [x] Update `src/tinycua/tinycua/loops/information_digester.py` — segment-aware propagation <!-- id: 13 -->
+  - [x] Update propagate() to use SessionContextEntry with segment="output"
+- [x] Update `src/tinycua/tinycua/loops/worker.py` — segment-aware propagation <!-- id: 14 -->
+  - [x] Update propagate() to use SessionContextEntry with segment metadata
 
 ## Testing Phase
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
-- [ ] Run unit tests for ChatRecord and SessionContextEntry <!-- id: 16 -->
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` — confirm no regressions <!-- id: 17 -->
+- [x] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
+- [x] Run unit tests for ChatRecord and SessionContextEntry <!-- id: 16 -->
+- [x] Run full test suite: `cd src/tinycua && uv run pytest` — confirm no regressions <!-- id: 17 -->
 
 ## Verification Phase
 
-- [ ] Verify propagation with minimal two-node queue — inspect session_context at each step <!-- id: 18 -->
-- [ ] Verify terminal output exception with ResponseNode as terminal <!-- id: 19 -->
-- [ ] Verify dedupe filtering with duplicate origin_record_ids <!-- id: 20 -->
-- [ ] Verify ChatRecord audit trail accumulates across node executions <!-- id: 21 -->
+- [x] Verify propagation with minimal two-node queue — inspect session_context at each step <!-- id: 18 -->
+- [x] Verify terminal output exception with ResponseNode as terminal <!-- id: 19 -->
+- [x] Verify dedupe filtering with duplicate origin_record_ids <!-- id: 20 -->
+- [x] Verify ChatRecord audit trail accumulates across node executions <!-- id: 21 -->
 
 ## Documentation Phase
 
-- [ ] Update `src/tinycua/docs/design/loops/propagation.md` with implementation details <!-- id: 22 -->
-- [ ] Update `src/tinycua/docs/design/models/chat_record.md` if it exists <!-- id: 23 -->
-- [ ] Update `src/tinycua/docs/design/models/session.md` — align `session_context` type and ensure field definitions match design.md <!-- id: 30 -->
+- [x] Update `src/tinycua/docs/design/loops/propagation.md` with implementation details <!-- id: 22 -->
+- [x] Update `src/tinycua/docs/design/models/chat_record.md` if it exists <!-- id: 23 -->
+- [x] Update `src/tinycua/docs/design/models/session.md` — align `session_context` type and ensure field definitions match design.md <!-- id: 30 -->
 
 ## Review and Merge
 
-- [ ] Run `/review-report` on the branch <!-- id: 25 -->
-- [ ] Address review findings <!-- id: 26 -->
-- [ ] Create pull request <!-- id: 27 -->
-- [ ] Address PR review feedback <!-- id: 28 -->
-- [ ] Merge to base branch <!-- id: 29 -->
+- [x] Run `/review-report` on the branch <!-- id: 25 -->
+- [x] Address review findings <!-- id: 26 -->
+- [x] Create pull request <!-- id: 27 -->
+- [x] Address PR review feedback <!-- id: 28 -->
+- [x] Merge to base branch <!-- id: 29 -->
 
 ---
 

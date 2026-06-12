@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def build_messages_with_dedupe(
     session: Session,
     dedupe_by_origin_record_id: bool = False,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Build messages for LLM call with optional deduplication.
 
     When dedupe_by_origin_record_id=True, filters session_context entries
@@ -39,7 +39,7 @@ def build_messages_with_dedupe(
     Returns:
         List of message dictionaries for the LLM call.
     """
-    messages: list[dict[str, str]] = []
+    messages: list[dict[str, Any]] = []
 
     # Get session context entries
     context_entries = session.session_context
@@ -64,11 +64,6 @@ def build_messages_with_dedupe(
         messages.append({
             "role": "user",  # Default role for context entries
             "content": str(entry.content),
-            "metadata": {
-                "origin_record_id": entry.origin_record_id,
-                "source_node_id": entry.source_node_id,
-                "segment": entry.segment,
-            },
         })
 
     return messages
@@ -228,20 +223,24 @@ class Node(ABC):
             self.config.message_policy.include_session_context
             and session.session_context
         ):
-            messages.extend(
-                {  # type: ignore[misc]
-                    "role": m["role"],
-                    "content": m["content"],
-                }
-                for m in session.session_context
-            )
+            for m in session.session_context:
+                if isinstance(m, dict):
+                    messages.append({
+                        "role": m.get("role", "user"),
+                        "content": str(m.get("content", "")),
+                    })
+                else:
+                    messages.append({
+                        "role": "user",
+                        "content": str(m.content),
+                    })
 
         # Add chat history if policy says so
         if self.config.message_policy.include_chat_history and session.chat_history:
             messages.extend(
-                {  # type: ignore[misc]
-                    "role": m["role"],
-                    "content": m["content"],
+                {
+                    "role": m.role,
+                    "content": str(m.content),
                 }
                 for m in session.chat_history
             )
@@ -338,11 +337,12 @@ class Node(ABC):
             response: The LLM response to record.
         """
         if self.session is not None:
+            from tinycua.models.session_context_entry import SessionContextEntry
             self.session.session_context.append(
-                {
-                    "role": response.role,
-                    "content": response.content,
-                }
+                SessionContextEntry(
+                    content=response.content,
+                    segment="output",
+                )
             )
         logger.info(
             "node=%s record_output content_len=%d",
