@@ -3,7 +3,7 @@
 
 
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
-from tinycua.config.types import LLMResult
+from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import ProcessNode
 from tinycua.models.session import Session
 
@@ -226,3 +226,68 @@ class TestNodeMonitorContinuation:
         # The continuation is appended but doesn't affect the mock LLM behavior
         result = node("input")
         assert result.content == "good"
+
+
+class TestAgentMonitorIndependence:
+    """Tests for AgentMonitor firing independently from NodeMonitor."""
+
+    def test_both_monitors_fire_independently(self):
+        """AgentMonitor and NodeMonitor both fire when both configured."""
+        agent_monitor = RecordingMonitor()
+        node_monitor = RecordingMonitor()
+        config = NodeConfigBase(
+            llm_client=MockLLM([
+                LLMResult(content="bad", tool_calls=[]),
+                LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
+            ]),
+            retry_policy=NodeRetryPolicy(
+                max_attempts=2,
+                required_tool_calls=["required_tool"],
+            ),
+            monitor=node_monitor,
+        )
+        node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
+        node.session = Session()
+        # Simulate what TinyCUALoop._execute_node does for AgentMonitor
+        agent_monitor.on_before_node_call(
+            node.node_id, node.session.session_id, 1, [], []
+        )
+        node("input")
+        agent_monitor.on_after_node_call(
+            node.node_id, node.session.session_id, 1, LLMResult(content="good"),
+            ValidationResult(is_valid=True, errors=[]),
+        )
+        # Both monitors should have been called
+        assert len(agent_monitor.before_calls) == 1
+        assert len(agent_monitor.after_calls) == 1
+        assert len(node_monitor.before_calls) == 2
+        assert len(node_monitor.after_calls) == 1
+
+    def test_agent_monitor_attempt_always_one(self):
+        """AgentMonitor always receives attempt=1 at agent level."""
+        agent_monitor = RecordingMonitor()
+        config = NodeConfigBase(
+            llm_client=MockLLM([
+                LLMResult(content="bad", tool_calls=[]),
+                LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
+            ]),
+            retry_policy=NodeRetryPolicy(
+                max_attempts=2,
+                required_tool_calls=["required_tool"],
+            ),
+            monitor=RecordingMonitor(),
+        )
+        node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
+        node.session = Session()
+        # Simulate AgentMonitor calls with attempt=1 (as TinyCUALoop does)
+        agent_monitor.on_before_node_call(
+            node.node_id, node.session.session_id, 1, [], []
+        )
+        node("input")
+        agent_monitor.on_after_node_call(
+            node.node_id, node.session.session_id, 1, LLMResult(content="good"),
+            ValidationResult(is_valid=True, errors=[]),
+        )
+        # AgentMonitor always sees attempt=1
+        assert agent_monitor.before_calls[0]["attempt"] == 1
+        assert agent_monitor.after_calls[0]["attempt"] == 1

@@ -223,6 +223,12 @@ if self.config.propagation and self.config.propagation.failure != "none":
 > loop calls `AgentMonitor.on_*()` for loop-level observation, and the
 > node calls its own `NodeMonitor` via `self.config.monitor`. Both fire
 > when configured. See Technical Decision #6.
+>
+> **Deferred**: Continuation return values from monitor hooks are not
+> currently appended to the retry message flow. The return values from
+> `on_before_node_call` and `on_after_node_call` are discarded. This
+> feature is deferred to a follow-up milestone. Use NodeMonitor hooks
+> for logging/observation only.
 
 ```python
 class ProcessNode(Node):

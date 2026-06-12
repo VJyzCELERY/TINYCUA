@@ -87,7 +87,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - **FR-009**: An optional `NodeMonitor` protocol/interface MUST be defined with trigger points: before LLM call, after LLM result, after retry exhaustion.
 - **FR-010**: `NodeMonitor` hook invocations MUST be transient — not queue nodes, no sessions, not written to `chat_history` or `session_context`.
 - **FR-011**: Monitor hook exceptions MUST be caught and logged without breaking node execution.
-- **FR-012**: Monitor hooks MAY return an assistant-role continuation message that enters the retry message flow.
+- **FR-012**: Monitor hooks MAY return an assistant-role continuation message that enters the retry message flow. **Deferred**: Continuation appending is not implemented; return values are discarded. Follow-up milestone.
 - **FR-013**: `AgentMonitor` (optional) MUST provide a higher-level hook that wraps node-level monitor behavior for observability across the entire loop.
 - **FR-014**: `NodeRetryPolicy.max_attempts=0` MUST result in exactly 1 attempt (no retries) — validation failure goes straight to exhaustion handling.
 

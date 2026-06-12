@@ -318,6 +318,8 @@ class TinyCUALoop(BaseLoop):
         )
 
         # Fire agent_monitor before-hook (if configured)
+        # Note: attempt=1 at agent level because retry is node-internal.
+        # Use NodeMonitor for per-attempt granularity.
         if self.agent_monitor is not None:
             try:
                 self.agent_monitor.on_before_node_call(
@@ -340,6 +342,8 @@ class TinyCUALoop(BaseLoop):
         llm_result = self._record_node_output(node, content, response.get("tool_calls"))
 
         # Fire agent_monitor after-hook (if configured)
+        # Note: attempt=1 at agent level because retry is node-internal.
+        # Use NodeMonitor for per-attempt granularity.
         if self.agent_monitor is not None:
             from tinycua.config.types import ValidationResult
             try:

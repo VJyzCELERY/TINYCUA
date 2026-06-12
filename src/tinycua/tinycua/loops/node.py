@@ -17,7 +17,6 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.config.types import NodeMonitor
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
