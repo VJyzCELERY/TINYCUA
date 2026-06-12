@@ -142,15 +142,10 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
     cd src/tinycua && uv run pytest
     ```
 
-#### [MODIFIED] `src/tinycua/tinycua/config/node_config.py` (if needed) (documenting existing implementation)
+#### No Change — `src/tinycua/tinycua/config/node_config.py` (metadata keys are dynamic via `NodeConfigBase.metadata`)
 
-- **[Description]**: Added response-specific configuration options.
-- **[Rationale]**: Context sufficiency thresholds and digester enable/disable should be configurable via `NodeConfig`.
-- **Changes** (if needed):
-  - Add these fields to `NodeConfigBase.metadata` as the simpler approach:
-    - `digester_enabled: bool = True`
-    - `sufficiency_threshold: int | None = None` (configurable threshold)
-    - `fallback_message: str = "I encountered an error generating the final response."`
+- **[Description]**: No code changes needed — response-specific metadata keys (`digester_enabled`, `sufficiency_threshold`, `fallback_message`) are already supported dynamically via `NodeConfigBase.metadata`, which accepts arbitrary key-value pairs without schema modifications.
+- **[Rationale]**: As documented in FR-009, metadata keys go into `NodeConfigBase.metadata`, a dict that accepts arbitrary keys without schema changes. No `node_config.py` modification is required.
 
 ### Tests
 
@@ -173,7 +168,7 @@ Integration tests are defined in `src/tinycua/tests/integration/test_response_no
 | `tinycua.loops.response_node` | Modify | Upgrade `ResponseNode` stub to full `TinyCUAResponseNode`; no `ResponseNode` alias kept |
 | `tinycua.loops.__init__` | Modify | Export `TinyCUAResponseNode` only (no `ResponseNode` alias) |
 | `tinycua.loops.tinycua_loop` | Modify | Wire suspension/resume and continuation routing |
-| `tinycua.config.node_config` | Modify (if needed) | Add response-specific config options |
+| `tinycua.config.node_config` | No Change | Metadata keys are dynamic via `NodeConfigBase.metadata` |
 | `src/tinycua/tests/unit/helpers/tinycua_loop_helpers.py` | Modify | Rename `ResponseNode(Node)` to `StubResponseNode(Node)` to avoid naming collision |
 | All existing test imports | Modify | Update imports from `ResponseNode` → `StubResponseNode` in test files referencing the helper |
 | `src/tinycua/tests/unit/test_response_node.py` | New | Unit tests for ResponseNode |
