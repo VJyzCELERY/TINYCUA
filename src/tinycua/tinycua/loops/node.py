@@ -22,6 +22,58 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def build_messages_with_dedupe(
+    session: Session,
+    dedupe_by_origin_record_id: bool = False,
+) -> list[dict[str, str]]:
+    """Build messages for LLM call with optional deduplication.
+
+    When dedupe_by_origin_record_id=True, filters session_context entries
+    to remove duplicates by origin_record_id (falling back to record_id)
+    before assembling LLM-bound messages.
+
+    Args:
+        session: The session containing context and history.
+        dedupe_by_origin_record_id: Whether to deduplicate by origin_record_id.
+
+    Returns:
+        List of message dictionaries for the LLM call.
+    """
+    messages: list[dict[str, str]] = []
+
+    # Get session context entries
+    context_entries = session.session_context
+
+    if dedupe_by_origin_record_id:
+        # Deduplicate by origin_record_id
+        seen_origin_ids: dict[str, Any] = {}
+        deduped_entries = []
+
+        for entry in context_entries:
+            # Use origin_record_id if present, otherwise use record_id
+            key = entry.origin_record_id if entry.origin_record_id else entry.record_id
+
+            if key not in seen_origin_ids:
+                seen_origin_ids[key] = entry
+                deduped_entries.append(entry)
+
+        context_entries = deduped_entries
+
+    # Convert entries to message dicts
+    for entry in context_entries:
+        messages.append({
+            "role": "user",  # Default role for context entries
+            "content": str(entry.content),
+            "metadata": {
+                "origin_record_id": entry.origin_record_id,
+                "source_node_id": entry.source_node_id,
+                "segment": entry.segment,
+            },
+        })
+
+    return messages
+
+
 class NodeExecutionError(Exception):
     """Raised when a node execution fails after retry exhaustion."""
 

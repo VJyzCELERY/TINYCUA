@@ -4,49 +4,49 @@ Implementation tasks for Propagation and Dedupe. Check off items as completed.
 
 ## Pre-Implementation
 
-- [ ] Update spec.md status from Draft to In Progress <!-- id: 24 -->
+- [x] Update spec.md status from Draft to In Progress <!-- id: 24 -->
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/unit/test_propagation.py` <!-- id: 0 -->
-- [ ] Write unit tests for ChatRecord in `tests/unit/test_chat_record.py` <!-- id: 1 -->
-- [ ] Write unit tests for SessionContextEntry in `tests/unit/test_session_context_entry.py` <!-- id: 2 -->
-- [ ] Run all new tests — expect RED (failures) since no implementation exists yet <!-- id: 3 -->
+- [x] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/unit/test_propagation.py` <!-- id: 0 -->
+- [x] Write unit tests for ChatRecord in `tests/unit/test_chat_record.py` <!-- id: 1 -->
+- [x] Write unit tests for SessionContextEntry in `tests/unit/test_session_context_entry.py` <!-- id: 2 -->
+- [x] Run all new tests — expect RED (failures) since no implementation exists yet <!-- id: 3 -->
 
 ## Implementation Phase — Data Models
 
-- [ ] Create `src/tinycua/tinycua/models/chat_record.py` — ChatRecord dataclass with all metadata fields <!-- id: 4 -->
-  - [ ] Define record_id (uuid4), role, record_type, content, visibility fields
-  - [ ] Define source_node_id, source_session_id, receiver_node_id, receiver_session_id, origin_record_id fields
-  - [ ] Define created_seq and metadata fields
-  - [ ] Add to_dict() / from_dict() serialization (extend StateObject pattern)
-- [ ] Create `src/tinycua/tinycua/models/session_context_entry.py` — SessionContextEntry with segment metadata <!-- id: 5 -->
-  - [ ] Define segment field (prior | input | output)
-  - [ ] Define origin_record_id, source_node_id, source_session_id, created_seq fields
-  - [ ] Add to_dict() / from_dict() serialization
-- [ ] Update `src/tinycua/tinycua/models/session.py` — separate chat_history and session_context types <!-- id: 6 -->
-  - [ ] Change chat_history type to list[ChatRecord]
-  - [ ] Change session_context type to list[SessionContextEntry]
-  - [ ] Update compact_context() to work with new types
-- [ ] Update `src/tinycua/tinycua/models/__init__.py` — re-export ChatRecord and SessionContextEntry <!-- id: 7 -->
+- [x] Create `src/tinycua/tinycua/models/chat_record.py` — ChatRecord dataclass with all metadata fields <!-- id: 4 -->
+  - [x] Define record_id (uuid4), role, record_type, content, visibility fields
+  - [x] Define source_node_id, source_session_id, receiver_node_id, receiver_session_id, origin_record_id fields
+  - [x] Define created_seq and metadata fields
+  - [x] Add to_dict() / from_dict() serialization (extend StateObject pattern)
+- [x] Create `src/tinycua/tinycua/models/session_context_entry.py` — SessionContextEntry with segment metadata <!-- id: 5 -->
+  - [x] Define segment field (prior | input | output)
+  - [x] Define origin_record_id, source_node_id, source_session_id, created_seq fields
+  - [x] Add to_dict() / from_dict() serialization
+- [x] Update `src/tinycua/tinycua/models/session.py` — separate chat_history and session_context types <!-- id: 6 -->
+  - [x] Change chat_history type to list[ChatRecord]
+  - [x] Change session_context type to list[SessionContextEntry]
+  - [x] Update compact_context() to work with new types
+- [x] Update `src/tinycua/tinycua/models/__init__.py` — re-export ChatRecord and SessionContextEntry <!-- id: 7 -->
 
 ## Implementation Phase — Propagation Engine
 
-- [ ] Create `src/tinycua/tinycua/loops/propagation.py` — core propagation logic <!-- id: 8 -->
-  - [ ] Implement PropagationRule dataclass with all fields
-  - [ ] Implement PROPAGATION_PROFILES dict with all four profiles
-  - [ ] Implement propagate_on_termination() — upward propagation of prior+input segments
-  - [ ] Implement forward_output_to_next() — output segment forwarding
-  - [ ] Implement finalize_terminal_output() — terminal output exception
-  - [ ] Implement dedupe_records() — origin_record_id comparison with record_id fallback
+- [x] Create `src/tinycua/tinycua/loops/propagation.py` — core propagation logic <!-- id: 8 -->
+  - [x] Implement PropagationRule dataclass with all fields
+  - [x] Implement PROPAGATION_PROFILES dict with all four profiles
+  - [x] Implement propagate_on_termination() — upward propagation of prior+input segments
+  - [x] Implement forward_output_to_next() — output segment forwarding
+  - [x] Implement finalize_terminal_output() — terminal output exception
+  - [x] Implement dedupe_records() — origin_record_id comparison with record_id fallback
 
 ## Implementation Phase — Integration
 
-- [ ] Update `src/tinycua/tinycua/config/node_config.py` — wire PropagationRule and dedupe <!-- id: 9 -->
-  - [ ] Change NodeConfigBase.propagation type from Any to PropagationRule | None
-  - [ ] Verify NodeMessagePolicy.dedupe_by_origin_record_id is wired
-- [ ] Add `build_messages_with_dedupe()` helper to `src/tinycua/tinycua/loops/node.py` <!-- id: 10 -->
-  - [ ] Filter session_context by origin_record_id when dedupe flag is True
+- [x] Update `src/tinycua/tinycua/config/node_config.py` — wire PropagationRule and dedupe <!-- id: 9 -->
+  - [x] Change NodeConfigBase.propagation type from Any to PropagationRule | None
+  - [x] Verify NodeMessagePolicy.dedupe_by_origin_record_id is wired
+- [x] Add `build_messages_with_dedupe()` helper to `src/tinycua/tinycua/loops/node.py` <!-- id: 10 -->
+  - [x] Filter session_context by origin_record_id when dedupe flag is True
 - [ ] Update `src/tinycua/tinycua/loops/tinycua_loop.py` — integrate propagation engine <!-- id: 11 -->
   - [ ] Replace _transfer_session_context() with propagate_on_termination() call
   - [ ] Wire terminal output exception in _run_sync()/_run_stream() finalization

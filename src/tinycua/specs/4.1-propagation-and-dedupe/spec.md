@@ -1,6 +1,6 @@
 # Feature Specification: Propagation and Dedupe
 
-**Status**: Draft
+**Status**: In Progress
 **Created**: 2026-06-12
 **Last Updated**: 2026-06-12
 **Subproject(s) Affected**: tinycua (core)

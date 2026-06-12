@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from tinycua.config.types import StateObject, Tool
+
+if TYPE_CHECKING:
+    from tinycua.loops.propagation import PropagationRule
 
 
 @dataclass
@@ -163,7 +166,7 @@ class NodeConfigBase:
     custom_instruction_append: str | None = None
     custom_continuation_append: str | None = None
     custom_retry_append: str | None = None
-    propagation: Any = None  # PropagationRule placeholder
+    propagation: PropagationRule | None = None
     tool_policy: NodeToolPolicy = field(default_factory=NodeToolPolicy)
     stream_policy: NodeStreamPolicy = field(default_factory=NodeStreamPolicy)
     retry_policy: NodeRetryPolicy = field(default_factory=NodeRetryPolicy)
