@@ -59,11 +59,11 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 9. **Given** a node with `NodeRetryPolicy(max_attempts=3, required_output_schema=SomeSchema)`, **When** the LLM response content does not parse as valid JSON matching the schema, **Then** the node retries with an assistant-role continuation indicating the schema mismatch.
 
-10. **Given** a node with `NodeRetryPolicy(max_attempts=1)` (no retries), **When** the first attempt fails validation, **Then** the exhaustion policy is applied immediately without retry.
+10. **Given** a node with `NodeRetryPolicy(max_attempts=0)` (no retries), **When** the first attempt fails validation, **Then** the exhaustion policy is applied immediately without retry.
 
 ### Edge Cases
 
-- What happens when `max_attempts=0`? (No retries — validation failure goes straight to exhaustion handling.)
+- What happens when `max_attempts=0`? (Exactly 1 attempt, no retries — validation failure goes straight to exhaustion handling.)
 - What happens when the monitor hook raises an exception? (Log the error and continue without the hook's continuation — monitor failures must not break node execution.)
 - What happens when `retry_continuation_builder` returns an empty string? (Use a default generic retry message with error details and attempt count.)
 - What happens when `validation_fn` returns `None`? (Treat as validation passed — no errors from custom validation.)
@@ -81,7 +81,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - **FR-003**: When `retry_policy.validation_fn` is set, it MUST be called during `validate_output()` and its errors merged into the `ValidationResult`.
 - **FR-004**: When `retry_policy.retry_continuation_builder` is set, it MUST be used instead of the default `build_retry_continuation()` to produce the retry message.
 - **FR-005**: On retry exhaustion with `on_retry_exhausted="raise"`, a `NodeExecutionError` MUST be raised.
-- **FR-006**: On retry exhaustion with `on_retry_exhausted="record_failure"`, failure state MUST be written to the node session and propagated according to `PropagationRule.failure`.
+- **FR-006**: On retry exhaustion with `on_retry_exhausted="record_failure"`, failure state MUST be written to the node session. If `PropagationRule.failure` is configured, failure state MUST also be propagated according to it; otherwise failure state is recorded but not propagated.
 - **FR-007**: On retry exhaustion with `on_retry_exhausted="route_failure"`, the node's failure route from `on_complete()` MUST be called if defined; otherwise fall back to `record_failure` behavior.
 - **FR-008**: `DecisionNode.__call__()` MUST validate the classification output (verify label is in `classification_labels`) and retry the classification step when invalid.
 - **FR-009**: An optional `NodeMonitor` protocol/interface MUST be defined with trigger points: before LLM call, after LLM result, after retry exhaustion.
@@ -89,7 +89,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - **FR-011**: Monitor hook exceptions MUST be caught and logged without breaking node execution.
 - **FR-012**: Monitor hooks MAY return an assistant-role continuation message that enters the retry message flow.
 - **FR-013**: `AgentMonitor` (optional) MUST provide a higher-level hook that wraps node-level monitor behavior for observability across the entire loop.
-- **FR-014**: `NodeRetryPolicy.max_attempts=0` MUST result in no retries — validation failure goes straight to exhaustion handling.
+- **FR-014**: `NodeRetryPolicy.max_attempts=0` MUST result in exactly 1 attempt (no retries) — validation failure goes straight to exhaustion handling.
 
 ### Key Entities
 

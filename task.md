@@ -60,38 +60,41 @@ Implementation tasks for Milestone 4.3 — Retry, Validation, and Monitor Hook. 
   - [ ] Call `monitor.on_after_node_call()` after each validation failure
   - [ ] Call `monitor.on_retry_exhausted()` before exhaustion handling
   - [ ] Incorporate monitor continuations (if hook returns string, append to messages)
-- [ ] Add `agent_monitor: AgentMonitor | None = None` field to `TinyCUALoop.__init__()` <!-- id: 13 -->
+- [ ] Add `agent_monitor: AgentMonitor | None = None` parameter to `TinyCUALoop.__init__()` signature and store as `self.agent_monitor` <!-- id: 13 -->
 - [ ] Wire `agent_monitor` in `TinyCUALoop._execute_node()` <!-- id: 14 -->
   - [ ] Call `agent_monitor.on_before_node_call()` before LLM call
   - [ ] Call `agent_monitor.on_after_node_call()` after response
+  - [ ] Do NOT call `node.monitor` directly — all monitor calls go through `agent_monitor`
 
 ## Testing Phase
 
+> **Note**: Unit tests below are listed here for tracking, but should be written alongside their corresponding implementation tasks (TDD-style) — not after all implementation is complete.
+
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
-- [ ] Write unit tests for `validate_output()` with custom `validation_fn` <!-- id: 16 -->
+- [ ] Write unit tests for `validate_output()` with custom `validation_fn` in `tests/unit/test_retry_validation.py` <!-- id: 16 -->
   - [ ] Test valid validation result (is_valid=True)
   - [ ] Test invalid validation result (is_valid=False, errors merged)
   - [ ] Test `validation_fn` raising exception
   - [ ] Test `validation_fn` returning None (treated as pass)
-- [ ] Write unit tests for `_build_retry_text()` with custom builder <!-- id: 17 -->
+- [ ] Write unit tests for `_build_retry_text()` with custom builder in `tests/unit/test_retry_validation.py` <!-- id: 17 -->
   - [ ] Test default builder produces standard message
   - [ ] Test custom builder produces custom message
   - [ ] Test custom builder returning empty string (fallback to default)
-- [ ] Write unit tests for `_handle_exhaustion()` <!-- id: 18 -->
+- [ ] Write unit tests for `_handle_exhaustion()` in `tests/unit/test_retry_validation.py` <!-- id: 18 -->
   - [ ] Test `raise` raises `NodeExecutionError`
   - [ ] Test `record_failure` writes to session
   - [ ] Test `route_failure` calls failure route
   - [ ] Test `route_failure` fallback to `record_failure` when no route
-- [ ] Write unit tests for `DecisionNode` classification retry <!-- id: 19 -->
+- [ ] Write unit tests for `DecisionNode` classification retry in `tests/unit/test_decision_node_retry.py` <!-- id: 19 -->
   - [ ] Test valid label accepted on first attempt
   - [ ] Test invalid label triggers retry
   - [ ] Test exhaustion raises error or records failure
-- [ ] Write unit tests for `NodeMonitor` hook <!-- id: 20 -->
+- [ ] Write unit tests for `NodeMonitor` hook in `tests/unit/test_monitor_hook.py` <!-- id: 20 -->
   - [ ] Test hook called at correct trigger points
   - [ ] Test hook called with correct arguments
   - [ ] Test hook exception caught and logged
   - [ ] Test hook continuation message enters retry flow
-- [ ] Write unit tests for `AgentMonitor` delegation <!-- id: 21 -->
+- [ ] Write unit tests for `AgentMonitor` delegation in `tests/unit/test_monitor_hook.py` <!-- id: 21 -->
   - [ ] Test `AgentMonitor` delegates to `NodeMonitor` if configured
   - [ ] Test `AgentMonitor` works without `NodeMonitor`
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 22 -->

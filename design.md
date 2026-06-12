@@ -320,6 +320,8 @@ class DecisionNode(ProcessNode):
 
 ### Safe Monitor Hook Caller
 
+`_safe_call()` is a module-level function in `tinycua/loops/node.py`, not a method on `ProcessNode`. It accepts a callable and its arguments, calls it in a try/except, logs exceptions at debug level, and returns the result or None.
+
 ```python
 def _safe_call(hook_method, *args, **kwargs):
     """Call a monitor hook method, catching exceptions."""
@@ -389,7 +391,7 @@ def _safe_call(hook_method, *args, **kwargs):
    - **Reason**: The analysis is an open-ended LLM call that produces content; validating it is subjective. The classification is a discrete label that can be validated against `classification_labels`. Retrying the analysis would be expensive and low-value.
    - **Alternatives Considered**: Retry both steps — rejected for cost/complexity.
 
-6. **Decision**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor` which delegates to the configured `NodeMonitor` if present.
+6. **Decision**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_*()` methods only. `AgentMonitor` is responsible for forwarding to the node's `NodeMonitor` if one is configured. The loop does NOT call `node.monitor` directly — all monitor calls go through `agent_monitor`.
    - **Reason**: Keeps the monitoring hierarchy simple. The loop only needs to call `AgentMonitor` at lifecycle points; `AgentMonitor` is responsible for forwarding to `NodeMonitor` if one is configured. Avoids the loop managing both hooks independently.
    - **Alternatives Considered**: Independent hooks — rejected because it would require the loop to coordinate both hooks and manage fallback logic.
 
