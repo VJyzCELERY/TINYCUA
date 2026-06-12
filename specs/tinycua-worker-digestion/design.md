@@ -320,6 +320,10 @@ class TinyCUAInformationDigesterNode(ProcessNode):
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
+### Known Gaps — Out of Scope
+
+**Tool Integration (`enhanced_context_retrieval` / `digest_information`)**: The current `InformationDigesterNode._parse_digest_response()` parses raw LLM text into `DigestedInformation` via JSON parsing with a text fallback. It does **not** invoke the `enhanced_context_retrieval` or `digest_information` tools defined in `docs/design/tools/digester.md`. This is a known limitation acknowledged in the PR body. The current JSON-parsing approach is acceptable for the skeleton implementation. Tool integration should be tracked as a **follow-up milestone** — the tools are defined in design docs but their runtime implementation is out of scope for this milestone. (Ref: ISSUE-022)
+
 ---
 
 ## Technical Decisions

@@ -67,9 +67,9 @@ Implementation tasks for WorkerNode Information-Digestion via QueryAnalyst. Chec
 - [x] Run WorkerNode digest unit tests <!-- id: 19 -->
 - [x] Run TaskCreateNode digested input unit tests <!-- id: 20 -->
 - [x] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 21 -->
-- [ ] Write end-to-end integration test with MockLLM for full pipeline flow (`test_pipeline_integration.py`) <!-- id: 22 -->
-  - [ ] Test QueryAnalyst → InformationDigester → Worker → TaskCreate with mock LLM responses
-  - [ ] Test digester failure produces fallback and Worker proceeds normally
+- [x] Write end-to-end integration test with MockLLM for full pipeline flow (`test_pipeline_integration.py`) <!-- id: 22 -->
+  - [x] Test QueryAnalyst → InformationDigester → Worker → TaskCreate with mock LLM responses
+  - [x] Test digester failure produces fallback and Worker proceeds normally
 
 ## Verification Phase
 
@@ -83,6 +83,10 @@ Implementation tasks for WorkerNode Information-Digestion via QueryAnalyst. Chec
 - [ ] Update `specs/tinycua-worker-digestion/spec.md` Status Tracker to reflect completion <!-- id: 27 -->
 - [ ] Update README if needed <!-- id: 28 -->
 - [ ] Update changelog <!-- id: 29 -->
+
+## Follow-up Milestone
+
+- [ ] Integrate `enhanced_context_retrieval` and `digest_information` tools into InformationDigesterNode <!-- id: NEW -->
 
 ## Review and Merge
 

@@ -10,7 +10,6 @@ from tinycua.models.digested_information import DigestedInformation
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.loops.node_queue import NodeQueue
-    from tinycua.models.node_input import NodeInputLike
 
 _WORKER_INSTRUCTION = (
     "You are a worker node responsible for task planning and execution "
@@ -101,8 +100,16 @@ class TinyCUAWorkerNode(DecisionNode):
     def on_complete(self, queue: NodeQueue, response: Any) -> None:  # type: ignore[override]
         """Post-completion hook for queue mutations.
 
+        Retrieves DigestedInformation from session_context and stores it
+        in _current_digest so propagate() can forward it to downstream
+        nodes (TaskCreateNode, etc.).
+
         Args:
             queue: The node queue that can be mutated.
             response: The final LLM response (DecisionResult).
         """
+        digest = self._get_digested_input()
+        if digest is not None:
+            self._current_digest = digest
+
         super().on_complete(queue, response)

@@ -354,6 +354,10 @@ No new external dependencies.
 - [ ] Depends on existing `Session.session_context` for digest propagation
 - [ ] Blocks downstream milestones (3.6 ResponseNode suspension integration)
 
+## Known Gaps
+
+- **InformationDigesterNode tool integration**: `InformationDigesterNode._parse_digest_response()` parses raw LLM text into `DigestedInformation` via JSON parsing with a text fallback. It does not invoke `enhanced_context_retrieval` or `digest_information` tools defined in `docs/design/tools/digester.md`. The quality of digested output depends entirely on the LLM's ability to produce valid JSON. Without tool-based context gathering, the digester has no structured way to access session history or root context. This is acceptable for the skeleton implementation but limits effectiveness in production. **Follow-up milestone dependency.**
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

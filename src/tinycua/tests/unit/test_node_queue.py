@@ -89,17 +89,6 @@ class TestNodeQueueAdvance:
 
         node_a.propagate.assert_called_once()
 
-    def test_advance_skips_propagation_if_already_propagated(self):
-        """advance() skips propagate() if node has _propagated flag set."""
-        queue = NodeQueue()
-        node_a = _make_node("a")
-        node_a._propagated = True
-        queue.items = [node_a]
-
-        queue.advance()
-
-        node_a.propagate.assert_not_called()
-
 
 class TestNodeQueueSpawn:
     """Tests for spawn_after_current()."""

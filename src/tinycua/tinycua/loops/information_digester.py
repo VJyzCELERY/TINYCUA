@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
@@ -11,7 +13,10 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.config.types import LLMResult
     from tinycua.models.node_input import NodeInputLike
+
+logger = logging.getLogger(__name__)
 
 _DIGESTER_INSTRUCTION = (
     "You are an information digester. Your task is to analyze the "
@@ -60,6 +65,63 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             is_terminal=is_terminal,
         )
         self._current_digest: DigestedInformation | None = None
+
+    def __call__(self, input: NodeInputLike) -> LLMResult:
+        """Execute the digester: call LLM and parse response into DigestedInformation.
+
+        Invokes the parent ProcessNode.__call__ to perform the LLM call,
+        then parses the response text into a DigestedInformation object.
+        Falls back to DigestedInformation.fallback() on parse failure.
+
+        Args:
+            input: The node input.
+
+        Returns:
+            The LLM response.
+        """
+        original_query = self._extract_original_query(input)
+        response = super().__call__(input)
+        self._current_digest = self._parse_digest_response(
+            response.content, original_query,
+        )
+        return response
+
+    def _parse_digest_response(
+        self, content: str, original_query: str,
+    ) -> DigestedInformation:
+        """Parse LLM response text into a DigestedInformation object.
+
+        Attempts to parse as JSON first, then falls back to constructing
+        a DigestedInformation with the raw content as context_summary.
+
+        Args:
+            content: The raw LLM response text.
+            original_query: The original user query.
+
+        Returns:
+            A DigestedInformation instance.
+        """
+        if not content or not content.strip():
+            return DigestedInformation.fallback(original_query)
+
+        try:
+            data = json.loads(content)
+            return DigestedInformation(
+                context_summary=data.get("context_summary", content),
+                original_query=data.get("original_query", original_query),
+                key_points=data.get("key_points", []),
+                advisory_instructions=data.get("advisory_instructions", []),
+                constraints=data.get("constraints", []),
+                known_gaps=data.get("known_gaps", []),
+            )
+        except (json.JSONDecodeError, TypeError, KeyError):
+            logger.debug(
+                "Digester LLM response not JSON, using raw text as context_summary"
+            )
+            return DigestedInformation(
+                context_summary=content,
+                original_query=original_query,
+            )
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create a fresh node session (does not inherit parent).

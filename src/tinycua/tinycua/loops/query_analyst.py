@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
+
+logger = logging.getLogger(__name__)
 
 _QUERY_ANALYST_INSTRUCTION = (
     "You are a query analyst. Your role is to classify user input and "
@@ -43,6 +46,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         *,
         instruction: str = _QUERY_ANALYST_INSTRUCTION,
         classification_labels: list[str] | None = None,
+        queue: NodeQueue | None = None,
         is_terminal: bool = False,
     ) -> None:
         """Initialize QueryAnalystNode.
@@ -53,6 +57,8 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             instruction: Instruction string for this node type.
             classification_labels: Allowed classification labels.
                 Defaults to ROUTE_LABELS if not provided.
+            queue: The NodeQueue for queue mutations. If not provided,
+                must be set via _queue attribute before _route_worker.
             is_terminal: Whether this node is terminal.
         """
         super().__init__(
@@ -62,7 +68,8 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             classification_labels=classification_labels or self.ROUTE_LABELS,
             is_terminal=is_terminal,
         )
-        self._queue: NodeQueue | None = None
+        self._queue: NodeQueue | None = queue
+        self._input: NodeInputLike | None = None
 
     def _route_worker(self, input_data: NodeInputLike) -> None:
         """Route to WorkerNode with information digestion.
@@ -78,6 +85,10 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         user_query = self._extract_user_query(input_data)
         queue = self._queue
 
+        if queue is None:
+            logger.warning("QueryAnalyst._route_worker called but _queue is not set")
+            return
+
         # Create WorkerNode
         worker_node = TinyCUAWorkerNode(
             node_id="worker",
@@ -91,8 +102,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         # Check for existing digest
         if self._check_existing_digest(worker_node):
             # Already digested — just ensure worker is in queue
-            if queue is not None:
-                queue.spawn_after_current([worker_node])
+            queue.spawn_after_current([worker_node])
             return
 
         # Create InformationDigesterNode
@@ -101,11 +111,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             config=self.config,
         )
 
-        # Assign the user query as original query for the digester
-        digester._original_query = user_query
-
-        if queue is not None:
-            queue.spawn_after_current([digester, worker_node])
+        queue.spawn_after_current([digester, worker_node])
 
     def _check_existing_digest(self, worker: Node) -> bool:
         """Check if the worker's session already has DigestedInformation.
@@ -167,10 +173,28 @@ class TinyCUAQueryAnalystNode(DecisionNode):
     def on_complete(self, queue: NodeQueue, response: Any) -> None:  # type: ignore[override]
         """Post-completion hook for queue mutations.
 
+        Dispatches to the appropriate route handler based on the
+        classification result. For the "worker" route, spawns
+        InformationDigesterNode before WorkerNode.
+
         Args:
             queue: The node queue that can be mutated.
             response: The final LLM response (DecisionResult or raw).
         """
-        # The actual route dispatch happens via the DecisionNode flow
-        # We need to handle the "worker" route dispatch here
+        from tinycua.loops.node import DecisionResult
+
+        if isinstance(response, DecisionResult):
+            route_label = response.route_label
+        else:
+            route_label = str(response).strip().lower()
+
+        if route_label == "worker":
+            self._route_worker(self._input or "")
+        elif route_label == "uncertain":
+            logger.info("QueryAnalyst routed to 'uncertain' — no action taken")
+        elif route_label == "passthrough":
+            logger.info("QueryAnalyst routed to 'passthrough' — no action taken")
+        else:
+            logger.warning("QueryAnalyst unknown route: %s", route_label)
+
         super().on_complete(queue, response)

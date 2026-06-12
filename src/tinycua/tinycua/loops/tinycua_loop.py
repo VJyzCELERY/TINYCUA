@@ -10,12 +10,15 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult
+from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
     from tinycua.loops.node import Node
+    from tinycua.models.node_input import NodeInputLike
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
 
@@ -84,6 +87,11 @@ class TinyCUALoop(BaseLoop):
         # cause duplication when include_chat_history=True.
         self.root_session.input_context = list(messages)
 
+        # Wire queue reference on QueryAnalystNode entry node
+        current = self.queue.current
+        if isinstance(current, TinyCUAQueryAnalystNode):
+            current._queue = self.queue
+
         # Ensure terminal safety at queue bootstrap
         if self.default_terminal_node is not None:
             self.queue.ensure_terminal(self.default_terminal_node)
@@ -119,8 +127,9 @@ class TinyCUALoop(BaseLoop):
             if node is None:
                 break
 
+            node_input = self.queue.input_for_current()
             content = await self._execute_node(
-                node, agent, tools, override_instructions,
+                node, agent, tools, override_instructions, node_input,
             )
             last_content = content
 
@@ -159,13 +168,16 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
-    ) -> None:
+    ) -> LLMResult:
         """Record node output in chat_history and session_context.
 
         Args:
             node: The node that produced output.
             content: The response content string.
             tool_calls: Optional list of tool call dicts.
+
+        Returns:
+            The LLMResult that was recorded.
         """
         if content:
             self.root_session.chat_history.append({
@@ -179,6 +191,7 @@ class TinyCUALoop(BaseLoop):
             tool_calls=tool_calls or [],
         )
         node.record_output(llm_result)
+        return llm_result
 
     async def _run_stream(
         self,
@@ -204,6 +217,12 @@ class TinyCUALoop(BaseLoop):
             if node is None:
                 break
 
+            # Wire queue and input on QueryAnalystNode before execution
+            if isinstance(node, TinyCUAQueryAnalystNode):
+                node._queue = self.queue
+                node_input = self.queue.input_for_current()
+                node._input = node_input
+
             messages, resolved_tools = self._prepare_node(
                 node, tools, override_instructions,
             )
@@ -219,7 +238,21 @@ class TinyCUALoop(BaseLoop):
                 yield event
 
             combined = "".join(content_parts)
-            self._record_node_output(node, combined, collected_tool_calls)
+            llm_result = self._record_node_output(node, combined, collected_tool_calls)
+
+            # Fire lifecycle hooks (same as _execute_node)
+            # Note: propagate() is called by queue.advance() below — do not call explicitly here
+            on_complete_response: LLMResult | DecisionResult = llm_result
+            if isinstance(node, DecisionNode):
+                on_complete_response = DecisionResult(
+                    route_label=combined,
+                    analysis_response=llm_result,
+                    classification_response=llm_result,
+                )
+            node.on_complete(self.queue, on_complete_response)
+
+            # Cross-session digest transfer
+            self._transfer_session_context(node)
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -234,22 +267,31 @@ class TinyCUALoop(BaseLoop):
         agent: Agent,
         tools: list[Tool],
         override_instructions: str | None = None,
+        node_input: NodeInputLike | None = None,
     ) -> str:
         """Execute a single node by building messages and calling agent._call_llm().
 
         Builds messages from node instruction and session context,
         resolves tools via NodeToolPolicy, calls agent._call_llm(),
-        records chat_history and session_context.
+        records chat_history and session_context, then fires lifecycle
+        hooks (propagate, on_complete) and transfers cross-session data.
 
         Args:
             node: The node to execute.
             agent: The agent executing.
             tools: Available tools from the agent.
             override_instructions: Optional instructions override.
+            node_input: Optional input data for the node.
 
         Returns:
             The response content string.
         """
+        # Wire queue and input on QueryAnalystNode before execution
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            node._queue = self.queue
+            if node_input is not None:
+                node._input = node_input
+
         messages, resolved_tools = self._prepare_node(
             node, tools, override_instructions,
         )
@@ -257,9 +299,65 @@ class TinyCUALoop(BaseLoop):
         response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
         content = response.get("content") or ""
 
-        self._record_node_output(node, content, response.get("tool_calls"))
+        llm_result = self._record_node_output(node, content, response.get("tool_calls"))
+
+        # Build the response object for on_complete: DecisionNode expects
+        # a DecisionResult with a route_label; pass a synthetic one so
+        # on_complete routing (QueryAnalyst._route_worker) works correctly.
+        on_complete_response: LLMResult | DecisionResult = llm_result
+        if isinstance(node, DecisionNode):
+            # DecisionNode subclass — build a synthetic DecisionResult
+            # with the raw content as route_label for on_complete routing.
+            on_complete_response = DecisionResult(
+                route_label=content,
+                analysis_response=llm_result,
+                classification_response=llm_result,
+            )
+        node.on_complete(self.queue, on_complete_response)
+
+        # Cross-session digest transfer (ISSUE-021): after a node completes,
+        # copy session_context entries to the next node's session so data
+        # flows across session boundaries (e.g., digester → worker).
+        self._transfer_session_context(node)
 
         return content
+
+    def _transfer_session_context(self, completed_node: Node) -> None:
+        """Transfer session_context entries from a completed node to the next node.
+
+        After a node completes, its session_context may contain data (e.g.,
+        DigestedInformation from InformationDigesterNode) that the next
+        node in the queue needs. This copies entries from the completed
+        node's session to the next node's session so cross-session data
+        flows correctly.
+
+        Args:
+            completed_node: The node that just finished execution.
+        """
+        # Get the next node in the queue (items[1] since items[0] is current)
+        if len(self.queue.items) < 2:
+            return
+        next_node = self.queue.items[1]
+
+        # Ensure the next node has a session
+        next_node.ensure_session(self.root_session)
+
+        # If the completed node has a different session than the next node,
+        # transfer DigestedInformation entries (and other context) across.
+        if (
+            completed_node.session is not None
+            and next_node.session is not None
+            and completed_node.session is not next_node.session
+        ):
+            for entry in completed_node.session.session_context:
+                # Transfer entries that the next node doesn't already have.
+                content = entry.get("content")
+                already_has = any(
+                    e.get("content") is content
+                    for e in next_node.session.session_context
+                )
+                if not already_has:
+                    next_node.session.session_context.append(dict(entry))
 
     def _build_node_messages(
         self,
