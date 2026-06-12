@@ -43,12 +43,7 @@ Formalizes the integration contract between `TinyCUAResponseNode` and `TinyCUAIn
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
-The test code is defined in `src/tinycua/tests/integration/test_response_node_integration.py` (12,496 bytes). Four test functions cover the critical paths:
-
-- `test_digester_suspension` — end-to-end: `__call__` with insufficient context → `on_complete` triggers suspension → digester produces digest → digest propagates → response node resumes and synthesizes final response.
-- `test_direct_synthesis_no_digestion` — sufficient context bypasses digestion entirely.
-- `test_max_digest_attempts_enforced` — guard prevents infinite suspend/resume loops.
-- `test_digester_enabled_false_fallback` — falls through to tool-based gathering.
+Integration tests are defined in `src/tinycua/tests/integration/test_response_node_integration.py` — see the file for test implementations and scenarios.
 
 ### Key Test Scenarios
 

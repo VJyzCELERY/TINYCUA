@@ -84,8 +84,8 @@ Implementation tasks for TinyCUA ResponseNode — Optional Information Digestion
 
 ## Documentation Phase
 
-- [ ] Update spec status tracker with implementation notes <!-- id: 23 -->
-- [ ] No API documentation changes (internal node behavior only) <!-- id: 24 -->
+- [x] Update spec status tracker with implementation notes <!-- id: 23 -->
+- [x] No API documentation changes (internal node behavior only) <!-- id: 24 -->
 
 ## Review and Merge
 
