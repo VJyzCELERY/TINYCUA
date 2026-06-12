@@ -14,7 +14,6 @@ Implements the integration path where **QueryAnalyst spawns `InformationDigester
 ### Configuration
 
 - [x] **.env file** — no new env vars required; existing LLM config suffices
-- [ ] **None** — this feature has no new configuration dependencies
 
 ### Running Services
 
@@ -228,10 +227,10 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 
 - [x] Integration tests (defined above) — these must pass for implementation to be complete
     > **NOTE**: The test code block above contains unit-level tests for individual components. Full end-to-end integration tests (using MockLLM to simulate the full QueryAnalyst → InformationDigester → Worker → TaskCreate pipeline) should be written as a separate test file during the Testing Phase. These are listed in the spec testing plan and have been added to task.md.
-- [ ] Unit tests for DigestedInformation model — test all fields, fallback(), has_useful_context
-- [ ] Unit tests for QueryAnalyst worker route — test spawn logic, dedup, fresh session
-- [ ] Unit tests for WorkerNode — test _get_digested_input(), propagate()
-- [ ] Unit tests for InformationDigesterNode — test fresh session creation
+- [x] Unit tests for DigestedInformation model — test all fields, fallback(), has_useful_context
+- [x] Unit tests for QueryAnalyst worker route — test spawn logic, dedup, fresh session
+- [x] Unit tests for WorkerNode — test _get_digested_input(), propagate()
+- [x] Unit tests for InformationDigesterNode — test fresh session creation
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
@@ -282,7 +281,7 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 
 #### [NEW] `tinycua/loops/task_create.py` (NEW file)
 
-- **Description of change**: `TinyCUATaskCreateNode` (ProcessNode) updated to accept and use DigestedInformation from WorkerNode's propagate() output in `build_messages()`.
+- **Description of change**: `TinyCUATaskCreateNode` (ProcessNode) accepts and uses DigestedInformation from WorkerNode's propagate() output in `build_messages()`.
 - **Dependencies**: Depends on `DigestedInformation`
 
 ### Loops — Registration
@@ -291,6 +290,13 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 
 - **Description of change**: Export new node classes: `TinyCUAQueryAnalystNode`, `TinyCUAWorkerNode`, `TinyCUAInformationDigesterNode`, `TinyCUATaskCreateNode`.
 - **Rationale**: Makes new nodes available to the package.
+
+### Loops — Queue Bootstrap
+
+#### [MODIFY] `tinycua/loops/tinycua_loop.py`
+
+- **Description of change**: Wire `QueryAnalyst` as the entry node in the queue bootstrap, replacing the current `Worker` entry point.
+- **Rationale**: Required by design.md architecture — QueryAnalyst routes to InformationDigester before WorkerNode.
 
 ## Architecture Changes
 
@@ -302,6 +308,7 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 | `tinycua.loops.worker` | New | DecisionNode accepting DigestedInformation from session |
 | `tinycua.loops.task_create` | New | ProcessNode accepting DigestedInformation from Worker |
 | `tinycua.loops.__init__` | Modified | Export new node classes |
+| `tinycua.loops.tinycua_loop` | Modified | Wire QueryAnalyst as entry node in queue bootstrap |
 | `tinycua.models.__init__` | Modified | Export DigestedInformation |
 
 ## Data Model Changes

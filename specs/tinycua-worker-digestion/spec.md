@@ -17,7 +17,7 @@
   - The `digest_information` tool implementation itself.
   - WorkerNode internal routing decision behavior (task_creation, task_recreation, etc.) — only the integration with digested input.
   - Changes to the InformationDigesterNode's internal behavior — only its spawning and propagation contract via QueryAnalyst.
-- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must use existing `NodeQueue.suspend_current_and_prepend()` mechanism (or spawn information digester before worker in the queue). DigestedInformation model must follow the target architecture fields defined in `docs/design/models/digested_information.md`. Worker must forward DigestedInformation downstream without dropping the original query fallback.
+- **Constraints**: Must work without modifying `tinycua-sdk` public APIs. Must use existing `NodeQueue.spawn_after_current()` mechanism to insert InformationDigesterNode before WorkerNode in the queue. DigestedInformation model must follow the target architecture fields defined in `docs/design/models/digested_information.md`. Worker must forward DigestedInformation downstream without dropping the original query fallback.
 
 ---
 

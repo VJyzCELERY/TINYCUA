@@ -111,7 +111,7 @@ QueryAnalyst decides worker:
 | `tinycua/loops/query_analyst.py` | New | Concrete `TinyCUAQueryAnalystNode` with worker route handler including digest spawn logic |
 | `tinycua/loops/worker.py` | New | Concrete `TinyCUAWorkerNode` accepting DigestedInformation from session_context |
 | `tinycua/loops/information_digester.py` | New | Concrete `TinyCUAInformationDigesterNode` (ProcessNode) with fresh session, lazy context retrieval |
-| `tinycua/loops/task_create.py` | Modified | `TinyCUATaskCreateNode` input updated to receive DigestedInformation from Worker |
+| `tinycua/loops/task_create.py` | New | `TinyCUATaskCreateNode` accepts DigestedInformation from Worker |
 | `tinycua/models/digested_information.py` | New | `DigestedInformation` dataclass with context_summary, key_points, etc. |
 | `tinycua/loops/__init__.py` | Modified | Export new node classes |
 | `tinycua/loops/tinycua_loop.py` | Modified | Queue bootstrap may need to wire QueryAnalyst as entry node |
@@ -290,7 +290,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| InformationDigesterNode retry exhausted | NodeExecutionError | Digester failure — fallback DigestedInformation used downstream. **Who catches it**: The QueryAnalyst worker route handler catches `NodeExecutionError` from the digester and calls `DigestedInformation.fallback(original_query)` to produce a graceful fallback. The digester's retry policy is configured to `record_failure` (not `raise`), so it returns the fallback digest directly rather than raising. |
+| InformationDigesterNode retry exhausted | Fallback digest returned | Digester retry policy is `record_failure` — returns `DigestedInformation.fallback(original_query)` directly. QueryAnalyst checks `has_useful_context` on the returned digest; no exception is raised. |
 | QueryAnalyst cannot determine route | Retry via NodeRetryPolicy | Per existing DecisionNode contract |
 | WorkerNode has no DigestedInformation in session | Fallback to raw user_query from session context | Graceful degradation |
 | TaskCreateNode receives no DigestedInformation | Use raw user_query from input | Graceful degradation |
