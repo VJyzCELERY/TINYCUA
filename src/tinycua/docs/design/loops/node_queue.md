@@ -97,19 +97,15 @@ When `TinyCUAResponseNode` suspends itself for information digestion:
 
 ## WorkerNode Digester Handoff
 
-When `WorkerNode` determines context is insufficient for its routing decision, it
-suspends itself and prepends `InformationDigesterNode` (same pattern as ResponseNode):
+When `WorkerNode` enters, it checks whether digestion has already occurred. If not,
+it suspends itself and prepends `InformationDigesterNode`:
 
-1. WorkerNode constructs `NodeInput(messages=[...], payloads=[...])` from a copy of
-   selected `worker_node.session.session_context` messages plus an optional digest
-   request payload.
-2. It calls `queue.suspend_current_and_prepend([TinyCUAInformationDigesterNode(parent=worker_node)])`
-   and assigns that `NodeInput` to the prepended digester node.
-3. The digester may read the copied input messages and retrieval tools, but it does not
-   re-store the copied messages in its own reusable context.
-4. The digester uses a selected-output propagation rule targeting its parent session; the
-   digest lands in the suspended worker node's `session_context`.
-5. The worker node resumes only after the digest output has propagated back.
+1. WorkerNode checks `session_context` for existing digest output. If found,
+   digestion is already complete — skip suspension.
+2. If not found, WorkerNode suspends and prepends `InformationDigesterNode`.
+3. The digester gathers context, produces digest output, and propagates it back
+   to the worker node's `session_context`.
+4. The worker node resumes with digested context available in `session_context`.
 
 ## Terminal Handling
 

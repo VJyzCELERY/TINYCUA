@@ -101,6 +101,8 @@ InformationDigester completes:
   digester unless explicitly selected.
 - Does not re-store copied input messages in its own reusable context; stores and
   propagates only new digest output.
+- Parent nodes (WorkerNode, ResponseNode) can detect whether digestion has already
+  occurred by checking `session_context` for existing digest output.
 
 ## Failure / Retry Behavior
 

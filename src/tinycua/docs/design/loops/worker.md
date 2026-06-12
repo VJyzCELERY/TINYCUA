@@ -76,26 +76,23 @@ WorkerNode enters:
 
 ### Suspension and Resume for Information Digestion
 
-On first entry, WorkerNode always suspends itself and prepends InformationDigester
-to gather context for its routing decision:
+On first entry, WorkerNode suspends itself and prepends InformationDigester to gather
+context for its routing decision. The digest output is stored in `session_context`.
+On re-entry, Worker checks `session_context` for existing digest and skips suspension.
 
 ```text
-WorkerNode enters (first time):
-  → suspend_current_and_prepend([InformationDigesterNode(parent=WorkerNode)])
-  → Digester completes → WorkerNode resumes with digested context.
+WorkerNode enters:
+  1. Check session_context for existing digest output from InformationDigester.
+     → If found: proceed to routing decision (re-entry after digestion).
+     → If not found: suspend_current_and_prepend([InformationDigesterNode]).
 
-WorkerNode enters (re-entry with digested context):
-  → Proceed to routing decision with accumulated context.
+WorkerNode suspends for digestion:
+  → Digester completes → digest propagates to session_context.
+  → WorkerNode resumes with digested context in session_context.
+
+WorkerNode re-enters:
+  → Detects digest in session_context → skips suspension, proceeds to routing.
 ```
-
-When WorkerNode suspends for information digestion:
-
-1. Constructs `NodeInput(messages=[...], payloads=[...])` from selected
-   `session_context` messages plus digest request payload.
-2. Calls `queue.suspend_current_and_prepend([InformationDigesterNode(parent=worker_node)])`.
-3. Digester uses selected-output propagation targeting its parent session.
-4. Digest lands in suspended WorkerNode's `session_context`.
-5. WorkerNode resumes only after digest output has propagated back.
 
 ### Route Queue Shapes
 
