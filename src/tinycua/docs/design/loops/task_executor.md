@@ -19,7 +19,6 @@ and produce execution results.
 
 ## Inputs
 
-- `DigestedInformation` forwarded by upstream node (Worker or TaskAnalyzer).
 - Current active task reference from TinyCUALoop / task helpers.
 - High-level task tree list (read-only view).
 
