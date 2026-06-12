@@ -7,6 +7,7 @@ Currently defined as simple stubs to satisfy type annotations in node config.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 
 class Tool:
@@ -66,3 +67,122 @@ class ValidationError(Exception):
 
     Contains error details for retry continuation messages.
     """
+
+
+@runtime_checkable
+class NodeMonitor(Protocol):
+    """Protocol for node-level monitoring hooks.
+
+    Monitors observe node execution lifecycle events without mutating state.
+    All methods are optional — implement only the hooks you need.
+    Returning a string from any hook appends it as an assistant-role
+    continuation to the messages for the current retry attempt.
+    """
+
+    def on_before_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        messages: list[dict],
+        resolved_tools: list,
+    ) -> str | None:
+        """Called before each LLM call in a node.
+
+        Args:
+            node_id: The node being executed.
+            session_id: The session the node is running in.
+            attempt: The current attempt number (1-indexed).
+            messages: The messages being sent to the LLM.
+            resolved_tools: The tools resolved for this call.
+
+        Returns:
+            Optional continuation string to append to messages.
+        """
+        ...
+
+    def on_after_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        result: LLMResult,
+        validation_result: ValidationResult,
+    ) -> str | None:
+        """Called after validation following an LLM call.
+
+        Only called when validation fails (is_valid=False).
+
+        Args:
+            node_id: The node being executed.
+            session_id: The session the node is running in.
+            attempt: The current attempt number (1-indexed).
+            result: The LLM response.
+            validation_result: The validation result.
+
+        Returns:
+            Optional continuation string to append to messages.
+        """
+        ...
+
+    def on_retry_exhausted(
+        self,
+        node_id: str,
+        session_id: str,
+        error: ValidationError,
+        attempts: int,
+    ) -> str | None:
+        """Called when retry attempts are exhausted.
+
+        Args:
+            node_id: The node being executed.
+            session_id: The session the node is running in.
+            error: The validation error that caused exhaustion.
+            attempts: Total number of attempts made.
+
+        Returns:
+            Optional continuation string (typically None at exhaustion).
+        """
+        ...
+
+
+@runtime_checkable
+class AgentMonitor(Protocol):
+    """Protocol for agent-level monitoring hooks.
+
+    AgentMonitor delegates to NodeMonitor when a node has one configured.
+    If no node monitor is configured, the agent monitor receives all events
+    directly.
+    """
+
+    def on_before_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        messages: list[dict],
+        resolved_tools: list,
+    ) -> str | None:
+        """Called before each LLM call in a node."""
+        ...
+
+    def on_after_node_call(
+        self,
+        node_id: str,
+        session_id: str,
+        attempt: int,
+        result: LLMResult,
+        validation_result: ValidationResult,
+    ) -> str | None:
+        """Called after validation following an LLM call."""
+        ...
+
+    def on_retry_exhausted(
+        self,
+        node_id: str,
+        session_id: str,
+        error: ValidationError,
+        attempts: int,
+    ) -> str | None:
+        """Called when retry attempts are exhausted."""
+        ...
