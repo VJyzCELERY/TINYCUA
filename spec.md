@@ -65,9 +65,10 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 - What happens when `max_attempts=0`? (No retries — validation failure goes straight to exhaustion handling.)
 - What happens when the monitor hook raises an exception? (Log the error and continue without the hook's continuation — monitor failures must not break node execution.)
-- What happens when `retry_continuation_builder` returns an empty string? (Use a default generic retry message.)
+- What happens when `retry_continuation_builder` returns an empty string? (Use a default generic retry message with error details and attempt count.)
 - What happens when `validation_fn` returns `None`? (Treat as validation passed — no errors from custom validation.)
 - What happens when a `DecisionNode` classification returns a label not in `classification_labels`? (Treat as invalid — retry with clarification.)
+- What happens when `validation_fn` raises an unexpected exception? (Treat as validation failure — log the exception and retry with the error details.)
 
 ---
 
@@ -169,12 +170,12 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 1. **Should `NodeMonitor` be a Protocol (structural typing) or an abstract base class?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Discussion
+   - **Status**: RESOLVED — Use a Protocol for flexibility — allows any object with the right methods to serve as a monitor without inheritance. (Resolved in design.md Technical Decision #1)
    - **Proposed Answer**: Use a Protocol for flexibility — allows any object with the right methods to serve as a monitor without inheritance.
 
 2. **Should `AgentMonitor` wrap `NodeMonitor` or be independent?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Discussion
+   - **Status**: RESOLVED — `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_node_*()` which delegates to the configured `NodeMonitor` if present. (Resolved in design.md Technical Decision #6)
    - **Proposed Answer**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor.on_node_*()` which delegates to the configured `NodeMonitor` if present.
 
 ---

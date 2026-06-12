@@ -27,12 +27,14 @@ TinyCUALoop._execute_node(node, agent, tools, ...)
   │
   ├── response = agent._call_llm(messages, resolved_tools)
   │
-  ├── AgentMonitor.on_after_node_call(node, response, validation_result)
-  │
   ├── validation = node.validate_output(response)
   │     ├── check required_tool_calls
   │     ├── check required_output_schema
   │     └── call validation_fn (if set)
+  │
+  ├── if valid → break
+  │
+  ├── AgentMonitor.on_after_node_call(node, response, validation_result)
   │
   ├── if invalid:
   │     ├── build retry continuation (custom or default)
@@ -155,6 +157,7 @@ class AgentMonitor(Protocol):
     """Higher-level hook wrapping node monitor behavior.
 
     Provides loop-level observation across all nodes.
+    # NOTE: AgentMonitor delegates to NodeMonitor. Implementation wraps node monitor if configured.
     """
 
     def on_before_node_call(
@@ -202,7 +205,6 @@ failure_entry = SessionContextEntry(
     content=f"[RETRY_EXHAUSTED] Node {self.node_id} failed after {max_attempts} attempts. "
             f"Errors: {'; '.join(validation.errors)}",
     segment="output",
-    metadata={"node_id": self.node_id, "exhausted": True},
 )
 self.session.session_context.append(failure_entry)
 ```
@@ -234,12 +236,12 @@ class ProcessNode(Node):
             # Validate
             validation = self.validate_output(last_response)
 
-            # Hook: after LLM call
-            if monitor is not None:
-                _safe_call(monitor.on_after_node_call, ...)
-
             if validation.is_valid:
                 break
+
+            # Hook: after LLM call (after validation so it receives the actual validation result)
+            if monitor is not None:
+                _safe_call(monitor.on_after_node_call, ...)
 
             if attempt < max_attempts:
                 # Build retry continuation
@@ -386,6 +388,10 @@ def _safe_call(hook_method, *args, **kwargs):
 5. **Decision**: DecisionNode retries only the classification step, not the analysis step.
    - **Reason**: The analysis is an open-ended LLM call that produces content; validating it is subjective. The classification is a discrete label that can be validated against `classification_labels`. Retrying the analysis would be expensive and low-value.
    - **Alternatives Considered**: Retry both steps — rejected for cost/complexity.
+
+6. **Decision**: `AgentMonitor` wraps `NodeMonitor` — the loop calls `AgentMonitor` which delegates to the configured `NodeMonitor` if present.
+   - **Reason**: Keeps the monitoring hierarchy simple. The loop only needs to call `AgentMonitor` at lifecycle points; `AgentMonitor` is responsible for forwarding to `NodeMonitor` if one is configured. Avoids the loop managing both hooks independently.
+   - **Alternatives Considered**: Independent hooks — rejected because it would require the loop to coordinate both hooks and manage fallback logic.
 
 ---
 
