@@ -49,13 +49,13 @@ Define the integration tests that prove the feature works. These are written FIR
 """Integration tests for QueryAnalyst → InformationDigester → Worker → TaskCreate flow."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.config.node_config import NodeConfigBase
 
@@ -66,7 +66,6 @@ def test_query_analyst_spawns_digester_before_worker():
     query_analyst = TinyCUAQueryAnalystNode(
         node_id="qa", config=NodeConfigBase()
     )
-    worker = TinyCUAWorkerNode(node_id="worker", config=NodeConfigBase())
     response = ResponseNode()
     queue.items = [query_analyst, response]
 
@@ -74,15 +73,17 @@ def test_query_analyst_spawns_digester_before_worker():
     session = Session()
     query_analyst.session = session
 
-    # Mock _route_worker to capture the queue state
-    with patch.object(query_analyst, '_route_worker') as mock_route:
-        mock_route.side_effect = lambda input: queue.spawn_after_current([
-            TinyCUAInformationDigesterNode(
-                node_id="digester", config=NodeConfigBase()
-            ),
-            worker,
-        ])
-        mock_route("test input")
+    # Set queue reference so _route_worker can call spawn_after_current
+    query_analyst._queue = queue
+
+    # Create a NodeInput simulating a worker route with user query
+    input_data = NodeInput(
+        input_type="worker",
+        messages=[{"role": "user", "content": "Create a plan for the migration"}],
+    )
+
+    # Call the actual _route_worker (NOT mocked) — exercises real code path
+    query_analyst._route_worker(input_data)
 
     # Queue should have: query_analyst, digester, worker, response
     assert len(queue.items) == 4
@@ -226,6 +227,7 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 ### Automated Tests
 
 - [x] Integration tests (defined above) — these must pass for implementation to be complete
+    > **NOTE**: The test code block above contains unit-level tests for individual components. Full end-to-end integration tests (using MockLLM to simulate the full QueryAnalyst → InformationDigester → Worker → TaskCreate pipeline) should be written as a separate test file during the Testing Phase. These are listed in the spec testing plan and have been added to task.md.
 - [ ] Unit tests for DigestedInformation model — test all fields, fallback(), has_useful_context
 - [ ] Unit tests for QueryAnalyst worker route — test spawn logic, dedup, fresh session
 - [ ] Unit tests for WorkerNode — test _get_digested_input(), propagate()
@@ -278,7 +280,7 @@ def test_query_analyst_no_duplicate_digest_when_already_exists():
 
 ### Loops — TaskCreate
 
-#### [MODIFY] `tinycua/loops/task_create.py` (new file — or modify if existing)
+#### [NEW] `tinycua/loops/task_create.py` (NEW file)
 
 - **Description of change**: `TinyCUATaskCreateNode` (ProcessNode) updated to accept and use DigestedInformation from WorkerNode's propagate() output in `build_messages()`.
 - **Dependencies**: Depends on `DigestedInformation`
@@ -349,7 +351,7 @@ No new external dependencies.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| InformationDigesterNode failure blocks worker path | High | Fallback DigestedInformation ensures Worker always has valid input (original query preserved) |
+| InformationDigesterNode failure blocks worker path | High | InformationDigesterNode failure — the digester uses record_failure retry policy, producing DigestedInformation.fallback() directly. QueryAnalyst worker route handler checks for fallback and proceeds normally. |
 | Digest deduplication misses edge cases | Medium | Conservative approach: check session_context for any existing DigestedInformation entry |
 | InformationDigesterNode session lifecycle conflicts | Medium | Fresh session with lazy root context access via enhanced_context_retrieval |
 | WorkerNode backwards compatibility | Medium | DigestedInformation.original_query preserves the raw query; fallback to session input_context |
