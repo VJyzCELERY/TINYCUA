@@ -33,7 +33,7 @@ Provides a `TinyCUAAgent` adapter that implements WildClawBench's `BaseAgent` in
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.12+, uv
+- [x] **Runtime**: Python 3.10+, uv
 - [x] **Package manager**: uv
 - [x] **None** — no special tooling required
 
@@ -310,6 +310,8 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
 - [ ] **Scenario 6**: `run_task` creates transcript.jsonl and agent.log in output_dir — covers acceptance scenario #4
 - [ ] **Edge case**: `collect_usage` with missing transcript returns zeroed values
 - [ ] **Edge case**: `run_task` creates output dir and workspace if they don't exist
+
+> These scenarios are implemented as both integration tests (above) and unit tests (see task.md Phase 3 — Unit Tests).
 
 ## Verification Plan
 

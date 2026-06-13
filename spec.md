@@ -59,7 +59,7 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 - What happens when the output directory is not writable? `run_task()` returns an error before spawning the subprocess.
 - What happens when the subprocess is killed by a signal? `run_task()` captures the signal and sets `error` appropriately.
 - What happens when `collect_usage()` is called before `run_task()`? Returns a dict with zeroed usage values.
-- What happens when `models_config` or `lobster` fields are provided in `AgentTaskSpec`? They are ignored for now (local model only), but logged for future reference.
+- What happens when `thinking`, `models_config`, or `lobster` fields are provided in `AgentTaskSpec`? They are ignored for now (local model only), but logged for future reference.
 
 ---
 
@@ -83,13 +83,15 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 ### Key Entities
 
 - **TinyCUAAgent**: The adapter class implementing WildClawBench `BaseAgent`. Wraps the TinyCUA CLI/factory to run tasks in a subprocess.
-- **AgentTaskSpec**: WildClawBench-provided dataclass with `task_id`, `task`, `prompt`, `workspace_path`, `output_dir`, `timeout_seconds`, `model`, and optional fields (`thinking`, `models_config`, `lobster`).
+- **AgentTaskSpec**: WildClawBench-provided dataclass with `task_id`, `task` (WildClawBench task metadata dict, e.g., `{"type": "simple", "category": "coding"}`), `prompt`, `workspace_path`, `output_dir`, `timeout_seconds`, `model`, and optional fields (`thinking`, `models_config`, `lobster`).
 - **AgentExecution**: WildClawBench-provided dataclass returned by `run_task()` with `elapsed_time`, `error`, and optional process handles.
 - **Usage dict**: Dictionary returned by `collect_usage()` with request count, token count, and cost.
 
 ---
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
+
+> **Note**: These criteria will be checked off as implementation progresses. All are currently unchecked because implementation has not started.
 
 - [ ] **TinyCUAAgent class exists**: A `TinyCUAAgent` class is defined in `tinycua/wildclawbench/agent.py` (or equivalent path).
 - [ ] **BaseAgent interface implemented**: All abstract methods (`expects_gateway`, `transcript_container_path`, `run_task`, `collect_usage`) are implemented.
@@ -149,21 +151,21 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 
 1. **Should the adapter live inside `src/tinycua/` or in a separate package?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
-   - **Proposed Answer**: Inside `src/tinycua/tinycua/wildclawbench/` as a subpackage, keeping the adapter code co-located with the agent it wraps.
+   - **Status**: Resolved — see design.md Decision #2
+   - **Answer**: Inside `src/tinycua/tinycua/wildclawbench/` as a subpackage, keeping the adapter code co-located with the agent it wraps.
 
 2. **Should `run_task()` use the CLI entry point (`tinycua run`) or call `create_tinycua_agent()` directly?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Proposed
-   - **Proposed Answer**: Use the CLI entry point (`tinycua run`) as a subprocess, because WildClawBench expects process-level isolation and the CLI already handles timeout, workspace, output, and transcript writing. This matches how other WildClawBench backends work.
+   - **Status**: Resolved — see design.md Decision #1
+   - **Answer**: Use the CLI entry point (`tinycua run`) as a subprocess, because WildClawBench expects process-level isolation and the CLI already handles timeout, workspace, output, and transcript writing. This matches how other WildClawBench backends work.
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details beyond what the design docs specify
-- [ ] All mandatory sections completed
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
-- [ ] Exit criteria match Milestone 5.2 from the roadmap issue
+- [x] No implementation details beyond what the design docs specify
+- [x] All mandatory sections completed
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
+- [x] Exit criteria match Milestone 5.2 from the roadmap issue

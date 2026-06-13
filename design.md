@@ -72,7 +72,7 @@ from typing import Any
 @dataclass(frozen=True)
 class AgentTaskSpec:
     task_id: str
-    task: dict[str, Any]
+    task: dict[str, Any]  # WildClawBench task metadata (type, category, etc.) — not used by adapter, logged for debugging
     workspace_path: str
     prompt: str
     timeout_seconds: int
@@ -347,30 +347,7 @@ def collect_usage(self, task_id: str, output_dir: Path, elapsed_time: float) -> 
 
 ## Implementation Phases
 
-### Phase 1 — Core Adapter (required)
-
-- [ ] Create `tinycua/wildclawbench/__init__.py`
-- [ ] Create `tinycua/wildclawbench/base_agent.py` with local `BaseAgent`, `AgentTaskSpec`, `AgentExecution` copies
-- [ ] Create `tinycua/wildclawbench/agent.py` with `TinyCUAAgent` implementing `BaseAgent`
-- [ ] Implement `run_task()` with subprocess spawning, timeout handling, and error reporting
-- [ ] Implement `collect_usage()` with transcript parsing
-- [ ] Implement `prepare_grading_transcript()` returning `transcript_container_path`
-
-### Phase 2 — Tests (required)
-
-- [ ] Unit tests for `TinyCUAAgent` properties (`expects_gateway`, `transcript_container_path`)
-- [ ] Unit tests for `run_task()` subprocess command construction
-- [ ] Unit tests for `run_task()` timeout handling
-- [ ] Unit tests for `run_task()` error handling (binary not found, non-zero exit)
-- [ ] Unit tests for `collect_usage()` transcript parsing
-- [ ] Unit tests for `collect_usage()` missing transcript file
-- [ ] Integration test with mock task spec
-
-### Phase 3 — Enhancements _(post-MVP)_
-
-- [ ] Support for `models_config` and `lobster` fields from `AgentTaskSpec`
-- [ ] Structured usage parsing from TinyCUA log entries (not just transcript)
-- [ ] Support for multiple model fallback configurations
+Implementation tracking is maintained in `task.md`. The phases defined there (TDD → Implementation → Testing → Verification → Documentation → Review) serve as the single source of truth for implementation progress.
 
 > **Note**: Phase 3 must NOT be implemented until Phase 2 is complete and reviewed.
 
