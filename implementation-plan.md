@@ -18,7 +18,7 @@ This implementation plan covers two related milestones:
 |----|-------------|------|------|
 | FR-001 | `stream=True` returns async iterator of event dicts | id:4 (lifecycle events in `_run_stream`) | `test_lifecycle_events_emitted` |
 | FR-002 | `stream=False` returns final string response | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string` (existing) |
-| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`) | `test_lifecycle_events_emitted` |
+| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`, `node.retry`) | `test_lifecycle_events_emitted` |
 | FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
 | FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
 | FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_emit_internal_events_suppression` |
@@ -288,6 +288,7 @@ async def test_lifecycle_events_emitted():
 
     lifecycle_types = [e["type"] for e in events if e["type"].startswith("node.")]
     assert "node.started" in lifecycle_types
+    assert "node.llm_call" in lifecycle_types
     assert "node.completed" in lifecycle_types
 
 
@@ -429,7 +430,7 @@ async def test_transcript_serialization():
 
 #### Streaming and Transcript Events (Milestone 4.4)
 
-- [ ] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.completed`) work correctly
+- [ ] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.llm_call`, `node.completed`) work correctly
 - [ ] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
 - [ ] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
 - [ ] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
@@ -524,8 +525,10 @@ async def test_transcript_serialization():
 - **Breaking changes**: None (streaming behavior enhanced, non-streaming unchanged)
 - **Specific changes**:
   - Emit `node.started` event before `agent._call_llm()`
+  - Emit `node.llm_call` event after `agent._call_llm()` call starts
   - Emit `node.completed` event after LLM call completes
   - Emit `node.error` event on exception during node execution
+  - Add `attempt` tracking for retry scenarios
   - Apply `final_response_only` filter to suppress intermediate node events
   - Apply `include_node_metadata` to enrich events with node info
   - Apply `emit_internal_events` to control lifecycle event emission
