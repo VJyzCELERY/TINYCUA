@@ -395,8 +395,9 @@ def collect_usage(self, task_id: str, output_dir: Path, elapsed_time: float) -> 
    - **Alternatives Considered**: Separate usage JSON file — rejected because it adds complexity and the transcript already has the data.
 
 5. **Decision**: `transcript_container_path` returns `/tmp_workspace/results/transcript.jsonl`.
-   - **Reason**: WildClawBench tasks run in Docker with `/tmp_workspace` as the standard workspace. The transcript is written to the results subdirectory by the existing CLI.
-   - **Alternatives Considered**: Configurable path — deferred to post-MVP; the default path works for all standard WildClawBench tasks.
+    - **Reason**: WildClawBench tasks run in Docker with `/tmp_workspace` as the standard workspace. The transcript is written to the results subdirectory by the existing CLI. This path is used by `prepare_grading_transcript()` and is the Docker-container-relative path that WildClawBench uses to locate the transcript.
+    - **Relationship to `collect_usage()`**: `collect_usage()` receives `output_dir` as a parameter and reads from `output_dir / "transcript.jsonl"` — this is the local filesystem path where the CLI writes the transcript. In the WildClawBench Docker context, `output_dir` maps to the container path, so both paths resolve to the same file. Locally, `collect_usage()` uses the local `output_dir` directly, which is correct.
+    - **Alternatives Considered**: Configurable path — deferred to post-MVP; the default path works for all standard WildClawBench tasks.
 
 ---
 

@@ -251,6 +251,38 @@ def test_collect_usage_missing_transcript_returns_zeroed(tmp_path):
     assert usage["cost"] == 0.0
 
 
+def test_run_task_creates_transcript_and_log(task_spec, monkeypatch):
+    """Verify run_task creates transcript.jsonl and agent.log in output_dir after execution."""
+    output_dir = Path(task_spec.output_dir)
+
+    def mock_popen(cmd, **kwargs):
+        # Simulate CLI writing transcript and log files
+        transcript = output_dir / "transcript.jsonl"
+        log = output_dir / "agent.log"
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text('{"type": "llm.request", "usage": {"total_tokens": 10}}\n')
+        log.write_text("task completed\n")
+
+        class MockProc:
+            returncode = 0
+            def communicate(self, timeout=None):
+                return (b"", b"")
+            def kill(self):
+                pass
+            def wait(self):
+                pass
+        return MockProc()
+
+    monkeypatch.setattr(subprocess, "Popen", mock_popen)
+
+    agent = TinyCUAAgent()
+    execution = agent.run_task(task_spec)
+
+    assert execution.error is None
+    assert (output_dir / "transcript.jsonl").exists()
+    assert (output_dir / "agent.log").exists()
+
+
 def test_run_task_creates_workspace(task_spec, monkeypatch):
     """Verify run_task creates workspace directory if it doesn't exist."""
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: type(
@@ -275,6 +307,7 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
 - [ ] **Scenario 3**: `run_task` handles timeout — proves subprocess is killed and error returned
 - [ ] **Scenario 4**: `run_task` handles binary not found — proves graceful error reporting
 - [ ] **Scenario 5**: `collect_usage` parses transcript — proves usage extraction works
+- [ ] **Scenario 6**: `run_task` creates transcript.jsonl and agent.log in output_dir — covers acceptance scenario #4
 - [ ] **Edge case**: `collect_usage` with missing transcript returns zeroed values
 - [ ] **Edge case**: `run_task` creates output dir and workspace if they don't exist
 
@@ -283,6 +316,7 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
 ### Automated Tests
 
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Integration test: `test_run_task_creates_transcript_and_log` — covers acceptance scenario #4
 - [ ] Unit tests for `TinyCUAAgent` properties (`expects_gateway`, `transcript_container_path`)
 - [ ] Unit tests for `run_task()` subprocess command construction
 - [ ] Unit tests for `run_task()` timeout handling

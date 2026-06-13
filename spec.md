@@ -71,10 +71,10 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 - **FR-002**: `expects_gateway` MUST return `False`.
 - **FR-003**: `transcript_container_path` MUST return a string path to the transcript JSONL file inside the runtime container.
 - **FR-004**: `run_task(spec: AgentTaskSpec) -> AgentExecution` MUST spawn a subprocess running `tinycua run <spec.prompt>` with the timeout, workspace, and output directory from the spec.
-- **FR-005**: `run_task()` MUST set `os.chdir(spec.workspace_path)` or equivalent before agent execution, so the agent operates in the task workspace.
+- **FR-005**: `run_task()` MUST set the working directory for the subprocess (e.g., via `Popen`'s `cwd` parameter) to `spec.workspace_path` before agent execution, so the agent operates in the task workspace.
 - **FR-006**: `run_task()` MUST terminate the subprocess if it exceeds `spec.timeout_seconds` and return an `AgentExecution` with `error` set.
 - **FR-007**: `run_task()` MUST return an `AgentExecution` with `elapsed_time` set to the wall-clock time of the task execution.
-- **FR-008**: `collect_usage(task_id, output_dir, elapsed_time) -> dict` MUST return a dict with at minimum `{"requests": int, "total_tokens": int | None, "cost": float}`.
+- **FR-008**: `collect_usage(task_id, output_dir, elapsed_time) -> dict` MUST return a dict with at minimum `{"requests": int, "total_tokens": int | None, "cost": float}`. For local model endpoints, `cost` MUST return `0.0`.
 - **FR-009**: `prepare_grading_transcript(task_id) -> str` MUST return the `transcript_container_path` value.
 - **FR-010**: The adapter MUST use the model configuration from `spec.model` and `spec.models_config` (or fall back to environment variables / defaults).
 - **FR-011**: The adapter MUST ensure the output directory exists before execution and write `agent.log` and `transcript.jsonl` there.
@@ -134,14 +134,14 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUAAgent class definition | TODO | New module |
+| TinyCUAAgent class definition | TODO | New module — see design.md |
 | BaseAgent interface implementation | TODO | Depends on class definition |
-| Subprocess spawning logic | TODO | Core run_task implementation |
-| Timeout handling | TODO | threading.Timer or subprocess timeout |
-| Usage collection | TODO | Parse from log/transcript |
-| Transcript path management | TODO | Return correct container path |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| Subprocess spawning logic | TODO | Core run_task implementation — see design.md Decision #1 |
+| Timeout handling | TODO | Popen communicate(timeout=) — see design.md Decision #3 |
+| Usage collection | TODO | Transcript JSONL parsing — see design.md Decision #4 |
+| Transcript path management | TODO | See design.md Decision #5; tracking continues in task.md |
+| Unit tests | TODO | See implementation-plan.md |
+| Integration tests | TODO | See implementation-plan.md |
 
 ---
 
