@@ -29,6 +29,7 @@ class DigestInformationTool(Tool):
 
         Args:
             information: The raw information to digest.
+            **kwargs: Additional keyword arguments (ignored).
 
         Returns:
             A dict containing the structured digest.

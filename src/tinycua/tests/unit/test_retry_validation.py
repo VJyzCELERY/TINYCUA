@@ -205,7 +205,7 @@ class TestHandleExhaustion:
         })
         validation = ValidationResult(is_valid=False, errors=["fail"])
         with pytest.raises(NodeExecutionError, match="Retry exhausted"):
-            node._handle_exhaustion(validation, 2, [])
+            node._handle_exhaustion(validation, 2)
 
     def test_record_failure_policy(self):
         """record_failure policy writes to session."""
@@ -216,7 +216,7 @@ class TestHandleExhaustion:
             ),
         })
         validation = ValidationResult(is_valid=False, errors=["fail"])
-        node._handle_exhaustion(validation, 2, [])
+        node._handle_exhaustion(validation, 2)
         contents = [e.content for e in node.session.session_context]
         assert any("RETRY_EXHAUSTED" in c for c in contents)
 
@@ -229,7 +229,7 @@ class TestHandleExhaustion:
             ),
         })
         validation = ValidationResult(is_valid=False, errors=["fail"])
-        node._handle_exhaustion(validation, 2, [])
+        node._handle_exhaustion(validation, 2)
         # Should have recorded failure as fallback
         contents = [e.content for e in node.session.session_context]
         assert any("RETRY_EXHAUSTED" in c for c in contents)
@@ -261,4 +261,4 @@ class TestRecordFailure:
         })
         validation = ValidationResult(is_valid=False, errors=["fail"])
         with pytest.raises(NodeExecutionError, match="Retry exhausted"):
-            node._handle_exhaustion(validation, 1, [])
+            node._handle_exhaustion(validation, 1)

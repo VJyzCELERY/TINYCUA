@@ -100,7 +100,10 @@ class NodeMonitor(Protocol):
             session_id: The node's session ID.
             attempt: Current attempt number (1-indexed).
             messages: LLM-bound messages.
-            resolved_tools: Tools available for this call.
+            resolved_tools: Tools available for this call. At the node level
+                this is always an empty list (``[]``); actual resolved tools
+                are passed to ``AgentMonitor.on_before_node_call`` at the
+                loop level.
 
         Returns:
             Optional assistant-role continuation message to include
@@ -370,16 +373,6 @@ class DecisionNode(ProcessNode):
             # Validate classification label
             label = classification_response.content.strip().lower()
             if any(l.lower() in label for l in self.classification_labels):
-                # Valid label — fire success after-hook
-                if self.config.monitor is not None:
-                    self._safe_call(
-                        self.config.monitor.on_after_node_call,
-                        self.node_id,
-                        self.session.session_id,
-                        attempt,
-                        classification_response,
-                        ValidationResult(is_valid=True, errors=[]),
-                    )
                 break
 
             # Fire NodeMonitor after-hook (validation failed)
