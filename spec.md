@@ -142,7 +142,7 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 | Timeout handling | DONE | communicate(timeout=) + exit code 124 |
 | Usage collection | DONE | Transcript JSONL parsing in collect_usage() |
 | Transcript path management | DONE | Returns /tmp_workspace/results/transcript.jsonl |
-| Unit tests | DONE | 18 tests — test_wildclawbench_agent.py |
+| Unit tests | DONE | 19 tests — test_wildclawbench_agent.py |
 | Integration tests | DONE | 13 tests — test_wildclawbench_integration.py |
 
 ---
