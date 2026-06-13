@@ -13,7 +13,11 @@ from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_even
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
+from tinycua.loops.propagation import (
+    PropagationRule,
+    finalize_terminal_output,
+    propagate_on_termination,
+)
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.session import Session
 
@@ -135,7 +139,11 @@ class TinyCUALoop(BaseLoop):
 
             node_input = self.queue.input_for_current()
             content = await self._execute_node(
-                node, agent, tools, override_instructions, node_input,
+                node,
+                agent,
+                tools,
+                override_instructions,
+                node_input,
             )
             last_content = content
 
@@ -187,6 +195,7 @@ class TinyCUALoop(BaseLoop):
         """
         if content:
             from tinycua.models.chat_record import ChatRecord
+
             self.root_session.chat_history.append(
                 ChatRecord(
                     role="assistant",
@@ -211,7 +220,6 @@ class TinyCUALoop(BaseLoop):
         node_type: str,
         attempt: int,
         emit_lifecycle: bool,
-        include_meta: bool,
         final_only: bool,
         is_terminal_node: bool,
         content: str | None = None,
@@ -225,7 +233,6 @@ class TinyCUALoop(BaseLoop):
             node_type: Class name of the node.
             attempt: Current attempt number.
             emit_lifecycle: Whether lifecycle events are enabled.
-            include_meta: Whether to include node metadata.
             final_only: Whether only terminal node events should emit.
             is_terminal_node: Whether this is a terminal node.
             content: Optional content for completed/error events.
@@ -245,8 +252,6 @@ class TinyCUALoop(BaseLoop):
             content=content,
             finish_reason=finish_reason,
         )
-        if include_meta:
-            enrich_stream_event(event, node_id, node_type, attempt)
         if final_only and not is_terminal_node:
             return None
         return event
@@ -256,7 +261,6 @@ class TinyCUALoop(BaseLoop):
         node_id: str,
         node_type: str,
         attempt: int,
-        include_meta: bool,
     ) -> dict[str, Any]:
         """Create a node.error lifecycle event, bypassing final_only gate.
 
@@ -267,18 +271,41 @@ class TinyCUALoop(BaseLoop):
             node_id: The node identifier.
             node_type: Class name of the node.
             attempt: Current attempt number.
-            include_meta: Whether to include node metadata.
 
         Returns:
             The error lifecycle event dict.
         """
-        event = make_lifecycle_event(
+        return make_lifecycle_event(
             event_type="node.error",
             node_id=node_id,
             node_type=node_type,
             attempt=attempt,
             finish_reason="error",
         )
+
+    def _enrich_and_yield(
+        self,
+        event: dict[str, Any],
+        include_meta: bool,
+        node_id: str,
+        node_type: str,
+        attempt: int,
+    ) -> dict[str, Any]:
+        """Enrich a stream event with metadata if policy allows, then return it.
+
+        Single centralized enrichment point — replaces scattered
+        ``enrich_stream_event`` calls across lifecycle, delta, and error paths.
+
+        Args:
+            event: The stream event dict to enrich.
+            include_meta: Whether metadata enrichment is enabled.
+            node_id: ID of the node.
+            node_type: Class name of the node.
+            attempt: Current attempt number.
+
+        Returns:
+            The enriched event dict.
+        """
         if include_meta:
             enrich_stream_event(event, node_id, node_type, attempt)
         return event
@@ -365,7 +392,9 @@ class TinyCUALoop(BaseLoop):
                 node._queue = self.queue
 
             messages, resolved_tools = self._prepare_node(
-                node, tools, override_instructions,
+                node,
+                tools,
+                override_instructions,
             )
 
             # Determine policy settings for this node
@@ -379,54 +408,105 @@ class TinyCUALoop(BaseLoop):
 
             # Emit node.started lifecycle event
             started = self._emit_lifecycle_event(
-                "node.started", node.node_id, node_type, attempt,
-                emit_lifecycle, include_meta, final_only, is_terminal_node,
+                "node.started",
+                node.node_id,
+                node_type,
+                attempt,
+                emit_lifecycle,
+                final_only,
+                is_terminal_node,
             )
             if started is not None:
-                yield started
+                yield self._enrich_and_yield(
+                    started,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
 
             # Emit node.llm_call lifecycle event
             llm_call = self._emit_lifecycle_event(
-                "node.llm_call", node.node_id, node_type, attempt,
-                emit_lifecycle, include_meta, final_only, is_terminal_node,
+                "node.llm_call",
+                node.node_id,
+                node_type,
+                attempt,
+                emit_lifecycle,
+                final_only,
+                is_terminal_node,
             )
             if llm_call is not None:
-                yield llm_call
+                yield self._enrich_and_yield(
+                    llm_call,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
 
             # Stream from agent._call_llm() and yield events
             content_parts: list[str] = []
             collected_tool_calls: list[dict[str, Any]] = []
             try:
-                async for event in agent._call_llm(messages, resolved_tools, stream=True):  # type: ignore[arg-type]
+                async for event in agent._call_llm(
+                    messages, resolved_tools, stream=True
+                ):  # type: ignore[arg-type]
                     if event.get("type") == "response.output_text.delta":
                         content_parts.append(event.get("delta", ""))
                     if event.get("type") == "response.tool_call":
                         collected_tool_calls.append(event)
-                    if include_meta:
-                        enrich_stream_event(event, node.node_id, node_type, attempt)
+                    self._enrich_and_yield(
+                        event,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
                     if not final_only or is_terminal_node:
                         yield event
             except Exception:
-                if emit_lifecycle:
-                    yield self._make_error_event(
-                        node.node_id, node_type, attempt, include_meta,
-                    )
+                error_event = self._make_error_event(
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
+                yield self._enrich_and_yield(
+                    error_event,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
                 raise
 
             # Finalize node: record output, fire hooks, propagate
             combined = self._finalize_streamed_node(
-                node, content_parts, collected_tool_calls,
+                node,
+                content_parts,
+                collected_tool_calls,
             )
 
             # Emit node.completed lifecycle event
             finish_reason = "completed" if combined else "empty"
             completed = self._emit_lifecycle_event(
-                "node.completed", node.node_id, node_type, attempt,
-                emit_lifecycle, include_meta, final_only, is_terminal_node,
-                content=combined, finish_reason=finish_reason,
+                "node.completed",
+                node.node_id,
+                node_type,
+                attempt,
+                emit_lifecycle,
+                final_only,
+                is_terminal_node,
+                content=combined,
+                finish_reason=finish_reason,
             )
             if completed is not None:
-                yield completed
+                yield self._enrich_and_yield(
+                    completed,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -473,7 +553,9 @@ class TinyCUALoop(BaseLoop):
             node._queue = self.queue
 
         messages, resolved_tools = self._prepare_node(
-            node, tools, override_instructions,
+            node,
+            tools,
+            override_instructions,
         )
 
         # Fire agent_monitor before-hook (if configured)
@@ -601,23 +683,32 @@ class TinyCUALoop(BaseLoop):
             dedupe = node.config.message_policy.dedupe_by_origin_record_id
             if dedupe:
                 messages.extend(
-                    build_messages_with_dedupe(self.root_session, dedupe_by_origin_record_id=True)
+                    build_messages_with_dedupe(
+                        self.root_session, dedupe_by_origin_record_id=True
+                    )
                 )
             else:
                 for m in self.root_session.session_context:
                     if isinstance(m, dict):
-                        messages.append({
-                            "role": m.get("role", "user"),
-                            "content": str(m.get("content", "")),
-                        })
+                        messages.append(
+                            {
+                                "role": m.get("role", "user"),
+                                "content": str(m.get("content", "")),
+                            }
+                        )
                     else:
-                        messages.append({
-                            "role": "user",
-                            "content": str(m.content),
-                        })
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": str(m.content),
+                            }
+                        )
 
         # Add chat history if policy says so
-        if node.config.message_policy.include_chat_history and self.root_session.chat_history:
+        if (
+            node.config.message_policy.include_chat_history
+            and self.root_session.chat_history
+        ):
             messages.extend(
                 {
                     "role": m.role,

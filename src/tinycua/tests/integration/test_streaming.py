@@ -196,3 +196,59 @@ async def test_transcript_serialization():
         assert restored["run_id"] == "test-run"
         assert restored["session_id"] == "test-session"
         assert restored["event"] == original_record.event
+
+
+async def test_error_event_emitted_on_node_failure():
+    """Verify node.error event is yielded when _call_llm raises (FR-003)."""
+    stub = StubNode("fail node")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    async def bad_gen(*a, **kw):
+        raise RuntimeError("LLM failure")
+        yield  # pragma: no cover
+
+    agent._call_llm = bad_gen
+    collected = []
+    try:
+        result = await loop.run(agent=agent, messages=[], tools=[], stream=True)
+        async for event in result:
+            collected.append(event)
+    except RuntimeError:
+        pass
+    error_events = [e for e in collected if e.get("type") == "node.error"]
+    assert len(error_events) > 0
+    assert error_events[0]["finish_reason"] == "error"
+
+
+async def test_error_event_always_emitted_regardless_of_policy():
+    """Verify node.error events are emitted even when emit_internal_events=False."""
+    policy = NodeStreamPolicy(emit_internal_events=False)
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("fail node")
+    stub.config = config
+    terminal = ResponseNode()
+    terminal.config = config
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    async def bad_gen(*a, **kw):
+        raise RuntimeError("LLM failure")
+        yield  # pragma: no cover
+
+    agent._call_llm = bad_gen
+    collected = []
+    try:
+        result = await loop.run(agent=agent, messages=[], tools=[], stream=True)
+        async for event in result:
+            collected.append(event)
+    except RuntimeError:
+        pass
+    error_events = [e for e in collected if e.get("type") == "node.error"]
+    assert len(error_events) > 0
+    assert error_events[0]["finish_reason"] == "error"

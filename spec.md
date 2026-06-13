@@ -251,12 +251,12 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 | NodeMonitor protocol/interface | TODO | Define trigger points and args |
 | AgentMonitor protocol/interface | TODO | Loop-level observation |
 | Monitor hook integration in retry loop | TODO | Call hooks at lifecycle points |
-| StreamEvent model | TODO | Structured event dict with type, node_id, timestamp |
-| LifecycleEvent hooks | TODO | node.started, node.llm_call, node.completed, node.error, node.retry |
-| NodeStreamPolicy enforcement | TODO | Apply final_response_only, emit_internal_events |
-| TranscriptRecord serialization | TODO | JSONL-compatible event records |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| StreamEvent model | DONE | Structured event dict with type, node_id, timestamp |
+| LifecycleEvent hooks | DONE | node.started, node.llm_call, node.completed, node.error emitted. `node.retry` defined in Literal type but not yet emitted — will be added when retry logic is implemented in a future milestone |
+| NodeStreamPolicy enforcement | DONE | Apply final_response_only, emit_internal_events |
+| TranscriptRecord serialization | DONE | JSONL-compatible event records |
+| Unit tests | DONE | Cover all streaming and lifecycle scenarios |
+| Integration tests | DONE | Multi-node streaming end-to-end |
 
 ---
 

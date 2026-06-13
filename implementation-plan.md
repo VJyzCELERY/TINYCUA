@@ -18,7 +18,7 @@ This implementation plan covers two related milestones:
 |----|-------------|------|------|
 | FR-001 | `stream=True` returns async iterator of event dicts | id:4 (lifecycle events in `_run_stream`) | `test_lifecycle_events_emitted` |
 | FR-002 | `stream=False` returns final string response | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string` (existing) |
-| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`, `node.retry`) | `test_lifecycle_events_emitted` |
+| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`; `node.retry` deferred) | `test_lifecycle_events_emitted` |
 | FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
 | FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
 | FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_emit_internal_events_suppression` |
@@ -430,11 +430,11 @@ async def test_transcript_serialization():
 
 #### Streaming and Transcript Events (Milestone 4.4)
 
-- [ ] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.llm_call`, `node.completed`) work correctly
-- [ ] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
-- [ ] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
-- [ ] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
-- [ ] **Scenario 5**: `emit_internal_events` suppression — proves lifecycle events are suppressed when `emit_internal_events=False` (FR-006)
+- [x] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.llm_call`, `node.completed`) work correctly
+- [x] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
+- [x] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
+- [x] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
+- [x] **Scenario 5**: `emit_internal_events` suppression — proves lifecycle events are suppressed when `emit_internal_events=False` (FR-006)
 
 > **Note**: Basic `stream=False` returns string and `stream=True` returns async iterator contract tests already exist in `test_tinycua_loop_integration.py` (`test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator`).
 
@@ -442,7 +442,7 @@ async def test_transcript_serialization():
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for `validate_output()` with custom `validation_fn`
 - [ ] Unit tests for `_build_retry_text()` with custom builder
 - [ ] Unit tests for `_handle_exhaustion()` with all three policies
@@ -451,23 +451,23 @@ async def test_transcript_serialization():
 - [ ] Unit tests for `AgentMonitor` and `NodeMonitor` independent hook behavior
   - Run integration tests only: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
   - Run full suite: `cd src/tinycua && uv run pytest`
-- [ ] Unit tests for `StreamEvent` model creation and validation
-- [ ] Unit tests for `make_lifecycle_event()` and `enrich_stream_event()` helpers
-- [ ] Unit tests for `NodeStreamPolicy` enforcement in `_run_stream()`
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Unit tests for `StreamEvent` model creation and validation
+- [x] Unit tests for `make_lifecycle_event()` and `enrich_stream_event()` helpers
+- [x] Unit tests for `NodeStreamPolicy` enforcement in `_run_stream()`
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
 - [ ] Verify monitor hooks do not write to `chat_history` or `session_context`
 - [ ] Verify `record_failure` propagation works with configured `PropagationRule.failure`
-- [ ] Verify stream events visually in a test harness that prints events as they arrive
-- [ ] Confirm lifecycle events appear at correct node boundaries in multi-node execution
+- [x] Verify stream events visually in a test harness that prints events as they arrive
+- [x] Confirm lifecycle events appear at correct node boundaries in multi-node execution
 
 ### Performance Considerations
 
 - [ ] Monitor hook overhead is negligible (optional, lightweight, exception-safe)
-- [ ] Events are yielded, not accumulated — consumer controls memory usage
-- [ ] No additional threading or async infrastructure needed
+- [x] Events are yielded, not accumulated — consumer controls memory usage
+- [x] No additional threading or async infrastructure needed
 
 ## Proposed Changes
 
