@@ -240,6 +240,17 @@ class ProcessNode(Node):
 
         last_response = None
         for attempt in range(1, max_attempts + 1):
+            # Fire NodeMonitor before-hook
+            if self.config.monitor is not None:
+                self._safe_call(
+                    self.config.monitor.on_before_node_call,
+                    self.node_id,
+                    self.session.session_id,
+                    attempt,
+                    messages,
+                    [],
+                )
+
             last_response = self._call_llm(messages)
 
             # Validate
@@ -248,14 +259,25 @@ class ProcessNode(Node):
             if validation.is_valid:
                 break
 
+            # Fire NodeMonitor after-hook (validation failed)
+            if self.config.monitor is not None:
+                self._safe_call(
+                    self.config.monitor.on_after_node_call,
+                    self.node_id,
+                    self.session.session_id,
+                    attempt,
+                    last_response,
+                    validation,
+                )
+
             if attempt < max_attempts:
                 # Build retry continuation
                 error = ValidationError("; ".join(validation.errors))
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append({"role": "assistant", "content": retry_text})
             else:
-                # Exhausted — handled by loop via AgentMonitor
-                self._handle_exhaustion(retry_policy, validation, max_attempts)
+                # Exhausted — handle per policy
+                self._handle_exhaustion(validation, max_attempts)
 
         self.record_output(last_response)
         self.propagate()
@@ -268,13 +290,23 @@ class ProcessNode(Node):
             return self.config.retry_policy.retry_continuation_builder(error, attempt)
         return self.build_retry_continuation(error, attempt)
 
-    def _handle_exhaustion(self, policy, validation, max_attempts):
+    def _handle_exhaustion(self, validation, max_attempts):
         """Handle retry exhaustion per policy."""
-        if policy.on_retry_exhausted == "raise":
+        # Fire monitor exhaustion hook
+        if self.config.monitor is not None:
+            self._safe_call(
+                self.config.monitor.on_retry_exhausted,
+                self.node_id,
+                self.session.session_id,
+                ValidationError("; ".join(validation.errors)),
+                max_attempts,
+            )
+
+        if self.config.retry_policy.on_retry_exhausted == "raise":
             raise NodeExecutionError(...)
-        elif policy.on_retry_exhausted == "record_failure":
+        elif self.config.retry_policy.on_retry_exhausted == "record_failure":
             self._record_failure(validation, max_attempts)
-        elif policy.on_retry_exhausted == "route_failure":
+        elif self.config.retry_policy.on_retry_exhausted == "route_failure":
             if not self._call_failure_route():
                 self._record_failure(validation, max_attempts)
 
@@ -286,6 +318,18 @@ class ProcessNode(Node):
         """Call on_complete failure route if defined. Returns True if called."""
         ...
 ```
+
+> **Loop-level AgentMonitor**: The `TinyCUALoop._execute_node()` method
+> independently calls `AgentMonitor` hooks at loop-level lifecycle points:
+> ```python
+> # In TinyCUALoop._execute_node():
+> if self.agent_monitor is not None:
+>     self.agent_monitor.on_before_node_call(node.node_id, ...)
+> # Then node executes — NodeMonitor fires within node.__call__()
+> if self.agent_monitor is not None:
+>     self.agent_monitor.on_after_node_call(node.node_id, ...)
+> ```
+> AgentMonitor and NodeMonitor are independent hooks — both fire when configured.
 
 ### Enhanced DecisionNode.__call__()
 
@@ -310,19 +354,51 @@ class DecisionNode(ProcessNode):
 
         classification_response = None
         for attempt in range(1, max_attempts + 1):
+            # Fire NodeMonitor before-hook
+            if self.config.monitor is not None:
+                self._safe_call(
+                    self.config.monitor.on_before_node_call,
+                    self.node_id,
+                    self.session.session_id,
+                    attempt,
+                    messages,
+                    [],
+                )
+
             classification_response = self._classification_call(messages, analysis_response)
 
             # Validate classification label
             label = classification_response.content.strip().lower()
             if any(l.lower() in label for l in self.classification_labels):
-                break  # Valid label
+                # Valid label — fire success after-hook
+                if self.config.monitor is not None:
+                    self._safe_call(
+                        self.config.monitor.on_after_node_call,
+                        self.node_id,
+                        self.session.session_id,
+                        attempt,
+                        classification_response,
+                        ValidationResult(is_valid=True, errors=[]),
+                    )
+                break
+
+            # Fire NodeMonitor after-hook (validation failed)
+            if self.config.monitor is not None:
+                self._safe_call(
+                    self.config.monitor.on_after_node_call,
+                    self.node_id,
+                    self.session.session_id,
+                    attempt,
+                    classification_response,
+                    ValidationResult(is_valid=False, errors=[f"Invalid classification: {label}"]),
+                )
 
             if attempt < max_attempts:
                 error = ValidationError(f"Invalid classification: {label}")
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append({"role": "assistant", "content": retry_text})
             else:
-                # Retry exhausted — handled by loop via AgentMonitor
+                # Retry exhausted — handled by NodeMonitor via _handle_exhaustion
                 pass
 
         route_label = self._dispatch_route(classification_response)

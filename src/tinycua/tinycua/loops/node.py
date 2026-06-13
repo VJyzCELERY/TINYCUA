@@ -390,7 +390,6 @@ class Node(ABC):
         self,
         validation: ValidationResult,
         max_attempts: int,
-        messages: list[dict[str, str]],
     ) -> None:
         """Handle retry exhaustion based on policy.
 
@@ -402,7 +401,6 @@ class Node(ABC):
         Args:
             validation: The final validation result.
             max_attempts: The maximum attempts that were allowed.
-            messages: The current message list (for monitor hook context).
 
         Raises:
             NodeExecutionError: If policy is ``raise``.
@@ -634,7 +632,7 @@ class ProcessNode(Node):
                 )
             else:
                 # Exhausted — handle per policy
-                self._handle_exhaustion(validation, max_attempts, messages)
+                self._handle_exhaustion(validation, max_attempts)
 
         assert last_response is not None  # noqa: S101
         self.record_output(last_response)
@@ -841,7 +839,7 @@ class DecisionNode(ProcessNode):
                 )
             else:
                 # Exhausted
-                self._handle_exhaustion(validation, max_attempts, messages)
+                self._handle_exhaustion(validation, max_attempts)
                 # If not raised, use fallback dispatch
                 route_label = self._dispatch_route(last_classification)
 
