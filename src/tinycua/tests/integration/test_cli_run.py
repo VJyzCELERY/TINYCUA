@@ -120,7 +120,7 @@ class TestCLIRunConfigLoading:
 class TestCLIRunExitCodes:
     """Verify exit codes for success, error, and timeout scenarios."""
 
-    def test_exit_code_0_on_success(self):
+    def test_exit_code_0_on_success(self, tmp_path):
         """Given a successful run, exit code is 0."""
         from tinycua.cli.run import run_command
 
@@ -137,14 +137,14 @@ class TestCLIRunExitCodes:
                 exit_code = run_command(
                     prompt="test task",
                     timeout=10,
-                    output_dir=Path("./tmp_test_out"),
-                    workspace=Path("./tmp_test_ws"),
+                    output_dir=tmp_path / "test_out",
+                    workspace=tmp_path / "test_ws",
                     base_url=None, api_key=None, model=None,
                     verbose=False,
                 )
                 assert exit_code == 0
 
-    def test_exit_code_1_on_error(self):
+    def test_exit_code_1_on_error(self, tmp_path):
         """Given an agent crash, exit code is 1."""
         from tinycua.cli.run import run_command
 
@@ -159,14 +159,14 @@ class TestCLIRunExitCodes:
                 exit_code = run_command(
                     prompt="test task",
                     timeout=10,
-                    output_dir=Path("./tmp_test_out"),
-                    workspace=Path("./tmp_test_ws"),
+                    output_dir=tmp_path / "test_out",
+                    workspace=tmp_path / "test_ws",
                     base_url=None, api_key=None, model=None,
                     verbose=False,
                 )
                 assert exit_code == 1
 
-    def test_exit_code_124_on_timeout(self):
+    def test_exit_code_124_on_timeout(self, tmp_path):
         """Given timeout exceeded, exit code is 124."""
         import asyncio
         from tinycua.cli.run import run_command
@@ -188,8 +188,8 @@ class TestCLIRunExitCodes:
                 exit_code = run_command(
                     prompt="test task",
                     timeout=1,  # 1 second timeout
-                    output_dir=Path("./tmp_test_out"),
-                    workspace=Path("./tmp_test_ws"),
+                    output_dir=tmp_path / "test_out",
+                    workspace=tmp_path / "test_ws",
                     base_url=None, api_key=None, model=None,
                     verbose=False,
                 )
@@ -215,7 +215,9 @@ class TestCLIRunTranscriptWriting:
         assert len(lines) == 3
         for line in lines:
             record = json.loads(line)
-            assert "role" in record
+            assert record.get("type") == "message"
+            assert "message" in record
+            assert "role" in record["message"]
 
 
 class TestCLIRunLogWriting:

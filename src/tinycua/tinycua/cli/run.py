@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import time
 import threading
 from pathlib import Path
@@ -15,6 +16,38 @@ from tinycua.cli.transcript import write_transcript
 from tinycua.factory import create_tinycua_agent
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async_safely(coro: object) -> object:
+    """Run an async coroutine safely, handling nested event loop cases.
+
+    In normal CLI invocation (python -m tinycua run), there is no running
+    event loop, so asyncio.run() works directly. If called from within an
+    existing async context (e.g., Jupyter, another framework), we run the
+    coroutine in a new thread with its own event loop to avoid nesting.
+
+    Args:
+        coro: The async coroutine to run.
+
+    Returns:
+        The result of the coroutine.
+    """
+    import concurrent.futures
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run()
+        return asyncio.run(coro)
+
+    # There's a running loop. We can't nest event loops directly.
+    # Run in a new thread with its own event loop.
+    def _run_in_new_loop() -> object:
+        return asyncio.run(coro)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(_run_in_new_loop)
+        return future.result()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -112,8 +145,19 @@ def run_command(
     else:
         logging.basicConfig(level=logging.INFO)
 
-    # Ensure output directory exists
+    # Ensure output directory exists and is writable
     output_dir.mkdir(parents=True, exist_ok=True)
+    _test_file = output_dir / ".write_test"
+    try:
+        _test_file.touch()
+        _test_file.unlink()
+    except OSError:
+        print(f"Output directory not writable: {output_dir}", flush=True)
+        return 1
+
+    # Ensure workspace directory exists before setting it as working dir (FR-011)
+    workspace.mkdir(parents=True, exist_ok=True)
+    os.chdir(workspace)
 
     log_path = output_dir / "agent.log"
     transcript_path = output_dir / "transcript.jsonl"
@@ -133,7 +177,11 @@ def run_command(
     })
 
     try:
-        agent = create_tinycua_agent()
+        agent = create_tinycua_agent(
+            base_url=config["base_url"],
+            api_key=config["api_key"],
+            model=config["model"],
+        )
     except Exception as e:
         write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
         print(f"Failed to create agent: {e}", flush=True)
@@ -153,7 +201,7 @@ def run_command(
     write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
 
     try:
-        result = asyncio.run(_run_agent_with_timeout(agent, prompt, timeout_event))
+        result = _run_async_safely(_run_agent_with_timeout(agent, prompt, timeout_event))
         elapsed = time.monotonic() - start_time
 
         if timeout_event.is_set():

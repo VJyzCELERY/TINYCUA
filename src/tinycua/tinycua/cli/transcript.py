@@ -20,4 +20,5 @@ def write_transcript(messages: list[dict], path: Path) -> None:
 
     with open(path, "w", encoding="utf-8") as f:
         for msg in messages:
-            f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+            record = {"type": "message", "message": msg}
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")

@@ -370,25 +370,14 @@ class TestCLIRunLogWriting:
 ## Data Model Changes
 
 ```python
-# tinycua/cli/config.py — load_config() returns a plain dict (NOT a RunConfig instance)
+# tinycua/cli/config.py — load_config() returns a plain dict
 # Keys: base_url, api_key, model (str)
 # Raises ValueError if base_url or api_key missing after env + CLI merge
-# Note: RunConfig dataclass is defined below for orchestration in run.py;
-# load_config() returns a dict for flexibility; RunConfig is constructed
-# later from the dict + CLI arguments.
 
-# tinycua/cli/run.py — RunConfig used for orchestration
-@dataclass
-class RunConfig:
-    """Configuration for a single tinycua run invocation."""
-    prompt: str                          # Required task prompt
-    timeout: int = 600                   # Max execution seconds
-    output_dir: Path = Path("/tmp_workspace/results")
-    workspace: Path = Path("/tmp_workspace")
-    base_url: str                        # OpenAI-compatible endpoint (required)
-    api_key: str                         # API key (required)
-    model: str = "llama3"                # Model identifier (default: llama3)
-    verbose: bool = False                # Debug logging
+# tinycua/cli/run.py — run_command() receives individual CLI arguments directly.
+# Config is loaded as a plain dict via load_config() (see config.py).
+# No RunConfig dataclass; the dict-based approach was chosen for simplicity
+# (see design.md:100-101 for rationale).
 
 # tinycua/cli/logging.py
 @dataclass

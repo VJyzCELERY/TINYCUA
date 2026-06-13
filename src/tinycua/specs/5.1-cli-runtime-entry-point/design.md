@@ -91,28 +91,14 @@ CLI (tinycua run)
 ### CLI Arguments
 
 ```python
-# tinycua/cli/config.py — load_config() returns a plain dict (NOT a RunConfig instance)
+# tinycua/cli/config.py — load_config() returns a plain dict
 # Keys: base_url, api_key, model (str)
 # Raises ValueError if base_url or api_key missing after env + CLI merge
-# Note: RunConfig dataclass is defined below for orchestration in run.py;
-# load_config() returns a dict for flexibility; RunConfig is constructed
-# later from the dict + CLI arguments.
 
-# tinycua/cli/run.py — RunConfig used for orchestration
-# RunConfig is constructed AFTER config validation. load_config() raises
-# ValueError if base_url or api_key are missing. RunConfig assumes
-# validated inputs — do not construct with None values.
-@dataclass
-class RunConfig:
-    """Configuration for a single tinycua run invocation."""
-    prompt: str                          # Required task prompt
-    timeout: int = 600                   # Max execution seconds
-    output_dir: Path = Path("/tmp_workspace/results")
-    workspace: Path = Path("/tmp_workspace")
-    base_url: str                        # OpenAI-compatible endpoint (required)
-    api_key: str                         # API key (required)
-    model: str = "llama3"                # Model identifier (default: llama3)
-    verbose: bool = False                # Debug logging
+# tinycua/cli/run.py — Config loaded as a plain dict via load_config().
+# The run_command() function receives individual CLI arguments and merges
+# them with env vars through load_config(). No RunConfig dataclass is used;
+# the dict-based approach is simpler and sufficient for the orchestration.
 ```
 
 ### Transcript Record (OpenClaw-compatible JSONL)
@@ -185,7 +171,7 @@ tinycua run \
 
 ### Phase 1 — MVP (Required for initial release)
 
-- [ ] Implement `RunConfig` dataclass and config loading from env vars + CLI flags
+- [x] Implement config loading from env vars + CLI flags (dict-based; no RunConfig dataclass — see design decision at lines 100-101)
 - [ ] Implement `tinycua run` subcommand with argparse
 - [ ] Implement agent runner with `create_tinycua_agent()` integration
 - [ ] Implement timeout watchdog using `threading.Timer` with cooperative cancellation (SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015)
