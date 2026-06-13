@@ -13,8 +13,8 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Verify that all 11 end-to-end architecture paths work correctly with a local LLM, establishing a verification gate that proves the complete TinyCUA agent orchestration is functional before proceeding to production hardening.
-- **Gaps**: While individual components (QueryAnalyst, InformationDigester, Worker, TaskCreation, TaskExecutor, ResultReviewer, PrimaryAgent) have been implemented and tested in isolation, there is no comprehensive end-to-end verification that proves all 11 architecture paths work correctly with a real local LLM. Previous milestones tested components with mocked LLM responses; this milestone validates against actual LLM behavior.
+- **Goals**: Verify that all 12 end-to-end architecture paths work correctly with a local LLM, establishing a verification gate that proves the complete TinyCUA agent orchestration is functional before proceeding to production hardening.
+- **Gaps**: While individual components (QueryAnalyst, InformationDigester, Worker, TaskCreation, TaskExecutor, ResultReviewer, ResultAggregationNode, PrimaryAgent) have been implemented and tested in isolation, there is no comprehensive end-to-end verification that proves all 12 architecture paths work correctly with a real local LLM. Previous milestones tested components with mocked LLM responses; this milestone validates against actual LLM behavior.
 - **Non-Goals**:
   - Modifying any source code, tests, or implementation files.
   - Implementing new features or fixing bugs discovered during verification.
@@ -32,11 +32,11 @@
 
 ### Primary Scenario
 
-A developer or CI system runs the architecture verification gate to confirm all 11 end-to-end paths work correctly with a local LLM. The gate produces a clear pass/fail verdict with detailed results for each path, enabling confident progression to the next milestone.
+A developer or CI system runs the architecture verification gate to confirm all 12 end-to-end paths work correctly with a local LLM. The gate produces a clear pass/fail verdict with detailed results for each path, enabling confident progression to the next milestone.
 
 ### Acceptance Scenarios
 
-1. **Given** the verification gate is triggered, **When** all 11 paths complete successfully, **Then** the gate passes with a summary report showing all paths green.
+1. **Given** the verification gate is triggered, **When** all 12 paths complete successfully, **Then** the gate passes with a summary report showing all paths green.
 2. **Given** the verification gate is triggered, **When** any path fails, **Then** the gate fails with a detailed report showing which path(s) failed, the error encountered, and the LLM response that caused the failure.
 3. **Given** a path fails verification, **When** the developer investigates, **Then** the failure report includes the full LLM interaction log (messages sent, responses received) for debugging.
 4. **Given** the verification gate runs, **When** it completes, **Then** results are persisted in a machine-readable format (JSON) for trend analysis and CI integration.
@@ -55,7 +55,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 ### Functional Requirements
 
-- **FR-001**: System MUST define all 11 architecture paths with explicit node sequences and expected outcomes.
+- **FR-001**: System MUST define all 12 architecture paths with explicit node sequences and expected outcomes.
 - **FR-002**: System MUST execute each path against a local LLM endpoint and verify the final output matches expected behavior.
 - **FR-003**: System MUST produce a pass/fail verdict for each path with detailed success/failure information.
 - **FR-004**: System MUST persist results in JSON format for machine consumption and CI integration.
@@ -77,9 +77,9 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **All 11 paths defined**: Each architecture path is explicitly defined with node sequence, expected inputs/outputs, and success criteria.
-- [ ] **Verification gate runs**: The gate executes all 11 paths against a local LLM endpoint.
-- [ ] **Gate passes when all paths succeed**: When all 11 paths complete successfully, the gate reports PASS.
+- [ ] **All 12 paths defined**: Each architecture path is explicitly defined with node sequence, expected inputs/outputs, and success criteria.
+- [ ] **Verification gate runs**: The gate executes all 12 paths against a local LLM endpoint.
+- [ ] **Gate passes when all paths succeed**: When all 12 paths complete successfully, the gate reports PASS.
 - [ ] **Gate fails when any path fails**: When any path fails, the gate reports FAIL with detailed failure information.
 - [ ] **Results persisted**: Verification results are saved in JSON format for machine consumption.
 - [ ] **Human-readable report**: A summary report is generated showing per-path status and overall verdict.
@@ -102,14 +102,14 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 ### Manual Tests
 
-- [ ] Run the verification gate against a local LLM and confirm all 11 paths pass.
+- [ ] Run the verification gate against a local LLM and confirm all 12 paths pass.
 - [ ] Verify the JSON output is well-formed and contains all expected fields.
 - [ ] Verify the human-readable report is clear and actionable.
 - [ ] Test failure reporting by temporarily misconfiguring a path.
 
 ---
 
-## The 11 Architecture Paths
+## The 12 Architecture Paths
 
 ### Path 1: Passthrough (Simple)
 - **Route**: QueryAnalyst → PrimaryAgent → Response
@@ -122,9 +122,9 @@ A developer or CI system runs the architecture verification gate to confirm all 
 - **Expected Outcome**: PrimaryAgent invokes InformationDigester, receives digested information, produces response.
 
 ### Path 3: Worker (Simple)
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
-- **Description**: Simple worker path with single task execution.
-- **Expected Outcome**: Worker processes single task, ResultReviewer accepts, PrimaryAgent produces response.
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: Simple worker path with single task execution. TaskCreation runs at Worker start and produces a single task.
+- **Expected Outcome**: TaskCreation produces single task, Worker executes it, ResultReviewer accepts, PrimaryAgent produces response.
 
 ### Path 4: Worker with Task Creation
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskAssessor → TaskAnalyzer → TaskExecutor → ResultReviewer → PrimaryAgent → Response
@@ -132,39 +132,44 @@ A developer or CI system runs the architecture verification gate to confirm all 
 - **Expected Outcome**: TaskCreation builds task tree, tasks executed sequentially, results aggregated.
 
 ### Path 5: Worker with Retry
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(retry) → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
-- **Description**: Task execution fails, ResultReviewer decides to retry.
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(retry) → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: TaskCreation runs at Worker start and produces a single task. Task execution fails, ResultReviewer decides to retry.
 - **Expected Outcome**: Task retried with failure context, second attempt succeeds.
 
 ### Path 6: Worker with Replan
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(replan) → TaskAnalyzer → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
-- **Description**: Task execution fails, ResultReviewer decides to replan by calling TaskAnalyzer.
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(replan) → TaskAnalyzer → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: TaskCreation runs at Worker start and produces a single task. Task execution fails, ResultReviewer decides to replan by calling TaskAnalyzer.
 - **Expected Outcome**: TaskAnalyzer decomposes current task, sub-tasks executed, results accepted.
 
 ### Path 7: Worker with Failure
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(failure) → HITL
-- **Description**: Repeated failures reach threshold, Worker stays active for human-in-the-loop.
-- **Expected Outcome**: Agent stays active with open question, ready for HITL interaction.
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(failure threshold) → Worker stays active
+- **Description**: TaskCreation runs at Worker start and produces a single task. Repeated failures reach the aggregated failure threshold. The Worker does not produce a terminal decision — the agent stays active with an open question, ready for human-in-the-loop interaction through passthrough routing on the next user query.
+- **Expected Outcome**: Agent stays active with open question, Worker session preserved for HITL continuation.
 
 ### Path 8: Worker with Task Decomposition
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskAssessor(decompose) → TaskAnalyzer → TaskExecutor → ResultReviewer → PrimaryAgent → Response
 - **Description**: TaskAssessor identifies tasks needing decomposition during Task Creation.
 - **Expected Outcome**: Complex tasks decomposed into sub-tasks, executed sequentially.
 
-### Path 9: Worker with Task Recreation
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(recreation) → TaskCreation → TaskAssessor → TaskAnalyzer → TaskExecutor → ResultReviewer → PrimaryAgent → Response
-- **Description**: ResultReviewer decides to recreate the task tree after execution.
-- **Expected Outcome**: New task tree created, tasks executed, results aggregated.
+### Path 9: Worker Re-entry with Task Recreation
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskAssessor → TaskAnalyzer → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: Worker re-enters with 'task_recreation' classification (Worker input gate). TaskCreation creates a new task tree from scratch.
+- **Expected Outcome**: New task tree created by TaskCreation, tasks executed sequentially, ResultReviewer accepts, PrimaryAgent produces response.
 
-### Path 10: Worker with Task Reanalysis
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(reanalysis) → TaskAnalyzer → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
-- **Description**: ResultReviewer decides to reanalyze the current task using TaskAnalyzer.
-- **Expected Outcome**: TaskAnalyzer provides new decomposition, task re-executed, results accepted.
+### Path 10: Worker Re-entry with Task Reanalysis
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskAnalyzer → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: Worker re-enters with 'task_reanalysis' classification (Worker input gate). TaskCreation produces a single task, then TaskAnalyzer reanalyzes the current task scope.
+- **Expected Outcome**: TaskAnalyzer provides new decomposition, task re-executed, ResultReviewer accepts, PrimaryAgent produces response.
 
-### Path 11: Worker with Proceed Execution
-- **Route**: QueryAnalyst → InformationDigester → Worker → TaskExecutor → ResultReviewer(proceed) → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
-- **Description**: ResultReviewer decides to proceed with next task without special handling.
-- **Expected Outcome**: Next task executed, results accepted, Worker completes.
+### Path 11: Worker Re-entry with Proceed Execution
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
+- **Description**: Worker re-enters with 'proceed_execution' classification (Worker input gate). TaskCreation produces a single task, then the next task is executed without special handling.
+- **Expected Outcome**: Next task executed, ResultReviewer accepts, Worker completes, PrimaryAgent produces response.
+
+### Path 12: Worker Result Aggregation
+- **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → ResultAggregationNode → PrimaryAgent → Response
+- **Description**: Worker completes all tasks with accepted results. Before reaching PrimaryAgent, the Worker result flows through ResultAggregationNode, which traverses the task tree, consolidates information, and emits response-ready context.
+- **Expected Outcome**: ResultAggregationNode produces AggregatedResult from the accepted task tree, PrimaryAgent synthesizes final response from aggregated context.
 
 ---
 
@@ -172,7 +177,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Path definitions | TODO | Define all 11 paths with expected outcomes |
+| Path definitions | TODO | Define all 12 paths with expected outcomes |
 | Verification gate | TODO | Implement gate orchestrator |
 | LLM integration | TODO | Configure local LLM endpoint |
 | Result persistence | TODO | JSON output format |
@@ -186,9 +191,9 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 1. **Which local LLM model should be used for verification?**
    - **Owner**: @VJyzCELERY
-   - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Use a model that supports tool calling and has been validated in previous milestones.
+   - **Target**: qwen/qwen3.5-4b
+   - **Status**: Resolved
+   - **Answer**: Use `qwen/qwen3.5-4b` via `OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-4b`. This is the local model configured for the project and supports tool calling.
 
 2. **What are the pass/fail criteria for each path?**
    - **Owner**: @VJyzCELERY
