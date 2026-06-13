@@ -88,11 +88,14 @@ def test_gate_human_readable_summary():
     assert "PASS" in summary or "FAIL" in summary
 
 
-def test_gate_failure_report_includes_llm_logs():
-    """Verify failed paths include full LLM interaction logs."""
+def test_gate_paths_capture_llm_interaction_logs():
+    """Verify all paths capture LLM interaction logs (not just failures).
+
+    Per design.md:346-347, interaction logs are captured for all paths
+    to enable post-hoc analysis even for passing paths.
+    """
     gate = VerificationGate(config=GateConfig.from_env())
     result = gate.run_path("passthrough_simple")
-    # Even passing paths should have interaction logs
     assert result.llm_interactions is not None
 
 
