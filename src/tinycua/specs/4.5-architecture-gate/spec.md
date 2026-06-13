@@ -177,7 +177,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Path definitions | TODO | Define all 12 paths with expected outcomes |
+| Path definitions | Defined in spec.md (lines 152-173) | Define all 12 paths with expected outcomes |
 | Verification gate | TODO | Implement gate orchestrator |
 | LLM integration | TODO | Configure local LLM endpoint |
 | Result persistence | TODO | JSON output format |
@@ -197,15 +197,15 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 2. **What are the pass/fail criteria for each path?**
    - **Owner**: @VJyzCELERY
-   - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Each path must complete without exceptions and produce a non-empty response from PrimaryAgent.
+   - **Target**: Each path must complete without exceptions and produce a non-empty response from PrimaryAgent.
+   - **Status**: Resolved
+   - **Answer**: Each path must complete without exceptions and produce a non-empty response from PrimaryAgent.
 
 3. **Should the gate run in CI or only locally?**
    - **Owner**: @VJyzCELERY
-   - **Target**: TBD
-   - **Status**: Discussion
-   - **Proposed Answer**: Initially local-only, with CI integration as a follow-up milestone.
+   - **Target**: Initially local-only, with CI integration as a follow-up milestone.
+   - **Status**: Resolved
+   - **Answer**: Initially local-only, with CI integration as a follow-up milestone.
 
 ---
 

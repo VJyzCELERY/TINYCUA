@@ -327,13 +327,22 @@ Failures in cross-cutting concerns are reported as path-level warnings or failur
 ## Open Questions _(optional)_
 
 1. **Which local LLM model and endpoint should be the default for verification?**
-   - Current thinking: Use `qwen/qwen3.5-4b` via `OPENAI_CHAT_COMPLETIONS_MODEL`. Configurable endpoint via existing TinyCUA `SessionConfig` mechanisms.
+   - **Owner**: @VJyzCELERY
+   - **Target**: Use `qwen/qwen3.5-4b` via `OPENAI_CHAT_COMPLETIONS_MODEL`. Configurable endpoint via existing TinyCUA `SessionConfig` mechanisms.
+   - **Status**: Resolved
+   - **Answer**: Use `qwen/qwen3.5-4b` via `OPENAI_CHAT_COMPLETIONS_MODEL`. Configurable endpoint via existing TinyCUA `SessionConfig` mechanisms.
 
 2. **Should the gate support running against cloud LLM endpoints for comparison?**
-   - Current thinking: Not in this milestone. Local-only for reproducibility. Cloud support as follow-up.
+   - **Owner**: @VJyzCELERY
+   - **Target**: Not in this milestone. Local-only for reproducibility. Cloud support as follow-up.
+   - **Status**: Resolved
+   - **Answer**: Not in this milestone. Local-only for reproducibility. Cloud support as follow-up.
 
 3. **How many times should each path run to account for LLM non-determinism?**
-   - Current thinking: Single run for initial verification. Multiple runs as a follow-up for robustness.
+   - **Owner**: @VJyzCELERY
+   - **Target**: Single run for initial verification. Multiple runs as a follow-up for robustness.
+   - **Status**: Resolved
+   - **Answer**: Single run for initial verification. Multiple runs as a follow-up for robustness.
 
 ---
 
