@@ -1,10 +1,13 @@
 """Integration tests for retry, validation, and monitor hook through TinyCUALoop."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
 
@@ -169,3 +172,71 @@ def test_max_attempts_zero_single_attempt():
     with pytest.raises(NodeExecutionError, match="Retry exhausted"):
         node("input")
     assert mock_llm.call_count == 1
+
+
+class AgentMonitorRecorder:
+    """Monitor that records AgentMonitor hook calls for assertion."""
+
+    def __init__(self):
+        self.before_calls = []
+        self.after_calls = []
+
+    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
+        self.before_calls.append({
+            "node_id": node_id,
+            "session_id": session_id,
+            "attempt": attempt,
+            "message_count": len(messages),
+        })
+        return None
+
+    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
+        self.after_calls.append({
+            "node_id": node_id,
+            "session_id": session_id,
+            "attempt": attempt,
+        })
+        return None
+
+
+@pytest.mark.asyncio
+async def test_agent_monitor_observes_execute_node():
+    """Integration: AgentMonitor receives correct hooks through TinyCUALoop._execute_node().
+
+    Verifies that agent_monitor.on_before_node_call and on_after_node_call
+    are called with root_session.session_id (not node.session.session_id)
+    and attempt=1 at the agent level.
+    """
+    agent_monitor = AgentMonitorRecorder()
+    loop = TinyCUALoop(agent_monitor=agent_monitor)
+
+    config = NodeConfigBase(
+        llm_client=MockLLM([
+            {"role": "assistant", "content": "node output"},
+        ]),
+    )
+    node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
+    node.session = loop.root_session
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "node output", "tool_calls": None}
+    )
+
+    await loop._execute_node(node, agent, tools=[])
+
+    # AgentMonitor should have been called with root_session.session_id
+    assert len(agent_monitor.before_calls) == 1
+    assert len(agent_monitor.after_calls) == 1
+
+    before = agent_monitor.before_calls[0]
+    assert before["node_id"] == "test-node"
+    assert before["session_id"] == loop.root_session.session_id
+    assert before["attempt"] == 1
+
+    after = agent_monitor.after_calls[0]
+    assert after["node_id"] == "test-node"
+    assert after["session_id"] == loop.root_session.session_id
+    assert after["attempt"] == 1

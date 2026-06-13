@@ -479,11 +479,13 @@ class Node(ABC):
     def _call_failure_route(self) -> bool:
         """Check if on_complete defines a failure route and call it.
 
+        Default implementation — always returns False. Subclasses override
+        this method to define failure routes. When False, exhaustion falls
+        back to _record_failure().
+
         Returns:
             True if a failure route was called, False otherwise.
         """
-        # Default implementation — subclasses can override on_complete
-        # to define failure routes. For now, always return False.
         logger.debug("node=%s _call_failure_route (no route defined)", self.node_id)
         return False
 
@@ -646,6 +648,13 @@ class DecisionNode(ProcessNode):
     """Node that performs analysis + classification + route dispatch.
 
     ``__call__`` orchestrates: analysis → classification → dispatch.
+
+    Classification matching uses **substring containment** (``label in content``),
+    not exact match. For example, if ``classification_labels=["test"]`` and the
+    LLM returns ``"latest"``, validation passes because ``"test" in "latest"`` is
+    True. This is intentional for leniency but means short labels that are
+    substrings of common words may produce false positives. Consider label
+    specificity when choosing classification labels.
 
     Attributes:
         classification_labels: Allowed classification labels for routing.
