@@ -200,7 +200,6 @@ class CrossCuttingCollector:
                 )
 
         # Check that all nodes had output validation
-        nodes_with_records = {r.node_id for r in self._report.node_records}
         for record in self._report.node_records:
             if not record.output_valid:
                 errors.append(

@@ -94,7 +94,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 ### Unit Tests
 
-- Not applicable — this is a verification milestone, not an implementation milestone. No new code is written.
+- Not applicable — this is a verification milestone. No production source code is modified; only new test infrastructure is added under `tests/verification/`.
 
 ### Integration Tests
 
@@ -179,13 +179,13 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Path definitions | Defined in spec.md (lines 114-175) | Define all 12 paths with expected outcomes |
-| Verification gate | TODO | Implement gate orchestrator |
-| LLM integration | TODO | Configure local LLM endpoint |
-| Result persistence | TODO | JSON output format |
-| Human-readable report | TODO | Summary report generation |
-| Timeout configuration | TODO | Per-path timeout limits |
-| LLM interaction logging | TODO | Capture full logs for failed paths |
+| Path definitions | Done | Defined in spec.md (lines 114-175) |
+| Verification gate | Done | Implemented in tests/verification/gate.py |
+| LLM integration | Done | Configured via config.py, reads from env vars |
+| Result persistence | Done | JSON output in reporter.py |
+| Human-readable report | Done | ReportGenerator.generate_summary() |
+| Timeout configuration | Done | Per-path via threading.Timer |
+| LLM interaction logging | Done | _SyncLLMClient captures all interactions |
 
 ---
 

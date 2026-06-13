@@ -16,27 +16,15 @@ import logging
 import time
 from typing import Any
 
-from tinycua.config.local_model import LocalModelConfig
 from tinycua.config.node_config import NodeConfigBase
-from tinycua.loops.propagation import PropagationRule, propagate_on_termination
 from tinycua.config.tool_scopes import (
-    information_digester_tool_scope,
     query_analyst_tool_scope,
-    result_aggregation_tool_scope,
-    result_reviewer_tool_scope,
     response_tool_scope,
-    task_analyzer_tool_scope,
-    task_assessor_tool_scope,
-    task_create_tool_scope,
-    task_executor_tool_scope,
-    worker_tool_scope,
 )
-from tinycua.loops.node import DecisionNode, DecisionResult, Node, ProcessNode
+from tinycua.loops.node import DecisionResult, Node
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
-from tinycua.loops.task_create import TinyCUATaskCreateNode
-from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.node_input import NodeInputLike
 from tinycua.models.session import Session
 from tinycua_sdk.agent.agent import Agent
@@ -75,27 +63,26 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "or have reached the failure threshold."
 )
 
-_RESULT_AGGREGATION_INSTRUCTION = (
-    "You are a result aggregation node. Traverse the task tree, "
-    "consolidate information from completed tasks, and emit "
-    "response-ready context for the primary agent."
-)
 
 
 class _SyncLLMClient:
     """Synchronous LLM client wrapper that delegates to an async agent.
 
     Bridges the gap between Node._call_llm (sync) and Agent._call_llm (async).
+    Records LLM interactions for debugging failed paths.
     """
 
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
         self._loop: asyncio.AbstractEventLoop | None = None
+        self.interactions: list[dict[str, Any]] = []
 
     def __call__(
         self, messages: list[dict[str, str]], **kwargs: object
     ) -> dict[str, Any]:
         """Synchronous call that wraps the agent's async _call_llm.
+
+        Records the messages sent and response received for debugging.
 
         Args:
             messages: The message list for the LLM call.
@@ -111,11 +98,20 @@ class _SyncLLMClient:
             return await self._agent._call_llm(messages, None)
 
         try:
-            return self._loop.run_until_complete(_call())
+            response = self._loop.run_until_complete(_call())
         except RuntimeError:
             # Event loop already running — create a new one
             self._loop = asyncio.new_event_loop()
-            return self._loop.run_until_complete(_call())
+            response = self._loop.run_until_complete(_call())
+
+        self.interactions.append({
+            "messages": [
+                {"role": m.get("role", ""), "content": m.get("content", "")}
+                for m in messages
+            ],
+            "response": response,
+        })
+        return response
 
 
 def _create_digester(node_id: str, config: NodeConfigBase) -> Any:
@@ -214,7 +210,7 @@ class PathExecutor:
 
         # Execute with timeout
         try:
-            result = self._run_execution_loop(
+            self._run_execution_loop(
                 queue, session, agent, llm_client, query, timeout, path.name
             )
         except TimeoutError:
@@ -244,6 +240,7 @@ class PathExecutor:
             path_name=path.name,
             status="pass",
             duration_seconds=elapsed,
+            llm_interactions=llm_client.interactions,
             node_outputs=self._capture_node_outputs(queue),
             session_state=self._capture_session_state(session),
         )
@@ -293,13 +290,13 @@ class PathExecutor:
         Raises:
             TimeoutError: If execution exceeds the timeout.
         """
-        import signal
+        import threading
 
-        def _timeout_handler(signum: int, frame: object) -> None:
+        def _timeout_handler() -> None:
             raise TimeoutError(f"Path '{path_name}' exceeded timeout of {timeout}s")
 
-        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(int(timeout))
+        _timer = threading.Timer(float(timeout), _timeout_handler)
+        _timer.start()
 
         try:
             last_content = ""
@@ -324,8 +321,30 @@ class PathExecutor:
                 # Get the node's input
                 node_input = queue.input_for_current()
 
+                # Record before-node hook for cross-cutting concerns
+                self._cross_cutting.on_before_node(node.node_id, [])
+
+                # Track interactions before node call to capture tool invocations
+                interactions_before = len(llm_client.interactions)
+
                 # Call the node's __call__ method
                 response = node(node_input)
+
+                # Capture tool invocations from LLM interactions after node call
+                tools_invoked = self._extract_tool_invocations(
+                    llm_client.interactions[interactions_before:]
+                )
+
+                # Validate output — terminal nodes must produce content
+                output_valid = self._validate_node_output(node, response)
+
+                # Record after-node hook for cross-cutting concerns
+                self._cross_cutting.on_after_node(
+                    node.node_id,
+                    tools_invoked=tools_invoked,
+                    output_valid=output_valid,
+                    retry_count=0,
+                )
 
                 # Extract content
                 if isinstance(response, DecisionResult):
@@ -359,8 +378,25 @@ class PathExecutor:
                 if node.is_terminal:
                     break
 
+                # Record context propagation event
+                if len(queue.items) > 1:
+                    next_node = queue.items[1]
+                    self._cross_cutting.on_propagation(
+                        source_node=node.node_id,
+                        target_node=next_node.node_id,
+                        context_type="session_context",
+                    )
+
                 # Advance queue (propagate + forward output)
                 queue.advance()
+
+                # Wire on_dedupe: compute duplicates removed during forwarding.
+                if not queue.is_empty() and queue.current is not None:
+                    duplicates_removed = self._check_dedupe(node, queue.current)
+                    if duplicates_removed > 0:
+                        self._cross_cutting.on_dedupe(
+                            node.node_id, duplicates_removed
+                        )
 
                 # Get input for next node from the advanced queue
                 if not queue.is_empty() and queue.current is not None:
@@ -371,8 +407,7 @@ class PathExecutor:
 
             return last_content
         finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+            _timer.cancel()
 
     def _capture_node_outputs(
         self,
@@ -400,6 +435,76 @@ class PathExecutor:
             "input_context_length": len(session.input_context),
         }
 
+    def _extract_tool_invocations(
+        self,
+        interactions: list[dict[str, Any]],
+    ) -> list[str]:
+        """Extract tool names from LLM interactions.
+
+        Inspects the response from each interaction for tool_calls,
+        which indicate tools that were actually invoked during node execution.
+
+        Args:
+            interactions: List of LLM interaction records.
+
+        Returns:
+            List of unique tool names invoked.
+        """
+        tools_invoked: list[str] = []
+        seen: set[str] = set()
+
+        for interaction in interactions:
+            response = interaction.get("response", {})
+            tool_calls = response.get("tool_calls") or []
+            for tool_call in tool_calls:
+                # tool_calls can be in OpenAI format: {"function": {"name": "..."}}
+                if isinstance(tool_call, dict):
+                    func = tool_call.get("function", {})
+                    if isinstance(func, dict):
+                        tool_name = func.get("name", "")
+                        if tool_name and tool_name not in seen:
+                            tools_invoked.append(tool_name)
+                            seen.add(tool_name)
+
+        return tools_invoked
+
+    def _check_dedupe(self, source_node: Node, next_node: Node) -> int:
+        """Count duplicate context records removed during forwarding."""
+        if next_node.session is None or source_node.session is None:
+            return 0
+        from tinycua.loops.propagation import forward_output_to_next, dedupe_records
+        forwarded = forward_output_to_next(source_node.session)
+        if not forwarded:
+            return 0
+        unique = dedupe_records(forwarded, next_node.session.session_context)
+        return len(forwarded) - len(unique)
+
+    def _validate_node_output(self, node: Any, response: Any) -> bool:
+        """Validate that a node produced valid output.
+
+        Terminal nodes must produce non-empty content. Non-terminal nodes
+        are always considered valid (empty output is acceptable for
+        intermediate nodes that just propagate context).
+
+        Args:
+            node: The node that was executed.
+            response: The node's response.
+
+        Returns:
+            True if output is valid, False otherwise.
+        """
+        if not node.is_terminal:
+            return True
+
+        if isinstance(response, DecisionResult):
+            content = response.route_label
+        elif hasattr(response, "content"):
+            content = response.content
+        else:
+            content = str(response)
+
+        return bool(content and content.strip())
+
     def _validate_outcome(
         self,
         path: ArchitecturePath,
@@ -412,4 +517,20 @@ class PathExecutor:
                 result.status = "fail"
                 result.error = (
                     "Expected successful response but chat_history is empty"
+                )
+        elif path.expected_outcome == "hitl":
+            # HITL: agent stays active, no terminal response node should execute.
+            # If the path completed with a terminal response, it failed to
+            # maintain human-in-the-loop behavior.
+            if result.status == "pass" and "response" in path.node_sequence:
+                result.status = "fail"
+                result.error = (
+                    "Expected HITL (agent stays active) but got terminal response"
+                )
+        elif path.expected_outcome == "failure":
+            # Failure: path should not produce a successful response.
+            if result.status == "pass":
+                result.status = "fail"
+                result.error = (
+                    "Expected failure but path completed successfully"
                 )

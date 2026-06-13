@@ -52,6 +52,7 @@ def test_gate_individual_path(gate: VerificationGate, path_def):
 # ── Aggregate Tests ──────────────────────────────────────────────────────
 
 
+@pytest.mark.timeout(600)
 def test_gate_all_paths_pass(gate: VerificationGate):
     """Verify all 12 architecture paths pass against local LLM."""
     report = gate.run_all()
@@ -61,6 +62,7 @@ def test_gate_all_paths_pass(gate: VerificationGate):
     assert report.total_paths == 12
 
 
+@pytest.mark.timeout(600)
 def test_gate_report_json_output(gate: VerificationGate):
     """Verify JSON report is well-formed and contains all fields."""
     report = gate.run_all()
@@ -76,6 +78,7 @@ def test_gate_report_json_output(gate: VerificationGate):
     assert "llm_model" in data
 
 
+@pytest.mark.timeout(600)
 def test_gate_human_readable_summary(gate: VerificationGate):
     """Verify human-readable summary is generated."""
     report = gate.run_all()

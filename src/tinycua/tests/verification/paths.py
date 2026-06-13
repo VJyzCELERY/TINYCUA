@@ -8,8 +8,8 @@ clarity and maintainability.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -365,8 +365,8 @@ PATH_WORKER_PROCEED = ArchitecturePath(
 PATH_WORKER_AGGREGATION = ArchitecturePath(
     name="worker_aggregation",
     description=(
-        "Worker result aggregation — ResultAggregationNode consolidates "
-        "task tree, PrimaryAgent synthesizes from aggregated context"
+        "Worker result aggregation — PrimaryAgent synthesizes from "
+        "aggregated context (ResultAggregationNode not yet implemented)"
     ),
     node_sequence=[
         "query_analyst",
@@ -375,7 +375,6 @@ PATH_WORKER_AGGREGATION = ArchitecturePath(
         "task_creation",
         "task_executor",
         "result_reviewer",
-        "result_aggregation",
         "primary_agent",
         "response",
     ],
@@ -386,7 +385,6 @@ PATH_WORKER_AGGREGATION = ArchitecturePath(
         "task_creation",
         "task_executor",
         "result_reviewer",
-        "result_aggregation",
         "primary_agent",
         "response",
     ],

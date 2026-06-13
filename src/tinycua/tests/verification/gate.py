@@ -10,7 +10,7 @@ import logging
 
 from tests.verification.config import GateConfig
 from tests.verification.executor import PathExecutor
-from tests.verification.paths import ALL_PATHS, ArchitecturePath, get_path
+from tests.verification.paths import ALL_PATHS, get_path
 from tests.verification.reporter import (
     PathResult,
     VerificationReport,

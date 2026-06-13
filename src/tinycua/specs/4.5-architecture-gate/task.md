@@ -76,12 +76,12 @@ Implementation tasks for the TinyCUA Architecture Verification Gate. Check off i
 
 ## Documentation Phase
 
-- [ ] Update spec.md status tracker — mark completed items <!-- id: 17 -->
+- [x] Update spec.md status tracker — mark completed items <!-- id: 17 -->
 
 ## Review and Merge
 
 - [x] Create pull request <!-- id: 18 -->
-- [ ] Address review feedback <!-- id: 19 -->
+- [x] Address review feedback <!-- id: 19 -->
 - [ ] Merge to main branch <!-- id: 20 -->
 
 ---
