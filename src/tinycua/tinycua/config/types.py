@@ -150,9 +150,10 @@ class NodeMonitor(Protocol):
 class AgentMonitor(Protocol):
     """Protocol for agent-level monitoring hooks.
 
-    AgentMonitor delegates to NodeMonitor when a node has one configured.
-    If no node monitor is configured, the agent monitor receives all events
-    directly.
+    AgentMonitor and NodeMonitor are independent hooks. The loop calls
+    AgentMonitor.on_*() for loop-level observation; the node calls its
+    own NodeMonitor via self.config.monitor. Both fire when configured
+    — neither wraps or forwards to the other.
     """
 
     def on_before_node_call(

@@ -111,16 +111,16 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 > corresponding code is written. They are intentionally left unchecked at the
 > spec/design review stage and will be checked off during implementation.
 
-- [ ] **Retry loop works**: Invalid node output triggers retry with assistant-role continuation messages up to `max_attempts`.
-- [ ] **Custom validation works**: `validation_fn` is called during `validate_output()` and its errors are merged into the result.
-- [ ] **Custom continuation builder works**: `retry_continuation_builder` produces the retry message when set.
-- [ ] **Exhaustion handling works**: `raise` raises `NodeExecutionError`, `record_failure` writes failure state and propagates, `route_failure` calls the failure route or falls back.
-- [ ] **DecisionNode classification retry works**: Invalid classification labels trigger retry with assistant-role continuation.
-- [ ] **Monitor hook protocol defined**: `NodeMonitor` protocol/interface exists with before/after/exhaustion trigger points.
-- [ ] **Monitor hook is transient**: Hook invocations do not create sessions or write to chat_history/session_context.
-- [ ] **Monitor hook exceptions are caught**: Hook failures are logged and do not break node execution.
+- [x] **Retry loop works**: Invalid node output triggers retry with assistant-role continuation messages up to `max_attempts`.
+- [x] **Custom validation works**: `validation_fn` is called during `validate_output()` and its errors are merged into the result.
+- [x] **Custom continuation builder works**: `retry_continuation_builder` produces the retry message when set.
+- [x] **Exhaustion handling works**: `raise` raises `NodeExecutionError`, `record_failure` writes failure state and propagates, `route_failure` calls the failure route or falls back.
+- [x] **DecisionNode classification retry works**: Invalid classification labels trigger retry with assistant-role continuation.
+- [x] **Monitor hook protocol defined**: `NodeMonitor` protocol/interface exists with before/after/exhaustion trigger points.
+- [x] **Monitor hook is transient**: Hook invocations do not create sessions or write to chat_history/session_context.
+- [x] **Monitor hook exceptions are caught**: Hook failures are logged and do not break node execution.
 - [ ] **Monitor continuations enter retry flow**: Hook-returned continuations are included in retry messages.
-- [ ] **Tests pass**: Unit tests for retry loop, validation, exhaustion, DecisionNode retry, and monitor hook behavior.
+- [x] **Tests pass**: Unit tests for retry loop, validation, exhaustion, DecisionNode retry, and monitor hook behavior.
 
 ---
 

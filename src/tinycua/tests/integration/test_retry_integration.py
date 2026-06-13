@@ -6,7 +6,7 @@ import pytest
 
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
 from tinycua.config.types import LLMResult, ValidationResult
-from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.loops.node import DecisionNode, NodeExecutionError, ProcessNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
@@ -239,4 +239,148 @@ async def test_agent_monitor_observes_execute_node():
     after = agent_monitor.after_calls[0]
     assert after["node_id"] == "test-node"
     assert after["session_id"] == loop.root_session.session_id
+    assert after["attempt"] == 1
+
+
+class NodeWithFailureRoute(ProcessNode):
+    """ProcessNode subclass that defines a failure route."""
+
+    def __init__(self, *args, failure_route_called=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._failure_route_called = failure_route_called if failure_route_called is not None else []
+
+    def _call_failure_route(self) -> bool:
+        """Override to simulate a failure route being called."""
+        self._failure_route_called.append(True)
+        return True
+
+
+def test_route_failure_with_real_failure_route():
+    """route_failure calls the failure route instead of _record_failure when defined."""
+    mock_llm = MockLLM([
+        LLMResult(content="bad"),
+        LLMResult(content="bad again"),
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            required_tool_calls=["required_tool"],
+            on_retry_exhausted="route_failure",
+        ),
+    )
+    failure_route_called = []
+    node = NodeWithFailureRoute(
+        node_id="test",
+        config=config,
+        instruction="Do work",
+        failure_route_called=failure_route_called,
+    )
+    node.session = Session()
+    node("input")
+
+    # Failure route should have been called instead of recording failure
+    assert len(failure_route_called) == 1
+    # Session should NOT have RETRY_EXHAUSTED since route was called
+    contents = [e.content for e in node.session.session_context]
+    assert not any("RETRY_EXHAUSTED" in c for c in contents)
+
+
+def test_custom_continuation_builder_through_retry_loop():
+    """Custom retry_continuation_builder is invoked during retry."""
+    builder_calls = []
+
+    def custom_builder(error, attempt):
+        builder_calls.append({"error": str(error), "attempt": attempt})
+        return f"Custom retry {attempt}: {error}"
+
+    mock_llm = MockLLM([
+        LLMResult(content="bad"),
+        LLMResult(content="good"),
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(
+            max_attempts=2,
+            required_tool_calls=["required_tool"],
+            retry_continuation_builder=custom_builder,
+        ),
+    )
+    node = ProcessNode(node_id="test", config=config, instruction="Do work")
+    node.session = Session()
+    result = node("input")
+
+    assert result.content == "good"
+    assert len(builder_calls) == 1
+    assert builder_calls[0]["attempt"] == 1
+    assert "required_tool" in builder_calls[0]["error"]
+
+
+def test_decision_node_monitor_hooks_during_retry():
+    """DecisionNode fires monitor hooks during classification retry."""
+    monitor = RecordingMonitor()
+    mock_llm = MockLLM([
+        LLMResult(content="analysis 1"),
+        LLMResult(content="wrong"),
+        LLMResult(content="analysis 2"),
+        LLMResult(content="valid_label"),
+    ])
+    config = NodeConfigBase(
+        llm_client=mock_llm,
+        retry_policy=NodeRetryPolicy(max_attempts=2),
+        monitor=monitor,
+    )
+    node = DecisionNode(
+        node_id="test-decision",
+        config=config,
+        instruction="Analyze and classify",
+        classification_labels=["valid_label"],
+    )
+    node.session = Session()
+    result = node("input")
+
+    assert result.route_label == "valid_label"
+    # Should have 2 before calls (2 classification attempts)
+    assert len(monitor.before_calls) == 2
+    assert monitor.before_calls[0]["attempt"] == 1
+    assert monitor.before_calls[1]["attempt"] == 2
+    # After-hook is only called on failed validation, not on success
+    # First attempt failed (wrong label), second succeeded (valid_label)
+    assert len(monitor.after_calls) == 1
+    assert monitor.after_calls[0]["is_valid"] is False
+
+
+@pytest.mark.asyncio
+async def test_agent_monitor_with_retrying_node_through_loop():
+    """AgentMonitor sees retry attempts through TinyCUALoop._execute_node()."""
+    agent_monitor = AgentMonitorRecorder()
+    loop = TinyCUALoop(agent_monitor=agent_monitor)
+
+    # Node that would retry internally, but _execute_node bypasses node.__call__
+    # So AgentMonitor should see attempt=1 (loop-level)
+    config = NodeConfigBase(
+        llm_client=MockLLM([
+            {"role": "assistant", "content": "node output"},
+        ]),
+    )
+    node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
+    node.session = loop.root_session
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(
+        return_value={"content": "node output", "tool_calls": None}
+    )
+
+    await loop._execute_node(node, agent, tools=[])
+
+    # AgentMonitor should see attempt=1 at agent level
+    assert len(agent_monitor.before_calls) == 1
+    assert len(agent_monitor.after_calls) == 1
+
+    before = agent_monitor.before_calls[0]
+    assert before["attempt"] == 1
+
+    after = agent_monitor.after_calls[0]
     assert after["attempt"] == 1

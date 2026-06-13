@@ -352,6 +352,8 @@ class TinyCUALoop(BaseLoop):
                     self.root_session.session_id,
                     1,  # attempt 1 at agent level
                     llm_result,
+                    # Validation is node-internal; loop doesn't run validate_output().
+                    # Use NodeMonitor for per-attempt validation results.
                     ValidationResult(is_valid=True, errors=[]),
                 )
             except Exception:
