@@ -332,7 +332,7 @@ class DecisionNode(ProcessNode):
 
 ### Safe Monitor Hook Caller
 
-`_safe_call()` is a module-level function in `tinycua/loops/node.py`, not a method on `ProcessNode`. It accepts a callable and its arguments, calls it in a try/except, logs exceptions at debug level, and returns the result or None.
+`_safe_call()` was implemented as a method on `Node` (not module-level) for cleaner access to `self.node_id` in debug logging. It accepts a callable and its arguments, calls it in a try/except, logs exceptions at debug level, and returns the result or None. This is a minor deviation from the original design that does not affect behavior.
 
 ```python
 def _safe_call(hook_method, *args, **kwargs):
