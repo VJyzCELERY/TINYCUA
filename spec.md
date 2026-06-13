@@ -83,7 +83,7 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 ### Key Entities
 
 - **TinyCUAAgent**: The adapter class implementing WildClawBench `BaseAgent`. Wraps the TinyCUA CLI/factory to run tasks in a subprocess.
-- **AgentTaskSpec**: WildClawBench-provided dataclass with `task_id`, `prompt`, `workspace_path`, `output_dir`, `timeout_seconds`, `model`, and optional fields.
+- **AgentTaskSpec**: WildClawBench-provided dataclass with `task_id`, `task`, `prompt`, `workspace_path`, `output_dir`, `timeout_seconds`, `model`, and optional fields (`thinking`, `models_config`, `lobster`).
 - **AgentExecution**: WildClawBench-provided dataclass returned by `run_task()` with `elapsed_time`, `error`, and optional process handles.
 - **Usage dict**: Dictionary returned by `collect_usage()` with request count, token count, and cost.
 
