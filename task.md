@@ -1,168 +1,92 @@
-# Tasks: Retry, Validation, Monitor Hook, and Streaming Events
+# Tasks: WildClawBench TinyCUA BaseAgent Adapter
 
-Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
+Implementation tasks for Milestone 5.2. Check off items as completed.
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for retry, validation, and monitor hook in `tests/integration/test_retry_integration.py` <!-- id: 0 -->
-- [x] Write integration tests for streaming and transcript events (defined in implementation-plan.md) <!-- id: 1 -->
-- [x] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
-  - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
+- [ ] Write integration tests for WildClawBench adapter (defined in implementation-plan.md) <!-- id: 0 -->
+- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
+  - Command: `cd src/tinycua && uv run pytest tests/integration/test_wildclawbench_integration.py -v`
 
 ## Implementation Phase
 
-### Phase 1 — Validation and Retry Completion
+### Phase 1 — Local BaseAgent Copy
 
-- [ ] Wire `retry_continuation_builder` into `ProcessNode.__call__()` retry loop — use custom builder when set, default builder otherwise <!-- id: 3 -->
-  - [ ] Add `_build_retry_text(self, error, attempt) -> str` helper method
-  - [ ] Replace direct `self.build_retry_continuation()` call in retry loop with `_build_retry_text()`
-- [ ] Implement `_handle_exhaustion(self, policy, validation, max_attempts)` method <!-- id: 4 -->
-  - [ ] Handle `raise` policy — raise `NodeExecutionError` with error details
-  - [ ] Handle `record_failure` policy — call `_record_failure()`
-  - [ ] Handle `route_failure` policy — call `_call_failure_route()`, fallback to `_record_failure()` if no route
-- [ ] Implement `_record_failure(self, validation, max_attempts)` method <!-- id: 5 -->
-  - [ ] Create `SessionContextEntry` with `segment="output"` and failure metadata
-  - [ ] Append to `self.session.session_context`
-  - [ ] Log failure details
-- [ ] Implement `_call_failure_route(self) -> bool` method <!-- id: 6 -->
-  - [ ] Check if `on_complete()` defines a failure route
-  - [ ] Call the failure route if defined, return `True`
-  - [ ] Return `False` if no failure route defined
+- [ ] Create `tinycua/wildclawbench/__init__.py` package init <!-- id: 2 -->
+- [ ] Create `tinycua/wildclawbench/base_agent.py` with local copies of `BaseAgent` ABC, `AgentTaskSpec`, and `AgentExecution` <!-- id: 3 -->
+  - [ ] Define `AgentTaskSpec` frozen dataclass with all fields from WildClawBench
+  - [ ] Define `AgentExecution` dataclass with `elapsed_time`, `error`, `gateway_proc`, `agent_proc`
+  - [ ] Define `BaseAgent` ABC with `expects_gateway`, `transcript_container_path`, `prepare_grading_transcript()`, `run_task()`, `collect_usage()`
 
-### Phase 2 — DecisionNode Classification Retry
+### Phase 2 — TinyCUAAgent Adapter
 
-- [ ] Add classification validation in `DecisionNode.__call__()` <!-- id: 7 -->
-  - [ ] After `_classification_call()`, check if label matches any in `classification_labels`
-  - [ ] If invalid, treat as validation failure (create `ValidationResult` with error)
-- [ ] Add classification retry loop in `DecisionNode.__call__()` <!-- id: 8 -->
-  - [ ] Wrap classification step in retry loop using `retry_policy.max_attempts`
-  - [ ] Use same `_build_retry_text()` and `_handle_exhaustion()` as ProcessNode
-  - [ ] Record analysis output on success
+- [ ] Create `tinycua/wildclawbench/agent.py` with `TinyCUAAgent` class <!-- id: 4 -->
+  - [ ] Implement `__init__()` with `base_url`, `api_key`, `model`, `tinycua_bin` parameters
+  - [ ] Implement `expects_gateway` property returning `False`
+  - [ ] Implement `transcript_container_path` property returning `/tmp_workspace/results/transcript.jsonl`
+  - [ ] Implement `prepare_grading_transcript()` returning `transcript_container_path`
+- [ ] Implement `run_task()` subprocess spawning <!-- id: 5 -->
+  - [ ] Build CLI command: `tinycua run <prompt> --timeout <t> --output-dir <d> --workspace <w> --model <m>`
+  - [ ] Add optional `--base-url` and `--api-key` flags when configured
+  - [ ] Set environment variables for subprocess (`TINYCUA_BASE_URL`, `TINYCUA_API_KEY`, `TINYCUA_MODEL`)
+  - [ ] Create output directory and workspace if they don't exist
+  - [ ] Spawn subprocess with `Popen()` and `communicate(timeout=...)`
+  - [ ] Handle `TimeoutExpired` — kill process, set error message
+  - [ ] Handle `FileNotFoundError` — set error for missing binary
+  - [ ] Handle non-zero exit codes — include stderr in error message
+  - [ ] Return `AgentExecution` with `elapsed_time` and optional `error`
+- [ ] Implement `collect_usage()` transcript parsing <!-- id: 6 -->
+  - [ ] Read `transcript.jsonl` from output directory
+  - [ ] Count LLM request events (`"llm"` or `"response"` in event type)
+  - [ ] Sum `total_tokens` from `usage` fields in events
+  - [ ] Return `{"requests": int, "total_tokens": int|None, "cost": 0.0}`
+  - [ ] Return zeroed values when transcript is missing or unparseable
 
-### Phase 3 — Monitor Hook Protocol
+### Phase 3 — Unit Tests
 
-- [ ] Define `NodeMonitor` Protocol in `tinycua/config/types.py` <!-- id: 9 -->
-  - [ ] Add `@runtime_checkable` decorator
-  - [ ] Add `on_before_node_call()` method signature
-  - [ ] Add `on_after_node_call()` method signature
-  - [ ] Add `on_retry_exhausted()` method signature
-- [ ] Define `AgentMonitor` Protocol in `tinycua/config/types.py` <!-- id: 10 -->
-  - [ ] Same method signatures as `NodeMonitor`
-  - [ ] Documentation notes delegation to `NodeMonitor`
-- [ ] Add `monitor: NodeMonitor | None = None` field to `NodeConfigBase` <!-- id: 11 -->
-
-### Phase 4 — Monitor Hook Integration
-
-- [ ] Implement `_safe_call(hook_method, *args, **kwargs)` helper <!-- id: 12 -->
-  - [ ] Wrap call in try/except
-  - [ ] Log exceptions at debug level
-  - [ ] Return None on exception
-- [ ] Wire monitor hooks into `ProcessNode.__call__()` and `DecisionNode.__call__()` <!-- id: 13 -->
-  - [ ] Call `monitor.on_before_node_call()` before each LLM call
-  - [ ] Call `monitor.on_after_node_call()` after each validation failure
-  - [ ] Call `monitor.on_retry_exhausted()` before exhaustion handling
-  - [ ] Incorporate monitor continuations (if hook returns string, append to messages)
-- [ ] Add `agent_monitor: AgentMonitor | None = None` parameter to `TinyCUALoop.__init__()` signature and store as `self.agent_monitor` <!-- id: 14 -->
-- [ ] Wire `agent_monitor` in `TinyCUALoop._execute_node()` <!-- id: 15 -->
-  - [ ] Call `agent_monitor.on_before_node_call()` before LLM call
-  - [ ] Call `agent_monitor.on_after_node_call()` after response
-  - [ ] Do NOT call `node.monitor` directly — all monitor calls go through `agent_monitor`
-
-### Phase 5 — Streaming and Transcript Events
-
-- [x] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py` <!-- id: 16 -->
-  - [x] Define `StreamEvent` dict shape with type, node_id, node_type, timestamp, metadata fields
-  - [x] Define `LifecycleEvent` dict shape extending StreamEvent with attempt, content, finish_reason
-  - [x] Implement `make_lifecycle_event()` factory function
-  - [x] Implement `enrich_stream_event()` helper function
-  - [x] Export new models from `tinycua/models/__init__.py`
-- [x] Add `TranscriptRecord` type to `tinycua/config/types.py` <!-- id: 17 -->
-  - [x] Define `TranscriptRecord` dataclass with event, run_id, session_id, sequence fields and `.to_dict()` method
-- [x] Modify `TinyCUALoop._run_stream()` to emit lifecycle events <!-- id: 18 -->
-  - [x] Emit `node.started` event before `agent._call_llm()` call
-  - [x] Emit `node.llm_call` event after `agent._call_llm()` call starts
-  - [x] Emit `node.completed` event after LLM call completes successfully
-  - [x] Emit `node.error` event on exception during node execution
-  - [x] Add `attempt` tracking for retry scenarios
-- [x] Apply `NodeStreamPolicy.final_response_only` filtering <!-- id: 19 -->
-  - [x] Suppress intermediate node LLM/tool events when policy enabled
-  - [x] Only emit events from ResponseNode when final_response_only=True
-- [x] Apply `NodeStreamPolicy.include_node_metadata` enrichment <!-- id: 20 -->
-  - [x] Enrich events with node_id, node_type, attempt when policy enabled
-  - [x] Skip metadata enrichment when policy disabled
-- [x] Apply `NodeStreamPolicy.emit_internal_events` control <!-- id: 21 -->
-  - [x] Emit lifecycle events only when emit_internal_events=True
-  - [x] Suppress lifecycle events when emit_internal_events=False
+- [ ] Create `tests/unit/test_wildclawbench_agent.py` <!-- id: 7 -->
+  - [ ] Test `expects_gateway` returns `False`
+  - [ ] Test `transcript_container_path` returns correct string
+  - [ ] Test `prepare_grading_transcript` returns `transcript_container_path`
+  - [ ] Test `run_task` builds correct CLI command (mock Popen, capture args)
+  - [ ] Test `run_task` includes `--base-url` and `--api-key` when configured
+  - [ ] Test `run_task` sets environment variables for subprocess
+  - [ ] Test `run_task` returns `AgentExecution` with `elapsed_time >= 0`
+  - [ ] Test `run_task` returns error when binary not found
+  - [ ] Test `run_task` returns error on non-zero exit code
+  - [ ] Test `run_task` kills process on timeout
+  - [ ] Test `run_task` creates output directory if missing
+  - [ ] Test `run_task` creates workspace if missing
+  - [ ] Test `collect_usage` returns expected keys
+  - [ ] Test `collect_usage` parses transcript for request counts and tokens
+  - [ ] Test `collect_usage` returns zeroed values for missing transcript
 
 ## Testing Phase
 
-> **Note**: Unit tests below are listed here for tracking, but should be written alongside their corresponding implementation tasks (TDD-style) — not after all implementation is complete.
-
-- [x] Run integration tests — expect GREEN (all pass) <!-- id: 22 -->
-  - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
-- [ ] Write unit tests for `validate_output()` with custom `validation_fn` in `tests/unit/test_retry_validation.py` <!-- id: 23 -->
-  - [ ] Test valid validation result (is_valid=True)
-  - [ ] Test invalid validation result (is_valid=False, errors merged)
-  - [ ] Test `validation_fn` raising exception
-  - [ ] Test `validation_fn` returning None (treated as pass)
-- [ ] Write unit tests for `_build_retry_text()` with custom builder in `tests/unit/test_retry_validation.py` <!-- id: 24 -->
-  - [ ] Test default builder produces standard message
-  - [ ] Test custom builder produces custom message
-  - [ ] Test custom builder returning empty string (fallback to default)
-- [ ] Write unit tests for `_handle_exhaustion()` in `tests/unit/test_retry_validation.py` <!-- id: 25 -->
-  - [ ] Test `raise` raises `NodeExecutionError`
-  - [ ] Test `record_failure` writes to session
-  - [ ] Test `route_failure` calls failure route
-  - [ ] Test `route_failure` fallback to `record_failure` when no route
-- [ ] Write unit tests for `DecisionNode` classification retry in `tests/unit/test_decision_node_retry.py` <!-- id: 26 -->
-  - [ ] Test valid label accepted on first attempt
-  - [ ] Test invalid label triggers retry
-  - [ ] Test exhaustion raises error or records failure
-- [ ] Write unit tests for `NodeMonitor` hook in `tests/unit/test_monitor_hook.py` <!-- id: 27 -->
-  - [ ] Test hook called at correct trigger points
-  - [ ] Test hook called with correct arguments
-  - [ ] Test hook exception caught and logged
-  - [ ] Test hook continuation message enters retry flow
-- [ ] Write unit tests for independent `AgentMonitor` and `NodeMonitor` hook behavior in `tests/unit/test_monitor_hook.py` <!-- id: 28 -->
-  - [ ] Test `AgentMonitor` fires when configured (loop-level)
-  - [ ] Test `NodeMonitor` fires when configured (node-level)
-  - [ ] Test both fire independently when both configured
-- [x] Write unit tests for `StreamEvent` model creation and validation <!-- id: 29 -->
-  - [x] Test StreamEvent fields are set correctly
-  - [x] Test LifecycleEvent inherits from StreamEvent correctly
-  - [x] Test make_lifecycle_event() creates valid events
-  - [x] Test enrich_stream_event() adds metadata correctly
-- [x] Write unit tests for `NodeStreamPolicy` enforcement <!-- id: 30 -->
-  - [x] Test final_response_only suppresses intermediate events
-  - [x] Test include_node_metadata adds metadata to events
-  - [x] Test emit_internal_events controls lifecycle emission
-- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 31 -->
+- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 8 -->
+  - Command: `cd src/tinycua && uv run pytest tests/integration/test_wildclawbench_integration.py -v`
+- [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 9 -->
 
 ## Verification Phase
 
-- [ ] Verify monitor hooks do not write to `chat_history` or `session_context` <!-- id: 32 -->
-- [ ] Verify `record_failure` propagation works with configured `PropagationRule.failure` <!-- id: 33 -->
-- [ ] Verify `max_attempts=0` results in 1 attempt with immediate exhaustion <!-- id: 34 -->
-- [x] Verify stream=False returns string (backward compatibility) <!-- id: 35 -->
-- [x] Verify stream=True returns async iterator with correct event structure <!-- id: 36 -->
-- [x] Verify lifecycle events appear at correct node boundaries <!-- id: 37 -->
-- [x] Verify JSONL serialization roundtrip preserves all event data <!-- id: 38 -->
+- [ ] Verify adapter can be imported: `python -c "from tinycua.wildclawbench.agent import TinyCUAAgent"` <!-- id: 10 -->
+- [ ] Verify `BaseAgent` ABC is satisfied (no abstract method errors) <!-- id: 11 -->
+- [ ] Verify `run_task` handles all error cases gracefully <!-- id: 12 -->
+- [ ] Verify `collect_usage` handles missing/malformed transcripts <!-- id: 13 -->
 
 ## Documentation Phase
 
-- [ ] Update status tracker in `spec.md` — mark completed items <!-- id: 39 -->
-- [ ] Update `design.md` implementation phases — mark completed phases <!-- id: 40 -->
-- [x] Update docstrings for modified `_run_stream()` method <!-- id: 41 -->
-- [x] Add module docstring for `stream_event.py` <!-- id: 42 -->
+- [ ] Update status tracker in `spec.md` — mark completed items <!-- id: 14 -->
+- [ ] Update `design.md` implementation phases — mark completed phases <!-- id: 15 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 43 -->
-- [ ] Address review feedback <!-- id: 44 -->
-- [ ] Merge to main branch <!-- id: 45 -->
+- [ ] Create pull request <!-- id: 16 -->
+- [ ] Address review feedback <!-- id: 17 -->
+- [ ] Merge to main branch <!-- id: 18 -->
 
 ---
 
 *Task IDs enable tracking and cross-referencing*
 *Run `/implement` to execute these tasks*
-*Last updated: 2026-06-13*
+*Last updated: 2026-06-14*
