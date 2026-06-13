@@ -21,7 +21,7 @@ This implementation plan covers two related milestones:
 | FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`) | `test_lifecycle_events_emitted` |
 | FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
 | FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
-| FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_lifecycle_events_emitted` |
+| FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_emit_internal_events_suppression` |
 | FR-007 | Transcript events serializable to JSONL | id:3 (TranscriptRecord type) | `test_transcript_serialization` |
 | FR-008 | Preserve SDK `BaseLoop` contract | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator` (existing) |
 
@@ -216,6 +216,9 @@ def test_monitor_hook_observes_full_cycle():
 
 
 # Test file: src/tinycua/tests/integration/test_streaming.py
+# NOTE: This file uses a shorter name than the existing test_tinycua_loop_integration.py.
+# All streaming-related tests are in this file for clarity; the naming follows the
+# "test_<feature>_integration.py" pattern for integration test files.
 """Integration tests for streaming and transcript events.
 
 Covers lifecycle event emission, node metadata enrichment,
@@ -264,7 +267,7 @@ def _make_mock_agent(stream_events: list[dict] | None = None) -> MagicMock:
 
 
 async def test_lifecycle_events_emitted():
-    """Verify node lifecycle transitions emit structured events."""
+    """Verify node lifecycle transitions emit structured events (FR-003)."""
     stub = StubNode("lifecycle test")
     terminal = ResponseNode()
     queue = NodeQueue()
@@ -286,6 +289,34 @@ async def test_lifecycle_events_emitted():
     lifecycle_types = [e["type"] for e in events if e["type"].startswith("node.")]
     assert "node.started" in lifecycle_types
     assert "node.completed" in lifecycle_types
+
+
+async def test_emit_internal_events_suppression():
+    """Verify lifecycle events are suppressed when emit_internal_events=False (FR-006)."""
+    policy = NodeStreamPolicy(emit_internal_events=False)
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("suppression test")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    # With emit_internal_events=False, no node.* lifecycle events should appear
+    lifecycle_events = [e for e in events if e["type"].startswith("node.")]
+    assert len(lifecycle_events) == 0
 
 
 async def test_node_metadata_in_events():
@@ -402,6 +433,7 @@ async def test_transcript_serialization():
 - [ ] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
 - [ ] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
 - [ ] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
+- [ ] **Scenario 5**: `emit_internal_events` suppression — proves lifecycle events are suppressed when `emit_internal_events=False` (FR-006)
 
 > **Note**: Basic `stream=False` returns string and `stream=True` returns async iterator contract tests already exist in `test_tinycua_loop_integration.py` (`test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator`).
 
@@ -416,6 +448,8 @@ async def test_transcript_serialization():
 - [ ] Unit tests for `DecisionNode` classification validation and retry
 - [ ] Unit tests for `NodeMonitor` hook trigger points and exception handling
 - [ ] Unit tests for `AgentMonitor` and `NodeMonitor` independent hook behavior
+  - Run integration tests only: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
+  - Run full suite: `cd src/tinycua && uv run pytest`
 - [ ] Unit tests for `StreamEvent` model creation and validation
 - [ ] Unit tests for `make_lifecycle_event()` and `enrich_stream_event()` helpers
 - [ ] Unit tests for `NodeStreamPolicy` enforcement in `_run_stream()`
@@ -621,6 +655,7 @@ TranscriptRecord:
 - [ ] Depends on `PropagationRule.failure` for `record_failure` propagation — defined in existing codebase (`tinycua/loops/propagation.py`)
 - [x] Depends on existing `NodeStreamPolicy` (already implemented in `node_config.py`)
 - [x] Depends on existing `BaseLoop` SDK contract (preserved, no changes)
+- [x] **Cross-boundary import**: Integration tests in `tests/integration/test_streaming.py` import `StubNode` and `ResponseNode` from `tests/unit/helpers/tinycua_loop_helpers.py`. This cross-boundary dependency is intentional — these helpers are shared test infrastructure used by both unit and integration tests. If the helpers are refactored (moved, renamed, or changed), the integration tests will need updating.
 
 ## Risks and Mitigations
 

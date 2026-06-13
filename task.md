@@ -5,8 +5,9 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for retry, validation, and monitor hook in `tests/integration/test_retry_integration.py` <!-- id: 0 -->
-- [ ] Write integration tests for streaming and transcript events <!-- id: 1 -->
+- [ ] Write integration tests for streaming and transcript events (defined in implementation-plan.md) <!-- id: 1 -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
+  - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
 
 ## Implementation Phase
 
@@ -98,6 +99,7 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 > **Note**: Unit tests below are listed here for tracking, but should be written alongside their corresponding implementation tasks (TDD-style) — not after all implementation is complete.
 
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 22 -->
+  - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
 - [ ] Write unit tests for `validate_output()` with custom `validation_fn` in `tests/unit/test_retry_validation.py` <!-- id: 23 -->
   - [ ] Test valid validation result (is_valid=True)
   - [ ] Test invalid validation result (is_valid=False, errors merged)
