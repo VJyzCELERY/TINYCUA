@@ -1,6 +1,6 @@
-# Design Document: Retry, Validation, and Monitor Hook
+# Design Document: Retry, Validation, Monitor Hook, and Streaming Events
 
-**Spec**: [./spec.md](./spec.md)
+**Spec**: `./spec.md`
 **Status**: Draft
 **Last Updated**: 2026-06-13
 
@@ -8,7 +8,11 @@
 
 ## Overview
 
-This design completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom validation functions, custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This design fills those gaps.
+This design covers two related milestones:
+
+1. **Milestone 4.3 — Retry, Validation, and Monitor Hook**: Completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom validation functions, custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This design fills those gaps.
+
+2. **Milestone 4.4 — Streaming and Transcript Events**: Adds structured streaming support and lifecycle event hooks to TinyCUALoop, enabling real-time execution observation and WildClawBench-compatible transcript export. The implementation extends the existing `_run_stream()` method with lifecycle event emission, introduces a `StreamEvent` model for structured event dicts, and applies `NodeStreamPolicy` controls to filter events per node configuration.
 
 ---
 
@@ -51,6 +55,23 @@ TinyCUALoop._execute_node(node, agent, tools, ...)
   ├── node.record_output(response)
   ├── node.propagate()
   └── node.on_complete(queue, response)
+
+TinyCUALoop.run(stream=True)
+  → _run_stream()
+      → for each node:
+          → emit node.started lifecycle event
+          → agent._call_llm(stream=True)
+              → yield LLM delta events (with node metadata enrichment)
+          → emit node.completed lifecycle event
+      → yield all events through AsyncIterator
+
+StreamEvent (model)
+  ← LifecycleEvent (node boundaries)
+  ← LLMDeltaEvent (content deltas)
+  ← ToolCallEvent (tool invocations)
+
+NodeStreamPolicy
+  → controls: final_response_only, emit_internal_events, include_node_metadata
 ```
 
 ### Affected Components
@@ -59,9 +80,11 @@ TinyCUALoop._execute_node(node, agent, tools, ...)
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua/config/types.py` | Modified | Add `NodeMonitor` and `AgentMonitor` protocols |
+| `tinycua/config/types.py` | Modified | Add `NodeMonitor` and `AgentMonitor` protocols, `TranscriptRecord` type |
 | `tinycua/loops/node.py` | Modified | Wire `validation_fn`, `retry_continuation_builder`, exhaustion behavior; add monitor hook calls |
-| `tinycua/loops/tinycua_loop.py` | Modified | Accept optional `AgentMonitor`, pass to node execution |
+| `tinycua/loops/tinycua_loop.py` | Modified | Accept optional `AgentMonitor`, pass to node execution; lifecycle event emission in `_run_stream()` |
+| `tinycua/models/stream_event.py` | New | StreamEvent, LifecycleEvent models |
+| `tinycua/config/node_config.py` | No change | NodeStreamPolicy already exists |
 | `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion, monitor hook |
 | `tests/unit/test_decision_node_retry.py` | New | Unit tests for DecisionNode classification retry |
 | `tests/unit/test_monitor_hook.py` | New | Unit tests for monitor hook behavior |
@@ -215,6 +238,37 @@ self.session.session_context.append(failure_entry)
 if self.config.propagation and self.config.propagation.failure != "none":
     self.propagate()
 ```
+
+### New Entities (Streaming)
+
+```python
+# StreamEvent — base event dict yielded during streaming
+StreamEvent:
+    type: str                    # "node.started", "node.completed", "response.output_text.delta", etc.
+    node_id: str | None          # ID of the node producing this event
+    node_type: str | None        # "ProcessNode", "DecisionNode", etc.
+    timestamp: float             # time.time() when event was created
+    metadata: dict               # additional context (attempt, route_label, etc.)
+
+# LifecycleEvent — node boundary events
+LifecycleEvent(StreamEvent):
+    type: Literal["node.started", "node.completed", "node.error", "node.retry"]
+    attempt: int                 # current attempt number (1-based)
+    content: str | None          # final content for completed/error events
+    finish_reason: str | None    # "completed", "error", "retry", "empty"
+
+# TranscriptRecord — serializable event for WildClawBench export
+TranscriptRecord:
+    event: StreamEvent           # the original event
+    run_id: str                  # unique run identifier
+    session_id: str              # root session ID
+    sequence: int                # monotonically increasing sequence number
+```
+
+### Schema Changes
+
+- No changes to existing data structures. `NodeStreamPolicy` already has the required fields.
+- New `StreamEvent` and `LifecycleEvent` models are additive.
 
 ---
 
@@ -413,6 +467,38 @@ def _safe_call(hook_method, *args, **kwargs):
         return None
 ```
 
+### New / Modified Endpoints (Streaming)
+
+```python
+# StreamEvent factory (convenience constructors)
+def make_lifecycle_event(
+    event_type: Literal["node.started", "node.completed", "node.error", "node.retry"],
+    node_id: str,
+    node_type: str,
+    attempt: int = 1,
+    content: str | None = None,
+    finish_reason: str | None = None,
+    metadata: dict | None = None,
+) -> dict[str, Any]:
+    """Create a lifecycle event dict with standard fields."""
+
+def enrich_stream_event(
+    event: dict[str, Any],
+    node_id: str,
+    node_type: str,
+    include_metadata: bool = True,
+) -> dict[str, Any]:
+    """Add node metadata to an existing stream event dict."""
+```
+
+### Error Handling
+
+| Error Case | Exception / Response | Notes |
+|------------|---------------------|-------|
+| Stream cancellation | StopIteration / AsyncIterator exit | Clean up and stop yielding |
+| LLM endpoint no streaming support | Fallback to single response.completed event | Collect full response, yield once |
+| Empty node output | node.completed with content="" | finish_reason="empty" |
+
 ---
 
 ## Implementation Phases
@@ -441,12 +527,33 @@ def _safe_call(hook_method, *args, **kwargs):
 - [ ] Implement `_safe_call()` for exception-safe monitor invocation
 - [ ] Wire `AgentMonitor` into `TinyCUALoop._execute_node()` — delegate to node monitor
 
-### Phase 4 — Tests (required)
+### Phase 4 — Streaming and Transcript Events (required)
+
+- [ ] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py`
+- [ ] Add `make_lifecycle_event()` and `enrich_stream_event()` helper functions
+- [ ] Modify `TinyCUALoop._run_stream()` to emit lifecycle events at node boundaries
+- [ ] Apply `NodeStreamPolicy.final_response_only` to suppress intermediate events
+- [ ] Apply `NodeStreamPolicy.include_node_metadata` to enrich events with node info
+- [ ] Add `TranscriptRecord` type to `tinycua/config/types.py`
+
+### Phase 5 — Tests (required)
 
 - [ ] Unit tests for retry loop, validation, exhaustion behaviors
 - [ ] Unit tests for DecisionNode classification retry
 - [ ] Unit tests for monitor hook trigger points and exception handling
 - [ ] Integration tests for retry through TinyCUALoop
+- [ ] Unit tests for event model creation and serialization
+- [ ] Unit tests for lifecycle event emission
+- [ ] Unit tests for NodeStreamPolicy enforcement
+- [ ] Integration test for multi-node streaming
+
+### Phase 6 — Enhancements _(post-MVP)_
+
+- [ ] JSONL transcript export utility
+- [ ] Sequence numbering and run_id tracking
+- [ ] Stream cancellation cleanup
+
+> **Note**: Phase 6 must NOT be implemented until Phase 5 is complete and reviewed.
 
 ---
 
@@ -481,6 +588,22 @@ def _safe_call(hook_method, *args, **kwargs):
    - **Alternatives Considered**: Wire `node(input)` through `_execute_node()` — deferred to follow-up because it would duplicate the retry loop already in `ProcessNode.__call__()` or require extracting shared retry logic.
    - **Implication**: The hardcoded `ValidationResult(is_valid=True, errors=[])` in `_execute_node()`'s AgentMonitor after-hook is correct for this path — the loop does not run `validate_output()`. Use `NodeMonitor` for per-attempt validation results when direct node calls are used.
 
+8. **Decision**: Use plain dicts for stream events (not a custom class)
+   - **Reason**: SDK `BaseLoop` contract expects `AsyncIterator[dict[str, Any]]`. Using dicts maintains compatibility and avoids SDK changes.
+   - **Alternatives Considered**: Custom StreamEvent class — rejected because it would require SDK changes to recognize the type.
+
+9. **Decision**: Emit lifecycle events as additional yields in the existing `_run_stream()` generator
+   - **Reason**: Minimal code change, no new threading or callback infrastructure needed.
+   - **Alternatives Considered**: Separate event queue with background consumer — rejected as overengineering for prototype scope.
+
+10. **Decision**: Apply `NodeStreamPolicy` filtering at the `_run_stream()` level, not per-node
+    - **Reason**: Centralized filtering is simpler and consistent with how `NodeToolPolicy` and `NodeMessagePolicy` work.
+    - **Alternatives Considered**: Per-node event filtering — rejected as adding unnecessary complexity.
+
+11. **Decision**: Timestamps use `time.time()` (epoch seconds)
+    - **Reason**: Simple, no timezone complications, sufficient for transcript ordering.
+    - **Alternatives Considered**: `datetime.utcnow()` — rejected for serialization simplicity.
+
 ---
 
 ## Risks & Mitigations
@@ -492,6 +615,10 @@ def _safe_call(hook_method, *args, **kwargs):
 | DecisionNode retry loop adds latency for invalid classifications | Low | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare with well-prompted LLMs |
 | Custom `validation_fn` raises unexpected exceptions | Medium | Low | `_safe_call` catches all exceptions; validation errors are logged |
 | NodeMonitor does not fire through `TinyCUALoop._execute_node()` | Medium | Medium | Use AgentMonitor for loop-level observation; call nodes directly for per-attempt NodeMonitor granularity. Documented in Technical Decision #7 |
+| Stream event volume causes memory pressure | Low | Medium | Events are yielded, not accumulated; consumer controls consumption |
+| LLM endpoint doesn't support streaming | Medium | Low | Fallback to single-event yield after collecting full response |
+| NodeStreamPolicy filtering breaks existing tests | Low | High | Existing tests use `stream=False`; streaming tests already pass |
+| WildClawBench transcript format mismatch | Medium | Medium | Design events to be schema-compatible with common JSONL formats |
 
 ---
 
@@ -503,6 +630,12 @@ def _safe_call(hook_method, *args, **kwargs):
 2. **Should failure state recording include the full validation error history across attempts?**
    - Current thinking: Yes — record all errors, not just the final one, for debugging.
 
+3. Should lifecycle events include tool call details (tool name, arguments, result)?
+   - Current thinking: Yes, for `node.completed` events when tools were used. Include a `tool_calls` list in the event metadata.
+
+4. Should we add a `run_id` to all events for multi-run correlation?
+   - Current thinking: Yes, via `TranscriptRecord` wrapper. Individual events don't need it.
+
 ---
 
 ## References
@@ -513,8 +646,10 @@ def _safe_call(hook_method, *args, **kwargs):
   - `src/tinycua/docs/design/loops/tinycua_loop.md` — full (monitor hook, error handling sections)
   - `src/tinycua/docs/design/models/agent_state.md` — partial (failure recording)
   - `src/tinycua/docs/design/config/node_config.md` — full (NodeRetryPolicy)
+  - `src/tinycua/docs/design/loops/base_loop.md` — streaming architecture
 - Existing implementation:
   - `tinycua/config/node_config.py` — NodeRetryPolicy (Milestone 1.2)
   - `tinycua/config/types.py` — ValidationResult, ValidationError, LLMResult
   - `tinycua/loops/node.py` — ProcessNode.__call__() retry loop, validate_output(), build_retry_continuation()
-  - `tinycua/loops/tinycua_loop.py` — _execute_node() integration point
+  - `tinycua/loops/tinycua_loop.py` — _execute_node() integration point, _run_stream() streaming
+  - `tinycua/config/node_config.py` — NodeStreamPolicy
