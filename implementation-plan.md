@@ -1,39 +1,59 @@
-# Implementation: Retry, Validation, and Monitor Hook
+# Implementation: Retry, Validation, Monitor Hook, and Streaming Events
 
-Completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This plan fills those gaps.
+This implementation plan covers two related milestones:
+
+1. **Milestone 4.3 — Retry, Validation, and Monitor Hook**: Completes the retry, validation, and monitor hook contracts for TinyCUA nodes.
+2. **Milestone 4.4 — Streaming and Transcript Events**: Adds structured streaming support and lifecycle event hooks to TinyCUALoop.
 
 ## Context
 
-- **Spec Reference**: [./spec.md](./spec.md)
-- **Design Reference**: [./design.md](./design.md)
+- **Spec Reference**: `./spec.md`
+- **Design Reference**: `./design.md`
 - **Priority**: P1
-- **Estimated Effort**: L
+- **Estimated Effort**: M
+
+## FR → Task → Test Traceability
+
+| FR | Description | Task | Test |
+|----|-------------|------|------|
+| FR-001 | `stream=True` returns async iterator of event dicts | id:4 (lifecycle events in `_run_stream`) | `test_lifecycle_events_emitted` |
+| FR-002 | `stream=False` returns final string response | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string` (existing) |
+| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`; `node.retry` deferred) | `test_lifecycle_events_emitted` |
+| FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
+| FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
+| FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_emit_internal_events_suppression` |
+| FR-007 | Transcript events serializable to JSONL | id:3 (TranscriptRecord type) | `test_transcript_serialization` |
+| FR-008 | Preserve SDK `BaseLoop` contract | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator` (existing) |
+
+---
 
 ## Environment Pre-requisites
 
 ### Configuration
 
-- [ ] **None** — this feature has no configuration dependencies
+- [x] **None** — no additional configuration beyond existing project setup. All tests use mocked LLM responses.
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| - [ ] **None** — no external services needed | | | |
+| LLM endpoint | No | Mock via existing test fixtures | N/A |
+
+- [x] **None** — unit tests use mocked LLM responses
 
 ### Data / Fixtures
 
-- [ ] **None** — no data or fixtures needed
+- [x] **None** — no data or fixtures needed
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- [x] **None** — no special access required
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.12+, uv
-- [ ] **Package manager**: uv
-- [ ] **None** — no special tooling required
+- [x] **Runtime**: Python 3.12+, uv
+- [x] **Package manager**: uv
+- [x] **None** — no special tooling required
 
 ---
 
@@ -193,9 +213,212 @@ def test_monitor_hook_observes_full_cycle():
     assert len(monitor.after_calls) == 1  # only 1 failed validation (attempt 1)
     assert monitor.after_calls[0]["is_valid"] is False
     assert len(monitor.exhausted_calls) == 0  # succeeded on attempt 2
+
+
+# Test file: src/tinycua/tests/integration/test_streaming.py
+# NOTE: This file uses a shorter name than the existing test_tinycua_loop_integration.py.
+# All streaming-related tests are in this file for clarity; the naming follows the
+# "test_<feature>_integration.py" pattern for integration test files.
+"""Integration tests for streaming and transcript events.
+
+Covers lifecycle event emission, node metadata enrichment,
+final_response_only suppression, and JSONL transcript serialization.
+See test_tinycua_loop_integration.py for basic stream=False/stream=True
+contract tests (scenarios 1 and 2).
+"""
+
+from __future__ import annotations
+
+import json
+
+from unittest.mock import MagicMock
+
+from tinycua.config.node_config import NodeConfigBase, NodeStreamPolicy
+from tinycua.config.types import TranscriptRecord
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.tinycua_loop import TinyCUALoop
+
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
+
+
+def _make_mock_agent(stream_events: list[dict] | None = None) -> MagicMock:
+    """Create a MagicMock agent with an async streaming _call_llm.
+
+    Args:
+        stream_events: Events to yield. Defaults to a single completed event.
+    """
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    if stream_events is None:
+        stream_events = [
+            {"type": "response.output_text.delta", "delta": "Hello"},
+            {"type": "response.output_text.delta", "delta": " world"},
+            {"type": "response.completed", "finish_reason": "completed"},
+        ]
+
+    async def _call_llm(*args, **kwargs):  # noqa: ARG001
+        for event in stream_events:
+            yield event
+
+    agent._call_llm = _call_llm
+    return agent
+
+
+async def test_lifecycle_events_emitted():
+    """Verify node lifecycle transitions emit structured events (FR-003)."""
+    stub = StubNode("lifecycle test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    lifecycle_types = [e["type"] for e in events if e["type"].startswith("node.")]
+    assert "node.started" in lifecycle_types
+    assert "node.llm_call" in lifecycle_types
+    assert "node.completed" in lifecycle_types
+
+
+async def test_emit_internal_events_suppression():
+    """Verify lifecycle events are suppressed when emit_internal_events=False (FR-006)."""
+    policy = NodeStreamPolicy(emit_internal_events=False)
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("suppression test")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    # With emit_internal_events=False, no node.* lifecycle events should appear
+    lifecycle_events = [e for e in events if e["type"].startswith("node.")]
+    assert len(lifecycle_events) == 0
+
+
+async def test_node_metadata_in_events():
+    """Verify stream events include node_id, node_type, attempt when policy enabled."""
+    policy = NodeStreamPolicy(include_node_metadata=True)
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("metadata test")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    metadata_events = [e for e in events if e.get("node_id") is not None]
+    assert len(metadata_events) > 0
+    for e in metadata_events:
+        assert "node_id" in e
+        assert "node_type" in e
+
+
+async def test_final_response_only_suppresses_intermediate():
+    """Verify intermediate node events suppressed when final_response_only=True."""
+    policy = NodeStreamPolicy(final_response_only=True)
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("intermediate node")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    # Only ResponseNode events should be present
+    node_ids = {e.get("node_id") for e in events if e.get("node_id")}
+    # Intermediate stub node should not appear
+    assert "stub" not in node_ids
+
+
+async def test_transcript_serialization():
+    """Verify TranscriptRecord wrapping produces valid JSONL output (FR-007)."""
+    stub = StubNode("serialization test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
+    # Wrap events in TranscriptRecord (validates FR-007)
+    records = [
+        TranscriptRecord(event=e, run_id="test-run", session_id="test-session", sequence=i)
+        for i, e in enumerate(events)
+    ]
+
+    # Serialize to JSONL
+    jsonl_lines = [json.dumps(r.to_dict()) for r in records]
+    # Parse back
+    parsed = [json.loads(line) for line in jsonl_lines]
+    assert len(parsed) == len(records)
+    for original_record, restored in zip(records, parsed):
+        assert restored["run_id"] == "test-run"
+        assert restored["session_id"] == "test-session"
+        assert restored["event"] == original_record.event
 ```
 
 ### Key Test Scenarios
+
+#### Retry, Validation, and Monitor Hook (Milestone 4.3)
 
 - [ ] **Scenario 1**: Node retries with custom `validation_fn` — first call rejected, second accepted
 - [ ] **Scenario 2**: Retry exhaustion with `record_failure` writes failure state to session
@@ -205,27 +428,46 @@ def test_monitor_hook_observes_full_cycle():
 - [ ] **Edge case**: Custom `retry_continuation_builder` produces retry message
 - [ ] **Edge case**: `max_attempts=0` results in 1 attempt (no retry)
 
+#### Streaming and Transcript Events (Milestone 4.4)
+
+- [x] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.llm_call`, `node.completed`) work correctly
+- [x] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
+- [x] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
+- [x] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
+- [x] **Scenario 5**: `emit_internal_events` suppression — proves lifecycle events are suppressed when `emit_internal_events=False` (FR-006)
+
+> **Note**: Basic `stream=False` returns string and `stream=True` returns async iterator contract tests already exist in `test_tinycua_loop_integration.py` (`test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator`).
+
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for `validate_output()` with custom `validation_fn`
 - [ ] Unit tests for `_build_retry_text()` with custom builder
 - [ ] Unit tests for `_handle_exhaustion()` with all three policies
 - [ ] Unit tests for `DecisionNode` classification validation and retry
 - [ ] Unit tests for `NodeMonitor` hook trigger points and exception handling
 - [ ] Unit tests for `AgentMonitor` and `NodeMonitor` independent hook behavior
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+  - Run integration tests only: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
+  - Run full suite: `cd src/tinycua && uv run pytest`
+- [x] Unit tests for `StreamEvent` model creation and validation
+- [x] Unit tests for `make_lifecycle_event()` and `enrich_stream_event()` helpers
+- [x] Unit tests for `NodeStreamPolicy` enforcement in `_run_stream()`
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
 - [ ] Verify monitor hooks do not write to `chat_history` or `session_context`
 - [ ] Verify `record_failure` propagation works with configured `PropagationRule.failure`
+- [x] Verify stream events visually in a test harness that prints events as they arrive
+- [x] Confirm lifecycle events appear at correct node boundaries in multi-node execution
 
 ### Performance Considerations
 
 - [ ] Monitor hook overhead is negligible (optional, lightweight, exception-safe)
+- [x] Events are yielded, not accumulated — consumer controls memory usage
+- [x] No additional threading or async infrastructure needed
 
 ## Proposed Changes
 
@@ -243,7 +485,7 @@ def test_monitor_hook_observes_full_cycle():
 - **Add classification validation**: In `DecisionNode.__call__()`, after the classification call, verify the returned label matches one of `classification_labels`. If invalid, treat as validation failure.
 - **Add classification retry loop**: Wrap the classification step in a retry loop that applies the same exhaustion behavior as `ProcessNode`.
 
-### Phase 2 — Monitor Hook
+### Phase 2 — Monitor Hook Protocol
 
 #### [NEW] `NodeMonitor` protocol in `src/tinycua/tinycua/config/types.py`
 
@@ -265,7 +507,38 @@ def test_monitor_hook_observes_full_cycle():
 - **Add `agent_monitor: AgentMonitor | None = None` field to `TinyCUALoop.__init__()`**: Loop-level monitor configuration.
 - **Wire `agent_monitor` in `_execute_node()`**: Call `agent_monitor.on_before_node_call()` before LLM call and `agent_monitor.on_after_node_call()` after; delegate to node monitor if configured.
 
-### Phase 3 — Tests
+### Phase 3 — Streaming and Transcript Events
+
+#### [NEW] `src/tinycua/tinycua/models/stream_event.py`
+
+- **Description**: New module containing `StreamEvent`, `LifecycleEvent` models and helper functions
+- **Dependencies**: `time`, `typing`
+
+#### [MODIFY] `src/tinycua/tinycua/models/__init__.py`
+
+- **Description**: Export new `StreamEvent` and `LifecycleEvent` models
+- **Breaking changes**: None (additive)
+
+#### [MODIFY] `src/tinycua/tinycua/loops/tinycua_loop.py`
+
+- **Description**: Modify `_run_stream()` to emit lifecycle events at node boundaries, apply `NodeStreamPolicy` filtering, and enrich events with node metadata
+- **Breaking changes**: None (streaming behavior enhanced, non-streaming unchanged)
+- **Specific changes**:
+  - Emit `node.started` event before `agent._call_llm()`
+  - Emit `node.llm_call` event after `agent._call_llm()` call starts
+  - Emit `node.completed` event after LLM call completes
+  - Emit `node.error` event on exception during node execution
+  - Add `attempt` tracking for retry scenarios
+  - Apply `final_response_only` filter to suppress intermediate node events
+  - Apply `include_node_metadata` to enrich events with node info
+  - Apply `emit_internal_events` to control lifecycle event emission
+
+#### [MODIFY] `src/tinycua/tinycua/config/types.py`
+
+- **Description**: Add `TranscriptRecord` type for WildClawBench-compatible event records
+- **Breaking changes**: None (additive)
+
+### Phase 4 — Tests
 
 #### [NEW] `src/tinycua/tests/unit/test_retry_validation.py`
 
@@ -296,10 +569,12 @@ def test_monitor_hook_observes_full_cycle():
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tinycua/config/types.py` | Modify | Add `NodeMonitor` and `AgentMonitor` protocols |
+| `tinycua/config/types.py` | Modify | Add `NodeMonitor` and `AgentMonitor` protocols, `TranscriptRecord` type |
 | `tinycua/config/node_config.py` | Modify | Add `monitor` field to `NodeConfigBase` |
 | `tinycua/loops/node.py` | Modify | Wire `retry_continuation_builder`, exhaustion behavior, monitor hooks; add `_safe_call()`, `_handle_exhaustion()`, `_record_failure()`, `_call_failure_route()` |
-| `tinycua/loops/tinycua_loop.py` | Modify | Accept optional `AgentMonitor`, wire in `_execute_node()` |
+| `tinycua/loops/tinycua_loop.py` | Modify | Accept optional `AgentMonitor`, wire in `_execute_node()`; lifecycle event emission in `_run_stream()` |
+| `tinycua/models/stream_event.py` | New | StreamEvent, LifecycleEvent models and factory functions |
+| `tinycua/models/__init__.py` | Modify | Export new models |
 | `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion |
 | `tests/unit/test_decision_node_retry.py` | New | Unit tests for DecisionNode classification retry |
 | `tests/unit/test_monitor_hook.py` | New | Unit tests for monitor hook behavior |
@@ -308,7 +583,7 @@ def test_monitor_hook_observes_full_cycle():
 ## Data Model Changes
 
 ```python
-# New protocol in tinycua/config/types.py
+# NodeMonitor Protocol in tinycua/config/types.py
 @runtime_checkable
 class NodeMonitor(Protocol):
     def on_before_node_call(self, node_id: str, session_id: str, attempt: int,
@@ -326,6 +601,28 @@ class AgentMonitor(Protocol):
                            result: LLMResult, validation_result: ValidationResult) -> str | None: ...
     def on_retry_exhausted(self, node_id: str, session_id: str,
                            error: ValidationError, attempts: int) -> str | None: ...
+
+# StreamEvent — base event dict yielded during streaming
+StreamEvent:
+    type: str                    # "node.started", "node.completed", "response.output_text.delta", etc.
+    node_id: str | None          # ID of the node producing this event
+    node_type: str | None        # "ProcessNode", "DecisionNode", etc.
+    timestamp: float             # time.time() when event was created
+    metadata: dict               # additional context (attempt, route_label, etc.)
+
+# LifecycleEvent — node boundary events
+LifecycleEvent(StreamEvent):
+    type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"]
+    attempt: int                 # current attempt number (1-based)
+    content: str | None          # final content for completed/error events
+    finish_reason: str | None    # "completed", "error", "retry", "empty"
+
+# TranscriptRecord — serializable event for WildClawBench export
+TranscriptRecord:
+    event: StreamEvent           # the original event
+    run_id: str                  # unique run identifier
+    session_id: str              # root session ID
+    sequence: int                # monotonically increasing sequence number
 ```
 
 ## API Changes
@@ -338,6 +635,14 @@ class AgentMonitor(Protocol):
 | `TinyCUALoop.__init__` | Added `agent_monitor: AgentMonitor \| None = None` | Backwards compatible (default None) |
 | `ProcessNode.__call__` | Now wires `retry_continuation_builder` and calls monitor hooks | Backwards compatible (behavioral change only) |
 | `DecisionNode.__call__` | Now validates classification and retries | Backwards compatible (behavioral change) |
+| `TinyCUALoop._run_stream()` | Emit lifecycle events, apply NodeStreamPolicy filtering, enrich with metadata | Backwards compatible (streaming behavior enhanced) |
+
+### New Functions
+
+| Function | Description |
+|----------|-------------|
+| `make_lifecycle_event()` | Factory for creating lifecycle event dicts with standard fields |
+| `enrich_stream_event()` | Add node metadata to existing stream event dict |
 
 ## Dependencies
 
@@ -351,6 +656,9 @@ class AgentMonitor(Protocol):
 - [ ] Depends on existing `validate_output()` (Milestone 1.5) — already implemented
 - [ ] Depends on existing `build_retry_continuation()` (Milestone 1.5) — already implemented
 - [ ] Depends on `PropagationRule.failure` for `record_failure` propagation — defined in existing codebase (`tinycua/loops/propagation.py`)
+- [x] Depends on existing `NodeStreamPolicy` (already implemented in `node_config.py`)
+- [x] Depends on existing `BaseLoop` SDK contract (preserved, no changes)
+- [x] **Cross-boundary import**: Integration tests in `tests/integration/test_streaming.py` import `StubNode` and `ResponseNode` from `tests/unit/helpers/tinycua_loop_helpers.py`. This cross-boundary dependency is intentional — these helpers are shared test infrastructure used by both unit and integration tests. If the helpers are refactored (moved, renamed, or changed), the integration tests will need updating.
 
 ## Risks and Mitigations
 
@@ -360,6 +668,10 @@ class AgentMonitor(Protocol):
 | `record_failure` propagation rule not defined for some nodes | Medium | Default to no propagation; nodes that need failure propagation configure `PropagationRule.failure` |
 | DecisionNode retry loop adds latency for invalid classifications | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare |
 | Custom `validation_fn` raises unexpected exceptions | Medium | Existing `validate_output()` already catches `ValueError`, `TypeError`, `KeyError`; additional exception types caught via `_safe_call` for monitor hooks |
+| Stream event volume causes memory pressure | Medium | Events are yielded, not accumulated; consumer controls consumption |
+| LLM endpoint doesn't support streaming | Low | Fallback to single-event yield after collecting full response |
+| NodeStreamPolicy filtering breaks existing tests | High | Existing tests use `stream=False`; streaming tests already pass |
+| WildClawBench transcript format mismatch | Medium | Design events to be schema-compatible with common JSONL formats |
 
 ---
 

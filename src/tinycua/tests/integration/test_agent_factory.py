@@ -85,8 +85,10 @@ class TestAgentRun:
         assert hasattr(result, '__aiter__')
         events = [e async for e in result]
         assert len(events) > 0
-        assert events[0]["type"] == "response.output_text.delta"
-        assert events[0]["delta"] == "Hi"
+        # Find the delta event (may be preceded by lifecycle events)
+        delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
+        assert len(delta_events) > 0
+        assert delta_events[0]["delta"] == "Hi"
         session = agent.loop.root_session
         assert len(session.chat_history) == 1  # assistant only (user in input_context)
         assert session.chat_history[0].role == "assistant"
@@ -135,7 +137,9 @@ class TestAgentRun:
         agent._call_llm = empty_stream
         result = await agent.run("hello", stream=True)
         events = [e async for e in result]
-        assert len(events) == 1
+        # Filter to only LLM content events (ignore lifecycle events)
+        delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
+        assert len(delta_events) == 0  # no content deltas emitted
         session = agent.loop.root_session
         assert len(session.chat_history) == 0  # no assistant response recorded
         assert session.input_context[0]["role"] == "user"
