@@ -167,13 +167,13 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 
 ### Streaming and Transcript Events (Milestone 4.4)
 
-- [ ] **stream=False returns string**: `TinyCUALoop.run(stream=False)` returns a `str` with the final response.
-- [ ] **stream=True returns async iterator**: `TinyCUALoop.run(stream=True)` returns an `AsyncIterator[dict]`.
-- [ ] **Lifecycle events emitted**: Node lifecycle transitions emit structured events with type, node_id, and timestamp.
-- [ ] **Node metadata in events**: Stream events include `node_id`, `node_type`, `attempt` when policy enabled.
-- [ ] **final_response_only suppresses intermediate events**: Intermediate node LLM/tool events are not emitted when policy enabled.
-- [ ] **Transcript serialization**: Collected events can be serialized to JSONL and parsed back without data loss.
-- [ ] **Backward compatibility**: Existing non-streaming tests continue to pass unchanged.
+- [x] **stream=False returns string**: `TinyCUALoop.run(stream=False)` returns a `str` with the final response.
+- [x] **stream=True returns async iterator**: `TinyCUALoop.run(stream=True)` returns an `AsyncIterator[dict]`.
+- [x] **Lifecycle events emitted**: Node lifecycle transitions emit structured events with type, node_id, and timestamp.
+- [x] **Node metadata in events**: Stream events include `node_id`, `node_type`, `attempt` when policy enabled.
+- [x] **final_response_only suppresses intermediate events**: Intermediate node LLM/tool events are not emitted when policy enabled.
+- [x] **Transcript serialization**: Collected events can be serialized to JSONL and parsed back without data loss.
+- [x] **Backward compatibility**: Existing non-streaming tests continue to pass unchanged.
 
 ---
 

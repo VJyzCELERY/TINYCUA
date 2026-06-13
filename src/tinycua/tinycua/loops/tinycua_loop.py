@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
+from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
 from tinycua.loops.node_queue import NodeQueue
@@ -233,8 +234,6 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The lifecycle event dict, or None if emission is suppressed.
         """
-        from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
-
         if not emit_lifecycle:
             return None
 
@@ -250,6 +249,38 @@ class TinyCUALoop(BaseLoop):
             enrich_stream_event(event, node_id, node_type, attempt)
         if final_only and not is_terminal_node:
             return None
+        return event
+
+    def _make_error_event(
+        self,
+        node_id: str,
+        node_type: str,
+        attempt: int,
+        include_meta: bool,
+    ) -> dict[str, Any]:
+        """Create a node.error lifecycle event, bypassing final_only gate.
+
+        Error events are always emitted regardless of final_response_only policy
+        because they are diagnostic signals, not intermediate output.
+
+        Args:
+            node_id: The node identifier.
+            node_type: Class name of the node.
+            attempt: Current attempt number.
+            include_meta: Whether to include node metadata.
+
+        Returns:
+            The error lifecycle event dict.
+        """
+        event = make_lifecycle_event(
+            event_type="node.error",
+            node_id=node_id,
+            node_type=node_type,
+            attempt=attempt,
+            finish_reason="error",
+        )
+        if include_meta:
+            enrich_stream_event(event, node_id, node_type, attempt)
         return event
 
     def _finalize_streamed_node(
@@ -372,18 +403,14 @@ class TinyCUALoop(BaseLoop):
                     if event.get("type") == "response.tool_call":
                         collected_tool_calls.append(event)
                     if include_meta:
-                        from tinycua.models.stream_event import enrich_stream_event
                         enrich_stream_event(event, node.node_id, node_type, attempt)
                     if not final_only or is_terminal_node:
                         yield event
             except Exception:
-                error = self._emit_lifecycle_event(
-                    "node.error", node.node_id, node_type, attempt,
-                    emit_lifecycle, include_meta, final_only, is_terminal_node,
-                    finish_reason="error",
-                )
-                if error is not None:
-                    yield error
+                if emit_lifecycle:
+                    yield self._make_error_event(
+                        node.node_id, node_type, attempt, include_meta,
+                    )
                 raise
 
             # Finalize node: record output, fire hooks, propagate
