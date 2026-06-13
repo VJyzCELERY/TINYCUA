@@ -327,7 +327,7 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
 
 ### Manual Verification
 
-- [ ] Verify adapter can be imported: `python -c "from tinycua.wildclawbench.agent import TinyCUAAgent"`
+- [ ] Verify adapter can be imported: `uv run python -c "from tinycua.wildclawbench.agent import TinyCUAAgent"`
 - [ ] Verify `BaseAgent` ABC is satisfied (no abstract method errors on instantiation)
 
 ### Performance Considerations
