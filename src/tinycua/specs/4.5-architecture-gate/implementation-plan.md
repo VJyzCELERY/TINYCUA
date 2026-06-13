@@ -13,20 +13,20 @@ Build a standalone verification gate that proves all 12 TinyCUA architecture pat
 
 ### Configuration
 
-- [x] **.env file** — required variables:
+- [ ] **.env.test** — needs to be created based on `.env.test.example`; required variables:
   ```
-  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:11434/v1
+  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:1234/v1
   OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-4b
   OPENAI_CHAT_COMPLETIONS_API_KEY=not-needed
   ```
-- [x] **Environment variables** — already documented in existing `.env` files
+- [x] **Environment variables** — already documented in existing `.env.example` files
 - [x] **None** — no additional secrets needed
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| Local LLM server | Yes | `ollama serve` or equivalent | `curl localhost:11434/v1/models` |
+| Local LLM server | Yes | `ollama serve` or equivalent | `curl localhost:1234/v1/models` |
 | [x] **None else** — no other services needed | | | |
 
 ### Data / Fixtures
@@ -46,7 +46,7 @@ Build a standalone verification gate that proves all 12 TinyCUA architecture pat
 The verification gate IS the integration test. All tests run against the real local LLM via NodeQueue.
 
 ```python
-# Test file: tests/verification/test_gate.py
+# Test file: src/tinycua/tests/verification/test_gate.py
 """Integration tests for the architecture verification gate."""
 
 
@@ -147,48 +147,48 @@ def test_gate_llm_unavailable_fails_gracefully():
 
 ### Verification Infrastructure
 
-#### NEW `tests/verification/__init__.py`
+#### NEW `src/tinycua/tests/verification/__init__.py`
 
 - **Description**: Package init for verification module
 - **Dependencies**: None
 
-#### NEW `tests/verification/config.py`
+#### NEW `src/tinycua/tests/verification/config.py`
 
-- **Description**: Configuration module — reads from environment variables, constructs `SessionConfig` for LLM endpoint, model, and API key
-- **Dependencies**: `tinycua.SessionConfig`
+- **Description**: Configuration module — reads from environment variables, constructs `LocalModelConfig` (from `tinycua.config.local_model`) for LLM endpoint, model, and API key
+- **Dependencies**: `tinycua.config.local_model.LocalModelConfig`
 - **Rationale**: Reuses existing TinyCUA config mechanism to ensure verification tests the real LLM integration path
 
-#### NEW `tests/verification/paths.py`
+#### NEW `src/tinycua/tests/verification/paths.py`
 
 - **Description**: Path definitions and registry — defines all 12 architecture paths with node sequences, expected outcomes, and validation criteria
 - **Dependencies**: None (pure data definitions)
 - **Rationale**: Declarative definitions are easier to review, modify, and extend
 
-#### NEW `tests/verification/executor.py`
+#### NEW `src/tinycua/tests/verification/executor.py`
 
 - **Description**: Path execution engine — instantiates actual TinyCUA nodes and runs them through NodeQueue
-- **Dependencies**: `tinycua.loops.node.NodeQueue`, `tinycua.SessionConfig`, all node classes
+- **Dependencies**: `tinycua.loops.node.NodeQueue`, `tinycua.config.local_model.LocalModelConfig`, all node classes
 - **Rationale**: Uses the real execution engine to verify actual architecture, not a test harness imitation
 
-#### NEW `tests/verification/reporter.py`
+#### NEW `src/tinycua/tests/verification/reporter.py`
 
 - **Description**: Result collection and reporting — generates JSON and human-readable summary reports
 - **Dependencies**: None (operates on result data structures)
 - **Rationale**: Separates reporting from execution for clarity
 
-#### NEW `tests/verification/gate.py`
+#### NEW `src/tinycua/tests/verification/gate.py`
 
 - **Description**: Main gate orchestrator — runs all paths and produces aggregate pass/fail verdict
 - **Dependencies**: `executor.py`, `reporter.py`, `paths.py`, `config.py`
 - **Rationale**: Single entry point for the verification gate
 
-#### NEW `tests/verification/cross_cutting.py`
+#### NEW `src/tinycua/tests/verification/cross_cutting.py`
 
 - **Description**: Cross-cutting concern verification — validates propagation, dedupe, tool scoping, retry, streaming during path execution
 - **Dependencies**: `executor.py`
 - **Rationale**: Verifies cross-cutting concerns as part of path execution, not as separate paths
 
-#### NEW `tests/verification/test_gate.py`
+#### NEW `src/tinycua/tests/verification/test_gate.py`
 
 - **Description**: Pytest entry point — parameterized tests that run the verification gate
 - **Dependencies**: `gate.py`, `pytest`
@@ -200,14 +200,14 @@ def test_gate_llm_unavailable_fails_gracefully():
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `tests/verification/` | New | Verification gate test infrastructure |
-| `tests/verification/gate.py` | New | Main gate orchestrator |
-| `tests/verification/paths.py` | New | Path definitions and registry |
-| `tests/verification/executor.py` | New | Path execution engine using NodeQueue |
-| `tests/verification/reporter.py` | New | Result collection and reporting |
-| `tests/verification/config.py` | New | Configuration — reads from env, constructs SessionConfig |
-| `tests/verification/test_gate.py` | New | Pytest entry point |
-| `tests/verification/cross_cutting.py` | New | Cross-cutting concern verification |
+| `src/tinycua/tests/verification/` | New | Verification gate test infrastructure |
+| `src/tinycua/tests/verification/gate.py` | New | Main gate orchestrator |
+| `src/tinycua/tests/verification/paths.py` | New | Path definitions and registry |
+| `src/tinycua/tests/verification/executor.py` | New | Path execution engine using NodeQueue |
+| `src/tinycua/tests/verification/reporter.py` | New | Result collection and reporting |
+| `src/tinycua/tests/verification/config.py` | New | Configuration — reads from env, constructs LocalModelConfig |
+| `src/tinycua/tests/verification/test_gate.py` | New | Pytest entry point |
+| `src/tinycua/tests/verification/cross_cutting.py` | New | Cross-cutting concern verification |
 
 ## Data Model Changes
 
@@ -257,7 +257,7 @@ VerificationReport:
 ### Internal Dependencies
 
 - [x] Depends on existing `tinycua.loops.node.NodeQueue` — the real execution engine
-- [x] Depends on existing `tinycua.SessionConfig` — LLM configuration
+- [x] Depends on existing `tinycua.config.local_model.LocalModelConfig` — LLM configuration
 - [x] Depends on all existing node classes (`TinyCUAQueryAnalystNode`, etc.)
 - [x] Blocks nothing — this is verification-only, no downstream dependencies
 
