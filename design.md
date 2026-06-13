@@ -63,7 +63,9 @@ TinyCUALoop.run(stream=True)
           → emit node.llm_call lifecycle event (before _call_llm)
           → agent._call_llm(stream=True)
               → yield LLM delta events (with node metadata enrichment)
-          → emit node.completed lifecycle event
+          → emit node.completed lifecycle event (on success)
+          → emit node.error lifecycle event (on exception)
+          → emit node.retry lifecycle event (on retry attempt)
       → yield all events through AsyncIterator
 
 StreamEvent (model)

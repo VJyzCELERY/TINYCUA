@@ -477,7 +477,7 @@ async def test_transcript_serialization():
 #### [NEW] `src/tinycua/tinycua/models/stream_event.py`
 
 - **Description**: New module containing `StreamEvent`, `LifecycleEvent` models and helper functions
-- **Dependencies**: `dataclasses`, `time`, `typing`
+- **Dependencies**: `time`, `typing`
 
 #### [MODIFY] `src/tinycua/tinycua/models/__init__.py`
 
@@ -575,7 +575,7 @@ StreamEvent:
 
 # LifecycleEvent — node boundary events
 LifecycleEvent(StreamEvent):
-    type: Literal["node.started", "node.completed", "node.error", "node.retry"]
+    type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"]
     attempt: int                 # current attempt number (1-based)
     content: str | None          # final content for completed/error events
     finish_reason: str | None    # "completed", "error", "retry", "empty"
