@@ -109,7 +109,7 @@ def test_gate_timeout_handling():
 def test_gate_llm_unavailable_fails_gracefully():
     """Verify gate fails gracefully when LLM endpoint is unreachable."""
     config = GateConfig.from_env()
-    config.base_url = "http://localhost:99999/v1"  # Bad endpoint
+    config.local_model_config.base_url = "http://localhost:99999/v1"  # Bad endpoint
     gate = VerificationGate(config=config)
     report = gate.run_all()
     assert report.overall_status == "fail"
@@ -154,9 +154,9 @@ def test_gate_llm_unavailable_fails_gracefully():
 
 #### NEW `src/tinycua/tests/verification/config.py`
 
-- **Description**: Configuration module — reads from environment variables, constructs `LocalModelConfig` (from `tinycua.config.local_model`) for LLM endpoint, model, and API key
+- **Description**: Configuration module — reads from environment variables, constructs `LocalModelConfig` (from `tinycua.config.local_model`) for LLM endpoint, model, and API key, then wraps it in `GateConfig` with verification-specific settings (default_timeout_seconds, output_dir)
 - **Dependencies**: `tinycua.config.local_model.LocalModelConfig`
-- **Rationale**: Reuses existing TinyCUA config mechanism to ensure verification tests the real LLM integration path
+- **Rationale**: Reuses existing TinyCUA config mechanism to ensure verification tests the real LLM integration path. `GateConfig` adds verification-specific fields on top of `LocalModelConfig`.
 
 #### NEW `src/tinycua/tests/verification/paths.py`
 
@@ -201,11 +201,12 @@ def test_gate_llm_unavailable_fails_gracefully():
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `src/tinycua/tests/verification/` | New | Verification gate test infrastructure |
+| `src/tinycua/tests/verification/__init__.py` | New | Package init |
 | `src/tinycua/tests/verification/gate.py` | New | Main gate orchestrator |
 | `src/tinycua/tests/verification/paths.py` | New | Path definitions and registry |
 | `src/tinycua/tests/verification/executor.py` | New | Path execution engine using NodeQueue |
 | `src/tinycua/tests/verification/reporter.py` | New | Result collection and reporting |
-| `src/tinycua/tests/verification/config.py` | New | Configuration — reads from env, constructs LocalModelConfig |
+| `src/tinycua/tests/verification/config.py` | New | Configuration — reads from env, constructs LocalModelConfig, wraps in GateConfig |
 | `src/tinycua/tests/verification/test_gate.py` | New | Pytest entry point |
 | `src/tinycua/tests/verification/cross_cutting.py` | New | Cross-cutting concern verification |
 

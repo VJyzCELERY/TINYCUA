@@ -5,7 +5,7 @@
 **Last Updated**: 2026-06-13
 **Subproject(s) Affected**: tinycua (src/tinycua)
 **Milestone**: 4.5 — End-to-End Architecture Verification Gate
-**Tracking Issue**: [TBD]
+**Tracking Issue**: #129
 
 > **Path convention**: All paths in this document (e.g., `docs/design/loops/node.md`, `config/node_config.py`) are relative to the `tinycua` subproject root (`src/tinycua/`). For example, `docs/design/loops/node.md` maps to `src/tinycua/docs/design/loops/node.md`.
 
@@ -125,6 +125,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
 - **Description**: Simple worker path with single task execution. TaskCreation runs at Worker start and produces a single task.
 - **Expected Outcome**: TaskCreation produces single task, Worker executes it, ResultReviewer accepts, PrimaryAgent produces response.
+- **Note**: Path 3 and Path 11 share the same node sequence. They differ in the Worker's routing classification: Path 3 uses the default `task_creation` classification (fresh task creation), while Path 11 uses `proceed_execution` (continuing an existing task). The executor must inject the classification via `setup_fn` on the `ArchitecturePath`.
 
 ### Path 4: Worker with Task Creation
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskAssessor → TaskAnalyzer → TaskExecutor → ResultReviewer → PrimaryAgent → Response
@@ -165,6 +166,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → PrimaryAgent → Response
 - **Description**: Worker re-enters with 'proceed_execution' classification (Worker input gate). TaskCreation produces a single task, then the next task is executed without special handling.
 - **Expected Outcome**: Next task executed, ResultReviewer accepts, Worker completes, PrimaryAgent produces response.
+- **Note**: Path 11 shares the same node sequence as Path 3. They differ in the Worker's routing classification: Path 11 uses `proceed_execution` (continuing an existing task), while Path 3 uses the default `task_creation` classification. The executor must inject the classification via `setup_fn` on the `ArchitecturePath`.
 
 ### Path 12: Worker Result Aggregation
 - **Route**: QueryAnalyst → InformationDigester → Worker → TaskCreation → TaskExecutor → ResultReviewer(accepted) → ResultAggregationNode → PrimaryAgent → Response
@@ -177,7 +179,7 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Path definitions | Defined in spec.md (lines 152-173) | Define all 12 paths with expected outcomes |
+| Path definitions | Defined in spec.md (lines 114-175) | Define all 12 paths with expected outcomes |
 | Verification gate | TODO | Implement gate orchestrator |
 | LLM integration | TODO | Configure local LLM endpoint |
 | Result persistence | TODO | JSON output format |

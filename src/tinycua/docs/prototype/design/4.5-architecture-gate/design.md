@@ -27,7 +27,7 @@ Verification Gate
   │
   ├── Path Executor
   │     ├── Node Sequence Runner
-  │     ├── Session Manager
+  │     ├── Session Config
   │     └── Timeout Controller
   │
   ├── Result Collector
@@ -48,12 +48,12 @@ Verification Gate
 | `tests/verification/paths.py` | New | Path definitions and registry |
 | `tests/verification/executor.py` | New | Path execution engine — instantiates actual TinyCUA nodes and runs them through NodeQueue |
 | `tests/verification/reporter.py` | New | Result collection and reporting |
-| `tests/verification/config.py` | New | Configuration (LLM endpoint, timeouts) — reads from existing TinyCUA `SessionConfig` |
+| `tests/verification/config.py` | New | Configuration (LLM endpoint, timeouts) — reads from existing TinyCUA `LocalModelConfig` (from `tinycua.config.local_model`) |
 | `tests/verification/test_gate.py` | New | Pytest entry point for the gate |
 | `tests/verification/cross_cutting.py` | New | Cross-cutting concern verification (propagation, dedupe, tool scoping, retry, streaming) |
-| `tinycua.loops.node` | Existing | NodeQueue — used by PathExecutor to run the real node execution engine |
-| `tinycua.SessionConfig` | Existing | LLM client configuration — reused by verification gate for endpoint/model config |
-| `tinycua.loops.result_aggregation` | Existing | ResultAggregationNode — instantiated for Path 12 verification |
+| `tinycua.loops.node` | Existing | `ProcessNode` and `DecisionNode` — generic node classes used by PathExecutor for logical nodes (TaskAssessor, TaskAnalyzer, etc.) configured with tool scopes from `tool_scopes.py` |
+| `tinycua.SessionConfig` | Existing | Session configuration — used by PathExecutor for session isolation per path |
+| `tinycua.config.tool_scopes` | Existing | Tool scope definitions — provides `NodeToolPolicy` for logical nodes (`task_assessor_tool_scope()`, `task_analyzer_tool_scope()`, etc.) |
 
 ---
 
@@ -106,6 +106,35 @@ VerificationReport:
 ---
 
 ## API / Interface Contracts
+
+### GateConfig
+
+```python
+from dataclasses import dataclass, field
+from tinycua.config.local_model import LocalModelConfig
+
+
+@dataclass
+class GateConfig:
+    """Configuration for the verification gate.
+
+    Wraps LocalModelConfig (LLM endpoint, model, API key) and adds
+    verification-specific settings (timeouts, output paths).
+    """
+    local_model_config: LocalModelConfig
+    default_timeout_seconds: int = 120
+    output_dir: str = "test-results"
+
+    @classmethod
+    def from_env(cls) -> "GateConfig":
+        """Construct GateConfig from environment variables.
+
+        Reads OPENAI_CHAT_COMPLETIONS_BASE_URL, OPENAI_CHAT_COMPLETIONS_MODEL,
+        and OPENAI_CHAT_COMPLETIONS_API_KEY, then builds a LocalModelConfig
+        and wraps it with verification-specific defaults.
+        """
+        ...
+```
 
 ### Gate Orchestrator
 
@@ -167,9 +196,26 @@ class ReportGenerator:
 
 The verification gate must verify the **real** TinyCUA architecture, not a test harness imitation. PathExecutor achieves this by instantiating actual TinyCUA nodes and running them through the existing `NodeQueue` execution engine.
 
+### Node Name Mapping
+
+The following table maps each spec node name to its actual Python class and import path. Nodes with dedicated classes are imported directly; logical-only nodes are instantiated as generic `ProcessNode` instances configured with the appropriate `NodeToolPolicy` from `tinycua.config.tool_scopes`.
+
+| Spec Name | Python Class | Import Path | Notes |
+|-----------|-------------|-------------|-------|
+| QueryAnalyst | `TinyCUAQueryAnalystNode` | `tinycua.loops.query_analyst` | Dedicated class |
+| InformationDigester | `TinyCUAInformationDigesterNode` | `tinycua.loops.information_digester` | Dedicated class |
+| Worker | `TinyCUAWorkerNode` | `tinycua.loops.worker` | Dedicated class |
+| TaskCreation | `TinyCUATaskCreateNode` | `tinycua.loops.task_create` | Dedicated class |
+| PrimaryAgent | `ResponseNode` | `tinycua.loops.response_node` | Different name in codebase |
+| TaskAssessor | `ProcessNode` (generic) | `tinycua.loops.node` | Configured with `task_assessor_tool_scope()` from `tool_scopes.py` |
+| TaskAnalyzer | `ProcessNode` (generic) | `tinycua.loops.node` | Configured with `task_analyzer_tool_scope()` from `tool_scopes.py` |
+| TaskExecutor | `ProcessNode` (generic) | `tinycua.loops.node` | Configured with `task_executor_tool_scope()` from `tool_scopes.py` |
+| ResultReviewer | `ProcessNode` (generic) | `tinycua.loops.node` | Configured with `result_reviewer_tool_scope()` from `tool_scopes.py` |
+| ResultAggregationNode | `ProcessNode` (generic) | `tinycua.loops.node` | Configured with `result_aggregation_tool_scope()` from `tool_scopes.py` |
+
 ### How It Works
 
-1. **Node Instantiation**: For each path, PathExecutor instantiates the actual TinyCUA node classes (`TinyCUAQueryAnalystNode`, `TinyCUAInformationDigesterNode`, `TinyCUAWorkerNode`, etc.) using their real config dataclasses.
+1. **Node Instantiation**: For each path, PathExecutor resolves the node name to a class using the mapping above, then instantiates the node. Dedicated classes (`TinyCUAQueryAnalystNode`, etc.) are imported and created with their real config dataclasses. Logical-only nodes (`TaskAssessor`, etc.) are instantiated as generic `ProcessNode` instances with the appropriate `NodeToolPolicy` from `tool_scopes.py`.
 
 2. **NodeQueue Execution**: PathExecutor feeds the instantiated nodes into a `NodeQueue` and runs the queue. The queue handles the real execution lifecycle: session creation, message building, LLM calls, output validation, propagation, and retry.
 
@@ -235,7 +281,7 @@ Cross-cutting concerns (propagation/dedupe, tool scoping, retry/validation, stre
 
 ### How It Works
 
-Each `PathExecutor` includes a `CrossCuttingCollector` that hooks into the node execution lifecycle:
+Each `PathExecutor` includes a `CrossCuttingCollector` (defined in `tests/verification/cross_cutting.py` and instantiated by `PathExecutor`) that hooks into the node execution lifecycle:
 
 1. **Before node execution**: Record expected tool scope from `NodeToolPolicy`.
 2. **After node execution**: Record actual tool invocations, output validation result, retry count.
@@ -256,7 +302,7 @@ Failures in cross-cutting concerns are reported as path-level warnings or failur
 ### Phase 2 — Executor Infrastructure (required)
 
 - [ ] Implement PathExecutor that runs node sequences against LLM
-- [ ] Implement SessionManager for path isolation
+- [ ] Implement session isolation via SessionConfig
 - [ ] Implement TimeoutController for per-path limits
 - [ ] Implement LLM interaction logging
 
