@@ -206,65 +206,101 @@ def test_monitor_hook_observes_full_cycle():
     assert len(monitor.exhausted_calls) == 0  # succeeded on attempt 2
 
 
-# Test file: src/tinycua/tests/test_streaming.py
-"""Integration tests for streaming and transcript events."""
+# Test file: src/tinycua/tests/integration/test_streaming.py
+"""Integration tests for streaming and transcript events.
 
+Covers lifecycle event emission, node metadata enrichment,
+final_response_only suppression, and JSONL transcript serialization.
+See test_tinycua_loop_integration.py for basic stream=False/stream=True
+contract tests (scenarios 1 and 2).
+"""
+
+from __future__ import annotations
 
 import json
-import pytest
+
+from unittest.mock import MagicMock
+
+from tinycua.config.node_config import NodeConfigBase, NodeStreamPolicy
+from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.config.node_config import NodeStreamPolicy
+
+from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
 
 
-async def test_stream_false_returns_string(tiny_loop_with_mock_agent):
-    """Verify stream=False returns a string with final response."""
-    result = await tiny_loop_with_mock_agent.run(
-        agent=mock_agent,
-        messages=[{"role": "user", "content": "hello"}],
+def _make_mock_agent(stream_events: list[dict] | None = None) -> MagicMock:
+    """Create a MagicMock agent with an async streaming _call_llm.
+
+    Args:
+        stream_events: Events to yield. Defaults to a single completed event.
+    """
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    if stream_events is None:
+        stream_events = [
+            {"type": "response.output_text.delta", "delta": "Hello"},
+            {"type": "response.output_text.delta", "delta": " world"},
+            {"type": "response.completed", "finish_reason": "completed"},
+        ]
+
+    async def _call_llm(*args, **kwargs):  # noqa: ARG001
+        for event in stream_events:
+            yield event
+
+    agent._call_llm = _call_llm
+    return agent
+
+
+async def test_lifecycle_events_emitted():
+    """Verify node lifecycle transitions emit structured events."""
+    stub = StubNode("lifecycle test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
         tools=[],
-        stream=False,
-    )
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-async def test_stream_true_returns_async_iterator(tiny_loop_with_mock_agent):
-    """Verify stream=True returns an async iterator yielding event dicts."""
-    result = await tiny_loop_with_mock_agent.run(
-        agent=mock_agent,
-        messages=[{"role": "user", "content": "hello"}],
-        tools=[],
+        override_instructions=None,
         stream=True,
     )
-    events = []
-    async for event in result:
-        events.append(event)
-        assert isinstance(event, dict)
-        assert "type" in event
-    assert len(events) > 0
 
+    events = [e async for e in result]
 
-async def test_lifecycle_events_emitted(tiny_loop_with_mock_agent):
-    """Verify node lifecycle transitions emit structured events."""
-    policy = NodeStreamPolicy(emit_internal_events=True, include_node_metadata=True)
-    # Configure node with policy...
-    events = []
-    async for event in tiny_loop_with_mock_agent.run(..., stream=True):
-        events.append(event)
-    
     lifecycle_types = [e["type"] for e in events if e["type"].startswith("node.")]
     assert "node.started" in lifecycle_types
     assert "node.completed" in lifecycle_types
 
 
-async def test_node_metadata_in_events(tiny_loop_with_mock_agent):
+async def test_node_metadata_in_events():
     """Verify stream events include node_id, node_type, attempt when policy enabled."""
     policy = NodeStreamPolicy(include_node_metadata=True)
-    # Configure node with policy...
-    events = []
-    async for event in tiny_loop_with_mock_agent.run(..., stream=True):
-        events.append(event)
-    
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("metadata test")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
     metadata_events = [e for e in events if e.get("node_id") is not None]
     assert len(metadata_events) > 0
     for e in metadata_events:
@@ -272,26 +308,55 @@ async def test_node_metadata_in_events(tiny_loop_with_mock_agent):
         assert "node_type" in e
 
 
-async def test_final_response_only_suppresses_intermediate(tiny_loop_with_mock_agent):
+async def test_final_response_only_suppresses_intermediate():
     """Verify intermediate node events suppressed when final_response_only=True."""
     policy = NodeStreamPolicy(final_response_only=True)
-    # Configure intermediate node with this policy...
-    events = []
-    async for event in tiny_loop_with_mock_agent.run(..., stream=True):
-        events.append(event)
-    
+    config = NodeConfigBase(stream_policy=policy)
+    stub = StubNode("intermediate node")
+    stub.config = config
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
     # Only ResponseNode events should be present
     node_ids = {e.get("node_id") for e in events if e.get("node_id")}
-    # Intermediate node should not appear
-    assert "intermediate_node_id" not in node_ids
+    # Intermediate stub node should not appear
+    assert "stub" not in node_ids
 
 
-async def test_transcript_serialization(tiny_loop_with_mock_agent):
+async def test_transcript_serialization():
     """Verify collected events can be serialized to JSONL and parsed back."""
-    events = []
-    async for event in tiny_loop_with_mock_agent.run(..., stream=True):
-        events.append(event)
-    
+    stub = StubNode("serialization test")
+    terminal = ResponseNode()
+    queue = NodeQueue()
+    queue.items = [stub, terminal]
+
+    loop = TinyCUALoop(queue=queue)
+    agent = _make_mock_agent()
+
+    result = await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
+    )
+
+    events = [e async for e in result]
+
     # Serialize to JSONL
     jsonl_lines = [json.dumps(e) for e in events]
     # Parse back
@@ -315,12 +380,12 @@ async def test_transcript_serialization(tiny_loop_with_mock_agent):
 
 #### Streaming and Transcript Events (Milestone 4.4)
 
-- [ ] **Scenario 1**: `stream=False` returns string — proves backward compatibility with existing non-streaming behavior
-- [ ] **Scenario 2**: `stream=True` returns async iterator — proves streaming contract is honored
-- [ ] **Scenario 3**: Lifecycle events emitted — proves node boundary events work correctly
-- [ ] **Scenario 4**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` works
-- [ ] **Scenario 5**: `final_response_only` suppression — proves intermediate event filtering works
-- [ ] **Scenario 6**: JSONL serialization roundtrip — proves transcript export compatibility
+- [ ] **Scenario 1**: Lifecycle events emitted — proves node boundary events (`node.started`, `node.completed`) work correctly
+- [ ] **Scenario 2**: Node metadata enrichment — proves `NodeStreamPolicy.include_node_metadata` populates `node_id`, `node_type` fields
+- [ ] **Scenario 3**: `final_response_only` suppression — proves intermediate node events are filtered when `final_response_only=True`
+- [ ] **Scenario 4**: JSONL serialization roundtrip — proves transcript export compatibility (parseable back to original dicts)
+
+> **Note**: Basic `stream=False` returns string and `stream=True` returns async iterator contract tests already exist in `test_tinycua_loop_integration.py` (`test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator`).
 
 ## Verification Plan
 
