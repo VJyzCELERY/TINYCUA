@@ -27,6 +27,7 @@ class StateObject:
     Conceptual design exists in tinycua.specs.state_objects but not yet implemented.
     Use Any for now.
     """
+
     pass
 
 
@@ -187,3 +188,35 @@ class AgentMonitor(Protocol):
     ) -> str | None:
         """Called when retry attempts are exhausted."""
         ...
+
+
+@dataclass
+class TranscriptRecord:
+    """Serializable event record for WildClawBench transcript export.
+
+    Wraps a stream event with run-level metadata for JSONL serialization.
+
+    Attributes:
+        event: The original stream event dict.
+        run_id: Unique run identifier.
+        session_id: Root session ID.
+        sequence: Monotonically increasing sequence number.
+    """
+
+    event: dict
+    run_id: str = ""
+    session_id: str = ""
+    sequence: int = 0
+
+    def to_dict(self) -> dict:
+        """Serialize to a dict suitable for JSONL output.
+
+        Returns:
+            Dict with event, run_id, session_id, and sequence fields.
+        """
+        return {
+            "event": self.event,
+            "run_id": self.run_id,
+            "session_id": self.session_id,
+            "sequence": self.sequence,
+        }

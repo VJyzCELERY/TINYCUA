@@ -437,7 +437,10 @@ async def test_run_stream_records_chat_history():
     messages = [{"role": "user", "content": "hi"}]
     result = await loop.run(agent, messages, tools=[], stream=True)
     events = [e async for e in result]
-    assert len(events) == 3
+    # Events now include lifecycle events (node.started, node.llm_call, node.completed)
+    # in addition to LLM delta events
+    delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
+    assert len(delta_events) == 2  # original delta events still present
     assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
     assert len(assistant_msgs) >= 1
     assert assistant_msgs[-1].content == "Hello world"

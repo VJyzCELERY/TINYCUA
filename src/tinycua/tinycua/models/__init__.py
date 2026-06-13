@@ -11,6 +11,7 @@ from tinycua.models.node_payload import NodePayload
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
 from tinycua.models.state_object import StateObject
+from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.models.todo import Todo, TodoItem
 
 __all__ = [
@@ -25,4 +26,6 @@ __all__ = [
     "Todo",
     "TodoItem",
     "convert_node_input_to_messages",
+    "enrich_stream_event",
+    "make_lifecycle_event",
 ]
