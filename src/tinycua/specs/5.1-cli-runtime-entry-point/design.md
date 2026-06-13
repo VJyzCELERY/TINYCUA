@@ -20,7 +20,7 @@ This design adds a CLI entry point (`tinycua run`) to the `tinycua` subproject t
 CLI (tinycua run)
     │
     ├── Argument Parser (argparse)
-    │       ├── --prompt (required)
+    │       ├── prompt (positional, required)
     │       ├── --timeout (default: 600)
     │       ├── --output-dir (default: /tmp_workspace/results)
     │       ├── --workspace (default: /tmp_workspace)
@@ -63,6 +63,27 @@ CLI (tinycua run)
 | `tinycua/factory.py` | Unchanged | Already provides `create_tinycua_agent()` |
 | `pyproject.toml` | Modified | Update `[project.scripts]` entry if needed |
 
+### Requirements Traceability
+
+| FR | Design Component(s) | Notes |
+|----|---------------------|-------|
+| FR-001 | Argument Parser | Positional argument for task prompt |
+| FR-002 | Argument Parser | `--timeout` flag, default 600 |
+| FR-003 | Argument Parser | `--output-dir` flag, default `/tmp_workspace/results` |
+| FR-004 | Argument Parser | `--workspace` flag, default `/tmp_workspace` |
+| FR-005 | Config Loader | Reads `TINYCUA_BASE_URL`, `TINYCUA_API_KEY` env vars; CLI overrides via `--base-url`, `--api-key` |
+| FR-006 | Config Loader | Reads `TINYCUA_MODEL` env var; CLI override via `--model` |
+| FR-007 | Agent Runner | Calls `create_tinycua_agent(session_config=...)` |
+| FR-008 | Agent Runner | Calls `agent.run(prompt, stream=False)` |
+| FR-009 | Transcript Writer | Writes `transcript.jsonl` to output directory |
+| FR-010 | Log Writer | Writes `agent.log` to output directory |
+| FR-011 | Agent Runner | Sets workspace directory on session |
+| FR-012 | Agent Runner | Exit code 0 on successful completion |
+| FR-013 | Agent Runner | Exit code 1 on general errors |
+| FR-014 | Agent Runner + Timeout Watchdog | Exit code 124 on timeout |
+| FR-015 | Timeout Watchdog | `threading.Timer` with cooperative cancellation via `asyncio.Event`; SIGTERM/SIGKILL deferred to Milestone 5.2 |
+| FR-016 | Argument Parser | `--verbose` flag for debug logging |
+
 ---
 
 ## Data Model
@@ -79,7 +100,7 @@ class RunConfig:
     workspace: Path = Path("/tmp_workspace")
     base_url: str                        # OpenAI-compatible endpoint (required)
     api_key: str                         # API key (required)
-    model: str = "local-model"           # Model identifier
+    model: str | None = None             # Model identifier (required via CLI or TINYCUA_MODEL)
     verbose: bool = False                # Debug logging
 ```
 
@@ -144,7 +165,7 @@ tinycua run \
 | Output dir not writable | 1 | N/A | Pre-flight check before agent execution |
 | Endpoint unreachable | 1 | error | Agent fails to connect to LLM |
 | Agent crashes | 1 | error | Unhandled exception in agent execution |
-| Timeout exceeded | 124 | timeout | SIGTERM → grace → SIGKILL |
+| Timeout exceeded | 124 | timeout | Cooperative cancellation via asyncio.Event; SIGTERM/SIGKILL deferred to 5.2 |
 | Successful completion | 0 | complete | Transcript and log written |
 
 ---
@@ -156,7 +177,7 @@ tinycua run \
 - [ ] Implement `RunConfig` dataclass and config loading from env vars + CLI flags
 - [ ] Implement `tinycua run` subcommand with argparse
 - [ ] Implement agent runner with `create_tinycua_agent()` integration
-- [ ] Implement timeout watchdog using `threading.Timer` with SIGTERM/SIGKILL
+- [ ] Implement timeout watchdog using `threading.Timer` with cooperative cancellation (SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015)
 - [ ] Implement transcript writer (capture BaseLoop working messages → OpenClaw JSONL)
 - [ ] Implement structured agent log writer
 - [ ] Update `pyproject.toml` entry point if needed
@@ -181,7 +202,7 @@ tinycua run \
    - **Alternatives Considered**: Standalone script with `fire` or `click` — rejected because `argparse` is stdlib and the project already depends on minimal external packages.
 
 2. **Decision**: Use `threading.Timer` for timeout enforcement rather than `subprocess.run(timeout=...)`.
-   - **Reason**: The agent runs in-process (not as a subprocess). A background thread can send SIGTERM to the main thread after the timeout, allowing cleanup of resources and partial transcript writing.
+   - **Reason**: The agent runs in-process (not as a subprocess). A background thread can set an `asyncio.Event` after the timeout, allowing the agent run to be interrupted cooperatively. SIGTERM/SIGKILL enforcement is deferred to Milestone 5.2 per spec FR-015.
    - **Alternatives Considered**: `signal.alarm()` — rejected because it only works in the main thread and doesn't support graceful cleanup.
 
 3. **Decision**: Write transcript using Strategy B (BaseLoop working message list) rather than Strategy A (stream capture).
@@ -207,7 +228,7 @@ tinycua run \
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | BaseLoop working message list not accessible after run | Low likelihood | High | The `TinyCUALoop` stores `working` messages; access via loop instance or add a `get_working_messages()` method if needed |
-| Timeout watchdog kills process before cleanup completes | Medium | Medium | Use SIGTERM with a grace period (2s) before SIGKILL; write partial transcript on signal |
+| Timeout watchdog kills process before cleanup completes | Medium | Medium | Use `threading.Timer` with cooperative cancellation via `asyncio.Event`; write partial transcript on timeout; SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015 |
 | Transcript format mismatch with WildClawBench | Low | High | Follow the exact schema from `adapter-contract.md`; test with WildClawBench transcript loader |
 | Local model endpoint latency causes premature timeout | Medium | Medium | Default timeout of 600s is generous; document that users should adjust based on model speed |
 | Output directory permissions in container | Low | Medium | Pre-flight check before agent execution; create directory if it doesn't exist |
@@ -218,13 +239,15 @@ tinycua run \
 
 1. **Transcript writer integration with BaseLoop**
    - The `TinyCUALoop` extends `BaseLoop` which maintains a `working` message list. The transcript writer needs access to this list after agent execution. We need to verify that `TinyCUALoop` exposes `working` or add a getter method.
-   - See `src/tinycua-sdk/tinycua_sdk/agent/loop.py` for the `BaseLoop` implementation.
+   - See `src/tinycua-sdk/tinycua_sdk/agent/loop.py` for the `BaseLoop` base class. `TinyCUALoop` extends it at `src/tinycua/tinycua/loops/tinycua_loop.py`.
    - **Status**: RESOLVED
    - **Resolution**: `BaseLoop.run()` uses `working` as a local variable (not an instance attribute). The transcript writer must either (a) override `run()` to store `working` as `self._working_messages` before returning, or (b) add a `get_working_messages()` method to `TinyCUALoop`. Option (b) is preferred as it avoids overriding the base class contract. Add a `self._working_messages: list[dict] = []` attribute to `TinyCUALoop.__init__()` and set it in `run()` before returning.
 
 2. **Per-response usage tracking**
-   - The adapter contract requires per-message usage in the transcript. The `BaseLoop` working message list does not carry per-message usage. We may need to instrument the loop or collect usage from `response.usage` events separately.
+   - **Status**: RESOLVED
+   - **Resolution**: Instrument `_call_llm()` in `TinyCUALoop` to capture `response.usage` per node and store alongside messages in `self._working_messages`. Each transcript record will include an optional `usage` field populated from the LLM response metadata. This requires adding a `usage: dict | None = None` field to each message dict stored in `_working_messages`, and setting it from the response object after each `_call_llm()` call.
    - See `specs/wildclawbench-adapter/adapter-contract.md` § Transcript Conversion Strategy.
+   - **Task**: Added to task.md as item 21.
 
 3. **Model name convention**
    - The `--model` flag needs a sensible default. For local models, the model name is often implementation-specific (e.g., `llama-3-8b`, `gpt-4o-mini`). We should document that this flag must match the model name expected by the local endpoint.

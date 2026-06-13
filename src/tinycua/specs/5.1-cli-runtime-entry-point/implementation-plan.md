@@ -386,7 +386,7 @@ class RunConfig:
     workspace: Path = Path("/tmp_workspace")
     base_url: str                        # OpenAI-compatible endpoint (required)
     api_key: str                         # API key (required)
-    model: str = "local-model"           # Model identifier
+    model: str | None = None             # Model identifier (required via CLI or TINYCUA_MODEL)
     verbose: bool = False                # Debug logging
 
 # tinycua/cli/logging.py
@@ -445,7 +445,7 @@ tinycua run \
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | BaseLoop working messages not accessible after run | High | Add `self._working_messages` attribute to TinyCUALoop — already resolved in design |
-| Timeout watchdog kills process before cleanup completes | Medium | Use `threading.Timer` with SIGTERM + 2s grace period + SIGKILL; write partial transcript on signal |
+| Timeout watchdog kills process before cleanup completes | Medium | Use `threading.Timer` with cooperative cancellation via `asyncio.Event`; write partial transcript on timeout; SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015 |
 | Transcript format mismatch with WildClawBench | High | Follow exact schema from adapter-contract.md; test with WildClawBench transcript loader |
 | Local model endpoint latency causes premature timeout | Medium | Default timeout of 600s is generous; document that users should adjust based on model speed |
 | Output directory permissions in container | Medium | Pre-flight check before agent execution; create directory if it doesn't exist |

@@ -33,6 +33,9 @@ Implementation tasks for TinyCUA CLI / Runtime Entry Point. Check off items as c
   - [ ] Add `self._working_messages: list[dict] = []` to `__init__()`
   - [ ] Set `self._working_messages = working` in `_run_sync()` before returning
   - [ ] Add `get_working_messages()` property method
+- [ ] Instrument `TinyCUALoop._call_llm()` to capture `response.usage` per node and store alongside messages in `_working_messages` <!-- id: 21 -->
+  - [ ] Add `usage: dict | None = None` field to each message dict stored in `_working_messages`
+  - [ ] Set usage from response object after each `_call_llm()` call
 
 ## Testing Phase
 
@@ -51,7 +54,7 @@ Implementation tasks for TinyCUA CLI / Runtime Entry Point. Check off items as c
 ## Documentation Phase
 
 - [ ] Update `src/tinycua/README.md` (if exists) with CLI usage examples <!-- id: 16 -->
-- [ ] Add CLI usage examples to `specs/5.1-cli-runtime-entry-point/spec.md` Status Tracker <!-- id: 17 -->
+- [ ] Add a "Usage Examples" section to `specs/5.1-cli-runtime-entry-point/spec.md` with CLI invocation examples (e.g., `tinycua run "create a file"`, `tinycua run --timeout 120 --model llama-3-8b "do something"`) <!-- id: 17 -->
 
 ## Review and Merge
 

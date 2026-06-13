@@ -50,7 +50,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept a task prompt via `--prompt` flag.
+- **FR-001**: System MUST accept a task prompt as a positional argument.
 - **FR-002**: System MUST accept a timeout in seconds via `--timeout` flag (default: 600 seconds).
 - **FR-003**: System MUST accept an output directory via `--output-dir` flag (default: `/tmp_workspace/results`).
 - **FR-004**: System MUST accept a working directory via `--workspace` flag (default: `/tmp_workspace`).
@@ -101,7 +101,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 - CLI argument parsing: verify all flags and positional arguments are correctly parsed.
 - Environment variable loading: verify `TINYCUA_BASE_URL`, `TINYCUA_API_KEY`, `TINYCUA_MODEL` are read correctly.
 - Exit code behavior: verify exit codes 0, 1, and 124 for success, error, and timeout scenarios.
-- Timeout mechanism: verify SIGTERM/SIGKILL sequence on timeout.
+- Timeout mechanism: verify cooperative cancellation on timeout (SIGTERM/SIGKILL deferred to Milestone 5.2).
 
 ### Integration Tests
 
@@ -111,7 +111,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ### Manual Tests
 
-- Run `tinycua run --prompt 'echo hello'` against a local LLM endpoint and verify transcript output.
+- Run `tinycua run 'echo hello'` against a local LLM endpoint and verify transcript output.
 - Run with `--timeout 5` against a slow prompt and verify timeout behavior.
 - Run with invalid endpoint and verify error handling.
 
@@ -138,13 +138,13 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 1. **Transcript format alignment**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-20
-   - **Status**: Discussion
+   - **Status**: Resolved
    - **Proposed Answer**: Use the OpenClaw-compatible JSONL format documented in `specs/wildclawbench-adapter/adapter-contract.md` to ensure WildClawBench grading compatibility from the start.
 
 2. **Agent log format**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-20
-   - **Status**: Discussion
+   - **Status**: Resolved
    - **Proposed Answer**: Use structured JSON lines with timestamps, event types, and payloads for machine-parseable logs.
 
 ---
