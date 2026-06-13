@@ -72,7 +72,7 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 - **FR-003**: `transcript_container_path` MUST return a string path to the transcript JSONL file inside the runtime container.
 - **FR-004**: `run_task(spec: AgentTaskSpec) -> AgentExecution` MUST spawn a subprocess running `tinycua run <spec.prompt>` with the timeout, workspace, and output directory from the spec.
 - **FR-005**: `run_task()` MUST set the working directory for the subprocess (e.g., via `Popen`'s `cwd` parameter) to `spec.workspace_path` before agent execution, so the agent operates in the task workspace.
-- **FR-006**: `run_task()` MUST terminate the subprocess if it exceeds `spec.timeout_seconds` and return an `AgentExecution` with `error` set.
+- **FR-006**: `run_task()` MUST terminate the subprocess if it exceeds `spec.timeout_seconds` and return an `AgentExecution` with `error` set. The subprocess is expected to exit with code 124 on timeout (matching Unix `timeout` convention). If the CLI exits with code 124, `run_task` MUST treat it as a timeout regardless of whether `TimeoutExpired` was raised.
 - **FR-007**: `run_task()` MUST return an `AgentExecution` with `elapsed_time` set to the wall-clock time of the task execution.
 - **FR-008**: `collect_usage(task_id, output_dir, elapsed_time) -> dict` MUST return a dict with at minimum `{"requests": int, "total_tokens": int | None, "cost": float}`. For local model endpoints, `cost` MUST return `0.0`.
 - **FR-009**: `prepare_grading_transcript(task_id) -> str` MUST return the `transcript_container_path` value.

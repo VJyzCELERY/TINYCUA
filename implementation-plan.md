@@ -43,6 +43,12 @@ Provides a `TinyCUAAgent` adapter that implements WildClawBench's `BaseAgent` in
 
 Define the integration tests that prove the feature works. These are written FIRST — before any implementation code. The implementation is only complete when these tests pass.
 
+> **Test code lifecycle**: The test code below is the TDD specification. 
+> During implementation, tests MUST be copied to 
+> `tests/integration/test_wildclawbench_integration.py` and iterated upon there. 
+> After implementation is complete and tests pass, this code block may become 
+> stale — refer to the actual test file as the source of truth.
+
 ```python
 # Test file: src/tinycua/tests/integration/test_wildclawbench_integration.py
 """Integration tests for WildClawBench TinyCUA BaseAgent Adapter."""
