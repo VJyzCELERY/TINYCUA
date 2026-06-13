@@ -1,4 +1,4 @@
-# Design Document: Retry, Validation, Monitor Hook, and Streaming Events
+# Design Document: TinyCUA CLI / Runtime Entry Point for Benchmark Tasks
 
 **Spec**: `./spec.md`
 **Status**: Draft
@@ -8,11 +8,7 @@
 
 ## Overview
 
-This design covers two related milestones:
-
-1. **Milestone 4.3 — Retry, Validation, and Monitor Hook**: Completes the retry, validation, and monitor hook contracts for TinyCUA nodes. The `NodeRetryPolicy` dataclass and basic retry loop exist (Milestone 1.5), but custom validation functions, custom continuation builders, full exhaustion handling, DecisionNode classification validation, and the transient `NodeMonitor`/`AgentMonitor` hook are not yet wired. This design fills those gaps.
-
-2. **Milestone 4.4 — Streaming and Transcript Events**: Adds structured streaming support and lifecycle event hooks to TinyCUALoop, enabling real-time execution observation and WildClawBench-compatible transcript export. The implementation extends the existing `_run_stream()` method with lifecycle event emission, introduces a `StreamEvent` model for structured event dicts, and applies `NodeStreamPolicy` controls to filter events per node configuration.
+This design adds a CLI entry point to TinyCUA that WildClawBench can invoke to run agent tasks. The CLI accepts a task prompt, timeout, workspace directory, output directory, and local model endpoint configuration. It creates a `create_tinycua_agent(...)`, runs it with the provided prompt, respects the timeout, and writes transcript/log artifacts for post-run analysis and grading.
 
 ---
 
@@ -21,592 +17,374 @@ This design covers two related milestones:
 ### Component Overview
 
 ```
-TinyCUALoop._execute_node(node, agent, tools, ...)
+CLI Entry Point (tinycua/cli/entry.py)
   │
-  ├── node.ensure_session(root_session)
-  ├── messages = _build_node_messages(node, ...)
-  ├── resolved_tools = node.config.tool_policy.resolve_tools(tools)
-  │
-  ├── AgentMonitor.on_before_node_call(node, messages, tools, attempt)
-  │
-  ├── response = agent._call_llm(messages, resolved_tools)
-  │
-  ├── validation = node.validate_output(response)
-  │     ├── check required_tool_calls
-  │     ├── check required_output_schema
-  │     └── call validation_fn (if set)
-  │
-  ├── if valid → break
-  │
-  ├── AgentMonitor.on_after_node_call(node, response, validation_result)
-  │
-  ├── if invalid:
-  │     ├── build retry continuation (custom or default)
-  │     ├── append continuation to messages
-  │     └── loop back to LLM call
-  │
-  ├── if exhausted:
-  │     ├── AgentMonitor.on_retry_exhausted(node, error)
-  │     └── handle per on_retry_exhausted policy
-  │           ├── raise → NodeExecutionError
-  │           ├── record_failure → write failure state + propagate
-  │           └── route_failure → call on_complete failure route
-  │
-  ├── node.record_output(response)
-  ├── node.propagate()
-  └── node.on_complete(queue, response)
-
-TinyCUALoop.run(stream=True)
-  → _run_stream()
-      → for each node:
-          → emit node.started lifecycle event
-          → emit node.llm_call lifecycle event (before _call_llm)
-          → agent._call_llm(stream=True)
-              → yield LLM delta events (with node metadata enrichment)
-          → emit node.completed lifecycle event (on success)
-          → emit node.error lifecycle event (on exception)
-          → emit node.retry lifecycle event (on retry attempt)
-      → yield all events through AsyncIterator
-
-StreamEvent (model)
-  ← LifecycleEvent (node boundaries)
-
-LLM/tool events are plain dicts with `type` field discrimination
-  (e.g., `response.output_text.delta`, `response.function_call`)
-
-NodeStreamPolicy
-  → controls: final_response_only, emit_internal_events, include_node_metadata
+  ├── Parse arguments → RunConfig
+  ├── Create workspace/output directories
+  ├── Create agent via create_tinycua_agent(model_endpoint=...)
+  ├── Set timeout handler (threading.Timer or signal.alarm)
+  ├── Run agent: agent.run(prompt)
+  ├── Collect artifacts (transcript events, logs)
+  ├── Write artifacts to output directory
+  │     ├── transcript.jsonl
+  │     └── run_summary.json
+  └── Exit with appropriate code
 ```
 
 ### Affected Components
 
-> **Path convention**: All paths are relative to `src/tinycua/tinycua/`.
-
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua/config/types.py` | Modified | Add `NodeMonitor` and `AgentMonitor` protocols, `TranscriptRecord` type |
-| `tinycua/loops/node.py` | Modified | Wire `validation_fn`, `retry_continuation_builder`, exhaustion behavior; add monitor hook calls |
-| `tinycua/loops/tinycua_loop.py` | Modified | Accept optional `AgentMonitor`, pass to node execution; lifecycle event emission in `_run_stream()` |
-| `tinycua/models/stream_event.py` | New | StreamEvent, LifecycleEvent models |
-| `tinycua/config/node_config.py` | No change | NodeStreamPolicy already exists |
-| `tests/unit/test_retry_validation.py` | New | Unit tests for retry, validation, exhaustion, monitor hook |
-| `tests/unit/test_decision_node_retry.py` | New | Unit tests for DecisionNode classification retry |
-| `tests/unit/test_monitor_hook.py` | New | Unit tests for monitor hook behavior |
-| `tests/integration/test_retry_integration.py` | New | Integration tests for retry through the loop |
+| `tinycua/cli/__init__.py` | New | Package init for CLI module |
+| `tinycua/cli/entry.py` | New | Main CLI entry point with argument parsing |
+| `tinycua/cli/config.py` | New | RunConfig and RunSummary dataclasses |
+| `tinycua/cli/runner.py` | New | Agent execution with timeout and artifact collection |
+| `tinycua/cli/artifacts.py` | New | Transcript JSONL and run_summary.json writing |
+| `tests/unit/test_cli.py` | New | Unit tests for CLI argument parsing and config |
+| `tests/unit/test_cli_runner.py` | New | Unit tests for agent runner with timeout |
+| `tests/integration/test_cli_integration.py` | New | Integration tests for full CLI invocation |
 
 ---
 
 ## Data Model
 
-### NodeMonitor Protocol
+### RunConfig
 
 ```python
-from typing import Protocol, runtime_checkable
+@dataclass
+class RunConfig:
+    """Configuration for a TinyCUA CLI run."""
+    prompt: str                          # Task prompt (required)
+    timeout: int = 300                   # Timeout in seconds (default: 5 minutes)
+    workspace: Path = Path("/tmp_workspace")  # Working directory
+    output_dir: Path | None = None       # Output directory (default: <workspace>/results)
+    model_endpoint: str | None = None    # Local model endpoint URL
+    model_name: str | None = None        # Model name for the endpoint
+    verbose: bool = False                # Debug output to stderr
+    log_level: str = "INFO"              # Logging level
 
-@runtime_checkable
-class NodeMonitor(Protocol):
-    """Transient hook for node lifecycle observation.
+    def __post_init__(self):
+        if self.output_dir is None:
+            self.output_dir = self.workspace / "results"
+```
 
-    All methods are optional — implement only what you need.
-    Monitor invocations are transient: they do not create sessions,
-    do not write to chat_history or session_context.
-    """
+### RunSummary
 
-    def on_before_node_call(
-        self,
-        node_id: str,
-        session_id: str,
-        attempt: int,
-        messages: list[dict],
-        resolved_tools: list,
-    ) -> str | None:
-        """Called before a node LLM call.
+```python
+@dataclass
+class RunSummary:
+    """Result of a TinyCUA CLI run."""
+    status: str                          # "success", "error", "timeout", "config_error"
+    elapsed_time: float                  # Seconds elapsed
+    artifact_paths: dict[str, Path]      # Maps artifact name to file path
+    error_message: str | None = None     # Error message if status is not "success"
+    task_prompt: str                     # Original task prompt
+    model_endpoint: str | None = None    # Model endpoint used
 
-        Args:
-            node_id: The node being executed.
-            session_id: The node's session ID.
-            attempt: Current attempt number (1-indexed).
-            messages: LLM-bound messages.
-            resolved_tools: Tools available for this call. At the node level
-                this is always an empty list (``[]``); actual resolved tools
-                are passed to ``AgentMonitor.on_before_node_call`` at the
-                loop level.
-
-        Returns:
-            Optional assistant-role continuation message to include
-            in the retry flow, or None for no-op.
-        """
+    def to_json(self) -> str:
+        """Serialize to JSON for run_summary.json."""
         ...
 
-    def on_after_node_call(
-        self,
-        node_id: str,
-        session_id: str,
-        attempt: int,
-        result: "LLMResult",
-        validation_result: "ValidationResult",
-    ) -> str | None:
-        """Called after a node LLM call, before retry handling.
-
-        Args:
-            node_id: The node that was executed.
-            session_id: The node's session ID.
-            attempt: Current attempt number (1-indexed).
-            result: The raw LLM result.
-            validation_result: Validation outcome.
-
-        Returns:
-            Optional assistant-role continuation message, or None.
-        """
-        ...
-
-    def on_retry_exhausted(
-        self,
-        node_id: str,
-        session_id: str,
-        error: "ValidationError",
-        attempts: int,
-    ) -> str | None:
-        """Called after retry exhaustion, before failure handling.
-
-        Args:
-            node_id: The node that exhausted retries.
-            session_id: The node's session ID.
-            error: The final validation error.
-            attempts: Total attempts made.
-
-        Returns:
-            Optional assistant-role continuation message, or None.
-        """
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
         ...
 ```
 
-### AgentMonitor Protocol
+### CLI Entry Point
 
 ```python
-@runtime_checkable
-class AgentMonitor(Protocol):
-    """Loop-level observation hook for all node executions.
+# tinycua/cli/entry.py
 
-    Independent from NodeMonitor: the loop calls AgentMonitor hooks,
-    and nodes call their own NodeMonitor hooks. Both fire when
-    configured — neither wraps or forwards to the other.
-    """
+import argparse
+import sys
+from .config import RunConfig
 
-    def on_before_node_call(
-        self,
-        node_id: str,
-        session_id: str,
-        attempt: int,
-        messages: list[dict],
-        resolved_tools: list,
-    ) -> str | None:
-        ...
+def main(argv: list[str] | None = None) -> int:
+    """Main CLI entry point. Returns exit code."""
+    parser = argparse.ArgumentParser(
+        prog="tinycua",
+        description="TinyCUA CLI - Run TinyCUA agent tasks"
+    )
+    subparsers = parser.add_subparsers(dest="command")
 
-    def on_after_node_call(
-        self,
-        node_id: str,
-        session_id: str,
-        attempt: int,
-        result: "LLMResult",
-        validation_result: "ValidationResult",
-    ) -> str | None:
-        ...
+    # tinycua run
+    run_parser = subparsers.add_parser("run", help="Run a TinyCUA agent task")
+    run_parser.add_argument("--prompt", "-p", type=str, help="Task prompt")
+    run_parser.add_argument("--timeout", "-t", type=int, default=300, help="Timeout in seconds")
+    run_parser.add_argument("--workspace", "-w", type=Path, default=Path("/tmp_workspace"), help="Workspace directory")
+    run_parser.add_argument("--output-dir", "-o", type=Path, default=None, help="Output directory")
+    run_parser.add_argument("--model-endpoint", type=str, default=None, help="Local model endpoint URL")
+    run_parser.add_argument("--model-name", type=str, default=None, help="Model name")
+    run_parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug output")
+    run_parser.add_argument("--log-level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
 
-    def on_retry_exhausted(
-        self,
-        node_id: str,
-        session_id: str,
-        error: "ValidationError",
-        attempts: int,
-    ) -> str | None:
-        ...
+    args = parser.parse_args(argv)
+
+    if args.command is None:
+        parser.print_help()
+        return 3  # config_error
+
+    if args.command == "run":
+        return _run_command(args)
+
+    return 3  # config_error
+
+def _run_command(args: argparse.Namespace) -> int:
+    """Handle 'tinycua run' command."""
+    # Read prompt from stdin if not provided
+    prompt = args.prompt
+    if prompt is None:
+        if sys.stdin.isatty():
+            print("Error: --prompt is required or provide prompt via stdin", file=sys.stderr)
+            return 3
+        prompt = sys.stdin.read().strip()
+        if not prompt:
+            print("Error: Empty prompt received from stdin", file=sys.stderr)
+            return 3
+
+    config = RunConfig(
+        prompt=prompt,
+        timeout=args.timeout,
+        workspace=args.workspace,
+        output_dir=args.output_dir,
+        model_endpoint=args.model_endpoint,
+        model_name=args.model_name,
+        verbose=args.verbose,
+        log_level=args.log_level,
+    )
+
+    from .runner import run_agent
+    return run_agent(config)
 ```
 
-### Failure State Recording
-
-When `on_retry_exhausted="record_failure"`, the node writes failure state to its session:
+### Agent Runner
 
 ```python
-# In ProcessNode.__call__(), after retry exhaustion:
-from tinycua.models.session_context_entry import SessionContextEntry
+# tinycua/cli/runner.py
 
-failure_entry = SessionContextEntry(
-    content=f"[RETRY_EXHAUSTED] Node {self.node_id} failed after {max_attempts} attempts. "
-            f"Errors: {'; '.join(validation.errors)}",
-    segment="output",
-)
-self.session.session_context.append(failure_entry)
+import logging
+import time
+import threading
+from pathlib import Path
+from .config import RunConfig, RunSummary
+from .artifacts import write_transcript, write_run_summary
 
-# Propagate failure if a propagation rule is configured
-if self.config.propagation and self.config.propagation.failure != "none":
-    self.propagate()
+logger = logging.getLogger(__name__)
+
+def run_agent(config: RunConfig) -> int:
+    """Run the TinyCUA agent with the given configuration. Returns exit code."""
+    start_time = time.time()
+
+    # Setup logging
+    logging.basicConfig(
+        level=getattr(logging, config.log_level),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+
+    # Create directories
+    try:
+        config.workspace.mkdir(parents=True, exist_ok=True)
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.error("Failed to create directories: %s", e)
+        _write_error_summary(config, start_time, "config_error", str(e))
+        return 3
+
+    # Create agent
+    try:
+        agent = _create_agent(config)
+    except Exception as e:
+        logger.error("Failed to create agent: %s", e)
+        _write_error_summary(config, start_time, "config_error", str(e))
+        return 3
+
+    # Run with timeout
+    result = {"response": None, "error": None, "timed_out": False}
+
+    def target():
+        try:
+            result["response"] = agent.run(config.prompt)
+        except Exception as e:
+            result["error"] = e
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=config.timeout)
+
+    if thread.is_alive():
+        result["timed_out"] = True
+        logger.warning("Agent timed out after %d seconds", config.timeout)
+
+    elapsed = time.time() - start_time
+
+    # Handle result
+    if result["timed_out"]:
+        _write_timeout_summary(config, start_time, elapsed)
+        return 2
+    elif result["error"] is not None:
+        _write_error_summary(config, start_time, "error", str(result["error"]))
+        return 1
+    else:
+        # Success — write artifacts
+        write_transcript(config.output_dir, result["response"])
+        summary = RunSummary(
+            status="success",
+            elapsed_time=elapsed,
+            artifact_paths={"transcript": config.output_dir / "transcript.jsonl"},
+            task_prompt=config.prompt,
+            model_endpoint=config.model_endpoint,
+        )
+        write_run_summary(config.output_dir, summary)
+        return 0
+
+def _create_agent(config: RunConfig):
+    """Create a TinyCUA agent with the given configuration."""
+    from tinycua.factory import create_tinycua_agent
+
+    kwargs = {}
+    if config.model_endpoint:
+        kwargs["model_endpoint"] = config.model_endpoint
+    if config.model_name:
+        kwargs["model_name"] = config.model_name
+
+    return create_tinycua_agent(**kwargs)
 ```
 
-### New Entities (Streaming)
+### Artifact Writer
 
 ```python
-# StreamEvent — base event dict yielded during streaming
-StreamEvent:
-    type: str                    # "node.started", "node.completed", "response.output_text.delta", etc.
-    node_id: str | None          # ID of the node producing this event
-    node_type: str | None        # "ProcessNode", "DecisionNode", etc.
-    timestamp: float             # time.time() when event was created
-    metadata: dict               # additional context (attempt, route_label, etc.)
+# tinycua/cli/artifacts.py
 
-# LifecycleEvent — node boundary events
-LifecycleEvent(StreamEvent):
-    type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"]
-    attempt: int                 # current attempt number (1-based)
-    content: str | None          # final content for completed/error events
-    finish_reason: str | None    # "completed", "error", "retry", "empty"
+import json
+from pathlib import Path
+from .config import RunSummary
 
-# TranscriptRecord — serializable event for WildClawBench export
-TranscriptRecord:
-    event: StreamEvent           # the original event
-    run_id: str                  # unique run identifier
-    session_id: str              # root session ID
-    sequence: int                # monotonically increasing sequence number
+def write_transcript(output_dir: Path, response: str) -> Path:
+    """Write transcript JSONL to output directory."""
+    transcript_path = output_dir / "transcript.jsonl"
+    # For now, write a simple transcript entry
+    # In the future, this will consume StreamEvents from the agent run
+    with open(transcript_path, "w") as f:
+        entry = {
+            "type": "response.completed",
+            "content": response,
+            "timestamp": __import__("time").time(),
+        }
+        f.write(json.dumps(entry) + "\n")
+    return transcript_path
+
+def write_run_summary(output_dir: Path, summary: RunSummary) -> Path:
+    """Write run_summary.json to output directory."""
+    summary_path = output_dir / "run_summary.json"
+    with open(summary_path, "w") as f:
+        json.dump(summary.to_dict(), f, indent=2)
+    return summary_path
 ```
-
-### Schema Changes
-
-- No changes to existing data structures. `NodeStreamPolicy` already has the required fields.
-- New `StreamEvent` and `LifecycleEvent` models are additive.
 
 ---
 
 ## API / Interface Contracts
 
-### Enhanced ProcessNode.__call__()
+### CLI Usage
 
-> **Note**: Monitor hooks are invoked independently by two sites: the
-> loop calls `AgentMonitor.on_*()` for loop-level observation, and the
-> node calls its own `NodeMonitor` via `self.config.monitor`. Both fire
-> when configured. See Technical Decision #6.
->
-> **Deferred**: Continuation return values from monitor hooks are not
-> currently appended to the retry message flow. The return values from
-> `on_before_node_call` and `on_after_node_call` are discarded. This
-> feature is deferred to a follow-up milestone. Use NodeMonitor hooks
-> for logging/observation only.
+```bash
+# Run with explicit prompt
+tinycua run --prompt "Create a Python script that prints hello world" --timeout 120
 
-```python
-class ProcessNode(Node):
-    def __call__(self, input: NodeInputLike) -> LLMResult:
-        """Execute with retry, validation, and monitor hooks."""
-        messages = self.build_messages(self.session, input)
-        retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)  # 0 → 1 attempt (no retry)
+# Run with prompt from stdin
+echo "Create a Python script" | tinycua run --timeout 60
 
-        last_response = None
-        for attempt in range(1, max_attempts + 1):
-            # Fire NodeMonitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
+# Run with custom workspace and output
+tinycua run --prompt "..." --workspace /custom/workspace --output-dir /custom/output
 
-            last_response = self._call_llm(messages)
+# Run with local model endpoint
+tinycua run --prompt "..." --model-endpoint http://localhost:8080/v1 --model-name llama-3
 
-            # Validate
-            validation = self.validate_output(last_response)
+# Verbose mode
+tinycua run --prompt "..." --verbose --log-level DEBUG
 
-            if validation.is_valid:
-                break
-
-            # Fire NodeMonitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    last_response,
-                    validation,
-                )
-
-            if attempt < max_attempts:
-                # Build retry continuation
-                error = ValidationError("; ".join(validation.errors))
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append({"role": "assistant", "content": retry_text})
-            else:
-                # Exhausted — handle per policy
-                self._handle_exhaustion(validation, max_attempts)
-
-        self.record_output(last_response)
-        self.propagate()
-        self.on_complete(queue=..., response=last_response)
-        return last_response
-
-    def _build_retry_text(self, error: ValidationError, attempt: int) -> str:
-        """Build retry text using custom builder if set, else default."""
-        if self.config.retry_policy.retry_continuation_builder is not None:
-            return self.config.retry_policy.retry_continuation_builder(error, attempt)
-        return self.build_retry_continuation(error, attempt)
-
-    def _handle_exhaustion(self, validation, max_attempts):
-        """Handle retry exhaustion per policy."""
-        # Fire monitor exhaustion hook
-        if self.config.monitor is not None:
-            self._safe_call(
-                self.config.monitor.on_retry_exhausted,
-                self.node_id,
-                self.session.session_id,
-                ValidationError("; ".join(validation.errors)),
-                max_attempts,
-            )
-
-        if self.config.retry_policy.on_retry_exhausted == "raise":
-            raise NodeExecutionError(...)
-        elif self.config.retry_policy.on_retry_exhausted == "record_failure":
-            self._record_failure(validation, max_attempts)
-        elif self.config.retry_policy.on_retry_exhausted == "route_failure":
-            if not self._call_failure_route():
-                self._record_failure(validation, max_attempts)
-
-    def _record_failure(self, validation, max_attempts):
-        """Write failure state to session."""
-        ...
-
-    def _call_failure_route(self) -> bool:
-        """Call on_complete failure route if defined. Returns True if called."""
-        ...
+# Python module invocation
+python -m tinycua.cli run --prompt "..."
 ```
 
-> **Loop-level AgentMonitor**: The `TinyCUALoop._execute_node()` method
-> independently calls `AgentMonitor` hooks at loop-level lifecycle points:
-> ```python
-> # In TinyCUALoop._execute_node():
-> if self.agent_monitor is not None:
->     self.agent_monitor.on_before_node_call(node.node_id, ...)
-> # Then node executes — NodeMonitor fires within node.__call__()
-> if self.agent_monitor is not None:
->     self.agent_monitor.on_after_node_call(node.node_id, ...)
-> ```
-> AgentMonitor and NodeMonitor are independent hooks — both fire when configured.
+### Exit Codes
 
-### Enhanced DecisionNode.__call__()
-
-> **Note**: The code examples below show the loop orchestrating monitor calls through
-> `AgentMonitor` and `NodeMonitor` are independent hooks — the loop calls
-> `AgentMonitor` at lifecycle points; the node calls its own `NodeMonitor`
-> via `self.config.monitor`. Both fire when configured. See
-> Technical Decision #6.
-
-```python
-class DecisionNode(ProcessNode):
-    def __call__(self, input: NodeInputLike) -> DecisionResult:
-        """Execute with classification validation and retry."""
-        messages = self.build_messages(self.session, input)
-
-        # Step 1: Analysis call (no retry on analysis — retry on classification)
-        analysis_response = self._analysis_call(messages)
-
-        # Step 2: Classification with retry
-        retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
-
-        classification_response = None
-        for attempt in range(1, max_attempts + 1):
-            # Fire NodeMonitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
-
-            classification_response = self._classification_call(messages, analysis_response)
-
-            # Validate classification label
-            label = classification_response.content.strip().lower()
-            if any(l.lower() in label for l in self.classification_labels):
-                break
-
-            # Fire NodeMonitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    classification_response,
-                    ValidationResult(is_valid=False, errors=[f"Invalid classification: {label}"]),
-                )
-
-            if attempt < max_attempts:
-                error = ValidationError(f"Invalid classification: {label}")
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append({"role": "assistant", "content": retry_text})
-            else:
-                # Retry exhausted — handled by NodeMonitor via _handle_exhaustion
-                pass
-
-        route_label = self._dispatch_route(classification_response)
-
-        # ... rest of dispatch
-```
-
-### Safe Monitor Hook Caller
-
-`_safe_call()` was implemented as a method on `Node` (not module-level) for cleaner access to `self.node_id` in debug logging. It accepts a callable and its arguments, calls it in a try/except, logs exceptions at debug level, and returns the result or None. This is a minor deviation from the original design that does not affect behavior.
-
-```python
-def _safe_call(hook_method, *args, **kwargs):
-    """Call a monitor hook method, catching exceptions."""
-    try:
-        return hook_method(*args, **kwargs)
-    except Exception:
-        logger.debug("Monitor hook %s failed", hook_method.__name__, exc_info=True)
-        return None
-```
-
-### New / Modified Endpoints (Streaming)
-
-```python
-# StreamEvent factory (convenience constructors)
-def make_lifecycle_event(
-    event_type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"],
-    node_id: str,
-    node_type: str,
-    attempt: int = 1,
-    content: str | None = None,
-    finish_reason: str | None = None,
-    metadata: dict | None = None,
-) -> dict[str, Any]:
-    """Create a lifecycle event dict with standard fields."""
-
-def enrich_stream_event(
-    event: dict[str, Any],
-    node_id: str,
-    node_type: str,
-    include_metadata: bool = True,
-) -> dict[str, Any]:
-    """Add node metadata to an existing stream event dict."""
-```
+| Code | Meaning |
+|------|---------|
+| 0 | Success — agent completed task |
+| 1 | Agent error — agent raised an exception |
+| 2 | Timeout — agent exceeded timeout |
+| 3 | Configuration error — invalid arguments or missing required input |
 
 ### Error Handling
 
-| Error Case | Exception / Response | Notes |
-|------------|---------------------|-------|
-| Stream cancellation | StopIteration / AsyncIterator exit | Clean up and stop yielding |
-| LLM endpoint no streaming support | Fallback to single response.completed event | Collect full response, yield once |
-| Empty node output | node.completed with content="" | finish_reason="empty" |
+| Error Case | Exit Code | Output |
+|------------|-----------|--------|
+| Missing --prompt and no stdin | 3 | Error message to stderr |
+| Empty prompt from stdin | 3 | Error message to stderr |
+| Invalid --timeout (negative) | 3 | argparse error |
+| Workspace creation fails | 3 | run_summary.json with config_error |
+| Agent creation fails | 3 | run_summary.json with config_error |
+| Agent raises exception | 1 | run_summary.json with error + partial transcript |
+| Agent times out | 2 | run_summary.json with timeout |
+| SIGINT/SIGTERM received | 130 (SIGINT) or 143 (SIGTERM) | Partial artifacts written |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Validation and Retry Completion (required)
+### Phase 1 — CLI Argument Parsing and RunConfig (required)
 
-- [ ] Wire `validation_fn` into `validate_output()` — call custom fn and merge errors
-- [ ] Wire `retry_continuation_builder` into retry loop — use custom builder when set
-- [ ] Implement `record_failure` exhaustion — write failure state to session, propagate
-- [ ] Implement `route_failure` exhaustion — call `on_complete()` failure route, fallback to `record_failure`
-- [ ] Implement `max_attempts=0` — no retries, immediate exhaustion
+- [ ] Create `tinycua/cli/__init__.py`
+- [ ] Create `tinycua/cli/config.py` with `RunConfig` and `RunSummary` dataclasses
+- [ ] Create `tinycua/cli/entry.py` with argument parsing and `main()` function
+- [ ] Add `__main__.py` for `python -m tinycua.cli` support
 
-### Phase 2 — DecisionNode Classification Retry (required)
+### Phase 2 — Agent Runner with Timeout (required)
 
-- [ ] Add classification validation in `DecisionNode.__call__()` — verify label in `classification_labels`
-- [ ] Add retry loop for classification step with assistant-role continuation
-- [ ] Apply same exhaustion behavior as ProcessNode
+- [ ] Create `tinycua/cli/runner.py` with `run_agent()` function
+- [ ] Implement timeout handling via `threading.Thread.join(timeout=...)`
+- [ ] Implement agent creation via `create_tinycua_agent()`
+- [ ] Implement graceful shutdown on SIGINT/SIGTERM
 
-### Phase 3 — Monitor Hook (required)
+### Phase 3 — Artifact Writing (required)
 
-- [ ] Define `NodeMonitor` protocol in `tinycua/config/types.py`
-- [ ] Define `AgentMonitor` protocol in `tinycua/config/types.py`
-- [ ] Add `monitor: NodeMonitor | None` field to `NodeConfigBase`
-- [ ] Add `agent_monitor: AgentMonitor | None` field to `TinyCUALoop`
-- [ ] Wire monitor hook calls into `ProcessNode.__call__()` at lifecycle trigger points
-- [ ] Implement `_safe_call()` for exception-safe monitor invocation
-- [ ] Wire `AgentMonitor` into `TinyCUALoop._execute_node()` — delegate to node monitor
+- [ ] Create `tinycua/cli/artifacts.py` with `write_transcript()` and `write_run_summary()`
+- [ ] Implement transcript JSONL writing (simple format for now, will be enhanced in Milestone 5.4)
+- [ ] Implement `run_summary.json` writing with status, elapsed_time, artifact_paths
 
-### Phase 4 — Streaming and Transcript Events (required)
+### Phase 4 — Tests (required)
 
-- [ ] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py`
-- [ ] Add `make_lifecycle_event()` and `enrich_stream_event()` helper functions
-- [ ] Modify `TinyCUALoop._run_stream()` to emit lifecycle events at node boundaries
-- [ ] Apply `NodeStreamPolicy.final_response_only` to suppress intermediate events
-- [ ] Apply `NodeStreamPolicy.include_node_metadata` to enrich events with node info
-- [ ] Add `TranscriptRecord` type to `tinycua/config/types.py`
-
-### Phase 5 — Tests (required)
-
-- [ ] Unit tests for retry loop, validation, exhaustion behaviors
-- [ ] Unit tests for DecisionNode classification retry
-- [ ] Unit tests for monitor hook trigger points and exception handling
-- [ ] Integration tests for retry through TinyCUALoop
-- [ ] Unit tests for event model creation and serialization
-- [ ] Unit tests for lifecycle event emission
-- [ ] Unit tests for NodeStreamPolicy enforcement
-- [ ] Integration test for multi-node streaming
-
-### Phase 6 — Enhancements _(post-MVP)_
-
-- [ ] JSONL transcript export utility
-- [ ] Sequence numbering and run_id tracking
-- [ ] Stream cancellation cleanup
-
-> **Note**: Phase 6 must NOT be implemented until Phase 5 is complete and reviewed.
+- [ ] Unit tests for CLI argument parsing
+- [ ] Unit tests for RunConfig and RunSummary
+- [ ] Unit tests for agent runner with mock agent
+- [ ] Unit tests for timeout handling
+- [ ] Unit tests for artifact writing
+- [ ] Integration tests for full CLI invocation
 
 ---
 
 ## Technical Decisions
 
-1. **Decision**: `NodeMonitor` is a Protocol (structural typing), not an ABC.
-   - **Reason**: Allows any object with the right methods to serve as a monitor — no inheritance required. Matches Python's duck-typing philosophy and simplifies testing.
-   - **Alternatives Considered**: ABC — rejected because it forces inheritance and is less flexible for a prototype.
+1. **Decision**: Use `threading.Thread.join(timeout=...)` for timeout rather than `signal.alarm`.
+   - **Reason**: Cross-platform compatibility (works on Windows where `signal.alarm` is not available). Threading approach is more portable for a research prototype.
+   - **Alternatives Considered**: `signal.alarm` — rejected for cross-platform issues. `asyncio.wait_for` — rejected because the agent run is synchronous.
 
-2. **Decision**: Monitor hooks are called via `_safe_call()` with exception catching.
-   - **Reason**: Monitor failures must not break node execution. A buggy monitor should degrade gracefully.
-   - **Alternatives Considered**: Let exceptions propagate — rejected because it violates the transient/non-blocking contract.
+2. **Decision**: Write transcript as simple JSONL with one entry for now, to be enhanced in Milestone 5.4.
+   - **Reason**: Milestone 5.1 focuses on the CLI entry point. Transcript format will be finalized when WildClawBench artifact compatibility is implemented.
+   - **Alternatives Considered**: Full JSONL with all StreamEvents — deferred to Milestone 5.4.
 
-3. **Decision**: `max_attempts=0` means 1 attempt (no retry), not 0 attempts.
-   - **Reason**: A node must always execute at least once. `max_attempts` controls retry count, not total attempts. This matches the existing `max(max_attempts, 1)` pattern in the code.
-   - **Alternatives Considered**: `max_attempts=0` means no execution — rejected because it would require special-casing everywhere.
+3. **Decision**: Use separate `tinycua/cli/` package rather than adding CLI code to `tinycua/__init__.py`.
+   - **Reason**: Clean separation of concerns. CLI is a separate entry point that imports from the core library.
+   - **Alternatives Considered**: Single-file CLI in `__init__.py` — rejected for maintainability.
 
-4. **Decision**: `record_failure` writes a `SessionContextEntry` with `segment="output"` rather than a special failure type.
-   - **Reason**: Keeps the session context model simple — failure is just another output entry. Downstream consumers can detect failures by checking for the `[RETRY_EXHAUSTED]` prefix in the content field.
-   - **Alternatives Considered**: Special `FailureRecord` type — rejected because it adds complexity to the session model.
+4. **Decision**: Default workspace to `/tmp_workspace` (WildClawBench convention) rather than current directory.
+   - **Reason**: Primary use case is WildClawBench benchmark runs where `/tmp_workspace` is the standard working directory.
+   - **Alternatives Considered**: Default to `.` (current directory) — rejected because it doesn't match WildClawBench conventions.
 
-5. **Decision**: DecisionNode retries only the classification step, not the analysis step.
-   - **Reason**: The analysis is an open-ended LLM call that produces content; validating it is subjective. The classification is a discrete label that can be validated against `classification_labels`. Retrying the analysis would be expensive and low-value.
-   - **Alternatives Considered**: Retry both steps — rejected for cost/complexity.
-
-6. **Decision**: `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other.
-   - **Reason**: Simpler implementation with clear separation of concerns. The loop observes at the orchestration level; the node observes at the execution level. No delegation complexity.
-   - **Alternatives Considered**: AgentMonitor wraps NodeMonitor — rejected because it requires AgentMonitor implementations to know about and forward to node-level monitors, coupling the two layers.
-
-7. **Decision**: `NodeMonitor` hooks only fire when a node is called directly (e.g., `node(input)`), not when executed through `TinyCUALoop._execute_node()`.
-   - **Reason**: `_execute_node()` calls `agent._call_llm()` directly rather than delegating to `node.__call__()`, so the node's monitor hook wiring (in `ProcessNode.__call__()` and `DecisionNode.__call__()`) is bypassed. This is a known design limitation — wiring `node(input)` through the loop would require a larger refactor to bring the loop's retry handling in line with the node's own retry logic. `AgentMonitor` is the loop-level hook and fires in both paths.
-   - **Alternatives Considered**: Wire `node(input)` through `_execute_node()` — deferred to follow-up because it would duplicate the retry loop already in `ProcessNode.__call__()` or require extracting shared retry logic.
-   - **Implication**: The hardcoded `ValidationResult(is_valid=True, errors=[])` in `_execute_node()`'s AgentMonitor after-hook is correct for this path — the loop does not run `validate_output()`. Use `NodeMonitor` for per-attempt validation results when direct node calls are used.
-
-8. **Decision**: Use plain dicts for stream events (not a custom class)
-   - **Reason**: SDK `BaseLoop` contract expects `AsyncIterator[dict[str, Any]]`. Using dicts maintains compatibility and avoids SDK changes.
-   - **Alternatives Considered**: Custom StreamEvent class — rejected because it would require SDK changes to recognize the type.
-
-9. **Decision**: Emit lifecycle events as additional yields in the existing `_run_stream()` generator
-   - **Reason**: Minimal code change, no new threading or callback infrastructure needed.
-   - **Alternatives Considered**: Separate event queue with background consumer — rejected as overengineering for prototype scope.
-
-10. **Decision**: Apply `NodeStreamPolicy` filtering at the `_run_stream()` level, not per-node
-    - **Reason**: Centralized filtering is simpler and consistent with how `NodeToolPolicy` and `NodeMessagePolicy` work.
-    - **Alternatives Considered**: Per-node event filtering — rejected as adding unnecessary complexity.
-
-11. **Decision**: Timestamps use `time.time()` (epoch seconds)
-    - **Reason**: Simple, no timezone complications, sufficient for transcript ordering.
-    - **Alternatives Considered**: `datetime.utcnow()` — rejected for serialization simplicity.
+5. **Decision**: Use `threading.Thread` with `daemon=True` for timeout rather than killing the thread.
+   - **Reason**: Thread killing is not safe in Python. Daemon thread will be terminated when the main process exits, which happens after timeout handling.
+   - **Alternatives Considered**: `ctypes` thread killing — rejected as unsafe and non-portable.
 
 ---
 
@@ -614,46 +392,32 @@ def enrich_stream_event(
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Monitor hook overhead slows node execution | Low | Low | Hooks are optional and lightweight; `_safe_call` catches exceptions fast |
-| `record_failure` propagation rule not defined for some nodes | Medium | Medium | Default to no propagation; nodes that need failure propagation configure `PropagationRule.failure` |
-| DecisionNode retry loop adds latency for invalid classifications | Low | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare with well-prompted LLMs |
-| Custom `validation_fn` raises unexpected exceptions | Medium | Low | `_safe_call` catches all exceptions; validation errors are logged |
-| NodeMonitor does not fire through `TinyCUALoop._execute_node()` | Medium | Medium | Use AgentMonitor for loop-level observation; call nodes directly for per-attempt NodeMonitor granularity. Documented in Technical Decision #7 |
-| Stream event volume causes memory pressure | Low | Medium | Events are yielded, not accumulated; consumer controls consumption |
-| LLM endpoint doesn't support streaming | Medium | Low | Fallback to single-event yield after collecting full response |
-| NodeStreamPolicy filtering breaks existing tests | Low | High | Existing tests use `stream=False`; streaming tests already pass |
-| WildClawBench transcript format mismatch | Medium | Medium | Design events to be schema-compatible with common JSONL formats |
+| Threading timeout doesn't kill LLM HTTP requests | Medium | Medium | Agent thread is daemon; main process exits after timeout, killing the thread |
+| Transcript format changes between Milestone 5.1 and 5.4 | High | Low | Use simple format now; Milestone 5.4 will finalize WildClawBench-compatible format |
+| Agent factory creates sessions that persist after timeout | Low | Low | Session cleanup is handled by TinyCUALoop lifecycle; no durable state to clean up |
+| Signal handling conflicts with threading | Low | Low | Use `signal.signal()` in main thread only; daemon thread handles cleanup |
 
 ---
 
 ## Open Questions _(optional)_
 
-1. **Should `AgentMonitor` support node-level filtering (e.g., monitor only certain node IDs)?**
-   - Current thinking: Not in this milestone. Keep it simple — monitor all nodes, filter in the implementation if needed.
+1. **Should the CLI support `--config-file` for loading RunConfig from a JSON/YAML file?**
+   - **Current thinking**: Not in this milestone. Keep it simple — CLI flags are sufficient for WildClawBench.
 
-2. **Should failure state recording include the full validation error history across attempts?**
-   - Current thinking: Yes — record all errors, not just the final one, for debugging.
-
-3. Should lifecycle events include tool call details (tool name, arguments, result)?
-   - **Resolved**: Yes, for `node.completed` events when tools were used. Include a `tool_calls` list in the event metadata.
-
-4. Should we add a `run_id` to all events for multi-run correlation?
-   - **Resolved**: Yes, via `TranscriptRecord` wrapper. Individual events don't need it.
+2. **Should the CLI write stderr/stdout to separate log files?**
+   - **Current thinking**: Not in this milestone. Logging via `logging` module is sufficient; file logging can be added later if needed.
 
 ---
 
 ## References
 
 - Spec: [./spec.md](./spec.md)
-- Design docs covered:
-  - `src/tinycua/docs/design/loops/node.md` — full (retry, validation, monitor hook sections)
-  - `src/tinycua/docs/design/loops/tinycua_loop.md` — full (monitor hook, error handling sections)
-  - `src/tinycua/docs/design/models/agent_state.md` — partial (failure recording)
-  - `src/tinycua/docs/design/config/node_config.md` — full (NodeRetryPolicy)
-  - `src/tinycua/docs/design/loops/base_loop.md` — streaming architecture
+- Milestone 5.1 from roadmap issue: https://github.com/VJyzCELERY/TINYCUA/issues/87
+- Design docs:
+  - `src/tinycua/docs/design/loops/tinycua_loop.md` — TinyCUALoop execution
+  - `src/tinycua/docs/design/config/session_config.md` — Session configuration
+  - `src/tinycua/docs/design/models/session.md` — Session model
 - Existing implementation:
-  - `tinycua/config/node_config.py` — NodeRetryPolicy (Milestone 1.2)
-  - `tinycua/config/types.py` — ValidationResult, ValidationError, LLMResult
-  - `tinycua/loops/node.py` — ProcessNode.__call__() retry loop, validate_output(), build_retry_continuation()
-  - `tinycua/loops/tinycua_loop.py` — _execute_node() integration point, _run_stream() streaming
-  - `tinycua/config/node_config.py` — NodeStreamPolicy
+  - `tinycua/factory.py` — `create_tinycua_agent()` factory
+  - `tinycua/loops/tinycua_loop.py` — TinyCUALoop with streaming support
+  - `tinycua/cli/` — existing CLI directory (may need review)
