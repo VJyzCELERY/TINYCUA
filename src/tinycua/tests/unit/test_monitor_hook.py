@@ -207,8 +207,8 @@ class TestNodeMonitorHookException:
 class TestNodeMonitorContinuation:
     """Tests for monitor hook continuation messages."""
 
-    def test_before_hook_continuation_appended(self):
-        """String returned from before hook is appended to messages."""
+    def test_before_hook_return_value_discarded(self):
+        """Continuation appending is deferred (FR-012). Return values are currently discarded."""
         monitor = ContinuationMonitor()
         config = NodeConfigBase(
             llm_client=MockLLM([
@@ -223,7 +223,6 @@ class TestNodeMonitorContinuation:
         )
         node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
         node.session = Session()
-        # The continuation is appended but doesn't affect the mock LLM behavior
         result = node("input")
         assert result.content == "good"
 

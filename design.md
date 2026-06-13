@@ -476,6 +476,11 @@ def _safe_call(hook_method, *args, **kwargs):
    - **Reason**: Simpler implementation with clear separation of concerns. The loop observes at the orchestration level; the node observes at the execution level. No delegation complexity.
    - **Alternatives Considered**: AgentMonitor wraps NodeMonitor — rejected because it requires AgentMonitor implementations to know about and forward to node-level monitors, coupling the two layers.
 
+7. **Decision**: `NodeMonitor` hooks only fire when a node is called directly (e.g., `node(input)`), not when executed through `TinyCUALoop._execute_node()`.
+   - **Reason**: `_execute_node()` calls `agent._call_llm()` directly rather than delegating to `node.__call__()`, so the node's monitor hook wiring (in `ProcessNode.__call__()` and `DecisionNode.__call__()`) is bypassed. This is a known design limitation — wiring `node(input)` through the loop would require a larger refactor to bring the loop's retry handling in line with the node's own retry logic. `AgentMonitor` is the loop-level hook and fires in both paths.
+   - **Alternatives Considered**: Wire `node(input)` through `_execute_node()` — deferred to follow-up because it would duplicate the retry loop already in `ProcessNode.__call__()` or require extracting shared retry logic.
+   - **Implication**: The hardcoded `ValidationResult(is_valid=True, errors=[])` in `_execute_node()`'s AgentMonitor after-hook is correct for this path — the loop does not run `validate_output()`. Use `NodeMonitor` for per-attempt validation results when direct node calls are used.
+
 ---
 
 ## Risks & Mitigations
@@ -486,6 +491,7 @@ def _safe_call(hook_method, *args, **kwargs):
 | `record_failure` propagation rule not defined for some nodes | Medium | Medium | Default to no propagation; nodes that need failure propagation configure `PropagationRule.failure` |
 | DecisionNode retry loop adds latency for invalid classifications | Low | Low | Classification retry is bounded by `max_attempts`; invalid labels are rare with well-prompted LLMs |
 | Custom `validation_fn` raises unexpected exceptions | Medium | Low | `_safe_call` catches all exceptions; validation errors are logged |
+| NodeMonitor does not fire through `TinyCUALoop._execute_node()` | Medium | Medium | Use AgentMonitor for loop-level observation; call nodes directly for per-attempt NodeMonitor granularity. Documented in Technical Decision #7 |
 
 ---
 

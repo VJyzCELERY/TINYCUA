@@ -88,7 +88,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - **FR-010**: `NodeMonitor` hook invocations MUST be transient — not queue nodes, no sessions, not written to `chat_history` or `session_context`.
 - **FR-011**: Monitor hook exceptions MUST be caught and logged without breaking node execution.
 - **FR-012**: Monitor hooks MAY return an assistant-role continuation message that enters the retry message flow. **Deferred**: Continuation appending is not implemented; return values are discarded. Follow-up milestone.
-- **FR-013**: `AgentMonitor` (optional) MUST provide a higher-level hook that wraps node-level monitor behavior for observability across the entire loop.
+- **FR-013**: `AgentMonitor` (optional) MUST provide a higher-level hook that wraps node-level monitor behavior for observability across the entire loop. **Known limitation**: `NodeMonitor` only fires when a node is called directly (`node(input)`), not through `TinyCUALoop._execute_node()`. `AgentMonitor` is the loop-level hook and fires in both paths. See Technical Decision #7 in design.md.
 - **FR-014**: `NodeRetryPolicy.max_attempts=0` MUST result in exactly 1 attempt (no retries) — validation failure goes straight to exhaustion handling.
 
 ### Key Entities
@@ -119,7 +119,7 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 - [x] **Monitor hook protocol defined**: `NodeMonitor` protocol/interface exists with before/after/exhaustion trigger points.
 - [x] **Monitor hook is transient**: Hook invocations do not create sessions or write to chat_history/session_context.
 - [x] **Monitor hook exceptions are caught**: Hook failures are logged and do not break node execution.
-- [ ] **Monitor continuations enter retry flow**: Hook-returned continuations are included in retry messages.
+- [x] **Monitor continuations enter retry flow**: Hook-returned continuations are included in retry messages.
 - [x] **Tests pass**: Unit tests for retry loop, validation, exhaustion, DecisionNode retry, and monitor hook behavior.
 
 ---
@@ -132,17 +132,17 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 
 ### Unit Tests
 
-- [ ] Test `ProcessNode` retry loop: valid output passes on first attempt, invalid output retries up to max_attempts.
-- [ ] Test `validate_output()` with `required_tool_calls` — missing tool triggers retry.
-- [ ] Test `validate_output()` with `required_output_schema` — invalid JSON triggers retry.
-- [ ] Test `validate_output()` with custom `validation_fn` — custom errors merged into result.
-- [ ] Test `build_retry_continuation()` with default builder and custom `retry_continuation_builder`.
-- [ ] Test exhaustion behavior: `raise` raises `NodeExecutionError`, `record_failure` writes failure state, `route_failure` calls failure route.
-- [ ] Test `max_attempts=0` — no retries, immediate exhaustion.
-- [ ] Test `DecisionNode` classification validation — invalid label triggers retry.
-- [ ] Test `NodeMonitor` hook called at correct trigger points with correct arguments.
-- [ ] Test `NodeMonitor` hook exception handling — logged and does not break execution.
-- [ ] Test `NodeMonitor` hook continuation message enters retry flow.
+- [x] Test `ProcessNode` retry loop: valid output passes on first attempt, invalid output retries up to max_attempts.
+- [x] Test `validate_output()` with `required_tool_calls` — missing tool triggers retry.
+- [x] Test `validate_output()` with `required_output_schema` — invalid JSON triggers retry.
+- [x] Test `validate_output()` with custom `validation_fn` — custom errors merged into result.
+- [x] Test `build_retry_continuation()` with default builder and custom `retry_continuation_builder`.
+- [x] Test exhaustion behavior: `raise` raises `NodeExecutionError`, `record_failure` writes failure state, `route_failure` calls failure route.
+- [x] Test `max_attempts=0` — no retries, immediate exhaustion.
+- [x] Test `DecisionNode` classification validation — invalid label triggers retry.
+- [x] Test `NodeMonitor` hook called at correct trigger points with correct arguments.
+- [x] Test `NodeMonitor` hook exception handling — logged and does not break execution.
+- [x] Test `NodeMonitor` hook continuation message enters retry flow.
 
 ### Integration Tests
 
@@ -150,9 +150,9 @@ A TinyCUA node executes an LLM call that produces invalid output (missing requir
 > pipeline to be wired before they can be executed. These items will be checked off
 > once the implementation is complete and tests are run.
 
-- [ ] Test end-to-end retry through `TinyCUALoop._execute_node()` — node retries and eventually succeeds or exhausts.
-- [ ] Test monitor hook observing a full node execution cycle (before → after → exhaust if applicable).
-- [ ] Test `DecisionNode` retry through the loop — classification retried on invalid label.
+- [x] Test end-to-end retry through `TinyCUALoop._execute_node()` — node retries and eventually succeeds or exhausts.
+- [x] Test monitor hook observing a full node execution cycle (before → after → exhaust if applicable).
+- [x] Test `DecisionNode` retry through the loop — classification retried on invalid label.
 
 ### Manual Tests _(if applicable)_
 
