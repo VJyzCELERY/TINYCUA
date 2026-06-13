@@ -67,8 +67,9 @@ TinyCUALoop.run(stream=True)
 
 StreamEvent (model)
   ← LifecycleEvent (node boundaries)
-  ← LLMDeltaEvent (content deltas)
-  ← ToolCallEvent (tool invocations)
+
+LLM/tool events are plain dicts with `type` field discrimination
+  (e.g., `response.output_text.delta`, `response.function_call`)
 
 NodeStreamPolicy
   → controls: final_response_only, emit_internal_events, include_node_metadata
@@ -631,10 +632,10 @@ def enrich_stream_event(
    - Current thinking: Yes — record all errors, not just the final one, for debugging.
 
 3. Should lifecycle events include tool call details (tool name, arguments, result)?
-   - Current thinking: Yes, for `node.completed` events when tools were used. Include a `tool_calls` list in the event metadata.
+   - **Resolved**: Yes, for `node.completed` events when tools were used. Include a `tool_calls` list in the event metadata.
 
 4. Should we add a `run_id` to all events for multi-run correlation?
-   - Current thinking: Yes, via `TranscriptRecord` wrapper. Individual events don't need it.
+   - **Resolved**: Yes, via `TranscriptRecord` wrapper. Individual events don't need it.
 
 ---
 

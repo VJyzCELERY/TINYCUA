@@ -275,8 +275,8 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 3. **Event dict schema standardization**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-20
-   - **Status**: Discussion
-   - **Proposed Answer**: Follow OpenAI Responses API event format where possible (`type`, `delta`, `item`) for compatibility.
+   - **Status**: Resolved
+   - **Decision**: Follow OpenAI Responses API event format where possible (`type`, `delta`, `item`) for compatibility.
 
 ---
 

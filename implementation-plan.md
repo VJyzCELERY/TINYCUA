@@ -12,23 +12,32 @@ This implementation plan covers two related milestones:
 - **Priority**: P1
 - **Estimated Effort**: M
 
+## FR → Task → Test Traceability
+
+| FR | Description | Task | Test |
+|----|-------------|------|------|
+| FR-001 | `stream=True` returns async iterator of event dicts | id:4 (lifecycle events in `_run_stream`) | `test_lifecycle_events_emitted` |
+| FR-002 | `stream=False` returns final string response | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string` (existing) |
+| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.completed`, `node.error`) | `test_lifecycle_events_emitted` |
+| FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
+| FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
+| FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_lifecycle_events_emitted` |
+| FR-007 | Transcript events serializable to JSONL | id:3 (TranscriptRecord type) | `test_transcript_serialization` |
+| FR-008 | Preserve SDK `BaseLoop` contract | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string`, `test_tinycua_loop_stream_true_returns_iterator` (existing) |
+
+---
+
 ## Environment Pre-requisites
 
 ### Configuration
 
-- [ ] **.env file** — required variables:
-  ```
-  # LLM endpoint (for integration tests)
-  LLM_API_KEY=xxx
-  LLM_BASE_URL=http://localhost:8000
-  ```
-- [ ] **None** — no additional configuration beyond existing project setup
+- [x] **None** — no additional configuration beyond existing project setup. All tests use mocked LLM responses.
 
 ### Running Services
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| LLM endpoint | Yes (integration tests) | Mock via existing test fixtures | N/A |
+| LLM endpoint | No | Mock via existing test fixtures | N/A |
 
 - [x] **None** — unit tests use mocked LLM responses
 
