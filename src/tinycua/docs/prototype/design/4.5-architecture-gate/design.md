@@ -1,7 +1,7 @@
 # Design Document: End-to-End TinyCUA Architecture Verification Gate
 
-**Spec**: `./spec.md`
-**Status**: Draft
+**Spec**: `src/tinycua/specs/4.5-architecture-gate/spec.md`
+**Status**: Ready
 **Last Updated**: 2026-06-13
 
 ---
@@ -161,8 +161,9 @@ class VerificationGate:
 class PathExecutor:
     """Executes a single architecture path using actual TinyCUA nodes and NodeQueue."""
 
-    def __init__(self, session_config: SessionConfig):
-        """Initialize with existing TinyCUA SessionConfig for LLM and session setup."""
+    def __init__(self, gate_config: GateConfig):
+        """Initialize with GateConfig for LLM and timeout settings.
+        Session isolation is handled internally via SessionConfig."""
 
     def execute(self, path: ArchitecturePath) -> PathResult:
         """Instantiate nodes, run through NodeQueue, and return results."""
@@ -243,15 +244,16 @@ If the gate reimplemented execution logic, it would verify the gate's own logic 
 
 ## LLM Client Configuration
 
-The verification gate does **not** create a new LLM client. It reuses the existing TinyCUA `SessionConfig` mechanism to configure the LLM endpoint, model, and API key.
+The verification gate does **not** create a new LLM client. It reuses the existing TinyCUA `LocalModelConfig` and `SessionConfig` to configure the LLM endpoint and session isolation respectively.
 
 ### Configuration Source
 
 ```text
 tests/verification/config.py
   → reads from environment variables (OPENAI_CHAT_COMPLETIONS_BASE_URL, etc.)
-  → constructs SessionConfig with same parameters as production
-  → passes SessionConfig to PathExecutor for node instantiation
+  → constructs GateConfig which wraps LocalModelConfig for LLM endpoint settings
+  → PathExecutor receives GateConfig (via VerificationGate), uses LocalModelConfig
+    for LLM interactions and creates SessionConfig for session isolation per path
 ```
 
 ### Default Model
@@ -260,7 +262,7 @@ The default verification model is `qwen/qwen3.5-4b`, configured via `OPENAI_CHAT
 
 ### Why Reuse Existing Config
 
-Using the same `SessionConfig` ensures the verification gate tests the real LLM integration path — including provider selection, model resolution, API key handling, and base URL configuration. A custom LLM client would bypass these mechanisms and reduce verification fidelity.
+Using `LocalModelConfig` (for LLM endpoint, model, API key) and `SessionConfig` (for session isolation) ensures the verification gate tests the real LLM integration path — including provider selection, model resolution, API key handling, and base URL configuration. A custom LLM client would bypass these mechanisms and reduce verification fidelity.
 
 ---
 
@@ -394,7 +396,7 @@ Failures in cross-cutting concerns are reported as path-level warnings or failur
 
 ## References
 
-- Spec: `./spec.md`
+- Spec: `src/tinycua/specs/4.5-architecture-gate/spec.md`
 - Architecture docs: `src/tinycua/docs/architecture/README.md`
 - Route map: `src/tinycua/docs/design/loops/route_map.md`
 - Worker orchestration: `src/tinycua/docs/architecture/worker-orchestration.md`
