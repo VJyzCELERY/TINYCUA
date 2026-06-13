@@ -70,15 +70,16 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 ### Phase 5 — Streaming and Transcript Events
 
 - [ ] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py` <!-- id: 16 -->
-  - [ ] Define `StreamEvent` dataclass with type, node_id, node_type, timestamp, metadata fields
-  - [ ] Define `LifecycleEvent` dataclass extending StreamEvent with attempt, content, finish_reason
+  - [ ] Define `StreamEvent` dict shape with type, node_id, node_type, timestamp, metadata fields
+  - [ ] Define `LifecycleEvent` dict shape extending StreamEvent with attempt, content, finish_reason
   - [ ] Implement `make_lifecycle_event()` factory function
   - [ ] Implement `enrich_stream_event()` helper function
   - [ ] Export new models from `tinycua/models/__init__.py`
 - [ ] Add `TranscriptRecord` type to `tinycua/config/types.py` <!-- id: 17 -->
-  - [ ] Define `TranscriptRecord` dataclass with event, run_id, session_id, sequence fields
+  - [ ] Define `TranscriptRecord` dict shape with event, run_id, session_id, sequence fields
 - [ ] Modify `TinyCUALoop._run_stream()` to emit lifecycle events <!-- id: 18 -->
   - [ ] Emit `node.started` event before `agent._call_llm()` call
+  - [ ] Emit `node.llm_call` event after `agent._call_llm()` call starts
   - [ ] Emit `node.completed` event after LLM call completes successfully
   - [ ] Emit `node.error` event on exception during node execution
   - [ ] Add `attempt` tracking for retry scenarios

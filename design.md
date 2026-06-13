@@ -60,6 +60,7 @@ TinyCUALoop.run(stream=True)
   → _run_stream()
       → for each node:
           → emit node.started lifecycle event
+          → emit node.llm_call lifecycle event (before _call_llm)
           → agent._call_llm(stream=True)
               → yield LLM delta events (with node metadata enrichment)
           → emit node.completed lifecycle event
@@ -253,7 +254,7 @@ StreamEvent:
 
 # LifecycleEvent — node boundary events
 LifecycleEvent(StreamEvent):
-    type: Literal["node.started", "node.completed", "node.error", "node.retry"]
+    type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"]
     attempt: int                 # current attempt number (1-based)
     content: str | None          # final content for completed/error events
     finish_reason: str | None    # "completed", "error", "retry", "empty"
@@ -473,7 +474,7 @@ def _safe_call(hook_method, *args, **kwargs):
 ```python
 # StreamEvent factory (convenience constructors)
 def make_lifecycle_event(
-    event_type: Literal["node.started", "node.completed", "node.error", "node.retry"],
+    event_type: Literal["node.started", "node.llm_call", "node.completed", "node.error", "node.retry"],
     node_id: str,
     node_type: str,
     attempt: int = 1,

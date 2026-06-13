@@ -18,7 +18,7 @@ This implementation plan covers two related milestones:
 |----|-------------|------|------|
 | FR-001 | `stream=True` returns async iterator of event dicts | id:4 (lifecycle events in `_run_stream`) | `test_lifecycle_events_emitted` |
 | FR-002 | `stream=False` returns final string response | id:12 (backward compat verification) | `test_tinycua_loop_stream_false_returns_string` (existing) |
-| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.completed`, `node.error`) | `test_lifecycle_events_emitted` |
+| FR-003 | Emit lifecycle events at node boundaries | id:4 (emit `node.started`, `node.llm_call`, `node.completed`, `node.error`) | `test_lifecycle_events_emitted` |
 | FR-004 | Include node metadata when `include_node_metadata=True` | id:6 (metadata enrichment) | `test_node_metadata_in_events` |
 | FR-005 | Suppress intermediate events when `final_response_only=True` | id:5 (final_response_only filtering) | `test_final_response_only_suppresses_intermediate` |
 | FR-006 | Emit internal lifecycle events when `emit_internal_events=True` | id:7 (emit_internal_events control) | `test_lifecycle_events_emitted` |
@@ -231,6 +231,7 @@ import json
 from unittest.mock import MagicMock
 
 from tinycua.config.node_config import NodeConfigBase, NodeStreamPolicy
+from tinycua.config.types import TranscriptRecord
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
 
@@ -347,7 +348,7 @@ async def test_final_response_only_suppresses_intermediate():
 
 
 async def test_transcript_serialization():
-    """Verify collected events can be serialized to JSONL and parsed back."""
+    """Verify TranscriptRecord wrapping produces valid JSONL output (FR-007)."""
     stub = StubNode("serialization test")
     terminal = ResponseNode()
     queue = NodeQueue()
@@ -366,13 +367,21 @@ async def test_transcript_serialization():
 
     events = [e async for e in result]
 
+    # Wrap events in TranscriptRecord (validates FR-007)
+    records = [
+        TranscriptRecord(event=e, run_id="test-run", session_id="test-session", sequence=i)
+        for i, e in enumerate(events)
+    ]
+
     # Serialize to JSONL
-    jsonl_lines = [json.dumps(e) for e in events]
+    jsonl_lines = [json.dumps(r.to_dict()) for r in records]
     # Parse back
     parsed = [json.loads(line) for line in jsonl_lines]
-    assert len(parsed) == len(events)
-    for original, restored in zip(events, parsed):
-        assert original == restored
+    assert len(parsed) == len(records)
+    for original_record, restored in zip(records, parsed):
+        assert restored["run_id"] == "test-run"
+        assert restored["session_id"] == "test-session"
+        assert restored["event"] == original_record.event
 ```
 
 ### Key Test Scenarios
