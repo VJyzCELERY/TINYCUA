@@ -5,8 +5,8 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 ## TDD Phase (Tests First)
 
 - [ ] Write integration tests for retry, validation, and monitor hook in `tests/integration/test_retry_integration.py` <!-- id: 0 -->
-- [ ] Write integration tests for streaming and transcript events (defined in implementation-plan.md) <!-- id: 1 -->
-- [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
+- [x] Write integration tests for streaming and transcript events (defined in implementation-plan.md) <!-- id: 1 -->
+- [x] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 2 -->
   - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
 
 ## Implementation Phase
@@ -70,35 +70,35 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 
 ### Phase 5 — Streaming and Transcript Events
 
-- [ ] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py` <!-- id: 16 -->
-  - [ ] Define `StreamEvent` dict shape with type, node_id, node_type, timestamp, metadata fields
-  - [ ] Define `LifecycleEvent` dict shape extending StreamEvent with attempt, content, finish_reason
-  - [ ] Implement `make_lifecycle_event()` factory function
-  - [ ] Implement `enrich_stream_event()` helper function
-  - [ ] Export new models from `tinycua/models/__init__.py`
-- [ ] Add `TranscriptRecord` type to `tinycua/config/types.py` <!-- id: 17 -->
-  - [ ] Define `TranscriptRecord` dict shape with event, run_id, session_id, sequence fields and `.to_dict()` method
-- [ ] Modify `TinyCUALoop._run_stream()` to emit lifecycle events <!-- id: 18 -->
-  - [ ] Emit `node.started` event before `agent._call_llm()` call
-  - [ ] Emit `node.llm_call` event after `agent._call_llm()` call starts
-  - [ ] Emit `node.completed` event after LLM call completes successfully
-  - [ ] Emit `node.error` event on exception during node execution
-  - [ ] Add `attempt` tracking for retry scenarios
-- [ ] Apply `NodeStreamPolicy.final_response_only` filtering <!-- id: 19 -->
-  - [ ] Suppress intermediate node LLM/tool events when policy enabled
-  - [ ] Only emit events from ResponseNode when final_response_only=True
-- [ ] Apply `NodeStreamPolicy.include_node_metadata` enrichment <!-- id: 20 -->
-  - [ ] Enrich events with node_id, node_type, attempt when policy enabled
-  - [ ] Skip metadata enrichment when policy disabled
-- [ ] Apply `NodeStreamPolicy.emit_internal_events` control <!-- id: 21 -->
-  - [ ] Emit lifecycle events only when emit_internal_events=True
-  - [ ] Suppress lifecycle events when emit_internal_events=False
+- [x] Create `StreamEvent` and `LifecycleEvent` models in `tinycua/models/stream_event.py` <!-- id: 16 -->
+  - [x] Define `StreamEvent` dict shape with type, node_id, node_type, timestamp, metadata fields
+  - [x] Define `LifecycleEvent` dict shape extending StreamEvent with attempt, content, finish_reason
+  - [x] Implement `make_lifecycle_event()` factory function
+  - [x] Implement `enrich_stream_event()` helper function
+  - [x] Export new models from `tinycua/models/__init__.py`
+- [x] Add `TranscriptRecord` type to `tinycua/config/types.py` <!-- id: 17 -->
+  - [x] Define `TranscriptRecord` dataclass with event, run_id, session_id, sequence fields and `.to_dict()` method
+- [x] Modify `TinyCUALoop._run_stream()` to emit lifecycle events <!-- id: 18 -->
+  - [x] Emit `node.started` event before `agent._call_llm()` call
+  - [x] Emit `node.llm_call` event after `agent._call_llm()` call starts
+  - [x] Emit `node.completed` event after LLM call completes successfully
+  - [x] Emit `node.error` event on exception during node execution
+  - [x] Add `attempt` tracking for retry scenarios
+- [x] Apply `NodeStreamPolicy.final_response_only` filtering <!-- id: 19 -->
+  - [x] Suppress intermediate node LLM/tool events when policy enabled
+  - [x] Only emit events from ResponseNode when final_response_only=True
+- [x] Apply `NodeStreamPolicy.include_node_metadata` enrichment <!-- id: 20 -->
+  - [x] Enrich events with node_id, node_type, attempt when policy enabled
+  - [x] Skip metadata enrichment when policy disabled
+- [x] Apply `NodeStreamPolicy.emit_internal_events` control <!-- id: 21 -->
+  - [x] Emit lifecycle events only when emit_internal_events=True
+  - [x] Suppress lifecycle events when emit_internal_events=False
 
 ## Testing Phase
 
 > **Note**: Unit tests below are listed here for tracking, but should be written alongside their corresponding implementation tasks (TDD-style) — not after all implementation is complete.
 
-- [ ] Run integration tests — expect GREEN (all pass) <!-- id: 22 -->
+- [x] Run integration tests — expect GREEN (all pass) <!-- id: 22 -->
   - Command: `cd src/tinycua && uv run pytest tests/integration/test_streaming.py -v`
 - [ ] Write unit tests for `validate_output()` with custom `validation_fn` in `tests/unit/test_retry_validation.py` <!-- id: 23 -->
   - [ ] Test valid validation result (is_valid=True)
@@ -127,15 +127,15 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
   - [ ] Test `AgentMonitor` fires when configured (loop-level)
   - [ ] Test `NodeMonitor` fires when configured (node-level)
   - [ ] Test both fire independently when both configured
-- [ ] Write unit tests for `StreamEvent` model creation and validation <!-- id: 29 -->
-  - [ ] Test StreamEvent fields are set correctly
-  - [ ] Test LifecycleEvent inherits from StreamEvent correctly
-  - [ ] Test make_lifecycle_event() creates valid events
-  - [ ] Test enrich_stream_event() adds metadata correctly
-- [ ] Write unit tests for `NodeStreamPolicy` enforcement <!-- id: 30 -->
-  - [ ] Test final_response_only suppresses intermediate events
-  - [ ] Test include_node_metadata adds metadata to events
-  - [ ] Test emit_internal_events controls lifecycle emission
+- [x] Write unit tests for `StreamEvent` model creation and validation <!-- id: 29 -->
+  - [x] Test StreamEvent fields are set correctly
+  - [x] Test LifecycleEvent inherits from StreamEvent correctly
+  - [x] Test make_lifecycle_event() creates valid events
+  - [x] Test enrich_stream_event() adds metadata correctly
+- [x] Write unit tests for `NodeStreamPolicy` enforcement <!-- id: 30 -->
+  - [x] Test final_response_only suppresses intermediate events
+  - [x] Test include_node_metadata adds metadata to events
+  - [x] Test emit_internal_events controls lifecycle emission
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 31 -->
 
 ## Verification Phase
@@ -143,17 +143,17 @@ Implementation tasks for Milestones 4.3 and 4.4. Check off items as completed.
 - [ ] Verify monitor hooks do not write to `chat_history` or `session_context` <!-- id: 32 -->
 - [ ] Verify `record_failure` propagation works with configured `PropagationRule.failure` <!-- id: 33 -->
 - [ ] Verify `max_attempts=0` results in 1 attempt with immediate exhaustion <!-- id: 34 -->
-- [ ] Verify stream=False returns string (backward compatibility) <!-- id: 35 -->
-- [ ] Verify stream=True returns async iterator with correct event structure <!-- id: 36 -->
-- [ ] Verify lifecycle events appear at correct node boundaries <!-- id: 37 -->
-- [ ] Verify JSONL serialization roundtrip preserves all event data <!-- id: 38 -->
+- [x] Verify stream=False returns string (backward compatibility) <!-- id: 35 -->
+- [x] Verify stream=True returns async iterator with correct event structure <!-- id: 36 -->
+- [x] Verify lifecycle events appear at correct node boundaries <!-- id: 37 -->
+- [x] Verify JSONL serialization roundtrip preserves all event data <!-- id: 38 -->
 
 ## Documentation Phase
 
 - [ ] Update status tracker in `spec.md` — mark completed items <!-- id: 39 -->
 - [ ] Update `design.md` implementation phases — mark completed phases <!-- id: 40 -->
-- [ ] Update docstrings for modified `_run_stream()` method <!-- id: 41 -->
-- [ ] Add module docstring for `stream_event.py` <!-- id: 42 -->
+- [x] Update docstrings for modified `_run_stream()` method <!-- id: 41 -->
+- [x] Add module docstring for `stream_event.py` <!-- id: 42 -->
 
 ## Review and Merge
 

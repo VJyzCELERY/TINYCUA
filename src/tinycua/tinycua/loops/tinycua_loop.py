@@ -203,6 +203,96 @@ class TinyCUALoop(BaseLoop):
         node.record_output(llm_result)
         return llm_result
 
+    def _emit_lifecycle_event(
+        self,
+        event_type: str,
+        node_id: str,
+        node_type: str,
+        attempt: int,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        is_terminal_node: bool,
+        content: str | None = None,
+        finish_reason: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Create a lifecycle event if policies allow emission.
+
+        Args:
+            event_type: The lifecycle event type string.
+            node_id: ID of the node.
+            node_type: Class name of the node.
+            attempt: Current attempt number.
+            emit_lifecycle: Whether lifecycle events are enabled.
+            include_meta: Whether to include node metadata.
+            final_only: Whether only terminal node events should emit.
+            is_terminal_node: Whether this is a terminal node.
+            content: Optional content for completed/error events.
+            finish_reason: Optional finish reason.
+
+        Returns:
+            The lifecycle event dict, or None if emission is suppressed.
+        """
+        from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
+
+        if not emit_lifecycle:
+            return None
+
+        event = make_lifecycle_event(
+            event_type=event_type,  # type: ignore[arg-type]
+            node_id=node_id,
+            node_type=node_type,
+            attempt=attempt,
+            content=content,
+            finish_reason=finish_reason,
+        )
+        if include_meta:
+            enrich_stream_event(event, node_id, node_type, attempt)
+        if final_only and not is_terminal_node:
+            return None
+        return event
+
+    def _finalize_streamed_node(
+        self,
+        node: Node,
+        content_parts: list[str],
+        collected_tool_calls: list[dict[str, Any]],
+    ) -> str:
+        """Finalize a streamed node: record output, fire lifecycle hooks.
+
+        Args:
+            node: The node that was streamed.
+            content_parts: Accumulated text delta parts.
+            collected_tool_calls: Collected tool call events.
+
+        Returns:
+            The combined content string.
+        """
+        combined = "".join(content_parts)
+        llm_result = self._record_node_output(node, combined, collected_tool_calls)
+
+        # Fire lifecycle hooks (same as _execute_node)
+        on_complete_response: LLMResult | DecisionResult = llm_result
+        if isinstance(node, DecisionNode):
+            on_complete_response = DecisionResult(
+                route_label=combined,
+                analysis_response=llm_result,
+                classification_response=llm_result,
+            )
+        node.on_complete(self.queue, on_complete_response)
+
+        # Propagate context on node termination
+        rule = node.config.propagation or PropagationRule()
+        parent_session = self._find_parent_session(node)
+        propagate_on_termination(
+            node.session or self.root_session,
+            parent_session,
+            self.root_session,
+            rule,
+        )
+
+        return combined
+
     async def _run_stream(
         self,
         agent: Agent,
@@ -212,7 +302,19 @@ class TinyCUALoop(BaseLoop):
         """Run in streaming mode: iterate through node queue, yield events.
 
         For each node, builds messages, calls agent._call_llm(stream=True),
-        yields stream events, records chat_history and session_context.
+        yields stream events (including lifecycle events at node boundaries),
+        records chat_history and session_context.
+
+        Lifecycle events emitted per node:
+        - node.started: before agent._call_llm()
+        - node.llm_call: when LLM call begins
+        - node.completed: after LLM call completes successfully
+        - node.error: on exception during node execution
+
+        NodeStreamPolicy controls:
+        - emit_internal_events: when False, suppresses all node.* lifecycle events
+        - include_node_metadata: when True, enriches events with node_id, node_type, attempt
+        - final_response_only: when True, suppresses intermediate node events (only ResponseNode events pass)
 
         Args:
             agent: The agent executing.
@@ -220,7 +322,7 @@ class TinyCUALoop(BaseLoop):
             override_instructions: Optional instructions override.
 
         Yields:
-            Stream event dicts from the LLM.
+            Stream event dicts from the LLM and lifecycle transitions.
         """
         while not self.queue.is_empty():
             node = self.queue.current
@@ -235,39 +337,69 @@ class TinyCUALoop(BaseLoop):
                 node, tools, override_instructions,
             )
 
+            # Determine policy settings for this node
+            policy = node.config.stream_policy
+            emit_lifecycle = policy.emit_internal_events
+            include_meta = policy.include_node_metadata
+            final_only = policy.final_response_only
+            is_terminal_node = node.is_terminal
+            node_type = type(node).__name__
+            attempt = 1
+
+            # Emit node.started lifecycle event
+            started = self._emit_lifecycle_event(
+                "node.started", node.node_id, node_type, attempt,
+                emit_lifecycle, include_meta, final_only, is_terminal_node,
+            )
+            if started is not None:
+                yield started
+
+            # Emit node.llm_call lifecycle event
+            llm_call = self._emit_lifecycle_event(
+                "node.llm_call", node.node_id, node_type, attempt,
+                emit_lifecycle, include_meta, final_only, is_terminal_node,
+            )
+            if llm_call is not None:
+                yield llm_call
+
             # Stream from agent._call_llm() and yield events
             content_parts: list[str] = []
             collected_tool_calls: list[dict[str, Any]] = []
-            async for event in agent._call_llm(messages, resolved_tools, stream=True):  # type: ignore[arg-type]
-                if event.get("type") == "response.output_text.delta":
-                    content_parts.append(event.get("delta", ""))
-                if event.get("type") == "response.tool_call":
-                    collected_tool_calls.append(event)
-                yield event
-
-            combined = "".join(content_parts)
-            llm_result = self._record_node_output(node, combined, collected_tool_calls)
-
-            # Fire lifecycle hooks (same as _execute_node)
-            # Note: propagate() is called by queue.advance() below — do not call explicitly here
-            on_complete_response: LLMResult | DecisionResult = llm_result
-            if isinstance(node, DecisionNode):
-                on_complete_response = DecisionResult(
-                    route_label=combined,
-                    analysis_response=llm_result,
-                    classification_response=llm_result,
+            try:
+                async for event in agent._call_llm(messages, resolved_tools, stream=True):  # type: ignore[arg-type]
+                    if event.get("type") == "response.output_text.delta":
+                        content_parts.append(event.get("delta", ""))
+                    if event.get("type") == "response.tool_call":
+                        collected_tool_calls.append(event)
+                    if include_meta:
+                        from tinycua.models.stream_event import enrich_stream_event
+                        enrich_stream_event(event, node.node_id, node_type, attempt)
+                    if not final_only or is_terminal_node:
+                        yield event
+            except Exception:
+                error = self._emit_lifecycle_event(
+                    "node.error", node.node_id, node_type, attempt,
+                    emit_lifecycle, include_meta, final_only, is_terminal_node,
+                    finish_reason="error",
                 )
-            node.on_complete(self.queue, on_complete_response)
+                if error is not None:
+                    yield error
+                raise
 
-            # Propagate context on node termination
-            rule = node.config.propagation or PropagationRule()
-            parent_session = self._find_parent_session(node)
-            propagate_on_termination(
-                node.session or self.root_session,
-                parent_session,
-                self.root_session,
-                rule,
+            # Finalize node: record output, fire hooks, propagate
+            combined = self._finalize_streamed_node(
+                node, content_parts, collected_tool_calls,
             )
+
+            # Emit node.completed lifecycle event
+            finish_reason = "completed" if combined else "empty"
+            completed = self._emit_lifecycle_event(
+                "node.completed", node.node_id, node_type, attempt,
+                emit_lifecycle, include_meta, final_only, is_terminal_node,
+                content=combined, finish_reason=finish_reason,
+            )
+            if completed is not None:
+                yield completed
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
