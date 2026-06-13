@@ -64,6 +64,20 @@ class TinyCUALoop(BaseLoop):
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
         self.agent_monitor = agent_monitor
+        self._working_messages: list[dict[str, Any]] = []
+
+    def get_working_messages(self) -> list[dict[str, Any]]:
+        """Return the working messages captured during the last run.
+
+        The working messages include system prompts, user messages,
+        assistant responses, and tool calls from the most recent
+        ``run()`` invocation. This is used by the transcript writer
+        to produce JSONL output.
+
+        Returns:
+            List of message dicts from the last execution.
+        """
+        return list(self._working_messages)
 
     async def run(
         self,
@@ -131,6 +145,7 @@ class TinyCUALoop(BaseLoop):
             The final response content string.
         """
         last_content = ""
+        all_messages: list[dict[str, Any]] = []
 
         while not self.queue.is_empty():
             node = self.queue.current
@@ -138,6 +153,12 @@ class TinyCUALoop(BaseLoop):
                 break
 
             node_input = self.queue.input_for_current()
+            # Capture messages built for this node for transcript
+            node_messages, _ = self._prepare_node(
+                node, tools, override_instructions,
+            )
+            all_messages.extend(node_messages)
+
             content = await self._execute_node(
                 node,
                 agent,
@@ -147,6 +168,10 @@ class TinyCUALoop(BaseLoop):
             )
             last_content = content
 
+            # Record assistant response in working messages
+            if content:
+                all_messages.append({"role": "assistant", "content": content})
+
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
                 break
@@ -154,6 +179,7 @@ class TinyCUALoop(BaseLoop):
             # Advance queue (calls propagate on current node)
             self.queue.advance()
 
+        self._working_messages = all_messages
         return last_content
 
     def _prepare_node(
