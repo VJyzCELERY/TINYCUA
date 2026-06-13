@@ -34,7 +34,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 2. **Given** a task prompt requiring file outputs, **When** the agent completes, **Then** the outputs are written under `/tmp_workspace/results`.
 3. **Given** local model endpoint environment variables (`TINYCUA_BASE_URL`, `TINYCUA_API_KEY`), **When** the CLI starts, **Then** the agent uses the configured endpoint for all LLM calls.
 4. **Given** an invalid or missing prompt, **When** the CLI is invoked, **Then** it exits with a non-zero status code and a descriptive error message.
-5. **Given** the agent exceeds the timeout, **When** the timeout is reached, **Then** the CLI terminates the agent process and exits with a timeout-specific exit code.
+5. **Given** the agent exceeds the timeout, **When** the timeout is reached, **Then** the CLI terminates the agent and exits with a timeout-specific exit code.
 6. **Given** a successful run, **When** the CLI exits, **Then** the exit code is 0 and transcript/log files exist in the output directory.
 
 ### Edge Cases
@@ -50,7 +50,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept a task prompt as a required positional argument or `--prompt` flag.
+- **FR-001**: System MUST accept a task prompt via `--prompt` flag.
 - **FR-002**: System MUST accept a timeout in seconds via `--timeout` flag (default: 600 seconds).
 - **FR-003**: System MUST accept an output directory via `--output-dir` flag (default: `/tmp_workspace/results`).
 - **FR-004**: System MUST accept a working directory via `--workspace` flag (default: `/tmp_workspace`).
@@ -64,7 +64,7 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 - **FR-012**: System MUST exit with code 0 on successful completion.
 - **FR-013**: System MUST exit with code 1 on general errors (invalid arguments, agent crash, endpoint unreachable).
 - **FR-014**: System MUST exit with code 124 on timeout (matching Unix `timeout` convention).
-- **FR-015**: System MUST send SIGTERM to the agent process on timeout, followed by SIGKILL after a brief grace period.
+- **FR-015**: System MUST terminate the agent when the timeout is reached. SIGTERM/SIGKILL enforcement is deferred to a follow-up milestone.
 - **FR-016**: System MUST support `--verbose` flag for debug logging output.
 
 ### Key Entities
@@ -107,11 +107,11 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 - End-to-end CLI execution with a mock LLM endpoint: verify transcript and log files are produced.
 - Workspace directory behavior: verify the agent operates in the correct working directory.
-- Output directory creation: verify the output directory is created if it doesn't exist.
+- Output directory creation: verify the output directory is created if it does not exist.
 
 ### Manual Tests
 
-- Run `tinycua run "echo hello"` against a local LLM endpoint and verify transcript output.
+- Run `tinycua run --prompt 'echo hello'` against a local LLM endpoint and verify transcript output.
 - Run with `--timeout 5` against a slow prompt and verify timeout behavior.
 - Run with invalid endpoint and verify error handling.
 
@@ -151,9 +151,9 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ## Review Checklist
 
-- [ ] No implementation details beyond what the spec requires (no framework choices, no class hierarchies)
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details beyond what the spec requires (no framework choices, no class hierarchies)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

@@ -206,7 +206,7 @@ tinycua run \
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| BaseLoop working message list not accessible after run | Low | High | The `TinyCUALoop` stores `working` messages; access via loop instance or add a `get_working_messages()` method if needed |
+| BaseLoop working message list not accessible after run | Low likelihood | High | The `TinyCUALoop` stores `working` messages; access via loop instance or add a `get_working_messages()` method if needed |
 | Timeout watchdog kills process before cleanup completes | Medium | Medium | Use SIGTERM with a grace period (2s) before SIGKILL; write partial transcript on signal |
 | Transcript format mismatch with WildClawBench | Low | High | Follow the exact schema from `adapter-contract.md`; test with WildClawBench transcript loader |
 | Local model endpoint latency causes premature timeout | Medium | Medium | Default timeout of 600s is generous; document that users should adjust based on model speed |
@@ -219,6 +219,8 @@ tinycua run \
 1. **Transcript writer integration with BaseLoop**
    - The `TinyCUALoop` extends `BaseLoop` which maintains a `working` message list. The transcript writer needs access to this list after agent execution. We need to verify that `TinyCUALoop` exposes `working` or add a getter method.
    - See `src/tinycua-sdk/tinycua_sdk/agent/loop.py` for the `BaseLoop` implementation.
+   - **Status**: RESOLVED
+   - **Resolution**: `BaseLoop.run()` uses `working` as a local variable (not an instance attribute). The transcript writer must either (a) override `run()` to store `working` as `self._working_messages` before returning, or (b) add a `get_working_messages()` method to `TinyCUALoop`. Option (b) is preferred as it avoids overriding the base class contract. Add a `self._working_messages: list[dict] = []` attribute to `TinyCUALoop.__init__()` and set it in `run()` before returning.
 
 2. **Per-response usage tracking**
    - The adapter contract requires per-message usage in the transcript. The `BaseLoop` working message list does not carry per-message usage. We may need to instrument the loop or collect usage from `response.usage` events separately.
@@ -226,6 +228,8 @@ tinycua run \
 
 3. **Model name convention**
    - The `--model` flag needs a sensible default. For local models, the model name is often implementation-specific (e.g., `llama-3-8b`, `gpt-4o-mini`). We should document that this flag must match the model name expected by the local endpoint.
+   - **Status**: RESOLVED
+   - **Resolution**: The `--model` flag has no sensible universal default since local model names are endpoint-specific (e.g., llama-3-8b, qwen-72b). The CLI will NOT set a default for `--model` — it will be a required flag when `TINYCUA_MODEL` env var is not set. Document that the flag must match the model name expected by the local endpoint.
 
 ---
 
