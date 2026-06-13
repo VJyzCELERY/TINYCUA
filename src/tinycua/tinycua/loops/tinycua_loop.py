@@ -64,6 +64,20 @@ class TinyCUALoop(BaseLoop):
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
         self.agent_monitor = agent_monitor
+        self._working_messages: list[dict[str, Any]] = []
+
+    def get_working_messages(self) -> list[dict[str, Any]]:
+        """Return the working messages captured during the last run.
+
+        The working messages include system prompts, user messages,
+        assistant responses, and tool calls from the most recent
+        ``run()`` invocation. This is used by the transcript writer
+        to produce JSONL output.
+
+        Returns:
+            List of message dicts from the last execution.
+        """
+        return list(self._working_messages)
 
     async def run(
         self,
@@ -131,6 +145,7 @@ class TinyCUALoop(BaseLoop):
             The final response content string.
         """
         last_content = ""
+        all_messages: list[dict[str, Any]] = []
 
         while not self.queue.is_empty():
             node = self.queue.current
@@ -138,7 +153,13 @@ class TinyCUALoop(BaseLoop):
                 break
 
             node_input = self.queue.input_for_current()
-            content = await self._execute_node(
+            # Capture messages built for this node for transcript
+            node_messages, _ = self._prepare_node(
+                node, tools, override_instructions,
+            )
+            all_messages.extend(node_messages)
+
+            content, tool_calls = await self._execute_node(
                 node,
                 agent,
                 tools,
@@ -147,6 +168,17 @@ class TinyCUALoop(BaseLoop):
             )
             last_content = content
 
+            # Record assistant response in working messages
+            if content:
+                all_messages.append({"role": "assistant", "content": content})
+
+            # Record tool calls in working messages for transcript completeness
+            for tool_call in tool_calls:
+                all_messages.append({
+                    "role": "assistant",
+                    "tool_calls": [tool_call],
+                })
+
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
                 break
@@ -154,6 +186,7 @@ class TinyCUALoop(BaseLoop):
             # Advance queue (calls propagate on current node)
             self.queue.advance()
 
+        self._working_messages = all_messages
         return last_content
 
     def _prepare_node(
@@ -382,142 +415,151 @@ class TinyCUALoop(BaseLoop):
         Yields:
             Stream event dicts from the LLM and lifecycle transitions.
         """
-        while not self.queue.is_empty():
-            node = self.queue.current
-            if node is None:
-                break
+        all_messages: list[dict[str, Any]] = []
+        try:
+            while not self.queue.is_empty():
+                node = self.queue.current
+                if node is None:
+                    break
 
-            # Wire queue on QueryAnalystNode before execution
-            if isinstance(node, TinyCUAQueryAnalystNode):
-                node._queue = self.queue
+                # Wire queue on QueryAnalystNode before execution
+                if isinstance(node, TinyCUAQueryAnalystNode):
+                    node._queue = self.queue
 
-            messages, resolved_tools = self._prepare_node(
-                node,
-                tools,
-                override_instructions,
-            )
+                messages, resolved_tools = self._prepare_node(
+                    node,
+                    tools,
+                    override_instructions,
+                )
+                all_messages.extend(messages)
 
-            # Determine policy settings for this node
-            policy = node.config.stream_policy
-            emit_lifecycle = policy.emit_internal_events
-            include_meta = policy.include_node_metadata
-            final_only = policy.final_response_only
-            is_terminal_node = node.is_terminal
-            node_type = type(node).__name__
-            attempt = 1
+                # Determine policy settings for this node
+                policy = node.config.stream_policy
+                emit_lifecycle = policy.emit_internal_events
+                include_meta = policy.include_node_metadata
+                final_only = policy.final_response_only
+                is_terminal_node = node.is_terminal
+                node_type = type(node).__name__
+                attempt = 1
 
-            # Emit node.started lifecycle event
-            started = self._emit_lifecycle_event(
-                "node.started",
-                node.node_id,
-                node_type,
-                attempt,
-                emit_lifecycle,
-                final_only,
-                is_terminal_node,
-            )
-            if started is not None:
-                yield self._enrich_and_yield(
-                    started,
-                    include_meta,
+                # Emit node.started lifecycle event
+                started = self._emit_lifecycle_event(
+                    "node.started",
                     node.node_id,
                     node_type,
                     attempt,
+                    emit_lifecycle,
+                    final_only,
+                    is_terminal_node,
                 )
-
-            # Emit node.llm_call lifecycle event
-            llm_call = self._emit_lifecycle_event(
-                "node.llm_call",
-                node.node_id,
-                node_type,
-                attempt,
-                emit_lifecycle,
-                final_only,
-                is_terminal_node,
-            )
-            if llm_call is not None:
-                yield self._enrich_and_yield(
-                    llm_call,
-                    include_meta,
-                    node.node_id,
-                    node_type,
-                    attempt,
-                )
-
-            # Stream from agent._call_llm() and yield events
-            content_parts: list[str] = []
-            collected_tool_calls: list[dict[str, Any]] = []
-            try:
-                async for event in agent._call_llm(
-                    messages, resolved_tools, stream=True
-                ):  # type: ignore[arg-type]
-                    if event.get("type") == "response.output_text.delta":
-                        content_parts.append(event.get("delta", ""))
-                    if event.get("type") == "response.tool_call":
-                        collected_tool_calls.append(event)
-                    self._enrich_and_yield(
-                        event,
+                if started is not None:
+                    yield self._enrich_and_yield(
+                        started,
                         include_meta,
                         node.node_id,
                         node_type,
                         attempt,
                     )
-                    if not final_only or is_terminal_node:
-                        yield event
-            except Exception:
-                error_event = self._make_error_event(
+
+                # Emit node.llm_call lifecycle event
+                llm_call = self._emit_lifecycle_event(
+                    "node.llm_call",
                     node.node_id,
                     node_type,
                     attempt,
+                    emit_lifecycle,
+                    final_only,
+                    is_terminal_node,
                 )
-                yield self._enrich_and_yield(
-                    error_event,
-                    include_meta,
+                if llm_call is not None:
+                    yield self._enrich_and_yield(
+                        llm_call,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
+
+                # Stream from agent._call_llm() and yield events
+                content_parts: list[str] = []
+                collected_tool_calls: list[dict[str, Any]] = []
+                try:
+                    async for event in agent._call_llm(
+                        messages, resolved_tools, stream=True
+                    ):  # type: ignore[arg-type]
+                        if event.get("type") == "response.output_text.delta":
+                            content_parts.append(event.get("delta", ""))
+                        if event.get("type") == "response.tool_call":
+                            collected_tool_calls.append(event)
+                        self._enrich_and_yield(
+                            event,
+                            include_meta,
+                            node.node_id,
+                            node_type,
+                            attempt,
+                        )
+                        if not final_only or is_terminal_node:
+                            yield event
+                except Exception:
+                    error_event = self._make_error_event(
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
+                    yield self._enrich_and_yield(
+                        error_event,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
+                    raise
+
+                # Finalize node: record output, fire hooks, propagate
+                combined = self._finalize_streamed_node(
+                    node,
+                    content_parts,
+                    collected_tool_calls,
+                )
+
+                # Record assistant response in working messages
+                if combined:
+                    all_messages.append({"role": "assistant", "content": combined})
+
+                # Emit node.completed lifecycle event
+                finish_reason = "completed" if combined else "empty"
+                completed = self._emit_lifecycle_event(
+                    "node.completed",
                     node.node_id,
                     node_type,
                     attempt,
+                    emit_lifecycle,
+                    final_only,
+                    is_terminal_node,
+                    content=combined,
+                    finish_reason=finish_reason,
                 )
-                raise
+                if completed is not None:
+                    yield self._enrich_and_yield(
+                        completed,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
 
-            # Finalize node: record output, fire hooks, propagate
-            combined = self._finalize_streamed_node(
-                node,
-                content_parts,
-                collected_tool_calls,
-            )
+                # Stop at terminal nodes — do not advance past them
+                if node.is_terminal:
+                    finalize_terminal_output(
+                        node.session or self.root_session,
+                        self.root_session,
+                    )
+                    break
 
-            # Emit node.completed lifecycle event
-            finish_reason = "completed" if combined else "empty"
-            completed = self._emit_lifecycle_event(
-                "node.completed",
-                node.node_id,
-                node_type,
-                attempt,
-                emit_lifecycle,
-                final_only,
-                is_terminal_node,
-                content=combined,
-                finish_reason=finish_reason,
-            )
-            if completed is not None:
-                yield self._enrich_and_yield(
-                    completed,
-                    include_meta,
-                    node.node_id,
-                    node_type,
-                    attempt,
-                )
-
-            # Stop at terminal nodes — do not advance past them
-            if node.is_terminal:
-                finalize_terminal_output(
-                    node.session or self.root_session,
-                    self.root_session,
-                )
-                break
-
-            # Advance queue (calls propagate on current node)
-            self.queue.advance()
+                # Advance queue (calls propagate on current node)
+                self.queue.advance()
+        finally:
+            self._working_messages = all_messages
 
     async def _execute_node(
         self,
@@ -526,7 +568,7 @@ class TinyCUALoop(BaseLoop):
         tools: list[Tool],
         override_instructions: str | None = None,
         node_input: NodeInputLike | None = None,
-    ) -> str:
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Execute a single node by building messages and calling agent._call_llm().
 
         Builds messages from node instruction and session context,
@@ -546,7 +588,7 @@ class TinyCUALoop(BaseLoop):
             node_input: Optional input data for the node.
 
         Returns:
-            The response content string.
+            Tuple of (response content string, list of tool call dicts).
         """
         # Wire queue on QueryAnalystNode before execution
         if isinstance(node, TinyCUAQueryAnalystNode):
@@ -629,7 +671,7 @@ class TinyCUALoop(BaseLoop):
             rule,
         )
 
-        return content
+        return content, response.get("tool_calls") or []
 
     def _find_parent_session(self, node: Node) -> Session | None:
         """Find the parent session for a node by looking at queue position.
