@@ -1,30 +1,30 @@
-# Feature Specification: Tool Scoping
+# Feature Specification: End-to-End TinyCUA Architecture Verification Gate
 
 **Status**: Draft
-**Created**: 2026-06-12
+**Created**: 2026-06-13
 **Last Updated**: 2026-06-13
 **Subproject(s) Affected**: tinycua (src/tinycua)
-**Milestone**: 4.2 — Tool Scoping
+**Milestone**: 4.5 — End-to-End TinyCUA Architecture Verification Gate
 **Tracking Issue**: https://github.com/VJyzCELERY/TINYCUA/issues/87
 
-> **Path convention**: All paths in this document (e.g., `docs/design/constants/tools.md`, `config/types.py`) are relative to the `tinycua` subproject root (`src/tinycua/`). For example, `docs/design/constants/tools.md` maps to `src/tinycua/docs/design/constants/tools.md`.
+> **Path convention**: All paths in this document (e.g., `docs/design/`) are relative to the `tinycua` subproject root (`src/tinycua/`).
 
 ---
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Implement per-node tool scoping so that every TinyCUA node sees only the tools it is authorized to use, with shared `enhanced_context_retrieval` cache behavior working correctly for its consumers (InformationDigesterNode, TaskExecutor, ResponseNode).
-- **Gaps**: The `NodeToolPolicy` resolution mechanism exists (Milestone 1.2), but no concrete tool definitions, node-specific tool scope configurations, or `enhanced_context_retrieval` cache behavior have been implemented. Nodes currently have no defined tool scopes — the resolution infrastructure is in place but the actual tool contracts are not.
+- **Goals**: Verify that the full TinyCUA target architecture flow works end-to-end across all documented paths before WildClawBench benchmark integration begins. This is a gate milestone — no benchmark work proceeds until all verification paths pass.
+- **Gaps**: Prior milestones (1.1–4.4) implemented individual components (agent factory, loop, nodes, tools, propagation, retry, streaming), but no comprehensive verification has confirmed that these components compose correctly across the full architecture. There are no end-to-end tests exercising all documented paths with a local LLM.
 - **Non-Goals**:
-  - Implementing the full tool SDK or replacing the placeholder `Tool` class with production tool implementations.
-  - Implementing retry/validation behavior for tool calls (covered in Milestone 4.3).
-  - Implementing streaming/tool-event lifecycle (covered in Milestone 4.4).
-  - Implementing the `NodeMessagePolicy`, `NodeStreamPolicy`, or `NodeRetryPolicy` concrete node configurations (already covered in Milestone 1.2).
+  - Implementing new architecture components or nodes (all are expected to exist from prior milestones).
+  - WildClawBench integration, Docker images, or benchmark adapters (Milestone 5+).
+  - Optimizing performance, latency, or token usage.
+  - Production-quality error handling or UX.
+  - Modifying `tinycua-sdk` public APIs.
 - **Constraints**:
-  - Must not modify `tinycua-sdk` public APIs.
-  - Must honor the existing `NodeToolPolicy.resolve_tools()` resolution order (node_tools → include_agent_tools → deny-wins-over-allow).
-  - Must not introduce external dependencies beyond what the prototype already uses.
-  - Tool scopes must match the design docs: `docs/design/constants/tools.md`, `docs/design/tools/task.md`, `docs/design/tools/todo.md`, `docs/design/tools/digester.md`.
+  - All verified paths MUST use local LLM configuration (no hosted model dependencies).
+  - Verification MUST cover all paths documented in `docs/design/` without exception.
+  - Gate failure blocks Milestone 5 — if any path fails, the PR does not merge.
 
 ---
 
@@ -32,48 +32,48 @@
 
 ### Primary Scenario
 
-A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed tools. When `TinyCUALoop._prepare_node()` calls `node.config.tool_policy.resolve_tools(outer_agent_tools)`, the node receives only the tools it is authorized to use. Different node types (QueryAnalyst, Worker, TaskCreate, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, ResultAggregation, ResponseNode, InformationDigester) each have their own tool scope that matches the design specification.
+A developer calls `create_tinycua_agent(...)` with local model configuration and runs the agent through a representative prompt. The agent exercises the full TinyCUA node flow — QueryAnalyst, Worker, TaskCreate, TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, ResultAggregation, ResponseNode, and InformationDigester — completing successfully with correct task tree mutations, propagation, tool scoping, retry behavior, and streaming events.
 
 ### Acceptance Scenarios
 
-1. **Given** a `TinyCUATaskExecutorNode` configured with `include_agent_tools="selected"` and `allowed_agent_tool_names=["web_search"]`, **When** `resolve_tools()` is called with outer tools `[web_search, calculator, file_read]`, **Then** the node receives `[node_task_tools, web_search]` — its node tools plus only the selected outer tool.
+1. **Given** a `create_tinycua_agent(...)` with local LLM config, **When** the agent receives a simple passthrough prompt, **Then** QueryAnalyst routes to passthrough and ResponseNode returns a result without entering the Worker path.
 
-2. **Given** a `TinyCUATaskAnalyzerNode` in `task_creation` mode, **When** `resolve_tools()` is called, **Then** the node does NOT receive `TaskInit` or `TaskCreate` tools (TaskCreateNode handles root creation).
+2. **Given** a `create_tinycua_agent(...)` with local LLM config, **When** the agent receives a task-creation prompt, **Then** QueryAnalyst routes to Worker, Worker creates a root task via TaskCreateNode, TaskAnalyzer performs initial analysis, TaskExecutor executes, ResultReviewer accepts, ResultAggregation consolidates, and ResponseNode returns the result.
 
-3. **Given** a `TinyCUATaskAnalyzerNode` in `task_recreation` mode, **When** `resolve_tools()` is called, **Then** the node DOES receive `TaskInit` and `TaskCreate` tools (LLM-assisted replacement).
+3. **Given** an existing root task, **When** the agent receives a prompt that triggers task recreation, **Then** Worker routes to task_recreation, TaskAnalyzer receives TaskInit/TaskCreate tools, and the task tree is rebuilt.
 
-4. **Given** a `TinyCUATaskAnalyzerNode` in `task_reanalysis` mode, **When** `resolve_tools()` is called, **Then** the node does NOT receive `TaskInit` or `TaskCreate` tools (refinement only).
+4. **Given** an existing root task, **When** the agent receives a prompt that triggers task reanalysis, **Then** Worker routes to task_reanalysis, TaskAnalyzer refines the task without TaskInit/TaskCreate tools.
 
-5. **Given** a `TinyCUAQueryAnalystNode`, **When** `resolve_tools()` is called, **Then** the node receives classification tools and read-only task/context inspection tools, but no task mutation tools.
+5. **Given** an existing root task with pending subtasks, **When** the agent receives a continuation prompt, **Then** Worker routes to proceed_execution and TaskExecutor resumes work on the active task.
 
-6. **Given** a `TinyCUAResponseNode` with `allow_information_digest_request=True`, **When** it needs additional context, **Then** it can suspend and prepend `InformationDigesterNode` to gather context before resuming.
+6. **Given** a TaskAnalyzerNode with `analysis_effort=medium`, **When** the effort loop runs, **Then** TaskAssessor and TaskAnalyzer execute up to 2 passes before TaskExecutor is spawned.
 
-7. **Given** `enhanced_context_retrieval` called by InformationDigesterNode, **When** called a second time for the same session, **Then** the tool reuses the cached scoped context file rather than recreating it.
+7. **Given** a TaskExecutor that encounters a transient failure, **When** ResultReviewer assesses the result, **Then** ResultReviewer triggers a retry, TaskExecutor re-executes, and ResultReviewer eventually accepts.
 
-8. **Given** `enhanced_context_retrieval` called by TaskExecutor directly (without spawning InformationDigesterNode), **When** called, **Then** the tool creates its own scoped cache and runs ReAct-style search within it.
+8. **Given** a ResultReviewer that identifies a missing prerequisite, **When** it decides to replan, **Then** the queue routes back to TaskAnalyzer for local replanning.
 
-9. **Given** a `TinyCUATaskCreateNode`, **When** `resolve_tools()` is called, **Then** the node
-   receives only `TaskInit` and `TaskCreate` tools — no task inspection, update, or execution tools.
+9. **Given** a ResultReviewer that needs user input, **When** it decides `open_question`, **Then** the queue routes back to ResultReviewer deterministically.
 
-10. **Given** a `TinyCUATaskAssessorNode`, **When** `resolve_tools()` is called, **Then** the node
-    receives task assessment/read/update tools — no `TaskInit` or `TaskCreate` tools.
+10. **Given** a root task is accepted, **When** ResultAggregation runs, **Then** it traverses the task tree BFS right-to-left, consolidates results, and passes context to ResponseNode.
 
-11. **Given** a `TinyCUAResultReviewerNode`, **When** `resolve_tools()` is called, **Then** the node
-    receives review/decision tools and task result/context update tools.
+11. **Given** a ResponseNode that needs additional context, **When** it suspends to InformationDigester, **Then** InformationDigester gathers context, the digest propagates back, and ResponseNode resumes synthesis.
 
-12. **Given** a `TinyCUAResultAggregationNode`, **When** `resolve_tools()` is called, **Then** the node
-    receives aggregation/consolidation tools only.
+12. **Given** a QueryAnalyst that routes to Worker, **When** the Worker path includes an InformationDigester, **Then** the digest propagates to Worker's session_context before Worker enters.
 
-### Node Scope Exclusions
+13. **Given** any node execution, **When** context propagates between nodes, **Then** chat_history and session_context are separated correctly and duplicates are deduplicated.
 
-`TinyCUAAnalysisEffortNode` is excluded from tool scope definitions because it is a deterministic `ProcessNode` that makes no LLM calls — it only controls queue flow (pass counting and prepending `[TaskAssessor, TaskAnalyzer]` until the configured threshold is reached).
+14. **Given** any node execution, **When** tools are resolved, **Then** each node sees only its authorized tool scope (no cross-node tool leakage).
+
+15. **Given** a node with `NodeRetryPolicy.max_attempts > 1`, **When** the node produces invalid output, **Then** it retries with assistant-role continuations until success or exhaustion.
+
+16. **Given** a `stream=True` run, **When** the agent executes, **Then** lifecycle events are emitted and the final string is produced correctly.
 
 ### Edge Cases
 
-- What happens when a node's `node_tools` list contains a tool whose name also appears in `denied_agent_tool_names`? (Node tools are always included — deny only applies to outer agent tools.)
-- What happens when `include_agent_tools="selected"` but `allowed_agent_tool_names` is empty? (No outer tools are included.)
-- What happens when `enhanced_context_retrieval` is called with an empty or minimal `session_context`? (It should create a cache with available context and return a "no useful context" fallback.)
-- What happens when two nodes (e.g., TaskExecutor and ResponseNode) both call `enhanced_context_retrieval` on the same session? (Each invocation scope lazily creates and reuses its own cache — caches are per-invocation-scope, not shared across nodes.)
+- What happens when the local LLM endpoint is unreachable? (Verification should document the failure mode.)
+- What happens when the task tree has deeply nested subtasks? (Aggregation should handle arbitrary depth.)
+- What happens when propagation produces duplicate session context entries? (Dedupe must prevent redundancy.)
+- What happens when a node exhausts its retry budget? (The loop should surface a clear error, not hang.)
 
 ---
 
@@ -81,44 +81,57 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 ### Functional Requirements
 
-- **FR-001**: Each concrete TinyCUA node MUST have a predefined `NodeToolPolicy` that matches its tool scope from `docs/design/constants/tools.md`.
-- **FR-002**: `TinyCUATaskExecutorNode` tool scope MUST include task execution tools, selected outer Agent tools, `enhanced_context_retrieval`, and exploration/web/context search tools when enabled.
-- **FR-003**: `TinyCUAResponseNode` tool scope MUST include the same base toolset as TaskExecutor, plus final response/synthesis tools, plus optional information-digestion request capability only when enabled.
-- **FR-004**: `TinyCUAQueryAnalystNode` tool scope MUST include classification tools and read-only task/context inspection tools.
-- **FR-005**: `TinyCUAInformationDigesterNode` tool scope MUST include `enhanced_context_retrieval` and `digest_information` tools.
-- **FR-006**: `TinyCUATaskCreateNode` tool scope MUST include deterministic root task creation tools (`TaskInit`/`TaskCreate`) only.
-- **FR-007**: `TinyCUATaskAnalyzerNode` tool scope MUST include structural task tools, with `TaskInit`/`TaskCreate` available only in `task_recreation` mode.
-- **FR-008**: `TinyCUATaskAssessorNode` tool scope MUST include task assessment/read/update tools.
-- **FR-009**: `TinyCUAWorkerNode` tool scope MUST include worker decision tools only.
-- **FR-010**: `TinyCUAResultReviewerNode` tool scope MUST include review/decision tools and task result/context update tools.
-- **FR-016**: `TinyCUAResultAggregationNode` tool scope MUST include aggregation/consolidation tools.
-- **FR-011**: Todo tools MUST be exposed through `NodeToolPolicy` to TaskExecutorNode and optionally ResponseNode, not through global agent-node configuration.
-- **FR-012**: `enhanced_context_retrieval` MUST lazily create a scoped context cache file when called and run ReAct-style search within that cache.
-- **FR-013**: `enhanced_context_retrieval` cache MUST be per-session-scope — lazily created on first invocation for a session and reused on subsequent calls within that session.
-- **FR-014**: Task tool calls MUST directly mutate root `session.task` through TinyCUALoop task helpers; nodes MUST NOT return opaque mutation instructions.
-- **FR-015**: Path-specific task tool semantics MUST be enforced: `task_creation` mode = TaskCreateNode only; `task_recreation` = TaskAnalyzerNode gets TaskInit/TaskCreate; `task_reanalysis` = no TaskInit/TaskCreate for TaskAnalyzerNode.
+- **FR-001**: `create_tinycua_agent(...).run(...)` MUST complete successfully across all 11 documented architecture paths using local LLM configuration.
+- **FR-002**: The passthrough path MUST route through QueryAnalyst → ResponseNode without entering Worker or any downstream nodes.
+- **FR-003**: The worker task creation path MUST route through QueryAnalyst → Worker → TaskCreateNode → TaskAnalyzer(initial_analysis) → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode.
+- **FR-004**: The task recreation path MUST route through Worker → TaskAnalyzer(task_recreation) with TaskInit/TaskCreate tools available.
+- **FR-005**: The task reanalysis path MUST route through Worker → TaskAnalyzer(task_reanalysis) without TaskInit/TaskCreate tools.
+- **FR-006**: The proceed execution path MUST route through Worker → TaskExecutor for continuation prompts.
+- **FR-007**: The effort loop path MUST run TaskAssessor and TaskAnalyzer up to the configured pass limit before spawning TaskExecutor.
+- **FR-008**: The executor/reviewer accept path MUST complete with ResultReviewer accepting the task result.
+- **FR-009**: The executor/reviewer retry path MUST trigger TaskExecutor re-execution after ResultReviewer rejection.
+- **FR-010**: The executor/reviewer replan path MUST route back to TaskAnalyzer for local replanning.
+- **FR-011**: The open_question path MUST route back to ResultReviewer deterministically.
+- **FR-012**: The aggregation path MUST traverse the task tree and consolidate results into response-ready context.
+- **FR-013**: The response path MUST synthesize a final string from aggregated context.
+- **FR-014**: The response suspension/digestion path MUST suspend ResponseNode, run InformationDigester, and resume ResponseNode.
+- **FR-015**: The worker suspension/digestion path MUST run InformationDigester before Worker and propagate digest to Worker's session_context.
+- **FR-016**: Propagation MUST separate chat_history from session_context and deduplicate entries.
+- **FR-017**: Tool scoping MUST enforce per-node tool visibility (verified through the full flow).
+- **FR-018**: Retry MUST work with assistant-role continuations and respect `NodeRetryPolicy.max_attempts`.
+- **FR-019**: Streaming MUST emit lifecycle events and produce correct final output.
+- **FR-020**: All verification paths MUST use local LLM configuration (no hosted model dependencies).
 
 ### Key Entities
 
-- **NodeToolPolicy**: Configuration dataclass controlling tool scope resolution per node. Already implemented in Milestone 1.2.
-- **Tool**: Placeholder SDK tool type. Existing stub in `config/types.py`.
-- **enhanced_context_retrieval**: Shared tool for scoped context search/cache. Used by InformationDigesterNode, TaskExecutor, and ResponseNode.
-- **digest_information**: Tool for producing structured digested information. Used by InformationDigesterNode.
-- **TaskInit / TaskCreate**: Task creation tools. Exposed to TaskCreateNode (always) and TaskAnalyzerNode (only in recreation mode).
-- **ResultAggregationTool**: Aggregation/consolidation tool for `ResultAggregationNode`.
+- **Verification Gate**: A pass/fail checkpoint that blocks Milestone 5 until all paths are confirmed working.
+- **Architecture Path**: A documented end-to-end flow through the TinyCUA node graph (11 paths total).
+- **Local LLM Configuration**: An OpenAI-compatible endpoint (vLLM, Ollama, LM Studio, etc.) used for all LLM calls during verification.
 
 ---
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Every node has a defined tool scope**: All 10 applicable concrete TinyCUA nodes (excluding `TinyCUAAnalysisEffortNode`) have `NodeToolPolicy` configurations matching `docs/design/constants/tools.md`.
-- [ ] **Tool resolution works end-to-end**: `TinyCUALoop._prepare_node()` resolves the correct tools for each node via `node.config.tool_policy.resolve_tools(tools)`.
-- [ ] **Task tools mutate session directly**: Task tool calls directly mutate `session.task` through TinyCUALoop task helpers.
-- [ ] **Path-specific task tool scoping works**: TaskAnalyzerNode receives/excludes TaskInit/TaskCreate based on mode (creation, recreation, reanalysis).
-- [ ] **Todo tools are policy-controlled**: Todo tools are exposed only to nodes whose `NodeToolPolicy` allows them (TaskExecutor, optionally ResponseNode).
-- [ ] **enhanced_context_retrieval cache works**: The tool lazily creates scoped caches, runs ReAct-style search, and caches are per-session-scope (created on first call, reused on subsequent calls).
-- [ ] **TaskExecutor can call enhanced_context_retrieval directly**: Without spawning InformationDigesterNode.
-- [ ] **Tests pass**: Unit tests for all node tool scope configurations and integration tests for tool resolution through the loop.
+- [ ] **Passthrough path works**: Simple prompts route through QueryAnalyst → ResponseNode without Worker involvement.
+- [ ] **Task creation path works**: Task-creating prompts produce a root task and complete through aggregation and response.
+- [ ] **Task recreation path works**: Recreation triggers TaskAnalyzer with TaskInit/TaskCreate tools.
+- [ ] **Task reanalysis path works**: Reanalysis triggers TaskAnalyzer without TaskInit/TaskCreate tools.
+- [ ] **Proceed execution path works**: Continuation prompts resume work on the active task.
+- [ ] **Effort loop path works**: Configured effort levels control assessment/analysis pass count.
+- [ ] **Executor/reviewer accept path works**: Successful execution is accepted by ResultReviewer.
+- [ ] **Executor/reviewer retry path works**: Transient failures trigger retry and eventual acceptance.
+- [ ] **Executor/reviewer replan path works**: Missing prerequisites trigger local replanning.
+- [ ] **Open question path works**: User input requests route back to ResultReviewer deterministically.
+- [ ] **Aggregation path works**: Accepted root tasks enter aggregation and produce response-ready context.
+- [ ] **Response path works**: Final response synthesis produces correct output.
+- [ ] **Response suspension/digestion path works**: ResponseNode suspends, gathers context via InformationDigester, and resumes.
+- [ ] **Worker suspension/digestion path works**: InformationDigester runs before Worker and digest propagates correctly.
+- [ ] **Propagation/dedupe works**: Session context propagates without duplicates across all paths.
+- [ ] **Tool scoping works**: Every node sees only its authorized tools throughout the full flow.
+- [ ] **Retry/validation works**: Invalid output retries correctly and respects max_attempts.
+- [ ] **Streaming works**: `stream=True` runs emit lifecycle events and produce correct final output.
+- [ ] **Local LLM configuration works**: All paths execute against a local OpenAI-compatible endpoint.
+- [ ] **Gate passes**: All above criteria are met — no failures in any architecture path.
 
 ---
 
@@ -126,23 +139,37 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 ### Unit Tests
 
-- [ ] Test `NodeToolPolicy` resolution for each concrete node type's expected tool scope.
-- [ ] Test path-specific task tool scoping (creation, recreation, reanalysis modes).
-- [ ] Test `enhanced_context_retrieval` cache creation and ReAct search behavior.
-- [ ] Test `digest_information` tool output format.
-- [ ] Test todo tool exposure via `NodeToolPolicy` for TaskExecutor and ResponseNode.
-- [ ] Test edge cases: deny-wins-over-allow for node-specific tools, empty allowed list, empty session_context.
+- [ ] Test `create_tinycua_agent(...)` factory returns correct Agent with TinyCUALoop and local LLM config.
+- [ ] Test each node can be instantiated and called with `NodeInputLike`.
+- [ ] Test `NodeToolPolicy.resolve_tools()` returns correct tools for each node type.
+- [ ] Test `NodeRetryPolicy` retry exhaustion behavior.
+- [ ] Test `PropagationRule` dedupe logic.
+- [ ] Test `CompactionStrategy.compact()` produces valid summary.
 
 ### Integration Tests
 
-- [ ] Test `TinyCUALoop._prepare_node()` resolves correct tools for each node type.
-- [ ] Test end-to-end tool resolution flow: agent tools → policy resolution → node receives correct subset.
-- [ ] Test `enhanced_context_retrieval` called by different nodes on the same session produces independent caches.
-- [ ] Test TaskExecutor calling `enhanced_context_retrieval` directly without spawning InformationDigesterNode.
+- [ ] **Passthrough path**: End-to-end test from agent.run() through QueryAnalyst → ResponseNode.
+- [ ] **Task creation path**: End-to-end test producing a root task and completing through aggregation.
+- [ ] **Task recreation path**: End-to-end test with existing task triggering TaskAnalyzer(task_recreation).
+- [ ] **Task reanalysis path**: End-to-end test with existing task triggering TaskAnalyzer(task_reanalysis).
+- [ ] **Proceed execution path**: End-to-end test resuming work on a pending task.
+- [ ] **Effort loop path**: End-to-end test with `analysis_effort=medium` running multiple passes.
+- [ ] **Retry path**: End-to-end test with intentional transient failure triggering retry.
+- [ ] **Replan path**: End-to-end test with ResultReviewer triggering local replanning.
+- [ ] **Open question path**: End-to-end test with open_question routing back to ResultReviewer.
+- [ ] **Aggregation path**: End-to-end test with accepted root task entering aggregation.
+- [ ] **Response suspension/digestion path**: End-to-end test with ResponseNode suspending to InformationDigester.
+- [ ] **Worker suspension/digestion path**: End-to-end test with InformationDigester running before Worker.
+- [ ] **Full propagation flow**: Test that chat_history and session_context are correctly separated and deduplicated across nodes.
+- [ ] **Full tool scoping flow**: Test that each node receives only its authorized tools throughout the path.
+- [ ] **Streaming lifecycle events**: Test that `stream=True` runs emit expected events.
 
-### Manual Tests _(if applicable)_
+### Manual Tests
 
-- [ ] Verify that a TinyCUA agent with tool scoping configured can run through the QueryAnalyst → Worker → TaskCreate → TaskAnalyzer → TaskExecutor → ResultReviewer → Response path with correct tool visibility at each step.
+- [ ] Run `create_tinycua_agent(...).run("What is 2 + 2?")` with local LLM and verify passthrough.
+- [ ] Run `create_tinycua_agent(...).run("Create a plan to build a todo app")` with local LLM and verify task creation.
+- [ ] Verify local LLM endpoint is reachable and responding before running automated tests.
+- [ ] Inspect transcript/log output for correctness after each path verification.
 
 ---
 
@@ -150,29 +177,45 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 
 | Item | Status | Notes |
 |------|--------|-------|
-| NodeToolPolicy resolution | Done | Implemented in Milestone 1.2 |
-| Concrete node tool scope configs | TODO | Per-node NodeToolPolicy definitions |
-| Task tools (TaskInit/TaskCreate) | TODO | Concrete tool implementations |
-| Todo tools | TODO | Concrete tool implementations |
-| enhanced_context_retrieval | TODO | Scoped cache + ReAct search |
-| digest_information tool | TODO | Structured digest output |
-| Path-specific task tool scoping | TODO | Mode-dependent TaskInit/TaskCreate |
-| Unit tests for node scopes | TODO | |
-| Integration tests | TODO | |
+| Passthrough path | TODO | |
+| Task creation path | TODO | |
+| Task recreation path | TODO | |
+| Task reanalysis path | TODO | |
+| Proceed execution path | TODO | |
+| Effort loop path | TODO | |
+| Executor/reviewer accept path | TODO | |
+| Executor/reviewer retry path | TODO | |
+| Executor/reviewer replan path | TODO | |
+| Open question path | TODO | |
+| Aggregation path | TODO | |
+| Response path | TODO | |
+| Response suspension/digestion path | TODO | |
+| Worker suspension/digestion path | TODO | |
+| Propagation/dedupe | TODO | |
+| Tool scoping | TODO | |
+| Retry/validation | TODO | |
+| Streaming | TODO | |
+| Local LLM config | TODO | |
+| Gate criteria document | TODO | |
 
 ---
 
 ## Open Questions _(optional)_
 
-1. **Should the placeholder `Tool` class be replaced with a richer type in this milestone?**
+1. **Should verification tests use a mock LLM or real local LLM?**
    - **Owner**: @VJyzCELERY
    - **Status**: Discussion
-   - **Proposed Answer**: Keep the placeholder for this milestone; the milestone focuses on scope configuration, not tool implementation details.
+   - **Proposed Answer**: Use real local LLM for primary verification (tests the full stack). Mock LLM as a fast-fallback unit test option.
 
-2. **Should `enhanced_context_retrieval` be a real tool or a stub with the cache contract defined?**
+2. **What is the minimum local LLM capability required for verification?**
    - **Owner**: @VJyzCELERY
    - **Status**: Discussion
-   - **Proposed Answer**: Implement the cache contract and ReAct search interface as a stub that can be filled in with real search later.
+   - **Proposed Answer**: A model capable of tool calling and structured output (e.g., Llama 3, Mistral, Qwen 2.5 via vLLM or Ollama).
+
+3. **Should the gate include a minimum pass rate (e.g., 100% of paths) or a threshold (e.g., 90%)?**
+   - **Owner**: @VJyzCELERY
+   - **Status**: Discussion
+   - **Proposed Answer**: 100% — this is a gate before benchmark integration. All paths must pass.
 
 ---
 
@@ -183,4 +226,6 @@ A TinyCUA node is configured with a `NodeToolPolicy` that defines its allowed to
 - [ ] Requirements are testable and unambiguous
 - [ ] Scope is clearly bounded with explicit non-goals
 - [ ] Success criteria are measurable
-- [ ] Exit criteria match Milestone 4.2 from the roadmap issue
+- [ ] Exit criteria match Milestone 4.5 from the roadmap issue
+- [ ] All 11 architecture paths are covered in acceptance scenarios
+- [ ] Gate criteria are explicitly defined (pass/fail for each path)
