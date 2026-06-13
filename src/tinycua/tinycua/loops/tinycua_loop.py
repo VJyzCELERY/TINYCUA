@@ -18,6 +18,7 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
+    from tinycua.config.types import AgentMonitor
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
     from tinycua_sdk.agent.agent import Agent
@@ -40,6 +41,7 @@ class TinyCUALoop(BaseLoop):
         session_config: SessionConfig | None = None,
         max_iterations: int = 50,
         default_terminal_node: Node | None = None,
+        agent_monitor: AgentMonitor | None = None,
     ) -> None:
         """Initialize TinyCUALoop.
 
@@ -49,12 +51,14 @@ class TinyCUALoop(BaseLoop):
             session_config: Session configuration to apply.
             max_iterations: Maximum loop iterations before forced stop.
             default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
+            agent_monitor: Optional agent-level monitor hook for observing node execution.
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
         self.queue = queue or NodeQueue()
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
+        self.agent_monitor = agent_monitor
 
     async def run(
         self,
@@ -291,6 +295,10 @@ class TinyCUALoop(BaseLoop):
         records chat_history and session_context, then fires lifecycle
         hooks (propagate, on_complete) and transfers cross-session data.
 
+        If an agent_monitor is configured, calls its hooks before and after
+        the LLM call. The node's own monitor is called within the node's
+        retry loop (via ProcessNode.__call__).
+
         Args:
             node: The node to execute.
             agent: The agent executing.
@@ -309,10 +317,51 @@ class TinyCUALoop(BaseLoop):
             node, tools, override_instructions,
         )
 
+        # Fire agent_monitor before-hook (if configured)
+        # Note: attempt=1 at agent level because retry is node-internal.
+        # Use NodeMonitor for per-attempt granularity.
+        if self.agent_monitor is not None:
+            try:
+                self.agent_monitor.on_before_node_call(
+                    node.node_id,
+                    self.root_session.session_id,
+                    1,  # attempt 1 at agent level
+                    messages,
+                    resolved_tools,
+                )
+            except Exception:
+                logger.debug(
+                    "node=%s agent_monitor_before_hook_exception",
+                    node.node_id,
+                    exc_info=True,
+                )
+
         response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
         content = response.get("content") or ""
 
         llm_result = self._record_node_output(node, content, response.get("tool_calls"))
+
+        # Fire agent_monitor after-hook (if configured)
+        # Note: attempt=1 at agent level because retry is node-internal.
+        # Use NodeMonitor for per-attempt granularity.
+        if self.agent_monitor is not None:
+            from tinycua.config.types import ValidationResult
+            try:
+                self.agent_monitor.on_after_node_call(
+                    node.node_id,
+                    self.root_session.session_id,
+                    1,  # attempt 1 at agent level
+                    llm_result,
+                    # Validation is node-internal; loop doesn't run validate_output().
+                    # Use NodeMonitor for per-attempt validation results.
+                    ValidationResult(is_valid=True, errors=[]),
+                )
+            except Exception:
+                logger.debug(
+                    "node=%s agent_monitor_after_hook_exception",
+                    node.node_id,
+                    exc_info=True,
+                )
 
         # Build the response object for on_complete: DecisionNode expects
         # a DecisionResult with a route_label; pass a synthetic one so

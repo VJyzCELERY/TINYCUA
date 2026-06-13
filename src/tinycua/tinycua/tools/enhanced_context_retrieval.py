@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from typing import Any
 
 from tinycua.config.types import Tool
@@ -67,6 +66,7 @@ class EnhancedContextRetrievalTool(Tool):
         Args:
             session_context: The session context messages for cache scoping.
             query: The search query string.
+            **kwargs: Additional keyword arguments (ignored).
 
         Returns:
             A dict with retrieval results from cache or fresh search.
