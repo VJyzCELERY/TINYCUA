@@ -138,7 +138,7 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 - **NodeMonitor** (NEW): Protocol/interface for transient node lifecycle observation.
 - **AgentMonitor** (NEW): Protocol/interface for loop-level lifecycle observation.
 - **StreamEvent**: A structured event dict yielded during streaming, containing event type, node metadata, content delta, and timestamp.
-- **LifecycleEvent**: A subclass of StreamEvent for node lifecycle transitions (started, completed, error, retry).
+- **LifecycleEvent**: A structured event dict for node lifecycle transitions (started, llm_call, completed, error, retry), extending the StreamEvent shape.
 - **TranscriptRecord**: A serializable event record containing all data needed for WildClawBench transcript export.
 
 ---
@@ -252,7 +252,7 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 | AgentMonitor protocol/interface | TODO | Loop-level observation |
 | Monitor hook integration in retry loop | TODO | Call hooks at lifecycle points |
 | StreamEvent model | TODO | Structured event dict with type, node_id, timestamp |
-| LifecycleEvent hooks | TODO | node.started, node.completed, node.error, node.retry |
+| LifecycleEvent hooks | TODO | node.started, node.llm_call, node.completed, node.error, node.retry |
 | NodeStreamPolicy enforcement | TODO | Apply final_response_only, emit_internal_events |
 | TranscriptRecord serialization | TODO | JSONL-compatible event records |
 | Unit tests | TODO | |
