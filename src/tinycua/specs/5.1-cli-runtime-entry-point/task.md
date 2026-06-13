@@ -19,8 +19,9 @@ Implementation tasks for TinyCUA CLI / Runtime Entry Point. Check off items as c
   - [ ] Implement `write_log_entry()` — JSON lines with timestamp, event, level, data
   - [ ] Implement `write_log_entry()` as append-only (open file in append mode)
 - [ ] Create `tinycua/cli/run.py` — `run` subcommand with argparse, agent execution, timeout watchdog, transcript/log writing <!-- id: 5 -->
-  - [ ] Implement `parse_args(argv)` — argparse with `--prompt`, `--timeout`, `--output-dir`, `--workspace`, `--base-url`, `--api-key`, `--model`, `--verbose`
+  - [ ] Implement `parse_args(argv)` — argparse with positional `prompt`, `--timeout`, `--output-dir`, `--workspace`, `--base-url`, `--api-key`, `--model`, `--verbose`
   - [ ] Implement `run_command()` — orchestrates config loading, agent creation, execution, timeout, transcript/log writing, returns exit code
+  - [ ] Add output directory writability pre-flight check — create directory if it doesn't exist, fail fast with exit code 1 if not writable <!-- id: 22 -->
   - [ ] Implement timeout watchdog using `threading.Timer` — send `threading.Event` to interrupt agent after timeout
   - [ ] Handle exit code 124 on timeout
   - [ ] Handle exit code 1 on agent errors
@@ -54,7 +55,7 @@ Implementation tasks for TinyCUA CLI / Runtime Entry Point. Check off items as c
 ## Documentation Phase
 
 - [ ] Update `src/tinycua/README.md` (if exists) with CLI usage examples <!-- id: 16 -->
-- [ ] Add a "Usage Examples" section to `specs/5.1-cli-runtime-entry-point/spec.md` with CLI invocation examples (e.g., `tinycua run "create a file"`, `tinycua run --timeout 120 --model llama-3-8b "do something"`) <!-- id: 17 -->
+- [ ] Verify `pyproject.toml` entry point — confirm `tinycua = "tinycua.cli.main:main"` works with subcommand dispatch <!-- id: 17 -->
 
 ## Review and Merge
 

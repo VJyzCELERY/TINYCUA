@@ -81,6 +81,8 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ## Success Criteria
 
+> **Note**: Unchecked criteria are verification targets for implementation, not incomplete sections.
+
 - [ ] **CLI accepts task prompt**: `tinycua run "create a file called hello.txt"` executes the agent with the prompt.
 - [ ] **CLI accepts timeout**: `tinycua run --timeout 120 "do something"` terminates after 120 seconds if not complete.
 - [ ] **CLI writes transcript**: After execution, a JSONL transcript file exists in the output directory.
@@ -133,13 +135,13 @@ A WildClawBench benchmark runner (or a developer testing locally) invokes the Ti
 
 ---
 
-## Open Questions
+## Resolved Questions
 
 1. **Transcript format alignment**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-20
    - **Status**: Resolved
-   - **Proposed Answer**: Use the OpenClaw-compatible JSONL format documented in `specs/wildclawbench-adapter/adapter-contract.md` to ensure WildClawBench grading compatibility from the start.
+   - **Proposed Answer**: Use the OpenClaw-compatible JSONL format (to be documented in Milestone 5.2 adapter contract) to ensure WildClawBench grading compatibility from the start.
 
 2. **Agent log format**
    - **Owner**: @tinycua-team

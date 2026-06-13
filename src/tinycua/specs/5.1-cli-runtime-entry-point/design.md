@@ -61,7 +61,7 @@ CLI (tinycua run)
 | `tinycua/cli/transcript.py` | New | Transcript capture and JSONL writing |
 | `tinycua/cli/logging.py` | New | Structured agent log writing |
 | `tinycua/factory.py` | Unchanged | Already provides `create_tinycua_agent()` |
-| `pyproject.toml` | Modified | Update `[project.scripts]` entry if needed |
+| `pyproject.toml` | Unchanged | Entry point already correct |
 
 ### Requirements Traceability
 
@@ -91,6 +91,17 @@ CLI (tinycua run)
 ### CLI Arguments
 
 ```python
+# tinycua/cli/config.py — load_config() returns a plain dict (NOT a RunConfig instance)
+# Keys: base_url, api_key, model (str)
+# Raises ValueError if base_url or api_key missing after env + CLI merge
+# Note: RunConfig dataclass is defined below for orchestration in run.py;
+# load_config() returns a dict for flexibility; RunConfig is constructed
+# later from the dict + CLI arguments.
+
+# tinycua/cli/run.py — RunConfig used for orchestration
+# RunConfig is constructed AFTER config validation. load_config() raises
+# ValueError if base_url or api_key are missing. RunConfig assumes
+# validated inputs — do not construct with None values.
 @dataclass
 class RunConfig:
     """Configuration for a single tinycua run invocation."""
@@ -100,7 +111,7 @@ class RunConfig:
     workspace: Path = Path("/tmp_workspace")
     base_url: str                        # OpenAI-compatible endpoint (required)
     api_key: str                         # API key (required)
-    model: str | None = None             # Model identifier (required via CLI or TINYCUA_MODEL)
+    model: str = "llama3"                # Model identifier (default: llama3)
     verbose: bool = False                # Debug logging
 ```
 
@@ -111,7 +122,7 @@ class RunConfig:
 TranscriptRecord = dict  # {"type": "message"|"toolResult", "message"|"toolResult": {...}}
 ```
 
-See `specs/wildclawbench-adapter/adapter-contract.md` for the full schema.
+Each record has a `type` field (`"message"` or `"toolResult"`) and a corresponding payload. Messages include `role` and `content`; tool results include `tool_use_id`, `content`, and `is_error`. See WildClawBench adapter contract (Milestone 5.2) for the full schema.
 
 ### Agent Log Entry
 
@@ -180,7 +191,7 @@ tinycua run \
 - [ ] Implement timeout watchdog using `threading.Timer` with cooperative cancellation (SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015)
 - [ ] Implement transcript writer (capture BaseLoop working messages → OpenClaw JSONL)
 - [ ] Implement structured agent log writer
-- [ ] Update `pyproject.toml` entry point if needed
+- [ ] Verify `pyproject.toml` entry point (no changes expected)
 - [ ] Write unit tests for argument parsing, config loading, exit codes
 - [ ] Write integration test with mock LLM endpoint
 
@@ -206,7 +217,7 @@ tinycua run \
    - **Alternatives Considered**: `signal.alarm()` — rejected because it only works in the main thread and doesn't support graceful cleanup.
 
 3. **Decision**: Write transcript using Strategy B (BaseLoop working message list) rather than Strategy A (stream capture).
-   - **Reason**: Strategy B is recommended by the adapter contract research (`specs/wildclawbench-adapter/adapter-contract.md`) because it preserves tool-use content blocks and tool results, which are required for WildClawBench safety grading.
+   - **Reason**: Strategy B preserves tool-use content blocks and tool results, which are required for WildClawBench safety grading. The adapter contract research (deferred to Milestone 5.2) confirmed this approach.
    - **Alternatives Considered**: Strategy A (stream capture) — rejected because the current SDK does not emit tool-result events, making it impossible to preserve the full transcript.
 
 4. **Decision**: Use structured JSON lines for agent logs rather than free-form text.
@@ -221,6 +232,10 @@ tinycua run \
    - **Reason**: Benchmark containers inject configuration via environment variables. CLI overrides enable local testing without modifying the environment. Config files add unnecessary complexity for this use case.
    - **Alternatives Considered**: YAML/TOML config files — rejected because env vars are the standard mechanism for container configuration.
 
+7. **Decision**: The `--model` flag defaults to `"llama3"` (a common local model identifier).
+   - **Reason**: Provides a sensible default for local development while allowing override via `TINYCUA_MODEL` env var or `--model` CLI flag. This matches the spec's FR-006 requirement for "default: a sensible local model identifier."
+   - **Alternatives Considered**: No default (required flag) — rejected because the spec explicitly requires a default.
+
 ---
 
 ## Risks & Mitigations
@@ -229,37 +244,34 @@ tinycua run \
 |------|-----------|--------|------------|
 | BaseLoop working message list not accessible after run | Low likelihood | High | The `TinyCUALoop` stores `working` messages; access via loop instance or add a `get_working_messages()` method if needed |
 | Timeout watchdog kills process before cleanup completes | Medium | Medium | Use `threading.Timer` with cooperative cancellation via `asyncio.Event`; write partial transcript on timeout; SIGTERM/SIGKILL deferred to Milestone 5.2 per spec FR-015 |
-| Transcript format mismatch with WildClawBench | Low | High | Follow the exact schema from `adapter-contract.md`; test with WildClawBench transcript loader |
+| Transcript format mismatch with WildClawBench | Low | High | Follow the OpenClaw-compatible JSONL schema (to be defined in Milestone 5.2 adapter contract); test with WildClawBench transcript loader |
 | Local model endpoint latency causes premature timeout | Medium | Medium | Default timeout of 600s is generous; document that users should adjust based on model speed |
 | Output directory permissions in container | Low | Medium | Pre-flight check before agent execution; create directory if it doesn't exist |
 
 ---
 
-## Open Questions
+## Implementation Decisions
 
 1. **Transcript writer integration with BaseLoop**
    - The `TinyCUALoop` extends `BaseLoop` which maintains a `working` message list. The transcript writer needs access to this list after agent execution. We need to verify that `TinyCUALoop` exposes `working` or add a getter method.
    - See `src/tinycua-sdk/tinycua_sdk/agent/loop.py` for the `BaseLoop` base class. `TinyCUALoop` extends it at `src/tinycua/tinycua/loops/tinycua_loop.py`.
-   - **Status**: RESOLVED
    - **Resolution**: `BaseLoop.run()` uses `working` as a local variable (not an instance attribute). The transcript writer must either (a) override `run()` to store `working` as `self._working_messages` before returning, or (b) add a `get_working_messages()` method to `TinyCUALoop`. Option (b) is preferred as it avoids overriding the base class contract. Add a `self._working_messages: list[dict] = []` attribute to `TinyCUALoop.__init__()` and set it in `run()` before returning.
 
 2. **Per-response usage tracking**
-   - **Status**: RESOLVED
    - **Resolution**: Instrument `_call_llm()` in `TinyCUALoop` to capture `response.usage` per node and store alongside messages in `self._working_messages`. Each transcript record will include an optional `usage` field populated from the LLM response metadata. This requires adding a `usage: dict | None = None` field to each message dict stored in `_working_messages`, and setting it from the response object after each `_call_llm()` call.
-   - See `specs/wildclawbench-adapter/adapter-contract.md` § Transcript Conversion Strategy.
+   - Transcript format alignment with WildClawBench deferred to Milestone 5.2 (adapter contract).
    - **Task**: Added to task.md as item 21.
 
 3. **Model name convention**
    - The `--model` flag needs a sensible default. For local models, the model name is often implementation-specific (e.g., `llama-3-8b`, `gpt-4o-mini`). We should document that this flag must match the model name expected by the local endpoint.
-   - **Status**: RESOLVED
-   - **Resolution**: The `--model` flag has no sensible universal default since local model names are endpoint-specific (e.g., llama-3-8b, qwen-72b). The CLI will NOT set a default for `--model` — it will be a required flag when `TINYCUA_MODEL` env var is not set. Document that the flag must match the model name expected by the local endpoint.
+   - **Resolution**: The `--model` flag defaults to `"llama3"` (a common local model identifier). This can be overridden via the `TINYCUA_MODEL` environment variable or the `--model` CLI flag. Document that the flag must match the model name expected by the local endpoint.
 
 ---
 
 ## References
 
 - **Spec**: `./spec.md` — feature requirements and acceptance criteria
-- **Adapter Contract**: `specs/wildclawbench-adapter/adapter-contract.md` — transcript format and grading compatibility
+- **Adapter Contract**: Deferred to Milestone 5.2 — transcript format and grading compatibility
 - **Factory**: `src/tinycua/tinycua/factory.py` — `create_tinycua_agent()` implementation
 - **TinyCUALoop**: `src/tinycua/tinycua/loops/tinycua_loop.py` — loop implementation with working message list
 - **BaseLoop SDK**: `src/tinycua-sdk/tinycua_sdk/agent/loop.py` — SDK base loop contract

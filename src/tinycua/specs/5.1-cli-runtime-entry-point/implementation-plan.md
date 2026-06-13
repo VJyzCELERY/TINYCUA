@@ -73,13 +73,6 @@ class TestCLIRunArgumentParsing:
         args = parse_args(["hello world"])
         assert args.prompt == "hello world"
 
-    def test_run_accepts_prompt_flag(self):
-        """Given --prompt flag, the CLI accepts it."""
-        from tinycua.cli.run import parse_args
-
-        args = parse_args(["--prompt", "do something"])
-        assert args.prompt == "do something"
-
     def test_run_defaults(self):
         """Given minimal args, defaults are applied correctly."""
         from tinycua.cli.run import parse_args
@@ -88,6 +81,7 @@ class TestCLIRunArgumentParsing:
         assert args.timeout == 600
         assert args.output_dir == Path("/tmp_workspace/results")
         assert args.workspace == Path("/tmp_workspace")
+        assert args.model == "llama3"
         assert args.verbose is False
 
     def test_run_accepts_all_flags(self):
@@ -357,9 +351,9 @@ class TestCLIRunLogWriting:
 
 ### Configuration
 
-#### [MODIFY] `pyproject.toml`
+#### [NO CHANGE] `pyproject.toml`
 
-- **Description**: Verify `[project.scripts]` entry point — currently `tinycua = "tinycua.cli.main:main"`, should work as-is since `main()` will dispatch to subcommands
+- **Description**: Entry point `tinycua = "tinycua.cli.main:main"` already correct — `main()` dispatches to subcommands
 
 ## Architecture Changes
 
@@ -376,7 +370,14 @@ class TestCLIRunLogWriting:
 ## Data Model Changes
 
 ```python
-# tinycua/cli/config.py
+# tinycua/cli/config.py — load_config() returns a plain dict (NOT a RunConfig instance)
+# Keys: base_url, api_key, model (str)
+# Raises ValueError if base_url or api_key missing after env + CLI merge
+# Note: RunConfig dataclass is defined below for orchestration in run.py;
+# load_config() returns a dict for flexibility; RunConfig is constructed
+# later from the dict + CLI arguments.
+
+# tinycua/cli/run.py — RunConfig used for orchestration
 @dataclass
 class RunConfig:
     """Configuration for a single tinycua run invocation."""
@@ -386,7 +387,7 @@ class RunConfig:
     workspace: Path = Path("/tmp_workspace")
     base_url: str                        # OpenAI-compatible endpoint (required)
     api_key: str                         # API key (required)
-    model: str | None = None             # Model identifier (required via CLI or TINYCUA_MODEL)
+    model: str = "llama3"                # Model identifier (default: llama3)
     verbose: bool = False                # Debug logging
 
 # tinycua/cli/logging.py
