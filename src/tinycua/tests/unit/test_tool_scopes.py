@@ -6,7 +6,6 @@ tool scope matching the design document.
 
 from __future__ import annotations
 
-import pytest
 
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.config.tool_scopes import (
@@ -23,17 +22,6 @@ from tinycua.config.tool_scopes import (
 )
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
-from tinycua.tools.task_tools import (
-    FinalResponseSynthesisTool,
-    TaskCreateTool,
-    TaskDecomposeTool,
-    TaskExecuteTool,
-    TaskInitTool,
-    TaskInspectTool,
-    TaskResultUpdateTool,
-    TaskUpdateTool,
-)
-from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 
 
 class TestQueryAnalystToolScope:

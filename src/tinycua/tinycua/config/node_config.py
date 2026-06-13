@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 from tinycua.config.types import StateObject, Tool
 
 if TYPE_CHECKING:
+    from tinycua.config.types import NodeMonitor
     from tinycua.loops.propagation import PropagationRule
 
 
@@ -161,6 +162,7 @@ class NodeConfigBase:
         message_policy: Message selection policy.
         metadata: Arbitrary metadata.
         llm_client: LLM client callable for node LLM invocations.
+        monitor: Optional monitor hook for observing node execution.
     """
 
     custom_instruction_append: str | None = None
@@ -173,3 +175,4 @@ class NodeConfigBase:
     message_policy: NodeMessagePolicy = field(default_factory=NodeMessagePolicy)
     metadata: dict[str, Any] = field(default_factory=dict)
     llm_client: Callable | None = None
+    monitor: NodeMonitor | None = None

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
 
-import pytest
 
-from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.config.node_config import NodeToolPolicy
 from tinycua.config.tool_scopes import (
     information_digester_tool_scope,
     query_analyst_tool_scope,
