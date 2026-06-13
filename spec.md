@@ -1,10 +1,10 @@
-# Feature Specification: Retry, Validation, Monitor Hook, and Streaming Events
+# Feature Specification: End-to-End TinyCUA Architecture Verification Gate
 
 **Status**: Draft
 **Created**: 2026-06-13
 **Last Updated**: 2026-06-13
 **Subproject(s) Affected**: tinycua (src/tinycua)
-**Milestone**: 4.3 — Retry, Validation, and Monitor Hook; 4.4 — Streaming and Transcript Events
+**Milestone**: 4.5 — End-to-End TinyCUA Architecture Verification Gate
 **Tracking Issue**: https://github.com/VJyzCELERY/TINYCUA/issues/87
 
 > **Path convention**: All paths in this document (e.g., `docs/design/loops/node.md`, `config/node_config.py`) are relative to the `tinycua` subproject root (`src/tinycua/`). For example, `docs/design/loops/node.md` maps to `src/tinycua/docs/design/loops/node.md`.
@@ -13,87 +13,55 @@
 
 ## Problem Statement _(mandatory)_
 
-### Milestone 4.3 — Retry, Validation, and Monitor Hook
-
-- **Goals**: Complete the retry, validation, and monitor hook contracts so that invalid node output is retried with assistant-role continuations, validation errors are surfaced correctly, retry exhaustion is handled per policy, and an optional transient `NodeMonitor`/`AgentMonitor` hook provides observability into node lifecycle without creating durable queue nodes.
-- **Gaps**: The `NodeRetryPolicy` dataclass, `validate_output()`, `build_retry_continuation()`, and basic retry loop exist in `ProcessNode.__call__()` (Milestone 1.5). However:
-  - The retry loop in `ProcessNode.__call__()` does not call the monitor hook at lifecycle trigger points.
-  - There is no `NodeMonitor` or `AgentMonitor` protocol/interface defined.
-  - The retry exhaustion behavior for `record_failure` and `route_failure` is not fully wired — the loop continues with the last response but does not write failure state to the node session or propagate according to `PropagationRule.failure`.
-  - `DecisionNode.__call__()` does not implement retry/validation at all — it performs a two-step analysis+classification flow without validating the classification output or retrying on invalid labels.
-  - Custom `validation_fn` and `retry_continuation_builder` callables from `NodeRetryPolicy` are not invoked in the retry loop.
+- **Goals**: Verify that the complete TinyCUA target architecture works end-to-end across all documented paths before proceeding to WildClawBench integration. This is a **gate** — WildClawBench work must not begin until this gate passes.
+- **Gaps**: Prior milestones (1.1–4.4) implemented individual components (agent factory, session config, nodes, queue, routing, propagation, retry/validation, streaming). However, there is no consolidated verification that all components work together across every documented architecture path with a local LLM endpoint.
 - **Non-Goals**:
-  - Implementing HITL (human-in-the-loop) interrupt/resume UX.
-  - Implementing streaming lifecycle events (covered in Milestone 4.4).
+  - Implementing new features or nodes (all components should exist from prior milestones).
+  - WildClawBench adapter or Docker integration ( Milestone 5).
+  - Performance optimization or production hardening.
   - Modifying `tinycua-sdk` public APIs.
-  - Implementing the full `AgentState` lifecycle output model (partially covered here for failure recording).
 - **Constraints**:
-  - Must not modify `tinycua-sdk` public APIs.
-  - Retry prompts MUST be assistant-role continuations (per `docs/design/loops/node.md`).
-  - Monitor hook invocations MUST be transient — not queue nodes, no sessions, not written to `chat_history` or `session_context` unless the owning node explicitly records a derived message.
-  - Must honor existing `NodeRetryPolicy` fields: `max_attempts`, `required_tool_calls`, `required_output_schema`, `validation_fn`, `retry_continuation_builder`, `on_retry_exhausted`.
-
-### Milestone 4.4 — Streaming and Transcript Events
-
-- **Goals**: Provide streaming support across all TinyCUA nodes and lifecycle event hooks that record enough data for WildClawBench transcript export, so callers can observe real-time execution progress and debug agent behavior.
-- **Gaps**: Today, `TinyCUALoop` has basic streaming in `_run_stream()` that yields raw LLM events, but lacks: (1) structured lifecycle event models for node start/end/error, (2) node metadata enrichment in stream events, (3) configurable event emission via `NodeStreamPolicy`, and (4) a transcript-ready event format that WildClawBench can consume.
-- **Non-Goals**: Production-grade CLI/TUI streaming UX, HITL interrupt/resume, real-time WebSocket transport, or modifying the SDK `BaseLoop` contract.
-- **Constraints**: Must preserve SDK `BaseLoop` contract (`stream=True` returns async iterator of event dicts, `stream=False` returns final string). Must not require SDK API changes. Must work with local model endpoints.
+  - Must use local LLM model endpoint for all verification runs.
+  - Must not modify existing node/loop/queue contracts.
+  - Verification must cover every path documented in `docs/design/loops/expected_scenarios.md`.
+  - Exit criteria must be met before the gate passes.
 
 ---
 
 ## User Scenarios & Testing _(mandatory)_
 
-### Primary Scenario — Retry, Validation, and Monitor Hook
+### Primary Scenario
 
-A TinyCUA node executes an LLM call that produces invalid output (missing required tool call, output does not match schema, or custom validation fails). The node retries with an assistant-role continuation message containing the validation error. If retries are exhausted, the node handles the failure according to its `on_retry_exhausted` policy (`raise`, `record_failure`, or `route_failure`). An optional monitor hook observes each lifecycle trigger point (before LLM call, after result, after retry exhaustion) and can return an assistant-role continuation or no-op.
+A developer or CI pipeline runs `create_tinycua_agent(...).run(query)` with a local LLM endpoint. The agent processes the query through the full TinyCUA node flow — QueryAnalyst → InformationDigester → Worker → TaskCreate/TaskAnalyzer → AnalysisEffort → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode — and produces a valid final response. This works for every documented architecture path.
 
-### Acceptance Scenarios — Retry, Validation, and Monitor Hook
+### Acceptance Scenarios
 
-1. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=3, required_tool_calls=["task_update"])`, **When** the LLM call returns a response without the `task_update` tool call, **Then** the node retries up to 3 times, appending an assistant-role retry continuation with the validation error after each failed attempt.
+1. **Given** a new user query with no existing task, **When** `create_tinycua_agent(...).run(query)` is called, **Then** the agent creates a root task, executes it, reviews results, aggregates, and returns a final response (passthrough/first-time task creation path).
 
-2. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2)` and a custom `validation_fn` that rejects responses containing "I don't know", **When** the LLM returns "I don't know", **Then** the node retries once more with an assistant-role continuation, and if the second attempt also fails, handles exhaustion per policy.
+2. **Given** an existing task with no active executor, **When** a follow-up query is processed, **Then** the Worker chooses `proceed_execution` and the TaskExecutor completes the next active task (proceed execution path).
 
-3. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="raise")`, **When** retry is exhausted, **Then** a `NodeExecutionError` is raised.
+3. **Given** an existing task that needs re-evaluation, **When** the Worker determines recreation or reanalysis is needed, **Then** the TaskAnalyzer runs in the appropriate mode and the task tree is updated (task recreation/reanalysis path).
 
-4. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="record_failure")`, **When** retry is exhausted, **Then** failure state is written to the node session. If `PropagationRule.failure` is configured (not `"none"`), failure state is also propagated according to it; otherwise failure state is recorded but not propagated.
+4. **Given** a task with non-zero effort level (low/medium/high), **When** AnalysisEffortNode runs, **Then** TaskAssessor and TaskAnalyzer are prepended for the configured number of passes before TaskExecutor is spawned (effort loop path).
 
-5. **Given** a `ProcessNode` with `NodeRetryPolicy(max_attempts=2, on_retry_exhausted="route_failure")`, **When** retry is exhausted and the node defines a failure route in `on_complete()`, **Then** the failure route is called; otherwise behavior falls back to `record_failure`.
+5. **Given** a task execution that fails validation, **When** ResultReviewer retries, **Then** the executor/reviewer path handles accept/retry/replan/open_question correctly with the retry failure threshold (executor/reviewer path).
 
-6. **Given** a node with a configured `NodeMonitor` hook, **When** the node executes, **Then** the monitor is called: (a) before the LLM call with node id, session id, attempt number, resolved tools, and messages; (b) after the LLM result with the raw result and validation status; (c) after retry exhaustion with the final error.
+6. **Given** an accepted root task, **When** ResultAggregation runs, **Then** it performs guided BFS right-to-left traversal and produces response-ready context (aggregation path).
 
-7. **Given** a `NodeMonitor` hook that returns an assistant-role continuation message, **When** the node retries, **Then** the monitor's continuation is included in the retry message flow.
+7. **Given** aggregated context, **When** ResponseNode runs, **Then** it synthesizes a final response as a string (response path).
 
-8. **Given** a `DecisionNode` (e.g., `QueryAnalystNode`) with `NodeRetryPolicy(max_attempts=2)`, **When** the classification call returns an invalid/unknown label, **Then** the node retries the classification step with an assistant-role continuation.
+8. **Given** a ResponseNode that needs additional context, **When** it suspends to InformationDigester, **Then** the digester runs in a fresh session, produces a digest, and the ResponseNode resumes synthesis (response suspension/digestion path).
 
-9. **Given** a node with `NodeRetryPolicy(max_attempts=3, required_output_schema=SomeSchema)`, **When** the LLM response content does not parse as valid JSON matching the schema, **Then** the node retries with an assistant-role continuation indicating the schema mismatch.
+9. **Given** a Worker that needs context before task operations, **When** QueryAnalyst spawns InformationDigester before Worker, **Then** the digester produces a digest that propagates to the Worker's session context (worker suspension/digestion path).
 
-10. **Given** a node with `NodeRetryPolicy(max_attempts=0)` (no retries), **When** the first attempt fails validation, **Then** the exhaustion policy is applied immediately without retry.
-
-### Primary Scenario — Streaming and Transcript Events
-
-A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As the agent processes through nodes (QueryAnalyst → Worker → TaskExecutor → ResultReviewer → ResponseNode), the harness receives structured lifecycle events: node started, LLM call made, tool executed, node completed, and final response synthesized. These events are serialized to JSONL for post-run transcript analysis and grading.
-
-### Acceptance Scenarios — Streaming and Transcript Events
-
-1. **Given** `stream=False`, **When** `TinyCUALoop.run()` completes, **Then** the return value is a `str` containing the final response content.
-2. **Given** `stream=True`, **When** `TinyCUALoop.run()` is called, **Then** the return value is an `AsyncIterator[dict]` yielding stream events.
-3. **Given** `stream=True` and `NodeStreamPolicy.include_node_metadata=True`, **When** a node executes, **Then** stream events include `node_id`, `node_type`, and `attempt` metadata fields.
-4. **Given** `stream=True` and `NodeStreamPolicy.emit_internal_events=True`, **When** a node lifecycle transition occurs, **Then** a lifecycle event is emitted (e.g., `node.started`, `node.completed`, `node.error`).
-5. **Given** `stream=True` and `NodeStreamPolicy.final_response_only=True`, **When** an intermediate node executes, **Then** its LLM/tool events are suppressed from the user-visible stream.
-6. **Given** a completed run, **When** transcript events are collected, **Then** they can be serialized to JSONL and contain enough data for WildClawBench transcript export.
+10. **Given** nodes propagating context, **When** multiple nodes execute, **Then** propagation/dedupe works correctly, tool scoping restricts each node to its allowed tools, retry/validation catches invalid output, and streaming emits structured events when enabled (propagation/dedupe/tool scoping/retry/streaming path).
 
 ### Edge Cases
 
-- What happens when `max_attempts=0`? (Exactly 1 attempt, no retries — validation failure goes straight to exhaustion handling.)
-- What happens when the monitor hook raises an exception? (Log the error and continue without the hook's continuation — monitor failures must not break node execution.)
-- What happens when `retry_continuation_builder` returns an empty string? (Use a default generic retry message with error details and attempt count.)
-- What happens when `validation_fn` returns `None`? (Treat as validation passed — no errors from custom validation.)
-- What happens when a `DecisionNode` classification returns a label not in `classification_labels`? (Treat as invalid — retry with clarification.)
-- What happens when `validation_fn` raises an unexpected exception? (Treat as validation failure — log the exception and retry with the error details.)
-- What happens when `stream=True` but the LLM endpoint does not support streaming? Fallback to collecting full response then yielding a single `response.completed` event.
-- How does the system handle stream cancellation? The async iterator should stop yielding and clean up resources.
-- What is the behavior with empty/null node output during streaming? Emit a `node.completed` event with `content=""` and `finish_reason="empty"`.
+- What happens when the local LLM endpoint is unavailable? (Verification should document the error behavior.)
+- What happens when a node exhausts retries during verification? (Failure state should be recorded and propagated correctly.)
+- What happens when the task tree has multiple nested tasks? (Active task selection via DFS pre-order should work correctly.)
+- What happens when streaming is enabled during verification? (Lifecycle events should be emitted and serializable.)
 
 ---
 
@@ -101,137 +69,82 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 
 ### Functional Requirements
 
-#### Retry, Validation, and Monitor Hook (Milestone 4.3)
-
-- **FR-001**: `ProcessNode.__call__()` MUST invoke `validate_output(response)` after each LLM call and retry with an assistant-role continuation when validation fails.
-- **FR-002**: Retry continuations MUST be assistant-role messages containing the validation error details and attempt count.
-- **FR-003**: When `retry_policy.validation_fn` is set, it MUST be called during `validate_output()` and its errors merged into the `ValidationResult`.
-- **FR-004**: When `retry_policy.retry_continuation_builder` is set, it MUST be used instead of the default `build_retry_continuation()` to produce the retry message.
-- **FR-005**: On retry exhaustion with `on_retry_exhausted="raise"`, a `NodeExecutionError` MUST be raised.
-- **FR-006**: On retry exhaustion with `on_retry_exhausted="record_failure"`, failure state MUST be written to the node session. If `PropagationRule.failure` is configured, failure state MUST also be propagated according to it; otherwise failure state is recorded but not propagated.
-- **FR-007**: On retry exhaustion with `on_retry_exhausted="route_failure"`, the node's failure route from `on_complete()` MUST be called if defined; otherwise fall back to `record_failure` behavior.
-- **FR-008**: `DecisionNode.__call__()` MUST validate the classification output (verify label is in `classification_labels`) and retry the classification step when invalid.
-- **FR-009**: An optional `NodeMonitor` protocol/interface MUST be defined with trigger points: before LLM call, after LLM result, after retry exhaustion.
-- **FR-010**: `NodeMonitor` hook invocations MUST be transient — not queue nodes, no sessions, not written to `chat_history` or `session_context`.
-- **FR-011**: Monitor hook exceptions MUST be caught and logged without breaking node execution.
-- **FR-012**: Monitor hooks MAY return an assistant-role continuation message that enters the retry message flow. **Deferred**: Continuation appending is not implemented; return values are discarded. Follow-up milestone.
-- **FR-013**: `AgentMonitor` (optional) MUST provide a higher-level hook that wraps node-level monitor behavior for observability across the entire loop. **Known limitation**: `NodeMonitor` only fires when a node is called directly (`node(input)`), not through `TinyCUALoop._execute_node()`. `AgentMonitor` is the loop-level hook and fires in both paths. See Technical Decision #7 in design.md.
-- **FR-014**: `NodeRetryPolicy.max_attempts=0` MUST result in exactly 1 attempt (no retries) — validation failure goes straight to exhaustion handling.
-
-#### Streaming and Transcript Events (Milestone 4.4)
-
-- **FR-015**: System MUST support `stream=True` across all node executions, returning an async iterator of event dicts.
-- **FR-016**: System MUST support `stream=False` returning a final string response (non-streamed final string behavior).
-- **FR-017**: System MUST emit lifecycle events at node boundaries: `node.started`, `node.llm_call`, `node.completed`, `node.error`, `node.retry`.
-- **FR-018**: Stream events MUST include node metadata (`node_id`, `node_type`, `attempt`) when `NodeStreamPolicy.include_node_metadata=True`.
-- **FR-019**: System MUST suppress intermediate node LLM/tool events when `NodeStreamPolicy.final_response_only=True`, emitting only ResponseNode events.
-- **FR-020**: System MUST emit internal lifecycle events when `NodeStreamPolicy.emit_internal_events=True`.
-- **FR-021**: Transcript events MUST be serializable to JSONL format for WildClawBench compatibility.
-- **FR-022**: System MUST preserve the SDK `BaseLoop` contract: `stream=True` yields event dicts, `stream=False` returns string.
+- **FR-001**: System MUST successfully execute `create_tinycua_agent(...).run(query)` across all documented architecture paths using a local LLM endpoint.
+- **FR-002**: System MUST verify the passthrough path (simple query → QueryAnalyst → Worker → ResponseNode).
+- **FR-003**: System MUST verify the worker task creation path (new query → QueryAnalyst → InformationDigester → Worker → TaskCreate → TaskAnalyzer → AnalysisEffort → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode).
+- **FR-004**: System MUST verify the task recreation/reanalysis path (Worker determines task needs re-evaluation → TaskAnalyzer in recreation/reanalysis mode).
+- **FR-005**: System MUST verify the proceed execution path (existing task → Worker → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode).
+- **FR-006**: System MUST verify the effort loop path (AnalysisEffortNode with non-zero effort → TaskAssessor + TaskAnalyzer prepended for configured passes → TaskExecutor).
+- **FR-007**: System MUST verify the executor/reviewer accept/retry/replan/open_question path (TaskExecutor fails validation → ResultReviewer retries → accept, replan, or open_question routing).
+- **FR-008**: System MUST verify the aggregation path (accepted root task → ResultAggregation guided BFS → response-ready context).
+- **FR-009**: System MUST verify the response path (aggregated context → ResponseNode → final string response).
+- **FR-010**: System MUST verify the response suspension/digestion path (ResponseNode suspends → InformationDigester runs in fresh session → digest propagates back → ResponseNode resumes).
+- **FR-011**: System MUST verify the worker suspension/digestion path (QueryAnalyst spawns InformationDigester before Worker → digest propagates to Worker session context).
+- **FR-012**: System MUST verify propagation/dedupe works correctly across node executions.
+- **FR-013**: System MUST verify tool scoping restricts each node to its allowed tools.
+- **FR-014**: System MUST verify retry/validation catches invalid output and retries with assistant-role continuations.
+- **FR-015**: System MUST verify streaming emits structured lifecycle events when `stream=True`.
+- **FR-016**: System MUST produce a verification report documenting pass/fail status for each architecture path.
+- **FR-017**: All verification tests MUST use a local LLM model endpoint (not cloud APIs).
 
 ### Key Entities _(include if feature involves data)_
 
-- **NodeRetryPolicy**: Configuration dataclass controlling retry behavior, validation, and exhaustion. Already exists in `config/node_config.py`.
-- **ValidationResult**: Dataclass with `is_valid: bool` and `errors: list[str]`. Already exists in `config/types.py`.
-- **ValidationError**: Exception type for validation failures. Already exists in `config/types.py`.
-- **NodeExecutionError**: Exception for node execution failures. Already exists in `loops/node.py`.
-- **NodeMonitor** (NEW): Protocol/interface for transient node lifecycle observation.
-- **AgentMonitor** (NEW): Protocol/interface for loop-level lifecycle observation.
-- **StreamEvent**: A structured event dict yielded during streaming, containing event type, node metadata, content delta, and timestamp.
-- **LifecycleEvent**: A structured event dict for node lifecycle transitions (started, llm_call, completed, error, retry), extending the StreamEvent shape.
-- **TranscriptRecord**: A serializable event record containing all data needed for WildClawBench transcript export.
+- **Verification Report**: A structured document recording pass/fail status, logs, and any issues found for each architecture path.
+- **Architecture Path**: A documented end-to-end flow from `docs/design/loops/expected_scenarios.md` that must be verified.
 
 ---
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-> **Note**: Items below are checked off as implementation progresses. All items must
-> be checked before merge.
+> **Note**: Items below are checked off as verification progresses. All items must
+> be checked before the gate passes.
 
-> **Deferred to Implementation**: The items below cannot be verified until the
-> corresponding code is written. They are intentionally left unchecked at the
-> spec/design review stage and will be checked off during implementation.
-
-### Retry, Validation, and Monitor Hook (Milestone 4.3)
-
-- [x] **Retry loop works**: Invalid node output triggers retry with assistant-role continuation messages up to `max_attempts`.
-- [x] **Custom validation works**: `validation_fn` is called during `validate_output()` and its errors are merged into the result.
-- [x] **Custom continuation builder works**: `retry_continuation_builder` produces the retry message when set.
-- [x] **Exhaustion handling works**: `raise` raises `NodeExecutionError`, `record_failure` writes failure state and propagates, `route_failure` calls the failure route or falls back.
-- [x] **DecisionNode classification retry works**: Invalid classification labels trigger retry with assistant-role continuation.
-- [x] **Monitor hook protocol defined**: `NodeMonitor` protocol/interface exists with before/after/exhaustion trigger points.
-- [x] **Monitor hook is transient**: Hook invocations do not create sessions or write to chat_history/session_context.
-- [x] **Monitor hook exceptions are caught**: Hook failures are logged and do not break node execution.
-- [x] **Monitor continuations enter retry flow**: Hook-returned continuations are included in retry messages.
-- [x] **Tests pass**: Unit tests for retry loop, validation, exhaustion, DecisionNode retry, and monitor hook behavior.
-
-### Streaming and Transcript Events (Milestone 4.4)
-
-- [x] **stream=False returns string**: `TinyCUALoop.run(stream=False)` returns a `str` with the final response.
-- [x] **stream=True returns async iterator**: `TinyCUALoop.run(stream=True)` returns an `AsyncIterator[dict]`.
-- [x] **Lifecycle events emitted**: Node lifecycle transitions emit structured events with type, node_id, and timestamp.
-- [x] **Node metadata in events**: Stream events include `node_id`, `node_type`, `attempt` when policy enabled.
-- [x] **final_response_only suppresses intermediate events**: Intermediate node LLM/tool events are not emitted when policy enabled.
-- [x] **Transcript serialization**: Collected events can be serialized to JSONL and parsed back without data loss.
-- [x] **Backward compatibility**: Existing non-streaming tests continue to pass unchanged.
+- [ ] **Passthrough path works**: Simple query → QueryAnalyst → passthrough → Worker → ResponseNode produces valid response.
+- [ ] **Task creation path works**: New query → QueryAnalyst → InformationDigester → Worker → TaskCreate → TaskAnalyzer → AnalysisEffort → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode produces valid response.
+- [ ] **Task recreation/reanalysis works**: Worker determines task needs re-evaluation → TaskAnalyzer runs in appropriate mode → task tree updated.
+- [ ] **Proceed execution works**: Existing task → Worker → TaskExecutor → ResultReviewer → ResultAggregation → ResponseNode completes without re-creating task.
+- [ ] **Effort loop works**: AnalysisEffortNode with non-zero effort prepends TaskAssessor + TaskAnalyzer for configured passes before spawning TaskExecutor.
+- [ ] **Executor/reviewer accept works**: TaskExecutor completes task → ResultReviewer accepts → advances to aggregation.
+- [ ] **Executor/reviewer retry works**: TaskExecutor produces invalid output → ResultReviewer retries → eventually accepts or exhausts.
+- [ ] **Executor/reviewer replan works**: TaskExecutor cannot complete → ResultReviewer triggers local replan → TaskAnalyzer re-evaluates task.
+- [ ] **Executor/reviewer open_question works**: TaskExecutor requests user input → ResultReviewer routes to open_question → flow handles continuation.
+- [ ] **Aggregation works**: Accepted root task → ResultAggregation guided BFS → response-ready context produced.
+- [ ] **Response works**: Aggregated context → ResponseNode → final string response returned.
+- [ ] **Response suspension/digestion works**: ResponseNode suspends → InformationDigester runs → digest propagates back → ResponseNode resumes and produces response.
+- [ ] **Worker suspension/digestion works**: QueryAnalyst spawns InformationDigester before Worker → digest propagates to Worker session context → Worker receives digested context.
+- [ ] **Propagation/dedupe works**: Node context propagates without duplicate reusable session context.
+- [ ] **Tool scoping works**: Each node sees only its allowed tools.
+- [ ] **Retry/validation works**: Invalid node output triggers retry with assistant-role continuation.
+- [ ] **Streaming works**: `stream=True` emits structured lifecycle events serializable to JSONL.
+- [ ] **Local LLM endpoint used**: All verification runs use a local model endpoint (not cloud APIs).
+- [ ] **Verification report produced**: Pass/fail status documented for each architecture path.
 
 ---
 
 ## Testing Plan _(mandatory)_
 
-> **Deferred to Implementation**: The test items below cannot be written or verified
-> until the corresponding code is implemented. They are intentionally left unchecked
-> at the spec/design review stage and will be checked off during implementation.
-
 ### Unit Tests
 
-#### Retry, Validation, and Monitor Hook (Milestone 4.3)
-
-- [x] Test `ProcessNode` retry loop: valid output passes on first attempt, invalid output retries up to max_attempts.
-- [x] Test `validate_output()` with `required_tool_calls` — missing tool triggers retry.
-- [x] Test `validate_output()` with `required_output_schema` — invalid JSON triggers retry.
-- [x] Test `validate_output()` with custom `validation_fn` — custom errors merged into result.
-- [x] Test `build_retry_continuation()` with default builder and custom `retry_continuation_builder`.
-- [x] Test exhaustion behavior: `raise` raises `NodeExecutionError`, `record_failure` writes failure state, `route_failure` calls failure route.
-- [x] Test `max_attempts=0` — no retries, immediate exhaustion.
-- [x] Test `DecisionNode` classification validation — invalid label triggers retry.
-- [x] Test `NodeMonitor` hook called at correct trigger points with correct arguments.
-- [x] Test `NodeMonitor` hook exception handling — logged and does not break execution.
-- [x] Test `NodeMonitor` hook continuation message enters retry flow.
-
-#### Streaming and Transcript Events (Milestone 4.4)
-
-- Test `stream=False` returns string from `TinyCUALoop.run()`.
-- Test `stream=True` returns async iterator yielding event dicts.
-- Test lifecycle events are emitted at node boundaries.
-- Test `NodeStreamPolicy.include_node_metadata` controls metadata inclusion.
-- Test `NodeStreamPolicy.final_response_only` suppresses intermediate events.
-- Test `NodeStreamPolicy.emit_internal_events` controls internal event emission.
-- Test transcript events are JSON-serializable.
-- Test stream cancellation stops event emission cleanly.
+- Verify each node type can be instantiated and called individually with mock LLM responses.
+- Verify NodeQueue execution, advance(), suspend_current_and_prepend(), and ensure_terminal().
+- Verify propagation rules and dedupe logic.
+- Verify tool policy resolution for each node type.
+- Verify retry/validation loop behavior.
+- Verify streaming event emission.
 
 ### Integration Tests
 
-#### Retry, Validation, and Monitor Hook (Milestone 4.3)
-
-> **Deferred to Implementation**: Integration tests require the full retry/validation/monitor
-> pipeline to be wired before they can be executed. These items will be checked off
-> once the implementation is complete and tests are run.
-
-- [x] Test end-to-end retry through `TinyCUALoop._execute_node()` — node retries and eventually succeeds or exhausts.
-- [x] Test monitor hook observing a full node execution cycle (before → after → exhaust if applicable).
-- [x] Test `DecisionNode` retry through the loop — classification retried on invalid label.
-
-#### Streaming and Transcript Events (Milestone 4.4)
-
-- Test end-to-end streaming through a multi-node queue (QueryAnalyst → Worker → ResponseNode).
-- Test transcript event collection produces valid JSONL output.
-- Test streaming with real LLM mock that yields partial deltas.
+- End-to-end test: `create_tinycua_agent(...).run(query)` with a local LLM endpoint through each documented architecture path.
+- Multi-node queue execution test: QueryAnalyst → Worker → TaskExecutor → ResultReviewer → ResponseNode.
+- Suspension/digestion test: ResponseNode suspension to InformationDigester and resume.
+- Worker digestion test: QueryAnalyst → InformationDigester → Worker with digest propagation.
+- Effort loop test: AnalysisEffortNode with medium effort → TaskAssessor + TaskAnalyzer × 2 passes → TaskExecutor.
 
 ### Manual Tests _(if applicable)_
 
-- [ ] Verify that a node with retry configured can recover from transient LLM failures by retrying with context.
-- Verify stream events visually in a test harness that prints events as they arrive.
+- Run `create_tinycua_agent(...).run("Fix the login bug")` with a local LLM and observe the full node flow.
+- Verify streaming events are emitted correctly with `stream=True`.
+- Verify the verification report is complete and accurate.
 
 ---
 
@@ -239,44 +152,36 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| NodeRetryPolicy dataclass | Done | Milestone 1.2 |
-| validate_output() basic implementation | Done | Milestone 1.5 |
-| build_retry_continuation() basic implementation | Done | Milestone 1.5 |
-| ProcessNode retry loop | Done | Milestone 1.5 (basic) |
-| Custom validation_fn invocation | TODO | Wire into validate_output() |
-| Custom retry_continuation_builder invocation | TODO | Wire into retry loop |
-| record_failure exhaustion behavior | TODO | Write failure state + propagate |
-| route_failure exhaustion behavior | TODO | Call on_complete failure route |
-| DecisionNode classification validation | TODO | Validate label in classification_labels |
-| NodeMonitor protocol/interface | TODO | Define trigger points and args |
-| AgentMonitor protocol/interface | TODO | Loop-level observation |
-| Monitor hook integration in retry loop | TODO | Call hooks at lifecycle points |
-| StreamEvent model | DONE | Structured event dict with type, node_id, timestamp |
-| LifecycleEvent hooks | DONE | node.started, node.llm_call, node.completed, node.error emitted. `node.retry` defined in Literal type but not yet emitted — will be added when retry logic is implemented in a future milestone |
-| NodeStreamPolicy enforcement | DONE | Apply final_response_only, emit_internal_events |
-| TranscriptRecord serialization | DONE | JSONL-compatible event records |
-| Unit tests | DONE | Cover all streaming and lifecycle scenarios |
-| Integration tests | DONE | Multi-node streaming end-to-end |
+| Verification test suite | TODO | Create test cases for each architecture path |
+| Local LLM endpoint setup | TODO | Configure local model for verification |
+| Passthrough path verification | TODO | |
+| Task creation path verification | TODO | |
+| Task recreation/reanalysis verification | TODO | |
+| Proceed execution verification | TODO | |
+| Effort loop verification | TODO | |
+| Executor/reviewer path verification | TODO | |
+| Aggregation path verification | TODO | |
+| Response path verification | TODO | |
+| Suspension/digestion verification | TODO | |
+| Propagation/dedupe verification | TODO | |
+| Tool scoping verification | TODO | |
+| Retry/validation verification | TODO | |
+| Streaming verification | TODO | |
+| Verification report generation | TODO | |
 
 ---
 
 ## Open Questions _(optional)_
 
-1. **Should `NodeMonitor` be a Protocol (structural typing) or an abstract base class?**
+1. **What local LLM model should be used for verification?**
    - **Owner**: @VJyzCELERY
-   - **Status**: RESOLVED — Use a Protocol for flexibility — allows any object with the right methods to serve as a monitor without inheritance. (Resolved in design.md Technical Decision #1)
-   - **Proposed Answer**: Use a Protocol for flexibility — allows any object with the right methods to serve as a monitor without inheritance.
+   - **Status**: Open
+   - **Proposed Answer**: Use the smallest model that can follow tool-call instructions (e.g., a fine-tuned Qwen or Llama variant). Document model name, endpoint, and hardware in the verification report.
 
-2. **Should `AgentMonitor` wrap `NodeMonitor` or be independent?**
+2. **Should verification tests be automated in CI or manual?**
    - **Owner**: @VJyzCELERY
-   - **Status**: RESOLVED — `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other. (Resolved in design.md Technical Decision #6)
-   - **Proposed Answer**: `AgentMonitor` and `NodeMonitor` are independent hooks. The loop calls `AgentMonitor.on_*()` for loop-level observation; the node calls its own `NodeMonitor` via `self.config.monitor`. Both fire when configured — neither wraps or forwards to the other.
-
-3. **Event dict schema standardization**
-   - **Owner**: @tinycua-team
-   - **Target**: 2026-06-20
-   - **Status**: Resolved
-   - **Decision**: Follow OpenAI Responses API event format where possible (`type`, `delta`, `item`) for compatibility.
+   - **Status**: Open
+   - **Proposed Answer**: Both — automated integration tests for the core paths, manual verification for edge cases and streaming behavior.
 
 ---
 
@@ -287,4 +192,4 @@ A benchmark harness (WildClawBench) runs a TinyCUA agent with `stream=True`. As 
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
 - [x] Success criteria are measurable
-- [x] Exit criteria match Milestones 4.3 and 4.4 from the roadmap issue
+- [x] Exit criteria match Milestone 4.5 from the roadmap issue
