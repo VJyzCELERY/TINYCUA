@@ -257,6 +257,34 @@ class TestRunTaskExecution:
         assert "timed out" in execution.error.lower()
         assert len(killed) == 1
 
+    def test_returns_timeout_error_on_exit_code_124(self, task_spec, monkeypatch):
+        """run_task must treat exit code 124 as timeout."""
+
+        class ExitCode124Popen:
+            def __init__(self, cmd, **kwargs):
+                self._cmd = cmd
+
+            def communicate(self, timeout=None):
+                return (b"", b"")
+
+            def kill(self):
+                pass
+
+            def wait(self):
+                pass
+
+            @property
+            def returncode(self):
+                return 124
+
+        monkeypatch.setattr(subprocess, "Popen", ExitCode124Popen)
+
+        agent = TinyCUAAgent()
+        execution = agent.run_task(task_spec)
+
+        assert execution.error is not None
+        assert "timed out" in execution.error.lower()
+
     def test_creates_output_directory(self, task_spec, monkeypatch):
         """run_task must create output_dir if it doesn't exist."""
         monkeypatch.setattr(

@@ -310,20 +310,20 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Integration test: `test_run_task_creates_transcript_and_log` — covers acceptance scenario #4
-- [ ] Unit tests for `TinyCUAAgent` properties (`expects_gateway`, `transcript_container_path`)
-- [ ] Unit tests for `run_task()` subprocess command construction
-- [ ] Unit tests for `run_task()` timeout handling
-- [ ] Unit tests for `run_task()` error handling (binary not found, non-zero exit)
-- [ ] Unit tests for `collect_usage()` transcript parsing
-- [ ] Unit tests for `collect_usage()` missing transcript file
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Integration test: `test_run_task_creates_transcript_and_log` — covers acceptance scenario #4
+- [x] Unit tests for `TinyCUAAgent` properties (`expects_gateway`, `transcript_container_path`)
+- [x] Unit tests for `run_task()` subprocess command construction
+- [x] Unit tests for `run_task()` timeout handling
+- [x] Unit tests for `run_task()` error handling (binary not found, non-zero exit)
+- [x] Unit tests for `collect_usage()` transcript parsing
+- [x] Unit tests for `collect_usage()` missing transcript file
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [ ] Verify adapter can be imported: `uv run python -c "from tinycua.wildclawbench.agent import TinyCUAAgent"`
-- [ ] Verify `BaseAgent` ABC is satisfied (no abstract method errors on instantiation)
+- [x] Verify adapter can be imported: `uv run python -c "from tinycua.wildclawbench.agent import TinyCUAAgent"`
+- [x] Verify `BaseAgent` ABC is satisfied (no abstract method errors on instantiation)
 
 ### Performance Considerations
 

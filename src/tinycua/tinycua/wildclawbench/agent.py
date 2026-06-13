@@ -80,14 +80,20 @@ class TinyCUAAgent(BaseAgent):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
+                cwd=str(workspace_path),
+                text=True,
             )
             stdout, stderr = proc.communicate(timeout=spec.timeout_seconds)
             elapsed = time.monotonic() - start_time
 
-            if proc.returncode != 0:
+            if proc.returncode == 124:
+                error_msg = f"tinycua run timed out after {spec.timeout_seconds}s"
+                logger.warning(error_msg)
+                return AgentExecution(elapsed_time=elapsed, error=error_msg)
+            elif proc.returncode != 0:
                 error_msg = f"tinycua exited with code {proc.returncode}"
                 if stderr:
-                    error_msg += f": {stderr.decode('utf-8', errors='replace')}"
+                    error_msg += f": {stderr}"
                 logger.error(error_msg)
                 return AgentExecution(elapsed_time=elapsed, error=error_msg)
 

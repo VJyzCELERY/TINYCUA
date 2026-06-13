@@ -136,14 +136,14 @@ WildClawBench's `run_batch.py` selects TinyCUA as an agent backend. It construct
 
 | Item | Status | Notes |
 |------|--------|-------|
-| TinyCUAAgent class definition | TODO | New module — see design.md |
-| BaseAgent interface implementation | TODO | Depends on class definition |
-| Subprocess spawning logic | TODO | Core run_task implementation — see design.md Decision #1 |
-| Timeout handling | TODO | Popen communicate(timeout=) — see design.md Decision #3 |
-| Usage collection | TODO | Transcript JSONL parsing — see design.md Decision #4 |
-| Transcript path management | TODO | See design.md Decision #5; tracking continues in task.md |
-| Unit tests | TODO | See implementation-plan.md |
-| Integration tests | TODO | See implementation-plan.md |
+| TinyCUAAgent class definition | DONE | tinycua/wildclawbench/agent.py |
+| BaseAgent interface implementation | DONE | tinycua/wildclawbench/base_agent.py — local ABC copy |
+| Subprocess spawning logic | DONE | agent.py run_task() with Popen |
+| Timeout handling | DONE | communicate(timeout=) + exit code 124 |
+| Usage collection | DONE | Transcript JSONL parsing in collect_usage() |
+| Transcript path management | DONE | Returns /tmp_workspace/results/transcript.jsonl |
+| Unit tests | DONE | 18 tests — test_wildclawbench_agent.py |
+| Integration tests | DONE | 13 tests — test_wildclawbench_integration.py |
 
 ---
 
