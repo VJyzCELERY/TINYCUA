@@ -300,19 +300,6 @@ def test_run_task_creates_workspace(task_spec, monkeypatch):
     assert Path(task_spec.workspace_path).exists()
 ```
 
-### Key Test Scenarios
-
-- [ ] **Scenario 1**: `expects_gateway` returns `False` — proves TinyCUA doesn't need a gateway process
-- [ ] **Scenario 2**: `run_task` spawns correct CLI command — proves subprocess construction matches design
-- [ ] **Scenario 3**: `run_task` handles timeout — proves subprocess is killed and error returned
-- [ ] **Scenario 4**: `run_task` handles binary not found — proves graceful error reporting
-- [ ] **Scenario 5**: `collect_usage` parses transcript — proves usage extraction works
-- [ ] **Scenario 6**: `run_task` creates transcript.jsonl and agent.log in output_dir — covers acceptance scenario #4
-- [ ] **Edge case**: `collect_usage` with missing transcript returns zeroed values
-- [ ] **Edge case**: `run_task` creates output dir and workspace if they don't exist
-
-> These scenarios are implemented as both integration tests (above) and unit tests (see task.md Phase 3 — Unit Tests).
-
 ## Verification Plan
 
 ### Automated Tests

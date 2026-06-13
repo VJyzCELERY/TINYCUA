@@ -81,9 +81,9 @@ Implementation tasks for Milestone 5.2. Check off items as completed.
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 16 -->
-- [ ] Address review feedback <!-- id: 17 -->
-- [ ] Merge to main branch <!-- id: 18 -->
+- [ ] Create pull request <!-- id: 16, refs: PR #133 -->
+- [ ] Address review feedback <!-- id: 17, refs: PR #133 review -->
+- [ ] Merge to main branch <!-- id: 18, refs: PR #133 -->
 
 ---
 

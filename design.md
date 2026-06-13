@@ -2,6 +2,7 @@
 
 **Spec**: [./spec.md](./spec.md)
 **Status**: Draft
+**Created**: 2026-06-14
 **Last Updated**: 2026-06-14
 
 ---
