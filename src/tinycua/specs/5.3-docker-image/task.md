@@ -66,6 +66,11 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 - [ ] Update `src/tinycua/docs/benchmark/README.md` with any findings from manual testing <!-- id: 14 -->
 - [ ] Add environment variable reference to documentation <!-- id: 15 -->
+- [ ] Update spec.md Status Tracker — mark implemented items from TODO to COMPLETE <!-- id: 15-b -->
+  - [ ] Local model endpoint support
+  - [ ] Smoke test task
+  - [ ] Documentation
+  - [ ] Image size optimization
 
 ## Post-MVP Enhancements
 

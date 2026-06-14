@@ -123,6 +123,23 @@ class TestContainerStartup:
         # Entry point should reject missing endpoint
         assert result.returncode != 0 or "TINYCUA_BASE_URL" in result.stderr
 
+    def test_container_fails_without_task_prompt(self):
+        """Container fails with clear error when TASK_PROMPT is missing."""
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                IMAGE_TAG,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode != 0, \
+            f"Container should fail without TASK_PROMPT:\n{result.stderr}"
+        assert "TASK_PROMPT" in result.stderr, \
+            "Error message must mention TASK_PROMPT"
+
 
 class TestWorkspaceMounting:
     """Verify /tmp_workspace mounting and read/write operations."""
@@ -209,6 +226,7 @@ class TestTinyCUAInstalled:
 - [ ] **Scenario 4**: Environment variable injection — `BRAVE_API_KEY` and model config are accessible
 - [ ] **Scenario 5**: TinyCUA CLI is installed — `tinycua` command and `benchmark` subcommand work
 - [ ] **Edge case**: Missing `TINYCUA_BASE_URL` — container exits with clear error
+- [ ] **Edge case**: Missing `TASK_PROMPT` — container exits with clear error referencing TASK_PROMPT
 
 ## Verification Plan
 

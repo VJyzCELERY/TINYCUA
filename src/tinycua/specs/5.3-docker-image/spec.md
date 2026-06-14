@@ -46,7 +46,7 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 
 - **FR-001**: System MUST provide a Dockerfile that builds a runnable container image for TinyCUA benchmark execution.
 - **FR-002**: System MUST install the TinyCUA prototype and its dependencies within the container.
-- **FR-003**: System MUST include required shell, file, browser, and search dependencies as documented in the WildClawBench adapter contract.
+- **FR-003**: System MUST include required shell and file dependencies (bash, coreutils, curl, git, wget) as documented in the WildClawBench adapter contract. System MAY include optional browser/search dependencies (chromium, geckodriver) as deferred enhancements for Phase 2 (see Open Question 2).
 - **FR-004**: System MUST support configuration of a local OpenAI-compatible model endpoint via environment variables (e.g., `TINYCUA_BASE_URL`).
 - **FR-005**: System MUST mount the task workspace at `/tmp_workspace` as per WildClawBench conventions.
 - **FR-006**: System MUST allow injection of additional environment variables (e.g., `BRAVE_API_KEY`) for benchmark tools.
