@@ -94,9 +94,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Per-task timeout in seconds (default: 600).",
     )
     parser.add_argument(
-        "--no-preserve-artifacts",
-        action="store_true",
-        help="Remove task artifacts after grading.",
+        "--preserve-artifacts",
+        action="store_false",
+        default=True,
+        dest="preserve_artifacts",
+        help="Remove task artifacts after grading (default: preserve).",
     )
     parser.add_argument(
         "--verbose",

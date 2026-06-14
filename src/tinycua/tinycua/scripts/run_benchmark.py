@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import statistics
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -298,6 +299,16 @@ def run_full_benchmark(
             result.score if result.score is not None else 0.0,
             result.elapsed_time,
         )
+
+        # Clean up task artifacts when preserve_artifacts is False
+        if not config.preserve_artifacts and task_dir.exists():
+            try:
+                shutil.rmtree(task_dir)
+                logger.debug("Removed artifacts for task %s", task_id)
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove artifacts for task %s: %s", task_id, exc
+                )
 
     end_time = datetime.now(timezone.utc)
     duration = (end_time - start_time).total_seconds()
