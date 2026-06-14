@@ -27,12 +27,10 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
 | Local LLM endpoint | Yes | User's local provider (vLLM/Ollama/LM Studio) | `curl $LLM_BASE_URL/models` |
-| Docker daemon | Yes | `dockerd` or Docker Desktop | `docker info` |
 
 ### Data / Fixtures
 
 - [x] WildClawBench task list — 60 tasks (discovered from WildClawBench package or hardcoded)
-- [x] TinyCUA Docker image from Milestone 5.3 (`tinycua-benchmark:latest`)
 
 ### Access / Permissions
 
@@ -42,7 +40,6 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
 
 - [x] **Runtime**: Python 3.12+
 - [x] **Package manager**: uv
-- [x] **Additional CLI tools**: docker
 
 ---
 
@@ -193,7 +190,7 @@ def test_task_artifacts_preserved(tmp_path):
 
 #### NEW `src/tinycua/scripts/benchmark_config.py`
 
-- **Description**: `BenchmarkConfig` dataclass with model, endpoint, Docker, and output configuration
+- **Description**: `BenchmarkConfig` dataclass with model, endpoint, and output configuration
 - **Dependencies**: dataclasses, pathlib
 
 #### NEW `src/tinycua/scripts/collect_metadata.py`
@@ -247,7 +244,6 @@ class RunMetadata:
     gpu_info: list[str]
     ram_total_gb: float
     runtime_version: str
-    docker_image_tag: str
     python_version: str
     judge_model: str | None
     judge_endpoint: str | None
@@ -308,7 +304,7 @@ No API endpoint changes — this is a script-based orchestrator invoked via `uv 
 
 - [x] Depends on Milestone 5.1 (CLI runtime entry point)
 - [x] Depends on Milestone 5.2 (BaseAgent adapter)
-- [x] Depends on Milestone 5.3 (Docker image)
+- [x] Depends on Milestone 5.3 (Docker image — optional, not required for host-based runs)
 - [x] Depends on Milestone 5.4 (Transcript artifacts)
 - [x] Depends on Milestone 5.5 (Smoke runs)
 
@@ -320,7 +316,7 @@ No API endpoint changes — this is a script-based orchestrator invoked via `uv 
 | Task timeouts exceed reasonable limits | Medium | Configurable per-task timeout; default 600s (10 min) |
 | Hardware info collection fails on some platforms | Low | Graceful fallback to "unknown" for missing fields |
 | WildClawBench task list changes between versions | Medium | Document task list source; allow `--tasks` manual specification |
-| Docker resource exhaustion during long runs | High | Monitor container resource usage; add resource limits |
+| Local LLM endpoint crashes mid-run | High | Record partial results; investigate resumption support in a future milestone |
 
 ---
 

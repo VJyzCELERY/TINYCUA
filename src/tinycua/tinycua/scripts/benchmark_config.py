@@ -49,7 +49,7 @@ class BenchmarkConfig:
         return cls(
             model_name=getattr(args, "model_name", cls.model_name),
             base_url=getattr(args, "base_url", cls.base_url),
-            api_key=getattr(args, "api_key", cls.api_key),
+            api_key=getattr(args, "api_key", None) or cls.api_key,
             timeout_seconds=getattr(args, "timeout_seconds", cls.timeout_seconds),
             preserve_artifacts=getattr(
                 args, "preserve_artifacts", cls.preserve_artifacts
@@ -83,7 +83,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-key",
-        default="",
+        default=None,
+        type=str,
         help="Optional API key for authentication.",
     )
     parser.add_argument(

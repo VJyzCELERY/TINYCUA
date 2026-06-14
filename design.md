@@ -106,7 +106,7 @@ class TaskResult:
 class SummaryAggregate:
     total_tasks: int               # Should be 60
     completed_tasks: int           # Tasks that finished (success or failed)
-    successful_tasks: int          # Tasks with score > 0
+    successful_tasks: int          # Tasks with status == "success"
     failed_tasks: int              # Tasks with error/timeout
     skipped_tasks: int             # Tasks not attempted (if any)
     

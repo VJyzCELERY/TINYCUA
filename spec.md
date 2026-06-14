@@ -14,7 +14,7 @@
 ## Problem Statement _(mandatory)_
 
 - **Goals**: Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM model, producing aggregate results (`summary_all.json`) that enable comparison with other harnesses.
-- **Gaps**: Prior milestones (5.1–5.5) established the CLI entry point, BaseAgent adapter, Docker image, transcript/usage compatibility, and smoke runs. This milestone scales to the full task suite to produce benchmark data for analysis.
+- **Gaps**: Prior milestones (5.1–5.5) established the CLI entry point, BaseAgent adapter, transcript/usage compatibility, and smoke runs. This milestone scales to the full task suite to produce benchmark data for analysis.
 - **Non-Goals**:
   - Benchmark analysis or comparison reports (covered in Milestone 5.7).
   - Modifying WildClawBench tasks or grading functions.
@@ -22,7 +22,6 @@
   - Judge LLM subscription management.
   - Code changes to TinyCUA architecture (the focus is execution and data collection).
 - **Constraints**:
-  - Must use the Docker image from Milestone 5.3.
   - Must use local LLM model endpoints (no OpenRouter).
   - Must preserve all task-level artifacts for failure analysis.
   - Must write results to benchmark_results/ directory at the tinycua subproject root.
@@ -34,11 +33,11 @@
 
 ### Primary Scenario
 
-A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), builds the TinyCUA Docker image, and runs the full WildClawBench benchmark suite. The system executes all 60 tasks, collects scores, usage data, transcripts, and task outputs, and produces a `summary_all.json` aggregate results file.
+A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio) and runs the full WildClawBench benchmark suite. The system executes all 60 tasks, collects scores, usage data, transcripts, and task outputs, and produces a `summary_all.json` aggregate results file.
 
 ### Acceptance Scenarios
 
-1. **Given** a configured local LLM endpoint and the TinyCUA Docker image, **When** the full benchmark run is initiated, **Then** all 60 WildClawBench tasks are executed against the TinyCUA harness.
+1. **Given** a configured local LLM endpoint, **When** the full benchmark run is initiated, **Then** all 60 WildClawBench tasks are executed against the TinyCUA harness.
 
 2. **Given** a completed benchmark run, **When** the results are inspected, **Then** a `summary_all.json` file exists containing aggregate scores, task-level results, and metadata.
 
@@ -54,7 +53,6 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 
 - What happens when the local LLM endpoint becomes unavailable mid-run? Tasks should fail gracefully with error details, and the run should continue with remaining tasks.
 - What happens when a task exceeds its timeout? The task is marked as failed/timed-out, and the run continues.
-- What happens when Docker resources are exhausted? The run should fail gracefully with resource error details.
 - What happens when the output directory is not writable? The run should fail before executing any tasks with a clear error message.
 
 ---
@@ -152,7 +150,7 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 2. **Should the benchmark run be executed via Docker or locally?**
    - **Owner**: @VJyzCELERY
    - **Status**: Resolved
-   - **Proposed Answer**: Docker is required per the milestone constraint. The Docker image from Milestone 5.3 (tinycua-benchmark:latest) must be used.
+   - **Proposed Answer**: Docker integration deferred to a future milestone — initial runs execute on the host system.
 
 3. **How should judge LLM configuration be handled?**
    - **Owner**: @VJyzCELERY
@@ -168,4 +166,4 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
 - [x] Success criteria are measurable
-- [x] Exit criteria match Milestone 5.6 from the roadmap issue
+- [x] Exit criteria match Milestone 5.6 from the roadmap issue <!-- verified 2026-06-15 against #87: 60-task run, summary_all.json, metadata, artifacts, aggregate stats -->

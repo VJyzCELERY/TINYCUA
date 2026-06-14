@@ -15,7 +15,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 - [x] Create `src/tinycua/scripts/__init__.py` (empty package init) <!-- id: 2 -->
 - [x] Add usage instructions in script docstrings or inline comments <!-- id: 24 -->
 - [x] Create `src/tinycua/scripts/benchmark_config.py` with `BenchmarkConfig` dataclass <!-- id: 3 -->
-  - [x] Define fields: model_name, base_url, api_key, timeout_seconds, concurrent_tasks, docker_image, use_docker, preserve_artifacts, verbose
+  - [x] Define fields: model_name, base_url, api_key, timeout_seconds, concurrent_tasks, preserve_artifacts, verbose
   - [x] Add CLI argument parsing (argparse) for overriding config defaults
   - [x] Add `from_args()` class method to construct config from CLI args
 - [x] Create `src/tinycua/scripts/collect_metadata.py` <!-- id: 4 -->
