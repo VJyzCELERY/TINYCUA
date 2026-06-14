@@ -44,6 +44,7 @@ Implementation tasks for Milestone 5.4 — Transcript, Usage, and Artifact Compa
 - [ ] Modify `cli/run.py` to wire usage capture <!-- id: 9 -->
   - [ ] Collect `response.usage` events from streaming iterator
   - [ ] Store in a list for passing to transcript converter
+  - [ ] Switch `cli/run.py` from `agent.run(prompt)` to streaming execution (`agent.run_stream(prompt)` or equivalent) to enable usage event collection <!-- id: 27 -->
 - [ ] Modify `cli/run.py` to use enhanced transcript writer <!-- id: 10 -->
   - [ ] Call `convert_working_messages_to_openclaw()` with `per_message_usage`
   - [ ] Call `write_openclaw_jsonl()` for primary `transcript.jsonl`

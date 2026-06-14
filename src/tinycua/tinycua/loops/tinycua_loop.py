@@ -65,6 +65,7 @@ class TinyCUALoop(BaseLoop):
         self.default_terminal_node = default_terminal_node
         self.agent_monitor = agent_monitor
         self._working_messages: list[dict[str, Any]] = []
+        self._usage_events: list[dict[str, Any]] = []
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -78,6 +79,17 @@ class TinyCUALoop(BaseLoop):
             List of message dicts from the last execution.
         """
         return list(self._working_messages)
+
+    def get_usage_events(self) -> list[dict[str, Any]]:
+        """Return the usage events captured during the last streaming run.
+
+        Usage events include token counts and other billing metadata
+        from the LLM response. Only populated when using streaming mode.
+
+        Returns:
+            List of usage event dicts from the last streaming execution.
+        """
+        return list(self._usage_events)
 
     async def run(
         self,
@@ -416,6 +428,7 @@ class TinyCUALoop(BaseLoop):
             Stream event dicts from the LLM and lifecycle transitions.
         """
         all_messages: list[dict[str, Any]] = []
+        self._usage_events = []
         try:
             while not self.queue.is_empty():
                 node = self.queue.current
@@ -491,6 +504,8 @@ class TinyCUALoop(BaseLoop):
                             content_parts.append(event.get("delta", ""))
                         if event.get("type") == "response.tool_call":
                             collected_tool_calls.append(event)
+                        if event.get("type") == "response.usage":
+                            self._usage_events.append(event)
                         self._enrich_and_yield(
                             event,
                             include_meta,
@@ -525,6 +540,13 @@ class TinyCUALoop(BaseLoop):
                 # Record assistant response in working messages
                 if combined:
                     all_messages.append({"role": "assistant", "content": combined})
+
+                # Record tool calls in working messages for transcript completeness
+                for tool_call in collected_tool_calls:
+                    all_messages.append({
+                        "role": "assistant",
+                        "tool_calls": [tool_call],
+                    })
 
                 # Emit node.completed lifecycle event
                 finish_reason = "completed" if combined else "empty"

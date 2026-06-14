@@ -77,7 +77,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 - **FR-010**: System MUST coerce nullable token counts from the SDK to non-negative integers before writing to transcript or usage files.
 - **FR-011**: System MUST support configurable output directory via CLI `--output-dir` flag (default: `/tmp_workspace/results`).
 - **FR-012**: System MUST preserve user messages, assistant messages, and tool-result messages in the transcript — system messages are excluded.
-- **FR-013**: `transcript.jsonl` path MUST be configurable and default to `transcript.jsonl` in the output directory.
+- **FR-013**: `transcript.jsonl` path MUST be configurable at the API level via `write_openclaw_jsonl(records, path)` and default to `transcript.jsonl` in the output directory. CLI-level `--transcript-path` flag is deferred to a future milestone.
 
 ### Key Entities _(include if feature involves data)_
 
