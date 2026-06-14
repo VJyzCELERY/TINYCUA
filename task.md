@@ -26,7 +26,6 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
   - [ ] Define `SummaryAggregate` dataclass with `from_task_results()` class method
   - [ ] Implement task list loading — discover all 60 WildClawBench task IDs (from package or hardcoded list)
   - [ ] Implement `run_full_benchmark(config, output_dir, tasks)` — main execution loop
-  - [ ] Implement resumption: track completed task IDs in `.completed` file; skip on re-run
   - [ ] Add argparse CLI entry point at module level (`if __name__ == "__main__"`)
 
 ### Phase 2 — Data Collection and Aggregation
@@ -49,7 +48,6 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
   - [ ] Write tasks array from list of TaskResult
   - [ ] Ensure valid JSON output with readable formatting
 - [ ] Implement task artifact directory structure — `results/<task_id>/` for transcripts, usage, logs <!-- id: 10 -->
-- [ ] Implement `.completed` file tracking for run resumption <!-- id: 11 -->
 
 ## Testing Phase
 
@@ -64,7 +62,6 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 - [ ] Verify `summary_all.json` exists and contains metadata, summary, and tasks sections <!-- id: 17 -->
 - [ ] Verify task artifacts (transcript.jsonl, usage.json, agent.log) exist for each task <!-- id: 18 -->
 - [ ] Verify metadata includes model name, endpoint, hardware, runtime version <!-- id: 19 -->
-- [ ] Test resumption: interrupt a run, re-run, verify completed tasks are skipped <!-- id: 20 -->
 - [ ] Test preflight_check rejects read-only output directory <!-- id: 21 -->
 
 ## Documentation Phase

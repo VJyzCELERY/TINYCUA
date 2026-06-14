@@ -165,9 +165,9 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 
 ## Review Checklist
 
-- [ ] No implementation details beyond what the design docs specify
+- [x] No implementation details beyond what the design docs specify
 - [x] All mandatory sections completed
-- [ ] Requirements are testable and unambiguous
+- [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] Success criteria are measurable
 - [ ] Exit criteria match Milestone 5.6 from the roadmap issue
