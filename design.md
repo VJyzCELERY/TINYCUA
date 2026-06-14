@@ -326,19 +326,6 @@ def preflight_check(output_dir: Path) -> None:
 
 ---
 
-## Open Questions _(optional)_
-
-1. **Should the benchmark support resuming from a partial run?**
-   - **Status**: Resolved — deferred to a future milestone. See spec.md Open Questions for details.
-
-2. **How should judge LLM configuration be handled in the metadata?**
-   - **Status**: Resolved — include `judge_model` and `judge_endpoint` in metadata, allow null if not configured. See spec.md FR-004 and Open Questions.
-
-3. **Should the benchmark script support custom task lists?**
-   - **Status**: Resolved — supported via `--tasks` argument accepting comma-separated task IDs. Default is all 60 tasks. See spec.md Open Questions.
-
----
-
 ## References
 
 - Spec: [./spec.md](./spec.md)
