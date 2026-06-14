@@ -192,42 +192,7 @@ def test_smoke_run_report_json_and_markdown(tmp_path):
 
 ## Data Model Changes
 
-```python
-@dataclass(frozen=True)
-class SmokeTask:
-    task_id: str              # unique identifier (e.g., "prod-flow-001")
-    category: str             # WildClawBench category name
-    prompt: str               # task prompt text
-    timeout_seconds: int      # per-task timeout (default: 300)
-    workspace_path: Path      # working directory for the task
-    output_dir: Path          # artifact output directory
-    dependencies: list[str]   # required capabilities (e.g., ["browser", "email"])
-
-@dataclass
-class SmokeResult:
-    task_id: str
-    category: str
-    status: str               # "pass" | "fail" | "skip" | "timeout"
-    elapsed_time: float       # seconds
-    usage: dict                # usage summary from usage.json (empty dict for skip/fail with no usage)
-    failure_reason: str | None
-    failure_category: str | None  # "harness_crash" | "timeout" | "llm_error" | "missing_dependency" | "grading_error" | "other"
-    artifact_paths: dict      # {"log": Path, "transcript": Path, "usage": Path}
-
-@dataclass
-class SmokeReport:
-    run_timestamp: str        # ISO 8601
-    model: str                # model used
-    base_url: str             # endpoint used
-    total_tasks: int
-    passed: int
-    failed: int
-    skipped: int
-    timed_out: int
-    results: list[SmokeResult]
-    category_summary: dict[str, dict]  # per-category pass/fail/skip counts
-    failure_taxonomy: dict[str, int]   # failure_category → count
-```
+See `./design.md` — Data Model section for full `SmokeTask`, `SmokeResult`, and `SmokeReport` dataclass definitions.
 
 ## API Changes
 
