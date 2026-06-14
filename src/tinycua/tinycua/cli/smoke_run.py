@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +65,20 @@ class SmokeResult:
 
     task_id: str
     category: str
-    status: str
+    status: Literal["pass", "fail", "skip", "timeout"]
     elapsed_time: float
     usage: dict[str, Any]
     failure_reason: str | None
     failure_category: str | None
     artifact_paths: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        """Validate that status is one of the allowed values."""
+        valid = {"pass", "fail", "skip", "timeout"}
+        if self.status not in valid:
+            raise ValueError(
+                f"Invalid status {self.status!r}; must be one of {sorted(valid)}"
+            )
 
 
 @dataclass
@@ -185,10 +194,16 @@ class SmokeTaskSelector:
     Args:
         available_capabilities: Set of capabilities available in the
             current environment (e.g., {"browser", "email", "filesystem"}).
+        output_base: Base directory for task workspace and output paths.
     """
 
-    def __init__(self, available_capabilities: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        available_capabilities: set[str] | None = None,
+        output_base: Path | None = None,
+    ) -> None:
         self._available = available_capabilities or set()
+        self._output_base = output_base or Path("./smoke-runs")
 
     def select(self) -> list[SmokeTask]:
         """Return one task per category where dependencies are met.
@@ -210,8 +225,8 @@ class SmokeTaskSelector:
                     category=task_def["category"],
                     prompt=task_def["prompt"],
                     timeout_seconds=task_def["timeout_seconds"],
-                    workspace_path=Path(f"/tmp/smoke-{task_def['task_id']}"),
-                    output_dir=Path(f"/tmp/smoke-output/{task_def['task_id']}"),
+                    workspace_path=self._output_base / "workspace" / task_def["task_id"],
+                    output_dir=self._output_base / "output" / task_def["task_id"],
                     dependencies=deps,
                 )
             )
@@ -358,8 +373,8 @@ class SmokeReportGenerator:
 
         # Summary
         lines.append("## Summary\n")
-        lines.append(f"| Metric | Count |")
-        lines.append(f"|--------|-------|")
+        lines.append("| Metric | Count |")
+        lines.append("|--------|-------|")
         lines.append(f"| Total Tasks | {report.total_tasks} |")
         lines.append(f"| Passed | {report.passed} |")
         lines.append(f"| Failed | {report.failed} |")
@@ -440,6 +455,7 @@ class SmokeRunOrchestrator:
         timeout: int = 300,
         mode: str = "local",
         available_capabilities: set[str] | None = None,
+        docker_image: str = "tinycua:latest",
     ) -> None:
         self._model = model
         self._base_url = base_url
@@ -448,6 +464,7 @@ class SmokeRunOrchestrator:
         self._timeout = timeout
         self._mode = mode
         self._available_capabilities = available_capabilities
+        self._docker_image = docker_image
 
     def run(self) -> SmokeReport:
         """Execute smoke runs and return the summary report.
@@ -464,7 +481,8 @@ class SmokeRunOrchestrator:
 
         # Select tasks
         selector = SmokeTaskSelector(
-            available_capabilities=self._available_capabilities
+            available_capabilities=self._available_capabilities,
+            output_base=self._output_base,
         )
         tasks = selector.select()
 
@@ -494,7 +512,8 @@ class SmokeRunOrchestrator:
             List of SmokeTask objects.
         """
         selector = SmokeTaskSelector(
-            available_capabilities=self._available_capabilities
+            available_capabilities=self._available_capabilities,
+            output_base=self._output_base,
         )
         return selector.select()
 
@@ -652,8 +671,9 @@ class SmokeRunOrchestrator:
         if self._base_url:
             cmd.extend(["--base-url", self._base_url])
 
+        env = os.environ.copy()
         if self._api_key:
-            cmd.extend(["--api-key", self._api_key])
+            env["TINYCUA_API_KEY"] = self._api_key
 
         logger.debug("Executing: %s", " ".join(cmd))
 
@@ -663,13 +683,8 @@ class SmokeRunOrchestrator:
             text=True,
             timeout=task.timeout_seconds + 10,  # extra buffer for subprocess overhead
             cwd=str(task.workspace_path),
+            env=env,
         )
-
-        # Ensure stdout/stderr are strings (not bytes) for JSON serialization
-        if isinstance(result.stdout, bytes):
-            result.stdout = result.stdout.decode("utf-8", errors="replace")
-        if isinstance(result.stderr, bytes):
-            result.stderr = result.stderr.decode("utf-8", errors="replace")
 
         return result
 
@@ -696,7 +711,7 @@ class SmokeRunOrchestrator:
             f"TINYCUA_BASE_URL={self._base_url}",
             "-e",
             f"TINYCUA_API_KEY={self._api_key}",
-            "tinycua:latest",
+            self._docker_image,
             "run",
             task.prompt,
             "--timeout",
@@ -717,12 +732,6 @@ class SmokeRunOrchestrator:
             text=True,
             timeout=task.timeout_seconds + 30,  # extra buffer for Docker overhead
         )
-
-        # Ensure stdout/stderr are strings (not bytes) for JSON serialization
-        if isinstance(result.stdout, bytes):
-            result.stdout = result.stdout.decode("utf-8", errors="replace")
-        if isinstance(result.stderr, bytes):
-            result.stderr = result.stderr.decode("utf-8", errors="replace")
 
         return result
 
@@ -847,21 +856,12 @@ class SmokeRunOrchestrator:
 # ---------------------------------------------------------------------------
 
 
-def parse_args(argv: list[str] | None = None) -> Any:
-    """Parse CLI arguments for the ``tinycua smoke-run`` subcommand.
+def add_arguments(parser: Any) -> None:
+    """Add CLI arguments to an argparse subparser for smoke-run.
 
     Args:
-        argv: Command-line arguments. Uses sys.argv[1:] when None.
-
-    Returns:
-        Parsed argument namespace.
+        parser: The subparser to add arguments to.
     """
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        prog="tinycua smoke-run",
-        description="Run WildClawBench smoke tasks across all categories.",
-    )
     parser.add_argument(
         "--model",
         type=str,
@@ -895,8 +895,14 @@ def parse_args(argv: list[str] | None = None) -> Any:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("./smoke-runs"),
-        help="Base output directory (default: ./smoke-runs).",
+        default=Path("./tmp/smoke-runs"),
+        help="Base output directory (default: ./tmp/smoke-runs).",
+    )
+    parser.add_argument(
+        "--docker-image",
+        type=str,
+        default="tinycua:latest",
+        help="Docker image name for Docker mode (default: tinycua:latest).",
     )
     parser.add_argument(
         "--verbose",
@@ -904,6 +910,24 @@ def parse_args(argv: list[str] | None = None) -> Any:
         default=False,
         help="Enable debug logging output.",
     )
+
+
+def parse_args(argv: list[str] | None = None) -> Any:
+    """Parse CLI arguments for the ``tinycua smoke-run`` subcommand.
+
+    Args:
+        argv: Command-line arguments. Uses sys.argv[1:] when None.
+
+    Returns:
+        Parsed argument namespace.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="tinycua smoke-run",
+        description="Run WildClawBench smoke tasks across all categories.",
+    )
+    add_arguments(parser)
     return parser.parse_args(argv)
 
 
@@ -914,6 +938,7 @@ def smoke_run_command(
     timeout: int,
     mode: str,
     output: Path,
+    docker_image: str,
     verbose: bool,
 ) -> int:
     """Execute the tinycua smoke-run command.
@@ -925,6 +950,7 @@ def smoke_run_command(
         timeout: Per-task timeout in seconds.
         mode: Execution mode ("local" or "docker").
         output: Base output directory.
+        docker_image: Docker image name for Docker mode.
         verbose: Enable debug logging.
 
     Returns:
@@ -934,8 +960,6 @@ def smoke_run_command(
         logging.basicConfig(level=logging.DEBUG, format="%(name)s %(levelname)s: %(message)s")
     else:
         logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-    import os
 
     resolved_model = model or os.environ.get("TINYCUA_MODEL", "llama3")
     resolved_base_url = base_url or os.environ.get("TINYCUA_BASE_URL", "http://localhost:8000")
@@ -948,6 +972,7 @@ def smoke_run_command(
         output_base=output,
         timeout=timeout,
         mode=mode,
+        docker_image=docker_image,
     )
 
     try:

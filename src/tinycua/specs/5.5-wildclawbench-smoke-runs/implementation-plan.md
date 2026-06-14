@@ -13,7 +13,7 @@ Adds a smoke-run orchestration script that selects representative tasks from eac
 
 ### Configuration
 
-- [ ] **None** — smoke-run script reads model config from environment variables or CLI flags
+- [x] **None** — smoke-run script reads model config from environment variables or CLI flags
 
 ### Running Services
 
@@ -24,17 +24,17 @@ Adds a smoke-run orchestration script that selects representative tasks from eac
 
 ### Data / Fixtures
 
-- [ ] **None** — smoke-run script uses a static curated task list (no dataset loading)
+- [x] **None** — smoke-run script uses a static curated task list (no dataset loading)
 
 ### Access / Permissions
 
-- [ ] **None** — no special access required
+- [x] **None** — no special access required
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.11+, Docker (optional, for Docker mode)
-- [ ] **Package manager**: uv
-- [ ] **None** — no additional CLI tools required
+- [x] **Runtime**: Python 3.11+, Docker (optional, for Docker mode)
+- [x] **Package manager**: uv
+- [x] **None** — no additional CLI tools required
 
 ---
 
@@ -131,17 +131,17 @@ def test_smoke_run_report_json_and_markdown(tmp_path):
 
 ### Key Test Scenarios
 
-- [ ] **Scenario 1**: Full smoke run with mock agent produces a report with all 6 categories covered
-- [ ] **Scenario 2**: Each attempted task collects agent.log, transcript.jsonl, and usage.json artifacts
-- [ ] **Edge case**: Tasks with missing dependencies are skipped (not failed) with documented reasons
+- [x] **Scenario 1**: Full smoke run with mock agent produces a report with all 6 categories covered
+- [x] **Scenario 2**: Each attempted task collects agent.log, transcript.jsonl, and usage.json artifacts
+- [x] **Edge case**: Tasks with missing dependencies are skipped (not failed) with documented reasons
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [ ] Integration tests (defined above) — these must pass for implementation to be complete
-- [ ] Unit tests for SmokeTaskSelector, categorize_failure, SmokeReportGenerator — test error handling, edge cases
-- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [x] Unit tests for SmokeTaskSelector, categorize_failure, SmokeReportGenerator — test error handling, edge cases
+- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
@@ -212,19 +212,20 @@ See `./design.md` — Data Model section for full `SmokeTask`, `SmokeResult`, an
 | `--timeout` | int | 300 | Per-task timeout in seconds |
 | `--mode` | str | "local" | Execution mode: "local" or "docker" |
 | `--output` | Path | `./smoke-runs` | Base output directory |
+| `--docker-image` | str | `tinycua:latest` | Docker image name for Docker mode |
 | `--verbose` | flag | False | Enable debug logging |
 
 ## Dependencies
 
 ### External Dependencies
 
-- [ ] No new external packages required — uses stdlib + existing tinycua dependencies
+- [x] No new external packages required — uses stdlib + existing tinycua dependencies
 
 ### Internal Dependencies
 
-- [ ] Depends on Milestone 5.2: `tinycua/wildclawbench/agent.py` (TinyCUAAgent adapter)
-- [ ] Depends on Milestone 5.4: `tinycua/cli/transcript.py` (transcript/usage writing patterns)
-- [ ] Blocks Milestone 5.6: Full 60-task benchmark run will reuse smoke-run infrastructure
+- [x] Depends on Milestone 5.2: `tinycua/wildclawbench/agent.py` (TinyCUAAgent adapter)
+- [x] Depends on Milestone 5.4: `tinycua/cli/transcript.py` (transcript/usage writing patterns)
+- [x] Blocks Milestone 5.6: Full 60-task benchmark run will reuse smoke-run infrastructure
 
 ## Risks and Mitigations
 

@@ -1,7 +1,7 @@
 # Design Document: WildClawBench Smoke Runs
 
 **Spec**: `./spec.md`
-**Status**: Draft
+**Status**: Implemented
 **Last Updated**: 2026-06-14
 
 ---
@@ -176,41 +176,41 @@ def categorize_failure(
 
 ## Implementation Phases
 
-- [ ] ### Phase 1 — Task Selection (required)
+- [x] ### Phase 1 — Task Selection (required)
 
-- [ ] Define `SmokeTask` dataclass with task metadata
-- [ ] Implement `SmokeTaskSelector` with static curated task list per category
-- [ ] Implement dependency checking logic (capability → task mapping)
-- [ ] Add skip logic for tasks with unavailable dependencies
+- [x] Define `SmokeTask` dataclass with task metadata
+- [x] Implement `SmokeTaskSelector` with static curated task list per category
+- [x] Implement dependency checking logic (capability → task mapping)
+- [x] Add skip logic for tasks with unavailable dependencies
 
-- [ ] ### Phase 2 — Smoke-Run Orchestration (required)
+- [x] ### Phase 2 — Smoke-Run Orchestration (required)
 
-- [ ] Implement `SmokeRunOrchestrator` class
-- [ ] Wire task selection → execution → artifact collection pipeline
-- [ ] Support both local CLI mode (`tinycua run`) and Docker adapter mode
-- [ ] Implement cooperative timeout per task (subprocess timeout)
+- [x] Implement `SmokeRunOrchestrator` class
+- [x] Wire task selection → execution → artifact collection pipeline
+- [x] Support both local CLI mode (`tinycua run`) and Docker adapter mode
+- [x] Implement cooperative timeout per task (subprocess timeout)
 
-- [ ] ### Phase 3 — Failure Categorization and Reporting (required)
+- [x] ### Phase 3 — Failure Categorization and Reporting (required)
 
-- [ ] Implement `categorize_failure()` with exception/exit-code heuristics
-- [ ] Implement `SmokeResult` and `SmokeReport` dataclasses
-- [ ] Implement `SmokeReportGenerator` for structured report output (JSON + Markdown)
-- [ ] Implement per-category summary and failure taxonomy aggregation
+- [x] Implement `categorize_failure()` with exception/exit-code heuristics
+- [x] Implement `SmokeResult` and `SmokeReport` dataclasses
+- [x] Implement `SmokeReportGenerator` for structured report output (JSON + Markdown)
+- [x] Implement per-category summary and failure taxonomy aggregation
 
-- [ ] ### Phase 4 — CLI Integration (required)
+- [x] ### Phase 4 — CLI Integration (required)
 
-- [ ] Add `tinycua smoke-run` CLI subcommand
-- [ ] Accept flags: `--model`, `--base-url`, `--api-key`, `--timeout`, `--mode`, `--output`
-- [ ] Wire CLI to `SmokeRunOrchestrator.run()`
-- [ ] Print summary table to stdout after completion
+- [x] Add `tinycua smoke-run` CLI subcommand
+- [x] Accept flags: `--model`, `--base-url`, `--api-key`, `--timeout`, `--mode`, `--output`
+- [x] Wire CLI to `SmokeRunOrchestrator.run()`
+- [x] Print summary table to stdout after completion
 
-- [ ] ### Phase 5 — Tests (required)
+- [x] ### Phase 5 — Tests (required)
 
-- [ ] Unit tests for `SmokeTaskSelector` — category coverage, skip logic
-- [ ] Unit tests for `categorize_failure()` — each failure category
-- [ ] Unit tests for `SmokeReportGenerator` — correct aggregation
-- [ ] Unit tests for idempotency — re-run does not corrupt artifacts
-- [ ] Integration test: mock agent → full smoke run → report generation
+- [x] Unit tests for `SmokeTaskSelector` — category coverage, skip logic
+- [x] Unit tests for `categorize_failure()` — each failure category
+- [x] Unit tests for `SmokeReportGenerator` — correct aggregation
+- [x] Unit tests for idempotency — re-run does not corrupt artifacts
+- [x] Integration test: mock agent → full smoke run → report generation
 
 ---
 

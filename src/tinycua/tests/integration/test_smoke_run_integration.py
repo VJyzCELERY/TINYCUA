@@ -11,10 +11,7 @@ import pytest
 
 from tinycua.cli.smoke_run import (
     SmokeReport,
-    SmokeResult,
     SmokeRunOrchestrator,
-    SmokeTask,
-    SmokeTaskSelector,
 )
 
 
@@ -61,8 +58,8 @@ def mock_run_success():
         return subprocess.CompletedProcess(
             args=cmd,
             returncode=0,
-            stdout=b"",
-            stderr=b"",
+            stdout="",
+            stderr="",
         )
 
     return _mock_run
@@ -76,8 +73,8 @@ def mock_run_fail():
         return subprocess.CompletedProcess(
             args=cmd,
             returncode=1,
-            stdout=b"",
-            stderr=b"error output",
+            stdout="",
+            stderr="error output",
         )
 
     return _mock_run
@@ -191,7 +188,7 @@ class TestSmokeRunProducesReport:
                 mode="local",
                 available_capabilities={"browser", "email", "filesystem", "code"},
             )
-            report = orchestrator.run()
+            orchestrator.run()
 
         json_path = output_base / "smoke-report.json"
         md_path = output_base / "smoke-report.md"
@@ -235,3 +232,33 @@ class TestSmokeRunProducesReport:
         assert len(failed) > 0
         for result in failed:
             assert result.failure_reason is not None
+
+    def test_transcript_jsonl_format_is_valid(
+        self, output_base: Path, mock_run_success
+    ):
+        """transcript.jsonl must be valid JSONL with parseable JSON per line."""
+        with patch("subprocess.run", mock_run_success):
+            orchestrator = SmokeRunOrchestrator(
+                model="test-model",
+                base_url="http://localhost:8000",
+                api_key="test-key",
+                output_base=output_base,
+                timeout=5,
+                mode="local",
+                available_capabilities={"browser", "email", "filesystem", "code"},
+            )
+            report = orchestrator.run()
+
+        for result in report.results:
+            if result.status in ("pass", "fail", "timeout"):
+                transcript_path = result.artifact_paths.get("transcript")
+                if transcript_path:
+                    path = Path(transcript_path)
+                    assert path.exists(), f"transcript.jsonl missing for {result.task_id}"
+                    lines = path.read_text().strip().splitlines()
+                    assert len(lines) > 0, f"transcript.jsonl empty for {result.task_id}"
+                    for i, line in enumerate(lines):
+                        parsed = json.loads(line)
+                        assert isinstance(parsed, dict), (
+                            f"transcript.jsonl line {i} is not a JSON object for {result.task_id}"
+                        )

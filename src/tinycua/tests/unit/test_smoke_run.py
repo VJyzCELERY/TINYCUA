@@ -165,7 +165,7 @@ class TestCategorizeFailure:
             elapsed=10.0,
             timeout=300,
         )
-        assert result in ("other", "harness_crash")
+        assert result == "other", f"Expected 'other' for exit code 1, got '{result}'"
 
     def test_grading_error(self):
         """Grading-related errors must be categorized as 'grading_error'."""

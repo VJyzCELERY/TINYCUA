@@ -37,10 +37,13 @@ def main() -> None:
     )
 
     # Register 'smoke-run' subcommand
-    subparsers.add_parser(
+    from tinycua.cli.smoke_run import add_arguments as add_smoke_run_arguments
+
+    smoke_run_parser = subparsers.add_parser(
         "smoke-run",
         help="Run WildClawBench smoke tasks across all categories.",
     )
+    add_smoke_run_arguments(smoke_run_parser)
 
     args = parser.parse_args()
 
@@ -115,6 +118,7 @@ def main() -> None:
             mode=smoke_args.mode,
             output=smoke_args.output,
             verbose=smoke_args.verbose,
+            docker_image=smoke_args.docker_image,
         )
         raise SystemExit(exit_code)
 

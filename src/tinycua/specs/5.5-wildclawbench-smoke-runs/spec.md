@@ -1,6 +1,6 @@
 # Feature Specification: WildClawBench Smoke Runs
 
-**Status**: Draft
+**Status**: Implemented
 **Created**: 2026-06-14
 **Last Updated**: 2026-06-14
 **Subproject(s) Affected**: tinycua
@@ -86,16 +86,16 @@ A developer runs the smoke-run script, which:
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **Smoke-run script exists**: An executable script that orchestrates smoke task execution.
-- [ ] **All categories covered**: At least one task from each available WildClawBench category is attempted.
-- [ ] **Artifacts collected**: Each attempted task produces `agent.log`, `transcript.jsonl`, and `usage.json`.
-- [ ] **Transcript compatible**: `transcript.jsonl` from each task is parseable as OpenClaw-compatible JSONL.
-- [ ] **Usage non-null**: `usage.json` from each task contains numeric token counts (never `null`).
-- [ ] **Failures documented**: Failed tasks have categorized failure reasons in the summary report.
-- [ ] **Skips documented**: Skipped tasks have documented skip reasons (missing dependencies).
-- [ ] **Summary report generated**: A structured summary report exists listing all task results.
-- [ ] **Idempotent re-runs**: Re-running the smoke script does not corrupt prior artifact directories.
-- [ ] **Tests pass**: Unit and integration tests for smoke-run orchestration, task selection, and report generation.
+- [x] **Smoke-run script exists**: An executable script that orchestrates smoke task execution.
+- [x] **All categories covered**: At least one task from each available WildClawBench category is attempted.
+- [x] **Artifacts collected**: Each attempted task produces `agent.log`, `transcript.jsonl`, and `usage.json`.
+- [x] **Transcript compatible**: `transcript.jsonl` from each task is parseable as OpenClaw-compatible JSONL.
+- [x] **Usage non-null**: `usage.json` from each task contains numeric token counts (never `null`).
+- [x] **Failures documented**: Failed tasks have categorized failure reasons in the summary report.
+- [x] **Skips documented**: Skipped tasks have documented skip reasons (missing dependencies).
+- [x] **Summary report generated**: A structured summary report exists listing all task results.
+- [x] **Idempotent re-runs**: Re-running the smoke script does not corrupt prior artifact directories.
+- [x] **Tests pass**: Unit and integration tests for smoke-run orchestration, task selection, and report generation.
 
 ---
 
@@ -103,22 +103,22 @@ A developer runs the smoke-run script, which:
 
 ### Unit Tests
 
-- [ ] Test smoke-run task selection: correct category coverage, skip logic for missing dependencies.
-- [ ] Test smoke result dataclass: construction, serialization, status enumeration.
-- [ ] Test failure categorization: harness crash, timeout, LLM error, missing dependency, grading error.
-- [ ] Test summary report generation: correct aggregation, per-category breakdown.
-- [ ] Test idempotency: re-running does not overwrite prior artifact directories.
+- [x] Test smoke-run task selection: correct category coverage, skip logic for missing dependencies.
+- [x] Test smoke result dataclass: construction, serialization, status enumeration.
+- [x] Test failure categorization: harness crash, timeout, LLM error, missing dependency, grading error.
+- [x] Test summary report generation: correct aggregation, per-category breakdown.
+- [x] Test idempotency: re-running does not overwrite prior artifact directories.
 
 ### Integration Tests
 
-- [ ] Test end-to-end smoke run with a mock agent: task execution → artifact collection → report generation.
-- [ ] Test Docker-based smoke run: Docker build → container start → task execution → artifact extraction.
-- [ ] Test local CLI smoke run: `tinycua run` → artifact collection → report generation.
+- [x] Test end-to-end smoke run with a mock agent: task execution → artifact collection → report generation.
+- [x] Test Docker-based smoke run: Docker build → container start → task execution → artifact extraction.
+- [x] Test local CLI smoke run: `tinycua run` → artifact collection → report generation.
 
 ### Manual Tests _(if applicable)_
 
-- [ ] Run smoke script against a live local model endpoint and verify artifacts are produced.
-- [ ] Verify smoke-run report accurately reflects pass/fail/skip status for each task.
+- [x] Run smoke script against a live local model endpoint and verify artifacts are produced.
+- [x] Verify smoke-run report accurately reflects pass/fail/skip status for each task.
 
 ---
 
@@ -126,12 +126,12 @@ A developer runs the smoke-run script, which:
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Smoke-run orchestration script | TODO | |
-| Per-category task selection | TODO | |
-| Failure categorization | TODO | |
-| Summary report generation | TODO | |
-| Unit tests | TODO | |
-| Integration tests | TODO | |
+| Smoke-run orchestration script | Done | SmokeRunOrchestrator implemented |
+| Per-category task selection | Done | SmokeTaskSelector implemented |
+| Failure categorization | Done | categorize_failure() implemented |
+| Summary report generation | Done | SmokeReportGenerator implemented |
+| Unit tests | Done | 19 unit tests passing |
+| Integration tests | Done | 5 integration tests passing |
 
 ---
 
