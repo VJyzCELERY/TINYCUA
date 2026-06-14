@@ -396,7 +396,7 @@ class TinyCUALoop(BaseLoop):
 
         return combined
 
-    async def _run_stream(
+    async def _run_stream(  # noqa: C901 — streaming lifecycle complexity is inherent
         self,
         agent: Agent,
         tools: list[Tool],
@@ -500,13 +500,14 @@ class TinyCUALoop(BaseLoop):
                     async for event in agent._call_llm(
                         messages, resolved_tools, stream=True
                     ):  # type: ignore[arg-type]
-                        if event.get("type") == "response.output_text.delta":
+                        event_type = event.get("type")
+                        if event_type == "response.output_text.delta":
                             content_parts.append(event.get("delta", ""))
-                        if event.get("type") == "response.tool_call":
+                        elif event_type == "response.tool_call":
                             collected_tool_calls.append(event)
-                        if event.get("type") == "response.usage":
+                        elif event_type == "response.usage":
                             self._usage_events.append(event)
-                        self._enrich_and_yield(
+                        enriched = self._enrich_and_yield(
                             event,
                             include_meta,
                             node.node_id,
@@ -514,7 +515,7 @@ class TinyCUALoop(BaseLoop):
                             attempt,
                         )
                         if not final_only or is_terminal_node:
-                            yield event
+                            yield enriched
                 except Exception:
                     error_event = self._make_error_event(
                         node.node_id,

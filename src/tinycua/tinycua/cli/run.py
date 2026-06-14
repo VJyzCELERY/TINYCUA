@@ -16,7 +16,12 @@ from tinycua_sdk.agent import Agent
 
 from tinycua.cli.config import load_config
 from tinycua.cli.logging import write_log_entry
-from tinycua.cli.transcript import write_transcript
+from tinycua.cli.transcript import (
+    convert_working_messages_to_openclaw,
+    write_openclaw_jsonl,
+    write_transcript,
+    write_usage_summary,
+)
 from tinycua.factory import create_tinycua_agent
 
 logger = logging.getLogger(__name__)
@@ -221,7 +226,21 @@ def run_command(
         # Write transcript from working messages
         loop = agent.loop
         working_messages = getattr(loop, "_working_messages", [])
-        write_transcript(working_messages, transcript_path)
+        usage_events = loop.get_usage_events()
+
+        # Primary transcript: OpenClaw-compatible format
+        openclaw_records = convert_working_messages_to_openclaw(
+            working_messages, usage_events,
+        )
+        write_openclaw_jsonl(openclaw_records, transcript_path)
+
+        # Backward-compatible raw transcript
+        raw_transcript_path = output_dir / "transcript.raw.jsonl"
+        write_transcript(working_messages, raw_transcript_path)
+
+        # Usage summary
+        usage_path = output_dir / "usage.json"
+        write_usage_summary(usage_path, usage_events, elapsed)
 
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
         if result:
@@ -248,6 +267,9 @@ async def _run_agent_with_timeout(
 ) -> str:
     """Run the agent with cooperative timeout checking.
 
+    Uses streaming mode to enable usage event capture. Events are
+    consumed but not yielded — the final response string is returned.
+
     Args:
         agent: The TinyCUA agent instance.
         prompt: Task prompt string.
@@ -256,16 +278,14 @@ async def _run_agent_with_timeout(
     Returns:
         The agent response string.
     """
-    run_task = asyncio.create_task(agent.run(prompt))
-
-    while not run_task.done():
-        if timeout_event.is_set():
-            run_task.cancel()
-            try:
-                await run_task
-            except asyncio.CancelledError:
-                pass
-            raise asyncio.CancelledError
-        await asyncio.sleep(0.1)
-
-    return run_task.result()
+    stream_iter = await agent.run(prompt, stream=True)
+    result = ""
+    try:
+        async for event in stream_iter:
+            if timeout_event.is_set():
+                raise asyncio.CancelledError
+            if event.get("type") == "response.output_text.delta":
+                result += event.get("delta", "")
+    except asyncio.CancelledError:
+        raise
+    return result

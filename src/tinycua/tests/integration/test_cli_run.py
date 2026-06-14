@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -124,16 +124,20 @@ class TestCLIRunExitCodes:
         """Given a successful run, exit code is 0."""
         from tinycua.cli.run import run_command
 
-        with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
-            mock_agent = AsyncMock()
-            mock_agent.run = AsyncMock(return_value="done")
-            mock_factory.return_value = mock_agent
+        mock_loop = MagicMock()
+        mock_loop._working_messages = []
+        mock_loop.get_usage_events = MagicMock(return_value=[])
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-            }):
+        mock_agent = MagicMock()
+        mock_agent.loop = mock_loop
+
+        with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
+             patch("tinycua.cli.run._run_async_safely", return_value="done"), \
+             patch("tinycua.cli.run.load_config", return_value={
+                 "base_url": "http://localhost:8080/v1",
+                 "api_key": "test",
+                 "model": "test-model",
+             }):
                 exit_code = run_command(
                     prompt="test task",
                     timeout=10,
@@ -171,13 +175,8 @@ class TestCLIRunExitCodes:
         import asyncio
         from tinycua.cli.run import run_command
 
-        async def slow_run(*args, **kwargs):
-            await asyncio.sleep(100)
-            return "never"
-
         with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
             mock_agent = AsyncMock()
-            mock_agent.run = slow_run
             mock_factory.return_value = mock_agent
 
             with patch("tinycua.cli.run.load_config", return_value={
@@ -185,15 +184,17 @@ class TestCLIRunExitCodes:
                 "api_key": "test",
                 "model": "test-model",
             }):
-                exit_code = run_command(
-                    prompt="test task",
-                    timeout=1,  # 1 second timeout
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
-                    verbose=False,
-                )
-                assert exit_code == 124
+                # Mock _run_async_safely to raise CancelledError (simulates timeout)
+                with patch("tinycua.cli.run._run_async_safely", side_effect=asyncio.CancelledError):
+                    exit_code = run_command(
+                        prompt="test task",
+                        timeout=1,  # 1 second timeout
+                        output_dir=tmp_path / "test_out",
+                        workspace=tmp_path / "test_ws",
+                        base_url=None, api_key=None, model=None,
+                        verbose=False,
+                    )
+                    assert exit_code == 124
 
 
 class TestCLIRunTranscriptWriting:
