@@ -26,7 +26,7 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
 
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
-| Local LLM endpoint | Yes | User's local provider (vLLM/Ollama/LM Studio) | `curl $TINYCUA_BASE_URL/models` |
+| Local LLM endpoint | Yes | User's local provider (vLLM/Ollama/LM Studio) | `curl $LLM_BASE_URL/models` |
 | Docker daemon | Yes | `dockerd` or Docker Desktop | `docker info` |
 
 ### Data / Fixtures
@@ -155,11 +155,11 @@ def test_task_artifacts_preserved(tmp_path):
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: RunMetadata collection — verifies hardware/software metadata is captured correctly
-- [x] **Scenario 2**: TaskResult schema — ensures per-task results serialize to the expected JSON shape
-- [x] **Scenario 3**: SummaryAggregate calculation — validates pass/fail/skip counts and average score
-- [x] **Scenario 4**: summary_all.json output — confirms the orchestrator writes valid JSON with all required sections
-- [x] **Edge case**: Read-only output directory — preflight_check rejects before any tasks execute
+- [ ] **Scenario 1**: RunMetadata collection — verifies hardware/software metadata is captured correctly
+- [ ] **Scenario 2**: TaskResult schema — ensures per-task results serialize to the expected JSON shape
+- [ ] **Scenario 3**: SummaryAggregate calculation — validates pass/fail/skip counts and average score
+- [ ] **Scenario 4**: summary_all.json output — confirms the orchestrator writes valid JSON with all required sections
+- [ ] **Edge case**: Read-only output directory — preflight_check rejects before any tasks execute
 
 ## Verification Plan
 
