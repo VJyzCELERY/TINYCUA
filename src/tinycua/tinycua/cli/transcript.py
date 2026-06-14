@@ -123,7 +123,7 @@ def convert_working_messages_to_openclaw(
             }
             # Attach per-message usage if available
             if usage_idx < len(usage_list):
-                record["usage"] = usage_list[usage_idx]
+                record["message"]["usage"] = usage_list[usage_idx]
                 usage_idx += 1
             records.append(record)
             continue
@@ -138,7 +138,7 @@ def convert_working_messages_to_openclaw(
         }
         # Attach per-message usage for assistant messages
         if role == "assistant" and usage_idx < len(usage_list):
-            record["usage"] = usage_list[usage_idx]
+            record["message"]["usage"] = usage_list[usage_idx]
             usage_idx += 1
         records.append(record)
 

@@ -217,7 +217,7 @@ class TestConvertWorkingMessages:
         records = convert_working_messages_to_openclaw(
             messages, per_message_usage=usage
         )
-        assert records[0]["usage"] == usage[0]
+        assert records[0]["message"]["usage"] == usage[0]
 
     def test_empty_messages_returns_empty_list(self) -> None:
         """Empty message list returns empty records."""
