@@ -113,17 +113,20 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv (project uses uv for dependency management)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --no-cache-dir -r requirements.txt
 
 # Copy TinyCUA source
 COPY src/tinycua /app/tinycua
 COPY src/tinycua-sdk /app/tinycua-sdk
 
-# Install TinyCUA
+# Install TinyCUA (non-editable; editable installs don't work in Docker)
 WORKDIR /app
-RUN pip install -e ./tinycua-sdk && pip install -e ./tinycua
+RUN uv pip install ./tinycua-sdk && uv pip install ./tinycua
 
 # Set up entry point
 COPY scripts/entrypoint.sh /app/entrypoint.sh
@@ -152,7 +155,10 @@ export TINYCUA_MODEL_ENDPOINT="$TINYCUA_MODEL_ENDPOINT"
 export TINYCUA_MODEL_API_KEY="${TINYCUA_MODEL_API_KEY:-}"
 
 # Run TinyCUA agent with task prompt
-exec python -m tinycua.benchmark.run \
+# NOTE: The CLI entry point `tinycua` is established in Milestone 5.1
+# (see specs/5.1-cli-runtime-entry-point/). The benchmark subcommand
+# is provided by that CLI, not a standalone python -m module.
+exec tinycua benchmark run \
     --prompt "$TASK_PROMPT" \
     --workspace /tmp_workspace \
     --output /tmp_workspace/results \
@@ -241,6 +247,10 @@ exec python -m tinycua.benchmark.run \
 2. **Local model endpoint networking**
    - What Docker networking configuration is needed for host-local model endpoints?
    - Options: `--network host`, `host.docker.internal`, bridge network with host routing.
+   - **`--network host`**: Shares the host network namespace directly. Simple but reduces container isolation; port conflicts possible.
+   - **`host.docker.internal`**: Docker Desktop provides this automatically; on Linux, add `--add-host=host.docker.internal:host-gateway` to the `docker run` command.
+   - **Bridge network with host routing**: Use a custom bridge and configure routing. Most isolated but requires manual IP/route setup.
+   - Recommendation: Use `--add-host=host.docker.internal:host-gateway` for Linux, native `host.docker.internal` for Docker Desktop, as the simplest cross-platform approach.
 
 3. **Logging and monitoring**
    - Should the container include logging drivers for centralized log collection?
