@@ -36,6 +36,12 @@ def main() -> None:
         help="Run a TinyCUA benchmark task.",
     )
 
+    # Register 'smoke-run' subcommand
+    subparsers.add_parser(
+        "smoke-run",
+        help="Run WildClawBench smoke tasks across all categories.",
+    )
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -93,6 +99,22 @@ def main() -> None:
             api_key=benchmark_args.api_key,
             model=benchmark_args.model,
             verbose=benchmark_args.verbose,
+        )
+        raise SystemExit(exit_code)
+
+    elif args.command == "smoke-run":
+        from tinycua.cli.smoke_run import parse_args, smoke_run_command
+
+        smoke_args = parse_args(sys.argv[2:])
+
+        exit_code = smoke_run_command(
+            model=smoke_args.model,
+            base_url=smoke_args.base_url,
+            api_key=smoke_args.api_key,
+            timeout=smoke_args.timeout,
+            mode=smoke_args.mode,
+            output=smoke_args.output,
+            verbose=smoke_args.verbose,
         )
         raise SystemExit(exit_code)
 
