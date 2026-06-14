@@ -13,14 +13,13 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
 
 ### Configuration
 
-- [x] **.env file** — required variables:
+- [ ] **.env file** — required variables:
   ```
   # Local LLM endpoint (e.g., vLLM, Ollama, LM Studio)
-  TINYCUA_BASE_URL=http://localhost:8000/v1
-  TINYCUA_API_KEY=              # optional for local models
-  TINYCUA_MODEL=llama3
+  LLM_BASE_URL=http://localhost:8000/v1
+  LLM_MODEL=llama3
   ```
-- [ ] **Environment variables** documented in `src/tinycua/.env.example`
+- [ ] **Environment variables** documented in `src/tinycua/.env.example` (benchmark-specific vars must be uncommented/added)
 - [ ] **None** — no hosted service secrets required
 
 ### Running Services
@@ -225,10 +224,10 @@ def test_task_artifacts_preserved(tmp_path):
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `scripts/` (new package) | New | Benchmark orchestration scripts |
-| `scripts/benchmark_config.py` | New | Configuration dataclass |
-| `scripts/collect_metadata.py` | New | Hardware/runtime metadata collection |
-| `scripts/run_benchmark.py` | New | Full benchmark orchestrator loop |
+| `src/tinycua/scripts/` (new package) | New | Benchmark orchestration scripts |
+| `src/tinycua/scripts/benchmark_config.py` | New | Configuration dataclass |
+| `src/tinycua/scripts/collect_metadata.py` | New | Hardware/runtime metadata collection |
+| `src/tinycua/scripts/run_benchmark.py` | New | Full benchmark orchestrator loop |
 | `tests/test_benchmark_orchestrator.py` | New | Integration tests |
 | `benchmark_results/` | New | Runtime output directory (gitignored) |
 
@@ -287,15 +286,15 @@ class SummaryAggregate:
 
 ## API Changes
 
-No API endpoint changes — this is a script-based orchestrator invoked via `uv run python scripts/run_benchmark.py`.
+No API endpoint changes — this is a script-based orchestrator invoked via `uv run python src/tinycua/scripts/run_benchmark.py`.
 
 ### CLI Interface
 
 | Command | Description |
 |---------|-------------|
-| `uv run python scripts/run_benchmark.py` | Run full 60-task benchmark |
-| `uv run python scripts/run_benchmark.py --tasks t1,t2,t3` | Run subset of tasks |
-| `uv run python scripts/run_benchmark.py --output-dir ./my_results` | Custom output directory |
+| `uv run python src/tinycua/scripts/run_benchmark.py` | Run full 60-task benchmark |
+| `uv run python src/tinycua/scripts/run_benchmark.py --tasks t1,t2,t3` | Run subset of tasks |
+| `uv run python src/tinycua/scripts/run_benchmark.py --output-dir ./my_results` | Custom output directory |
 
 ## Dependencies
 

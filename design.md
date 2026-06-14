@@ -37,10 +37,10 @@ Benchmark Orchestrator (Python script)
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `scripts/run_benchmark.py` | New | Orchestrator script for full benchmark run |
-| `scripts/benchmark_config.py` | New | Configuration for benchmark run (model, endpoint, tasks) |
-| `scripts/collect_metadata.py` | New | Hardware/runtime metadata collection |
-| `benchmark_results/` | New | Output directory for benchmark artifacts |
+| `src/tinycua/scripts/run_benchmark.py` | New | Orchestrator script for full benchmark run |
+| `src/tinycua/scripts/benchmark_config.py` | New | Configuration for benchmark run (model, endpoint, tasks) |
+| `src/tinycua/scripts/collect_metadata.py` | New | Hardware/runtime metadata collection |
+| `benchmark_results/` | New | Output directory for benchmark artifacts (gitignored) |
 
 ---
 
@@ -188,7 +188,7 @@ class SummaryAggregate:
 ### Benchmark Orchestrator Script
 
 ```python
-# scripts/run_benchmark.py
+# src/tinycua/scripts/run_benchmark.py
 
 def run_full_benchmark(
     config: BenchmarkConfig,
@@ -211,7 +211,7 @@ def run_full_benchmark(
 ### Configuration
 
 ```python
-# scripts/benchmark_config.py
+# src/tinycua/scripts/benchmark_config.py
 
 @dataclass
 class BenchmarkConfig:
@@ -238,7 +238,7 @@ class BenchmarkConfig:
 ### Metadata Collection
 
 ```python
-# scripts/collect_metadata.py
+# src/tinycua/scripts/collect_metadata.py
 
 def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
     """
@@ -262,8 +262,8 @@ def preflight_check(output_dir: Path) -> None:
 
 ### Phase 1 — Benchmark Script Structure
 
-- [ ] Create `scripts/run_benchmark.py` with argument parsing
-- [ ] Create `scripts/benchmark_config.py` with configuration dataclass
+- [ ] Create `src/tinycua/scripts/run_benchmark.py` with argument parsing
+- [ ] Create `src/tinycua/scripts/benchmark_config.py` with configuration dataclass
 - [ ] Implement task list loading — use WildClawBench's task discovery (inspect wildclawbench package for task registry) or fall back to a hardcoded list of 60 task IDs from the WildClawBench repository.
 - [ ] Implement basic loop: for each task, run TinyCUAAgent
 

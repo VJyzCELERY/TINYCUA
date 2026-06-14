@@ -27,6 +27,7 @@
   - Must use local LLM model endpoints (no OpenRouter).
   - Must preserve all task-level artifacts for failure analysis.
   - Must write results to benchmark_results/ directory at the tinycua subproject root.
+  - benchmark_results/ MUST be gitignored to prevent accidental commits of large artifact files.
   - Must record local model, endpoint, hardware, runtime, and judge configuration.
 
 ---

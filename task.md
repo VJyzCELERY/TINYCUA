@@ -11,6 +11,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 
 ### Phase 1 — Benchmark Script Structure
 
+- [ ] Update `src/tinycua/.env.example` with benchmark-related variables (LLM_BASE_URL, LLM_MODEL) <!-- id: 23 -->
 - [ ] Create `src/tinycua/scripts/__init__.py` (empty package init) <!-- id: 2 -->
 - [ ] Create `src/tinycua/scripts/benchmark_config.py` with `BenchmarkConfig` dataclass <!-- id: 3 -->
   - [ ] Define fields: model_name, base_url, api_key, timeout_seconds, concurrent_tasks, docker_image, use_docker, preserve_artifacts, verbose
@@ -59,7 +60,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 
 ## Verification Phase
 
-- [ ] Run subset benchmark: `uv run python scripts/run_benchmark.py --tasks t1,t2,t3` with a local LLM endpoint <!-- id: 16 -->
+- [ ] Run subset benchmark: `uv run python src/tinycua/scripts/run_benchmark.py --tasks t1,t2,t3` with a local LLM endpoint <!-- id: 16 -->
 - [ ] Verify `summary_all.json` exists and contains metadata, summary, and tasks sections <!-- id: 17 -->
 - [ ] Verify task artifacts (transcript.jsonl, usage.json, agent.log) exist for each task <!-- id: 18 -->
 - [ ] Verify metadata includes model name, endpoint, hardware, runtime version <!-- id: 19 -->
@@ -69,7 +70,6 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 ## Documentation Phase
 
 - [ ] Add `benchmark_results/` to `.gitignore` <!-- id: 22 -->
-- [ ] Update `src/tinycua/.env.example` with benchmark-related variables <!-- id: 23 -->
 - [ ] Add usage instructions in script docstrings or inline comments <!-- id: 24 -->
 
 ## Review and Merge
