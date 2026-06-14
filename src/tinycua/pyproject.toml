@@ -79,6 +79,7 @@ addopts = "--strict-markers --disable-warnings --maxfail=2"
 markers = [
     "integration: marks tests as requiring local LLM server",
     "lm_studio: marks tests requiring LM Studio / local LLM provider",
+    "slow: marks tests as slow (e.g., Docker build, image inspect)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:httpx.*",
