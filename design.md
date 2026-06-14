@@ -1,4 +1,4 @@
-# Design Document: WildClawBench TinyCUA BaseAgent Adapter
+# Design Document: Full 60-Task Local-LLM Benchmark Run
 
 **Spec**: [./spec.md](./spec.md)
 **Status**: Draft
@@ -9,7 +9,7 @@
 
 ## Overview
 
-This design implements a `TinyCUAAgent` adapter that implements WildClawBench's `BaseAgent` interface, allowing TinyCUA to be selected as an agent backend for benchmark task execution. The adapter spawns the existing `tinycua run` CLI as a subprocess, handles timeout enforcement, collects usage data, and manages transcript paths. This is the bridge between WildClawBench's task orchestration and TinyCUA's agent execution.
+This design describes the orchestration of a full 60-task WildClawBench benchmark run using the TinyCUA harness with a local LLM model. The focus is on execution, data collection, and result aggregation — not on code architecture changes. The output is a `summary_all.json` file with aggregate results and per-task artifacts for analysis in Milestone 5.7.
 
 ---
 
@@ -18,364 +18,288 @@ This design implements a `TinyCUAAgent` adapter that implements WildClawBench's 
 ### Component Overview
 
 ```
-WildClawBench run_batch.py
+Benchmark Orchestrator (Python script)
   │
-  ├── constructs AgentTaskSpec(task_id, prompt, workspace, output_dir, timeout, model)
-  ├── agent = TinyCUAAgent(model_config=...)
-  ├── execution = agent.run_task(spec)
-  │     │
-  │     ├── ensures output_dir exists
-  │     ├── builds CLI command: tinycua run <prompt> --timeout <t> --output-dir <d> --workspace <w> --model <m>
-  │     ├── spawns subprocess with Popen()
-  │     ├── monitors for timeout via threading.Timer or poll()
-  │     ├── on timeout: kills subprocess, sets error
-  │     ├── on completion: captures elapsed_time
-  │     └── returns AgentExecution(elapsed_time, error)
+  ├── reads WildClawBench task list (60 tasks)
+  ├── for each task:
+  │     ├── constructs AgentTaskSpec
+  │     ├── TinyCUAAgent.run_task(spec)
+  │     ├── TinyCUAAgent.collect_usage(task_id, output_dir, elapsed_time)
+  │     ├── TinyCUAAgent.prepare_grading_transcript(task_id)
+  │     └── stores result in TaskResult
   │
-  ├── usage = agent.collect_usage(task_id, output_dir, elapsed_time)
-  │     ├── reads agent.log or transcript.jsonl for request/token counts
-  │     └── returns {"requests": int, "total_tokens": int|None, "cost": float}
-  │
-  └── transcript_path = agent.prepare_grading_transcript(task_id)
-        └── returns transcript_container_path
+  ├── aggregates TaskResults into SummaryAggregate
+  ├── collects RunMetadata (model, endpoint, hardware, runtime)
+  └── writes summary_all.json
 ```
 
 ### Affected Components
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `tinycua/wildclawbench/__init__.py` | New | Package init |
-| `tinycua/wildclawbench/agent.py` | New | `TinyCUAAgent` class implementing `BaseAgent` |
-| `tinycua/wildclawbench/base_agent.py` | New | Local copy of WildClawBench `BaseAgent` ABC (avoids WildClawBench dependency) |
-| `tests/unit/test_wildclawbench_agent.py` | New | Unit tests for adapter |
-| `tests/integration/test_wildclawbench_integration.py` | New | Integration test with mock task spec |
+| `scripts/run_benchmark.py` | New | Orchestrator script for full benchmark run |
+| `scripts/benchmark_config.py` | New | Configuration for benchmark run (model, endpoint, tasks) |
+| `scripts/collect_metadata.py` | New | Hardware/runtime metadata collection |
+| `benchmark_results/` | New | Output directory for benchmark artifacts |
 
 ---
 
 ## Data Model
 
-### Local BaseAgent Copy
-
-To avoid a hard dependency on WildClawBench (which may not be installed in the TinyCUA development environment), we include a local copy of the `BaseAgent` ABC and its associated dataclasses:
+### RunMetadata
 
 ```python
-# tinycua/wildclawbench/base_agent.py
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from pathlib import Path
-import subprocess
-from typing import Any
-
-
-@dataclass(frozen=True)
-class AgentTaskSpec:
-    task_id: str
-    task: dict[str, Any]  # WildClawBench task metadata (type, category, etc.) — not used by adapter, logged for debugging
-    workspace_path: str
-    prompt: str
-    timeout_seconds: int
-    output_dir: Path
-    model: str
-    thinking: str | None = None
-    models_config: dict[str, Any] | None = None
-    lobster: dict[str, Any] | None = None
-
-
 @dataclass
-class AgentExecution:
-    elapsed_time: float
-    error: str | None = None
-    gateway_proc: subprocess.Popen[str] | None = None
-    agent_proc: subprocess.Popen[str] | None = None
-
-
-class BaseAgent(ABC):
-    @property
-    @abstractmethod
-    def expects_gateway(self) -> bool:
-        """Whether this backend starts a long-running gateway process."""
-
-    @property
-    @abstractmethod
-    def transcript_container_path(self) -> str:
-        """Path to chat transcript inside the runtime container."""
-
-    def prepare_grading_transcript(self, task_id: str) -> str:
-        _ = task_id
-        return self.transcript_container_path
-
-    @abstractmethod
-    def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
-        """Execute a task and return process handles, timing and error state."""
-
-    @abstractmethod
-    def collect_usage(self, task_id: str, output_dir: Path, elapsed_time: float) -> dict[str, Any]:
-        """Collect token usage and cost for one task."""
+class RunMetadata:
+    run_id: str                    # Unique run identifier (e.g., timestamp-based)
+    start_time: str                # ISO 8601 start time
+    end_time: str                  # ISO 8601 end time
+    total_duration_seconds: float  # Total run duration
+    
+    # Model configuration
+    local_model_name: str          # e.g., "llama3-70b"
+    endpoint_url: str              # e.g., "http://localhost:8000/v1"
+    api_key_configured: bool       # Whether API key was provided
+    
+    # Hardware info
+    cpu_info: str                  # CPU model and count
+    gpu_info: list[str]            # GPU model(s) and VRAM
+    ram_total_gb: float            # Total system RAM
+    
+    # Runtime info
+    runtime_version: str           # TinyCUA version
+    docker_image_tag: str          # Docker image used (if any)
+    python_version: str            # Python version
+    
+    # Judge configuration
+    judge_model: str | None        # Judge LLM model (if configured)
+    judge_endpoint: str | None     # Judge LLM endpoint (if configured)
 ```
 
-### TinyCUAAgent
+### TaskResult
 
 ```python
-# tinycua/wildclawbench/agent.py
+@dataclass
+class TaskResult:
+    task_id: str                   # WildClawBench task identifier
+    task_category: str             # e.g., "Productivity Flow", "Code Intelligence"
+    score: float | None            # Grading score (None if failed/timeout)
+    status: str                    # "success", "failed", "timeout", "error"
+    elapsed_time: float            # Task execution time in seconds
+    error: str | None              # Error message (if any)
+    
+    # Artifact paths (relative to output directory)
+    transcript_path: str           # e.g., "results/<task_id>/transcript.jsonl"
+    usage_path: str                # e.g., "results/<task_id>/usage.json"
+    log_path: str                  # e.g., "results/<task_id>/agent.log"
+    output_path: str | None        # e.g., "results/<task_id>/output/" (if applicable)
+    
+    # Usage data
+    requests: int                  # Number of LLM requests
+    total_tokens: int | None       # Total tokens (None if not available)
+    cost: float                    # Cost (0.0 for local models)
+```
 
-from __future__ import annotations
+### SummaryAggregate
 
-import logging
-import os
-import shutil
-import subprocess
-import time
-from pathlib import Path
-from typing import Any
+```python
+@dataclass
+class SummaryAggregate:
+    total_tasks: int               # Should be 60
+    completed_tasks: int           # Tasks that finished (success or failed)
+    successful_tasks: int          # Tasks with score > 0
+    failed_tasks: int              # Tasks with error/timeout
+    skipped_tasks: int             # Tasks not attempted (if any)
+    
+    average_score: float | None    # Average score across successful tasks
+    min_score: float | None        # Minimum score
+    max_score: float | None        # Maximum score
+    median_score: float | None     # Median score
+    
+    total_elapsed_seconds: float   # Sum of all task elapsed times
+    average_task_time: float       # Average time per task
+    
+    # Category breakdown
+    category_scores: dict[str, dict]  # {category: {avg, min, max, count}}
+```
 
-from tinycua.wildclawbench.base_agent import (
-    AgentExecution,
-    AgentTaskSpec,
-    BaseAgent,
-)
+### summary_all.json Structure
 
-logger = logging.getLogger(__name__)
-
-
-class TinyCUAAgent(BaseAgent):
-    """WildClawBench adapter for TinyCUA agents.
-
-    Wraps the `tinycua run` CLI as a subprocess to execute benchmark tasks
-    with process-level isolation, matching the execution model of other
-    WildClawBench backends.
-    """
-
-    def __init__(
-        self,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        model: str | None = None,
-        tinycua_bin: str = "tinycua",
-    ) -> None:
-        """Initialize TinyCUAAgent adapter.
-
-        Args:
-            base_url: Override for TINYCUA_BASE_URL env var.
-            api_key: Override for TINYCUA_API_KEY env var.
-            model: Override for TINYCUA_MODEL env var (default: from env or "llama3").
-            tinycua_bin: Path or name of the tinycua CLI binary.
-        """
-        self._base_url = base_url
-        self._api_key = api_key
-        self._model = model
-        self._tinycua_bin = tinycua_bin
-
-    @property
-    def expects_gateway(self) -> bool:
-        return False
-
-    @property
-    def transcript_container_path(self) -> str:
-        return "/tmp_workspace/results/transcript.jsonl"
-
-    def prepare_grading_transcript(self, task_id: str) -> str:
-        return self.transcript_container_path
-
-    def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
-        """Execute a benchmark task via tinycua run subprocess.
-
-        Spawns `tinycua run` with the task prompt, workspace, output directory,
-        timeout, and model configuration. Monitors for timeout and returns
-        timing/error state.
-        """
-        output_dir = Path(spec.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        workspace = Path(spec.workspace_path)
-        workspace.mkdir(parents=True, exist_ok=True)
-
-        # Build CLI command
-        cmd = [
-            self._tinycua_bin,
-            "run",
-            spec.prompt,
-            "--timeout", str(spec.timeout_seconds),
-            "--output-dir", str(output_dir),
-            "--workspace", str(workspace),
-            "--model", spec.model,
-        ]
-        if self._base_url:
-            cmd.extend(["--base-url", self._base_url])
-        if self._api_key:
-            cmd.extend(["--api-key", self._api_key])
-
-        # Set environment for the subprocess
-        env = os.environ.copy()
-        if self._base_url:
-            env["TINYCUA_BASE_URL"] = self._base_url
-        if self._api_key:
-            env["TINYCUA_API_KEY"] = self._api_key
-        if spec.model:
-            env["TINYCUA_MODEL"] = spec.model
-
-        start_time = time.monotonic()
-        error = None
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=str(workspace),
-                env=env,
-                text=True,
-            )
-
-            try:
-                _, stderr = proc.communicate(timeout=spec.timeout_seconds)
-                elapsed = time.monotonic() - start_time
-
-                if proc.returncode != 0 and proc.returncode != 124:
-                    error = f"tinycua exited with code {proc.returncode}: {stderr.strip()}"
-                elif proc.returncode == 124:
-                    error = f"tinycua timed out after {spec.timeout_seconds}s"
-            except subprocess.TimeoutExpired:
-                elapsed = time.monotonic() - start_time
-                proc.kill()
-                proc.wait()
-                error = f"tinycua timed out after {spec.timeout_seconds}s"
-
-        except FileNotFoundError:
-            elapsed = time.monotonic() - start_time
-            error = f"tinycua binary not found: {self._tinycua_bin}"
-        except Exception as e:
-            elapsed = time.monotonic() - start_time
-            error = f"Failed to run tinycua: {e}"
-
-        return AgentExecution(
-            elapsed_time=elapsed,
-            error=error,
-        )
-
-    def collect_usage(
-        self,
-        task_id: str,
-        output_dir: Path,
-        elapsed_time: float,
-    ) -> dict[str, Any]:
-        """Collect usage data from the completed task.
-
-        Reads the transcript.jsonl file for request counts and token usage.
-        Returns a dict with requests, total_tokens, and cost keys.
-        """
-        transcript_path = Path(output_dir) / "transcript.jsonl"
-
-        requests_count = 0
-        total_tokens: int | None = None
-
-        if transcript_path.exists():
-            try:
-                import json
-
-                with open(transcript_path) as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        event = json.loads(line)
-                        event_type = event.get("type", "")
-                        if "llm" in event_type or "response" in event_type:
-                            requests_count += 1
-                        # Try to extract token usage from usage fields
-                        usage = event.get("usage", {})
-                        if "total_tokens" in usage:
-                            if total_tokens is None:
-                                total_tokens = 0
-                            total_tokens += usage["total_tokens"]
-            except Exception as e:
-                logger.warning("Failed to parse transcript for usage: %s", e)
-
-        return {
-            "requests": requests_count,
-            "total_tokens": total_tokens,
-            "cost": 0.0,  # Local model — no cost
-        }
+```json
+{
+  "metadata": {
+    "run_id": "2026-06-14T12:00:00Z",
+    "start_time": "2026-06-14T12:00:00Z",
+    "end_time": "2026-06-14T18:30:00Z",
+    "total_duration_seconds": 23400,
+    "local_model_name": "llama3-70b",
+    "endpoint_url": "http://localhost:8000/v1",
+    "api_key_configured": false,
+    "cpu_info": "AMD Ryzen 9 7950X 16-Core",
+    "gpu_info": ["NVIDIA RTX 4090 24GB"],
+    "ram_total_gb": 64.0,
+    "runtime_version": "0.1.0",
+    "docker_image_tag": "tinycua-benchmark:latest",
+    "python_version": "3.11.15",
+    "judge_model": null,
+    "judge_endpoint": null
+  },
+  "summary": {
+    "total_tasks": 60,
+    "completed_tasks": 58,
+    "successful_tasks": 45,
+    "failed_tasks": 10,
+    "skipped_tasks": 2,
+    "average_score": 0.72,
+    "min_score": 0.0,
+    "max_score": 1.0,
+    "median_score": 0.8,
+    "total_elapsed_seconds": 21600,
+    "average_task_time": 360,
+    "category_scores": {
+      "Productivity Flow": {"avg": 0.75, "min": 0.0, "max": 1.0, "count": 10},
+      "Code Intelligence": {"avg": 0.8, "min": 0.2, "max": 1.0, "count": 12}
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "task_category": "Productivity Flow",
+      "score": 0.85,
+      "status": "success",
+      "elapsed_time": 420.5,
+      "error": null,
+      "transcript_path": "results/task_001/transcript.jsonl",
+      "usage_path": "results/task_001/usage.json",
+      "log_path": "results/task_001/agent.log",
+      "output_path": "results/task_001/output/",
+      "requests": 15,
+      "total_tokens": 25000,
+      "cost": 0.0
+    }
+  ]
+}
 ```
 
 ---
 
 ## API / Interface Contracts
 
-### Constructor
+### Benchmark Orchestrator Script
 
 ```python
-TinyCUAAgent(
-    base_url: str | None = None,
-    api_key: str | None = None,
-    model: str | None = None,
-    tinycua_bin: str = "tinycua",
-)
-```
+# scripts/run_benchmark.py
 
-### run_task
-
-```python
-def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
+def run_full_benchmark(
+    config: BenchmarkConfig,
+    output_dir: Path,
+    tasks: list[str] | None = None,  # None = all 60 tasks
+) -> dict:
     """
-    Spawns: tinycua run <prompt> --timeout <t> --output-dir <d> --workspace <w> --model <m>
-    Returns: AgentExecution(elapsed_time, error)
-    """
-```
-
-### collect_usage
-
-```python
-def collect_usage(self, task_id: str, output_dir: Path, elapsed_time: float) -> dict[str, Any]:
-    """
-    Returns: {"requests": int, "total_tokens": int | None, "cost": float}
+    Execute the full WildClawBench benchmark suite.
+    
+    Args:
+        config: Benchmark configuration (model, endpoint, timeout, etc.)
+        output_dir: Directory for results and artifacts
+        tasks: Optional list of specific task IDs to run (default: all 60)
+    
+    Returns:
+        Parsed summary_all.json content
     """
 ```
 
-### Error Handling
+### Configuration
 
-| Error Case | Exception / Response | Notes |
-|------------|---------------------|-------|
-| tinycua binary not found | `AgentExecution(error="tinycua binary not found: ...")` | Non-fatal — WildClawBench logs the error |
-| tinycua returns non-zero exit | `AgentExecution(error="tinycua exited with code ...")` | Include stderr in error message |
-| tinycua times out | `AgentExecution(error="tinycua timed out after ...")` | Process killed, elapsed_time set |
-| Output dir not writable | `AgentExecution(error="Failed to run tinycua: ...")` | Caught by generic exception handler |
-| Transcript file missing | Usage returns zeroed values | Graceful degradation |
+```python
+# scripts/benchmark_config.py
+
+@dataclass
+class BenchmarkConfig:
+    # Model configuration
+    model_name: str = "llama3"
+    base_url: str = "http://localhost:8000/v1"
+    api_key: str | None = None
+    
+    # Execution configuration
+    timeout_seconds: int = 600  # 10 minutes per task
+    concurrent_tasks: int = 1   # Sequential for now
+    
+    # Docker configuration
+    docker_image: str = "tinycua-benchmark:latest"
+    use_docker: bool = True
+    
+    # Output configuration
+    preserve_artifacts: bool = True
+    verbose: bool = True
+```
+
+### Metadata Collection
+
+```python
+# scripts/collect_metadata.py
+
+def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
+    """
+    Collect hardware, software, and configuration metadata.
+    
+    Returns:
+        RunMetadata with all fields populated
+    """
+```
 
 ---
 
 ## Implementation Phases
 
-Implementation tracking is maintained in `task.md`. The phases defined there (TDD → Implementation → Testing → Verification → Documentation → Review) serve as the single source of truth for implementation progress.
+### Phase 1 — Benchmark Script Structure
 
-> **Note**: Phase 3 must NOT be implemented until Phase 2 is complete and reviewed.
+- [ ] Create `scripts/run_benchmark.py` with argument parsing
+- [ ] Create `scripts/benchmark_config.py` with configuration dataclass
+- [ ] Implement task list loading (from WildClawBench or hardcoded list)
+- [ ] Implement basic loop: for each task, run TinyCUAAgent
+
+### Phase 2 — Data Collection and Aggregation
+
+- [ ] Implement per-task result collection (TaskResult)
+- [ ] Implement usage data collection via TinyCUAAgent.collect_usage()
+- [ ] Implement aggregate statistics calculation (SummaryAggregate)
+- [ ] Implement metadata collection (RunMetadata)
+
+### Phase 3 — Output Generation
+
+- [ ] Implement summary_all.json schema and writing
+- [ ] Implement task artifact directory structure
+- [ ] Implement error handling and graceful failure
+
+### Phase 4 — Testing and Validation
+
+- [ ] Unit tests for schema validation and aggregate logic
+- [ ] Integration test with subset of tasks
+- [ ] Manual test with full 60-task run
 
 ---
 
 ## Technical Decisions
 
-1. **Decision**: Use subprocess (`tinycua run`) instead of calling `create_tinycua_agent()` directly.
-   - **Reason**: WildClawBench expects process-level isolation. The CLI already handles timeout, workspace setup, output directory creation, and transcript writing. This matches how other WildClawBench backends work (they spawn agent processes).
-   - **Alternatives Considered**: In-process agent creation — rejected because it doesn't provide process isolation and would require reimplementing timeout/workspace/transcript logic.
+1. **Decision**: Use Python script (not CLI command) for benchmark orchestration.
+   - **Reason**: Benchmark runs are long-running (hours), require detailed logging, and benefit from script-level control over the execution loop. A CLI command would add unnecessary complexity.
+   - **Alternatives Considered**: Adding a `tinycua benchmark` CLI command — rejected because it conflates agent execution with benchmark orchestration.
 
-2. **Decision**: Include a local copy of `BaseAgent` ABC rather than importing from WildClawBench.
-   - **Reason**: WildClawBench may not be installed in the TinyCUA development environment. A local copy avoids a hard dependency while maintaining interface compatibility. The local copy is identical to WildClawBench's `src/agents/base.py`.
-   - **Alternatives Considered**: WildClawBench as a dependency — rejected because it pulls in WildClawBench's full dependency tree and creates a circular dependency risk.
+2. **Decision**: Store results in a flat directory structure (`results/<task_id>/`) rather than nested by category.
+   - **Reason**: Simpler artifact management, easier to inspect individual task results, and matches WildClawBench conventions.
+   - **Alternatives Considered**: Nested `results/<category>/<task_id>/` — rejected because it complicates artifact path management.
 
-3. **Decision**: Use `subprocess.Popen` with `communicate(timeout=...)` for timeout enforcement.
-   - **Reason**: Simple, cross-platform, and sufficient for prototype scope. The CLI already has internal timeout handling, so this is a secondary safety net.
-   - **Alternatives Considered**: `asyncio.create_subprocess_exec` — rejected because `run_task()` is synchronous per the `BaseAgent` interface.
+3. **Decision**: Run tasks sequentially (concurrent_tasks=1) by default.
+   - **Reason**: Local LLM endpoints may not support high concurrency; sequential execution ensures stable resource usage and clearer error attribution.
+   - **Alternatives Considered**: Parallel execution — deferred to post-prototype if local endpoint supports it.
 
-4. **Decision**: Parse transcript JSONL for usage data rather than requiring a separate usage output format.
-   - **Reason**: The transcript already contains LLM call events with optional `usage` fields. Parsing it avoids adding a new output format. For local models where token counts may not be available, the adapter returns `None` for `total_tokens` and `0.0` for `cost`.
-   - **Alternatives Considered**: Separate usage JSON file — rejected because it adds complexity and the transcript already has the data.
+4. **Decision**: Include raw hardware info in metadata (CPU model, GPU VRAM, RAM).
+   - **Reason**: Essential for interpreting benchmark results; local model performance is heavily dependent on hardware.
+   - **Alternatives Considered**: Just GPU info — rejected because CPU/RAM also affect performance for non-GPU tasks.
 
-5. **Decision**: `transcript_container_path` returns `/tmp_workspace/results/transcript.jsonl`.
-    - **Reason**: WildClawBench tasks run in Docker with `/tmp_workspace` as the standard workspace. The transcript is written to the results subdirectory by the existing CLI. This path is used by `prepare_grading_transcript()` and is the Docker-container-relative path that WildClawBench uses to locate the transcript.
-    - **Relationship to `collect_usage()`**: `collect_usage()` receives `output_dir` as a parameter and reads from `output_dir / "transcript.jsonl"` — this is the local filesystem path where the CLI writes the transcript. In the WildClawBench Docker context, `output_dir` maps to the container path, so both paths resolve to the same file. Locally, `collect_usage()` uses the local `output_dir` directly, which is correct.
-    - **Alternatives Considered**: Configurable path — deferred to post-MVP; the default path works for all standard WildClawBench tasks.
+5. **Decision**: Use TinyCUAAgent adapter rather than direct CLI invocation.
+   - **Reason**: Adapter provides consistent interface for task execution, usage collection, and transcript management. Avoids duplicating subprocess handling logic.
+   - **Alternatives Considered**: Direct CLI invocation — rejected because it would require reimplementing timeout handling, usage parsing, and artifact management.
 
 ---
 
@@ -383,29 +307,33 @@ Implementation tracking is maintained in `task.md`. The phases defined there (TD
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| WildClawBench `BaseAgent` interface changes | Low | Medium | Local copy is easy to update; pin to known version |
-| `tinycua run` CLI output format changes break usage parsing | Medium | Low | Usage parsing is best-effort; returns zeroed values on failure |
-| Subprocess timeout doesn't kill child processes cleanly | Low | Medium | Use `proc.kill()` + `proc.wait()`; monitor for zombie processes |
-| Local model endpoint unreachable from subprocess | Medium | High | Subprocess inherits env vars; error captured and returned in `AgentExecution` |
-| WildClawBench transcript loader expects specific JSONL schema | Medium | Medium | Design events to match common JSONL format; test with actual WildClawBench loader |
+| Local LLM endpoint crashes mid-run | Medium | High | Record partial results; support resuming from last completed task |
+| Task timeouts exceed reasonable limits | Medium | Medium | Configurable timeout per task; default 10 minutes |
+| Hardware info collection fails on some platforms | Low | Low | Graceful fallback to "unknown" for missing hardware fields |
+| summary_all.json becomes very large (60 tasks) | Low | Low | Use compact JSON; 60 tasks is manageable |
+| WildClawBench task list changes between versions | Low | Medium | Document task list source; allow manual task specification |
+| Docker resource exhaustion during long runs | Medium | High | Monitor container resource usage; add resource limits |
 
 ---
 
 ## Open Questions _(optional)_
 
-1. **Should the adapter support `thinking` and `lobster` fields from `AgentTaskSpec`?**
-   - Current thinking: Log them as unsupported for now. Add support when TinyCUA supports thinking/reasoning modes.
+1. **Should the benchmark support resuming from a partial run?**
+   - Current thinking: Yes, for robustness. If the run is interrupted, it should detect completed tasks and skip them on re-run. This requires tracking completed task IDs.
 
-2. **Should `collect_usage()` also parse `agent.log` for additional metrics?**
-   - Current thinking: Start with transcript-only parsing. Add log parsing in Phase 3 if needed.
+2. **How should judge LLM configuration be handled in the metadata?**
+   - Current thinking: Include judge_model and judge_endpoint in metadata, but allow them to be null if not configured. Document that judge configuration is separate from harness execution.
+
+3. **Should the benchmark script support custom task lists?**
+   - Current thinking: Yes, via a `--tasks` argument that accepts a comma-separated list of task IDs. Default is all 60 tasks.
 
 ---
 
 ## References
 
 - Spec: [./spec.md](./spec.md)
-- WildClawBench BaseAgent: `https://github.com/InternLM/WildClawBench/blob/main/src/agents/base.py`
-- Issue: https://github.com/VJyzCELERY/TINYCUA/issues/87 (Milestone 5.2)
-- Existing CLI: `src/tinycua/tinycua/cli/run.py` — `run_command()` function
-- Existing factory: `src/tinycua/tinycua/factory.py` — `create_tinycua_agent()`
-- Existing config: `src/tinycua/tinycua/cli/config.py` — `load_config()`
+- WildClawBench task list: `https://github.com/InternLM/WildClawBench`
+- Issue: https://github.com/VJyzCELERY/TINYCUA/issues/87 (Milestone 5.6)
+- TinyCUA adapter: `src/tinycua/tinycua/wildclawbench/agent.py` (Milestone 5.2)
+- TinyCUA CLI: `src/tinycua/tinycua/cli/run.py` (Milestone 5.1)
+- Docker image: `Dockerfile` (Milestone 5.3)
