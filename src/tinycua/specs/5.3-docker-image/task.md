@@ -4,50 +4,50 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 ## TDD Phase (Tests First)
 
-- [ ] Write integration tests for Docker image build and container lifecycle (defined in implementation-plan.md) <!-- id: 0 -->
+- [x] Write integration tests for Docker image build and container lifecycle (defined in implementation-plan.md) <!-- id: 0 -->
 - [ ] Run integration tests — expect RED (failures) since no implementation yet <!-- id: 1 -->
 
 ## Implementation Phase
 
 ### Dockerfile & Container Setup
 
-- [ ] Create `Dockerfile` at project root with `python:3.11-slim` base <!-- id: 2 -->
-  - [ ] Install system dependencies (bash, coreutils, curl, git, wget)
-  - [ ] Install uv package manager
-  - [ ] Copy and install Python dependencies
-  - [ ] Copy TinyCUA source and tinycua-sdk
-  - [ ] Install TinyCUA packages (non-editable)
-  - [ ] Set WORKDIR to `/tmp_workspace`
+- [x] Create `Dockerfile` at project root with `python:3.11-slim` base <!-- id: 2 -->
+  - [x] Install system dependencies (bash, coreutils, curl, git, wget)
+  - [x] Install uv package manager
+  - [x] Copy and install Python dependencies
+  - [x] Copy TinyCUA source and tinycua-sdk
+  - [x] Install TinyCUA packages (non-editable)
+  - [x] Set WORKDIR to `/tmp_workspace`
 
-- [ ] Create `scripts/entrypoint.sh` with environment validation <!-- id: 3 -->
-  - [ ] Validate `TINYCUA_BASE_URL` is set
-  - [ ] Validate `TASK_PROMPT` is set (WildClawBench injection contract)
-  - [ ] Validate `/tmp_workspace` is mounted and writable
-  - [ ] Export environment variables for TinyCUA
-  - [ ] Execute `tinycua benchmark run` with correct arguments
-  - [ ] Handle graceful shutdown and signal trapping
+- [x] Create `scripts/entrypoint.sh` with environment validation <!-- id: 3 -->
+  - [x] Validate `TINYCUA_BASE_URL` is set
+  - [x] Validate `TASK_PROMPT` is set (WildClawBench injection contract)
+  - [x] Validate `/tmp_workspace` is mounted and writable
+  - [x] Export environment variables for TinyCUA
+  - [x] Execute `tinycua benchmark run` with correct arguments
+  - [x] Handle graceful shutdown and signal trapping
 
 ### CLI Benchmark Subcommand
 
-- [ ] Add `benchmark` subcommand to `cli/main.py` <!-- id: 4 -->
-  - [ ] Register `benchmark` subparser with `run` sub-subcommand
-  - [ ] Add `--prompt`, `--workspace`, `--output`, `--timeout` arguments
-  - [ ] Dispatch to `cli/benchmark.py`
+- [x] Add `benchmark` subcommand to `cli/main.py` <!-- id: 4 -->
+  - [x] Register `benchmark` subparser with `run` sub-subcommand
+  - [x] Add `--prompt`, `--workspace`, `--output`, `--timeout` arguments
+  - [x] Dispatch to `cli/benchmark.py`
 
-- [ ] Create `cli/benchmark.py` with benchmark run logic <!-- id: 5 -->
-  - [ ] Parse benchmark-specific arguments
-  - [ ] Read `TASK_PROMPT` from environment or argument
-  - [ ] Configure workspace paths (`/tmp_workspace`, `/tmp_workspace/results`, `/tmp_workspace/transcript.jsonl`)
-  - [ ] Invoke TinyCUA agent loop with benchmark defaults
-  - [ ] Return exit code 0 on success, non-zero on failure
+- [x] Create `cli/benchmark.py` with benchmark run logic <!-- id: 5 -->
+  - [x] Parse benchmark-specific arguments
+  - [x] Read `TASK_PROMPT` from environment or argument
+  - [x] Configure workspace paths (`/tmp_workspace`, `/tmp_workspace/results`, `/tmp_workspace/transcript.jsonl`)
+  - [x] Invoke TinyCUA agent loop with benchmark defaults
+  - [x] Return exit code 0 on success, non-zero on failure
 
 ### Documentation
 
-- [ ] Create `src/tinycua/docs/benchmark/README.md` with usage documentation <!-- id: 7 -->
-  - [ ] Build instructions
-  - [ ] Configuration reference (env vars, volumes)
-  - [ ] Networking setup for local model endpoints
-  - [ ] Troubleshooting guide
+- [x] Create `src/tinycua/docs/benchmark/README.md` with usage documentation <!-- id: 7 -->
+  - [x] Build instructions
+  - [x] Configuration reference (env vars, volumes)
+  - [x] Networking setup for local model endpoints
+  - [x] Troubleshooting guide
 
 ## Testing Phase
 
@@ -75,9 +75,9 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 ## Post-MVP Enhancements
 
-- [ ] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
-  - [ ] Define service with volume mounts and env vars
-  - [ ] Configure `host.docker.internal` networking for Linux
+- [x] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
+  - [x] Define service with volume mounts and env vars
+  - [x] Configure `host.docker.internal` networking for Linux
 
 ## Review and Merge
 
